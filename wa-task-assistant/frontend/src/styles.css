@@ -220,3 +220,12 @@ input[type='checkbox'] { width: 20px; height: 20px; min-height: 0; accent-color:
 /* ---- login ---- */
 .login { max-width: 380px; padding-top: 80px; text-align: center; }
 .login-form { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
+.mode-hint { margin: 10px 0 0; line-height: 1.5; }
+.mode-hint code {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+}

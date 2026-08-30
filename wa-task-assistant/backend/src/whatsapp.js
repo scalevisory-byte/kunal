@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { insertMessage, markMessagesProcessed, createTask } from './db.js';
 import { extractTasks } from './extractor.js';
+import { parseQuickTask } from './quickparse.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -12,6 +13,7 @@ const { Client, LocalAuth } = pkg;
 const IGNORED_CHAT_IDS = new Set(['status@broadcast', '0@c.us']);
 
 export const state = {
+  mode: config.extractionMode, // 'ai' | 'manual'
   status: 'starting', // starting | qr | authenticated | ready | disconnected | error
   qrDataUrl: null,
   me: null,
@@ -71,6 +73,46 @@ async function flushBuffer() {
     log.error('Batch extraction failed, messages left unprocessed:', err?.message || err);
   } finally {
     flushing = false;
+  }
+}
+
+/**
+ * Manual mode: no AI, no API key, and nothing anyone else sends is stored.
+ * A task is created only when YOU write it - either in your own "message
+ * yourself" chat, or anywhere with the trigger prefix.
+ */
+export async function handleOwnMessage(message) {
+  try {
+    if (!message.fromMe) return;
+
+    const body = (message.body || '').trim();
+    if (!body) return;
+
+    const chat = await message.getChat();
+    const chatId = chat.id?._serialized ?? message.to;
+    const inSelfChat = Boolean(state.me) && chatId === state.me;
+    const trigger = config.taskTrigger;
+    const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
+
+    if (!inSelfChat && !hasTrigger) return;
+
+    const parsed = parseQuickTask(body, { trigger: hasTrigger ? trigger : '' });
+    if (!parsed) return;
+
+    createTask({
+      ...parsed,
+      // A forward keeps the original text but not its author, so record where it landed.
+      chat_name: inSelfChat ? 'Saved by you' : chat.name || null,
+      chat_id: chatId,
+      source: 'whatsapp',
+      status: 'open',
+    });
+
+    state.lastMessageAt = new Date().toISOString();
+    state.lastExtractionAt = new Date().toISOString();
+    log.info(`Task captured: "${parsed.title}"${parsed.due_date ? ` (due ${parsed.due_date})` : ''}`);
+  } catch (err) {
+    log.error('handleOwnMessage:', err?.message || err);
   }
 }
 
@@ -161,7 +203,17 @@ export function startWhatsApp() {
     log.warn('WhatsApp disconnected:', reason);
   });
 
-  client.on('message', handleMessage);
+  if (config.extractionMode === 'manual') {
+    // message_create also fires for messages you send, which is the whole input here.
+    client.on('message_create', handleOwnMessage);
+    log.info(
+      `Manual mode: no AI. Tasks come from your own "message yourself" chat` +
+        (config.taskTrigger ? ` or any message starting with "${config.taskTrigger}".` : '.')
+    );
+  } else {
+    client.on('message', handleMessage);
+    log.info(`AI mode: incoming chats are read by ${config.model}.`);
+  }
 
   client.initialize().catch((err) => {
     state.status = 'error';

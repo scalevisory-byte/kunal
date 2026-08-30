@@ -55,6 +55,47 @@ device**, scan it. The session is saved under `DATA_DIR/wa-session`, so this is 
 as long as that directory survives. The QR is also served at `GET /api/status` and rendered on
 the dashboard, which is how you re-link after a deploy without shell access.
 
+## Two capture modes
+
+`EXTRACTION_MODE` decides how tasks get in. Switch it any time; nothing else changes —
+the dashboard, reminders and WhatsApp digest work identically either way.
+
+| | `ai` (default) | `manual` |
+|---|---|---|
+| Who decides what's a task | Claude | You |
+| Effort from you | none, it's ambient | forward or tag the message |
+| Cost | ~₹275/month at 100 msgs/day | **zero** |
+| Anthropic API key | required | **not needed** |
+| Other people's messages | sent to the API, stored in `messages` | **never read, never stored** |
+| Misses things | occasionally | only if you forget to forward |
+| Invents things | occasionally | never |
+
+### `manual` — no AI at all
+
+Two ways to capture, both under your control:
+
+1. **Forward or type into your own "message yourself" chat.** Anything landing there
+   becomes a task.
+2. **Start a message with the trigger** (`TASK_TRIGGER`, default `#task`) in *any* chat.
+   `#task Book Ahmedabad flight tomorrow` creates the task without leaving the conversation.
+
+`quickparse.js` then reads the text you wrote — plain pattern matching, no model:
+
+- **Dates** — `today`/`aaj`, `tomorrow`/`kal`, `parso`, `next week`, `in 3 days`, `Friday`,
+  `12/09` (day first), `2026-09-15`, `12th`. The date phrase is stripped from the title,
+  including Hindi word order (`kal tak` as well as `by Friday`).
+- **Priority** — a leading or trailing `!`, or the words urgent / asap / turant / jaldi.
+- **Long forwards** — first line becomes the title, the rest becomes the note.
+
+This works precisely *because you wrote the message*. The same pattern matching aimed at
+other people's incoming messages scores about 33% recall on held-out text — it misses two
+real tasks out of three. That is why `ai` mode exists and why there is no "keyword mode"
+for reading other people's chats.
+
+In manual mode the `messages` table stays empty. Nothing anyone sends you is stored.
+
+### `ai` — ambient
+
 ## How extraction works
 
 Every incoming message is written to `messages` immediately. A single debounce timer resets on

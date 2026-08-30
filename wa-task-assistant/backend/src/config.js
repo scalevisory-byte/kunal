@@ -24,6 +24,13 @@ export const config = {
 
   dashboardPassword: process.env.DASHBOARD_PASSWORD || '',
 
+  // 'ai'     - Claude reads every incoming chat and decides what is a task.
+  // 'manual' - no AI and no API key. Tasks come only from messages you write or
+  //            forward to yourself, so nobody else's chats are read or stored.
+  extractionMode: (process.env.EXTRACTION_MODE || 'ai').toLowerCase() === 'manual' ? 'manual' : 'ai',
+  // Prefix that turns a message you send in ANY chat into a task. Empty disables it.
+  taskTrigger: process.env.TASK_TRIGGER === undefined ? '#task' : process.env.TASK_TRIGGER.trim(),
+
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   // Per the project spec. Swap to `claude-opus-5` for harder extraction.
   model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',

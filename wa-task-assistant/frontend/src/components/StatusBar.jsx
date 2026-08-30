@@ -24,10 +24,26 @@ export default function StatusBar({ status, stats, overdueCount }) {
             <span className="pill muted">{stats.done ?? 0} done</span>
           </>
         )}
+        {wa?.mode && <span className="pill muted">{wa.mode === 'manual' ? 'manual capture' : 'AI reading'}</span>}
         {wa?.bufferedCount > 0 && (
           <span className="pill muted">{wa.bufferedCount} message(s) queued</span>
         )}
       </div>
+
+      {wa?.mode === 'manual' && state === 'ready' && (
+        <p className="hint mode-hint">
+          <strong>Manual mode</strong> — nothing is read automatically. Forward a WhatsApp
+          message to your own chat, or start any message with{' '}
+          <code>{status?.config?.taskTrigger || '#task'}</code>, and it becomes a task.
+        </p>
+      )}
+
+      {wa?.mode === 'ai' && state === 'ready' && (
+        <p className="hint mode-hint">
+          <strong>AI mode</strong> — incoming chats are read automatically and actionable
+          messages become tasks.
+        </p>
+      )}
 
       {state === 'qr' && wa?.qrDataUrl && (
         <div className="qr">

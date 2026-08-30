@@ -12,6 +12,7 @@ export const systemRouter = Router();
 systemRouter.get('/status', (req, res) => {
   res.json({
     whatsapp: {
+      mode: state.mode,
       status: state.status,
       me: state.me,
       qrDataUrl: state.qrDataUrl,
@@ -22,7 +23,9 @@ systemRouter.get('/status', (req, res) => {
     },
     tasks: taskStats(),
     config: {
-      model: config.model,
+      extractionMode: config.extractionMode,
+      taskTrigger: config.taskTrigger,
+      model: config.extractionMode === 'ai' ? config.model : null,
       timezone: config.timezone,
       batchQuietSeconds: config.batchQuietMs / 1000,
       reminderCron: [config.reminderCronMorning, config.reminderCronEvening],
