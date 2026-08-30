@@ -72,14 +72,37 @@ are not retried in a loop.
 
 ## Reminders
 
-`node-cron` runs at 08:30 and 18:00 in `TIMEZONE`. Each run selects open tasks with
-`due_date <= today` and `reminder_sent = 0`, sends one grouped WhatsApp digest to `REMINDER_TO`
-(or the linked account's own chat), fires a web push to every subscribed browser, then sets
-`reminder_sent = 1`.
+`node-cron` runs at 08:30 and 18:00 in `TIMEZONE`. Each run takes every open task that is due,
+overdue, or has no date at all, sends one grouped WhatsApp digest to `REMINDER_TO` (or the
+linked account's own chat), and fires a web push to every subscribed browser.
 
-`reminder_sent` is only set if the digest actually went out on at least one channel — if
-WhatsApp was disconnected and nobody had push enabled, the tasks stay queued for the next run.
-Re-opening a completed task clears the flag so it can remind again.
+**Reminders repeat until the task is done.** There is no "already reminded" filter — a task
+leaves the digest by being marked done, and by nothing else. Each send increments
+`reminder_count`, so a task that keeps being ignored starts showing `asked 4x` in the digest
+and `reminded 4×` on its dashboard card. Completing a task drops it immediately; re-opening one
+resets the count so it starts over rather than resuming a stale tally.
+
+The count is only incremented if the digest actually reached a channel — if WhatsApp was
+disconnected and nobody had push enabled, the counter does not inflate with digests nobody saw.
+
+A digest looks like this:
+
+```
+*Your open tasks* — 2026-08-30
+
+🔴 Send GST invoice to Rakesh _(overdue by 6 days)_
+   Rakesh · Rakesh Patel — asked 4x
+🔴 Pay the Surat vendor advance _(overdue since yesterday)_
+   Arrohan Living
+🟡 Book Ahmedabad flight for Tuesday _(due today)_
+   Meera · Book N Fly Ops
+
+*No date set*
+🟡 Share ZYNTA candidate shortlist
+   Nilesh
+
+4 still open. They keep showing up here until you mark them done.
+```
 
 `POST /api/reminders/run` runs the same code path on demand.
 

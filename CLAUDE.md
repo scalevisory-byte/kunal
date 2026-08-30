@@ -21,7 +21,7 @@ Located at `/wa-task-assistant/` (backend + frontend). Rebuilt in-repo from this
 - `whatsapp-web.js` for the WhatsApp connection — QR-code login (like linking a device), NOT the Meta Business Cloud API. This matters: Business API can only see messages sent TO a business number. Dinesh wants his personal chats read, which requires the WhatsApp Web session approach instead.
 - Incoming messages get buffered (~15s of quiet) and batch-sent to **Claude (Anthropic API, model `claude-sonnet-4-6`, overridable via `ANTHROPIC_MODEL`)** with a system prompt that extracts `{title, description, contact, chat_name, due_date, priority}` as JSON. Ignore casual/non-actionable messages.
 - **SQLite** (`better-sqlite3`) for storage: `messages` table (raw incoming messages) and `tasks` table (extracted/manual tasks with status, due_date, priority).
-- **node-cron** job runs twice daily (8:30 AM & 6 PM IST) — finds tasks with `due_date <= today AND status = 'open' AND reminder_sent = 0`, sends a WhatsApp summary back to Dinesh's own number, marks `reminder_sent = 1`.
+- **node-cron** job runs twice daily (8:30 AM & 6 PM IST) — sends a WhatsApp digest of every open task that is due, overdue, or undated, back to Dinesh's own number. Reminders **repeat every run until the task is marked done**; each send bumps `reminder_count`, which the digest and dashboard show as "asked 4x" / "reminded 4×".
 - REST API (`/api/tasks` — GET/POST/PATCH/DELETE) for the dashboard to read/write tasks.
 
 ### Frontend (React)

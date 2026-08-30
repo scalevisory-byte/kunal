@@ -34,7 +34,8 @@ db.exec(`
     due_date      TEXT,
     priority      TEXT NOT NULL DEFAULT 'medium',
     status        TEXT NOT NULL DEFAULT 'open',
-    reminder_sent INTEGER NOT NULL DEFAULT 0,
+    reminder_count   INTEGER NOT NULL DEFAULT 0,
+    last_reminded_at TEXT,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at  TEXT
@@ -51,6 +52,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_messages_processed ON messages(processed);
   CREATE INDEX IF NOT EXISTS idx_tasks_status_due   ON tasks(status, due_date);
 `);
+
+// Databases created before reminders repeated have `reminder_sent` instead.
+// Carry it over as a count of 1 so already-reminded tasks are not double-counted.
+const taskColumns = new Set(db.prepare(`PRAGMA table_info(tasks)`).all().map((c) => c.name));
+if (!taskColumns.has('reminder_count')) {
+  db.exec(`ALTER TABLE tasks ADD COLUMN reminder_count INTEGER NOT NULL DEFAULT 0`);
+  if (taskColumns.has('reminder_sent')) {
+    db.exec(`UPDATE tasks SET reminder_count = reminder_sent`);
+  }
+  log.info('Migrated tasks table: added reminder_count.');
+}
+if (!taskColumns.has('last_reminded_at')) {
+  db.exec(`ALTER TABLE tasks ADD COLUMN last_reminded_at TEXT`);
+  log.info('Migrated tasks table: added last_reminded_at.');
+}
 
 log.info(`SQLite ready at ${config.dbPath}`);
 
@@ -151,7 +167,7 @@ export function updateTask(id, patch) {
     fields.push(`completed_at = datetime('now')`);
   }
   if (patch.status === 'open' && current.status === 'done') {
-    fields.push(`completed_at = NULL`, `reminder_sent = 0`);
+    fields.push(`completed_at = NULL`, `reminder_count = 0`, `last_reminded_at = NULL`);
   }
 
   db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
@@ -163,24 +179,34 @@ export function deleteTask(id) {
 }
 
 /**
- * Tasks due today or overdue, still open, and not yet reminded about.
+ * Everything that should appear in a reminder digest: open tasks that are due,
+ * overdue, or have no date at all. There is deliberately no "already reminded"
+ * filter - a task keeps being reminded about until it is marked done.
  * `today` is a YYYY-MM-DD string in the configured timezone.
  */
-export function dueTasks(today) {
+export function pendingReminders(today) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE status = 'open' AND reminder_sent = 0
-         AND due_date IS NOT NULL AND due_date <= ?
-       ORDER BY due_date ASC,
-         CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`
+       WHERE status = 'open' AND (due_date IS NULL OR due_date <= ?)
+       ORDER BY
+         due_date IS NULL,
+         due_date ASC,
+         CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+         id ASC`
     )
     .all(today);
 }
 
-export function markRemindersSent(ids) {
+export function recordReminders(ids) {
   if (!ids.length) return;
-  const stmt = db.prepare(`UPDATE tasks SET reminder_sent = 1, updated_at = datetime('now') WHERE id = ?`);
+  const stmt = db.prepare(
+    `UPDATE tasks
+     SET reminder_count = reminder_count + 1,
+         last_reminded_at = datetime('now'),
+         updated_at = datetime('now')
+     WHERE id = ?`
+  );
   db.transaction((list) => list.forEach((id) => stmt.run(id)))(ids);
 }
 

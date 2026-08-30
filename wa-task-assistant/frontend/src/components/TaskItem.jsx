@@ -37,6 +37,11 @@ export default function TaskItem({ task, onToggle, onDelete, onEdit }) {
             <span className="tag muted">{task.chat_name}</span>
           )}
           {task.source === 'whatsapp' && <span className="tag muted">from WhatsApp</span>}
+          {task.reminder_count > 0 && (
+            <span className="tag muted" title={`Last reminded ${task.last_reminded_at} UTC`}>
+              reminded {task.reminder_count}×
+            </span>
+          )}
         </div>
 
         {editing && (
