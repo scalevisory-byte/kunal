@@ -200,6 +200,18 @@ session keeps receiving messages even when the phone is offline.
 Keep `numReplicas` at 1. Two instances would mean two WhatsApp sessions fighting over one
 account and duplicate reminders.
 
+### Known audit finding
+
+`npm audit --omit=dev` reports a high-severity path traversal in `extract-zip`, reached
+through `@puppeteer/browsers` -> `puppeteer` -> `whatsapp-web.js`. There is no fix: 1.34.7
+is the latest `whatsapp-web.js` and it still pins the affected puppeteer range.
+
+It is not reachable here. `extract-zip` is imported dynamically inside `unpackArchive()`,
+which only runs from `@puppeteer/browsers`' install path — the code that unpacks a browser
+archive it just downloaded. The image sets `PUPPETEER_SKIP_DOWNLOAD=true` and points
+`PUPPETEER_EXECUTABLE_PATH` at Debian's Chromium, so no archive is ever downloaded or
+unpacked. Re-check when `whatsapp-web.js` ships a release on a newer puppeteer.
+
 ## PWA / mobile
 
 The dashboard is installable: `public/manifest.webmanifest` plus `public/sw.js` (app-shell cache

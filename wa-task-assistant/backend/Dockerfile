@@ -2,14 +2,16 @@
 # Build context is the wa-task-assistant/ directory (see railway.json).
 
 FROM node:20-bookworm-slim AS frontend
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 FROM node:20-bookworm-slim
 ENV NODE_ENV=production \
+    PUPPETEER_SKIP_DOWNLOAD=true \
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
     DATA_DIR=/data
@@ -28,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY backend/package.json backend/package-lock.json* ./
-RUN npm install --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY backend/src ./src
 COPY --from=frontend /build/dist ./public
