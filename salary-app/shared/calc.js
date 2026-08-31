@@ -30,17 +30,29 @@
  * OT amount, sunday salary), this module takes an override instead.
  */
 
-/** Attendance marks, from the legend in columns BI/BJ of the sheet. */
+/**
+ * Attendance marks. P, A, HF, AD, PH, SP, HP, WH and S come from the legend in
+ * columns BI/BJ of the sheet; PL and UL were added because the sheet has no way
+ * to say "leave" - it only has plain absence.
+ *
+ *   absent - days of salary this mark costs (the sheet's COUNTIF weights)
+ *   sunday - days paid extra at the day rate
+ *   paid   - the day is worked or paid for; shown to explain the mark
+ *
+ * Order here is the order the pickers and the legend show them in.
+ */
 export const ATTENDANCE_CODES = {
-  P: { label: 'Present', absent: 0, sunday: 0 },
-  A: { label: 'Absent', absent: 1, sunday: 0 },
-  HF: { label: 'Half Day', absent: 0.5, sunday: 0 },
-  AD: { label: 'Absent (2 days)', absent: 2, sunday: 0 },
-  PH: { label: 'Paid Holiday', absent: 0, sunday: 0 },
-  SP: { label: 'Sunday Present', absent: 0, sunday: 1 },
-  HP: { label: 'Holiday Present', absent: 0, sunday: 1 },
-  WH: { label: 'Work From Home', absent: 0, sunday: 0 },
-  S: { label: 'Sunday (off)', absent: 0, sunday: 0 },
+  P: { label: 'Present', absent: 0, sunday: 0, paid: true },
+  A: { label: 'Absent', absent: 1, sunday: 0, paid: false },
+  HF: { label: 'Half Day', absent: 0.5, sunday: 0, paid: true },
+  PL: { label: 'Paid Leave', absent: 0, sunday: 0, paid: true },
+  UL: { label: 'Unpaid Leave', absent: 1, sunday: 0, paid: false },
+  PH: { label: 'Paid Holiday', absent: 0, sunday: 0, paid: true },
+  SP: { label: 'Sunday Present', absent: 0, sunday: 1, paid: true },
+  HP: { label: 'Holiday Present', absent: 0, sunday: 1, paid: true },
+  WH: { label: 'Work From Home', absent: 0, sunday: 0, paid: true },
+  S: { label: 'Sunday (off)', absent: 0, sunday: 0, paid: true },
+  AD: { label: 'Absent (2 days)', absent: 2, sunday: 0, paid: false },
 };
 
 export const DEFAULTS = {
@@ -82,6 +94,21 @@ export function sundaysFromAttendance(attendance = {}) {
     if (mark) days += mark.sunday;
   }
   return round2(days);
+}
+
+/**
+ * How many days carry each mark, e.g. { P: 22, PL: 2, A: 1 }. Used for the
+ * leave counts on the payslip and in the export - it never feeds the salary,
+ * which is driven by the absent/sunday weights above.
+ */
+export function countMarks(attendance = {}) {
+  const counts = {};
+  for (const raw of Object.values(attendance)) {
+    const code = String(raw || '').trim().toUpperCase();
+    if (!ATTENDANCE_CODES[code]) continue;
+    counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
 }
 
 /**

@@ -32,13 +32,32 @@ Every column of the April tab, in order:
 | BD | Sunday Salary | Sundays worked × day rate, paid on top |
 | BE | Final Payable | Net + Sunday salary |
 
-**Attendance marks** (the legend from columns BI/BJ of the sheet):
+### Attendance marks
 
-`P` present · `A` absent · `HF` half day · `AD` absent 2 days · `PH` paid holiday ·
-`SP` Sunday present · `HP` holiday present · `WH` work from home · `S` Sunday off
+Clicking any day in the grid opens a menu of the marks **by name**, each showing what it
+does to the salary — no need to remember the codes. Typing the code still works.
 
-Only `A`, `HF` and `AD` reduce the salary. `SP` and `HP` add a day's pay. A blank day
-counts as worked.
+| Mark | Means | Effect on salary |
+|---|---|---|
+| `P` | Present | — |
+| `A` | Absent | −1 day |
+| `HF` | Half Day | −0.5 days |
+| `PL` | **Paid Leave** | — |
+| `UL` | **Unpaid Leave** | −1 day |
+| `PH` | Paid Holiday | — |
+| `SP` | Sunday Present | +1 day's pay |
+| `HP` | Holiday Present | +1 day's pay |
+| `WH` | Work From Home | — |
+| `S` | Sunday (off) | — |
+| `AD` | Absent (2 days) | −2 days |
+
+A day left blank counts as worked.
+
+`P`, `A`, `HF`, `AD`, `PH`, `SP`, `HP`, `WH` and `S` come from the legend in columns
+BI/BJ of the sheet. **`PL` and `UL` are new** — the sheet has no way to say "leave", only
+plain absence. Paid leave costs nothing; unpaid leave deducts a day exactly as `A` does,
+but is counted separately, so the payslip and the export show leave and absence apart.
+Which one a day is remains your call, per day.
 
 ### Where it differs from the spreadsheet, on purpose
 
@@ -52,6 +71,7 @@ counts as worked.
   formula.
 - **One number per employee per month.** The sheet spreads a person across a monthly
   tab, a "Sunday" tab and a "Cash" tab; here Sunday pay is a column on the same row.
+- **Leave is a mark of its own.** See the table above — the sheet only had "absent".
 
 ### Checked against the real sheet
 
@@ -99,8 +119,9 @@ cd backend && npm test
 2. **New month** → pick the month; working days default to 26.
 3. **Reports → Import a salary sheet** → choose the `.xlsx`, pick the tab,
    press **Check first** to see what it found, then **Import**.
-4. **Attendance** → mark the days. Pick a mark from the palette and click cells, or
-   type into them. Counts update as you go and save on their own.
+4. **Attendance** → mark the days. Click a day and pick the mark by name, or type its
+   code. **Fill blanks…** on the right marks a whole row at once. The absent, paid-leave,
+   unpaid-leave and Sunday counts update as you go and save on their own.
 5. **Salary sheet** → the calculated month. Type into OT, deductions, ESI or PF and
    the row and the totals move immediately.
 6. **Reports** → download the Excel or CSV, or the payment list of everyone still

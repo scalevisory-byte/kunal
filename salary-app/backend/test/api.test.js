@@ -80,6 +80,28 @@ test('attendance marks flow through to the calculated row', async () => {
   assert.equal(row.final_payable, 58646);
 });
 
+test('leave marks save and land on the row', async () => {
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: employeeId, day: 8, code: 'PL' },
+      { employee_id: employeeId, day: 9, code: 'UL' },
+    ],
+  });
+  const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+  const row = body.rows[0];
+  assert.equal(row.mark_counts.PL, 1);
+  assert.equal(row.mark_counts.UL, 1);
+  assert.equal(row.absent_days, 2.5, 'A + HF + UL; the paid leave costs nothing');
+
+  // Put the row back for the tests that follow.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: employeeId, day: 8, code: '' },
+      { employee_id: employeeId, day: 9, code: '' },
+    ],
+  });
+});
+
 test('an unknown mark is rejected instead of silently ignored', async () => {
   const bad = await api('POST', `/api/periods/${periodId}/attendance`, {
     entries: [{ employee_id: employeeId, day: 7, code: 'XX' }],

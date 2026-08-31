@@ -1,4 +1,4 @@
-import { calculateRow, totalRows } from '../../shared/calc.js';
+import { calculateRow, countMarks, totalRows } from '../../shared/calc.js';
 import { attendanceByEmployee, getPeriod, listPayrollRows, syncPayrollRows } from './db.js';
 
 /**
@@ -17,6 +17,8 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
     return {
       ...row,
       attendance: marks,
+      // Day count per mark, so leave can be reported without re-reading the grid.
+      mark_counts: countMarks(marks),
       // Which columns are hand-typed over the formula, so the UI can flag them.
       overrides: {
         absent_days: row.absent_days_override !== null,

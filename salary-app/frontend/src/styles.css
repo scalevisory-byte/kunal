@@ -276,15 +276,48 @@ table.attendance th .dow { display: block; font-size: 0.6rem; opacity: 0.75; }
 table.attendance th.sunday, table.attendance td.sunday { background: color-mix(in srgb, var(--bad) 8%, transparent); }
 td.mark { padding: 0.1rem !important; }
 
-.mark-input {
-  width: 2.1rem;
-  padding: 0.1rem;
+.mark-cell {
+  width: 2.2rem;
+  padding: 0.15rem 0;
   text-align: center;
-  text-transform: uppercase;
   font-size: 0.7rem;
   font-weight: 700;
   border-radius: 4px;
+  border: 1px solid var(--line);
 }
+.mark-cell.open { outline: 2px solid var(--brand); }
+.mark-cell.code-none { color: var(--muted); font-weight: 400; }
+
+.row-fill select { font-size: 0.72rem; padding: 0.15rem 0.2rem; }
+
+/* Mark menu */
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 25, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 70;
+}
+.picker { width: min(21rem, 100%); padding: 0.8rem; }
+.picker-head { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
+.picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.picker-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  border-color: transparent;
+  padding: 0.35rem 0.4rem;
+}
+.picker-list button:hover { background: var(--brand-soft); }
+.picker-list button.active { border-color: var(--brand); background: var(--brand-soft); }
+.picker-list button.clear { color: var(--muted); }
+.picker-label { font-weight: 600; }
+.picker-effect { font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .brushes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 .brush {
@@ -296,19 +329,26 @@ td.mark { padding: 0.1rem !important; }
 }
 .brush.active { outline: 2px solid var(--brand); }
 
-.code-A, .mark-input.code-A { background: color-mix(in srgb, var(--bad) 22%, var(--surface)); }
-.code-AD, .mark-input.code-AD { background: color-mix(in srgb, var(--bad) 38%, var(--surface)); }
-.code-HF, .mark-input.code-HF { background: color-mix(in srgb, var(--warn) 25%, var(--surface)); }
-.code-P, .mark-input.code-P { background: color-mix(in srgb, var(--good) 18%, var(--surface)); }
-.code-WH, .mark-input.code-WH { background: color-mix(in srgb, var(--good) 10%, var(--surface)); }
-.code-SP, .mark-input.code-SP,
-.code-HP, .mark-input.code-HP { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
-.code-PH, .mark-input.code-PH { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
-.code-S, .mark-input.code-S { background: var(--bg); color: var(--muted); }
+.code-A { background: color-mix(in srgb, var(--bad) 22%, var(--surface)); }
+.code-AD { background: color-mix(in srgb, var(--bad) 38%, var(--surface)); }
+.code-UL { background: color-mix(in srgb, var(--bad) 14%, var(--surface)); }
+.code-HF { background: color-mix(in srgb, var(--warn) 25%, var(--surface)); }
+.code-PL { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.code-P { background: color-mix(in srgb, var(--good) 18%, var(--surface)); }
+.code-WH { background: color-mix(in srgb, var(--good) 10%, var(--surface)); }
+.code-SP, .code-HP { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
+.code-PH { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); }
+.code-S { background: var(--bg); color: var(--muted); }
 
 .legend { margin-top: 1rem; }
 .legend ul { list-style: none; padding: 0; margin: 0.5rem 0; display: grid; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
-.legend li { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; }
+.legend li {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
 .legend em { color: var(--muted); font-size: 0.75rem; }
 
 /* ---------- reports ---------- */

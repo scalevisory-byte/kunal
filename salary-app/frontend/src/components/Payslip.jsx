@@ -37,6 +37,8 @@ export default function Payslip({ period, row, onClose }) {
                 <th>Absent days</th><td>{days(row.absent_days)}</td></tr>
             <tr><th>Sundays worked</th><td>{days(row.sundays_worked)}</td>
                 <th>Rate per day</th><td>{rupees2(row.per_day)}</td></tr>
+            <tr><th>Paid leave</th><td>{row.mark_counts?.PL || 0}</td>
+                <th>Unpaid leave</th><td>{row.mark_counts?.UL || 0}</td></tr>
           </tbody>
         </table>
 

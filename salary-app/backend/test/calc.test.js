@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { absentDaysFromAttendance, calculateRow, sundaysFromAttendance, totalRows } from '../../shared/calc.js';
+import {
+  ATTENDANCE_CODES,
+  absentDaysFromAttendance,
+  calculateRow,
+  countMarks,
+  sundaysFromAttendance,
+  totalRows,
+} from '../../shared/calc.js';
 
 /**
  * Reference values taken straight from the April tab of Salary_Sheet_2627.xlsx.
@@ -39,6 +46,43 @@ test('absent days follow the sheet COUNTIF: A=1, HF=0.5, AD=2', () => {
 
 test('SP and HP are the sundays/holidays worked', () => {
   assert.equal(sundaysFromAttendance({ 1: 'SP', 8: 'SP', 15: 'HP', 22: 'S' }), 3);
+});
+
+test('paid leave costs nothing, unpaid leave costs a day', () => {
+  assert.equal(ATTENDANCE_CODES.PL.absent, 0);
+  assert.equal(ATTENDANCE_CODES.UL.absent, 1);
+
+  const paid = calculateRow({ salary: 26000 }, {}, { 5: 'PL', 6: 'PL', 7: 'PL' });
+  assert.equal(paid.absent_days, 0);
+  assert.equal(paid.net_salary, 25800, 'three days of paid leave, full salary less PT');
+
+  const unpaid = calculateRow({ salary: 26000 }, {}, { 5: 'UL', 6: 'UL', 7: 'UL' });
+  assert.equal(unpaid.absent_days, 3);
+  assert.equal(unpaid.gross_salary, 23000, 'three days deducted at 1000/day');
+});
+
+test('unpaid leave deducts exactly what a plain absence does', () => {
+  const marks = { 5: 'A', 6: 'A' };
+  const leave = { 5: 'UL', 6: 'UL' };
+  assert.equal(
+    calculateRow({ salary: 26000 }, {}, marks).net_salary,
+    calculateRow({ salary: 26000 }, {}, leave).net_salary
+  );
+});
+
+test('leave is counted separately from absence', () => {
+  const counts = countMarks({ 1: 'P', 2: 'A', 3: 'PL', 4: 'PL', 5: 'UL', 6: 'zz', 7: '' });
+  assert.deepEqual(counts, { P: 1, A: 1, PL: 2, UL: 1 }, 'unknown and empty marks are not counted');
+});
+
+test('every mark declares what it does to the salary', () => {
+  for (const [code, meta] of Object.entries(ATTENDANCE_CODES)) {
+    assert.equal(typeof meta.label, 'string', `${code} has a name to show`);
+    assert.ok(Number.isFinite(meta.absent), `${code} has an absent weight`);
+    assert.ok(Number.isFinite(meta.sunday), `${code} has a sunday weight`);
+    // Nothing may both cost a day and earn one.
+    assert.ok(!(meta.absent > 0 && meta.sunday > 0), `${code} is not both`);
+  }
 });
 
 test('marks drive the numbers when nothing is overridden', () => {

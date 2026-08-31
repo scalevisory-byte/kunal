@@ -35,7 +35,8 @@ export async function buildWorkbook(payroll) {
     'Working Days', 'Sunday', 'Absent Days', 'Present Days', 'Salary', 'Sunday Salary',
     'Absent Salary', 'Gross Salary', 'Salary / Day', 'Salary / Hour', 'Salary / Minutes',
     'OT/LT In Minutes', 'OT/LT Salary', 'Deduction / Additions', 'Gross Salary', 'PT', 'ESI',
-    'PF', 'Net Salary', 'Sunday Salary', 'Final Payable', 'Mode', 'Status', 'Remark',
+    'PF', 'Net Salary', 'Sunday Salary', 'Final Payable', 'Paid Leave', 'Unpaid Leave',
+    'Mode', 'Status', 'Remark',
   ];
 
   ws.getCell(1, 4).value = `Month of ${MONTH_NAMES[period.month - 1]} - ${period.year}`;
@@ -107,6 +108,7 @@ export async function buildWorkbook(payroll) {
       row.sunday_salary, row.absent_salary, row.gross_after_absent, row.per_day, row.per_hour,
       row.per_minute, row.ot_minutes, row.ot_salary, row.adjustment, row.gross_salary, row.pt,
       row.esi, row.pf, row.net_salary, row.sunday_salary, row.final_payable,
+      row.mark_counts?.PL || 0, row.mark_counts?.UL || 0,
       row.payment_mode || '', row.status || '', row.remark || ''
     );
 
@@ -158,10 +160,10 @@ export async function buildWorkbook(payroll) {
 
   /* Legend, so whoever opens the file knows what the marks mean. */
   const legend = wb.addWorksheet('Codes');
-  legend.addRow(['Code', 'Meaning', 'Counts as absent (days)', 'Counts as Sunday worked']);
+  legend.addRow(['Code', 'Meaning', 'Salary days deducted', 'Paid extra at day rate']);
   legend.getRow(1).font = { bold: true };
   for (const [code, meta] of Object.entries(ATTENDANCE_CODES)) {
-    legend.addRow([code, meta.label, meta.absent, meta.sunday]);
+    legend.addRow([code, meta.label, meta.absent || '-', meta.sunday || '-']);
   }
   legend.addRow([]);
   legend.addRow(['Working days', period.working_days]);

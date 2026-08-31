@@ -62,7 +62,13 @@ assistant. See `salary-app/README.md`.
   so a 27-day month or a changed slab does not mean editing every row, and a paid month is
   never rewritten by a later settings change.
 - Attendance codes come from the sheet's own legend (BI/BJ): only A/HF/AD reduce salary,
-  SP/HP add a day's pay.
+  SP/HP add a day's pay. **PL (Paid Leave) and UL (Unpaid Leave) were added on top** —
+  Dinesh asked for a leave option and the sheet only has plain absence. Paid leave costs
+  nothing, unpaid leave deducts a day like A but is counted separately on the payslip and
+  in the export, so he picks which kind per day rather than us guessing.
+- Attendance is marked by clicking a day and picking the mark **by name** (each option
+  shows its salary effect, e.g. "Absent −1 day"); typing the code still works, and
+  "Fill blanks…" marks a whole row.
 - Imports an April-shaped tab (company in A, name in C, marks in D–AG, salary in AL);
   exports back to the same layout with live SUM subtotals. Matches employees on company+name.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
