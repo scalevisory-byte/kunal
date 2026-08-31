@@ -34,6 +34,18 @@ Dinesh asked what the product looks like without Claude, citing cost, third-part
 
 He asked to see both before choosing, so both ship and the dashboard shows which is active.
 
+### Security hardening
+- **Brute-force lockout** — 5 failed attempts from an address locks it out for 15 minutes; a success resets the counter. `trust proxy` is set so Railway's balancer isn't counted as one client.
+- **helmet** with a CSP that allows same-origin only plus the `data:` URL the linking QR needs, `frame-ancestors 'none'`, HSTS, nosniff, no `X-Powered-By`.
+- **Errors leak nothing** — client errors keep their status (400/413) with a generic message; unexpected errors are a bare 500 with the detail logged server-side.
+- Failed attempts logged; `/api/status` reports locked-out addresses. 100 kB body cap. Loud boot warning when `CORS_ORIGIN` is unset.
+- **Still weak, deliberately deferred:** session file and SQLite unencrypted at rest, one shared password with no 2FA, token in `localStorage`.
+
+### Reply commands, blocked chats, exact-time reminders
+- **Reply on WhatsApp** — every digest line is numbered. `done 2`, `done 1,3`, `done all`, `2 ho gaya`, `kar diya 3`, `snooze 2`, `snooze 2 3`. Works in both modes; only counts in the digest chat. The parser refuses sentence-shaped text so *"invoice ka kaam done karna hai"* stays a message. `commands.js` + `handleCommand()`.
+- **Blocked chats** — `blocked_chats` table, dashboard panel, `/api/blocked-chats`. In `ai` mode a blocked chat is dropped *before* anything is stored or sent to the API. Names match loosely (`Mummy` catches `Mummy ❤️ Home`); numbers match on their ending, and a numeric pattern under 6 digits is refused rather than blocking half the contacts. Dinesh chose the blocklist shape over an allow-list.
+- **Exact-time reminders** — `remind_at` on tasks, fired by a separate cron (`EXACT_REMINDER_CRON`, default every 5 min), independent of the twice-daily digest. Times parsed from `10 baje`, `5 baje shaam`, `at 5pm`, `5:30 pm`, `17:00`; a bare 1–7 reads as evening. Both `quickparse.js` and the Claude schema produce it.
+
 ### Added since the original spec
 - **Deployment config** — `backend/Dockerfile` (bundles Chromium for `whatsapp-web.js`, builds the frontend) plus `railway.json`. Set the Railway service root directory to `wa-task-assistant` and mount a volume at `/data` (`DATA_DIR=/data`) so the SQLite file and WhatsApp session survive restarts. Not yet actually deployed.
 - **Dashboard auth** — a single shared secret via `DASHBOARD_PASSWORD`. Every `/api/*` route requires `Authorization: Bearer <it>`; `/healthz` stays open. Unset means no auth, which is fine locally but not on a public URL.
@@ -58,4 +70,9 @@ Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (officia
 2. Scan the QR on the deployed dashboard to link the device.
 3. Confirm the pipeline end to end against real messages: send yourself an actionable message, check the task appears, then `POST /api/reminders/run` and check the digest arrives.
 4. Install the dashboard to the home screen and tap "Enable notifications" to confirm push works (iOS requires Add to Home Screen first).
-5. Ask Dinesh whether he wants chat filtering (allow-list) before scanning all personal chats indefinitely.
+5. Chat filtering is **decided and built** — a blocklist, manageable from the dashboard.
+
+## Open decisions / not built
+- **Scaling to other users is a dead end and Dinesh has accepted that.** Each user needs their own Chromium (~500 MB idle, measured), so 10 users is ~10 GB RAM, and `whatsapp-web.js` commercially breaches WhatsApp's terms. The ambient behaviour that makes this worth having is exactly what stops it being a product. A Business API version would scale legally but loses personal-chat reading and lands in a crowded market (Any.do, Zuno, WapTask, Higgle all ship the "message a bot" model already).
+- **Voice-note capture** — probably the highest-value unbuilt feature for his chats, needs a speech-to-text service chosen for Gujarati/Hindi. Not started.
+- **Encryption at rest** for the session file and SQLite — deferred, not refused.

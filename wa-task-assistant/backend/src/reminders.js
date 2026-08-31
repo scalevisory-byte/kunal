@@ -1,7 +1,10 @@
 import cron from 'node-cron';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { pendingReminders, recordReminders } from './db.js';
+import {
+  pendingReminders, recordReminders, setDigestPositions,
+  dueExactReminders, markExactRemindersSent,
+} from './db.js';
 import { sendMessage, reminderChatId, state } from './whatsapp.js';
 import { sendPush } from './push.js';
 import { today, daysUntil } from './dates.js';
@@ -17,10 +20,11 @@ function whenLabel(dueDate) {
   return `due in ${days} day${days === 1 ? '' : 's'}`;
 }
 
-function taskLine(task) {
+function taskLine(task, position) {
   const lines = [];
   const when = task.due_date ? ` _(${whenLabel(task.due_date)})_` : '';
-  lines.push(`${PRIORITY_MARK[task.priority] || '⚪'} ${task.title}${when}`);
+  const at = task.remind_at ? ` ⏰ ${task.remind_at.slice(11, 16)}` : '';
+  lines.push(`*${position}.* ${PRIORITY_MARK[task.priority] || '⚪'} ${task.title}${when}${at}`);
 
   const context = [task.contact, task.chat_name].filter(Boolean);
   // chat_name repeats the contact on one-to-one chats; only show it when it adds something.
@@ -34,23 +38,29 @@ function taskLine(task) {
   return lines.join('\n');
 }
 
+/**
+ * `tasks` must already be in the order they will be numbered - the caller
+ * records that same order so a "done 2" reply resolves to the right task.
+ */
 export function buildDigest(tasks) {
+  const position = new Map(tasks.map((t, i) => [t.id, i + 1]));
   const dated = tasks.filter((t) => t.due_date);
   const undated = tasks.filter((t) => !t.due_date);
 
   const lines = [`*Your open tasks* — ${today()}`, ''];
 
-  for (const task of dated) lines.push(taskLine(task));
+  for (const task of dated) lines.push(taskLine(task, position.get(task.id)));
 
   if (undated.length) {
     if (dated.length) lines.push('');
     lines.push('*No date set*');
-    for (const task of undated) lines.push(taskLine(task));
+    for (const task of undated) lines.push(taskLine(task, position.get(task.id)));
   }
 
   lines.push(
     '',
-    `${tasks.length} still open. They keep showing up here until you mark them done.`
+    `${tasks.length} still open.`,
+    `Reply *done 2* to close one, *done all*, or *snooze 2* to push it a day.`
   );
   return lines.join('\n');
 }
@@ -96,6 +106,8 @@ export async function runReminderCheck({ label = 'manual' } = {}) {
   // session does not inflate the "asked Nx" counter with digests nobody saw.
   if (whatsappSent || push.sent > 0) {
     recordReminders(tasks.map((t) => t.id));
+    // Same order as the digest, so "done 2" means the second line of it.
+    setDigestPositions(tasks.map((t) => t.id));
   }
 
   log.info(
@@ -125,4 +137,55 @@ export function startReminderJobs() {
     );
     log.info(`Reminder job scheduled: ${label} "${expression}" (${config.timezone})`);
   }
+
+  // Exact-time reminders need a finer tick than twice a day.
+  cron.schedule(
+    config.exactReminderCron,
+    () => {
+      runExactReminders().catch((err) => log.error('Exact reminder job:', err?.message || err));
+    },
+    options
+  );
+  log.info(`Exact-time reminder job scheduled: "${config.exactReminderCron}"`);
+}
+
+/* ---------------- exact-time reminders ---------------- */
+
+/**
+ * Tasks can carry a specific time ("remind me at 10 AM"). This runs often and
+ * sends each one individually the first time its moment has passed - separate
+ * from the twice-daily digest, which keeps nagging until the task is done.
+ */
+export async function runExactReminders() {
+  const due = dueExactReminders(new Date().toISOString());
+  if (!due.length) return { sent: 0 };
+
+  const delivered = [];
+  for (const task of due) {
+    const when = task.remind_at.slice(11, 16);
+    const body = [
+      `⏰ *${task.title}*`,
+      task.contact ? `   ${task.contact}` : null,
+      `   reminder set for ${when}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    let ok = false;
+    try {
+      if (state.status === 'ready') {
+        await sendMessage(reminderChatId(), body);
+        ok = true;
+      }
+    } catch (err) {
+      log.error('Exact reminder send failed:', err?.message || err);
+    }
+
+    const push = await sendPush({ title: task.title, body: `Reminder — ${when}`, url: '/' });
+    if (ok || push.sent > 0) delivered.push(task.id);
+  }
+
+  markExactRemindersSent(delivered);
+  if (delivered.length) log.info(`Exact reminders sent: ${delivered.length}`);
+  return { sent: delivered.length };
 }

@@ -36,6 +36,9 @@ db.exec(`
     status        TEXT NOT NULL DEFAULT 'open',
     reminder_count   INTEGER NOT NULL DEFAULT 0,
     last_reminded_at TEXT,
+    remind_at        TEXT,
+    remind_at_sent   INTEGER NOT NULL DEFAULT 0,
+    digest_pos       INTEGER,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at  TEXT
@@ -46,6 +49,12 @@ db.exec(`
     endpoint   TEXT NOT NULL UNIQUE,
     p256dh     TEXT NOT NULL,
     auth       TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS blocked_chats (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern    TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -66,6 +75,16 @@ if (!taskColumns.has('reminder_count')) {
 if (!taskColumns.has('last_reminded_at')) {
   db.exec(`ALTER TABLE tasks ADD COLUMN last_reminded_at TEXT`);
   log.info('Migrated tasks table: added last_reminded_at.');
+}
+for (const [name, ddl] of [
+  ['remind_at', 'ALTER TABLE tasks ADD COLUMN remind_at TEXT'],
+  ['remind_at_sent', 'ALTER TABLE tasks ADD COLUMN remind_at_sent INTEGER NOT NULL DEFAULT 0'],
+  ['digest_pos', 'ALTER TABLE tasks ADD COLUMN digest_pos INTEGER'],
+]) {
+  if (!taskColumns.has(name)) {
+    db.exec(ddl);
+    log.info(`Migrated tasks table: added ${name}.`);
+  }
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
@@ -103,8 +122,8 @@ const PRIORITIES = new Set(['high', 'medium', 'low']);
 const STATUSES = new Set(['open', 'done']);
 
 const insertTaskStmt = db.prepare(`
-  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, due_date, priority, status)
-  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @due_date, @priority, @status)
+  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, due_date, remind_at, priority, status)
+  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @due_date, @remind_at, @priority, @status)
 `);
 
 export function createTask(input) {
@@ -117,6 +136,7 @@ export function createTask(input) {
     message_id: input.message_id ?? null,
     source: input.source || 'manual',
     due_date: input.due_date || null,
+    remind_at: input.remind_at || null,
     priority: PRIORITIES.has(input.priority) ? input.priority : 'medium',
     status: STATUSES.has(input.status) ? input.status : 'open',
   };
@@ -143,7 +163,7 @@ export function listTasks({ status, limit = 500 } = {}) {
   return filtered ? db.prepare(sql).all(status, capped) : db.prepare(sql).all(capped);
 }
 
-const UPDATABLE = ['title', 'description', 'contact', 'chat_name', 'due_date', 'priority', 'status'];
+const UPDATABLE = ['title', 'description', 'contact', 'chat_name', 'due_date', 'priority', 'status', 'remind_at'];
 
 export function updateTask(id, patch) {
   const current = getTask(id);
@@ -163,11 +183,15 @@ export function updateTask(id, patch) {
   if (!fields.length) return current;
 
   fields.push(`updated_at = datetime('now')`);
+  // Moving the exact time re-arms it, otherwise a rescheduled task never fires.
+  if ('remind_at' in patch && patch.remind_at !== current.remind_at) {
+    fields.push(`remind_at_sent = 0`);
+  }
   if (patch.status === 'done' && current.status !== 'done') {
     fields.push(`completed_at = datetime('now')`);
   }
   if (patch.status === 'open' && current.status === 'done') {
-    fields.push(`completed_at = NULL`, `reminder_count = 0`, `last_reminded_at = NULL`);
+    fields.push(`completed_at = NULL`, `reminder_count = 0`, `last_reminded_at = NULL`, `remind_at_sent = 0`);
   }
 
   db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
@@ -239,4 +263,80 @@ export function listPushSubscriptions() {
 
 export function deletePushSubscription(endpoint) {
   db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(endpoint);
+}
+
+/* ---------------- exact-time reminders ---------------- */
+
+/** Open tasks whose specific reminder time has arrived and not yet been sent. */
+export function dueExactReminders(nowIso) {
+  return db
+    .prepare(
+      `SELECT * FROM tasks
+       WHERE status = 'open' AND remind_at_sent = 0
+         AND remind_at IS NOT NULL AND remind_at <= ?
+       ORDER BY remind_at ASC`
+    )
+    .all(nowIso);
+}
+
+export function markExactRemindersSent(ids) {
+  if (!ids.length) return;
+  const stmt = db.prepare(`UPDATE tasks SET remind_at_sent = 1 WHERE id = ?`);
+  db.transaction((list) => list.forEach((id) => stmt.run(id)))(ids);
+}
+
+/* ---------------- digest numbering ---------------- */
+
+/**
+ * Number the tasks that just went out in a digest, so a "done 2" reply can be
+ * resolved back to a task. Any task not in this digest loses its number.
+ */
+export function setDigestPositions(orderedIds) {
+  const clear = db.prepare(`UPDATE tasks SET digest_pos = NULL WHERE digest_pos IS NOT NULL`);
+  const set = db.prepare(`UPDATE tasks SET digest_pos = ? WHERE id = ?`);
+  db.transaction((ids) => {
+    clear.run();
+    ids.forEach((id, i) => set.run(i + 1, id));
+  })(orderedIds);
+}
+
+export function taskByDigestPos(pos) {
+  return db.prepare(`SELECT * FROM tasks WHERE digest_pos = ?`).get(pos) || null;
+}
+
+export function tasksInLastDigest() {
+  return db
+    .prepare(`SELECT * FROM tasks WHERE digest_pos IS NOT NULL ORDER BY digest_pos ASC`)
+    .all();
+}
+
+/* ---------------- blocked chats ---------------- */
+
+export function listBlockedChats() {
+  return db.prepare(`SELECT * FROM blocked_chats ORDER BY pattern COLLATE NOCASE`).all();
+}
+
+export function blockChat(pattern) {
+  const value = String(pattern || '').trim();
+  if (!value) throw new Error('pattern is required');
+  db.prepare(`INSERT OR IGNORE INTO blocked_chats (pattern) VALUES (?)`).run(value);
+  return listBlockedChats();
+}
+
+export function unblockChat(id) {
+  return db.prepare(`DELETE FROM blocked_chats WHERE id = ?`).run(id).changes > 0;
+}
+
+/** Distinct chats seen recently, so the dashboard can offer them for blocking. */
+export function recentChats(limit = 40) {
+  return db
+    .prepare(
+      `SELECT chat_name, chat_id, is_group, MAX(sent_at) AS last_seen, COUNT(*) AS messages
+       FROM messages
+       WHERE chat_name IS NOT NULL AND chat_name != ''
+       GROUP BY chat_id
+       ORDER BY last_seen DESC
+       LIMIT ?`
+    )
+    .all(Math.min(Number(limit) || 40, 100));
 }

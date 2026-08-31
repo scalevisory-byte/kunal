@@ -39,6 +39,8 @@ export const config = {
   reminderTo: (process.env.REMINDER_TO || '').replace(/[^\d]/g, ''),
   reminderCronMorning: process.env.REMINDER_CRON_MORNING || '30 8 * * *',
   reminderCronEvening: process.env.REMINDER_CRON_EVENING || '0 18 * * *',
+  // How often to check for tasks with a specific reminder time.
+  exactReminderCron: process.env.EXACT_REMINDER_CRON || '*/5 * * * *',
   batchQuietMs: num(process.env.BATCH_QUIET_SECONDS, 15) * 1000,
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
 

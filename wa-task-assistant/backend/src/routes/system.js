@@ -1,10 +1,13 @@
 import { Router } from 'express';
 import { config } from '../config.js';
-import { listMessages, savePushSubscription, deletePushSubscription, taskStats } from '../db.js';
+import {
+  listMessages, savePushSubscription, deletePushSubscription, taskStats,
+  listBlockedChats, blockChat, unblockChat, recentChats,
+} from '../db.js';
 import { state, flushNow } from '../whatsapp.js';
-import { runReminderCheck } from '../reminders.js';
+import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { vapidEnabled } from '../push.js';
-import { authEnabled } from '../auth.js';
+import { authEnabled, authStats } from '../auth.js';
 
 export const systemRouter = Router();
 
@@ -19,9 +22,12 @@ systemRouter.get('/status', (req, res) => {
       lastMessageAt: state.lastMessageAt,
       lastExtractionAt: state.lastExtractionAt,
       bufferedCount: state.bufferedCount,
+      blockedCount: state.blockedCount,
+      lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
     },
     tasks: taskStats(),
+    security: authStats(),
     config: {
       extractionMode: config.extractionMode,
       taskTrigger: config.taskTrigger,
@@ -31,6 +37,7 @@ systemRouter.get('/status', (req, res) => {
       reminderCron: [config.reminderCronMorning, config.reminderCronEvening],
       authEnabled,
       pushEnabled: vapidEnabled,
+      blockedChats: listBlockedChats().length,
     },
   });
 });
@@ -75,4 +82,32 @@ systemRouter.post('/push/unsubscribe', (req, res) => {
   if (!req.body?.endpoint) return res.status(400).json({ error: 'endpoint is required' });
   deletePushSubscription(req.body.endpoint);
   res.json({ ok: true });
+});
+
+/* ---------------- blocked chats ---------------- */
+
+systemRouter.get('/blocked-chats', (req, res) => {
+  res.json({ blocked: listBlockedChats(), recent: recentChats(req.query.limit) });
+});
+
+systemRouter.post('/blocked-chats', (req, res) => {
+  try {
+    res.status(201).json({ blocked: blockChat(req.body?.pattern) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+systemRouter.delete('/blocked-chats/:id', (req, res) => {
+  if (!unblockChat(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.json({ blocked: listBlockedChats() });
+});
+
+/** Fire any exact-time reminders that are due right now. */
+systemRouter.post('/reminders/exact', async (req, res, next) => {
+  try {
+    res.json(await runExactReminders());
+  } catch (err) {
+    next(err);
+  }
 });

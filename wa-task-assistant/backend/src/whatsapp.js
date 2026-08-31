@@ -3,14 +3,58 @@ import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { insertMessage, markMessagesProcessed, createTask } from './db.js';
+import {
+  insertMessage, markMessagesProcessed, createTask,
+  listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
+} from './db.js';
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
+import { parseCommand } from './commands.js';
 
 const { Client, LocalAuth } = pkg;
 
 /** Chats we never scan: status broadcasts and WhatsApp's own service messages. */
 const IGNORED_CHAT_IDS = new Set(['status@broadcast', '0@c.us']);
+
+const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
+
+/**
+ * Names and numbers need different matching. A name is matched loosely, because
+ * "Mummy" should also catch "Mummy ❤️ Home". A number is matched on its ending,
+ * so the same person matches with or without a country code — but never as a
+ * loose substring, which would let a short pattern block half your contacts.
+ */
+export function isBlockedChat({ chatName, chatId, contactNumber }) {
+  const rows = listBlockedChats();
+  if (!rows.length) return false;
+
+  const name = String(chatName || '').toLowerCase();
+  const numbers = [digitsOnly(contactNumber), digitsOnly(chatId)].filter(Boolean);
+
+  return rows.some((row) => {
+    const pattern = row.pattern.trim();
+    if (!pattern) return false;
+
+    const asDigits = digitsOnly(pattern);
+    const isNumeric = asDigits.length > 0 && asDigits.length === pattern.replace(/[\s+()-]/g, '').length;
+
+    if (isNumeric) {
+      // Too short to identify anyone; refuse rather than block everything.
+      if (asDigits.length < 6) return false;
+      return numbers.some((n) => n === asDigits || n.endsWith(asDigits));
+    }
+
+    return name.includes(pattern.toLowerCase());
+  });
+}
+
+/**
+ * Test hook: lets a suite observe the confirmations the command handler sends
+ * without standing up a real WhatsApp session.
+ */
+export function setClientForTests(stub) {
+  client = stub;
+}
 
 export const state = {
   mode: config.extractionMode, // 'ai' | 'manual'
@@ -20,6 +64,8 @@ export const state = {
   lastMessageAt: null,
   lastExtractionAt: null,
   bufferedCount: 0,
+  blockedCount: 0,
+  lastCommandAt: null,
   lastError: null,
 };
 
@@ -77,6 +123,65 @@ async function flushBuffer() {
 }
 
 /**
+ * Reply commands, available in BOTH modes: the digest numbers its lines, and
+ * "done 2" / "snooze 2" refer to those numbers. Returns true when the message
+ * was a command, so manual mode does not also turn it into a task.
+ */
+export async function handleCommand(message, chatId) {
+  const command = parseCommand(message.body);
+  if (!command) return false;
+
+  // Only act on commands sent in the chat the digest goes to.
+  if (chatId !== reminderChatId()) return false;
+
+  let targets = [];
+  if (command.action === 'done' && command.all) {
+    targets = tasksInLastDigest().filter((t) => t.status === 'open');
+  } else {
+    targets = command.positions.map((pos) => taskByDigestPos(pos)).filter(Boolean);
+  }
+
+  const unknown = command.all
+    ? []
+    : command.positions.filter((pos) => !taskByDigestPos(pos));
+
+  const changed = [];
+  for (const task of targets) {
+    if (command.action === 'done') {
+      const updated = updateTask(task.id, { status: 'done' });
+      if (updated) changed.push(updated);
+    } else {
+      const base = task.due_date ? new Date(`${task.due_date}T00:00:00Z`) : new Date();
+      base.setUTCDate(base.getUTCDate() + command.days);
+      const updated = updateTask(task.id, { due_date: base.toISOString().slice(0, 10) });
+      if (updated) changed.push(updated);
+    }
+  }
+
+  state.lastCommandAt = new Date().toISOString();
+
+  const lines = [];
+  if (changed.length) {
+    const verb = command.action === 'done' ? '✅ Done' : '🕓 Pushed back';
+    lines.push(`${verb}:`);
+    changed.forEach((t) => lines.push(`• ${t.title}${command.action === 'snooze' && t.due_date ? ` → ${t.due_date}` : ''}`));
+  }
+  if (unknown.length) {
+    lines.push(`Couldn't find ${unknown.length === 1 ? 'number' : 'numbers'} ${unknown.join(', ')} in the last reminder.`);
+  }
+  if (!lines.length) lines.push('Nothing to update — that task may already be done.');
+
+  try {
+    await sendMessage(chatId, lines.join('\n'));
+  } catch (err) {
+    log.warn('Could not confirm the command:', err?.message || err);
+  }
+
+  log.info(`Command "${message.body.trim()}" → ${command.action}, ${changed.length} task(s) updated`);
+  return true;
+}
+
+/**
  * Manual mode: no AI, no API key, and nothing anyone else sends is stored.
  * A task is created only when YOU write it - either in your own "message
  * yourself" chat, or anywhere with the trigger prefix.
@@ -90,6 +195,10 @@ export async function handleOwnMessage(message) {
 
     const chat = await message.getChat();
     const chatId = chat.id?._serialized ?? message.to;
+
+    // "done 2" must close a task, not become a new one.
+    if (await handleCommand(message, chatId)) return;
+
     const inSelfChat = Boolean(state.me) && chatId === state.me;
     const trigger = config.taskTrigger;
     const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
@@ -131,6 +240,18 @@ export async function handleMessage(message) {
     const contact = await message.getContact();
     const contactName =
       contact?.pushname || contact?.name || contact?.verifiedName || contact?.number || null;
+
+    // Blocked chats are dropped before anything is stored or sent to the API.
+    if (
+      isBlockedChat({
+        chatName: chat.name,
+        chatId: chat.id?._serialized,
+        contactNumber: contact?.number,
+      })
+    ) {
+      state.blockedCount += 1;
+      return;
+    }
 
     const row = {
       wa_message_id: message.id?._serialized ?? null,
@@ -212,6 +333,17 @@ export function startWhatsApp() {
     );
   } else {
     client.on('message', handleMessage);
+    // Your own replies are not scanned for tasks in this mode, but "done 2"
+    // still has to work, so listen for commands only.
+    client.on('message_create', async (message) => {
+      try {
+        if (!message.fromMe || !message.body) return;
+        const chat = await message.getChat();
+        await handleCommand(message, chat.id?._serialized ?? message.to);
+      } catch (err) {
+        log.error('command listener:', err?.message || err);
+      }
+    });
     log.info(`AI mode: incoming chats are read by ${config.model}.`);
   }
 

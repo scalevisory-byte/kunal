@@ -145,7 +145,43 @@ A digest looks like this:
 4 still open. They keep showing up here until you mark them done.
 ```
 
-`POST /api/reminders/run` runs the same code path on demand.
+### Replying on WhatsApp
+
+Every digest line is numbered, so the reminder can be answered without opening the
+dashboard:
+
+```
+done 2          close line 2          2 ho gaya      kar diya 3
+done 1,3        close several         done all       close everything in that digest
+snooze 2        push it a day         snooze 2 3     push it three days
+```
+
+Replies only count in the chat the digest was sent to, and the parser deliberately
+refuses anything that reads like a sentence — *"invoice ka kaam done karna hai"* stays a
+message, not a command. Each digest renumbers, so the numbers always refer to the most
+recent one. The app confirms what it changed.
+
+### Reminders at a specific time
+
+A task can also carry `remind_at` — a single reminder at a stated moment, separate from
+the twice-daily digest. `EXACT_REMINDER_CRON` (default every 5 minutes) checks for them.
+
+The time is read from the message: `10 baje`, `5 baje shaam`, `at 5pm`, `5:30 pm`, `17:00`.
+A bare `10 baje` means daytime; `1`–`7` with no qualifier is treated as evening, which is
+how people actually speak. Editing the time on the dashboard re-arms the reminder.
+
+`POST /api/reminders/run` runs the digest on demand; `POST /api/reminders/exact` fires any
+exact-time reminders that are due.
+
+## Blocked chats
+
+In `ai` mode, chats you block are dropped before anything is stored or sent to the API —
+the message never reaches the `messages` table. Manage them on the dashboard or through
+`/api/blocked-chats`.
+
+Names match loosely, so `Mummy` also catches `Mummy ❤️ Home`. Numbers match on their
+ending instead, so the same person matches with or without a country code, and a pattern
+shorter than 6 digits is refused rather than silently blocking half your contacts.
 
 ## API
 
@@ -166,6 +202,10 @@ set. `/healthz` is always open.
 | GET | `/api/push/public-key` | VAPID public key |
 | POST | `/api/push/subscribe` | Register a browser for push |
 | POST | `/api/push/unsubscribe` | Drop a subscription |
+| POST | `/api/reminders/exact` | Fire due exact-time reminders now |
+| GET | `/api/blocked-chats` | Blocked patterns + recently seen chats |
+| POST | `/api/blocked-chats` | Block a chat by name or number |
+| DELETE | `/api/blocked-chats/:id` | Unblock |
 
 ## Deploying to Railway
 
@@ -221,6 +261,32 @@ as phone notifications as well as WhatsApp messages.
 
 Push requires HTTPS (Railway provides it) and, on iOS, that the app has been added to the Home
 Screen first — Safari does not allow push from a normal browser tab.
+
+## Security
+
+What is in place:
+
+- **Brute-force lockout** — 5 wrong passwords from one address locks it out for 15
+  minutes, correct password included. A success clears the counter.
+- **Security headers** via helmet: a CSP that allows only same-origin assets plus the
+  `data:` URL the linking QR needs, `frame-ancestors 'none'`, HSTS, nosniff, no
+  `X-Powered-By`.
+- **`trust proxy`** so the lockout counts the real caller rather than Railway's balancer.
+- **Errors say nothing about the internals.** Client errors keep their status (400, 413)
+  with a generic message; anything unexpected is a bare 500 and the detail goes to the log.
+- **Failed attempts are logged** with the address, and `/api/status` reports how many
+  addresses are locked out or failing.
+- **100 kB body cap.**
+
+What is still weak, and worth knowing:
+
+- The WhatsApp session file and the SQLite database sit **unencrypted** on the volume.
+- One shared password, no second factor.
+- The dashboard token lives in `localStorage`.
+- Set `CORS_ORIGIN`; unset means every origin is allowed and the app warns loudly at boot.
+
+The account-level controls matter more than any of this: turn on 2FA for Railway, GitHub
+and Anthropic, and set a spend cap on the API key.
 
 ## Notes and constraints
 

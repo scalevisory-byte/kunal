@@ -43,6 +43,10 @@ export const api = {
   updateTask: (id, patch) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
   runReminders: () => request('/reminders/run', { method: 'POST' }),
+  blockedChats: () => request('/blocked-chats'),
+  blockChat: (pattern) =>
+    request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),
+  unblockChat: (id) => request(`/blocked-chats/${id}`, { method: 'DELETE' }),
   flushExtraction: () => request('/extract/flush', { method: 'POST' }),
   pushPublicKey: () => request('/push/public-key'),
   subscribePush: (subscription) =>

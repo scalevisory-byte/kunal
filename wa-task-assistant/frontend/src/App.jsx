@@ -5,6 +5,7 @@ import TaskList from './components/TaskList.jsx';
 import AddTaskForm from './components/AddTaskForm.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
+import BlockedChats from './components/BlockedChats.jsx';
 
 const POLL_MS = 30_000;
 const FILTERS = [
@@ -132,6 +133,11 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <BlockedChats
+        mode={status?.whatsapp?.mode}
+        onError={(err) => setError(err.message)}
+      />
 
       <AddTaskForm onAdd={onAdd} />
 

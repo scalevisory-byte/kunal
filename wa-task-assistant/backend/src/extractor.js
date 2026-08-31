@@ -4,6 +4,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { today, todayLong, normalizeDueDate } from './dates.js';
+import { isoAtLocal } from './quickparse.js';
 
 let client = null;
 
@@ -32,6 +33,12 @@ const ExtractionSchema = z.object({
       due_date: z
         .string()
         .describe('Due date as YYYY-MM-DD, resolved against today. Empty string if none stated or implied.'),
+      remind_time: z
+        .string()
+        .describe(
+          'A specific clock time the message states, as HH:MM in 24-hour form ' +
+            '(e.g. "10 baje" -> "10:00", "5pm" -> "17:00"). Empty string if no time is given.'
+        ),
       priority: z.enum(['high', 'medium', 'low']),
     })
   ),
@@ -58,6 +65,9 @@ Rules:
 - due_date: only when the message states or clearly implies one. Resolve relative words
   ("today", "tomorrow", "by Friday", "month end") against the current date given below,
   and output YYYY-MM-DD. If there is no date signal, use an empty string. Do not guess.
+- remind_time: only when a clock time is actually stated ("10 baje", "by 5pm",
+  "subah 9 baje"). Give it as HH:MM in 24-hour form. Empty string if no time is
+  mentioned - do not invent one just because there is a date.
 - priority: "high" for money, legal/statutory deadlines, travel about to happen, or an
   explicitly urgent ask; "low" for vague or nice-to-have; "medium" otherwise.
 - source_index must be the index of the message the task came from.
@@ -118,6 +128,17 @@ export async function extractTasks(messages) {
       const source = messages[task.source_index] ?? null;
       const title = String(task.title || '').trim();
       if (!title) return null;
+      const dueDate = normalizeDueDate(task.due_date);
+      const timeMatch = /^(\d{1,2}):(\d{2})$/.exec((task.remind_time || '').trim());
+      let remindAt = null;
+      if (timeMatch && dueDate) {
+        const hour = Number(timeMatch[1]);
+        const minute = Number(timeMatch[2]);
+        if (hour <= 23 && minute <= 59) {
+          remindAt = isoAtLocal(dueDate, hour, minute, config.timezone);
+        }
+      }
+
       return {
         title,
         description: task.description?.trim() || null,
@@ -126,7 +147,8 @@ export async function extractTasks(messages) {
         chat_id: source?.chat_id ?? null,
         message_id: source?.id ?? null,
         source: 'whatsapp',
-        due_date: normalizeDueDate(task.due_date),
+        due_date: dueDate,
+        remind_at: remindAt,
         priority: task.priority,
         status: 'open',
       };

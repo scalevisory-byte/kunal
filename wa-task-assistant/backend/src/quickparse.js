@@ -1,4 +1,5 @@
 import { today, normalizeDueDate } from './dates.js';
+import { config } from './config.js';
 
 /**
  * Turns a message you wrote yourself into a task, with no AI involved.
@@ -20,6 +21,59 @@ const DAY_NAMES = {
 };
 
 const HIGH_WORDS = /\b(urgent|asap|turant|jaldi|important|critical)\b/i;
+
+/**
+ * Find a clock time: "10 baje", "at 5pm", "5:30 PM", "17:00".
+ * Returns { hour, minute, match } or null.
+ */
+function findTime(text) {
+  const patterns = [
+    // 5:30 pm / 5.30pm / 17:00
+    [/\b(\d{1,2})[:.](\d{2})\s*(am|pm)?\b/i, (m) => ({
+      hour: Number(m[1]), minute: Number(m[2]), ampm: m[3],
+    })],
+    // 5 pm / 5pm
+    [/\b(\d{1,2})\s*(am|pm)\b/i, (m) => ({ hour: Number(m[1]), minute: 0, ampm: m[2] })],
+    // 10 baje / 10 baje subah
+    [/\b(\d{1,2})\s*baje(?:\s*(subah|shaam|raat|dopahar))?\b/i, (m) => ({
+      hour: Number(m[1]), minute: 0,
+      ampm: /shaam|raat/i.test(m[2] || '') ? 'pm' : /subah/i.test(m[2] || '') ? 'am' : null,
+    })],
+  ];
+
+  for (const [re, resolve] of patterns) {
+    const m = text.match(re);
+    if (!m) continue;
+    const { hour, minute, ampm } = resolve(m);
+    if (minute > 59) continue;
+
+    let h = hour;
+    if (ampm) {
+      const pm = /pm/i.test(ampm);
+      if (h === 12) h = pm ? 12 : 0;
+      else if (pm) h += 12;
+    } else if (h >= 0 && h <= 7) {
+      // "10 baje" with no qualifier reads as daytime; 1-7 almost always means evening.
+      h += 12;
+    }
+    if (h > 23) continue;
+    return { hour: h, minute, match: m[0] };
+  }
+  return null;
+}
+
+/** Build an ISO instant for a wall-clock time on a given date in the configured zone. */
+export function isoAtLocal(dateIso, hour, minute, tz) {
+  const wall = `${dateIso}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+  // Work out the zone's offset for that moment, then subtract it to get UTC.
+  const guess = new Date(`${wall}Z`);
+  const asZoned = new Date(
+    guess.toLocaleString('en-US', { timeZone: tz })
+  );
+  const asUtc = new Date(guess.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const offsetMs = asZoned.getTime() - asUtc.getTime();
+  return new Date(guess.getTime() - offsetMs).toISOString();
+}
 
 function isoFromOffset(days) {
   const base = new Date(`${today()}T00:00:00Z`);
@@ -100,6 +154,15 @@ export function parseQuickTask(raw, { trigger = '' } = {}) {
   if (/(^!|!$)/.test(text) || HIGH_WORDS.test(text)) priority = 'high';
   text = text.replace(/^!+\s*/, '').replace(/\s*!+$/, '').trim();
 
+  const time = findTime(text);
+  if (time) {
+    // Strip the time phrase before the date pass, so "kal 10 baje" leaves a clean title.
+    text = text
+      .replace(new RegExp(`\\b(at|by|pe|par)?\\s*${time.match.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i'), ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
+
   const found = findDate(text);
   let title = text;
   if (found) {
@@ -128,5 +191,9 @@ export function parseQuickTask(raw, { trigger = '' } = {}) {
   }
 
   if (!title) return null;
-  return { title, description, due_date: found ? found.date : null, priority };
+
+  const dueDate = found ? found.date : time ? today() : null;
+  const remindAt = time && dueDate ? isoAtLocal(dueDate, time.hour, time.minute, config.timezone) : null;
+
+  return { title, description, due_date: dueDate, remind_at: remindAt, priority };
 }
