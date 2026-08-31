@@ -106,6 +106,10 @@ assistant. See `salary-app/README.md`.
   also why Sunday pay stays out of the PT line.
 - **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
   on screen (Sundays as S), never overwriting an existing mark.
+- **"A date range…"** in each row's menu marks one person across many days (a fortnight off).
+  It replaces existing marks and **skips Sundays** — Dinesh chose that: a Sunday is already an
+  off day, so marking it absent would dock a day nobody was due to work. Choosing a Sunday
+  mark (S/SP) inverts it to cover only the Sundays in the range.
 - **Clicking a date header** opens a day marker: one day, a chosen mark, and a chosen set of
   people (everyone / a group / ticked names). Built for **festival holidays, which are paid
   for some staff and a working day for others** — Dinesh raised exactly this. It replaces

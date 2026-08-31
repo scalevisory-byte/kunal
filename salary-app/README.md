@@ -61,8 +61,16 @@ A day left blank counts as worked.
 | One company only | Pick it on the **Company** strip first, then the same button |
 | One person's whole month | **Fill blanks…** at the right-hand end of their row |
 | **One day, for a group of people** | **Click the date** in the header |
+| **One person, over a stretch of days** | **A date range…** in the menu at the end of their row |
 
-That last one is how a festival holiday gets marked. Eid is a paid holiday for some of the
+A date range is how a fortnight off or a long illness gets marked: pick the two dates and
+the mark, and it says how many days that is and what it costs before you press it. It
+replaces whatever is on those days, and **leaves Sundays alone** — they are an off day
+already, and marking one absent would dock a day nobody was due to work. Choosing a Sunday
+mark flips that round: the range then covers only the Sundays in it, which is how a run of
+worked Sundays goes in.
+
+Clicking the date in the header is how a festival holiday gets marked. Eid is a paid holiday for some of the
 staff and an ordinary working day for the rest, so "everyone" is the wrong tool: click the
 date, choose the mark, then choose who it applies to — everyone shown, a group, or names
 ticked off a list. It says on the button how many people it is about to change.

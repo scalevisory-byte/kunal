@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ATTENDANCE_CODES,
   absentDaysFromAttendance,
   countMarks,
   minutesFromAttendance,
@@ -24,6 +25,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
   const [query, setQuery] = useState('');
   const [picker, setPicker] = useState(null); // { employeeId, day, name }
   const [dayMarker, setDayMarker] = useState(null); // a whole day, for many people
+  const [rangeFor, setRangeFor] = useState(null); // a stretch of days, for one person
   const [status, setStatus] = useState('');
   const saveTimer = useRef(null);
 
@@ -113,6 +115,34 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     }
     setDraft(next);
     queueSave(next);
+  };
+
+  /**
+   * A stretch of days for one person - a fortnight off, a long illness. Unlike
+   * the blank-fill this replaces what is already there, because it normally
+   * runs after everybody has been marked Present.
+   *
+   * Sundays are left alone: they are already an off day and marking them absent
+   * would dock a day nobody was due to work. The exception is a Sunday mark
+   * itself (S or SP), which then applies to *only* the Sundays in the range.
+   */
+  const markRange = (row, from, to, code) => {
+    if (locked) return 0;
+    const [start, end] = from <= to ? [from, to] : [to, from];
+    const sundayMark = ATTENDANCE_CODES[code]?.sunday > 0 || code === 'S';
+    const next = { ...draft };
+    let changed = 0;
+    for (let day = start; day <= end; day++) {
+      if (isSunday(period.year, period.month, day) !== sundayMark) continue;
+      const entry = entryOf(row, day);
+      if (entry.code === code) continue;
+      next[`${row.employee_id}:${day}`] = { ...entry, code };
+      changed++;
+    }
+    if (!changed) return 0;
+    setDraft(next);
+    queueSave(next);
+    return changed;
   };
 
   const clearRow = (row) => {
@@ -296,6 +326,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
                       disabled={locked}
                       onChange={(e) => {
                         if (e.target.value === '__clear') clearRow(row);
+                        else if (e.target.value === '__range') setRangeFor(row);
                         else if (e.target.value) fillRow(row, e.target.value);
                         e.target.value = '';
                       }}
@@ -304,6 +335,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
                       {Object.entries(codes).map(([code, meta]) => (
                         <option key={code} value={code}>{meta.label}</option>
                       ))}
+                      <option value="__range">A date range…</option>
                       <option value="__clear">Clear the row</option>
                     </select>
                   </td>
@@ -347,6 +379,17 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         />
       )}
 
+      {rangeFor && (
+        <RangeMarker
+          codes={codes}
+          row={rangeFor}
+          period={period}
+          entryOf={entryOf}
+          onApply={markRange}
+          onClose={() => setRangeFor(null)}
+        />
+      )}
+
       <div className="legend card">
         <strong>What each mark does to the salary</strong>
         <ul>
@@ -375,6 +418,11 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
           above, where they are kept as a list and can be re-applied.
         </p>
         <p className="muted small">
+          <strong>A date range…</strong>, in the menu at the end of each row, covers one person
+          over several days — a fortnight off, a long illness. It replaces whatever is on those
+          days, and leaves Sundays alone.
+        </p>
+        <p className="muted small">
           <strong>Mark everyone Present</strong> fills every blank day for everybody on screen at
           once — Sundays as S, the rest as Present — so a month starts from "everyone worked" and
           only the exceptions need marking. It never overwrites a day that already has a mark, and
@@ -388,6 +436,105 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * A stretch of days for one person - the other half of the day marker.
+ *
+ * Sundays are left out of an ordinary range, because they are already an off
+ * day and marking somebody absent on one would dock a day they were never due
+ * to work. Choosing a Sunday mark flips it round: the range then covers only
+ * the Sundays in it.
+ */
+function RangeMarker({ codes, row, period, entryOf, onApply, onClose }) {
+  const total = daysInMonth(period.year, period.month);
+  const [from, setFrom] = useState(1);
+  const [to, setTo] = useState(total);
+  const [code, setCode] = useState('A');
+
+  const monthName = new Date(period.year, period.month - 1, 1).toLocaleString('en-IN', { month: 'long' });
+  const sundayMark = codes[code]?.sunday > 0 || code === 'S';
+
+  const [start, end] = from <= to ? [from, to] : [to, from];
+  const affected = [];
+  for (let day = start; day <= end; day++) {
+    if (isSunday(period.year, period.month, day) !== sundayMark) continue;
+    affected.push(day);
+  }
+  const changing = affected.filter((day) => entryOf(row, day).code !== code);
+  const replacing = changing.filter((day) => entryOf(row, day).code);
+  const cost = (codes[code]?.absent || 0) * changing.length;
+
+  const dayOptions = Array.from({ length: total }, (_, i) => i + 1);
+
+  return (
+    <div className="picker-backdrop" onClick={onClose}>
+      <div className="picker day-marker card" onClick={(e) => e.stopPropagation()}>
+        <div className="picker-head">
+          <strong>{row.employee_name}</strong>
+          <span className="muted small">Mark a stretch of {monthName} in one go</span>
+        </div>
+
+        <div className="range-row">
+          <label className="field">
+            From
+            <select value={from} onChange={(e) => setFrom(Number(e.target.value))}>
+              {dayOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d} ({weekday(period.year, period.month, d)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            To
+            <select value={to} onChange={(e) => setTo(Number(e.target.value))}>
+              {dayOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d} ({weekday(period.year, period.month, d)})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            Mark as
+            <select value={code} onChange={(e) => setCode(e.target.value)}>
+              {Object.entries(codes).map(([value, meta]) => (
+                <option key={value} value={value}>
+                  {meta.label}
+                  {meta.absent > 0 ? ` (−${meta.absent} day${meta.absent === 1 ? '' : 's'})` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <p className="muted small">
+          {sundayMark
+            ? `Only the Sundays between ${start} and ${end} ${monthName} — ${affected.length} of them.`
+            : `Sundays between ${start} and ${end} ${monthName} are left as they are, so ${affected.length} working ${affected.length === 1 ? 'day is' : 'days are'} covered.`}
+          {replacing.length > 0 && ` ${replacing.length} already ${replacing.length === 1 ? 'has' : 'have'} a mark and will be replaced.`}
+          {cost > 0 && ` That is ${cost} ${cost === 1 ? 'day' : 'days'} off the salary.`}
+        </p>
+
+        <div className="button-row">
+          <button
+            className="primary"
+            disabled={!changing.length}
+            onClick={() => {
+              onApply(row, start, end, code);
+              onClose();
+            }}
+          >
+            {changing.length
+              ? `Mark ${changing.length} ${changing.length === 1 ? 'day' : 'days'} ${codes[code]?.label}`
+              : 'Nothing to change'}
+          </button>
+          <button onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
