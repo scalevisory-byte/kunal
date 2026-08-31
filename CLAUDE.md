@@ -95,6 +95,12 @@ assistant. See `salary-app/README.md`.
   bundle stays ~190 KB instead of pulling ExcelJS in.
 - **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
   on screen (Sundays as S), never overwriting an existing mark.
+- A **company filter** runs across the whole app (state in `App.jsx`, remembered in
+  localStorage): the strip under the month picker, the company name above each block on
+  the salary sheet, and the chips under Employees all set it, and the salary sheet,
+  attendance grid and employee list all honour it. Companies can be renamed and deleted
+  from their chip — before this, clicking a company did nothing at all, which is what
+  Dinesh reported.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard

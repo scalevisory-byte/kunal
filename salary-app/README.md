@@ -168,6 +168,16 @@ Both builds share one calculation engine, one sheet reader and one exporter in
 `shared/`, so the single file and the server cannot drift apart. The tests cover
 that shared code.
 
+### Companies
+
+A **Company** strip sits under the month picker: press one to show only its people, on the
+salary sheet, the attendance grid and the employee list alike, with the totals following
+along. Press it again, or **All**, to go back. The company name above each block on the
+salary sheet does the same thing, and the choice is remembered between visits.
+
+Under **Employees**, each company also carries a **✎** to rename it and a **✕** to delete
+it — deleting takes its employees and their months with it, and says so first.
+
 ### First run
 
 1. **Employees** → check the staff list. If the file was built with a seed they are
