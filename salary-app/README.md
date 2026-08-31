@@ -106,7 +106,28 @@ Both are worth a look before the next payroll run.
 
 ---
 
-## Running it
+## Two ways to run it
+
+**As a single HTML file** — no server, no install, no deploy. Build it once:
+
+```bash
+cd frontend && npm install && npm run build:standalone
+```
+
+That writes `frontend/dist-standalone/Salary-Sheet.html` (~1 MB). Open it by
+double-clicking, or put it on a phone or a shared drive. Everything works —
+attendance, the salary sheet, payslips, the Excel import and export — with the data
+kept in that browser's local storage. It never talks to a network.
+
+The catch is the flip side of the same coin: the data lives in **that browser on that
+device**. It is not shared between people, it is not on any server, and clearing browsing
+data deletes it. **Reports → Download backup** saves the lot as one JSON file, and
+**Restore a backup** puts it back — take one at the end of every payroll run.
+
+**As a server** — one shared database several people can reach, which is what the rest
+of this file covers.
+
+## Running the server
 
 Needs Node 20+.
 
@@ -130,6 +151,10 @@ end to end, and an import/export round trip:
 cd backend && npm test
 ```
 
+Both builds share one calculation engine, one sheet reader and one exporter in
+`shared/`, so the single file and the server cannot drift apart. The tests cover
+that shared code.
+
 ### First run
 
 1. **Employees** → add a company, then employees with their monthly salary.
@@ -137,8 +162,9 @@ cd backend && npm test
 2. **New month** → pick the month. Working days are always 26.
 3. **Reports → Import a salary sheet** → choose the `.xlsx`, pick the tab,
    press **Check first** to see what it found, then **Import**.
-4. **Attendance** → mark the days. Click a day and pick the mark by name, or type its
-   code. **Fill blanks…** on the right marks a whole row at once. The absent, paid-leave,
+4. **Attendance** → **Mark everyone Present** fills every blank day for everybody at
+   once (Sundays as S), then mark the exceptions: click a day and pick the mark by name,
+   or type its code. **Fill blanks…** on the right does one row at a time. The absent, paid-leave,
    unpaid-leave and Sunday counts update as you go and save on their own.
 5. **Salary sheet** → the calculated month. Type into OT, deductions, ESI or PF and
    the row and the totals move immediately. Boxes outlined in orange are typed over a
@@ -174,14 +200,16 @@ On Railway: set the service **root directory to `salary-app`**, mount a volume a
 salary-app/
   shared/calc.js       the calculation engine - imported by BOTH the API and the
                        dashboard, so the browser recalculates with the same code
+  shared/sheet.js      reads an April-shaped sheet   (server and browser)
+  shared/workbook.js   writes one back out           (server and browser)
   backend/
     src/db.js          SQLite schema and queries
     src/payroll.js     joins rows + attendance through the engine
-    src/excel.js       export in the April layout
-    src/importer.js    read an April-shaped sheet back in
+    src/importer.js    parses with shared/sheet.js, then writes to the database
     src/routes/        companies, employees, periods, reports
     test/              engine, API, import/export
   frontend/src/
+    localStore.js                the standalone build's data layer (localStorage)
     components/SalarySheet.jsx   the calculation sheet
     components/Attendance.jsx    the day grid
     components/Employees.jsx     the master

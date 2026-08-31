@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AuthError, api, clearToken, getToken, setToken } from './api.js';
+import { AuthError, STANDALONE, api, clearToken, getToken, setToken } from './api.js';
 import Attendance from './components/Attendance.jsx';
 import Employees from './components/Employees.jsx';
 import Login from './components/Login.jsx';
@@ -217,7 +217,9 @@ export default function App() {
 
   if (!ready) return <div className="loading">Loading…</div>;
 
-  if (!authed) {
+  // The single-file build stores everything in this browser; there is nothing
+  // on a server to put a password in front of.
+  if (!authed && !STANDALONE) {
     return (
       <Login
         error={authError}
@@ -258,7 +260,7 @@ export default function App() {
               {label}
             </button>
           ))}
-          {getToken() && (
+          {!STANDALONE && getToken() && (
             <button
               className="ghost"
               onClick={() => {

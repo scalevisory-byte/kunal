@@ -78,8 +78,23 @@ assistant. See `salary-app/README.md`.
   the other override columns; there is a migration that rebuilds the table for older DBs.
 - Imports an April-shaped tab (company in A, name in C, marks in D–AG, salary in AL);
   exports back to the same layout with live SUM subtotals. Matches employees on company+name.
+- **Two builds from one source.** `npm run build` makes the dashboard the server serves;
+  `npm run build:standalone` makes `frontend/dist-standalone/Salary-Sheet.html`, one ~1 MB
+  self-contained file that runs from `file://` with no server and keeps its data in
+  localStorage (`frontend/src/localStore.js` answers the same API paths). Verified fully
+  offline — zero network requests — against the real April sheet, same totals as the
+  server. Backup/restore is in Reports, because that browser is the only copy.
+- `shared/` now also holds `sheet.js` (reads an April-shaped tab) and `workbook.js`
+  (writes one), both dependency-free — the caller passes ExcelJS in — so the server and
+  the standalone file cannot drift apart. `api.js` lazy-imports localStore so the server
+  bundle stays ~190 KB instead of pulling ExcelJS in.
+- **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
+  on screen (Sundays as S), never overwriting an existing mark.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
-  was available to build the image. Root directory `salary-app`, volume at `/data`.
+  was available to build the image. Root directory `salary-app`, volume at `/data`. The
+  production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard
+  served from `backend/public`, auth on, and the SQLite data surviving a restart on the
+  same DATA_DIR.
 
 ## Alternative architecture considered (not being built, for reference)
 Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (official, business-number-only) → Google Gemini for extraction → MongoDB for storage → BullMQ + Redis for reminder job scheduling → Meta API sends reminder back. This is the "message a bot to log a task" model (active input) vs. the current build's "ambient, reads all your chats" model (passive). We are continuing with the passive/personal-WhatsApp approach already built, not this one, unless Dinesh says otherwise.

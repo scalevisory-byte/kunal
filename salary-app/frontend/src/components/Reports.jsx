@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, download } from '../api.js';
+import { STANDALONE, api, download, downloadBackup, restoreBackup } from '../api.js';
 import { rupees } from '../format.js';
 
 /** Totals, downloads, and pulling an existing spreadsheet in. */
@@ -129,6 +129,40 @@ export default function Reports({ period, payroll, onReload }) {
           <p className="muted">Open a month first.</p>
         )}
       </div>
+
+      {STANDALONE && (
+        <div className="card">
+          <h2>This file holds your data</h2>
+          <p className="muted small">
+            Everything lives in this browser, on this device. Nobody else can see it, and it is not
+            on any server — which also means it is not backed up anywhere. Take a backup before
+            clearing browsing data, changing computer, or at the end of a payroll run.
+          </p>
+          <div className="button-row">
+            <button onClick={downloadBackup}>Download backup</button>
+            <label className="restore">
+              Restore a backup
+              <input
+                type="file"
+                accept=".json"
+                onChange={async (e) => {
+                  const chosen = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!chosen) return;
+                  if (!window.confirm('Replace everything in this browser with the backup?')) return;
+                  setError('');
+                  try {
+                    await restoreBackup(chosen);
+                    await onReload();
+                  } catch (err) {
+                    setError(`That backup could not be read: ${err.message}`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2>Import a salary sheet</h2>

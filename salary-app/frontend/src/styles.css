@@ -395,6 +395,17 @@ td.mark { padding: 0.1rem !important; }
 .stat-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .result { margin-top: 0.8rem; }
+.restore {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+.restore input { display: none; }
+.restore:hover { border-color: var(--brand); }
 .skipped { font-size: 0.78rem; color: var(--warn); }
 
 /* ---------- login ---------- */

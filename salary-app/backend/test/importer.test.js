@@ -9,7 +9,7 @@ process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-import-'));
 process.env.APP_PASSWORD = '';
 
 const { importSheet, listSheetNames } = await import('../src/importer.js');
-const { buildWorkbook } = await import('../src/excel.js');
+const { buildWorkbook } = await import('../../shared/workbook.js');
 const { buildPayroll } = await import('../src/payroll.js');
 const { createPeriod } = await import('../src/db.js');
 
@@ -102,7 +102,7 @@ test('the exported workbook has the grid, the calculation columns and a legend',
   const buffer = await sampleSheet();
   await importSheet(buffer, { sheetName: 'April', periodId: period.id });
 
-  const wb = await buildWorkbook(buildPayroll(period.id));
+  const wb = await buildWorkbook(ExcelJS, buildPayroll(period.id));
   assert.deepEqual(wb.worksheets.map((s) => s.name), ['June 2026', 'Codes']);
 
   const ws = wb.getWorksheet('June 2026');

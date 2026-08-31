@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { STANDARD_WORKING_DAYS } from '../../shared/calc.js';
+import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -343,11 +343,6 @@ export function updatePeriod(id, patch) {
 export function deletePeriod(id) {
   return db.prepare(`DELETE FROM periods WHERE id = ?`).run(id).changes > 0;
 }
-
-export const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 /* ---------------- payroll rows ---------------- */
 

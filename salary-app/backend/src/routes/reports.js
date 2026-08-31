@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { buildWorkbook } from '../excel.js';
+import ExcelJS from 'exceljs';
+import { buildWorkbook } from '../../../shared/workbook.js';
 import { importSheet, listSheetNames } from '../importer.js';
 import { buildPayroll } from '../payroll.js';
 import { getPeriod } from '../db.js';
@@ -19,7 +20,7 @@ reportsRouter.get('/periods/:id/export.xlsx', async (req, res, next) => {
     });
     if (!payroll) return res.status(404).json({ error: 'period not found' });
 
-    const wb = await buildWorkbook(payroll);
+    const wb = await buildWorkbook(ExcelJS, payroll);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="Salary-${slug(payroll.period.label)}.xlsx"`);
     await wb.xlsx.write(res);

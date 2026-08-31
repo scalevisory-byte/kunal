@@ -1,6 +1,4 @@
-import ExcelJS from 'exceljs';
-import { ATTENDANCE_CODES } from '../../shared/calc.js';
-import { MONTH_NAMES } from './db.js';
+import { ATTENDANCE_CODES, MONTH_NAMES } from './calc.js';
 
 const HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
 const TOTAL_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
@@ -19,8 +17,10 @@ const weekdayLabel = (year, month, day) =>
  * Writes the month back out in the same shape as the April tab: attendance
  * grid on the left, the AH..BE calculation columns on the right, a totals row
  * per company, and the code legend on its own sheet.
+ *
+ * ExcelJS is passed in rather than imported so shared/ carries no dependencies.
  */
-export async function buildWorkbook(payroll) {
+export async function buildWorkbook(ExcelJS, payroll) {
   const { period, rows, totals } = payroll;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Salary App';
