@@ -20,7 +20,7 @@
  *   AT OT/LT Salary      =AR*AS
  *   AU Deduction/Additions  entered (signed)
  *   AV Gross Salary      =ROUND(AO+AT+AU,0)
- *   AW PT                =IF(AV>12000,200,0)
+ *   AW PT                200 when the monthly salary is over 12000 (see below)
  *   AX ESI               entered
  *   AY PF                entered
  *   AZ Net Salary        =AV-AW-AX-AY
@@ -29,6 +29,9 @@
  *
  * Anywhere the sheet has a hand-typed number over a formula (absent days,
  * OT amount, sunday salary), this module takes an override instead.
+ *
+ * One rule deliberately differs from the sheet: PT is charged on the monthly
+ * salary, where the sheet charges it on the gross left after absences.
  */
 
 /**
@@ -184,7 +187,11 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const adjustment = num(row.adjustment); // AU
   const grossSalary = round0(grossAfterAbsent + otSalary + adjustment); // AV
 
-  const pt = grossSalary > ptThreshold ? ptAmount : 0; // AW
+  // AW: professional tax goes by the MONTHLY SALARY, not by what is left after
+  // absences. The sheet tests the reduced gross instead (=IF(AV>12000,200,0)),
+  // which lets someone on 15,000 skip PT in a month they were absent a lot;
+  // that is not how the slab works, and Dinesh confirmed the rule as salary.
+  const pt = salary > ptThreshold ? ptAmount : 0;
   const esi = num(row.esi); // AX
   const pf = num(row.pf); // AY
   const netSalary = round0(grossSalary - pt - esi - pf); // AZ

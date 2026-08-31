@@ -24,6 +24,11 @@ const APRIL = [
   ['Hinali PHtel', 14000, 0, 0, -444, 0, 0, 13556, 200, 13356, 0],
   ['Krinali Patel', 12000, 13.5, 0, -464, 0, 0, 5305, 0, 5305, 0],
   ['Ishika Rana', 11000, 0.5, 0, 51, 0, 0, 10839, 0, 10839, 0],
+  // The sheet gave these three no PT because absences pulled the gross under
+  // 12,000. Their salaries are over it, so here they pay - net is 200 lower.
+  ['Mahesh Shinde', 15000, 6, 0, -545, 0, 0, 10993, 200, 10793, 0],
+  ['Nilesh Chitte', 14500, 4.5, 0, 0, 0, 0, 11990, 200, 11790, 0],
+  ['Veer Gupta-Veer', 14000, 10, 0, -132, 0, 0, 8483, 200, 8283, 0],
 ];
 
 test('April rows reproduce the sheet', () => {
@@ -174,12 +179,26 @@ test('OT is paid per minute off the salary, late minutes deduct', () => {
   assert.equal(late.gross_salary, 22400);
 });
 
-test('PT applies only above the threshold, on the gross', () => {
-  assert.equal(calculateRow({ salary: 12000 }, {}).pt, 0);
+test('PT applies only above the threshold', () => {
+  assert.equal(calculateRow({ salary: 12000 }, {}).pt, 0, 'exactly 12000 is not "more than"');
   assert.equal(calculateRow({ salary: 12001 }, {}).pt, 200);
   // A period can carry its own slab without touching past months.
   assert.equal(calculateRow({ salary: 20000 }, { pt_threshold: 25000 }).pt, 0);
   assert.equal(calculateRow({ salary: 20000 }, { pt_threshold: 15000, pt_amount: 300 }).pt, 300);
+});
+
+test('PT goes by the monthly salary, not by what is left after absences', () => {
+  // Mahesh Shinde in the April sheet: 15,000 a month, 6 days absent, so the
+  // gross falls to 10,993. The slab still applies - he earns over 12,000.
+  const absent = calculateRow({ salary: 15000, absent_days_override: 6 }, {});
+  assert.ok(absent.gross_salary < 12000, 'the gross really is below the threshold');
+  assert.equal(absent.pt, 200);
+
+  // And the other way: someone on 12,000 does not start paying PT because of
+  // overtime or an addition pushing their gross over the line.
+  const boosted = calculateRow({ salary: 12000, adjustment: 5000 }, {});
+  assert.ok(boosted.gross_salary > 12000);
+  assert.equal(boosted.pt, 0);
 });
 
 test('every month divides by 26, whatever the calendar or the caller says', () => {
@@ -201,11 +220,15 @@ test('hours per day still moves the overtime rate, without touching the day rate
   assert.equal(r.gross_salary, 26125);
 });
 
-test('deductions and additions land on the gross before PT', () => {
+test('deductions and additions change the gross but never the PT', () => {
   const deducted = calculateRow({ salary: 12100, adjustment: -200 }, {});
   assert.equal(deducted.gross_salary, 11900);
-  assert.equal(deducted.pt, 0, 'a deduction that drops the gross below the slab drops PT too');
-  assert.equal(calculateRow({ salary: 11900, adjustment: 200 }, {}).pt, 200);
+  assert.equal(deducted.pt, 200, 'the salary is over the slab, so PT stands');
+  assert.equal(deducted.net_salary, 11700);
+
+  const added = calculateRow({ salary: 11900, adjustment: 200 }, {});
+  assert.equal(added.gross_salary, 12100);
+  assert.equal(added.pt, 0, 'and an addition does not create PT');
 });
 
 test('totals add up across rows', () => {
