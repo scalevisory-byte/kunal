@@ -45,6 +45,29 @@ He asked to see both before choosing, so both ship and the dashboard shows which
 - **Chat filtering** — in `ai` mode it still scans ALL incoming chats. Dinesh may want an allow-list of specific chats/groups rather than personal/family chats. Ask before building this — not yet decided. (`manual` mode sidesteps it entirely: nothing incoming is read.)
 - **Mobile access** — decided against building a native app that reads WhatsApp on-device (no legitimate API for that; workarounds are accessibility-hack/spyware-adjacent territory, ruled out). The PWA above is the answer instead: the backend runs 24/7 in the cloud (works independently of Dinesh's phone thanks to WhatsApp multi-device — a linked device session doesn't need the phone online), and the dashboard installs to the home screen.
 
+## Second project — salary calculation software (`/salary-app/`)
+
+Dinesh shared `Salary_Sheet_2627.xlsx` (April tab) and asked for software built around it.
+Node + Express + SQLite backend, React dashboard, same stack and conventions as the task
+assistant. See `salary-app/README.md`.
+
+- `shared/calc.js` is the calculation engine, a column-by-column translation of the April
+  tab (AH..BE), imported by **both** the API and the dashboard so the browser recalculates
+  with the same code the server uses.
+- Verified against the real sheet: 72 of 74 salaried rows reproduce gross/net/final exactly.
+  The 2 that differ are rows where a net salary was typed **over** the formula in the sheet
+  (Hiral Tandel AZ17, Priti Kadam AZ58). Priti Kadam's ESI cell is also `=IF(AW58>12000,...)`,
+  testing PT instead of gross — a copy-paste slip in the sheet worth flagging to Dinesh.
+- Working days, hours/day and the PT slab are stored **per month** rather than hard-coded,
+  so a 27-day month or a changed slab does not mean editing every row, and a paid month is
+  never rewritten by a later settings change.
+- Attendance codes come from the sheet's own legend (BI/BJ): only A/HF/AD reduce salary,
+  SP/HP add a day's pay.
+- Imports an April-shaped tab (company in A, name in C, marks in D–AG, salary in AL);
+  exports back to the same layout with live SUM subtotals. Matches employees on company+name.
+- **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
+  was available to build the image. Root directory `salary-app`, volume at `/data`.
+
 ## Alternative architecture considered (not being built, for reference)
 Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (official, business-number-only) → Google Gemini for extraction → MongoDB for storage → BullMQ + Redis for reminder job scheduling → Meta API sends reminder back. This is the "message a bot to log a task" model (active input) vs. the current build's "ambient, reads all your chats" model (passive). We are continuing with the passive/personal-WhatsApp approach already built, not this one, unless Dinesh says otherwise.
 
