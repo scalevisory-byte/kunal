@@ -161,6 +161,17 @@ assistant. See `salary-app/README.md`.
   Dry run first, then write. Dinesh asked for a **real-time eSSL link**; that needs the
   server plus the device's ADMS/Cloud-Server push (device dials out, no port forwarding) —
   he chose file import for now and will check his device model.
+- **Add / Deduct columns** for the occasional one-off Dinesh asked for (incentive, breakage,
+  fine, reimbursement). Two boxes, not one signed number — a month can carry both, and a
+  forgotten minus sign is expensive. They feed the sheet's AU
+  (`adjustment = adjustment + addition - deduction` in `calc.js`), so PT is charged on the
+  gross they produce. `payroll_rows` gained `addition`, `deduction` and `adjustment_note`,
+  with a migration that splits any existing signed `adjustment` across the two. The payslip
+  lists them separately under the remark; the Excel export and CSVs carry their own columns.
+  The **wage register adds the deduction back into gross** and then lists it among the
+  deductions, so `gross - deductions = net` still balances.
+- `Payslip.jsx` **recomputes with `calculateRow`** rather than reading the row the server
+  stored — it was showing stale numbers, and it was double-counting the deduction.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard

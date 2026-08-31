@@ -24,7 +24,7 @@ Every column of the April tab, in order:
 | AN | Absent Salary | Day rate × absent days |
 | AO | Gross Salary | Salary − absent salary |
 | AS AT | OT/LT | Short hours and overtime in minutes × per-minute rate |
-| AU | Deduction / Additions | Anything else, signed |
+| AU | Additions / Deductions | Two boxes — **Add** and **Deduct** — typed by hand, with a remark |
 | AV | Gross Salary | `ROUND(AO + AT + AU)` |
 | AW | PT | `200` when the month's gross is above `12,000` |
 | AX AY | ESI / PF | Entered per employee |
@@ -219,6 +219,24 @@ and final payable exactly. The two that differ are rows where someone typed a ne
 
 Both are worth a look before the next payroll run.
 
+### Additions and deductions
+
+Some months carry something that is not attendance and not a loan — an incentive, a
+breakage, a fine, a reimbursement. The salary sheet has two boxes for it on every row,
+**Add** and **Deduct**, and a **Remark** beside them that turns into "What for?" the
+moment either is filled.
+
+They are two boxes rather than one signed number on purpose. A month can carry both at
+once, and a minus sign forgotten in front of a deduction is an expensive mistake — here
+the worst that can happen is money in the wrong column, which is visible.
+
+Both feed the sheet's `AU`, so the gross is `after-absent + OT + addition − deduction`,
+and PT is charged on that gross like everything else. The payslip lists them separately,
+under the remark if one was typed, and the Excel export and the CSVs each carry their own
+**Addition** and **Deduction** columns. The wage register adds the deduction back into
+what was earned and then lists it among the deductions, so the register still reads
+gross − deductions = net.
+
 ### The Sunday register
 
 Sunday and holiday pay is settled **apart from the month's salary**, the way the workbook's
@@ -342,7 +360,7 @@ it — deleting takes its employees and their months with it, and says so first.
    once (Sundays as S), then mark the exceptions: click a day and pick the mark by name,
    or type its code. **Fill blanks…** on the right does one row at a time. The absent, paid-leave,
    unpaid-leave and Sunday counts update as you go and save on their own.
-5. **Salary sheet** → the calculated month. Type into OT, deductions, ESI or PF and
+5. **Salary sheet** → the calculated month. Type into OT, **Add**, **Deduct**, ESI or PF and
    the row and the totals move immediately. Boxes outlined in orange are typed over a
    formula — empty them to hand the column back.
 6. **Reports** → download the Excel or CSV, or the payment list of everyone still

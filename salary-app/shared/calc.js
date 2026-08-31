@@ -18,7 +18,7 @@
  *   AS OT/LT In Minutes  short/extra minutes marked on the days, or entered
  *                        (negative = late / short hours, positive = overtime)
  *   AT OT/LT Salary      =AR*AS
- *   AU Deduction/Additions  entered (signed)
+ *   AU Deduction/Additions  entered by hand, as an addition and a deduction
  *   AV Gross Salary      =ROUND(AO+AT+AU,0)
  *   AW PT                =IF(AV>12000,200,0) - on the month's gross
  *   AX ESI               entered
@@ -203,7 +203,14 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ? num(row.ot_amount_override)
     : perMinute * otMinutes;
 
-  const adjustment = num(row.adjustment); // AU
+  // AU: anything else, entered by hand. Two boxes rather than one signed number,
+  // because a month can carry both - an incentive and a breakage, say - and
+  // because a forgotten minus sign is an expensive mistake.
+  // `adjustment` is the old single signed field, kept so nothing that still
+  // writes it breaks; the migration folds existing values into the two.
+  const addition = num(row.addition);
+  const deduction = num(row.deduction);
+  const adjustment = num(row.adjustment) + addition - deduction;
   const grossSalary = round0(grossAfterAbsent + otSalary + adjustment); // AV
 
   // AW: professional tax goes on what the month actually pays - the gross, after
@@ -236,6 +243,8 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ot_minutes: round2(otMinutes),
     ot_minutes_from_days: minutesFromDays,
     ot_salary: round2(otSalary),
+    addition: round2(addition),
+    deduction: round2(deduction),
     adjustment: round2(adjustment),
     gross_salary: grossSalary,
     pt,
@@ -254,6 +263,8 @@ export function totalRows(rows = []) {
     'salary',
     'absent_salary',
     'ot_salary',
+    'addition',
+    'deduction',
     'adjustment',
     'gross_salary',
     'pt',

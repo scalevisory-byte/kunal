@@ -17,7 +17,8 @@ const EDITABLE = {
   ot_minutes_override: { placeholder: 'auto', override: true },
   ot_amount_override: { placeholder: 'auto', override: true },
   sunday_salary_override: { placeholder: 'auto', override: true },
-  adjustment: { placeholder: '0' },
+  addition: { placeholder: '0' },
+  deduction: { placeholder: '0' },
   esi: { placeholder: '0' },
   pf: { placeholder: '0' },
   salary: { placeholder: '0' },
@@ -141,7 +142,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <th title="Salary - absent salary">After absent</th>
               <th title="Added up from the short hours marked on each day. Type a number to override the month's total.">OT min</th>
               <th title="Auto = minutes x per-minute rate. Type an amount to override it.">OT ₹</th>
-              <th title="Any other addition (+) or deduction (-)">Adjust</th>
+              <th title="Anything extra to pay this month - an incentive, arrears, a reimbursement">Add</th>
+              <th title="Anything to take off - a breakage, a fine, a recovery. Enter it as a positive number.">Deduct</th>
               <th title="ROUND(after absent + OT + adjust)">Gross</th>
               <th title="Professional tax">PT</th>
               <th>ESI</th>
@@ -159,7 +161,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             {grouped.map((item) =>
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
-                  <td className="sticky-name" colSpan={24}>
+                  <td className="sticky-name" colSpan={25}>
                     <button
                       className="company-link"
                       title="Show only this company - click again for all of them"
@@ -182,7 +184,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             )}
             {!filtered.length && (
               <tr>
-                <td colSpan={24} className="empty">
+                <td colSpan={25} className="empty">
                   No employees here yet. Add them under <strong>Employees</strong>, or import a sheet
                   from <strong>Reports</strong>.
                 </td>
@@ -200,7 +202,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
                 <td />
                 <td />
                 <td>{rupees(totals.ot_salary)}</td>
-                <td>{rupees(totals.adjustment)}</td>
+                <td>{rupees(totals.addition)}</td>
+                <td>{rupees(totals.deduction)}</td>
                 <td>{rupees(totals.gross_salary)}</td>
                 <td>{rupees(totals.pt)}</td>
                 <td>{rupees(totals.esi)}</td>
@@ -258,7 +261,10 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
           <span className={`hint${calc.ot_salary < 0 ? ' deduct' : ''}`}>{rupees(calc.ot_salary)}</span>
         )}
       </td>
-      <td><EditableCell row={row} field="adjustment" disabled={locked} onCommit={commit} /></td>
+      <td><EditableCell row={row} field="addition" disabled={locked} onCommit={commit} /></td>
+      <td className="deduct-cell">
+        <EditableCell row={row} field="deduction" disabled={locked} onCommit={commit} />
+      </td>
       <td className="num strong">{rupees(calc.gross_salary)}</td>
       <td className="num deduct">{calc.pt ? `-${calc.pt}` : '-'}</td>
       <td><EditableCell row={row} field="esi" disabled={locked} onCommit={commit} /></td>
@@ -295,8 +301,10 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
       </td>
       <td>
         <input
+          key={`remark-${row.id}-${row.remark || ''}`}
           className="cell-input wide"
-          placeholder="Remark"
+          placeholder={row.addition || row.deduction ? 'What for?' : 'Remark'}
+          title="Why the addition or deduction - it prints on the payslip"
           disabled={locked}
           defaultValue={row.remark || ''}
           onBlur={(e) => {

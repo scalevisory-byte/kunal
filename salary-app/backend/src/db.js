@@ -83,6 +83,10 @@ db.exec(`
     sundays_override       REAL,
     ot_minutes_override    REAL,
     ot_amount_override     REAL,
+    -- Anything else, by hand. Both are entered positive.
+    addition               REAL NOT NULL DEFAULT 0,
+    deduction              REAL NOT NULL DEFAULT 0,
+    adjustment_note        TEXT,
     adjustment             REAL NOT NULL DEFAULT 0,
     esi                    REAL NOT NULL DEFAULT 0,
     pf                     REAL NOT NULL DEFAULT 0,
@@ -226,6 +230,27 @@ for (const column of [
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
     log.info(`Migrated employees: added ${column}.`);
   }
+}
+
+const payrollHas = (name) =>
+  db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === name);
+
+if (!payrollHas('addition')) {
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN addition REAL NOT NULL DEFAULT 0`);
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN deduction REAL NOT NULL DEFAULT 0`);
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN adjustment_note TEXT`);
+  // The single signed adjustment becomes an addition or a deduction, whichever
+  // way it pointed, and is zeroed so it is not counted twice.
+  const moved = db
+    .prepare(
+      `UPDATE payroll_rows
+       SET addition = MAX(adjustment, 0),
+           deduction = MAX(-adjustment, 0),
+           adjustment = 0
+       WHERE adjustment <> 0`
+    )
+    .run().changes;
+  log.info(`Migrated payroll_rows: split adjustment into addition/deduction (${moved} rows).`);
 }
 
 for (const column of ['cl_quota', 'sl_quota', 'pl_quota']) {
@@ -529,6 +554,9 @@ const PAYROLL_FIELDS = [
   'sundays_override',
   'ot_minutes_override',
   'ot_amount_override',
+  'addition',
+  'deduction',
+  'adjustment_note',
   'adjustment',
   'esi',
   'pf',
@@ -542,6 +570,7 @@ const PAYROLL_FIELDS = [
 
 /** The ones that hold words. Everything else in PAYROLL_FIELDS is a number. */
 const PAYROLL_TEXT_FIELDS = new Set([
+  'adjustment_note',
   'payment_mode',
   'status',
   'sunday_status',

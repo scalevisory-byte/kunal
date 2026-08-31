@@ -420,9 +420,39 @@ test('a loan on hold takes nothing, and a bad amount is refused', async () => {
   await api('DELETE', `/api/employees/${person.body.id}`);
 });
 
+test('an addition and a deduction are separate boxes, with a reason', async () => {
+  // Whatever the row is worth already - earlier tests have left an OT override
+  // on it - the two boxes move it by exactly their difference.
+  const before = (await api('GET', `/api/periods/${periodId}/payroll`)).body.rows[0].gross_salary;
+
+  const saved = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, {
+    addition: 1500,
+    deduction: 400,
+    remark: 'Incentive, less a breakage',
+  });
+  assert.equal(saved.body.addition, 1500);
+  assert.equal(saved.body.deduction, 400);
+  assert.equal(saved.body.remark, 'Incentive, less a breakage');
+
+  const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+  const row = body.rows[0];
+  assert.equal(row.gross_salary, before + 1500 - 400);
+  assert.equal(row.adjustment, 1100, 'the net effect of the two');
+
+  // The wage register counts the deduction with the rest of them.
+  const register = await api('GET', `/api/periods/${periodId}/statutory`);
+  const wage = register.body.wages.find((w) => w.name === 'Ashutosh Jha');
+  assert.equal(wage.other_deduction, 400);
+  assert.equal(wage.net, wage.gross - wage.deductions, 'and it still balances');
+
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, {
+    addition: 0, deduction: 0, remark: '',
+  });
+});
+
 test('a locked month refuses edits', async () => {
   await api('PATCH', `/api/periods/${periodId}`, { locked: 1 });
-  const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 500 });
+  const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { addition: 500 });
   assert.equal(blocked.status, 409);
   const marks = await api('POST', `/api/periods/${periodId}/attendance`, { entries: [] });
   assert.equal(marks.status, 409);
@@ -470,14 +500,14 @@ test('a new employee is picked up by sync without touching entered rows', async 
     monthly_salary: 22000,
     pf: 1800,
   });
-  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 250 });
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { addition: 250 });
 
   const synced = await api('POST', `/api/periods/${periodId}/sync`);
   assert.equal(synced.body.added, 1);
 
   const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
   assert.equal(body.rows.length, 2);
-  assert.equal(body.rows.find((r) => r.employee_name === 'Ashutosh Jha').adjustment, 250);
+  assert.equal(body.rows.find((r) => r.employee_name === 'Ashutosh Jha').addition, 250);
   assert.equal(body.rows.find((r) => r.employee_name === 'Rohit Tayade').pf, 1800);
 });
 

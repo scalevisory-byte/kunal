@@ -1,20 +1,36 @@
+import { useMemo } from 'react';
+import { calculateRow } from '../../../shared/calc.js';
 import { days, rupees, rupees2 } from '../format.js';
 
 /** A printable slip for one employee. Print with the browser to get a PDF. */
 export default function Payslip({ period, row, onClose }) {
+  // Recalculated here rather than read off the row, so a slip opened straight
+  // after typing shows what was typed - the stored row only carries the
+  // server's last answer.
+  const calc = useMemo(() => calculateRow(row, period, row.attendance), [row, period]);
+
+  // A slip reads as "earned, less deductions". A manual deduction is already
+  // inside the gross everywhere else in the app, so it is added back into what
+  // was earned and then listed with the other deductions - shown both ways at
+  // once, and still balancing.
+  const earned = calc.gross_salary + calc.deduction;
+
   const earnings = [
-    ['Salary for the month', row.salary],
-    ['Overtime / short hours', row.ot_salary],
-    ['Other additions / deductions', row.adjustment],
-    ['Less: absent days', -row.absent_salary],
+    ['Salary for the month', calc.salary],
+    ['Overtime / short hours', calc.ot_salary],
+    [row.remark ? `Added: ${row.remark}` : 'Other additions', calc.addition],
+    ['Less: absent days', -calc.absent_salary],
   ].filter(([, amount]) => Number(amount) !== 0);
 
   const deductions = [
-    ['Professional tax', row.pt],
-    ['ESI', row.esi],
-    ['PF', row.pf],
-    ['Loan / advance', row.loan_deduction],
+    ['Professional tax', calc.pt],
+    ['ESI', calc.esi],
+    ['PF', calc.pf],
+    ['Loan / advance', calc.loan_deduction],
+    [row.remark ? `Deducted: ${row.remark}` : 'Other deductions', calc.deduction],
   ].filter(([, amount]) => Number(amount) !== 0);
+
+  const totalDeductions = deductions.reduce((sum, [, amount]) => sum + Number(amount), 0);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -33,11 +49,11 @@ export default function Payslip({ period, row, onClose }) {
         <table className="kv">
           <tbody>
             <tr><th>Employee</th><td>{row.employee_name}</td>
-                <th>Working days</th><td>{days(row.working_days)}</td></tr>
-            <tr><th>Present days</th><td>{days(row.present_days)}</td>
-                <th>Absent days</th><td>{days(row.absent_days)}</td></tr>
-            <tr><th>Sundays worked</th><td>{days(row.sundays_worked)}</td>
-                <th>Rate per day</th><td>{rupees2(row.per_day)}</td></tr>
+                <th>Working days</th><td>{days(calc.working_days)}</td></tr>
+            <tr><th>Present days</th><td>{days(calc.present_days)}</td>
+                <th>Absent days</th><td>{days(calc.absent_days)}</td></tr>
+            <tr><th>Sundays worked</th><td>{days(calc.sundays_worked)}</td>
+                <th>Rate per day</th><td>{rupees2(calc.per_day)}</td></tr>
             <tr><th>Paid leave</th><td>{row.mark_counts?.PL || 0}</td>
                 <th>Unpaid leave</th><td>{row.mark_counts?.UL || 0}</td></tr>
           </tbody>
@@ -50,7 +66,7 @@ export default function Payslip({ period, row, onClose }) {
               {earnings.map(([label, amount]) => (
                 <tr key={label}><td>{label}</td><td className="num">{rupees(amount)}</td></tr>
               ))}
-              <tr className="subtotal"><td>Gross salary</td><td className="num">{rupees(row.gross_salary)}</td></tr>
+              <tr className="subtotal"><td>Gross salary</td><td className="num">{rupees(earned)}</td></tr>
             </tbody>
           </table>
 
@@ -66,7 +82,7 @@ export default function Payslip({ period, row, onClose }) {
               )}
               <tr className="subtotal">
                 <td>Total deductions</td>
-                <td className="num">{rupees(row.pt + row.esi + row.pf + (row.loan_deduction || 0))}</td>
+                <td className="num">{rupees(totalDeductions)}</td>
               </tr>
             </tbody>
           </table>
@@ -74,16 +90,16 @@ export default function Payslip({ period, row, onClose }) {
 
         <table className="sheet totals-table">
           <tbody>
-            <tr><td>Net salary</td><td className="num">{rupees(row.net_salary)}</td></tr>
-            {row.sunday_salary > 0 && (
+            <tr><td>Net salary</td><td className="num">{rupees(calc.net_salary)}</td></tr>
+            {calc.sunday_salary > 0 && (
               <tr>
-                <td>Sunday / holiday pay ({days(row.sundays_worked)} × {rupees2(row.per_day)})</td>
-                <td className="num">{rupees(row.sunday_salary)}</td>
+                <td>Sunday / holiday pay ({days(calc.sundays_worked)} × {rupees2(calc.per_day)})</td>
+                <td className="num">{rupees(calc.sunday_salary)}</td>
               </tr>
             )}
             <tr className="grand-row">
               <td>Net payable</td>
-              <td className="num">{rupees(row.final_payable)}</td>
+              <td className="num">{rupees(calc.final_payable)}</td>
             </tr>
           </tbody>
         </table>

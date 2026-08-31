@@ -109,6 +109,21 @@ test('the wage register adds the deductions up and balances against the payable'
   assert.equal(row.payable, row.net + row.sunday);
 });
 
+test('a manual deduction is added back into what was earned, then listed', () => {
+  // Everywhere else the gross is already net of a manual deduction. A wage
+  // register reads as earned-less-deductions, so it has to be shown both ways
+  // at once - and still balance.
+  const report = statutoryReport(
+    month([{ employee_name: 'Docked', salary: 26000, addition: 1000, deduction: 400 }])
+  );
+  const row = report.wages[0];
+  assert.equal(row.gross, 27000, '26,000 + 1,000 earned, before the 400 comes off');
+  assert.equal(row.other_deduction, 400);
+  assert.equal(row.deductions, 200 + 400, 'PT and the deduction');
+  assert.equal(row.net, 26400, '27,000 - 600');
+  assert.equal(row.net, row.gross - row.deductions, 'and it balances');
+});
+
 test('every register turns into a CSV with its own columns', () => {
   const report = statutoryReport(
     month([{ employee_name: 'Someone', salary: 20000, pf: 1800, uan: '100200300400' }])

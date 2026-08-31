@@ -129,12 +129,18 @@ export function wageRegister(rows) {
     present_days: row.present_days,
     absent_days: row.absent_days,
     salary: round0(row.salary),
-    gross: round0(row.gross_salary),
+    // A wage register reads as "earned, less deductions", so the manual
+    // deduction is added back into what was earned and then listed with the
+    // others. Elsewhere in the app the gross is already net of it - here the
+    // two forms have to agree, and net = gross - deductions either way.
+    gross: round0(row.gross_salary) + round0(row.deduction),
     pt: row.pt,
     esi: round0(row.esi),
     pf: round0(row.pf),
     loan: round0(row.loan_deduction),
-    deductions: row.pt + round0(row.esi) + round0(row.pf) + round0(row.loan_deduction),
+    other_deduction: round0(row.deduction),
+    deductions:
+      row.pt + round0(row.esi) + round0(row.pf) + round0(row.loan_deduction) + round0(row.deduction),
     net: round0(row.net_salary),
     sunday: round0(row.sunday_salary),
     payable: round0(row.final_payable),
@@ -200,7 +206,7 @@ export const CSV_COLUMNS = {
     ['Designation', 'designation'], ['Working Days', 'working_days'],
     ['Present', 'present_days'], ['Absent', 'absent_days'], ['Salary', 'salary'],
     ['Gross', 'gross'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'], ['Loan', 'loan'],
-    ['Total Deductions', 'deductions'], ['Net', 'net'], ['Sunday', 'sunday'],
+    ['Other Deduction', 'other_deduction'], ['Total Deductions', 'deductions'], ['Net', 'net'], ['Sunday', 'sunday'],
     ['Net Payable', 'payable'], ['Paid By', 'mode'],
   ],
 };

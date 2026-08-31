@@ -140,6 +140,9 @@ function syncRows(periodId) {
       sundays_override: null,
       ot_minutes_override: null,
       ot_amount_override: null,
+      addition: 0,
+      deduction: 0,
+      adjustment_note: null,
       adjustment: 0,
       esi: emp.esi,
       pf: emp.pf,
@@ -276,7 +279,8 @@ function buildPayroll(periodId, { sync = true } = {}) {
 
 const ROW_FIELDS = [
   'salary', 'absent_days_override', 'sundays_override', 'ot_minutes_override',
-  'ot_amount_override', 'adjustment', 'esi', 'pf', 'sunday_salary_override',
+  'ot_amount_override', 'addition', 'deduction', 'adjustment_note',
+  'adjustment', 'esi', 'pf', 'sunday_salary_override',
   'payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark',
 ];
 
@@ -684,7 +688,7 @@ export async function handle(method, path, body) {
       for (const key of ROW_FIELDS) {
         if (!(key in (body || {}))) continue;
         const value = body[key];
-        if (['payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark'].includes(key)) {
+        if (['adjustment_note', 'payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark'].includes(key)) {
           row[key] = value === '' ? null : value;
         } else {
           // Blank on an override column means "go back to the formula", not zero.
@@ -694,7 +698,7 @@ export async function handle(method, path, body) {
         }
       }
       // The columns the server keeps NOT NULL must never become null here either.
-      for (const key of ['salary', 'adjustment', 'esi', 'pf']) {
+      for (const key of ['salary', 'addition', 'deduction', 'adjustment', 'esi', 'pf']) {
         if (row[key] === null || row[key] === undefined) row[key] = 0;
       }
       if (!row.status) row.status = 'pending';
@@ -886,7 +890,8 @@ export async function upload(path, formData) {
           sundays_override: hasMarks ? null : item.sundays,
           ot_minutes_override: item.ot_minutes || null,
           ot_amount_override: !item.ot_minutes && item.ot_amount ? item.ot_amount : null,
-          adjustment: item.adjustment,
+          addition: Math.max(item.adjustment, 0),
+          deduction: Math.max(-item.adjustment, 0),
           esi: item.esi,
           pf: item.pf,
           payment_mode: item.payment_mode || row.payment_mode,
@@ -964,7 +969,8 @@ export async function file(path) {
     ['Company', 'company_name'], ['Employee', 'employee_name'], ['Working Days', 'working_days'],
     ['Sunday', 'sundays_worked'], ['Absent Days', 'absent_days'], ['Present Days', 'present_days'],
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
-    ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'], ['Adjustment', 'adjustment'],
+    ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
+    ['Addition', 'addition'], ['Deduction', 'deduction'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
     ['Net Salary', 'net_salary'], ['Sunday Salary', 'sunday_salary'], ['Final Payable', 'final_payable'],

@@ -62,7 +62,7 @@ export async function importSheet(buffer, { sheetName, periodId, headerRow = 2, 
       const update = db.prepare(
         `UPDATE payroll_rows
          SET salary = ?, absent_days_override = ?, sundays_override = ?, ot_minutes_override = ?,
-             ot_amount_override = ?, adjustment = ?, esi = ?, pf = ?,
+             ot_amount_override = ?, addition = ?, deduction = ?, esi = ?, pf = ?,
              payment_mode = COALESCE(?, payment_mode), updated_at = datetime('now')
          WHERE period_id = ? AND employee_id = ?`
       );
@@ -80,7 +80,9 @@ export async function importSheet(buffer, { sheetName, periodId, headerRow = 2, 
           // Null hands the month over to whatever minutes get marked on the days.
           item.ot_minutes || null,
           typedOt,
-          item.adjustment,
+          // AU is one signed number in the sheet; here it is two boxes.
+          Math.max(item.adjustment, 0),
+          Math.max(-item.adjustment, 0),
           item.esi,
           item.pf,
           item.payment_mode,

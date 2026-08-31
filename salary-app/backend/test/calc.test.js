@@ -239,13 +239,34 @@ test('hours per day still moves the overtime rate, without touching the day rate
 });
 
 test('deductions and additions land on the gross before PT', () => {
-  const deducted = calculateRow({ salary: 12100, adjustment: -200 }, {});
+  const deducted = calculateRow({ salary: 12100, deduction: 200 }, {});
   assert.equal(deducted.gross_salary, 11900);
   assert.equal(deducted.pt, 0, 'a deduction that drops the month below the slab drops PT');
 
-  const added = calculateRow({ salary: 11900, adjustment: 200 }, {});
+  const added = calculateRow({ salary: 11900, addition: 200 }, {});
   assert.equal(added.gross_salary, 12100);
   assert.equal(added.pt, 200, 'and an addition can create it');
+});
+
+test('a month can carry an addition and a deduction at once', () => {
+  // An incentive and a breakage in the same month, which one signed number
+  // could not have told apart.
+  const r = calculateRow({ salary: 26000, addition: 1500, deduction: 400 }, {});
+  assert.equal(r.addition, 1500);
+  assert.equal(r.deduction, 400);
+  assert.equal(r.gross_salary, 27100, '26,000 + 1,500 - 400');
+  assert.equal(r.net_salary, 26900);
+
+  // Both are entered positive - a minus sign in the deduction box would add.
+  assert.equal(calculateRow({ salary: 26000, deduction: 500 }, {}).gross_salary, 25500);
+
+  // The old single signed field still works, for anything that writes it.
+  assert.equal(calculateRow({ salary: 26000, adjustment: -444 }, {}).gross_salary, 25556);
+  assert.equal(
+    calculateRow({ salary: 26000, adjustment: -444, addition: 100 }, {}).adjustment,
+    -344,
+    'and folds in with the two'
+  );
 });
 
 test('totals add up across rows', () => {
