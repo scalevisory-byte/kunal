@@ -292,6 +292,51 @@ test('a festival is a paid holiday for one religion and a working day for the re
   await api('DELETE', `/api/employees/${muslim.body.id}`);
 });
 
+test('leave is counted from the marks and set against an entitlement', async () => {
+  const companies = await api('GET', '/api/companies');
+  const person = await api('POST', '/api/employees', {
+    company_id: companies.body.companies[0].id,
+    name: 'Leave Taker',
+    monthly_salary: 26000,
+    cl_quota: 6,
+    sl_quota: 6,
+    pl_quota: 12,
+  });
+  await api('POST', `/api/periods/${periodId}/sync`);
+
+  // Two casual days, one sick, and eight privilege - two over the six due.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: person.body.id, day: 2, code: 'CL' },
+      { employee_id: person.body.id, day: 3, code: 'CL' },
+      { employee_id: person.body.id, day: 4, code: 'SL' },
+      ...[6, 7, 8, 9, 10, 11, 12].map((day) => ({ employee_id: person.body.id, day, code: 'CL' })),
+      { employee_id: person.body.id, day: 14, code: 'UL' },
+    ],
+  });
+
+  const { body } = await api('GET', '/api/leave?year=2026');
+  const row = body.rows.find((r) => r.name === 'Leave Taker');
+  assert.equal(body.year, 2026);
+  assert.deepEqual(row.quotas, { CL: 6, SL: 6, PL: 12 });
+  assert.equal(row.taken.CL, 9, 'counted straight off the grid');
+  assert.equal(row.taken.SL, 1);
+  assert.equal(row.taken.PL, 0);
+  assert.equal(row.taken.UL, 1);
+
+  // Paid leave costs nothing; the one unpaid day does.
+  const payroll = await api('GET', `/api/periods/${periodId}/payroll`);
+  const paid = payroll.body.rows.find((r) => r.employee_name === 'Leave Taker');
+  assert.equal(paid.absent_days, 1, 'only the unpaid day');
+  assert.equal(paid.gross_salary, 25000);
+
+  // A different year sees none of it.
+  const other = await api('GET', '/api/leave?year=2025');
+  assert.equal(other.body.rows.find((r) => r.name === 'Leave Taker').taken.CL, 0);
+
+  await api('DELETE', `/api/employees/${person.body.id}`);
+});
+
 test('a locked month refuses edits', async () => {
   await api('PATCH', `/api/periods/${periodId}`, { locked: 1 });
   const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 500 });

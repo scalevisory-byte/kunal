@@ -235,6 +235,7 @@ const EMPLOYEE_FIELDS = [
   'dob', 'gender', 'phone', 'email', 'address',
   'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
   'bank_name', 'bank_account', 'ifsc',
+  'cl_quota', 'sl_quota', 'pl_quota',
   'monthly_salary', 'pf', 'esi', 'payment_mode', 'joined_on', 'left_on',
   'active', 'sort_order',
 ];
@@ -252,6 +253,37 @@ export async function handle(method, path, body) {
       codes: ATTENDANCE_CODES,
       standalone: true,
       defaults: { working_days: STANDARD_WORKING_DAYS, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 },
+    };
+  }
+
+  /* leave */
+  if (parts[0] === 'leave' && method === 'GET') {
+    const year = Number(new URLSearchParams(path.split('?')[1] || '').get('year')) ||
+      new Date().getFullYear();
+    const periodIds = new Set(db.periods.filter((p) => p.year === year).map((p) => p.id));
+    const used = new Map();
+    for (const a of db.attendance) {
+      if (!periodIds.has(a.period_id)) continue;
+      if (!['CL', 'SL', 'PL', 'UL'].includes(a.code)) continue;
+      if (!used.has(a.employee_id)) used.set(a.employee_id, {});
+      const bucket = used.get(a.employee_id);
+      bucket[a.code] = (bucket[a.code] || 0) + 1;
+    }
+    return {
+      year,
+      rows: sortedEmployees()
+        .filter((e) => e.active)
+        .map((emp) => {
+          const u = used.get(emp.id) || {};
+          return {
+            employee_id: emp.id,
+            name: emp.name,
+            company_name: emp.company_name,
+            department: emp.department,
+            quotas: { CL: emp.cl_quota || 0, SL: emp.sl_quota || 0, PL: emp.pl_quota || 0 },
+            taken: { CL: u.CL || 0, SL: u.SL || 0, PL: u.PL || 0, UL: u.UL || 0 },
+          };
+        }),
     };
   }
 
@@ -323,6 +355,9 @@ export async function handle(method, path, body) {
       bank_name: body.bank_name || null,
       bank_account: body.bank_account || null,
       ifsc: body.ifsc || null,
+      cl_quota: Number(body.cl_quota) || 0,
+      sl_quota: Number(body.sl_quota) || 0,
+      pl_quota: Number(body.pl_quota) || 0,
       monthly_salary: Number(body.monthly_salary) || 0,
       pf: Number(body.pf) || 0,
       esi: Number(body.esi) || 0,

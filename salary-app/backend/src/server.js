@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { requireAuth } from './auth.js';
 import { companiesRouter } from './routes/companies.js';
+import { leaveRouter } from './routes/leave.js';
 import { employeesRouter } from './routes/employees.js';
 import { periodsRouter } from './routes/periods.js';
 import { reportsRouter } from './routes/reports.js';
@@ -40,6 +41,7 @@ export function createServer() {
 
   app.use('/api/companies', requireAuth, companiesRouter);
   app.use('/api/employees', requireAuth, employeesRouter);
+  app.use('/api/leave', requireAuth, leaveRouter);
   app.use('/api/periods', requireAuth, periodsRouter);
   app.use('/api', requireAuth, reportsRouter);
 

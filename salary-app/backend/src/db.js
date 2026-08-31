@@ -41,6 +41,10 @@ db.exec(`
     bank_name      TEXT,
     bank_account   TEXT,
     ifsc           TEXT,
+    -- Yearly leave entitlement, counted against the CL/SL/PL marks
+    cl_quota       REAL NOT NULL DEFAULT 0,
+    sl_quota       REAL NOT NULL DEFAULT 0,
+    pl_quota       REAL NOT NULL DEFAULT 0,
     monthly_salary REAL NOT NULL DEFAULT 0,
     pf             REAL NOT NULL DEFAULT 0,
     esi            REAL NOT NULL DEFAULT 0,
@@ -199,6 +203,13 @@ for (const column of [
   }
 }
 
+for (const column of ['cl_quota', 'sl_quota', 'pl_quota']) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} REAL NOT NULL DEFAULT 0`);
+    log.info(`Migrated employees: added ${column}.`);
+  }
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -283,6 +294,9 @@ const EMPLOYEE_FIELDS = [
   'bank_name',
   'bank_account',
   'ifsc',
+  'cl_quota',
+  'sl_quota',
+  'pl_quota',
   'monthly_salary',
   'pf',
   'esi',
@@ -346,6 +360,9 @@ export function createEmployee(input) {
     bank_name: input.bank_name || null,
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
+    cl_quota: Number(input.cl_quota) || 0,
+    sl_quota: Number(input.sl_quota) || 0,
+    pl_quota: Number(input.pl_quota) || 0,
     monthly_salary: Number(input.monthly_salary) || 0,
     pf: Number(input.pf) || 0,
     esi: Number(input.esi) || 0,
@@ -554,6 +571,42 @@ export const syncPayrollRows = db.transaction((periodId) => {
   }
   return added;
 });
+
+/* ---------------- leave ---------------- */
+
+/**
+ * Everyone's leave for a calendar year: what they are entitled to, what they
+ * have taken, and what is left. Taken is counted from the marks themselves
+ * across every month of that year, so it can never drift from the grid.
+ */
+export function leaveSummary(year) {
+  const taken = db
+    .prepare(
+      `SELECT a.employee_id, a.code, COUNT(*) AS days
+       FROM attendance a JOIN periods p ON p.id = a.period_id
+       WHERE p.year = ? AND a.code IN ('CL', 'SL', 'PL', 'UL')
+       GROUP BY a.employee_id, a.code`
+    )
+    .all(year);
+
+  const byEmployee = new Map();
+  for (const row of taken) {
+    if (!byEmployee.has(row.employee_id)) byEmployee.set(row.employee_id, {});
+    byEmployee.get(row.employee_id)[row.code] = row.days;
+  }
+
+  return listEmployees({ active: true }).map((emp) => {
+    const used = byEmployee.get(emp.id) || {};
+    return {
+      employee_id: emp.id,
+      name: emp.name,
+      company_name: emp.company_name,
+      department: emp.department,
+      quotas: { CL: emp.cl_quota || 0, SL: emp.sl_quota || 0, PL: emp.pl_quota || 0 },
+      taken: { CL: used.CL || 0, SL: used.SL || 0, PL: used.PL || 0, UL: used.UL || 0 },
+    };
+  });
+}
 
 /* ---------------- holidays ---------------- */
 

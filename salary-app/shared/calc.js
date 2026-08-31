@@ -33,8 +33,10 @@
 
 /**
  * Attendance marks. P, A, HF, AD, PH, SP, HP, WH and S come from the legend in
- * columns BI/BJ of the sheet; PL and UL were added because the sheet has no way
- * to say "leave" - it only has plain absence.
+ * columns BI/BJ of the sheet. The leave marks were added on top, because the
+ * sheet has no way to say "leave" - only plain absence: CL, SL and PL are the
+ * three paid kinds, each counted against its own yearly balance, and UL is
+ * leave with no balance left to take it from, so it costs a day.
  *
  *   absent - days of salary this mark costs (the sheet's COUNTIF weights)
  *   sunday - days paid extra at the day rate
@@ -46,7 +48,9 @@ export const ATTENDANCE_CODES = {
   P: { label: 'Present', absent: 0, sunday: 0, paid: true },
   A: { label: 'Absent', absent: 1, sunday: 0, paid: false },
   HF: { label: 'Half Day', absent: 0.5, sunday: 0, paid: true },
-  PL: { label: 'Paid Leave', absent: 0, sunday: 0, paid: true },
+  CL: { label: 'Casual Leave', absent: 0, sunday: 0, paid: true },
+  SL: { label: 'Sick Leave', absent: 0, sunday: 0, paid: true },
+  PL: { label: 'Privilege Leave', absent: 0, sunday: 0, paid: true },
   UL: { label: 'Unpaid Leave', absent: 1, sunday: 0, paid: false },
   PH: { label: 'Paid Holiday', absent: 0, sunday: 0, paid: true },
   SP: { label: 'Sunday Present', absent: 0, sunday: 1, paid: true },
@@ -131,6 +135,13 @@ export function sundayDaysFromAttendance(attendance = {}) {
  * leave counts on the payslip and in the export - it never feeds the salary,
  * which is driven by the absent/sunday weights above.
  */
+/** The paid leave kinds, each with its own yearly quota. */
+export const LEAVE_TYPES = [
+  { code: 'CL', label: 'Casual', quotaField: 'cl_quota' },
+  { code: 'SL', label: 'Sick', quotaField: 'sl_quota' },
+  { code: 'PL', label: 'Privilege', quotaField: 'pl_quota' },
+];
+
 export function countMarks(attendance = {}) {
   const counts = {};
   for (const entry of Object.values(attendance)) {

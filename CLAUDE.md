@@ -136,6 +136,17 @@ assistant. See `salary-app/README.md`.
   attendance grid and employee list all honour it. Companies can be renamed and deleted
   from their chip — before this, clicking a company did nothing at all, which is what
   Dinesh reported.
+- **HRMS modules** (Dinesh asked for a "full HRMS", order 1-2-3-4, for Book N Fly first):
+  1. ✅ **Employee record** — click a name in Employees: employment, personal, statutory
+     (PAN/Aadhaar/UAN/PF/ESIC) and bank details, each saving on blur, with shape warnings
+     that never block a save. `EmployeeProfile.jsx`.
+  2. ✅ **Leave** — CL/SL/PL marks with per-employee yearly quotas (`cl_quota` etc.), taken
+     counted from the marks across the year's periods so it cannot drift, negative balances
+     flagged. `Leave.jsx`, `leaveSummary()` in db.js.
+  3. ⬜ Loans and advances ledger, auto-deducted monthly.
+  4. ⬜ Statutory reports — PF ECR, ESI return, PT challan, muster roll / wage register.
+  Self-service and approval workflows are **not possible in the standalone file** and need
+  the server; everything above works offline.
 - **Biometric punches import** from `Reports`: `shared/punches.js` reads any export shape
   (the caller maps the columns; header row is auto-detected), groups rows by person and day
   (earliest punch = in, latest = out), and turns them into P/A/HF plus short-hour minutes.

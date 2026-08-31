@@ -42,7 +42,9 @@ does to the salary — no need to remember the codes. Typing the code still work
 | `P` | Present | — |
 | `A` | Absent | −1 day |
 | `HF` | Half Day | −0.5 days |
-| `PL` | **Paid Leave** | — |
+| `CL` | **Casual Leave** | — |
+| `SL` | **Sick Leave** | — |
+| `PL` | **Privilege Leave** | — |
 | `UL` | **Unpaid Leave** | −1 day |
 | `PH` | Paid Holiday | — |
 | `SP` | Sunday Present | +1 day's pay |
@@ -147,10 +149,21 @@ can carry minutes with no mark at all. Typing a total into `OT min` on the salar
 overrides the month; clearing the box hands it back to the days.
 
 `P`, `A`, `HF`, `AD`, `PH`, `SP`, `HP`, `WH` and `S` come from the legend in columns
-BI/BJ of the sheet. **`PL` and `UL` are new** — the sheet has no way to say "leave", only
-plain absence. Paid leave costs nothing; unpaid leave deducts a day exactly as `A` does,
-but is counted separately, so the payslip and the export show leave and absence apart.
-Which one a day is remains your call, per day.
+BI/BJ of the sheet. **The leave marks are new** — the sheet has no way to say "leave", only
+plain absence. `CL`, `SL` and `PL` are the three paid kinds, each counted against its own
+yearly entitlement on the **Leave** tab; `UL` is leave with no balance left behind it, and
+costs a day exactly as `A` does. Which one a day is remains your call, per day.
+
+### The leave register
+
+The **Leave** tab shows, for a calendar year: what each person is entitled to, what they
+have taken, and what is left. Nothing is entered twice — **taken** is counted straight off
+the CL/SL/PL marks across every month of that year, so the register and the grid cannot
+disagree. Entitlement can be set on the register itself or on the employee's record.
+
+Anyone who has taken more paid leave than was due shows a negative balance and is counted
+in the warning at the top; those days are still being paid, so mark them **Unpaid Leave**
+instead if they should not be.
 
 ### Where it differs from the spreadsheet, on purpose
 

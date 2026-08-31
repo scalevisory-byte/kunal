@@ -3,6 +3,7 @@ import { AuthError, STANDALONE, api, clearToken, getToken, setToken } from './ap
 import Attendance from './components/Attendance.jsx';
 import Employees from './components/Employees.jsx';
 import Festivals from './components/Festivals.jsx';
+import Leave from './components/Leave.jsx';
 import Login from './components/Login.jsx';
 import Payslip from './components/Payslip.jsx';
 import PeriodBar from './components/PeriodBar.jsx';
@@ -14,6 +15,7 @@ const TABS = [
   ['sheet', 'Salary sheet'],
   ['attendance', 'Attendance'],
   ['sunday', 'Sunday'],
+  ['leave', 'Leave'],
   ['employees', 'Employees'],
   ['reports', 'Reports'],
 ];
@@ -367,6 +369,14 @@ export default function App() {
             rows={visibleRows}
             locked={locked}
             onPatchRow={patchRow}
+          />
+        )}
+
+        {tab === 'leave' && (
+          <Leave
+            periods={periods}
+            employees={employees}
+            onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
           />
         )}
 
