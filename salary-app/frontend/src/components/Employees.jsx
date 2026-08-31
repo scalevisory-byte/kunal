@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { rupees } from '../format.js';
 
-const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '' };
+const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '', group_name: '' };
 
 /** The employee master: who gets paid, and what their monthly salary is. */
 export default function Employees({
@@ -49,8 +49,19 @@ export default function Employees({
     }
   };
 
+  const groups = useMemo(
+    () => [...new Set(employees.map((e) => e.group_name).filter(Boolean))].sort(),
+    [employees]
+  );
+
   return (
     <section className="stack">
+      <datalist id="employee-groups">
+        {groups.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+
       <div className="card">
         <h2>Add employee</h2>
         <form className="form-grid" onSubmit={submit}>
@@ -97,9 +108,24 @@ export default function Employees({
               <option>Cheque</option>
             </select>
           </label>
+          <label title="People who take the same festival holidays. Anything you like goes here.">
+            Group
+            <input
+              list="employee-groups"
+              placeholder="optional"
+              value={form.group_name}
+              onChange={(e) => setForm({ ...form, group_name: e.target.value })}
+            />
+          </label>
           <button className="primary" type="submit">Add</button>
         </form>
         {error && <p className="error">{error}</p>}
+        <p className="muted small">
+          <strong>Group</strong> is for people who take the same festival holidays — put whatever
+          you like in it. On the attendance grid, clicking a date lets you mark a whole group for
+          that one day, so a holiday only some of the staff take is a couple of clicks rather
+          than seventy.
+        </p>
         <p className="muted small">
           A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
           across, and anything already typed into that month stays put.
@@ -188,6 +214,7 @@ export default function Employees({
               <tr>
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
+                <th title="People who take the same festival holidays">Group</th>
                 <th>Salary</th>
                 <th>PF</th>
                 <th>ESI</th>
@@ -215,6 +242,18 @@ export default function Employees({
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    <input
+                      className="cell-input wide"
+                      list="employee-groups"
+                      defaultValue={emp.group_name || ''}
+                      placeholder="-"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.group_name || '') &&
+                        onPatch(emp.id, { group_name: e.target.value })
+                      }
+                    />
                   </td>
                   <td>
                     <input
@@ -280,7 +319,7 @@ export default function Employees({
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={8} className="empty">No employees yet.</td></tr>
+                <tr><td colSpan={9} className="empty">No employees yet.</td></tr>
               )}
             </tbody>
           </table>

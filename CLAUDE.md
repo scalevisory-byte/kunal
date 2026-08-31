@@ -106,6 +106,14 @@ assistant. See `salary-app/README.md`.
   also why Sunday pay stays out of the PT line.
 - **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
   on screen (Sundays as S), never overwriting an existing mark.
+- **Clicking a date header** opens a day marker: one day, a chosen mark, and a chosen set of
+  people (everyone / a group / ticked names). Built for **festival holidays, which are paid
+  for some staff and a working day for others** — Dinesh raised exactly this. It replaces
+  marks already on that day by default (it normally runs after "Mark everyone Present") and
+  states the count on the button before it acts.
+- `employees.group_name` is free text ("Eid", a shift, a site) and becomes a one-press
+  shortcut in the day marker. Deliberately neutral — Dinesh decides what goes in it rather
+  than the app recording religion as a field.
 - A **company filter** runs across the whole app (state in `App.jsx`, remembered in
   localStorage): the strip under the month picker, the company name above each block on
   the salary sheet, and the chips under Employees all set it, and the salary sheet,

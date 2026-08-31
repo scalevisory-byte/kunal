@@ -21,6 +21,9 @@ db.exec(`
     code           TEXT,
     name           TEXT NOT NULL,
     designation    TEXT,
+    -- Free text, for people who take the same holidays. Whatever Dinesh wants
+    -- to write in it - a festival group, a shift, a site.
+    group_name     TEXT,
     monthly_salary REAL NOT NULL DEFAULT 0,
     pf             REAL NOT NULL DEFAULT 0,
     esi            REAL NOT NULL DEFAULT 0,
@@ -142,6 +145,11 @@ if (payrollColumns.some((c) => c.name === 'ot_minutes')) {
   log.info('Migrated payroll_rows: ot_minutes is now ot_minutes_override over the days.');
 }
 
+if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'group_name')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN group_name TEXT`);
+  log.info('Migrated employees: added group_name for holiday groups.');
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -211,6 +219,7 @@ const EMPLOYEE_FIELDS = [
   'code',
   'name',
   'designation',
+  'group_name',
   'monthly_salary',
   'pf',
   'esi',
@@ -259,6 +268,7 @@ export function createEmployee(input) {
     code: input.code || null,
     name: String(input.name || '').trim(),
     designation: input.designation || null,
+    group_name: input.group_name || null,
     monthly_salary: Number(input.monthly_salary) || 0,
     pf: Number(input.pf) || 0,
     esi: Number(input.esi) || 0,
@@ -367,7 +377,7 @@ export function listPayrollRows(periodId, { company_id } = {}) {
   return db
     .prepare(
       `SELECT p.*, e.name AS employee_name, e.code AS employee_code, e.designation,
-              e.company_id, c.name AS company_name
+              e.group_name, e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
        JOIN companies c ON c.id = e.company_id

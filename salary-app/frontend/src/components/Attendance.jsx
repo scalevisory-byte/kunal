@@ -23,10 +23,12 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
   const [draft, setDraft] = useState({}); // "employeeId:day" -> { code, minutes }
   const [query, setQuery] = useState('');
   const [picker, setPicker] = useState(null); // { employeeId, day, name }
+  const [dayMarker, setDayMarker] = useState(null); // a whole day, for many people
   const [status, setStatus] = useState('');
   const saveTimer = useRef(null);
 
   const total = daysInMonth(period.year, period.month);
+  const monthName = new Date(period.year, period.month - 1, 1).toLocaleString('en-IN', { month: 'long' });
   const dayList = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
 
   const filtered = useMemo(() => {
@@ -122,6 +124,31 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
   };
 
   /**
+   * One day, many people - a festival holiday that only some of the staff take,
+   * a strike, a day the office shut. Unlike the row and grid fills, this one
+   * can be told to replace marks that are already there, because it is usually
+   * run after everybody has been marked Present.
+   */
+  const markDay = (day, code, employeeIds, replaceExisting) => {
+    if (locked) return 0;
+    const next = { ...draft };
+    let changed = 0;
+    for (const employeeId of employeeIds) {
+      const row = rows.find((r) => r.employee_id === employeeId);
+      if (!row) continue;
+      const entry = entryOf(row, day);
+      if (entry.code && !replaceExisting) continue;
+      if (entry.code === code) continue;
+      next[`${employeeId}:${day}`] = { ...entry, code };
+      changed++;
+    }
+    if (!changed) return 0;
+    setDraft(next);
+    queueSave(next);
+    return changed;
+  };
+
+  /**
    * Mark everybody on screen Present in one go - the usual starting point for a
    * month, where most people worked most days and only the exceptions need
    * marking afterwards. Days that already carry a mark are left alone, so this
@@ -188,8 +215,15 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
               <th className="sticky-name">Employee</th>
               {dayList.map((d) => (
                 <th key={d} className={isSunday(period.year, period.month, d) ? 'sunday' : undefined}>
-                  <span className="dow">{weekday(period.year, period.month, d)}</span>
-                  <span>{d}</span>
+                  <button
+                    className="day-head"
+                    disabled={locked}
+                    title={`Mark ${d} ${monthName} for a whole group at once - a festival holiday, say`}
+                    onClick={() => setDayMarker(d)}
+                  >
+                    <span className="dow">{weekday(period.year, period.month, d)}</span>
+                    <span>{d}</span>
+                  </button>
                 </th>
               ))}
               <th title="Days of salary these marks cost">Absent</th>
@@ -301,6 +335,18 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         );
       })()}
 
+      {dayMarker && (
+        <DayMarker
+          codes={codes}
+          day={dayMarker}
+          period={period}
+          rows={rows}
+          entryOf={entryOf}
+          onApply={markDay}
+          onClose={() => setDayMarker(null)}
+        />
+      )}
+
       <div className="legend card">
         <strong>What each mark does to the salary</strong>
         <ul>
@@ -323,6 +369,11 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
           <strong>Unpaid Leave</strong> deducts a day, the same as Absent, but is counted separately.
         </p>
         <p className="muted small">
+          <strong>Click a date in the header</strong> to mark that one day for a whole group at
+          once — a festival holiday that only some of the staff take, for instance. Pick the mark,
+          then pick who it applies to: everyone, a group, or names off a list.
+        </p>
+        <p className="muted small">
           <strong>Mark everyone Present</strong> fills every blank day for everybody on screen at
           once — Sundays as S, the rest as Present — so a month starts from "everyone worked" and
           only the exceptions need marking. It never overwrites a day that already has a mark, and
@@ -336,6 +387,158 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * One day, many people.
+ *
+ * Festival holidays are the reason this exists: Eid is a paid holiday for some
+ * of the staff and an ordinary working day for the rest, so "mark everyone" is
+ * the wrong tool. Pick the mark, then pick who - everyone shown, a group, or
+ * names ticked off a list.
+ */
+function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
+  const [code, setCode] = useState('PH');
+  const [replaceExisting, setReplaceExisting] = useState(true);
+  const [chosen, setChosen] = useState(() => new Set(rows.map((r) => r.employee_id)));
+  const [query, setQuery] = useState('');
+
+  const groups = useMemo(() => {
+    const names = new Set();
+    for (const row of rows) if (row.group_name) names.add(row.group_name);
+    return [...names].sort();
+  }, [rows]);
+
+  const listed = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.employee_name.toLowerCase().includes(q) ||
+        (r.company_name || '').toLowerCase().includes(q) ||
+        (r.group_name || '').toLowerCase().includes(q)
+    );
+  }, [rows, query]);
+
+  const toggle = (id) => {
+    const next = new Set(chosen);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setChosen(next);
+  };
+
+  const selectOnly = (ids) => setChosen(new Set(ids));
+
+  // What pressing Apply would actually do, so it is never a surprise.
+  const picked = rows.filter((r) => chosen.has(r.employee_id));
+  const already = picked.filter((r) => {
+    const existing = entryOf(r, day).code;
+    return existing && existing !== code;
+  });
+  const willChange = replaceExisting
+    ? picked.filter((r) => entryOf(r, day).code !== code).length
+    : picked.filter((r) => !entryOf(r, day).code).length;
+
+  const label = `${weekday(period.year, period.month, day)} ${day} ${new Date(
+    period.year,
+    period.month - 1,
+    1
+  ).toLocaleString('en-IN', { month: 'long' })}`;
+
+  return (
+    <div className="picker-backdrop" onClick={onClose}>
+      <div className="picker day-marker card" onClick={(e) => e.stopPropagation()}>
+        <div className="picker-head">
+          <strong>{label}</strong>
+          <span className="muted small">Mark this one day for several people at once</span>
+        </div>
+
+        <label className="field">
+          Mark
+          <select value={code} onChange={(e) => setCode(e.target.value)}>
+            {Object.entries(codes).map(([value, meta]) => (
+              <option key={value} value={value}>
+                {meta.label}
+                {meta.absent > 0 ? ` (−${meta.absent} day${meta.absent === 1 ? '' : 's'})` : ''}
+                {meta.sunday > 0 ? " (+1 day's pay)" : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="who">
+          <div className="who-head">
+            <strong>Who</strong>
+            <span className="muted small">{chosen.size} of {rows.length} chosen</span>
+          </div>
+          <div className="who-shortcuts">
+            <button onClick={() => selectOnly(rows.map((r) => r.employee_id))}>Everyone</button>
+            <button onClick={() => selectOnly([])}>Nobody</button>
+            {groups.map((name) => (
+              <button
+                key={name}
+                title={`Everyone in the ${name} group`}
+                onClick={() => selectOnly(rows.filter((r) => r.group_name === name).map((r) => r.employee_id))}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <input
+            className="search"
+            placeholder="Search to narrow the list"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <ul className="who-list">
+            {listed.map((row) => (
+              <li key={row.employee_id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={chosen.has(row.employee_id)}
+                    onChange={() => toggle(row.employee_id)}
+                  />
+                  <span>{row.employee_name}</span>
+                  <span className="muted small">
+                    {row.group_name || row.company_name}
+                    {entryOf(row, day).code ? ` · now ${entryOf(row, day).code}` : ''}
+                  </span>
+                </label>
+              </li>
+            ))}
+            {!listed.length && <li className="muted small">Nobody matches that.</li>}
+          </ul>
+        </div>
+
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={replaceExisting}
+            onChange={(e) => setReplaceExisting(e.target.checked)}
+          />
+          Replace marks already on this day
+          {already.length > 0 && <span className="muted small"> ({already.length} would change)</span>}
+        </label>
+
+        <div className="button-row">
+          <button
+            className="primary"
+            disabled={!willChange}
+            onClick={() => {
+              onApply(day, code, [...chosen], replaceExisting);
+              onClose();
+            }}
+          >
+            {willChange
+              ? `Mark ${willChange} ${willChange === 1 ? 'person' : 'people'} ${codes[code]?.label}`
+              : 'Nothing to change'}
+          </button>
+          <button onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

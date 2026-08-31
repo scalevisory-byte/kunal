@@ -53,6 +53,27 @@ does to the salary — no need to remember the codes. Typing the code still work
 
 A day left blank counts as worked.
 
+### Marking a lot of days at once
+
+| To do this | Where |
+|---|---|
+| Everybody, every blank day | **Mark everyone Present** on the toolbar — Sundays as S |
+| One company only | Pick it on the **Company** strip first, then the same button |
+| One person's whole month | **Fill blanks…** at the right-hand end of their row |
+| **One day, for a group of people** | **Click the date** in the header |
+
+That last one is how a festival holiday gets marked. Eid is a paid holiday for some of the
+staff and an ordinary working day for the rest, so "everyone" is the wrong tool: click the
+date, choose the mark, then choose who it applies to — everyone shown, a group, or names
+ticked off a list. It says on the button how many people it is about to change.
+
+Because it usually runs *after* everybody has been marked Present, it replaces marks
+already on that day by default, and tells you how many that is before you press it.
+
+**Group** on the employee master is what makes this quick the second time. Put anything in
+it — a festival group, a shift, a site — and everyone carrying that label becomes a
+one-press shortcut in the day marker.
+
 ### Short hours, by the minute
 
 The same day menu sets that day's **short hours** — presets for 15, 30, 40, 45, 60, 90 and

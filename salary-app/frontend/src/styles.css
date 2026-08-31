@@ -368,6 +368,46 @@ td.mark { padding: 0.1rem !important; }
   z-index: 70;
 }
 .picker { width: min(21rem, 100%); padding: 0.8rem; }
+.day-marker { width: min(30rem, 100%); max-height: 88vh; overflow: auto; }
+.day-marker .field { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.7rem; }
+.day-head {
+  border: none;
+  background: none;
+  padding: 0.1rem 0.2rem;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 4px;
+}
+.day-head:hover:not(:disabled) { background: var(--brand); color: #fff; }
+
+.who { border-top: 1px solid var(--line); padding-top: 0.6rem; }
+.who-head { display: flex; justify-content: space-between; align-items: baseline; }
+.who-shortcuts { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.4rem 0; }
+.who-shortcuts button { font-size: 0.75rem; padding: 0.2rem 0.55rem; border-radius: 999px; }
+.who-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  max-height: 13rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.who-list li { border-bottom: 1px solid var(--line); }
+.who-list li:last-child { border-bottom: none; }
+.who-list label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.who-list label:hover { background: var(--brand-soft); }
 .picker-head { display: flex; flex-direction: column; margin-bottom: 0.5rem; }
 .picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
 .picker-list button {

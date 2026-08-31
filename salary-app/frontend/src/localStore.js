@@ -179,6 +179,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         employee_name: emp.name,
         employee_code: emp.code,
         designation: emp.designation,
+        group_name: emp.group_name || null,
         company_id: emp.company_id,
         company_name: companyOf(emp.company_id)?.name || '',
         attendance: marks,
@@ -228,8 +229,8 @@ const ROW_FIELDS = [
 ];
 
 const EMPLOYEE_FIELDS = [
-  'company_id', 'code', 'name', 'designation', 'monthly_salary', 'pf', 'esi',
-  'payment_mode', 'joined_on', 'left_on', 'active', 'sort_order',
+  'company_id', 'code', 'name', 'designation', 'group_name', 'monthly_salary',
+  'pf', 'esi', 'payment_mode', 'joined_on', 'left_on', 'active', 'sort_order',
 ];
 
 /** Answers an /api path the way the server would. */
@@ -301,6 +302,7 @@ export async function handle(method, path, body) {
       code: body.code || null,
       name,
       designation: body.designation || null,
+      group_name: body.group_name || null,
       monthly_salary: Number(body.monthly_salary) || 0,
       pf: Number(body.pf) || 0,
       esi: Number(body.esi) || 0,
@@ -509,6 +511,7 @@ export async function upload(path, formData) {
           code: null,
           name: item.name,
           designation: null,
+          group_name: null,
           monthly_salary: item.salary,
           pf: item.pf,
           esi: item.esi,
