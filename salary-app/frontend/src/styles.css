@@ -196,8 +196,47 @@ input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
 .pill.locked { color: var(--warn); border-color: var(--warn); }
 .pill.error-pill { color: var(--bad); border-color: var(--bad); margin-left: 0.4rem; }
 
-.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0.5rem 0 0; }
-.chip { border: 1px solid var(--line); border-radius: 999px; padding: 0.2rem 0.7rem; font-size: 0.8rem; }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0.5rem 0; }
+.chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 0.8rem;
+}
+.chip.active { border-color: var(--brand); background: var(--brand-soft); }
+.chip button { border: none; background: none; border-radius: 0; padding: 0.25rem 0.5rem; }
+.chip .chip-name { padding-left: 0.8rem; font-weight: 600; }
+.chip button:hover { background: var(--brand-soft); }
+.chip .chip-action { color: var(--muted); border-left: 1px solid var(--line); }
+.chip .chip-action.danger:hover { background: var(--bad); color: #fff; }
+
+/* The company filter that follows you across the tabs */
+.company-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.company-bar button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 999px;
+  color: var(--muted);
+}
+.company-bar button.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 600;
+}
+.company-bar button.active .muted { color: rgba(255, 255, 255, 0.75); }
+
+.company-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline dotted;
+}
 
 /* ---------- tables ---------- */
 

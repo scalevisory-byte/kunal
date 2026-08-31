@@ -4,7 +4,18 @@ import { rupees } from '../format.js';
 const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '' };
 
 /** The employee master: who gets paid, and what their monthly salary is. */
-export default function Employees({ companies, employees, onCreate, onPatch, onDelete, onCreateCompany }) {
+export default function Employees({
+  companies,
+  employees,
+  companyId,
+  onCompany,
+  onCreate,
+  onPatch,
+  onDelete,
+  onCreateCompany,
+  onPatchCompany,
+  onDeleteCompany,
+}) {
   const [form, setForm] = useState(BLANK);
   const [companyName, setCompanyName] = useState('');
   const [query, setQuery] = useState('');
@@ -16,9 +27,10 @@ export default function Employees({ companies, employees, onCreate, onPatch, onD
     return employees.filter(
       (e) =>
         (showInactive || e.active) &&
+        (!companyId || e.company_id === companyId) &&
         (!q || e.name.toLowerCase().includes(q) || (e.company_name || '').toLowerCase().includes(q))
     );
-  }, [employees, query, showInactive]);
+  }, [employees, query, showInactive, companyId]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -114,11 +126,49 @@ export default function Employees({ companies, employees, onCreate, onPatch, onD
         </form>
         <ul className="chips">
           {companies.map((c) => (
-            <li key={c.id} className="chip">
-              {c.name} <span className="muted">({c.employee_count})</span>
+            <li key={c.id} className={`chip${companyId === c.id ? ' active' : ''}`}>
+              <button
+                className="chip-name"
+                title={companyId === c.id ? 'Showing only this one - click to show all' : `Show only ${c.name}`}
+                onClick={() => onCompany?.(c.id)}
+              >
+                {c.name} <span className="muted">({c.employee_count})</span>
+              </button>
+              <button
+                className="chip-action"
+                title="Rename"
+                onClick={() => {
+                  const name = window.prompt(`Rename "${c.name}" to:`, c.name);
+                  if (name && name.trim() && name.trim() !== c.name) {
+                    onPatchCompany(c.id, { name: name.trim() });
+                  }
+                }}
+              >
+                ✎
+              </button>
+              <button
+                className="chip-action danger"
+                title={
+                  c.employee_count
+                    ? `${c.employee_count} employees are in this company`
+                    : 'Delete this company'
+                }
+                onClick={() => {
+                  const warning = c.employee_count
+                    ? `Delete "${c.name}" AND its ${c.employee_count} employees, with every month they appear in?`
+                    : `Delete "${c.name}"?`;
+                  if (window.confirm(warning)) onDeleteCompany(c.id);
+                }}
+              >
+                ✕
+              </button>
             </li>
           ))}
         </ul>
+        <p className="muted small">
+          Click a company to show only its people — here, on the salary sheet and on the
+          attendance grid. Click it again, or <strong>All</strong> at the top, to go back.
+        </p>
       </div>
 
       <div className="card">

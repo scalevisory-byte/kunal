@@ -16,6 +16,7 @@ const TABS = [
 ];
 
 const PERIOD_KEY = 'salary-app-period';
+const COMPANY_KEY = 'salary-app-company';
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -30,6 +31,8 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [codes, setCodes] = useState({});
   const [payslip, setPayslip] = useState(null);
+  // Clicking a company anywhere narrows every tab to it. Null is all of them.
+  const [companyId, setCompanyId] = useState(Number(localStorage.getItem(COMPANY_KEY)) || null);
   const [saving, setSaving] = useState(0);
   const [error, setError] = useState('');
 
@@ -241,6 +244,20 @@ export default function App() {
   const period = periods.find((p) => p.id === periodId) || null;
   const locked = !!period?.locked;
 
+  // A company that has been deleted must not keep filtering everything away.
+  const activeCompany = companies.find((c) => c.id === companyId) || null;
+  const pickCompany = (id) => {
+    const next = id === companyId ? null : id || null;
+    setCompanyId(next);
+    if (next) localStorage.setItem(COMPANY_KEY, String(next));
+    else localStorage.removeItem(COMPANY_KEY);
+  };
+  const visibleRows = payroll
+    ? activeCompany
+      ? payroll.rows.filter((r) => r.company_id === activeCompany.id)
+      : payroll.rows
+    : [];
+
   return (
     <div className="app">
       <header>
@@ -254,6 +271,27 @@ export default function App() {
           onSync={syncPeriod}
           onDelete={deletePeriod}
         />
+        <div className="company-bar">
+          <span className="muted small">Company</span>
+          <button
+            className={!activeCompany ? 'active' : undefined}
+            onClick={() => pickCompany(null)}
+          >
+            All
+          </button>
+          {companies.map((c) => (
+            <button
+              key={c.id}
+              className={activeCompany?.id === c.id ? 'active' : undefined}
+              onClick={() => pickCompany(c.id)}
+              title={`Show only ${c.name}`}
+            >
+              {c.name}
+              <span className="muted"> {c.employee_count}</span>
+            </button>
+          ))}
+        </div>
+
         <nav className="tabs">
           {TABS.map(([key, label]) => (
             <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
@@ -292,18 +330,19 @@ export default function App() {
         {tab === 'sheet' && period && payroll && (
           <SalarySheet
             period={period}
-            rows={payroll.rows}
+            rows={visibleRows}
             saving={saving}
             locked={locked}
             onPatchRow={patchRow}
             onPayslip={setPayslip}
+            onCompany={pickCompany}
           />
         )}
 
         {tab === 'attendance' && period && payroll && (
           <Attendance
             period={period}
-            rows={payroll.rows}
+            rows={visibleRows}
             codes={codes}
             locked={locked}
             onSave={saveAttendance}
@@ -314,10 +353,14 @@ export default function App() {
           <Employees
             companies={companies}
             employees={employees}
+            companyId={companyId}
+            onCompany={pickCompany}
             onCreate={masterAction((body) => api.post('/employees', body))}
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
             onDelete={masterAction((id) => api.del(`/employees/${id}`))}
             onCreateCompany={masterAction((body) => api.post('/companies', body))}
+            onPatchCompany={masterAction((id, patch) => api.patch(`/companies/${id}`, patch))}
+            onDeleteCompany={masterAction((id) => api.del(`/companies/${id}`))}
           />
         )}
 

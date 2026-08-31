@@ -71,7 +71,7 @@ function EditableCell({ row, field, disabled, onCommit }) {
   );
 }
 
-export default function SalarySheet({ period, rows, onPatchRow, onPayslip, saving, locked }) {
+export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCompany, saving, locked }) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
   const scroller = useRef(null);
@@ -97,7 +97,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, savin
     for (const row of filtered) {
       if (row.company_name !== current) {
         current = row.company_name;
-        out.push({ type: 'company', name: current, key: `c-${current}` });
+        out.push({ type: 'company', name: current, id: row.company_id, key: `c-${current}` });
       }
       out.push({ type: 'row', row, key: `r-${row.id}` });
     }
@@ -158,7 +158,15 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, savin
             {grouped.map((item) =>
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
-                  <td className="sticky-name" colSpan={23}>{item.name}</td>
+                  <td className="sticky-name" colSpan={23}>
+                    <button
+                      className="company-link"
+                      title="Show only this company - click again for all of them"
+                      onClick={() => onCompany?.(item.id)}
+                    >
+                      {item.name}
+                    </button>
+                  </td>
                 </tr>
               ) : (
                 <Row
