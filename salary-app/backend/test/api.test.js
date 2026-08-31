@@ -41,10 +41,23 @@ test('a month can be opened with its own divisors', async () => {
   assert.equal(employee.status, 201);
   employeeId = employee.body.id;
 
-  const period = await api('POST', '/api/periods', { year: 2026, month: 4, working_days: 26 });
+  const period = await api('POST', '/api/periods', { year: 2026, month: 4 });
   assert.equal(period.status, 201);
   assert.equal(period.body.label, 'April 2026');
+  assert.equal(period.body.working_days, 26);
   periodId = period.body.id;
+});
+
+test('a month is always 26 working days, however it is asked for', async () => {
+  // February, and someone trying to open it on its own calendar length.
+  const feb = await api('POST', '/api/periods', { year: 2026, month: 2, working_days: 28 });
+  assert.equal(feb.status, 201);
+  assert.equal(feb.body.working_days, 26, 'the request does not get to choose');
+
+  const patched = await api('PATCH', `/api/periods/${feb.body.id}`, { working_days: 31 });
+  assert.equal(patched.body.working_days, 26, 'and it cannot be changed afterwards');
+
+  await api('DELETE', `/api/periods/${feb.body.id}`);
 });
 
 test('opening a month gives every active employee a row at their master salary', async () => {
@@ -120,12 +133,12 @@ test('short hours marked on a day reach the salary sheet', async () => {
   assert.equal(row.ot_salary, -555.56);
 
   // A total typed on the salary sheet takes over, and clearing it hands back.
-  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes: -60 });
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes_override: -60 });
   let after = await api('GET', `/api/periods/${periodId}/payroll`);
   assert.equal(after.body.rows[0].ot_minutes, -60);
   assert.equal(after.body.rows[0].overrides.ot_minutes, true);
 
-  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes: '' });
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes_override: '' });
   after = await api('GET', `/api/periods/${periodId}/payroll`);
   assert.equal(after.body.rows[0].ot_minutes, -130, 'back to the days');
 

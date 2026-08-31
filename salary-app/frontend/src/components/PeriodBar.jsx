@@ -8,7 +8,6 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
   const [form, setForm] = useState({
     year: now.getFullYear(),
     month: now.getMonth() + 1,
-    working_days: 26,
     hours_per_day: 9,
   });
   const [error, setError] = useState('');
@@ -20,7 +19,6 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
       await onCreate({
         year: Number(form.year),
         month: Number(form.month),
-        working_days: Number(form.working_days) || 26,
         hours_per_day: Number(form.hours_per_day) || 9,
       });
       setOpen(false);
@@ -46,18 +44,12 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
 
       {period && (
         <>
-          <label className="inline-num" title="The divisor behind the day rate - 26 in the sheet">
-            Working days
-            <input
-              inputMode="decimal"
-              defaultValue={period.working_days}
-              disabled={!!period.locked}
-              onBlur={(e) =>
-                Number(e.target.value) !== period.working_days &&
-                onPatch({ working_days: Number(e.target.value) || 26 })
-              }
-            />
-          </label>
+          <span
+            className="fixed-setting"
+            title="Every month is paid on 26 working days, whatever the calendar says. The day rate is salary ÷ 26."
+          >
+            Working days <strong>{period.working_days}</strong>
+          </span>
           <label className="inline-num" title="Hours in a working day - used for the overtime rate">
             Hours/day
             <input
@@ -131,14 +123,11 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
             <input value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} />
           </label>
           <label>
-            Working days
-            <input value={form.working_days} onChange={(e) => setForm({ ...form, working_days: e.target.value })} />
-          </label>
-          <label>
             Hours/day
             <input value={form.hours_per_day} onChange={(e) => setForm({ ...form, hours_per_day: e.target.value })} />
           </label>
           <button className="primary" type="submit">Open month</button>
+          <p className="muted small">Every month is paid on 26 working days.</p>
           {error && <p className="error">{error}</p>}
         </form>
       )}

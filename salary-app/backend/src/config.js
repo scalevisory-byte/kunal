@@ -27,7 +27,7 @@ export const config = {
 
   // Defaults for a newly created month. Every period stores its own copy, so
   // changing these never rewrites a month that has already been paid.
-  workingDays: num(process.env.WORKING_DAYS, 26),
+  // Working days are NOT here: every month is 26, fixed in shared/calc.js.
   hoursPerDay: num(process.env.HOURS_PER_DAY, 9),
   ptThreshold: num(process.env.PT_THRESHOLD, 12000),
   ptAmount: num(process.env.PT_AMOUNT, 200),

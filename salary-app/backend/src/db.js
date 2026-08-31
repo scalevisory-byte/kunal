@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -56,7 +57,7 @@ db.exec(`
     salary                 REAL NOT NULL DEFAULT 0,
     absent_days_override   REAL,
     sundays_override       REAL,
-    ot_minutes             REAL,
+    ot_minutes_override    REAL,
     ot_amount_override     REAL,
     adjustment             REAL NOT NULL DEFAULT 0,
     esi                    REAL NOT NULL DEFAULT 0,
@@ -93,13 +94,14 @@ if (!attendanceColumns.has('minutes')) {
   log.info('Migrated attendance table: added per-day minutes.');
 }
 
-// ot_minutes used to be NOT NULL DEFAULT 0. It is now nullable, where null means
-// "use the minutes marked on the days". SQLite cannot drop NOT NULL in place, so
-// the table is rebuilt. A stored 0 becomes null: it contributed nothing to the
-// pay either way, and leaving it would block day-by-day entry on every row.
+// ot_minutes was NOT NULL DEFAULT 0 and named without the _override suffix. It
+// is now ot_minutes_override, nullable, where null means "use the minutes marked
+// on the days" - the same shape as every other override column. SQLite cannot
+// drop NOT NULL in place, so the table is rebuilt. A stored 0 becomes null: it
+// contributed nothing to the pay either way, and leaving it would block
+// day-by-day entry on every row that came in from an import.
 const payrollColumns = db.prepare(`PRAGMA table_info(payroll_rows)`).all();
-const otColumn = payrollColumns.find((c) => c.name === 'ot_minutes');
-if (otColumn && otColumn.notnull === 1) {
+if (payrollColumns.some((c) => c.name === 'ot_minutes')) {
   db.exec(`
     PRAGMA foreign_keys = OFF;
     BEGIN;
@@ -111,7 +113,7 @@ if (otColumn && otColumn.notnull === 1) {
       salary                 REAL NOT NULL DEFAULT 0,
       absent_days_override   REAL,
       sundays_override       REAL,
-      ot_minutes             REAL,
+      ot_minutes_override    REAL,
       ot_amount_override     REAL,
       adjustment             REAL NOT NULL DEFAULT 0,
       esi                    REAL NOT NULL DEFAULT 0,
@@ -133,7 +135,14 @@ if (otColumn && otColumn.notnull === 1) {
     PRAGMA foreign_keys = ON;
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_payroll_period ON payroll_rows(period_id)`);
-  log.info('Migrated payroll_rows: ot_minutes is now an override over the days.');
+  log.info('Migrated payroll_rows: ot_minutes is now ot_minutes_override over the days.');
+}
+
+const strayPeriods = db
+  .prepare(`UPDATE periods SET working_days = ? WHERE working_days IS NOT ?`)
+  .run(STANDARD_WORKING_DAYS, STANDARD_WORKING_DAYS).changes;
+if (strayPeriods) {
+  log.info(`Set ${strayPeriods} month(s) back to ${STANDARD_WORKING_DAYS} working days.`);
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
@@ -298,7 +307,9 @@ export function createPeriod(input) {
     year: Number(input.year),
     month: Number(input.month),
     label: String(input.label || '').trim(),
-    working_days: Number(input.working_days) || config.workingDays,
+    // Always 26 - the app pays every month on 26 days. Stored per period only
+    // so the export and the payslip can print it without a special case.
+    working_days: STANDARD_WORKING_DAYS,
     hours_per_day: Number(input.hours_per_day) || config.hoursPerDay,
     pt_threshold: input.pt_threshold === undefined ? config.ptThreshold : Number(input.pt_threshold),
     pt_amount: input.pt_amount === undefined ? config.ptAmount : Number(input.pt_amount),
@@ -318,7 +329,8 @@ export function createPeriod(input) {
 export function updatePeriod(id, patch) {
   const fields = [];
   const values = [];
-  for (const key of ['label', 'working_days', 'hours_per_day', 'pt_threshold', 'pt_amount', 'locked']) {
+  // working_days is deliberately absent: it is fixed at 26 and not editable.
+  for (const key of ['label', 'hours_per_day', 'pt_threshold', 'pt_amount', 'locked']) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(key === 'locked' ? (patch[key] ? 1 : 0) : patch[key]);
@@ -378,7 +390,7 @@ const PAYROLL_FIELDS = [
   'salary',
   'absent_days_override',
   'sundays_override',
-  'ot_minutes',
+  'ot_minutes_override',
   'ot_amount_override',
   'adjustment',
   'esi',

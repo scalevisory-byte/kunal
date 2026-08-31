@@ -15,12 +15,12 @@ Every column of the April tab, in order:
 
 | Sheet | Column | How it is worked out |
 |---|---|---|
-| AH | Working Days | Set per month (26 in the sheet) |
+| AH | Working Days | Always 26 — see below |
 | AI | Sunday | Sundays/holidays worked — counted from `SP`/`HP` marks, or typed |
 | AJ | Absent Days | `A` = 1, `HF` = 0.5, `AD` = 2 — counted from the grid, or typed |
 | AK | Present Days | Working days − absent days |
 | AL | Salary | Monthly salary |
-| AP AQ AR | Per day / hour / minute | `AL / 26`, `÷ 9`, `÷ 60` |
+| AP AQ AR | Per day / hour / minute | `AL / 26`, `÷ hours per day`, `÷ 60` |
 | AN | Absent Salary | Day rate × absent days |
 | AO | Gross Salary | Salary − absent salary |
 | AS AT | OT/LT | Short hours and overtime in minutes × per-minute rate |
@@ -75,10 +75,14 @@ Which one a day is remains your call, per day.
 
 ### Where it differs from the spreadsheet, on purpose
 
-- **Working days, hours/day and the PT slab are per month.** The sheet hard-codes
-  `/26`, `/9` and `IF(>12000, 200, 0)` into every formula. Here each month stores its
-  own values, so a 27-day month does not mean editing 75 rows, and changing the slab
-  never rewrites a month already paid.
+- **Every month is 26 working days, fixed.** February and a 31-day month divide by the
+  same 26, so the day rate for a salary never moves. It is a constant in the code, not a
+  setting: the API ignores a different number if one is sent, and the dashboard shows it
+  as a fixed value rather than a box.
+- **Hours/day and the PT slab are per month.** The sheet hard-codes `/9` and
+  `IF(>12000, 200, 0)` into every formula. Here each month keeps its own, so changing the
+  slab never rewrites a month already paid. Hours/day only affects the hourly and
+  per-minute rates — the day rate stays `salary / 26`.
 - **A typed number over a formula is recorded as an override.** The sheet has both
   (e.g. `AJ` is sometimes a `COUNTIF` and sometimes a hand-typed `7.5`). Overridden
   cells are outlined in the dashboard, and clearing the box hands control back to the
@@ -130,7 +134,7 @@ cd backend && npm test
 
 1. **Employees** → add a company, then employees with their monthly salary.
    Or skip ahead and import the existing sheet.
-2. **New month** → pick the month; working days default to 26.
+2. **New month** → pick the month. Working days are always 26.
 3. **Reports → Import a salary sheet** → choose the `.xlsx`, pick the tab,
    press **Check first** to see what it found, then **Import**.
 4. **Attendance** → mark the days. Click a day and pick the mark by name, or type its

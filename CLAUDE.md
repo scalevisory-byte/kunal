@@ -58,9 +58,11 @@ assistant. See `salary-app/README.md`.
   The 2 that differ are rows where a net salary was typed **over** the formula in the sheet
   (Hiral Tandel AZ17, Priti Kadam AZ58). Priti Kadam's ESI cell is also `=IF(AW58>12000,...)`,
   testing PT instead of gross — a copy-paste slip in the sheet worth flagging to Dinesh.
-- Working days, hours/day and the PT slab are stored **per month** rather than hard-coded,
-  so a 27-day month or a changed slab does not mean editing every row, and a paid month is
-  never rewritten by a later settings change.
+- **Working days are fixed at 26 for every month** (`STANDARD_WORKING_DAYS` in
+  `shared/calc.js`) — Dinesh asked for this explicitly. It is a constant, not a setting:
+  `calculateRow` ignores whatever a period carries, `createPeriod`/`updatePeriod` refuse
+  to store anything else, and the dashboard shows it as fixed text. Hours/day and the PT
+  slab stay **per month**, so a changed slab never rewrites a month already paid.
 - Attendance codes come from the sheet's own legend (BI/BJ): only A/HF/AD reduce salary,
   SP/HP add a day's pay. **PL (Paid Leave) and UL (Unpaid Leave) were added on top** —
   Dinesh asked for a leave option and the sheet only has plain absence. Paid leave costs

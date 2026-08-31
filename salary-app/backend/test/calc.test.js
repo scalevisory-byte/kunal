@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ATTENDANCE_CODES,
+  STANDARD_WORKING_DAYS,
   absentDaysFromAttendance,
   calculateRow,
   countMarks,
@@ -151,12 +152,12 @@ test('a month total typed on the sheet overrides the minutes marked on the days'
   const derived = calculateRow({ salary: 23400 }, {}, attendance);
   assert.equal(derived.ot_minutes, -60);
 
-  const typed = calculateRow({ salary: 23400, ot_minutes: -120 }, {}, attendance);
+  const typed = calculateRow({ salary: 23400, ot_minutes_override: -120 }, {}, attendance);
   assert.equal(typed.ot_minutes, -120, 'the typed total wins');
   assert.equal(typed.ot_minutes_from_days, -60, 'the days are still reported');
 
   // Zero is a real answer, not "unset".
-  assert.equal(calculateRow({ salary: 23400, ot_minutes: 0 }, {}, attendance).ot_minutes, 0);
+  assert.equal(calculateRow({ salary: 23400, ot_minutes_override: 0 }, {}, attendance).ot_minutes, 0);
 });
 
 test('a day carries minutes with no mark at all', () => {
@@ -167,9 +168,9 @@ test('a day carries minutes with no mark at all', () => {
 
 test('OT is paid per minute off the salary, late minutes deduct', () => {
   // 23400 / 26 / 9 / 60 = 1.6667 per minute
-  const ot = calculateRow({ salary: 23400, ot_minutes: 600 }, {});
+  const ot = calculateRow({ salary: 23400, ot_minutes_override: 600 }, {});
   assert.equal(ot.gross_salary, 24400);
-  const late = calculateRow({ salary: 23400, ot_minutes: -600 }, {});
+  const late = calculateRow({ salary: 23400, ot_minutes_override: -600 }, {});
   assert.equal(late.gross_salary, 22400);
 });
 
@@ -181,11 +182,23 @@ test('PT applies only above the threshold, on the gross', () => {
   assert.equal(calculateRow({ salary: 20000 }, { pt_threshold: 15000, pt_amount: 300 }).pt, 300);
 });
 
-test('a period with different working days changes the day rate', () => {
-  const r = calculateRow({ salary: 27000, absent_days_override: 1 }, { working_days: 27, hours_per_day: 8.5 });
-  assert.equal(r.per_day, 1000);
-  assert.equal(r.per_hour, 117.65);
-  assert.equal(r.gross_salary, 26000);
+test('every month divides by 26, whatever the calendar or the caller says', () => {
+  assert.equal(STANDARD_WORKING_DAYS, 26);
+  // 28, 30 and 31 day months all pay the same day rate for the same salary.
+  for (const workingDays of [26, 27, 28, 30, 31, 0, null, undefined, 'thirty']) {
+    const r = calculateRow({ salary: 26000, absent_days_override: 1 }, { working_days: workingDays });
+    assert.equal(r.working_days, 26, `working_days ${workingDays}`);
+    assert.equal(r.per_day, 1000, `day rate for working_days ${workingDays}`);
+    assert.equal(r.present_days, 25);
+    assert.equal(r.gross_salary, 25000);
+  }
+});
+
+test('hours per day still moves the overtime rate, without touching the day rate', () => {
+  const r = calculateRow({ salary: 26000, ot_minutes_override: 60 }, { hours_per_day: 8 });
+  assert.equal(r.per_day, 1000, 'still salary / 26');
+  assert.equal(r.per_hour, 125, '1000 / 8');
+  assert.equal(r.gross_salary, 26125);
 });
 
 test('deductions and additions land on the gross before PT', () => {

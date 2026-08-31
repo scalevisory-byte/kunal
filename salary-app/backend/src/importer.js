@@ -148,7 +148,7 @@ export async function importSheet(buffer, { sheetName, periodId, headerRow = 2, 
 
       const update = db.prepare(
         `UPDATE payroll_rows
-         SET salary = ?, absent_days_override = ?, sundays_override = ?, ot_minutes = ?,
+         SET salary = ?, absent_days_override = ?, sundays_override = ?, ot_minutes_override = ?,
              ot_amount_override = ?, adjustment = ?, esi = ?, pf = ?,
              payment_mode = COALESCE(?, payment_mode), updated_at = datetime('now')
          WHERE period_id = ? AND employee_id = ?`

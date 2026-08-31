@@ -4,7 +4,7 @@
  * This is a direct translation of the "April" tab of Salary_Sheet_2627.xlsx,
  * column by column, so a row produced here can be checked against the sheet:
  *
- *   AH Working Days      period.working_days (26 in the sheet)
+ *   AH Working Days      always 26, as in the sheet
  *   AI Sunday            sundays worked, paid extra at the day rate
  *   AJ Absent Days       =COUNTIF(D:AG,"A") + COUNTIF(D:AG,"HF")*0.5 + COUNTIF(D:AG,"AD")*2
  *   AK Present Days      =AH-AJ
@@ -56,8 +56,16 @@ export const ATTENDANCE_CODES = {
   AD: { label: 'Absent (2 days)', absent: 2, sunday: 0, paid: false },
 };
 
+/**
+ * Every month is paid on 26 working days, whatever the calendar says. This is
+ * the /26 in the sheet's AP and AQ formulas and it is deliberately a constant,
+ * not a setting: a 30-day month and a 31-day month both divide by 26, so the
+ * day rate for a given salary never moves from one month to the next.
+ */
+export const STANDARD_WORKING_DAYS = 26;
+
 export const DEFAULTS = {
-  workingDays: 26, // the /26 in AP, AQ
+  workingDays: STANDARD_WORKING_DAYS,
   hoursPerDay: 9, // the /9 in AQ
   ptThreshold: 12000, // the 12000 in AW
   ptAmount: 200, // the 200 in AW
@@ -135,12 +143,14 @@ export function minutesFromAttendance(attendance = {}) {
 
 /**
  * @param {object} row      payroll row (salary, overrides, deductions)
- * @param {object} period   { working_days, hours_per_day, pt_threshold, pt_amount }
+ * @param {object} period   { hours_per_day, pt_threshold, pt_amount }
  * @param {object} attendance day number -> code
  * @returns every sheet column, computed.
  */
 export function calculateRow(row = {}, period = {}, attendance = {}) {
-  const workingDays = num(period.working_days, DEFAULTS.workingDays) || DEFAULTS.workingDays;
+  // Fixed at 26 on purpose - see STANDARD_WORKING_DAYS. Nothing a period or a
+  // caller carries can change the divisor behind the day rate.
+  const workingDays = STANDARD_WORKING_DAYS;
   const hoursPerDay = num(period.hours_per_day, DEFAULTS.hoursPerDay) || DEFAULTS.hoursPerDay;
   const ptThreshold = num(period.pt_threshold, DEFAULTS.ptThreshold);
   const ptAmount = num(period.pt_amount, DEFAULTS.ptAmount);
@@ -166,7 +176,7 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // AS: the month's short/extra minutes. Marking days adds these up; a number
   // typed on the salary sheet overrides the total, the way the sheet has it.
   const minutesFromDays = minutesFromAttendance(attendance);
-  const otMinutes = isSet(row.ot_minutes) ? num(row.ot_minutes) : minutesFromDays;
+  const otMinutes = isSet(row.ot_minutes_override) ? num(row.ot_minutes_override) : minutesFromDays;
   const otSalary = isSet(row.ot_amount_override) // AT
     ? num(row.ot_amount_override)
     : perMinute * otMinutes;

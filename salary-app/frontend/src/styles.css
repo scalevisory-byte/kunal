@@ -77,6 +77,17 @@ header {
 }
 .inline-num input { width: 4.5rem; }
 
+/* A setting the app fixes rather than asks about. */
+.fixed-setting {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  padding: 0.35rem 0.5rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+.fixed-setting strong { color: var(--text); }
+
 .new-period {
   flex-basis: 100%;
   display: flex;

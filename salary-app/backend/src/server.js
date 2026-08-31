@@ -10,7 +10,7 @@ import { companiesRouter } from './routes/companies.js';
 import { employeesRouter } from './routes/employees.js';
 import { periodsRouter } from './routes/periods.js';
 import { reportsRouter } from './routes/reports.js';
-import { ATTENDANCE_CODES } from '../../shared/calc.js';
+import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -30,7 +30,7 @@ export function createServer() {
       timezone: config.timezone,
       codes: ATTENDANCE_CODES,
       defaults: {
-        working_days: config.workingDays,
+        working_days: STANDARD_WORKING_DAYS,
         hours_per_day: config.hoursPerDay,
         pt_threshold: config.ptThreshold,
         pt_amount: config.ptAmount,

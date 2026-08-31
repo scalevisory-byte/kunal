@@ -14,7 +14,7 @@ const EDITABLE = {
   // value typed there is flagged so it is obvious the formula is being bypassed.
   sundays_override: { placeholder: 'auto', override: true },
   absent_days_override: { placeholder: 'auto', override: true },
-  ot_minutes: { placeholder: 'auto', override: true },
+  ot_minutes_override: { placeholder: 'auto', override: true },
   ot_amount_override: { placeholder: 'auto', override: true },
   sunday_salary_override: { placeholder: 'auto', override: true },
   adjustment: { placeholder: '0' },
@@ -236,7 +236,7 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
       <td className="num muted">{rupees2(calc.per_hour)}</td>
       <td className="num deduct">{calc.absent_salary ? `-${rupees(calc.absent_salary)}` : '-'}</td>
       <td className="num muted">{rupees(calc.gross_after_absent)}</td>
-      <td><EditableCell row={row} field="ot_minutes" disabled={locked} onCommit={commit} />
+      <td><EditableCell row={row} field="ot_minutes_override" disabled={locked} onCommit={commit} />
         {!row.overrides?.ot_minutes && (
           <span className={`hint${calc.ot_minutes < 0 ? ' deduct' : ''}`}>
             {calc.ot_minutes ? `${calc.ot_minutes > 0 ? '+' : ''}${calc.ot_minutes}` : 'from days'}
