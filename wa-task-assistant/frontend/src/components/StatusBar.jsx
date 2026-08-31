@@ -17,16 +17,9 @@ export default function StatusBar({ status, stats, overdueCount }) {
         <span className={`pill ${state}`}>
           <span className="dot" /> WhatsApp: {LABELS[state] || state}
         </span>
-        {stats && (
-          <>
-            <span className="pill muted">{stats.open ?? 0} open</span>
-            {overdueCount > 0 && <span className="pill warn">{overdueCount} overdue</span>}
-            <span className="pill muted">{stats.done ?? 0} done</span>
-          </>
-        )}
-        {wa?.mode && <span className="pill muted">{wa.mode === 'manual' ? 'manual capture' : 'AI reading'}</span>}
+        {wa?.mode && <span className="pill">{wa.mode === 'manual' ? 'manual capture' : 'AI reading'}</span>}
         {wa?.bufferedCount > 0 && (
-          <span className="pill muted">{wa.bufferedCount} message(s) queued</span>
+          <span className="pill">{wa.bufferedCount} message(s) queued</span>
         )}
       </div>
 

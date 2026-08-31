@@ -5,6 +5,7 @@ import TaskList from './components/TaskList.jsx';
 import AddTaskForm from './components/AddTaskForm.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
+import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
 
 const POLL_MS = 30_000;
@@ -107,10 +108,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <div>
-          <h1>WA Tasks</h1>
-          <p className="subtitle">Tasks picked up from your WhatsApp, with reminders.</p>
-        </div>
+        <h1>WA Tasks</h1>
         <div className="header-actions">
           {pushSupported() && !pushOn && (
             <button className="btn ghost" onClick={onEnablePush}>
@@ -122,6 +120,8 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      <StatBoard stats={stats} overdueCount={overdueCount} />
 
       <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
 

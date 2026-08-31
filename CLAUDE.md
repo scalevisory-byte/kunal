@@ -25,7 +25,8 @@ Located at `/wa-task-assistant/` (backend + frontend). Rebuilt in-repo from this
 - REST API (`/api/tasks` — GET/POST/PATCH/DELETE) for the dashboard to read/write tasks.
 
 ### Frontend (React)
-- Simple dashboard: list of tasks, filter by open/done/all, manual add form, mark done, delete, inline edit of due date/priority. Polls every 30s for new WA-extracted tasks. Plain CSS in `src/styles.css` (mobile-first, dark mode via `prefers-color-scheme`), no UI framework.
+- Dashboard: a three-up stat board (open / overdue / done), then tasks **grouped by urgency** — Overdue, Today, Coming up, No date — rather than one flat list. Filter open/done/all, manual add, mark done, delete, inline edit of due date, priority and reminder time. Polls every 30s.
+- Plain CSS in `src/styles.css`, no UI framework. Self-hosted Archivo + IBM Plex Sans/Mono in `public/fonts/` (186 KB, works offline — the same faces as the demo and deploy artifacts, so all three read as one product). Priority is a coloured spine on the card rather than another chip. All text meets WCAG AA in both themes, verified in a browser.
 
 ### Two capture modes (`EXTRACTION_MODE`)
 Dinesh asked what the product looks like without Claude, citing cost, third-party dependency, privacy, and possibly reselling it. A keyword-based extractor was measured against held-out Hinglish messages and scored 33% recall (missed two real tasks in three), so it was **not** built. Instead there are two honest modes, switchable by env var:
