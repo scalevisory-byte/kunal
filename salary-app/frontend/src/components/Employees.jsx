@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
 const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '', religion: '' };
@@ -27,6 +28,7 @@ export default function Employees({
   const [picked, setPicked] = useState(() => new Set());
   const [bulkReligion, setBulkReligion] = useState('');
   const [busy, setBusy] = useState(false);
+  const [profileFor, setProfileFor] = useState(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -297,12 +299,14 @@ export default function Employees({
                     />
                   </td>
                   <td className="sticky-name">
-                    <input
-                      key={`name-${emp.id}-${emp.name}`}
-                      className="cell-input wide"
-                      defaultValue={emp.name}
-                      onBlur={(e) => e.target.value !== emp.name && onPatch(emp.id, { name: e.target.value })}
-                    />
+                    <button
+                      className="link"
+                      title="Open the full record — bank, PAN, UAN, ESIC, contact"
+                      onClick={() => setProfileFor(emp.id)}
+                    >
+                      {emp.name}
+                    </button>
+                    {!emp.bank_account && <span className="pill todo" title="No bank details yet">bank?</span>}
                   </td>
                   <td>
                     <select
@@ -404,12 +408,30 @@ export default function Employees({
           own number - edit that on the salary sheet.
         </p>
         <p className="muted small">
+          Click a name to open their full record — joining date, PAN, Aadhaar, UAN, ESIC number,
+          bank account. Those are what the PF and ESI returns and the bank transfer file are
+          built from, so they are worth filling in once.
+        </p>
+        <p className="muted small">
           Finished with someone? Untick <strong>Active</strong> rather than deleting - that keeps their
           past months intact. Total salary bill: <strong>{rupees(
             filtered.reduce((sum, e) => sum + Number(e.monthly_salary || 0), 0)
           )}</strong> per month.
         </p>
       </div>
+
+      {profileFor && (() => {
+        const employee = employees.find((e) => e.id === profileFor);
+        if (!employee) return null;
+        return (
+          <EmployeeProfile
+            employee={employee}
+            companies={companies}
+            onPatch={onPatch}
+            onClose={() => setProfileFor(null)}
+          />
+        );
+      })()}
     </section>
   );
 }

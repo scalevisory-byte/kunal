@@ -24,6 +24,23 @@ db.exec(`
     -- Drives which festivals are a paid holiday for this person. Free text with
     -- suggestions rather than a fixed list, so nobody is forced into a box.
     religion       TEXT,
+    department     TEXT,
+    -- Personal
+    dob            TEXT,
+    gender         TEXT,
+    phone          TEXT,
+    email          TEXT,
+    address        TEXT,
+    -- Statutory identifiers, needed for the PF and ESI returns
+    pan            TEXT,
+    aadhaar        TEXT,
+    uan            TEXT,
+    esic_no        TEXT,
+    pf_no          TEXT,
+    -- Where the salary goes
+    bank_name      TEXT,
+    bank_account   TEXT,
+    ifsc           TEXT,
     monthly_salary REAL NOT NULL DEFAULT 0,
     pf             REAL NOT NULL DEFAULT 0,
     esi            REAL NOT NULL DEFAULT 0,
@@ -171,6 +188,17 @@ if (!employeeColumns.includes('religion')) {
   log.info('Migrated employees: added religion.');
 }
 
+for (const column of [
+  'department', 'dob', 'gender', 'phone', 'email', 'address',
+  'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
+  'bank_name', 'bank_account', 'ifsc',
+]) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated employees: added ${column}.`);
+  }
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -241,6 +269,20 @@ const EMPLOYEE_FIELDS = [
   'name',
   'designation',
   'religion',
+  'department',
+  'dob',
+  'gender',
+  'phone',
+  'email',
+  'address',
+  'pan',
+  'aadhaar',
+  'uan',
+  'esic_no',
+  'pf_no',
+  'bank_name',
+  'bank_account',
+  'ifsc',
   'monthly_salary',
   'pf',
   'esi',
@@ -290,6 +332,20 @@ export function createEmployee(input) {
     name: String(input.name || '').trim(),
     designation: input.designation || null,
     religion: input.religion || null,
+    department: input.department || null,
+    dob: input.dob || null,
+    gender: input.gender || null,
+    phone: input.phone || null,
+    email: input.email || null,
+    address: input.address || null,
+    pan: input.pan || null,
+    aadhaar: input.aadhaar || null,
+    uan: input.uan || null,
+    esic_no: input.esic_no || null,
+    pf_no: input.pf_no || null,
+    bank_name: input.bank_name || null,
+    bank_account: input.bank_account || null,
+    ifsc: input.ifsc || null,
     monthly_salary: Number(input.monthly_salary) || 0,
     pf: Number(input.pf) || 0,
     esi: Number(input.esi) || 0,

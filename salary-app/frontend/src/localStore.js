@@ -231,8 +231,12 @@ const ROW_FIELDS = [
 ];
 
 const EMPLOYEE_FIELDS = [
-  'company_id', 'code', 'name', 'designation', 'religion', 'monthly_salary',
-  'pf', 'esi', 'payment_mode', 'joined_on', 'left_on', 'active', 'sort_order',
+  'company_id', 'code', 'name', 'designation', 'religion', 'department',
+  'dob', 'gender', 'phone', 'email', 'address',
+  'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
+  'bank_name', 'bank_account', 'ifsc',
+  'monthly_salary', 'pf', 'esi', 'payment_mode', 'joined_on', 'left_on',
+  'active', 'sort_order',
 ];
 
 /** Answers an /api path the way the server would. */
@@ -305,6 +309,20 @@ export async function handle(method, path, body) {
       name,
       designation: body.designation || null,
       religion: body.religion || null,
+      department: body.department || null,
+      dob: body.dob || null,
+      gender: body.gender || null,
+      phone: body.phone || null,
+      email: body.email || null,
+      address: body.address || null,
+      pan: body.pan || null,
+      aadhaar: body.aadhaar || null,
+      uan: body.uan || null,
+      esic_no: body.esic_no || null,
+      pf_no: body.pf_no || null,
+      bank_name: body.bank_name || null,
+      bank_account: body.bank_account || null,
+      ifsc: body.ifsc || null,
       monthly_salary: Number(body.monthly_salary) || 0,
       pf: Number(body.pf) || 0,
       esi: Number(body.esi) || 0,
