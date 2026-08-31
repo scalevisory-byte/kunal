@@ -121,6 +121,48 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     queueSave(next);
   };
 
+  /**
+   * Mark everybody on screen Present in one go - the usual starting point for a
+   * month, where most people worked most days and only the exceptions need
+   * marking afterwards. Days that already carry a mark are left alone, so this
+   * is safe to press again later in the month, and Sundays are marked S rather
+   * than Present. Only the employees currently listed are touched, so a search
+   * narrows it.
+   */
+  const markEveryonePresent = () => {
+    if (locked) return;
+    const blanks = filtered.reduce(
+      (count, row) => count + dayList.filter((day) => !entryOf(row, day).code).length,
+      0
+    );
+    if (!blanks) {
+      setStatus('Every day already has a mark');
+      setTimeout(() => setStatus(''), 2500);
+      return;
+    }
+    const scope = filtered.length === rows.length ? 'all' : 'the';
+    const ok = window.confirm(
+      `Mark ${blanks} blank day${blanks === 1 ? '' : 's'} across ${scope} ${filtered.length} ` +
+        `employee${filtered.length === 1 ? '' : 's'} as Present?\n\n` +
+        'Sundays are marked S (off). Days that already have a mark are left as they are.'
+    );
+    if (!ok) return;
+
+    const next = { ...draft };
+    for (const row of filtered) {
+      for (const day of dayList) {
+        const entry = entryOf(row, day);
+        if (entry.code) continue;
+        next[`${row.employee_id}:${day}`] = {
+          ...entry,
+          code: isSunday(period.year, period.month, day) ? 'S' : 'P',
+        };
+      }
+    }
+    setDraft(next);
+    queueSave(next);
+  };
+
   return (
     <section>
       <div className="toolbar">
@@ -130,6 +172,9 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        <button className="primary" disabled={locked} onClick={markEveryonePresent}>
+          Mark everyone Present
+        </button>
         <span className="muted small">Click any day to set the mark and its short hours.</span>
         <span className="grow" />
         {status && <span className="pill saving">{status}</span>}
@@ -276,6 +321,12 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         <p className="muted small">
           A day left blank counts as worked. <strong>Paid Leave</strong> costs nothing;{' '}
           <strong>Unpaid Leave</strong> deducts a day, the same as Absent, but is counted separately.
+        </p>
+        <p className="muted small">
+          <strong>Mark everyone Present</strong> fills every blank day for everybody on screen at
+          once — Sundays as S, the rest as Present — so a month starts from "everyone worked" and
+          only the exceptions need marking. It never overwrites a day that already has a mark, and
+          a search narrows it to just those employees.
         </p>
         <p className="muted small">
           <strong>Short hours</strong> are set per day in the same menu — 30, 40, 60 minutes and so
