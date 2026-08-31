@@ -42,6 +42,7 @@ reportsRouter.get('/periods/:id/export.csv', (req, res) => {
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
     ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'], ['Adjustment', 'adjustment'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
+    ['Loan', 'loan_deduction'],
     ['Net Salary', 'net_salary'], ['Sunday Salary', 'sunday_salary'], ['Final Payable', 'final_payable'],
     ['Mode', 'payment_mode'], ['Status', 'status'],
   ];

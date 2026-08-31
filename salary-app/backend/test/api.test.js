@@ -337,6 +337,89 @@ test('leave is counted from the marks and set against an entitlement', async () 
   await api('DELETE', `/api/employees/${person.body.id}`);
 });
 
+test('a loan takes its instalment each month and stops when it is repaid', async () => {
+  const companies = await api('GET', '/api/companies');
+  const person = await api('POST', '/api/employees', {
+    company_id: companies.body.companies[0].id,
+    name: 'Borrower',
+    monthly_salary: 20000,
+  });
+
+  const loan = await api('POST', '/api/loans', {
+    employee_id: person.body.id,
+    amount: 5000,
+    instalment: 2000,
+    reason: 'Advance',
+  });
+  assert.equal(loan.status, 201);
+  assert.equal(loan.body.outstanding, 5000);
+  assert.equal(loan.body.repaid, 0);
+
+  // Looking at the month posts the instalment and deducts it.
+  let payroll = await api('GET', `/api/periods/${periodId}/payroll`);
+  let row = payroll.body.rows.find((r) => r.employee_name === 'Borrower');
+  assert.equal(row.loan_deduction, 2000);
+  assert.equal(row.gross_salary, 20000);
+  assert.equal(row.net_salary, 17800, '20000 - 200 PT - 2000 loan');
+
+  // Looking again must not take it twice.
+  payroll = await api('GET', `/api/periods/${periodId}/payroll`);
+  row = payroll.body.rows.find((r) => r.employee_name === 'Borrower');
+  assert.equal(row.loan_deduction, 2000, 'posted once, not once per look');
+
+  let after = await api('GET', '/api/loans');
+  assert.equal(after.body.loans.find((l) => l.id === loan.body.id).outstanding, 3000);
+
+  // A month somebody cannot pay is set to nothing, and the loan just runs on.
+  await api('PUT', `/api/loans/${loan.body.id}/repayment/${periodId}`, { amount: 0 });
+  payroll = await api('GET', `/api/periods/${periodId}/payroll`);
+  row = payroll.body.rows.find((r) => r.employee_name === 'Borrower');
+  assert.equal(row.loan_deduction, 0);
+  assert.equal(row.net_salary, 19800);
+  after = await api('GET', '/api/loans');
+  assert.equal(after.body.loans.find((l) => l.id === loan.body.id).outstanding, 5000);
+
+  // The last instalment is capped at what is left, never more.
+  await api('PATCH', `/api/loans/${loan.body.id}`, { instalment: 4000 });
+  await api('PUT', `/api/loans/${loan.body.id}/repayment/${periodId}`, { amount: 4000 });
+  const next = await api('POST', '/api/periods', { year: 2026, month: 5 });
+  await api('POST', `/api/loans/post/${next.body.id}`);
+  const later = await api('GET', `/api/loans?period_id=${next.body.id}`);
+  const instalment = later.body.repayments.find((r) => r.loan_id === loan.body.id);
+  assert.equal(instalment.amount, 1000, 'only the 1,000 still owed');
+  assert.equal(later.body.loans.find((l) => l.id === loan.body.id).outstanding, 0);
+
+  // And a repaid loan takes nothing in the month after that.
+  const third = await api('POST', '/api/periods', { year: 2026, month: 6 });
+  await api('POST', `/api/loans/post/${third.body.id}`);
+  const done = await api('GET', `/api/loans?period_id=${third.body.id}`);
+  assert.equal(done.body.repayments.filter((r) => r.loan_id === loan.body.id).length, 0);
+
+  await api('DELETE', `/api/periods/${next.body.id}`);
+  await api('DELETE', `/api/periods/${third.body.id}`);
+  await api('DELETE', `/api/employees/${person.body.id}`);
+});
+
+test('a loan on hold takes nothing, and a bad amount is refused', async () => {
+  const companies = await api('GET', '/api/companies');
+  const person = await api('POST', '/api/employees', {
+    company_id: companies.body.companies[0].id, name: 'On Hold', monthly_salary: 20000,
+  });
+  const held = await api('POST', '/api/loans', {
+    employee_id: person.body.id, amount: 5000, instalment: 1000, status: 'held',
+  });
+  const period = await api('POST', '/api/periods', { year: 2026, month: 7 });
+  await api('POST', `/api/loans/post/${period.body.id}`);
+  const listed = await api('GET', `/api/loans?period_id=${period.body.id}`);
+  assert.equal(listed.body.repayments.filter((r) => r.loan_id === held.body.id).length, 0);
+
+  assert.equal((await api('POST', '/api/loans', { employee_id: person.body.id, amount: 0 })).status, 400);
+  assert.equal((await api('POST', '/api/loans', { employee_id: 999999, amount: 100 })).status, 400);
+
+  await api('DELETE', `/api/periods/${period.body.id}`);
+  await api('DELETE', `/api/employees/${person.body.id}`);
+});
+
 test('a locked month refuses edits', async () => {
   await api('PATCH', `/api/periods/${periodId}`, { locked: 1 });
   const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 500 });

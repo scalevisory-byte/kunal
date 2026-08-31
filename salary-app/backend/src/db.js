@@ -122,6 +122,31 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- A loan or salary advance, and what has been repaid against it.
+  CREATE TABLE IF NOT EXISTS loans (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id  INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    amount       REAL NOT NULL,
+    instalment   REAL NOT NULL DEFAULT 0,
+    given_on     TEXT,
+    reason       TEXT,
+    -- 'active' takes an instalment each month; 'held' skips until resumed.
+    status       TEXT NOT NULL DEFAULT 'active',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- One row per loan per month. Written when the month is opened, then
+  -- editable - somebody who cannot pay this month gets it set to zero.
+  CREATE TABLE IF NOT EXISTS loan_repayments (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    loan_id   INTEGER NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+    period_id INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+    amount    REAL NOT NULL DEFAULT 0,
+    UNIQUE (loan_id, period_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_loans_employee ON loans(employee_id, status);
+  CREATE INDEX IF NOT EXISTS idx_repayments_period ON loan_repayments(period_id);
   CREATE INDEX IF NOT EXISTS idx_holidays_period ON holidays(period_id);
   CREATE INDEX IF NOT EXISTS idx_employees_company ON employees(company_id, active);
   CREATE INDEX IF NOT EXISTS idx_payroll_period    ON payroll_rows(period_id);
@@ -571,6 +596,149 @@ export const syncPayrollRows = db.transaction((periodId) => {
   }
   return added;
 });
+
+/* ---------------- loans and advances ---------------- */
+
+const loanRow = (row) => ({
+  ...row,
+  repaid: row.repaid || 0,
+  outstanding: Math.round((row.amount - (row.repaid || 0)) * 100) / 100,
+});
+
+export function listLoans({ employee_id, includeClosed = true } = {}) {
+  const where = [];
+  const params = [];
+  if (employee_id) {
+    where.push('l.employee_id = ?');
+    params.push(employee_id);
+  }
+  const rows = db
+    .prepare(
+      `SELECT l.*, e.name AS employee_name, c.name AS company_name,
+              (SELECT COALESCE(SUM(r.amount), 0) FROM loan_repayments r WHERE r.loan_id = l.id) AS repaid
+       FROM loans l
+       JOIN employees e ON e.id = l.employee_id
+       JOIN companies c ON c.id = e.company_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY l.created_at DESC`
+    )
+    .all(...params)
+    .map(loanRow);
+  return includeClosed ? rows : rows.filter((l) => l.outstanding > 0);
+}
+
+export function getLoan(id) {
+  const rows = db
+    .prepare(
+      `SELECT l.*, (SELECT COALESCE(SUM(r.amount), 0) FROM loan_repayments r WHERE r.loan_id = l.id) AS repaid
+       FROM loans l WHERE l.id = ?`
+    )
+    .get(id);
+  return rows ? loanRow(rows) : null;
+}
+
+export function createLoan(input) {
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('the amount must be more than zero');
+  if (!getEmployee(Number(input.employee_id))) throw new Error('employee not found');
+  const info = db
+    .prepare(
+      `INSERT INTO loans (employee_id, amount, instalment, given_on, reason, status)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      Number(input.employee_id),
+      amount,
+      Number(input.instalment) || 0,
+      input.given_on || null,
+      input.reason || null,
+      input.status === 'held' ? 'held' : 'active'
+    );
+  return getLoan(info.lastInsertRowid);
+}
+
+export function updateLoan(id, patch) {
+  const fields = [];
+  const values = [];
+  for (const key of ['amount', 'instalment', 'given_on', 'reason', 'status']) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`);
+    values.push(patch[key] === '' ? null : patch[key]);
+  }
+  if (!fields.length) return getLoan(id);
+  db.prepare(`UPDATE loans SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  return getLoan(id);
+}
+
+export function deleteLoan(id) {
+  return db.prepare(`DELETE FROM loans WHERE id = ?`).run(id).changes > 0;
+}
+
+/**
+ * Makes sure every active loan has a repayment row for this month, set to the
+ * instalment or whatever is left of the loan, whichever is smaller. Rows that
+ * already exist are left alone, so a month set to zero by hand stays zero.
+ */
+export const postRepayments = db.transaction((periodId) => {
+  const loans = db
+    .prepare(
+      `SELECT l.*, (SELECT COALESCE(SUM(r.amount), 0) FROM loan_repayments r WHERE r.loan_id = l.id) AS repaid
+       FROM loans l WHERE l.status = 'active'`
+    )
+    .all();
+  const existing = new Set(
+    db.prepare(`SELECT loan_id FROM loan_repayments WHERE period_id = ?`).all(periodId).map((r) => r.loan_id)
+  );
+  const insert = db.prepare(
+    `INSERT INTO loan_repayments (loan_id, period_id, amount) VALUES (?, ?, ?)`
+  );
+  let added = 0;
+  for (const loan of loans) {
+    if (existing.has(loan.id)) continue;
+    const outstanding = loan.amount - (loan.repaid || 0);
+    if (outstanding <= 0) continue;
+    const amount = Math.min(Number(loan.instalment) || 0, outstanding);
+    if (amount <= 0) continue;
+    insert.run(loan.id, periodId, amount);
+    added++;
+  }
+  return added;
+});
+
+/** employee_id -> what comes off their salary this month. */
+export function loanDeductions(periodId) {
+  const rows = db
+    .prepare(
+      `SELECT l.employee_id, COALESCE(SUM(r.amount), 0) AS amount
+       FROM loan_repayments r JOIN loans l ON l.id = r.loan_id
+       WHERE r.period_id = ?
+       GROUP BY l.employee_id`
+    )
+    .all(periodId);
+  return new Map(rows.map((r) => [r.employee_id, r.amount]));
+}
+
+/** This month's instalments, loan by loan, for the ledger screen. */
+export function listRepayments(periodId) {
+  return db
+    .prepare(
+      `SELECT r.*, l.employee_id, l.amount AS loan_amount, l.reason, e.name AS employee_name
+       FROM loan_repayments r
+       JOIN loans l ON l.id = r.loan_id
+       JOIN employees e ON e.id = l.employee_id
+       WHERE r.period_id = ?
+       ORDER BY e.name`
+    )
+    .all(periodId);
+}
+
+export function setRepayment(loanId, periodId, amount) {
+  db.prepare(
+    `INSERT INTO loan_repayments (loan_id, period_id, amount) VALUES (?, ?, ?)
+     ON CONFLICT(loan_id, period_id) DO UPDATE SET amount = excluded.amount`
+  ).run(loanId, periodId, Math.max(0, Number(amount) || 0));
+  return getLoan(loanId);
+}
 
 /* ---------------- leave ---------------- */
 

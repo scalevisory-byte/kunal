@@ -13,6 +13,7 @@ export default function Payslip({ period, row, onClose }) {
     ['Professional tax', row.pt],
     ['ESI', row.esi],
     ['PF', row.pf],
+    ['Loan / advance', row.loan_deduction],
   ].filter(([, amount]) => Number(amount) !== 0);
 
   return (
@@ -65,7 +66,7 @@ export default function Payslip({ period, row, onClose }) {
               )}
               <tr className="subtotal">
                 <td>Total deductions</td>
-                <td className="num">{rupees(row.pt + row.esi + row.pf)}</td>
+                <td className="num">{rupees(row.pt + row.esi + row.pf + (row.loan_deduction || 0))}</td>
               </tr>
             </tbody>
           </table>

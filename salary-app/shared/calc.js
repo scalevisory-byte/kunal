@@ -23,7 +23,7 @@
  *   AW PT                =IF(AV>12000,200,0) - on the month's gross
  *   AX ESI               entered
  *   AY PF                entered
- *   AZ Net Salary        =AV-AW-AX-AY
+ *   AZ Net Salary        =AV-AW-AX-AY, less any loan instalment
  *   BD Sunday Salary     = AM (paid separately from the net salary)
  *   BE Final             =AZ+BD
  *
@@ -214,7 +214,9 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const pt = grossSalary > ptThreshold ? ptAmount : 0;
   const esi = num(row.esi); // AX
   const pf = num(row.pf); // AY
-  const netSalary = round0(grossSalary - pt - esi - pf); // AZ
+  // This month's instalment against a loan or advance, posted on the ledger.
+  const loan = num(row.loan_deduction);
+  const netSalary = round0(grossSalary - pt - esi - pf - loan); // AZ
 
   const sundaySalary = isSet(row.sunday_salary_override) // AM / BD
     ? num(row.sunday_salary_override)
@@ -239,6 +241,7 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     pt,
     esi: round2(esi),
     pf: round2(pf),
+    loan_deduction: round2(loan),
     net_salary: netSalary,
     sunday_salary: round0(sundaySalary),
     final_payable: round0(netSalary + round0(sundaySalary)),
@@ -256,6 +259,7 @@ export function totalRows(rows = []) {
     'pt',
     'esi',
     'pf',
+    'loan_deduction',
     'net_salary',
     'sunday_salary',
     'final_payable',

@@ -28,7 +28,7 @@ Every column of the April tab, in order:
 | AV | Gross Salary | `ROUND(AO + AT + AU)` |
 | AW | PT | `200` when the month's gross is above `12,000` |
 | AX AY | ESI / PF | Entered per employee |
-| AZ | Net Salary | Gross − PT − ESI − PF |
+| AZ | Net Salary | Gross − PT − ESI − PF − loan instalment |
 | BD | Sunday Salary | Sundays worked × day rate, paid on top |
 | BE | Final Payable | Net + Sunday salary |
 
@@ -207,6 +207,19 @@ Somebody appears there the moment a day is marked **SP** or **HP** on the attend
 The amount is days × day rate; type over it to round it off, empty the box to go back.
 It downloads on its own from **Reports → Sunday register**, and rides along as its own
 sheet inside the Excel export.
+
+### Loans and advances
+
+The **Loans** tab keeps the ledger: who was given what, what comes off each month, and what
+is still owed. Opening a month writes one repayment row per running loan, at the
+instalment or whatever is left of the loan — whichever is smaller — and that amount is
+deducted on the salary sheet, the payslip and the export.
+
+It is automatic but never silent. **This month** on the ledger is the amount actually
+coming off, and it can be changed: set it to nothing for somebody who cannot pay this
+month, and the loan simply runs a month longer. **On hold** stops future months without
+disturbing what has already been taken. The outstanding balance is always the amount less
+what has really been repaid — never a projection.
 
 ### A note on PT
 

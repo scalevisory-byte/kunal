@@ -35,7 +35,7 @@ export async function buildWorkbook(ExcelJS, payroll) {
     'Working Days', 'Sunday', 'Absent Days', 'Present Days', 'Salary', 'Sunday Salary',
     'Absent Salary', 'Gross Salary', 'Salary / Day', 'Salary / Hour', 'Salary / Minutes',
     'OT/LT In Minutes', 'OT/LT Salary', 'Deduction / Additions', 'Gross Salary', 'PT', 'ESI',
-    'PF', 'Net Salary', 'Sunday Salary', 'Final Payable', 'Paid Leave', 'Unpaid Leave',
+    'PF', 'Loan', 'Net Salary', 'Sunday Salary', 'Final Payable', 'Paid Leave', 'Unpaid Leave',
     'Mode', 'Status', 'Remark',
   ];
 
@@ -76,7 +76,7 @@ export async function buildWorkbook(ExcelJS, payroll) {
     row.getCell(3).font = { bold: true };
     // Sum the block above so the file stays live if a number is edited in Excel.
     const sumCols = [3 + days + 5, 3 + days + 15, 3 + days + 16, 3 + days + 17, 3 + days + 18,
-      3 + days + 19, 3 + days + 20, 3 + days + 21];
+      3 + days + 19, 3 + days + 20, 3 + days + 21, 3 + days + 22];
     for (const col of sumCols) {
       const letter = ws.getColumn(col).letter;
       const cell = row.getCell(col);
@@ -107,7 +107,7 @@ export async function buildWorkbook(ExcelJS, payroll) {
       row.working_days, row.sundays_worked, row.absent_days, row.present_days, row.salary,
       row.sunday_salary, row.absent_salary, row.gross_after_absent, row.per_day, row.per_hour,
       row.per_minute, row.ot_minutes, row.ot_salary, row.adjustment, row.gross_salary, row.pt,
-      row.esi, row.pf, row.net_salary, row.sunday_salary, row.final_payable,
+      row.esi, row.pf, row.loan_deduction || 0, row.net_salary, row.sunday_salary, row.final_payable,
       row.mark_counts?.PL || 0, row.mark_counts?.UL || 0,
       row.payment_mode || '', row.status || '', row.remark || ''
     );
@@ -120,7 +120,7 @@ export async function buildWorkbook(ExcelJS, payroll) {
     });
     const base = 3 + days;
     for (const col of [base + 5, base + 6, base + 7, base + 8, base + 13, base + 14,
-      base + 15, base + 16, base + 17, base + 18, base + 19, base + 20, base + 21]) {
+      base + 15, base + 16, base + 17, base + 18, base + 19, base + 20, base + 21, base + 22]) {
       excelRow.getCell(col).numFmt = MONEY0;
     }
     for (const col of [base + 9, base + 10, base + 11]) excelRow.getCell(col).numFmt = MONEY;
@@ -136,9 +136,10 @@ export async function buildWorkbook(ExcelJS, payroll) {
     [base + 16]: totals.pt,
     [base + 17]: totals.esi,
     [base + 18]: totals.pf,
-    [base + 19]: totals.net_salary,
-    [base + 20]: totals.sunday_salary,
-    [base + 21]: totals.final_payable,
+    [base + 19]: totals.loan_deduction,
+    [base + 20]: totals.net_salary,
+    [base + 21]: totals.sunday_salary,
+    [base + 22]: totals.final_payable,
   };
   for (const [col, value] of Object.entries(grandCols)) {
     const cell = grand.getCell(Number(col));

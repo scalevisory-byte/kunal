@@ -32,6 +32,8 @@ const EMPTY = {
   payroll_rows: [],
   attendance: [], // { period_id, employee_id, day, code, minutes }
   holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
+  loans: [], // { id, employee_id, amount, instalment, given_on, reason, status }
+  repayments: [], // { loan_id, period_id, amount }
   next_id: 1,
 };
 
@@ -162,13 +164,51 @@ function attendanceFor(periodId, employeeId) {
 }
 
 /** The same shape buildPayroll() returns on the server. */
+function loanOutstanding(loan) {
+  const repaid = load()
+    .repayments.filter((r) => r.loan_id === loan.id)
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
+  return { repaid, outstanding: Math.round((loan.amount - repaid) * 100) / 100 };
+}
+
+/** Gives every active loan an instalment for this month, once. */
+function postRepayments(periodId) {
+  const db = load();
+  let added = 0;
+  for (const loan of db.loans) {
+    if (loan.status !== 'active') continue;
+    if (db.repayments.some((r) => r.loan_id === loan.id && r.period_id === periodId)) continue;
+    const { outstanding } = loanOutstanding(loan);
+    if (outstanding <= 0) continue;
+    const amount = Math.min(Number(loan.instalment) || 0, outstanding);
+    if (amount <= 0) continue;
+    db.repayments.push({ loan_id: loan.id, period_id: periodId, amount });
+    added++;
+  }
+  return added;
+}
+
+function loanDeductions(periodId) {
+  const db = load();
+  const map = new Map();
+  for (const r of db.repayments) {
+    if (r.period_id !== periodId) continue;
+    const loan = db.loans.find((l) => l.id === r.loan_id);
+    if (!loan) continue;
+    map.set(loan.employee_id, (map.get(loan.employee_id) || 0) + (r.amount || 0));
+  }
+  return map;
+}
+
 function buildPayroll(periodId, { sync = true } = {}) {
   const period = periodOf(periodId);
   if (!period) return null;
   if (sync && !period.locked) {
     syncRows(periodId);
+    postRepayments(periodId);
     save();
   }
+  const loans = loanDeductions(periodId);
 
   const rows = load()
     .payroll_rows.filter((r) => r.period_id === periodId)
@@ -187,6 +227,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         attendance: marks,
         mark_counts: countMarks(marks),
         sunday_days: sundayDaysFromAttendance(marks),
+        loan_deduction: loans.get(row.employee_id) || 0,
         overrides: {
           absent_days: row.absent_days_override !== null,
           sundays: row.sundays_override !== null,
@@ -194,7 +235,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
           ot_amount: row.ot_amount_override !== null,
           sunday_salary: row.sunday_salary_override !== null,
         },
-        ...calculateRow(row, period, marks),
+        ...calculateRow({ ...row, loan_deduction: loans.get(row.employee_id) || 0 }, period, marks),
       };
     })
     .filter(Boolean);
@@ -254,6 +295,94 @@ export async function handle(method, path, body) {
       standalone: true,
       defaults: { working_days: STANDARD_WORKING_DAYS, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 },
     };
+  }
+
+  /* loans */
+  if (parts[0] === 'loans') {
+    const withTotals = (loan) => ({
+      ...loan,
+      ...loanOutstanding(loan),
+      employee_name: employeeOf(loan.employee_id)?.name,
+      company_name: companyOf(employeeOf(loan.employee_id)?.company_id)?.name,
+    });
+
+    if (parts.length === 1 && method === 'GET') {
+      const params = new URLSearchParams(path.split('?')[1] || '');
+      const periodId = Number(params.get('period_id')) || null;
+      return {
+        loans: db.loans.map(withTotals).reverse(),
+        repayments: periodId
+          ? db.repayments
+              .filter((r) => r.period_id === periodId)
+              .map((r) => {
+                const loan = db.loans.find((l) => l.id === r.loan_id);
+                return {
+                  ...r,
+                  employee_id: loan?.employee_id,
+                  loan_amount: loan?.amount,
+                  reason: loan?.reason,
+                  employee_name: employeeOf(loan?.employee_id)?.name,
+                };
+              })
+          : [],
+      };
+    }
+
+    if (parts.length === 1 && method === 'POST') {
+      const amount = Number(body?.amount);
+      if (!Number.isFinite(amount) || amount <= 0) throw new HttpError(400, 'the amount must be more than zero');
+      if (!employeeOf(Number(body?.employee_id))) throw new HttpError(400, 'employee not found');
+      const loan = {
+        id: nextId(),
+        employee_id: Number(body.employee_id),
+        amount,
+        instalment: Number(body.instalment) || 0,
+        given_on: body.given_on || null,
+        reason: body.reason || null,
+        status: body.status === 'held' ? 'held' : 'active',
+        created_at: new Date().toISOString(),
+      };
+      db.loans.push(loan);
+      save();
+      return withTotals(loan);
+    }
+
+    if (parts[1] === 'post' && parts[2] && method === 'POST') {
+      const period = periodOf(Number(parts[2]));
+      if (!period) throw new HttpError(404, 'period not found');
+      if (period.locked) throw new HttpError(409, 'period is locked');
+      const added = postRepayments(period.id);
+      save();
+      return { added };
+    }
+
+    const loan = db.loans.find((l) => l.id === Number(parts[1]));
+    if (!loan) throw new HttpError(404, 'not found');
+
+    if (parts.length === 2 && method === 'PATCH') {
+      for (const key of ['amount', 'instalment', 'given_on', 'reason', 'status']) {
+        if (key in (body || {})) loan[key] = body[key] === '' ? null : body[key];
+      }
+      save();
+      return withTotals(loan);
+    }
+    if (parts.length === 2 && method === 'DELETE') {
+      db.loans = db.loans.filter((l) => l.id !== loan.id);
+      db.repayments = db.repayments.filter((r) => r.loan_id !== loan.id);
+      save();
+      return null;
+    }
+    if (parts[2] === 'repayment' && parts[3] && method === 'PUT') {
+      const period = periodOf(Number(parts[3]));
+      if (!period) throw new HttpError(404, 'period not found');
+      if (period.locked) throw new HttpError(409, 'period is locked');
+      const amount = Math.max(0, Number(body?.amount) || 0);
+      const existing = db.repayments.find((r) => r.loan_id === loan.id && r.period_id === period.id);
+      if (existing) existing.amount = amount;
+      else db.repayments.push({ loan_id: loan.id, period_id: period.id, amount });
+      save();
+      return withTotals(loan);
+    }
   }
 
   /* leave */
@@ -386,6 +515,9 @@ export async function handle(method, path, body) {
       db.employees = db.employees.filter((e) => e.id !== employee.id);
       db.payroll_rows = db.payroll_rows.filter((r) => r.employee_id !== employee.id);
       db.attendance = db.attendance.filter((a) => a.employee_id !== employee.id);
+      const goneLoans = db.loans.filter((l) => l.employee_id === employee.id).map((l) => l.id);
+      db.loans = db.loans.filter((l) => l.employee_id !== employee.id);
+      db.repayments = db.repayments.filter((r) => !goneLoans.includes(r.loan_id));
       save();
       return null;
     }
@@ -513,6 +645,7 @@ export async function handle(method, path, body) {
         db.payroll_rows = db.payroll_rows.filter((r) => r.period_id !== period.id);
         db.attendance = db.attendance.filter((a) => a.period_id !== period.id);
         db.holidays = db.holidays.filter((h) => h.period_id !== period.id);
+        db.repayments = db.repayments.filter((r) => r.period_id !== period.id);
         save();
         return null;
       }
@@ -806,6 +939,7 @@ export async function file(path) {
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
     ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'], ['Adjustment', 'adjustment'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
+    ['Loan', 'loan_deduction'],
     ['Net Salary', 'net_salary'], ['Sunday Salary', 'sunday_salary'], ['Final Payable', 'final_payable'],
     ['Mode', 'payment_mode'], ['Status', 'status'],
   ];

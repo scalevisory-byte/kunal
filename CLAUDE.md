@@ -143,7 +143,10 @@ assistant. See `salary-app/README.md`.
   2. ✅ **Leave** — CL/SL/PL marks with per-employee yearly quotas (`cl_quota` etc.), taken
      counted from the marks across the year's periods so it cannot drift, negative balances
      flagged. `Leave.jsx`, `leaveSummary()` in db.js.
-  3. ⬜ Loans and advances ledger, auto-deducted monthly.
+  3. ✅ **Loans and advances** — `loans` + `loan_repayments`; opening a month posts one
+     repayment row per running loan (capped at the outstanding), which is then editable, so
+     a month can be skipped without losing the debt. `loan_deduction` is a new input to
+     `calculateRow`, deducted with PF/ESI. `Loans.jsx`.
   4. ⬜ Statutory reports — PF ECR, ESI return, PT challan, muster roll / wage register.
   Self-service and approval workflows are **not possible in the standalone file** and need
   the server; everything above works offline.

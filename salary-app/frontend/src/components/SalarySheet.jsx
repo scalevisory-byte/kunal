@@ -146,7 +146,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <th title="Professional tax">PT</th>
               <th>ESI</th>
               <th>PF</th>
-              <th title="Gross - PT - ESI - PF">Net</th>
+              <th title="This month's instalment against a loan or advance - set it on the Loans tab">Loan</th>
+              <th title="Gross - PT - ESI - PF - loan">Net</th>
               <th title="Sundays worked x day rate, paid on top of the net salary">Sunday ₹</th>
               <th title="Net + Sunday salary">Payable</th>
               <th>Mode</th>
@@ -158,7 +159,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             {grouped.map((item) =>
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
-                  <td className="sticky-name" colSpan={23}>
+                  <td className="sticky-name" colSpan={24}>
                     <button
                       className="company-link"
                       title="Show only this company - click again for all of them"
@@ -181,7 +182,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             )}
             {!filtered.length && (
               <tr>
-                <td colSpan={23} className="empty">
+                <td colSpan={24} className="empty">
                   No employees here yet. Add them under <strong>Employees</strong>, or import a sheet
                   from <strong>Reports</strong>.
                 </td>
@@ -204,6 +205,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
                 <td>{rupees(totals.pt)}</td>
                 <td>{rupees(totals.esi)}</td>
                 <td>{rupees(totals.pf)}</td>
+                <td>{rupees(totals.loan_deduction)}</td>
                 <td>{rupees(totals.net_salary)}</td>
                 <td>{rupees(totals.sunday_salary)}</td>
                 <td className="grand">{rupees(totals.final_payable)}</td>
@@ -261,6 +263,7 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
       <td className="num deduct">{calc.pt ? `-${calc.pt}` : '-'}</td>
       <td><EditableCell row={row} field="esi" disabled={locked} onCommit={commit} /></td>
       <td><EditableCell row={row} field="pf" disabled={locked} onCommit={commit} /></td>
+      <td className="num deduct">{calc.loan_deduction ? `-${rupees(calc.loan_deduction)}` : '-'}</td>
       <td className="num strong">{rupees(calc.net_salary)}</td>
       <td><EditableCell row={row} field="sunday_salary_override" disabled={locked} onCommit={commit} />
         {row.sunday_salary_override === null && <span className="hint">{rupees(calc.sunday_salary)}</span>}

@@ -1,5 +1,12 @@
 import { calculateRow, countMarks, sundayDaysFromAttendance, totalRows } from '../../shared/calc.js';
-import { attendanceByEmployee, getPeriod, listPayrollRows, syncPayrollRows } from './db.js';
+import {
+  attendanceByEmployee,
+  getPeriod,
+  listPayrollRows,
+  loanDeductions,
+  postRepayments,
+  syncPayrollRows,
+} from './db.js';
 
 /**
  * The whole month, calculated: every payroll row joined to its attendance and
@@ -9,9 +16,14 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
   const period = getPeriod(periodId);
   if (!period) return null;
 
-  if (sync && !period.locked) syncPayrollRows(periodId);
+  if (sync && !period.locked) {
+    syncPayrollRows(periodId);
+    // Loans take their instalment the first time the month is looked at.
+    postRepayments(periodId);
+  }
 
   const attendance = attendanceByEmployee(periodId);
+  const loans = loanDeductions(periodId);
   const rows = listPayrollRows(periodId, { company_id }).map((row) => {
     const marks = attendance.get(row.employee_id) || {};
     return {
@@ -21,6 +33,7 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
       mark_counts: countMarks(marks),
       // The dates behind the Sunday count, for the register.
       sunday_days: sundayDaysFromAttendance(marks),
+      loan_deduction: loans.get(row.employee_id) || 0,
       // Which columns are hand-typed over the formula, so the UI can flag them.
       overrides: {
         absent_days: row.absent_days_override !== null,
@@ -29,7 +42,7 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
         ot_amount: row.ot_amount_override !== null,
         sunday_salary: row.sunday_salary_override !== null,
       },
-      ...calculateRow(row, period, marks),
+      ...calculateRow({ ...row, loan_deduction: loans.get(row.employee_id) || 0 }, period, marks),
     };
   });
 

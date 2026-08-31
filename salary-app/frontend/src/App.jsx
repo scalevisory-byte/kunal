@@ -4,6 +4,7 @@ import Attendance from './components/Attendance.jsx';
 import Employees from './components/Employees.jsx';
 import Festivals from './components/Festivals.jsx';
 import Leave from './components/Leave.jsx';
+import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
 import Payslip from './components/Payslip.jsx';
 import PeriodBar from './components/PeriodBar.jsx';
@@ -16,6 +17,7 @@ const TABS = [
   ['attendance', 'Attendance'],
   ['sunday', 'Sunday'],
   ['leave', 'Leave'],
+  ['loans', 'Loans'],
   ['employees', 'Employees'],
   ['reports', 'Reports'],
 ];
@@ -377,6 +379,14 @@ export default function App() {
             periods={periods}
             employees={employees}
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
+          />
+        )}
+
+        {tab === 'loans' && (
+          <Loans
+            period={period}
+            employees={employees}
+            onReload={() => loadPayroll(periodId)}
           />
         )}
 
