@@ -1,21 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
+import { calculateRow, sundayDaysFromAttendance } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, rupees, rupees2, weekday } from '../format.js';
 
 /**
  * The Sunday register - the "May Sunday" / "June sunday" tabs of the workbook.
  *
  * Sunday and holiday pay is settled apart from the month's salary: it sits
- * outside the gross, it does not count towards PT, and it is often handed over
- * separately. So it gets its own list - who worked which Sundays, at what day
- * rate, for how much - with its own paid/unpaid tracking.
+ * outside the gross, it does not count towards PT, and it is not in the salary
+ * sheet's net payable either. This register is the only place it is paid from,
+ * so it gets its own list - who worked which Sundays, at what day rate, for how
+ * much - with its own paid/unpaid tracking.
  */
 export default function SundayRegister({ period, rows, onPatchRow, locked }) {
   const [query, setQuery] = useState('');
   const [hidePaid, setHidePaid] = useState(false);
 
+  // Recompute rather than reading what the server last sent. A count typed on
+  // the salary sheet is saved as an override, and the echo of that save does
+  // not carry the recalculated Sunday figures - so a person who had just been
+  // given Sundays was missing from this register, and would never be paid.
+  const computed = useMemo(
+    () =>
+      rows.map((r) => ({
+        ...r,
+        ...calculateRow(r, period, r.attendance),
+        sunday_days: r.attendance ? sundayDaysFromAttendance(r.attendance) : r.sunday_days || [],
+      })),
+    [rows, period]
+  );
+
   const worked = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(
+    return computed.filter(
       (r) =>
         r.sundays_worked > 0 &&
         (!hidePaid || r.sunday_status !== 'paid') &&
@@ -23,7 +39,7 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
           r.employee_name.toLowerCase().includes(q) ||
           (r.company_name || '').toLowerCase().includes(q))
     );
-  }, [rows, query, hidePaid]);
+  }, [computed, query, hidePaid]);
 
   /**
    * A column per date anyone actually worked, plus the month's own Sundays so
@@ -35,9 +51,9 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
     for (let d = 1; d <= daysInMonth(period.year, period.month); d++) {
       if (isSunday(period.year, period.month, d)) set.add(d);
     }
-    for (const row of rows) for (const d of row.sunday_days || []) set.add(d);
+    for (const row of computed) for (const d of row.sunday_days || []) set.add(d);
     return [...set].sort((a, b) => a - b);
-  }, [rows, period]);
+  }, [computed, period]);
 
   const totals = worked.reduce(
     (acc, r) => ({ count: acc.count + r.sundays_worked, amount: acc.amount + r.sunday_salary }),
@@ -154,9 +170,9 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
       </div>
 
       <p className="muted small">
-        This pay sits <strong>outside</strong> the month's gross: it is added after the net salary,
-        it does not count towards the {rupees(period.pt_threshold)} PT line, and it is marked paid
-        here rather than on the salary sheet.
+        This pay is settled <strong>entirely apart</strong> from the month's salary: it is not in
+        the gross, not in the salary sheet's net payable, and it does not count towards the{' '}
+        {rupees(period.pt_threshold)} PT line. It is paid and marked off here.
       </p>
       {undated.length > 0 && (
         <p className="muted small">

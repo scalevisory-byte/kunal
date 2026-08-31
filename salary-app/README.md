@@ -28,9 +28,8 @@ Every column of the April tab, in order:
 | AV | Gross Salary | `ROUND(AO + AT + AU)` |
 | AW | PT | `200` when the month's gross is above `12,000` |
 | AX AY | ESI / PF | Entered per employee |
-| AZ | Net Salary | Gross − PT − ESI − PF − loan instalment |
-| BD | Sunday Salary | Sundays worked × day rate, paid on top |
-| BE | Final Payable | Net + Sunday salary |
+| AZ | Net Payable | Gross − PT − ESI − PF − loan instalment. The last column on the sheet. |
+| BD | Sunday Salary | Sundays worked × day rate — **on the Sunday register only**, not here |
 
 ### Attendance marks
 
@@ -202,14 +201,16 @@ instead if they should not be.
   (e.g. `AJ` is sometimes a `COUNTIF` and sometimes a hand-typed `7.5`). Overridden
   cells are outlined in the dashboard, and clearing the box hands control back to the
   formula.
-- **One number per employee per month.** The sheet spreads a person across a monthly
-  tab, a "Sunday" tab and a "Cash" tab; here Sunday pay is a column on the same row.
+- **Sunday duty is its own payment.** The sheet spreads a person across a monthly tab, a
+  "Sunday" tab and a "Cash" tab, and then adds Sunday pay back into `BE`. Here the marks
+  are on the one attendance grid, but the money stays split: the salary sheet ends at the
+  net, and Sunday pay is paid from the Sunday register alone.
 - **Leave is a mark of its own.** See the table above — the sheet only had "absent".
 
 ### Checked against the real sheet
 
 The April tab imports as 74 employees, and **72 of 74** reproduce the sheet's gross, net
-and final payable exactly. The two that differ are rows where someone typed a net salary
+and Sunday pay exactly. The two that differ are rows where someone typed a net salary
 **over** the formula in the sheet itself:
 
 - **Hiral Tandel** — sheet `AZ17` = 17,462; the formula gives 17,454.
@@ -239,10 +240,20 @@ gross − deductions = net.
 
 ### The Sunday register
 
-Sunday and holiday pay is settled **apart from the month's salary**, the way the workbook's
-"May Sunday" and "June sunday" tabs do it. The **Sunday** tab lists everyone who worked one:
-which dates, at what day rate, for how much, with its own **Paid by** and **Status** so the
-cash can be handed out and ticked off without touching the salary sheet.
+Sunday and holiday pay is settled **entirely apart from the month's salary**, the way the
+workbook's "May Sunday" and "June sunday" tabs do it. The **Sunday** tab lists everyone who
+worked one: which dates, at what day rate, for how much, with its own **Paid by** and
+**Status** so the cash can be handed out and ticked off without touching the salary sheet.
+
+The amount appears **nowhere on the salary sheet** — not in the gross, not in the PT line,
+and not in the net payable. The source sheet's `BE` added it to the net; Dinesh asked for
+the two to be paid separately, so the salary sheet ends at **Net payable** and this
+register is the only place Sunday duty is paid from. The Excel export and the monthly CSV
+carry no Sunday amount either; it rides in the Sunday sheet and `sunday.csv`.
+
+The one place both still appear together is the **statutory wage register**, which lists
+Sunday pay as its own column and adds it into the total — a muster roll that left it out
+would understate what the person was actually paid for the month.
 
 Somebody appears there the moment a day is marked **SP** or **HP** on the attendance grid.
 The amount is days × day rate; type over it to round it off, empty the box to go back.
@@ -363,9 +374,11 @@ it — deleting takes its employees and their months with it, and says so first.
 5. **Salary sheet** → the calculated month. Type into OT, **Add**, **Deduct**, ESI or PF and
    the row and the totals move immediately. Boxes outlined in orange are typed over a
    formula — empty them to hand the column back.
-6. **Reports** → download the Excel or CSV, or the payment list of everyone still
+6. **Sunday** → anyone who worked a Sunday or holiday, with the amount and its own
+   Paid by / Status. This is where Sunday duty is paid; it is not on the salary sheet.
+7. **Reports** → download the Excel or CSV, or the payment list of everyone still
    unpaid. Click a name on the salary sheet for a printable payslip.
-7. **Lock** the month once it is paid, so nothing can be edited by accident.
+8. **Lock** the month once it is paid, so nothing can be edited by accident.
 
 ---
 

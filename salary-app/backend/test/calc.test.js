@@ -41,7 +41,7 @@ test('April rows reproduce the sheet', () => {
     assert.equal(r.pt, pt, `${name} PT`);
     assert.equal(r.net_salary, net, `${name} net`);
     assert.equal(r.sunday_salary, sundaySalary, `${name} sunday salary`);
-    assert.equal(r.final_payable, net + sundaySalary, `${name} final payable`);
+    assert.equal(r.final_payable, net, `${name} final payable - Sunday is settled apart`);
   }
 });
 
@@ -111,7 +111,7 @@ test('marks drive the numbers when nothing is overridden', () => {
   assert.equal(r.absent_salary, 1500);
   assert.equal(r.gross_salary, 24500);
   assert.equal(r.sunday_salary, 1000);
-  assert.equal(r.final_payable, 24300 + 1000);
+  assert.equal(r.final_payable, 24300, 'the Sunday is owed, but not on this line');
 });
 
 test('a typed override beats the marks, and clearing it hands control back', () => {
@@ -210,13 +210,14 @@ test('PT goes by what the month pays, not by the salary on the master', () => {
   assert.equal(boosted.pt, 200);
 });
 
-test('Sunday pay does not count towards the PT line', () => {
-  // Paid on top of the net, so it never drags a month over the slab.
+test('Sunday pay is settled apart: not in the payable, not on the PT line', () => {
+  // Sunday duty is paid on its own register, so it neither drags a month over
+  // the PT slab nor lands in the salary sheet's payable.
   const r = calculateRow({ salary: 12000, sundays_override: 3 }, {});
   assert.equal(r.gross_salary, 12000);
-  assert.equal(r.sunday_salary, 1385);
-  assert.ok(r.final_payable > 12000, 'the person takes home more than 12,000');
-  assert.equal(r.pt, 0, 'but PT still goes by the gross alone');
+  assert.equal(r.sunday_salary, 1385, 'still worked out, for the Sunday register');
+  assert.equal(r.final_payable, r.net_salary, 'but the month pays the net alone');
+  assert.equal(r.pt, 0, 'and PT goes by the gross alone');
 });
 
 test('every month divides by 26, whatever the calendar or the caller says', () => {

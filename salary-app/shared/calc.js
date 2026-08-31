@@ -24,8 +24,9 @@
  *   AX ESI               entered
  *   AY PF                entered
  *   AZ Net Salary        =AV-AW-AX-AY, less any loan instalment
- *   BD Sunday Salary     = AM (paid separately from the net salary)
- *   BE Final             =AZ+BD
+ *   BD Sunday Salary     = AM, but paid on the Sunday register alone
+ *   BE Final             =AZ. The sheet had =AZ+BD; Dinesh asked for Sunday duty
+ *                        to be settled apart, so it no longer lands here.
  *
  * Anywhere the sheet has a hand-typed number over a formula (absent days,
  * OT amount, sunday salary), this module takes an override instead.
@@ -216,8 +217,9 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // AW: professional tax goes on what the month actually pays - the gross, after
   // absences, overtime and adjustments - not on the salary on the master. So a
   // month that a person was largely absent for can fall under the slab.
-  // Sunday pay is deliberately NOT counted towards the line; it is paid on top
-  // of the net, and adding it would move exactly two people in the April sheet.
+  // Sunday pay is deliberately NOT counted towards the line; it is settled on
+  // its own register, and adding it would move exactly two people in the April
+  // sheet.
   const pt = grossSalary > ptThreshold ? ptAmount : 0;
   const esi = num(row.esi); // AX
   const pf = num(row.pf); // AY
@@ -253,7 +255,11 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     loan_deduction: round2(loan),
     net_salary: netSalary,
     sunday_salary: round0(sundaySalary),
-    final_payable: round0(netSalary + round0(sundaySalary)),
+    // Sunday pay is settled on its own register, so it is deliberately NOT
+    // added here - the month's salary and the Sunday duty are paid apart,
+    // each with its own status. The source sheet's BE added the two together;
+    // Dinesh asked for them separate.
+    final_payable: netSalary,
   };
 }
 

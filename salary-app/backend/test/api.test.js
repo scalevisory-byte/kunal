@@ -90,7 +90,7 @@ test('attendance marks flow through to the calculated row', async () => {
   assert.equal(row.gross_salary, 56538);
   assert.equal(row.net_salary, 56338);
   assert.equal(row.sunday_salary, 2308);
-  assert.equal(row.final_payable, 58646);
+  assert.equal(row.final_payable, 56338, 'the Sunday is paid on its own register');
 });
 
 test('leave marks save and land on the row', async () => {

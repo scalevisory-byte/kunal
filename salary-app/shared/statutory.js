@@ -142,8 +142,12 @@ export function wageRegister(rows) {
     deductions:
       row.pt + round0(row.esi) + round0(row.pf) + round0(row.loan_deduction) + round0(row.deduction),
     net: round0(row.net_salary),
+    // Sunday duty is paid on its own register rather than with the salary, but
+    // it is still wages this month, and a muster roll that left it out would
+    // understate what the employee was paid. So it stays here, and the total
+    // is worked out rather than read off the row's payable.
     sunday: round0(row.sunday_salary),
-    payable: round0(row.final_payable),
+    payable: round0(row.net_salary) + round0(row.sunday_salary),
     mode: row.payment_mode || '',
   }));
 }

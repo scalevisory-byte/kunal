@@ -107,7 +107,11 @@ test('the exported workbook has the grid, the calculation columns and a legend',
 
   const ws = wb.getWorksheet('June 2026');
   const header = ws.getRow(2).values.filter(Boolean);
-  assert.ok(header.includes('Working Days') && header.includes('Net Salary') && header.includes('Final Payable'));
+  assert.ok(header.includes('Working Days') && header.includes('Net Payable'));
+  // Sunday duty is settled on its own sheet, so no amount for it belongs here.
+  assert.ok(!header.includes('Sunday Salary'), 'no Sunday amount on the monthly sheet');
+  assert.ok(!header.includes('Final Payable'), 'net payable is the last money column');
+  assert.ok(header.includes('Sunday'), 'the count of Sundays worked still is');
   assert.equal(ws.getRow(3).getCell(4).value, 1, 'the day strip starts at 1');
   assert.equal(ws.getRow(3).getCell(33).value, 30, 'June has 30 days');
 
@@ -119,6 +123,26 @@ test('the exported workbook has the grid, the calculation columns and a legend',
   });
   assert.ok(labels.some((l) => l.startsWith('BNF PVT LTD')));
   assert.ok(labels.includes('GRAND TOTAL'));
+
+  // Every figure is written by column name, but it still has to land under the
+  // right header - the offsets used to be numbered by hand and drifted once.
+  let grandRow = null;
+  ws.eachRow((row) => {
+    if (row.getCell(3).value === 'GRAND TOTAL') grandRow = row;
+  });
+  const headerRow = ws.getRow(2);
+  const columnOf = (head) => {
+    for (let c = 1; c <= headerRow.cellCount; c++) {
+      if (headerRow.getCell(c).value === head) return c;
+    }
+    throw new Error(`no ${head} column`);
+  };
+  const totals = buildPayroll(period.id).totals;
+  const at = (head) => grandRow.getCell(columnOf(head)).value;
+  assert.equal(at('Net Payable'), totals.net_salary, 'the total sits under its own header');
+  assert.equal(at('PT'), totals.pt);
+  assert.equal(at('Salary'), totals.salary);
+  assert.equal(at('Deduction'), null, 'a column with no total stays blank, not shifted into');
 
   // In the sample sheet Rohit Tayade carries an SP mark on day 3, and Ashutosh
   // Jha a typed Sunday count with no marks - both are owed Sunday pay, so both

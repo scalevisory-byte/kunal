@@ -45,7 +45,7 @@ reportsRouter.get('/periods/:id/export.csv', (req, res) => {
     ['Addition', 'addition'], ['Deduction', 'deduction'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
-    ['Net Salary', 'net_salary'], ['Sunday Salary', 'sunday_salary'], ['Final Payable', 'final_payable'],
+    ['Net Payable', 'net_salary'],
     ['Mode', 'payment_mode'], ['Status', 'status'],
   ];
   const escape = (v) => {

@@ -104,6 +104,19 @@ assistant. See `salary-app/README.md`.
   its own `sunday_status`/`sunday_mode` columns so it is paid and ticked off separately from
   the month's salary. Exports as its own sheet in the workbook and as `sunday.csv`. This is
   also why Sunday pay stays out of the PT line.
+- **Sunday pay is settled entirely apart** — Dinesh confirmed *"Sunday ka amount main register
+  me nahi aana chahiye"*. So `final_payable = net_salary` (the source sheet's `BE = AZ + BD`
+  no longer holds), the salary sheet ends at **Net payable** with no Sunday ₹ or Payable
+  column, and the Excel export and monthly CSV carry no Sunday amount. The register is the
+  only place it is paid from. **The statutory wage register is the deliberate exception** —
+  it keeps a Sunday column and adds it in, because a muster roll that left out wages
+  actually paid would understate them.
+- `SundayRegister.jsx` **recomputes with `calculateRow`** — a Sunday count typed on the
+  salary sheet is saved as an override and the PATCH echo carries no recalculated figures,
+  so the person was missing from the register and would never have been paid.
+- `shared/workbook.js` now drives every column position off one `CALC_COLUMNS` list (header,
+  value, number format, SUM footer), because the hand-numbered `base + N` offsets had already
+  drifted once when Add/Deduct was inserted.
 - **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
   on screen (Sundays as S), never overwriting an existing mark.
 - **"A date range…"** in each row's menu marks one person across many days (a fortnight off).

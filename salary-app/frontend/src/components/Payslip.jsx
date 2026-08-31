@@ -90,17 +90,21 @@ export default function Payslip({ period, row, onClose }) {
 
         <table className="sheet totals-table">
           <tbody>
-            <tr><td>Net salary</td><td className="num">{rupees(calc.net_salary)}</td></tr>
+            <tr className="grand-row">
+              <td>Net payable</td>
+              <td className="num">{rupees(calc.net_salary)}</td>
+            </tr>
+            {/* Sunday duty is settled on its own register, so it is stated here
+                for the record but never added into the month's payable. */}
             {calc.sunday_salary > 0 && (
-              <tr>
-                <td>Sunday / holiday pay ({days(calc.sundays_worked)} × {rupees2(calc.per_day)})</td>
+              <tr className="muted">
+                <td>
+                  Sunday / holiday pay ({days(calc.sundays_worked)} × {rupees2(calc.per_day)})
+                  <span className="hint"> paid separately</span>
+                </td>
                 <td className="num">{rupees(calc.sunday_salary)}</td>
               </tr>
             )}
-            <tr className="grand-row">
-              <td>Net payable</td>
-              <td className="num">{rupees(calc.final_payable)}</td>
-            </tr>
           </tbody>
         </table>
 

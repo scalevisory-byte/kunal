@@ -77,9 +77,8 @@ export default function Reports({ period, payroll, onReload }) {
               <Stat label="PT" value={payroll.totals.pt} />
               <Stat label="ESI" value={payroll.totals.esi} />
               <Stat label="PF" value={payroll.totals.pf} />
-              <Stat label="Net" value={payroll.totals.net_salary} />
-              <Stat label="Sunday" value={payroll.totals.sunday_salary} />
-              <Stat label="Payable" value={payroll.totals.final_payable} strong />
+              <Stat label="Net payable" value={payroll.totals.net_salary} strong />
+              <Stat label="Sunday (paid apart)" value={payroll.totals.sunday_salary} />
             </div>
 
             <div className="table-wrap">
@@ -92,9 +91,8 @@ export default function Reports({ period, payroll, onReload }) {
                     <th>PT</th>
                     <th>ESI</th>
                     <th>PF</th>
-                    <th>Net</th>
-                    <th>Sunday</th>
-                    <th>Payable</th>
+                    <th>Net payable</th>
+                    <th title="Settled on the Sunday register, not in the salary above">Sunday</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -106,9 +104,8 @@ export default function Reports({ period, payroll, onReload }) {
                       <td className="num">{rupees(c.totals.pt)}</td>
                       <td className="num">{rupees(c.totals.esi)}</td>
                       <td className="num">{rupees(c.totals.pf)}</td>
-                      <td className="num">{rupees(c.totals.net_salary)}</td>
+                      <td className="num grand">{rupees(c.totals.net_salary)}</td>
                       <td className="num">{rupees(c.totals.sunday_salary)}</td>
-                      <td className="num grand">{rupees(c.totals.final_payable)}</td>
                     </tr>
                   ))}
                 </tbody>
