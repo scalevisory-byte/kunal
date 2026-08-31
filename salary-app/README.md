@@ -111,6 +111,29 @@ of why those days are paid, and **Apply again** catches up anyone who joined sin
 Apply a festival *after* **Mark everyone Present**, not before: it writes over whatever is
 on that day. A paid holiday costs nothing, so nobody's salary moves.
 
+### Statutory registers
+
+**Reports → Statutory registers** has the four compliance sheets, each on screen and as a
+CSV:
+
+- **Provident Fund** — UAN, member name, gross and EPF wages, the employee, pension and
+  employer shares, NCP days. Wages are capped at ₹15,000 and the employee's share is
+  whatever was actually deducted, so a fixed ₹1,800 stays ₹1,800.
+- **ESI** — IP number, days paid, wages, both shares. Only people under the ₹21,000 wage
+  limit appear; anyone above it is counted separately so you can check they should still
+  be on the return.
+- **Professional Tax** — who is over the slab, summed company by company for the challan.
+- **Wage register** — the muster roll: every employee, days, gross, each deduction, and
+  what was paid. It balances against the salary sheet by construction.
+
+Anyone missing a UAN or an ESIC number is named, because that is what stops a return being
+filed. Everything is derived from the calculated month and the employee records — nothing
+is entered twice.
+
+> **The EPFO and ESIC upload formats change from time to time.** These produce the standard
+> fields, correctly worked out, in a spreadsheet you can read. Check a file against the
+> portal's own template before uploading it rather than trusting it blind.
+
 ### Punches from the attendance machine
 
 **Reports → Attendance machine** brings a biometric export into the grid. eSSL, ZKTeco and

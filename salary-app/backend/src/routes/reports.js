@@ -5,6 +5,7 @@ import { buildWorkbook } from '../../../shared/workbook.js';
 import { importSheet, listSheetNames } from '../importer.js';
 import { buildPayroll } from '../payroll.js';
 import { readPunchFile, punchesToMarks } from '../../../shared/punches.js';
+import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
 import { listEmployees, setAttendance } from '../db.js';
 import { getPeriod } from '../db.js';
 
@@ -95,6 +96,35 @@ reportsRouter.get('/periods/:id/sunday.csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="Sunday-${slug(payroll.period.label)}.csv"`);
   res.send(`\ufeff${lines.join('\n')}\n`);
+});
+
+/* ---------------- statutory registers ---------------- */
+
+const statutoryFor = (id) => {
+  const payroll = buildPayroll(Number(id));
+  return payroll ? statutoryReport(payroll) : null;
+};
+
+reportsRouter.get('/periods/:id/statutory', (req, res) => {
+  const report = statutoryFor(req.params.id);
+  if (!report) return res.status(404).json({ error: 'period not found' });
+  res.json(report);
+});
+
+reportsRouter.get('/periods/:id/statutory/:which.csv', (req, res) => {
+  const report = statutoryFor(req.params.id);
+  if (!report) return res.status(404).json({ error: 'period not found' });
+
+  const { which } = req.params;
+  const columns = CSV_COLUMNS[which];
+  if (!columns) return res.status(404).json({ error: `no such register: ${which}` });
+
+  const rows = which === 'pt' ? report.pt.rows : which === 'wages' ? report.wages : report[which].rows;
+  const name = { pf: 'PF', esi: 'ESI', pt: 'PT', wages: 'Wage-Register' }[which];
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${name}-${slug(report.period.label)}.csv"`);
+  res.send(toCsv(columns, rows));
 });
 
 /* ---------------- punches from the attendance machine ---------------- */

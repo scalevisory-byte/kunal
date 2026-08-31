@@ -496,7 +496,9 @@ export function listPayrollRows(periodId, { company_id } = {}) {
   return db
     .prepare(
       `SELECT p.*, e.name AS employee_name, e.code AS employee_code, e.designation,
-              e.religion, e.company_id, c.name AS company_name
+              e.religion, e.department, e.uan, e.esic_no, e.pf_no, e.pan,
+              e.bank_name, e.bank_account, e.ifsc,
+              e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
        JOIN companies c ON c.id = e.company_id

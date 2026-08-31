@@ -147,7 +147,12 @@ assistant. See `salary-app/README.md`.
      repayment row per running loan (capped at the outstanding), which is then editable, so
      a month can be skipped without losing the debt. `loan_deduction` is a new input to
      `calculateRow`, deducted with PF/ESI. `Loans.jsx`.
-  4. ⬜ Statutory reports — PF ECR, ESI return, PT challan, muster roll / wage register.
+  4. ✅ **Statutory registers** — `shared/statutory.js` derives PF (wages capped at 15,000,
+     employee share = what was deducted, EPS at 8.33%), ESI (under the 21,000 limit,
+     employer 3.25%), PT summed per company, and the wage register, all from the calculated
+     month plus the profile identifiers. Missing UAN/ESIC numbers are named. `Statutory.jsx`
+     in Reports; four CSVs. **The EPFO/ESIC upload formats drift — the README says to check
+     a file against the portal template rather than trusting it.**
   Self-service and approval workflows are **not possible in the standalone file** and need
   the server; everything above works offline.
 - **Biometric punches import** from `Reports`: `shared/punches.js` reads any export shape

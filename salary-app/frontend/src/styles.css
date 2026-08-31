@@ -108,6 +108,8 @@ header {
 }
 .tabs button.active { background: var(--brand-soft); color: var(--brand); border-color: var(--line); }
 .tabs .ghost { margin-left: auto; font-weight: 400; }
+.sub-tabs { margin: 0.6rem 0; align-items: center; }
+.sub-tabs button { font-size: 0.82rem; }
 
 main { padding: 1rem; display: block; }
 

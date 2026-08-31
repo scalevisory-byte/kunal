@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { STANDALONE, api, download, downloadBackup, restoreBackup } from '../api.js';
 import PunchImport from './PunchImport.jsx';
+import Statutory from './Statutory.jsx';
 import { rupees } from '../format.js';
 
 /** Totals, downloads, and pulling an existing spreadsheet in. */
@@ -167,6 +168,8 @@ export default function Reports({ period, payroll, onReload }) {
           </div>
         </div>
       )}
+
+      <Statutory period={period} />
 
       {period && <PunchImport period={period} onReload={onReload} />}
 

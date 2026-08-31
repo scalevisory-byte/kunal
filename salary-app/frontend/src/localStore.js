@@ -11,6 +11,7 @@ import {
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
 import { buildWorkbook } from '../../shared/workbook.js';
+import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 
 /**
  * The standalone build's data layer.
@@ -222,6 +223,14 @@ function buildPayroll(periodId, { sync = true } = {}) {
         employee_code: emp.code,
         designation: emp.designation,
         religion: emp.religion || null,
+        department: emp.department || null,
+        uan: emp.uan || null,
+        esic_no: emp.esic_no || null,
+        pf_no: emp.pf_no || null,
+        pan: emp.pan || null,
+        bank_name: emp.bank_name || null,
+        bank_account: emp.bank_account || null,
+        ifsc: emp.ifsc || null,
         company_id: emp.company_id,
         company_name: companyOf(emp.company_id)?.name || '',
         attendance: marks,
@@ -295,6 +304,14 @@ export async function handle(method, path, body) {
       standalone: true,
       defaults: { working_days: STANDARD_WORKING_DAYS, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 },
     };
+  }
+
+  /* statutory registers */
+  const statutory = path.split('?')[0].match(/^\/periods\/(\d+)\/statutory$/);
+  if (statutory && method === 'GET') {
+    const payroll = buildPayroll(Number(statutory[1]));
+    if (!payroll) throw new HttpError(404, 'period not found');
+    return statutoryReport(payroll);
   }
 
   /* loans */
@@ -886,6 +903,16 @@ export async function upload(path, formData) {
 
 /** Builds the download in the browser and hands back a Blob. */
 export async function file(path) {
+  const registerPath = path.match(/^\/periods\/(\d+)\/statutory\/(pf|esi|pt|wages)\.csv$/);
+  if (registerPath) {
+    const payroll = buildPayroll(Number(registerPath[1]));
+    if (!payroll) throw new Error('period not found');
+    const report = statutoryReport(payroll);
+    const which = registerPath[2];
+    const rows = which === 'pt' ? report.pt.rows : which === 'wages' ? report.wages : report[which].rows;
+    return new Blob([toCsv(CSV_COLUMNS[which], rows)], { type: 'text/csv;charset=utf-8' });
+  }
+
   const match = path.match(/^\/periods\/(\d+)\/(export\.xlsx|export\.csv|bank\.csv|sunday\.csv)$/);
   if (!match) throw new Error(`not available offline: ${path}`);
   const payroll = buildPayroll(Number(match[1]));
