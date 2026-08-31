@@ -102,6 +102,47 @@ test('leave marks save and land on the row', async () => {
   });
 });
 
+test('short hours marked on a day reach the salary sheet', async () => {
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: employeeId, day: 12, code: 'P', minutes: -30 },
+      { employee_id: employeeId, day: 13, code: 'P', minutes: -60 },
+      { employee_id: employeeId, day: 14, minutes: -40 },
+    ],
+  });
+
+  const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+  const row = body.rows[0];
+  assert.equal(row.ot_minutes, -130, '30 + 60 + 40 short');
+  assert.equal(row.ot_minutes_from_days, -130);
+  assert.equal(row.overrides.ot_minutes, false, 'nothing typed over it');
+  // 60000 / 26 / 9 / 60 = 4.2735 a minute
+  assert.equal(row.ot_salary, -555.56);
+
+  // A total typed on the salary sheet takes over, and clearing it hands back.
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes: -60 });
+  let after = await api('GET', `/api/periods/${periodId}/payroll`);
+  assert.equal(after.body.rows[0].ot_minutes, -60);
+  assert.equal(after.body.rows[0].overrides.ot_minutes, true);
+
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { ot_minutes: '' });
+  after = await api('GET', `/api/periods/${periodId}/payroll`);
+  assert.equal(after.body.rows[0].ot_minutes, -130, 'back to the days');
+
+  // Put the row back for the tests that follow.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [12, 13, 14].map((day) => ({ employee_id: employeeId, day, code: '', minutes: 0 })),
+  });
+});
+
+test('minutes that are not a number are rejected', async () => {
+  const bad = await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: employeeId, day: 15, code: 'P', minutes: 'half an hour' }],
+  });
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.error, /minutes/);
+});
+
 test('an unknown mark is rejected instead of silently ignored', async () => {
   const bad = await api('POST', `/api/periods/${periodId}/attendance`, {
     entries: [{ employee_id: employeeId, day: 7, code: 'XX' }],

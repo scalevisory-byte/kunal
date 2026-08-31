@@ -90,6 +90,7 @@ periodsRouter.get('/:id/attendance', (req, res) => {
       absent_days: row.absent_days,
       sundays_worked: row.sundays_worked,
       present_days: row.present_days,
+      ot_minutes_from_days: row.ot_minutes_from_days,
       overrides: row.overrides,
     })),
   });
@@ -107,6 +108,10 @@ periodsRouter.post('/:id/attendance', (req, res) => {
   if (unknown.length) {
     return res.status(400).json({ error: `unknown attendance code(s): ${[...new Set(unknown)].join(', ')}` });
   }
+  const badMinutes = entries.filter(
+    (e) => e.minutes !== undefined && e.minutes !== null && e.minutes !== '' && !Number.isFinite(Number(e.minutes))
+  );
+  if (badMinutes.length) return res.status(400).json({ error: 'minutes must be a number' });
   res.json({ saved: setAttendance(period.id, entries) });
 });
 

@@ -1,17 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { absentDaysFromAttendance, countMarks, sundaysFromAttendance } from '../../../shared/calc.js';
+import {
+  absentDaysFromAttendance,
+  countMarks,
+  minutesFromAttendance,
+  sundaysFromAttendance,
+} from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 
 /**
  * The day-by-day grid from the left of the sheet.
  *
- * Clicking a day opens a menu of the marks by name - Present, Absent, Half Day,
- * Paid Leave and so on - so nobody has to remember the two-letter codes. The
- * codes are still shown in the cell, and still typeable, because marking 75
- * people over a month is faster from the keyboard.
+ * Clicking a day opens a menu: the marks by name - Present, Absent, Paid Leave
+ * and so on - and below them the short hours or overtime for that day. Minutes
+ * add up across the month into the OT/LT column, where they are paid or
+ * deducted at the per-minute rate.
  */
+
+/** Preset amounts of short time, the ones that actually come up. */
+const MINUTE_PRESETS = [15, 30, 40, 45, 60, 90, 120];
+
 export default function Attendance({ period, rows, codes, onSave, locked }) {
-  const [draft, setDraft] = useState({}); // "employeeId:day" -> code, unsaved
+  const [draft, setDraft] = useState({}); // "employeeId:day" -> { code, minutes }
   const [query, setQuery] = useState('');
   const [picker, setPicker] = useState(null); // { employeeId, day, name }
   const [status, setStatus] = useState('');
@@ -28,19 +37,21 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     );
   }, [rows, query]);
 
-  const markOf = (row, day) => {
+  const entryOf = (row, day) => {
     const key = `${row.employee_id}:${day}`;
-    return key in draft ? draft[key] : row.attendance?.[day] || '';
+    if (key in draft) return draft[key];
+    const stored = row.attendance?.[day];
+    if (!stored) return { code: '', minutes: 0 };
+    // The server sends { code, minutes }; a bare code is still understood.
+    return typeof stored === 'object' ? stored : { code: stored, minutes: 0 };
   };
 
-  /** Marks as they stand including unsaved edits, for the live day counts. */
+  /** Marks as they stand including unsaved edits, for the live counts. */
   const effectiveAttendance = (row) => {
-    const merged = { ...(row.attendance || {}) };
-    for (const [key, code] of Object.entries(draft)) {
-      const [empId, day] = key.split(':');
-      if (Number(empId) !== row.employee_id) continue;
-      if (code) merged[day] = code;
-      else delete merged[day];
+    const merged = {};
+    for (const day of dayList) {
+      const entry = entryOf(row, day);
+      if (entry.code || entry.minutes) merged[day] = entry;
     }
     return merged;
   };
@@ -48,9 +59,9 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
   const queueSave = (next) => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      const entries = Object.entries(next).map(([key, code]) => {
+      const entries = Object.entries(next).map(([key, entry]) => {
         const [employee_id, day] = key.split(':');
-        return { employee_id: Number(employee_id), day: Number(day), code };
+        return { employee_id: Number(employee_id), day: Number(day), ...entry };
       });
       if (!entries.length) return;
       setStatus('Saving…');
@@ -67,7 +78,6 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
 
-  // Escape closes the menu; clicking elsewhere is handled by the backdrop.
   useEffect(() => {
     if (!picker) return undefined;
     const onKey = (e) => e.key === 'Escape' && setPicker(null);
@@ -75,11 +85,16 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [picker]);
 
-  const setMark = (employeeId, day, rawCode) => {
+  const setEntry = (employeeId, day, patch) => {
     if (locked) return;
-    const code = String(rawCode || '').trim().toUpperCase();
-    if (code && !codes[code]) return; // ignore anything not in the legend
-    const next = { ...draft, [`${employeeId}:${day}`]: code };
+    const key = `${employeeId}:${day}`;
+    const row = rows.find((r) => r.employee_id === employeeId);
+    const current = row ? entryOf(row, day) : { code: '', minutes: 0 };
+    const entry = { ...current, ...patch };
+    entry.code = String(entry.code || '').trim().toUpperCase();
+    entry.minutes = Number(entry.minutes) || 0;
+    if (entry.code && !codes[entry.code]) return; // ignore anything not in the legend
+    const next = { ...draft, [key]: entry };
     setDraft(next);
     queueSave(next);
   };
@@ -89,9 +104,10 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     if (locked) return;
     const next = { ...draft };
     for (const day of dayList) {
-      if (markOf(row, day)) continue;
+      const entry = entryOf(row, day);
+      if (entry.code) continue;
       if (code === 'S' && !isSunday(period.year, period.month, day)) continue;
-      next[`${row.employee_id}:${day}`] = code;
+      next[`${row.employee_id}:${day}`] = { ...entry, code };
     }
     setDraft(next);
     queueSave(next);
@@ -100,7 +116,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
   const clearRow = (row) => {
     if (locked) return;
     const next = { ...draft };
-    for (const day of dayList) next[`${row.employee_id}:${day}`] = '';
+    for (const day of dayList) next[`${row.employee_id}:${day}`] = { code: '', minutes: 0 };
     setDraft(next);
     queueSave(next);
   };
@@ -114,7 +130,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <span className="muted small">Click any day to choose a mark.</span>
+        <span className="muted small">Click any day to set the mark and its short hours.</span>
         <span className="grow" />
         {status && <span className="pill saving">{status}</span>}
         {locked && <span className="pill locked">Locked</span>}
@@ -135,6 +151,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
               <th title="Paid leave taken">PL</th>
               <th title="Unpaid leave taken">UL</th>
               <th title="Sundays and holidays worked">Sun</th>
+              <th title="Short hours (negative) and overtime (positive) for the month">Minutes</th>
               <th>Whole row</th>
             </tr>
           </thead>
@@ -142,35 +159,47 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
             {filtered.map((row) => {
               const merged = effectiveAttendance(row);
               const counts = countMarks(merged);
+              const minutes = minutesFromAttendance(merged);
               return (
                 <tr key={row.employee_id}>
                   <td className="sticky-name" title={row.company_name}>{row.employee_name}</td>
                   {dayList.map((d) => {
-                    const code = markOf(row, d);
+                    const entry = entryOf(row, d);
                     const open = picker?.employeeId === row.employee_id && picker?.day === d;
                     return (
                       <td key={d} className={`mark${isSunday(period.year, period.month, d) ? ' sunday' : ''}`}>
                         <button
                           type="button"
-                          className={`mark-cell code-${code || 'none'}${open ? ' open' : ''}`}
+                          className={`mark-cell code-${entry.code || 'none'}${open ? ' open' : ''}`}
                           disabled={locked}
-                          title={code ? codes[code]?.label : 'No mark - counted as worked'}
+                          title={
+                            [
+                              entry.code ? codes[entry.code]?.label : 'No mark - counted as worked',
+                              entry.minutes ? `${entry.minutes > 0 ? '+' : ''}${entry.minutes} minutes` : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          }
                           onClick={() =>
                             setPicker(open ? null : { employeeId: row.employee_id, day: d, name: row.employee_name })
                           }
                           onKeyDown={(e) => {
-                            // Typing a code still works: "a" for Absent, "p"/"pl" and so on.
+                            // Typing a code still works: "a" for Absent, "p" for Present.
                             if (!/^[a-z]$/i.test(e.key)) return;
                             const typed = e.key.toUpperCase();
-                            const exact = codes[typed] ? typed : null;
-                            const guess = Object.keys(codes).find((c) => c.startsWith(typed));
-                            if (exact || guess) {
+                            const match = codes[typed] ? typed : Object.keys(codes).find((c) => c.startsWith(typed));
+                            if (match) {
                               e.preventDefault();
-                              setMark(row.employee_id, d, exact || guess);
+                              setEntry(row.employee_id, d, { code: match });
                             }
                           }}
                         >
-                          {code || '·'}
+                          <span className="mark-code">{entry.code || '·'}</span>
+                          {entry.minutes !== 0 && (
+                            <span className={`mark-minutes${entry.minutes < 0 ? ' short' : ' extra'}`}>
+                              {entry.minutes > 0 ? `+${entry.minutes}` : entry.minutes}
+                            </span>
+                          )}
                         </button>
                       </td>
                     );
@@ -179,6 +208,9 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
                   <td className="num">{counts.PL || '-'}</td>
                   <td className="num">{counts.UL || '-'}</td>
                   <td className="num">{days(sundaysFromAttendance(merged))}</td>
+                  <td className={`num strong${minutes < 0 ? ' deduct' : ''}`}>
+                    {minutes ? `${minutes > 0 ? '+' : ''}${minutes}` : '-'}
+                  </td>
                   <td className="row-fill">
                     <select
                       value=""
@@ -201,30 +233,28 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
             })}
             {!filtered.length && (
               <tr>
-                <td colSpan={total + 6} className="empty">No employees in this month yet.</td>
+                <td colSpan={total + 7} className="empty">No employees in this month yet.</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {picker && (
-        <MarkPicker
-          codes={codes}
-          picker={picker}
-          period={period}
-          current={
-            filtered.find((r) => r.employee_id === picker.employeeId)
-              ? markOf(filtered.find((r) => r.employee_id === picker.employeeId), picker.day)
-              : ''
-          }
-          onPick={(code) => {
-            setMark(picker.employeeId, picker.day, code);
-            setPicker(null);
-          }}
-          onClose={() => setPicker(null)}
-        />
-      )}
+      {picker && (() => {
+        const row = rows.find((r) => r.employee_id === picker.employeeId);
+        if (!row) return null;
+        return (
+          <DayPicker
+            codes={codes}
+            picker={picker}
+            period={period}
+            entry={entryOf(row, picker.day)}
+            perMinute={row.per_minute}
+            onChange={(patch) => setEntry(picker.employeeId, picker.day, patch)}
+            onClose={() => setPicker(null)}
+          />
+        );
+      })()}
 
       <div className="legend card">
         <strong>What each mark does to the salary</strong>
@@ -245,17 +275,25 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         </ul>
         <p className="muted small">
           A day left blank counts as worked. <strong>Paid Leave</strong> costs nothing;{' '}
-          <strong>Unpaid Leave</strong> deducts a day, the same as Absent, but is counted separately
-          so leave and absence can be told apart on the payslip and in the export.
+          <strong>Unpaid Leave</strong> deducts a day, the same as Absent, but is counted separately.
+        </p>
+        <p className="muted small">
+          <strong>Short hours</strong> are set per day in the same menu — 30, 40, 60 minutes and so
+          on. They add up over the month and come off at the per-minute rate
+          (salary ÷ working days ÷ hours per day ÷ 60), so an hour short costs exactly an hour's pay.
+          Overtime works the same way with a plus.
         </p>
       </div>
     </section>
   );
 }
 
-/** The menu of marks, by name, anchored over the grid. */
-function MarkPicker({ codes, picker, period, current, onPick, onClose }) {
+/** The menu for one day: the mark by name, then that day's short hours. */
+function DayPicker({ codes, picker, period, entry, perMinute, onChange, onClose }) {
+  const [custom, setCustom] = useState('');
   const date = new Date(period.year, period.month - 1, picker.day);
+  const rate = Number(perMinute) || 0;
+  const cost = (mins) => Math.round(Math.abs(mins) * rate);
 
   return (
     <div className="picker-backdrop" onClick={onClose}>
@@ -267,13 +305,14 @@ function MarkPicker({ codes, picker, period, current, onPick, onClose }) {
             {date.toLocaleString('en-IN', { month: 'long' })}
           </span>
         </div>
+
         <ul className="picker-list">
           {Object.entries(codes).map(([code, meta]) => (
             <li key={code}>
               <button
                 type="button"
-                className={current === code ? 'active' : undefined}
-                onClick={() => onPick(code)}
+                className={entry.code === code ? 'active' : undefined}
+                onClick={() => onChange({ code })}
               >
                 <span className={`brush code-${code}`}>{code}</span>
                 <span className="picker-label">{meta.label}</span>
@@ -288,13 +327,102 @@ function MarkPicker({ codes, picker, period, current, onPick, onClose }) {
             </li>
           ))}
           <li>
-            <button type="button" className="clear" onClick={() => onPick('')}>
+            <button
+              type="button"
+              className={!entry.code ? 'active clear' : 'clear'}
+              onClick={() => onChange({ code: '' })}
+            >
               <span className="brush">✕</span>
-              <span className="picker-label">Clear the mark</span>
+              <span className="picker-label">No mark</span>
               <span className="picker-effect">—</span>
             </button>
           </li>
         </ul>
+
+        <div className="picker-minutes">
+          <div className="picker-minutes-head">
+            <strong>Short hours this day</strong>
+            {entry.minutes !== 0 && (
+              <span className={entry.minutes < 0 ? 'deduct' : 'muted'}>
+                {entry.minutes > 0 ? `+${entry.minutes} min overtime` : `${-entry.minutes} min short`}
+                {rate > 0 && ` · ₹${cost(entry.minutes)}`}
+              </span>
+            )}
+          </div>
+
+          <div className="minute-presets">
+            {MINUTE_PRESETS.map((mins) => (
+              <button
+                type="button"
+                key={mins}
+                className={entry.minutes === -mins ? 'active' : undefined}
+                title={rate > 0 ? `Deducts about ₹${cost(mins)}` : undefined}
+                onClick={() => onChange({ minutes: entry.minutes === -mins ? 0 : -mins })}
+              >
+                −{mins}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={entry.minutes === 0 ? 'active' : undefined}
+              onClick={() => onChange({ minutes: 0 })}
+            >
+              None
+            </button>
+          </div>
+
+          <div className="inline-form minute-custom">
+            <label>
+              Or type minutes
+              <input
+                inputMode="numeric"
+                placeholder="e.g. 25"
+                value={custom}
+                onChange={(e) => setCustom(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter') return;
+                  const mins = Math.abs(Number(custom));
+                  if (Number.isFinite(mins) && mins > 0) {
+                    onChange({ minutes: -mins });
+                    setCustom('');
+                  }
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const mins = Math.abs(Number(custom));
+                if (Number.isFinite(mins) && mins > 0) {
+                  onChange({ minutes: -mins });
+                  setCustom('');
+                }
+              }}
+            >
+              Deduct
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const mins = Math.abs(Number(custom));
+                if (Number.isFinite(mins) && mins > 0) {
+                  onChange({ minutes: mins });
+                  setCustom('');
+                }
+              }}
+            >
+              Overtime
+            </button>
+          </div>
+
+          <p className="muted small">
+            {rate > 0
+              ? `One minute is worth ₹${rate.toFixed(2)} for this employee.`
+              : 'Set the salary first to see what a minute is worth.'}
+          </p>
+        </div>
+
+        <button className="picker-done primary" onClick={onClose}>Done</button>
       </div>
     </div>
   );

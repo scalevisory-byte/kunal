@@ -23,7 +23,7 @@ Every column of the April tab, in order:
 | AP AQ AR | Per day / hour / minute | `AL / 26`, `÷ 9`, `÷ 60` |
 | AN | Absent Salary | Day rate × absent days |
 | AO | Gross Salary | Salary − absent salary |
-| AS AT | OT/LT | Minutes × per-minute rate; a negative number is late/short hours |
+| AS AT | OT/LT | Short hours and overtime in minutes × per-minute rate |
 | AU | Deduction / Additions | Anything else, signed |
 | AV | Gross Salary | `ROUND(AO + AT + AU)` |
 | AW | PT | `200` when the gross is above `12,000` |
@@ -52,6 +52,20 @@ does to the salary — no need to remember the codes. Typing the code still work
 | `AD` | Absent (2 days) | −2 days |
 
 A day left blank counts as worked.
+
+### Short hours, by the minute
+
+The same day menu sets that day's **short hours** — presets for 15, 30, 40, 45, 60, 90 and
+120 minutes, or type any number. Overtime is the same control with a plus.
+
+Minutes add up across the month into the `OT/LT` column and are paid or deducted at the
+per-minute rate — `salary ÷ working days ÷ hours per day ÷ 60` — so an hour short costs
+exactly an hour's pay. The menu shows what a minute is worth for that employee before you
+commit to it.
+
+Short hours are **not** absent days: someone can be Present and 30 minutes short, and a day
+can carry minutes with no mark at all. Typing a total into `OT min` on the salary sheet
+overrides the month; clearing the box hands it back to the days.
 
 `P`, `A`, `HF`, `AD`, `PH`, `SP`, `HP`, `WH` and `S` come from the legend in columns
 BI/BJ of the sheet. **`PL` and `UL` are new** — the sheet has no way to say "leave", only
@@ -123,7 +137,8 @@ cd backend && npm test
    code. **Fill blanks…** on the right marks a whole row at once. The absent, paid-leave,
    unpaid-leave and Sunday counts update as you go and save on their own.
 5. **Salary sheet** → the calculated month. Type into OT, deductions, ESI or PF and
-   the row and the totals move immediately.
+   the row and the totals move immediately. Boxes outlined in orange are typed over a
+   formula — empty them to hand the column back.
 6. **Reports** → download the Excel or CSV, or the payment list of everyone still
    unpaid. Click a name on the salary sheet for a printable payslip.
 7. **Lock** the month once it is paid, so nothing can be edited by accident.

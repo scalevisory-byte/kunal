@@ -23,6 +23,7 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
       overrides: {
         absent_days: row.absent_days_override !== null,
         sundays: row.sundays_override !== null,
+        ot_minutes: row.ot_minutes !== null,
         ot_amount: row.ot_amount_override !== null,
         sunday_salary: row.sunday_salary_override !== null,
       },

@@ -69,6 +69,11 @@ assistant. See `salary-app/README.md`.
 - Attendance is marked by clicking a day and picking the mark **by name** (each option
   shows its salary effect, e.g. "Absent −1 day"); typing the code still works, and
   "Fill blanks…" marks a whole row.
+- **Short hours are per day, in minutes** — the same day menu has presets (15/30/40/45/60/
+  90/120) and a free box, and shows what a minute is worth for that employee. Minutes sum
+  into the sheet's AS column and are paid/deducted at salary ÷ working days ÷ hours ÷ 60.
+  `payroll_rows.ot_minutes` is nullable and acts as an override over the daily sum, like
+  the other override columns; there is a migration that rebuilds the table for older DBs.
 - Imports an April-shaped tab (company in A, name in C, marks in D–AG, salary in AL);
   exports back to the same layout with live SUM subtotals. Matches employees on company+name.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon

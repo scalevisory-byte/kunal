@@ -56,7 +56,7 @@ db.exec(`
     salary                 REAL NOT NULL DEFAULT 0,
     absent_days_override   REAL,
     sundays_override       REAL,
-    ot_minutes             REAL NOT NULL DEFAULT 0,
+    ot_minutes             REAL,
     ot_amount_override     REAL,
     adjustment             REAL NOT NULL DEFAULT 0,
     esi                    REAL NOT NULL DEFAULT 0,
@@ -69,11 +69,14 @@ db.exec(`
     UNIQUE (period_id, employee_id)
   );
 
+  -- minutes is that day's short hours (negative) or overtime (positive).
+  -- A day can carry minutes with no mark, and a mark with no minutes.
   CREATE TABLE IF NOT EXISTS attendance (
     period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     day         INTEGER NOT NULL,
-    code        TEXT NOT NULL,
+    code        TEXT NOT NULL DEFAULT '',
+    minutes     REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (period_id, employee_id, day)
   );
 
@@ -81,6 +84,57 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_payroll_period    ON payroll_rows(period_id);
   CREATE INDEX IF NOT EXISTS idx_attendance_period ON attendance(period_id, employee_id);
 `);
+
+/* ---------------- migrations ---------------- */
+
+const attendanceColumns = new Set(db.prepare(`PRAGMA table_info(attendance)`).all().map((c) => c.name));
+if (!attendanceColumns.has('minutes')) {
+  db.exec(`ALTER TABLE attendance ADD COLUMN minutes REAL NOT NULL DEFAULT 0`);
+  log.info('Migrated attendance table: added per-day minutes.');
+}
+
+// ot_minutes used to be NOT NULL DEFAULT 0. It is now nullable, where null means
+// "use the minutes marked on the days". SQLite cannot drop NOT NULL in place, so
+// the table is rebuilt. A stored 0 becomes null: it contributed nothing to the
+// pay either way, and leaving it would block day-by-day entry on every row.
+const payrollColumns = db.prepare(`PRAGMA table_info(payroll_rows)`).all();
+const otColumn = payrollColumns.find((c) => c.name === 'ot_minutes');
+if (otColumn && otColumn.notnull === 1) {
+  db.exec(`
+    PRAGMA foreign_keys = OFF;
+    BEGIN;
+    ALTER TABLE payroll_rows RENAME TO payroll_rows_old;
+    CREATE TABLE payroll_rows (
+      id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_id              INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+      employee_id            INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      salary                 REAL NOT NULL DEFAULT 0,
+      absent_days_override   REAL,
+      sundays_override       REAL,
+      ot_minutes             REAL,
+      ot_amount_override     REAL,
+      adjustment             REAL NOT NULL DEFAULT 0,
+      esi                    REAL NOT NULL DEFAULT 0,
+      pf                     REAL NOT NULL DEFAULT 0,
+      sunday_salary_override REAL,
+      payment_mode           TEXT,
+      status                 TEXT NOT NULL DEFAULT 'pending',
+      remark                 TEXT,
+      updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (period_id, employee_id)
+    );
+    INSERT INTO payroll_rows
+      SELECT id, period_id, employee_id, salary, absent_days_override, sundays_override,
+             NULLIF(ot_minutes, 0), ot_amount_override, adjustment, esi, pf,
+             sunday_salary_override, payment_mode, status, remark, updated_at
+      FROM payroll_rows_old;
+    DROP TABLE payroll_rows_old;
+    COMMIT;
+    PRAGMA foreign_keys = ON;
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_payroll_period ON payroll_rows(period_id)`);
+  log.info('Migrated payroll_rows: ot_minutes is now an override over the days.');
+}
 
 log.info(`SQLite ready at ${config.dbPath}`);
 
@@ -396,27 +450,28 @@ export function listAttendance(periodId, { company_id } = {}) {
   }
   return db
     .prepare(
-      `SELECT a.employee_id, a.day, a.code
+      `SELECT a.employee_id, a.day, a.code, a.minutes
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
     .all(...params);
 }
 
-/** employee_id -> { day: code }, the shape calculateRow() wants. */
+/** employee_id -> { day: { code, minutes } }, the shape calculateRow() wants. */
 export function attendanceByEmployee(periodId, opts) {
   const map = new Map();
   for (const row of listAttendance(periodId, opts)) {
     if (!map.has(row.employee_id)) map.set(row.employee_id, {});
-    map.get(row.employee_id)[row.day] = row.code;
+    map.get(row.employee_id)[row.day] = { code: row.code || '', minutes: row.minutes || 0 };
   }
   return map;
 }
 
 export const setAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
-    `INSERT INTO attendance (period_id, employee_id, day, code) VALUES (?, ?, ?, ?)
-     ON CONFLICT(period_id, employee_id, day) DO UPDATE SET code = excluded.code`
+    `INSERT INTO attendance (period_id, employee_id, day, code, minutes) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(period_id, employee_id, day)
+     DO UPDATE SET code = excluded.code, minutes = excluded.minutes`
   );
   const remove = db.prepare(
     `DELETE FROM attendance WHERE period_id = ? AND employee_id = ? AND day = ?`
@@ -425,8 +480,10 @@ export const setAttendance = db.transaction((periodId, entries) => {
     const employeeId = Number(entry.employee_id);
     const day = Number(entry.day);
     const code = String(entry.code || '').trim().toUpperCase();
+    const minutes = Number(entry.minutes) || 0;
     if (!employeeId || !day) continue;
-    if (code) upsert.run(periodId, employeeId, day, code);
+    // A day with neither a mark nor minutes has nothing left to record.
+    if (code || minutes) upsert.run(periodId, employeeId, day, code, minutes);
     else remove.run(periodId, employeeId, day);
   }
   return entries.length;

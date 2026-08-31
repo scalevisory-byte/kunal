@@ -15,7 +15,8 @@
  *   AP Salary / Day      =AL/26
  *   AQ Salary / Hour     =AL/26/9
  *   AR Salary / Minutes  =AQ/60
- *   AS OT/LT In Minutes  entered (negative = late / short hours)
+ *   AS OT/LT In Minutes  short/extra minutes marked on the days, or entered
+ *                        (negative = late / short hours, positive = overtime)
  *   AT OT/LT Salary      =AR*AS
  *   AU Deduction/Additions  entered (signed)
  *   AV Gross Salary      =ROUND(AO+AT+AU,0)
@@ -69,6 +70,16 @@ const num = (v, fallback = 0) => {
 
 const isSet = (v) => v !== null && v !== undefined && v !== '';
 
+/**
+ * A day in the attendance map is either the mark on its own (`'A'`) or the mark
+ * with minutes attached (`{ code: 'P', minutes: -30 }`). Both shapes are read,
+ * so an import that only knows codes still works.
+ */
+const codeOf = (entry) =>
+  String((entry && typeof entry === 'object' ? entry.code : entry) || '').trim().toUpperCase();
+
+const minutesOf = (entry) => (entry && typeof entry === 'object' ? num(entry.minutes) : 0);
+
 /** Round to 2dp for display; money that lands in a payslip uses round0. */
 export const round2 = (n) => Math.round((num(n) + Number.EPSILON) * 100) / 100;
 export const round0 = (n) => Math.round(num(n));
@@ -79,8 +90,8 @@ export const round0 = (n) => Math.round(num(n));
  */
 export function absentDaysFromAttendance(attendance = {}) {
   let days = 0;
-  for (const code of Object.values(attendance)) {
-    const mark = ATTENDANCE_CODES[String(code || '').toUpperCase()];
+  for (const entry of Object.values(attendance)) {
+    const mark = ATTENDANCE_CODES[codeOf(entry)];
     if (mark) days += mark.absent;
   }
   return round2(days);
@@ -89,8 +100,8 @@ export function absentDaysFromAttendance(attendance = {}) {
 /** Sundays/holidays actually worked (column AI), from the SP and HP marks. */
 export function sundaysFromAttendance(attendance = {}) {
   let days = 0;
-  for (const code of Object.values(attendance)) {
-    const mark = ATTENDANCE_CODES[String(code || '').toUpperCase()];
+  for (const entry of Object.values(attendance)) {
+    const mark = ATTENDANCE_CODES[codeOf(entry)];
     if (mark) days += mark.sunday;
   }
   return round2(days);
@@ -103,12 +114,23 @@ export function sundaysFromAttendance(attendance = {}) {
  */
 export function countMarks(attendance = {}) {
   const counts = {};
-  for (const raw of Object.values(attendance)) {
-    const code = String(raw || '').trim().toUpperCase();
+  for (const entry of Object.values(attendance)) {
+    const code = codeOf(entry);
     if (!ATTENDANCE_CODES[code]) continue;
     counts[code] = (counts[code] || 0) + 1;
   }
   return counts;
+}
+
+/**
+ * Short hours and overtime added up across the month, in minutes.
+ * Negative is time not worked and is deducted; positive is overtime.
+ * A day needs no mark to carry minutes - someone can be Present and 30 short.
+ */
+export function minutesFromAttendance(attendance = {}) {
+  let minutes = 0;
+  for (const entry of Object.values(attendance)) minutes += minutesOf(entry);
+  return round2(minutes);
 }
 
 /**
@@ -141,7 +163,10 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const absentSalary = perDay * absentDays; // AN
   const grossAfterAbsent = salary - absentSalary; // AO
 
-  const otMinutes = num(row.ot_minutes); // AS
+  // AS: the month's short/extra minutes. Marking days adds these up; a number
+  // typed on the salary sheet overrides the total, the way the sheet has it.
+  const minutesFromDays = minutesFromAttendance(attendance);
+  const otMinutes = isSet(row.ot_minutes) ? num(row.ot_minutes) : minutesFromDays;
   const otSalary = isSet(row.ot_amount_override) // AT
     ? num(row.ot_amount_override)
     : perMinute * otMinutes;
@@ -169,7 +194,8 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     per_minute: round2(perMinute),
     absent_salary: round2(absentSalary),
     gross_after_absent: round2(grossAfterAbsent),
-    ot_minutes: otMinutes,
+    ot_minutes: round2(otMinutes),
+    ot_minutes_from_days: minutesFromDays,
     ot_salary: round2(otSalary),
     adjustment: round2(adjustment),
     gross_salary: grossSalary,

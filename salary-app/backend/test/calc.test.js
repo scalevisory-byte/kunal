@@ -5,6 +5,7 @@ import {
   absentDaysFromAttendance,
   calculateRow,
   countMarks,
+  minutesFromAttendance,
   sundaysFromAttendance,
   totalRows,
 } from '../../shared/calc.js';
@@ -105,6 +106,63 @@ test('a typed override beats the marks, and clearing it hands control back', () 
   assert.equal(cleared.absent_days, 3);
   // 0 is a real override, not "unset".
   assert.equal(calculateRow({ salary: 26000, absent_days_override: 0 }, {}, attendance).absent_days, 0);
+});
+
+test('short hours marked on days add up and come off at the per-minute rate', () => {
+  // 23400 / 26 / 9 / 60 = 1.6667 per minute
+  const attendance = {
+    5: { code: 'P', minutes: -30 },
+    6: { code: 'P', minutes: -60 },
+    7: { code: 'P', minutes: -40 },
+  };
+  assert.equal(minutesFromAttendance(attendance), -130);
+
+  const r = calculateRow({ salary: 23400 }, {}, attendance);
+  assert.equal(r.ot_minutes, -130);
+  assert.equal(r.ot_minutes_from_days, -130);
+  assert.equal(r.ot_salary, -216.67);
+  assert.equal(r.gross_salary, 23183, '23400 - 217');
+  assert.equal(r.absent_days, 0, 'short hours are not absent days');
+});
+
+test('an hour short costs exactly an hour of pay', () => {
+  const hour = calculateRow({ salary: 23400 }, {}, { 5: { code: 'P', minutes: -60 } });
+  assert.equal(hour.per_hour, 100);
+  assert.equal(hour.ot_salary, -100);
+});
+
+test('overtime on a day is added, not deducted', () => {
+  const r = calculateRow({ salary: 23400 }, {}, { 5: { code: 'P', minutes: 90 } });
+  assert.equal(r.ot_minutes, 90);
+  assert.equal(r.ot_salary, 150);
+  assert.equal(r.gross_salary, 23550);
+});
+
+test('short hours and an absence on different days both apply', () => {
+  const r = calculateRow({ salary: 26000 }, {}, { 5: 'A', 6: { code: 'P', minutes: -60 } });
+  assert.equal(r.absent_days, 1);
+  assert.equal(r.absent_salary, 1000);
+  assert.equal(r.per_hour, 111.11);
+  assert.equal(r.gross_salary, 24889, '26000 - 1000 day - 111 hour');
+});
+
+test('a month total typed on the sheet overrides the minutes marked on the days', () => {
+  const attendance = { 5: { code: 'P', minutes: -30 }, 6: { code: 'P', minutes: -30 } };
+  const derived = calculateRow({ salary: 23400 }, {}, attendance);
+  assert.equal(derived.ot_minutes, -60);
+
+  const typed = calculateRow({ salary: 23400, ot_minutes: -120 }, {}, attendance);
+  assert.equal(typed.ot_minutes, -120, 'the typed total wins');
+  assert.equal(typed.ot_minutes_from_days, -60, 'the days are still reported');
+
+  // Zero is a real answer, not "unset".
+  assert.equal(calculateRow({ salary: 23400, ot_minutes: 0 }, {}, attendance).ot_minutes, 0);
+});
+
+test('a day carries minutes with no mark at all', () => {
+  const r = calculateRow({ salary: 23400 }, {}, { 5: { code: '', minutes: -60 } });
+  assert.equal(r.absent_days, 0);
+  assert.equal(r.ot_salary, -100);
 });
 
 test('OT is paid per minute off the salary, late minutes deduct', () => {

@@ -10,15 +10,17 @@ import { days, rupees, rupees2 } from '../format.js';
 
 /** Columns the user can type into, and how each behaves. */
 const EDITABLE = {
-  sundays_override: { placeholder: 'auto', kind: 'number' },
-  absent_days_override: { placeholder: 'auto', kind: 'number' },
-  ot_minutes: { placeholder: '0', kind: 'number' },
-  ot_amount_override: { placeholder: 'auto', kind: 'number' },
-  adjustment: { placeholder: '0', kind: 'number' },
-  esi: { placeholder: '0', kind: 'number' },
-  pf: { placeholder: '0', kind: 'number' },
-  sunday_salary_override: { placeholder: 'auto', kind: 'number' },
-  salary: { placeholder: '0', kind: 'number' },
+  // `override: true` means blank hands the column back to its formula, and a
+  // value typed there is flagged so it is obvious the formula is being bypassed.
+  sundays_override: { placeholder: 'auto', override: true },
+  absent_days_override: { placeholder: 'auto', override: true },
+  ot_minutes: { placeholder: 'auto', override: true },
+  ot_amount_override: { placeholder: 'auto', override: true },
+  sunday_salary_override: { placeholder: 'auto', override: true },
+  adjustment: { placeholder: '0' },
+  esi: { placeholder: '0' },
+  pf: { placeholder: '0' },
+  salary: { placeholder: '0' },
 };
 
 function EditableCell({ row, field, disabled, onCommit }) {
@@ -32,7 +34,7 @@ function EditableCell({ row, field, disabled, onCommit }) {
     if (!focused) setDraft(stored === null || stored === undefined ? '' : String(stored));
   }, [stored, focused]);
 
-  const isOverride = field.endsWith('_override') && stored !== null && stored !== undefined;
+  const isOverride = spec.override && stored !== null && stored !== undefined;
 
   return (
     <input
@@ -137,7 +139,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, savin
               <th title="Salary / working days / hours per day">Per hr</th>
               <th title="Absent days x day rate">Absent ₹</th>
               <th title="Salary - absent salary">After absent</th>
-              <th title="Overtime in minutes; a negative number is late / short hours">OT min</th>
+              <th title="Added up from the short hours marked on each day. Type a number to override the month's total.">OT min</th>
               <th title="Auto = minutes x per-minute rate. Type an amount to override it.">OT ₹</th>
               <th title="Any other addition (+) or deduction (-)">Adjust</th>
               <th title="ROUND(after absent + OT + adjust)">Gross</th>
@@ -234,7 +236,13 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
       <td className="num muted">{rupees2(calc.per_hour)}</td>
       <td className="num deduct">{calc.absent_salary ? `-${rupees(calc.absent_salary)}` : '-'}</td>
       <td className="num muted">{rupees(calc.gross_after_absent)}</td>
-      <td><EditableCell row={row} field="ot_minutes" disabled={locked} onCommit={commit} /></td>
+      <td><EditableCell row={row} field="ot_minutes" disabled={locked} onCommit={commit} />
+        {!row.overrides?.ot_minutes && (
+          <span className={`hint${calc.ot_minutes < 0 ? ' deduct' : ''}`}>
+            {calc.ot_minutes ? `${calc.ot_minutes > 0 ? '+' : ''}${calc.ot_minutes}` : 'from days'}
+          </span>
+        )}
+      </td>
       <td><EditableCell row={row} field="ot_amount_override" disabled={locked} onCommit={commit} />
         {row.ot_amount_override === null && (
           <span className={`hint${calc.ot_salary < 0 ? ' deduct' : ''}`}>{rupees(calc.ot_salary)}</span>
