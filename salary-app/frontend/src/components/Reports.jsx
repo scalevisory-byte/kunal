@@ -123,6 +123,9 @@ export default function Reports({ period, payroll, onReload }) {
               <button onClick={() => grab(`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`)}>
                 Payment list (unpaid)
               </button>
+              <button onClick={() => grab(`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`)}>
+                Sunday register
+              </button>
             </div>
           </>
         ) : (

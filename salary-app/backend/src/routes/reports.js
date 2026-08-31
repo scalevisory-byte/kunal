@@ -69,6 +69,31 @@ reportsRouter.get('/periods/:id/bank.csv', (req, res) => {
   res.send(`﻿${lines.join('\n')}\n`);
 });
 
+/** The Sunday register on its own, for handing the cash out against. */
+reportsRouter.get('/periods/:id/sunday.csv', (req, res) => {
+  const payroll = buildPayroll(Number(req.params.id));
+  if (!payroll) return res.status(404).json({ error: 'period not found' });
+
+  const lines = ['Company,Employee,Dates,Days,Day Rate,Amount,Paid By,Status'];
+  for (const row of payroll.rows.filter((r) => r.sundays_worked > 0)) {
+    lines.push(
+      [
+        row.company_name,
+        row.employee_name,
+        `"${(row.sunday_days || []).join(', ')}"`,
+        row.sundays_worked,
+        row.per_day,
+        row.sunday_salary,
+        row.sunday_mode || '',
+        row.sunday_status || 'pending',
+      ].join(',')
+    );
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="Sunday-${slug(payroll.period.label)}.csv"`);
+  res.send(`\ufeff${lines.join('\n')}\n`);
+});
+
 reportsRouter.post('/import/sheets', upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
   try {

@@ -7,6 +7,7 @@ import {
   calculateRow,
   countMarks,
   minutesFromAttendance,
+  sundayDaysFromAttendance,
   sundaysFromAttendance,
   totalRows,
 } from '../../shared/calc.js';
@@ -52,6 +53,16 @@ test('absent days follow the sheet COUNTIF: A=1, HF=0.5, AD=2', () => {
 
 test('SP and HP are the sundays/holidays worked', () => {
   assert.equal(sundaysFromAttendance({ 1: 'SP', 8: 'SP', 15: 'HP', 22: 'S' }), 3);
+});
+
+test('the register knows which dates those were', () => {
+  const marks = { 15: 'HP', 1: 'SP', 22: 'S', 8: 'SP', 9: 'A' };
+  assert.deepEqual(sundayDaysFromAttendance(marks), [1, 8, 15], 'in date order, SP and HP only');
+  assert.deepEqual(sundayDaysFromAttendance({}), []);
+  // A count typed over the marks leaves the register with no dates to show.
+  const r = calculateRow({ salary: 26000, sundays_override: 3 }, {}, {});
+  assert.equal(r.sundays_worked, 3);
+  assert.deepEqual(sundayDaysFromAttendance({}), []);
 });
 
 test('paid leave costs nothing, unpaid leave costs a day', () => {

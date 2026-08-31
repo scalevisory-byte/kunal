@@ -193,6 +193,45 @@ test('overrides and deductions save, and blanking an override restores the formu
   assert.equal(body.rows[0].overrides.absent_days, false);
 });
 
+test('the Sunday register records its own payment, apart from the salary', async () => {
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: employeeId, day: 5, code: 'SP' },
+      { employee_id: employeeId, day: 19, code: 'SP' },
+    ],
+  });
+
+  let { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+  let row = body.rows[0];
+  assert.equal(row.sundays_worked, 2);
+  assert.deepEqual(row.sunday_days, [5, 19], 'the register knows which dates');
+  assert.equal(row.sunday_status, null, 'nothing paid yet');
+
+  // Words must survive the round trip - these are not numeric columns.
+  const saved = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, {
+    sunday_status: 'paid',
+    sunday_mode: 'Cash',
+  });
+  assert.equal(saved.body.sunday_status, 'paid');
+  assert.equal(saved.body.sunday_mode, 'Cash');
+
+  ({ body } = await api('GET', `/api/periods/${periodId}/payroll`));
+  row = body.rows[0];
+  assert.equal(row.sunday_status, 'paid');
+  assert.equal(row.status, 'pending', "the month's own status is untouched");
+
+  const csv = await (await fetch(`${base}/api/periods/${periodId}/sunday.csv`)).text();
+  assert.match(csv, /Company,Employee,Dates,Days,Day Rate,Amount,Paid By,Status/);
+  assert.match(csv, /Ashutosh Jha/);
+  assert.match(csv, /Cash,paid/);
+
+  // Put the row back for the tests that follow.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [5, 19].map((day) => ({ employee_id: employeeId, day, code: '' })),
+  });
+  await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_status: '', sunday_mode: '' });
+});
+
 test('a locked month refuses edits', async () => {
   await api('PATCH', `/api/periods/${periodId}`, { locked: 1 });
   const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 500 });

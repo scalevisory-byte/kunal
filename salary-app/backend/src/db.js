@@ -65,6 +65,10 @@ db.exec(`
     sunday_salary_override REAL,
     payment_mode           TEXT,
     status                 TEXT NOT NULL DEFAULT 'pending',
+    -- Sunday pay is settled on its own register, so it tracks its own
+    -- payment separately from the month's salary.
+    sunday_status          TEXT,
+    sunday_mode            TEXT,
     remark                 TEXT,
     updated_at             TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (period_id, employee_id)
@@ -136,6 +140,13 @@ if (payrollColumns.some((c) => c.name === 'ot_minutes')) {
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_payroll_period ON payroll_rows(period_id)`);
   log.info('Migrated payroll_rows: ot_minutes is now ot_minutes_override over the days.');
+}
+
+for (const column of ['sunday_status', 'sunday_mode']) {
+  if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated payroll_rows: added ${column} for the Sunday register.`);
+  }
 }
 
 const strayPeriods = db
@@ -393,8 +404,19 @@ const PAYROLL_FIELDS = [
   'sunday_salary_override',
   'payment_mode',
   'status',
+  'sunday_status',
+  'sunday_mode',
   'remark',
 ];
+
+/** The ones that hold words. Everything else in PAYROLL_FIELDS is a number. */
+const PAYROLL_TEXT_FIELDS = new Set([
+  'payment_mode',
+  'status',
+  'sunday_status',
+  'sunday_mode',
+  'remark',
+]);
 
 export function updatePayrollRow(id, patch) {
   const fields = [];
@@ -404,7 +426,7 @@ export function updatePayrollRow(id, patch) {
     let value = patch[key];
     // Blank on an override column means "go back to the formula", not zero.
     if (value === '') value = null;
-    if (value !== null && key !== 'payment_mode' && key !== 'status' && key !== 'remark') {
+    if (value !== null && !PAYROLL_TEXT_FIELDS.has(key)) {
       value = Number(value);
       if (!Number.isFinite(value)) continue;
     }

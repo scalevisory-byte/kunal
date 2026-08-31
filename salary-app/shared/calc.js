@@ -116,6 +116,17 @@ export function sundaysFromAttendance(attendance = {}) {
 }
 
 /**
+ * Which days were worked as a Sunday or a holiday, in order. The Sunday
+ * register lists them; the salary sheet only needs how many there were.
+ */
+export function sundayDaysFromAttendance(attendance = {}) {
+  return Object.entries(attendance)
+    .filter(([, entry]) => ATTENDANCE_CODES[codeOf(entry)]?.sunday)
+    .map(([day]) => Number(day))
+    .sort((a, b) => a - b);
+}
+
+/**
  * How many days carry each mark, e.g. { P: 22, PL: 2, A: 1 }. Used for the
  * leave counts on the payslip and in the export - it never feeds the salary,
  * which is driven by the absent/sunday weights above.

@@ -103,7 +103,7 @@ test('the exported workbook has the grid, the calculation columns and a legend',
   await importSheet(buffer, { sheetName: 'April', periodId: period.id });
 
   const wb = await buildWorkbook(ExcelJS, buildPayroll(period.id));
-  assert.deepEqual(wb.worksheets.map((s) => s.name), ['June 2026', 'Codes']);
+  assert.deepEqual(wb.worksheets.map((s) => s.name), ['June 2026', 'Sunday Register', 'Codes']);
 
   const ws = wb.getWorksheet('June 2026');
   const header = ws.getRow(2).values.filter(Boolean);
@@ -119,6 +119,21 @@ test('the exported workbook has the grid, the calculation columns and a legend',
   });
   assert.ok(labels.some((l) => l.startsWith('BNF PVT LTD')));
   assert.ok(labels.includes('GRAND TOTAL'));
+
+  // In the sample sheet Rohit Tayade carries an SP mark on day 3, and Ashutosh
+  // Jha a typed Sunday count with no marks - both are owed Sunday pay, so both
+  // belong on the register. Nilesh Chitte worked none and does not.
+  const register = wb.getWorksheet('Sunday Register');
+  const names = [];
+  register.eachRow((row) => {
+    const value = row.getCell(3).value;
+    if (typeof value === 'string') names.push(value);
+  });
+  assert.ok(names.includes('Employee'), 'it has a header');
+  assert.ok(names.includes('Rohit Tayade'), 'the one with a marked Sunday');
+  assert.ok(names.includes('Ashutosh Jha'), 'and the one with a typed count');
+  assert.ok(names.includes('TOTAL'));
+  assert.ok(!names.includes('Nilesh Chitte'), 'people who worked no Sunday are left out');
 
   const legend = wb.getWorksheet('Codes');
   assert.equal(legend.getRow(1).getCell(1).value, 'Code');

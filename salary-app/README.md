@@ -104,6 +104,18 @@ and final payable exactly. The two that differ are rows where someone typed a ne
 
 Both are worth a look before the next payroll run.
 
+### The Sunday register
+
+Sunday and holiday pay is settled **apart from the month's salary**, the way the workbook's
+"May Sunday" and "June sunday" tabs do it. The **Sunday** tab lists everyone who worked one:
+which dates, at what day rate, for how much, with its own **Paid by** and **Status** so the
+cash can be handed out and ticked off without touching the salary sheet.
+
+Somebody appears there the moment a day is marked **SP** or **HP** on the attendance grid.
+The amount is days × day rate; type over it to round it off, empty the box to go back.
+It downloads on its own from **Reports → Sunday register**, and rides along as its own
+sheet inside the Excel export.
+
 ### A note on PT
 
 Professional tax is charged on **what the month actually pays** — the gross, after
@@ -111,10 +123,10 @@ absences, overtime and adjustments — not on the salary written on the employee
 A month somebody was largely absent for can therefore fall under the 12,000 line and
 carry no PT, which is how the sheet has always worked.
 
-**Sunday pay is not counted towards that line.** It is paid on top of the net rather than
-inside the gross. Including it would move exactly two people in the April sheet — Mahesh
-Shinde (10,993 gross + 1,442 Sunday) and Riya Pal (11,915 + 462) — and lift the month's
-PT from 10,000 to 10,400.
+**Sunday pay is not counted towards that line**, because it is settled on its own register
+(above) rather than inside the month's gross. Counting it would move exactly two people in
+the April sheet — Mahesh Shinde (10,993 gross + 1,442 Sunday) and Riya Pal (11,915 + 462) —
+and lift the month's PT from 10,000 to 10,400.
 
 ---
 

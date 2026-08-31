@@ -5,6 +5,7 @@ import {
   ATTENDANCE_CODES,
   calculateRow,
   countMarks,
+  sundayDaysFromAttendance,
   totalRows,
 } from '../../shared/calc.js';
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
@@ -140,6 +141,8 @@ function syncRows(periodId) {
       sunday_salary_override: null,
       payment_mode: emp.payment_mode,
       status: 'pending',
+      sunday_status: null,
+      sunday_mode: null,
       remark: null,
     });
     added++;
@@ -180,6 +183,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         company_name: companyOf(emp.company_id)?.name || '',
         attendance: marks,
         mark_counts: countMarks(marks),
+        sunday_days: sundayDaysFromAttendance(marks),
         overrides: {
           absent_days: row.absent_days_override !== null,
           sundays: row.sundays_override !== null,
@@ -220,7 +224,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
 const ROW_FIELDS = [
   'salary', 'absent_days_override', 'sundays_override', 'ot_minutes_override',
   'ot_amount_override', 'adjustment', 'esi', 'pf', 'sunday_salary_override',
-  'payment_mode', 'status', 'remark',
+  'payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark',
 ];
 
 const EMPLOYEE_FIELDS = [
@@ -402,7 +406,7 @@ export async function handle(method, path, body) {
       for (const key of ROW_FIELDS) {
         if (!(key in (body || {}))) continue;
         const value = body[key];
-        if (['payment_mode', 'status', 'remark'].includes(key)) {
+        if (['payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark'].includes(key)) {
           row[key] = value === '' ? null : value;
         } else {
           // Blank on an override column means "go back to the formula", not zero.
@@ -561,7 +565,7 @@ export async function upload(path, formData) {
 
 /** Builds the download in the browser and hands back a Blob. */
 export async function file(path) {
-  const match = path.match(/^\/periods\/(\d+)\/(export\.xlsx|export\.csv|bank\.csv)$/);
+  const match = path.match(/^\/periods\/(\d+)\/(export\.xlsx|export\.csv|bank\.csv|sunday\.csv)$/);
   if (!match) throw new Error(`not available offline: ${path}`);
   const payroll = buildPayroll(Number(match[1]));
   if (!payroll) throw new Error('period not found');
@@ -578,6 +582,27 @@ export async function file(path) {
     const s = v === null || v === undefined ? '' : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
+
+  if (match[2] === 'sunday.csv') {
+    const lines = ['Company,Employee,Dates,Days,Day Rate,Amount,Paid By,Status'];
+    for (const row of payroll.rows.filter((r) => r.sundays_worked > 0)) {
+      lines.push(
+        [
+          row.company_name,
+          row.employee_name,
+          (row.sunday_days || []).join(' '),
+          row.sundays_worked,
+          row.per_day,
+          row.sunday_salary,
+          row.sunday_mode || '',
+          row.sunday_status || 'pending',
+        ]
+          .map(escape)
+          .join(',')
+      );
+    }
+    return new Blob([`\ufeff${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
+  }
 
   if (match[2] === 'bank.csv') {
     const lines = ['Company,Employee,Mode,Amount'];

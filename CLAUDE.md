@@ -99,6 +99,11 @@ assistant. See `salary-app/README.md`.
   (writes one), both dependency-free — the caller passes ExcelJS in — so the server and
   the standalone file cannot drift apart. `api.js` lazy-imports localStore so the server
   bundle stays ~190 KB instead of pulling ExcelJS in.
+- **Sunday pay has its own register** (`SundayRegister.jsx`, a "Sunday" tab), modelled on the
+  workbook's "May Sunday"/"June sunday" tabs: who worked which dates, day rate, amount, with
+  its own `sunday_status`/`sunday_mode` columns so it is paid and ticked off separately from
+  the month's salary. Exports as its own sheet in the workbook and as `sunday.csv`. This is
+  also why Sunday pay stays out of the PT line.
 - **Mark everyone Present** on the attendance toolbar fills every blank day for everyone
   on screen (Sundays as S), never overwriting an existing mark.
 - A **company filter** runs across the whole app (state in `App.jsx`, remembered in

@@ -7,10 +7,12 @@ import Payslip from './components/Payslip.jsx';
 import PeriodBar from './components/PeriodBar.jsx';
 import Reports from './components/Reports.jsx';
 import SalarySheet from './components/SalarySheet.jsx';
+import SundayRegister from './components/SundayRegister.jsx';
 
 const TABS = [
   ['sheet', 'Salary sheet'],
   ['attendance', 'Attendance'],
+  ['sunday', 'Sunday'],
   ['employees', 'Employees'],
   ['reports', 'Reports'],
 ];
@@ -346,6 +348,15 @@ export default function App() {
             codes={codes}
             locked={locked}
             onSave={saveAttendance}
+          />
+        )}
+
+        {tab === 'sunday' && period && payroll && (
+          <SundayRegister
+            period={period}
+            rows={visibleRows}
+            locked={locked}
+            onPatchRow={patchRow}
           />
         )}
 

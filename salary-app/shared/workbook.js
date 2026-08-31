@@ -1,4 +1,4 @@
-import { ATTENDANCE_CODES, MONTH_NAMES } from './calc.js';
+import { ATTENDANCE_CODES, MONTH_NAMES, round2 } from './calc.js';
 
 const HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F3864' } };
 const TOTAL_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
@@ -157,6 +157,85 @@ export async function buildWorkbook(ExcelJS, payroll) {
   for (let d = 1; d <= days; d++) ws.getColumn(3 + d).width = 4.5;
   for (let i = 0; i < calcHeaders.length; i++) ws.getColumn(base + 1 + i).width = 12;
   ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: base + calcHeaders.length } };
+
+  /* The Sunday register on its own sheet, the way the workbook keeps it. */
+  const worked = rows.filter((row) => row.sundays_worked > 0);
+  const sunday = wb.addWorksheet('Sunday Register');
+
+  sunday.getCell('A1').value = `Sunday & holiday pay - ${period.label}`;
+  sunday.getCell('A1').font = { bold: true, size: 13 };
+
+  const sundayDates = [
+    ...new Set([
+      ...Array.from({ length: days }, (_, i) => i + 1).filter(
+        (d) => new Date(period.year, period.month - 1, d).getDay() === 0
+      ),
+      ...worked.flatMap((row) => row.sunday_days || []),
+    ]),
+  ].sort((a, b) => a - b);
+
+  const sundayHeader = ['Sr. No.', 'Company', 'Employee'];
+  for (const date of sundayDates) sundayHeader.push(`${weekdayLabel(period.year, period.month, date)} ${date}`);
+  sundayHeader.push('Days', 'Day Rate', 'Amount', 'Paid By', 'Status');
+
+  const sundayHeaderRow = sunday.addRow([]);
+  sundayHeader.forEach((text, i) => {
+    const cell = sundayHeaderRow.getCell(i + 1);
+    cell.value = text;
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
+    cell.fill = HEAD_FILL;
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = BORDER;
+  });
+  sundayHeaderRow.height = 28;
+
+  const firstSundayRow = sunday.rowCount + 1;
+  worked.forEach((row, index) => {
+    const values = [index + 1, row.company_name, row.employee_name];
+    for (const date of sundayDates) values.push((row.sunday_days || []).includes(date) ? 'P' : '');
+    values.push(
+      row.sundays_worked,
+      round2(row.per_day),
+      row.sunday_salary,
+      row.sunday_mode || '',
+      row.sunday_status || 'pending'
+    );
+    const excelRow = sunday.addRow(values);
+    excelRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.border = BORDER;
+      cell.font = { size: 9 };
+      if (col > 3 && col <= 3 + sundayDates.length) cell.alignment = { horizontal: 'center' };
+    });
+    excelRow.getCell(4 + sundayDates.length + 1).numFmt = MONEY;
+    excelRow.getCell(4 + sundayDates.length + 2).numFmt = MONEY0;
+  });
+
+  if (worked.length) {
+    const totalRow = sunday.addRow([]);
+    totalRow.getCell(3).value = 'TOTAL';
+    const daysCol = 4 + sundayDates.length;
+    const amountCol = daysCol + 2;
+    for (const col of [daysCol, amountCol]) {
+      const letter = sunday.getColumn(col).letter;
+      const cell = totalRow.getCell(col);
+      cell.value = { formula: `SUM(${letter}${firstSundayRow}:${letter}${sunday.rowCount - 1})` };
+      cell.numFmt = MONEY0;
+    }
+    totalRow.eachCell({ includeEmpty: false }, (cell) => {
+      cell.font = { bold: true };
+      cell.fill = TOTAL_FILL;
+      cell.border = BORDER;
+    });
+  } else {
+    sunday.addRow(['', '', 'Nobody worked a Sunday this month.']);
+  }
+
+  sunday.getColumn(1).width = 7;
+  sunday.getColumn(2).width = 18;
+  sunday.getColumn(3).width = 26;
+  for (let i = 0; i < sundayDates.length; i++) sunday.getColumn(4 + i).width = 6;
+  for (let i = 0; i < 5; i++) sunday.getColumn(4 + sundayDates.length + i).width = 12;
+  sunday.views = [{ state: 'frozen', xSplit: 3, ySplit: 2 }];
 
   /* Legend, so whoever opens the file knows what the marks mean. */
   const legend = wb.addWorksheet('Codes');
