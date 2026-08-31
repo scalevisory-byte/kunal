@@ -11,6 +11,7 @@ export default function Employees({
   onCompany,
   onCreate,
   onPatch,
+  onBulkPatch,
   onDelete,
   onCreateCompany,
   onPatchCompany,
@@ -21,6 +22,11 @@ export default function Employees({
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [error, setError] = useState('');
+  // Setting a group one row at a time is fine for three people and hopeless for
+  // seventy, so rows can be ticked and given one in a single go.
+  const [picked, setPicked] = useState(() => new Set());
+  const [bulkGroup, setBulkGroup] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,6 +52,21 @@ export default function Employees({
       setForm({ ...BLANK, company_id: form.company_id });
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const applyGroup = async (name) => {
+    if (!picked.size) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onBulkPatch([...picked], { group_name: name.trim() });
+      setBulkGroup('');
+      setPicked(new Set());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -124,7 +145,8 @@ export default function Employees({
           <strong>Group</strong> is for people who take the same festival holidays — put whatever
           you like in it. On the attendance grid, clicking a date lets you mark a whole group for
           that one day, so a holiday only some of the staff take is a couple of clicks rather
-          than seventy.
+          than seventy. To fill it in for a lot of people at once, tick them in the list below and
+          use <strong>Set group to</strong>.
         </p>
         <p className="muted small">
           A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
@@ -208,10 +230,42 @@ export default function Employees({
           <span className="muted small">{filtered.length} employees</span>
         </div>
 
+        {picked.size > 0 && (
+          <div className="bulk-bar">
+            <strong>{picked.size} selected</strong>
+            <label>
+              Set group to
+              <input
+                list="employee-groups"
+                placeholder="e.g. Hindu, Muslim, Jain"
+                value={bulkGroup}
+                onChange={(e) => setBulkGroup(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyGroup(bulkGroup)}
+              />
+            </label>
+            <button className="primary" disabled={busy || !bulkGroup.trim()} onClick={() => applyGroup(bulkGroup)}>
+              {busy ? 'Saving…' : `Apply to ${picked.size}`}
+            </button>
+            <button disabled={busy} onClick={() => applyGroup('')}>Clear group</button>
+            <span className="grow" />
+            <button className="ghost" onClick={() => setPicked(new Set())}>Deselect</button>
+          </div>
+        )}
+
         <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    title="Select everyone on screen"
+                    checked={filtered.length > 0 && filtered.every((e) => picked.has(e.id))}
+                    onChange={(e) =>
+                      setPicked(e.target.checked ? new Set(filtered.map((x) => x.id)) : new Set())
+                    }
+                  />
+                </th>
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
                 <th title="People who take the same festival holidays">Group</th>
@@ -226,8 +280,21 @@ export default function Employees({
             <tbody>
               {filtered.map((emp) => (
                 <tr key={emp.id} className={emp.active ? undefined : 'inactive'}>
+                  <td className="num">
+                    <input
+                      type="checkbox"
+                      checked={picked.has(emp.id)}
+                      onChange={() => {
+                        const next = new Set(picked);
+                        if (next.has(emp.id)) next.delete(emp.id);
+                        else next.add(emp.id);
+                        setPicked(next);
+                      }}
+                    />
+                  </td>
                   <td className="sticky-name">
                     <input
+                      key={`name-${emp.id}-${emp.name}`}
                       className="cell-input wide"
                       defaultValue={emp.name}
                       onBlur={(e) => e.target.value !== emp.name && onPatch(emp.id, { name: e.target.value })}
@@ -245,6 +312,7 @@ export default function Employees({
                   </td>
                   <td>
                     <input
+                      key={`group-${emp.id}-${emp.group_name || ''}`}
                       className="cell-input wide"
                       list="employee-groups"
                       defaultValue={emp.group_name || ''}
@@ -257,6 +325,7 @@ export default function Employees({
                   </td>
                   <td>
                     <input
+                      key={`salary-${emp.id}-${emp.monthly_salary}`}
                       className="cell-input"
                       inputMode="decimal"
                       defaultValue={emp.monthly_salary}
@@ -268,6 +337,7 @@ export default function Employees({
                   </td>
                   <td>
                     <input
+                      key={`pf-${emp.id}-${emp.pf}`}
                       className="cell-input"
                       inputMode="decimal"
                       defaultValue={emp.pf}
@@ -278,6 +348,7 @@ export default function Employees({
                   </td>
                   <td>
                     <input
+                      key={`esi-${emp.id}-${emp.esi}`}
                       className="cell-input"
                       inputMode="decimal"
                       defaultValue={emp.esi}
@@ -319,7 +390,7 @@ export default function Employees({
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={9} className="empty">No employees yet.</td></tr>
+                <tr><td colSpan={10} className="empty">No employees yet.</td></tr>
               )}
             </tbody>
           </table>

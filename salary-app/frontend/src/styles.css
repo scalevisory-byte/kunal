@@ -196,6 +196,19 @@ input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
 .pill.locked { color: var(--warn); border-color: var(--warn); }
 .pill.error-pill { color: var(--bad); border-color: var(--bad); margin-left: 0.4rem; }
 
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  border-radius: var(--radius);
+}
+.bulk-bar label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--muted); }
+
 .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0; margin: 0.5rem 0; }
 .chip {
   display: inline-flex;

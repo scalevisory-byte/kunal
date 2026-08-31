@@ -74,6 +74,19 @@ already on that day by default, and tells you how many that is before you press 
 it — a festival group, a shift, a site — and everyone carrying that label becomes a
 one-press shortcut in the day marker.
 
+Filling it in for a whole workforce takes about a minute. Under **Employees**, tick the
+box at the top of the list to select everyone on screen, type the group, press
+**Apply**. Then search for the handful who differ, select those, and give them theirs.
+Setting all 74 one way and then flipping five of them is two passes:
+
+```
+tick all → "Hindu" → Apply          70 done
+search "Abdulhak" → tick → "Muslim" → Apply
+search "Sameer"   → tick → "Muslim" → Apply     …and so on
+```
+
+The search box matches the group too, so `Muslim` afterwards lists exactly that set.
+
 ### Short hours, by the minute
 
 The same day menu sets that day's **short hours** — presets for 15, 30, 40, 45, 60, 90 and

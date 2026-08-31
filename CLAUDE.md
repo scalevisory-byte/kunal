@@ -113,7 +113,13 @@ assistant. See `salary-app/README.md`.
   states the count on the button before it acts.
 - `employees.group_name` is free text ("Eid", a shift, a site) and becomes a one-press
   shortcut in the day marker. Deliberately neutral — Dinesh decides what goes in it rather
-  than the app recording religion as a field.
+  than the app recording religion as a field. He does use it religion-wise in practice.
+- Employees can be **ticked and given a group in bulk** (`onBulkPatch` in App.jsx patches
+  them all and reloads once, rather than reloading per employee). Setting 74 people takes
+  two passes: select all → "Hindu", then search each exception → "Muslim".
+- The uncontrolled `defaultValue` boxes in the employee table are **keyed on their stored
+  value**, so a bulk edit that changes data under a row already on screen re-renders the
+  box instead of leaving a stale number showing.
 - A **company filter** runs across the whole app (state in `App.jsx`, remembered in
   localStorage): the strip under the month picker, the company name above each block on
   the salary sheet, and the chips under Employees all set it, and the salary sheet,

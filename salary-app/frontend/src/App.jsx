@@ -369,6 +369,10 @@ export default function App() {
             onCreate={masterAction((body) => api.post('/employees', body))}
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
             onDelete={masterAction((id) => api.del(`/employees/${id}`))}
+            onBulkPatch={masterAction((ids, patch) =>
+              // One reload at the end rather than one per employee.
+              Promise.all(ids.map((id) => api.patch(`/employees/${id}`, patch)))
+            )}
             onCreateCompany={masterAction((body) => api.post('/companies', body))}
             onPatchCompany={masterAction((id, patch) => api.patch(`/companies/${id}`, patch))}
             onDeleteCompany={masterAction((id) => api.del(`/companies/${id}`))}
