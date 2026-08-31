@@ -32,19 +32,39 @@ const EMPTY = {
   next_id: 1,
 };
 
+/**
+ * The employee master baked in at build time (vite.config.js reads seed.json),
+ * so the file opens with everybody already listed. It seeds only a browser that
+ * has never stored anything - it never overwrites real data, and only the
+ * master is seeded, so every month still starts with a blank attendance sheet.
+ */
+const SEED = typeof __SEED__ === 'undefined' ? null : __SEED__;
+
+const freshStore = () => {
+  const store = structuredClone(EMPTY);
+  if (!SEED) return store;
+  return {
+    ...store,
+    companies: structuredClone(SEED.companies || []),
+    employees: structuredClone(SEED.employees || []),
+    next_id: SEED.next_id || 1,
+  };
+};
+
 let cache = null;
 
 function load() {
   if (cache) return cache;
   try {
     const raw = localStorage.getItem(KEY);
-    cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : structuredClone(EMPTY);
+    cache = raw ? { ...EMPTY, ...JSON.parse(raw) } : freshStore();
   } catch {
     // A corrupt or unreadable store must not brick the page.
-    cache = structuredClone(EMPTY);
+    cache = freshStore();
   }
   return cache;
 }
+
 
 function save() {
   try {

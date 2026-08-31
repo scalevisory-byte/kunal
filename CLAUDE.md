@@ -84,6 +84,11 @@ assistant. See `salary-app/README.md`.
   localStorage (`frontend/src/localStore.js` answers the same API paths). Verified fully
   offline — zero network requests — against the real April sheet, same totals as the
   server. Backup/restore is in Reports, because that browser is the only copy.
+- The standalone file ships with the **staff list baked in**: `frontend/scripts/make-seed.mjs
+  <sheet.xlsx> [tab]` writes `frontend/seed.json` (git-ignored — real salaries) and
+  vite.config.js inlines it as `__SEED__`. Only the master is seeded, never attendance, and
+  only into a browser that has stored nothing, so it never overwrites Dinesh's edits. The
+  file sent to him carries all 74 employees across BNF PVT LTD/BNF/BNF VENTURE/SCALE.
 - `shared/` now also holds `sheet.js` (reads an April-shaped tab) and `workbook.js`
   (writes one), both dependency-free — the caller passes ExcelJS in — so the server and
   the standalone file cannot drift apart. `api.js` lazy-imports localStore so the server

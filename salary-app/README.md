@@ -111,10 +111,23 @@ Both are worth a look before the next payroll run.
 **As a single HTML file** — no server, no install, no deploy. Build it once:
 
 ```bash
-cd frontend && npm install && npm run build:standalone
+cd frontend && npm install
+
+# Optional: bake the staff list in, so the file opens with everybody listed
+node scripts/make-seed.mjs ../../Salary_Sheet_2627.xlsx April
+
+npm run build:standalone
 ```
 
-That writes `frontend/dist-standalone/Salary-Sheet.html` (~1 MB). Open it by
+That writes `frontend/dist-standalone/Salary-Sheet.html` (~1 MB).
+
+`make-seed.mjs` reads the employee master out of a salary sheet — companies, names,
+salaries, PF/ESI, pay mode — into `seed.json`, which the build inlines. Only the master
+is seeded, never a month's attendance, so every month still starts blank. It fills in a
+browser that has never stored anything and never touches data already there. Skip the
+step and the file starts empty, ready to import a sheet instead. `seed.json` is
+git-ignored: it holds real salaries and does not belong in the repository — re-run the
+script whenever the staff list changes. Open it by
 double-clicking, or put it on a phone or a shared drive. Everything works —
 attendance, the salary sheet, payslips, the Excel import and export — with the data
 kept in that browser's local storage. It never talks to a network.
@@ -157,8 +170,9 @@ that shared code.
 
 ### First run
 
-1. **Employees** → add a company, then employees with their monthly salary.
-   Or skip ahead and import the existing sheet.
+1. **Employees** → check the staff list. If the file was built with a seed they are
+   already there; otherwise add a company and its employees, or import the existing
+   sheet from **Reports**.
 2. **New month** → pick the month. Working days are always 26.
 3. **Reports → Import a salary sheet** → choose the `.xlsx`, pick the tab,
    press **Check first** to see what it found, then **Import**.
