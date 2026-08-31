@@ -26,7 +26,7 @@ Every column of the April tab, in order:
 | AS AT | OT/LT | Short hours and overtime in minutes × per-minute rate |
 | AU | Deduction / Additions | Anything else, signed |
 | AV | Gross Salary | `ROUND(AO + AT + AU)` |
-| AW | PT | `200` when the **monthly salary** is above `12,000` |
+| AW | PT | `200` when the month's gross is above `12,000` |
 | AX AY | ESI / PF | Entered per employee |
 | AZ | Net Salary | Gross − PT − ESI − PF |
 | BD | Sunday Salary | Sundays worked × day rate, paid on top |
@@ -90,36 +90,31 @@ Which one a day is remains your call, per day.
 - **One number per employee per month.** The sheet spreads a person across a monthly
   tab, a "Sunday" tab and a "Cash" tab; here Sunday pay is a column on the same row.
 - **Leave is a mark of its own.** See the table above — the sheet only had "absent".
-- **PT goes by the monthly salary, not by the gross.** The sheet tests the gross left
-  after absences (`=IF(AV>12000, 200, 0)`), so someone on 15,000 who was absent six days
-  paid no professional tax that month. The slab is on what a person earns, so this charges
-  it on the salary. Overtime or an addition that lifts a 12,000 salary over the line does
-  not create PT either.
 
 ### Checked against the real sheet
 
-The April tab imports as 74 employees. **68 of them reproduce the sheet's gross, net and
-final payable exactly.** Six differ, all of them understood:
-
-**Four because PT now goes by the salary** — their salary is over 12,000 but absences
-pulled the gross under it, so the sheet charged them nothing. Each is 200 lower now:
-
-| | Salary | Gross | Sheet PT | Here |
-|---|---|---|---|---|
-| Mahesh Shinde | 15,000 | 10,993 | 0 | 200 |
-| Nilesh Chitte | 14,500 | 11,990 | 0 | 200 |
-| Avesh Kazi | 12,500 | 11,538 | 0 | 200 |
-| Veer Gupta-Veer | 14,000 | 8,483 | 0 | 200 |
-
-**Two because a net salary was typed over the formula in the sheet itself:**
+The April tab imports as 74 employees, and **72 of 74** reproduce the sheet's gross, net
+and final payable exactly. The two that differ are rows where someone typed a net salary
+**over** the formula in the sheet itself:
 
 - **Hiral Tandel** — sheet `AZ17` = 17,462; the formula gives 17,454.
 - **Priti Kadam** — sheet `AZ58` = 13,681; the formula gives 13,800. Her ESI cell also
   reads `=IF(AW58>12000, 200, 0)`, which tests PT instead of the gross — a copy-paste
   slip in the sheet. This app does not reproduce that.
 
-Those two are worth a look before the next payroll run. Across the month the PT total
-goes from 10,000 to 10,800, and the payable from 15,79,857 to 15,79,057.
+Both are worth a look before the next payroll run.
+
+### A note on PT
+
+Professional tax is charged on **what the month actually pays** — the gross, after
+absences, overtime and adjustments — not on the salary written on the employee master.
+A month somebody was largely absent for can therefore fall under the 12,000 line and
+carry no PT, which is how the sheet has always worked.
+
+**Sunday pay is not counted towards that line.** It is paid on top of the net rather than
+inside the gross. Including it would move exactly two people in the April sheet — Mahesh
+Shinde (10,993 gross + 1,442 Sunday) and Riya Pal (11,915 + 462) — and lift the month's
+PT from 10,000 to 10,400.
 
 ---
 

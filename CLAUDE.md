@@ -54,17 +54,16 @@ assistant. See `salary-app/README.md`.
 - `shared/calc.js` is the calculation engine, a column-by-column translation of the April
   tab (AH..BE), imported by **both** the API and the dashboard so the browser recalculates
   with the same code the server uses.
-- **PT goes by the monthly salary, not the gross** — Dinesh stated the rule as "if salary
-  is more than 12000, 200 PT is applicable". The sheet tests the reduced gross
-  (`=IF(AV>12000,200,0)`), which let 4 people on >12,000 skip PT in a month with heavy
-  absence. `pt_threshold`/`pt_amount` stay per-period settings; only what they compare
-  against changed.
-- Verified against the real sheet: 68 of 74 salaried rows reproduce gross/net/final exactly.
-  4 differ by the PT rule above on purpose (Mahesh Shinde, Nilesh Chitte, Avesh Kazi,
-  Veer Gupta-Veer — each 200 lower). The other 2 are rows where a net salary was typed
-  **over** the formula in the sheet (Hiral Tandel AZ17, Priti Kadam AZ58). Priti Kadam's
-  ESI cell is also `=IF(AW58>12000,...)`, testing PT instead of gross — a copy-paste slip
-  in the sheet worth flagging to Dinesh.
+- **PT is charged on the month's gross**, as the sheet does (`=IF(AV>12000,200,0)`) — not
+  on the master salary. Dinesh first said "if salary is more than 12000", then corrected
+  it to "jo payable aayega uspe", i.e. what the month actually pays. Sunday pay is NOT
+  counted towards the line (it sits outside the gross); including it would move exactly
+  2 people in April — Mahesh Shinde and Riya Pal — and take the month's PT from 10,000 to
+  10,400. **This was put to Dinesh; check the answer before assuming.**
+- Verified against the real sheet: 72 of 74 salaried rows reproduce gross/net/final exactly.
+  The 2 that differ are rows where a net salary was typed **over** the formula in the sheet
+  (Hiral Tandel AZ17, Priti Kadam AZ58). Priti Kadam's ESI cell is also `=IF(AW58>12000,...)`,
+  testing PT instead of gross — a copy-paste slip in the sheet worth flagging to Dinesh.
 - **Working days are fixed at 26 for every month** (`STANDARD_WORKING_DAYS` in
   `shared/calc.js`) — Dinesh asked for this explicitly. It is a constant, not a setting:
   `calculateRow` ignores whatever a period carries, `createPeriod`/`updatePeriod` refuse
