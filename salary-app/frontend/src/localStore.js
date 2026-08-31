@@ -30,6 +30,7 @@ const EMPTY = {
   periods: [],
   payroll_rows: [],
   attendance: [], // { period_id, employee_id, day, code, minutes }
+  holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
   next_id: 1,
 };
 
@@ -179,7 +180,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         employee_name: emp.name,
         employee_code: emp.code,
         designation: emp.designation,
-        group_name: emp.group_name || null,
+        religion: emp.religion || null,
         company_id: emp.company_id,
         company_name: companyOf(emp.company_id)?.name || '',
         attendance: marks,
@@ -229,7 +230,7 @@ const ROW_FIELDS = [
 ];
 
 const EMPLOYEE_FIELDS = [
-  'company_id', 'code', 'name', 'designation', 'group_name', 'monthly_salary',
+  'company_id', 'code', 'name', 'designation', 'religion', 'monthly_salary',
   'pf', 'esi', 'payment_mode', 'joined_on', 'left_on', 'active', 'sort_order',
 ];
 
@@ -302,7 +303,7 @@ export async function handle(method, path, body) {
       code: body.code || null,
       name,
       designation: body.designation || null,
-      group_name: body.group_name || null,
+      religion: body.religion || null,
       monthly_salary: Number(body.monthly_salary) || 0,
       pf: Number(body.pf) || 0,
       esi: Number(body.esi) || 0,
@@ -368,6 +369,76 @@ export async function handle(method, path, body) {
     return period;
   }
 
+  if (parts[0] === 'periods' && parts[1] && parts[2] === 'holidays') {
+    const period = periodOf(Number(parts[1]));
+    if (!period) throw new HttpError(404, 'period not found');
+    const rest = parts.slice(3);
+
+    if (!rest.length && method === 'GET') {
+      return {
+        holidays: db.holidays
+          .filter((h) => h.period_id === period.id)
+          .sort((a, b) => a.day - b.day || a.name.localeCompare(b.name)),
+        religions: [...new Set(db.employees.map((e) => e.religion).filter(Boolean))].sort(),
+      };
+    }
+
+    if (!rest.length && method === 'POST') {
+      if (period.locked) throw new HttpError(409, 'period is locked');
+      const name = String(body?.name || '').trim();
+      const day = Number(body?.day);
+      const code = String(body?.code || 'PH').toUpperCase();
+      if (!name) throw new HttpError(400, 'the festival needs a name');
+      if (!day || day < 1 || day > 31) throw new HttpError(400, 'pick a date in the month');
+      if (!ATTENDANCE_CODES[code]) throw new HttpError(400, `unknown mark: ${code}`);
+      const holiday = {
+        id: nextId(),
+        period_id: period.id,
+        day,
+        name,
+        religions: Array.isArray(body.religions) ? body.religions.filter(Boolean) : [],
+        code,
+        applied_at: null,
+      };
+      db.holidays.push(holiday);
+      save();
+      return holiday;
+    }
+
+    const holiday = db.holidays.find((h) => h.id === Number(rest[0]));
+    if (!holiday || holiday.period_id !== period.id) throw new HttpError(404, 'not found');
+    if (period.locked) throw new HttpError(409, 'period is locked');
+
+    if (rest.length === 1 && method === 'DELETE') {
+      db.holidays = db.holidays.filter((h) => h.id !== holiday.id);
+      save();
+      return null;
+    }
+
+    if (rest[1] === 'apply' && method === 'POST') {
+      const people = db.employees.filter(
+        (e) => e.active && (!holiday.religions.length || holiday.religions.includes(e.religion))
+      );
+      for (const person of people) {
+        const index = db.attendance.findIndex(
+          (a) => a.period_id === period.id && a.employee_id === person.id && a.day === holiday.day
+        );
+        const record = {
+          period_id: period.id,
+          employee_id: person.id,
+          day: holiday.day,
+          code: holiday.code,
+          minutes: index >= 0 ? db.attendance[index].minutes || 0 : 0,
+        };
+        if (index >= 0) db.attendance[index] = record;
+        else db.attendance.push(record);
+      }
+      holiday.applied_at = new Date().toISOString();
+      save();
+      return { marked: people.length, holiday };
+    }
+  }
+
   if (parts[0] === 'periods' && parts[1]) {
     const period = periodOf(Number(parts[1]));
     if (!period) throw new HttpError(404, 'period not found');
@@ -387,6 +458,7 @@ export async function handle(method, path, body) {
         db.periods = db.periods.filter((p) => p.id !== period.id);
         db.payroll_rows = db.payroll_rows.filter((r) => r.period_id !== period.id);
         db.attendance = db.attendance.filter((a) => a.period_id !== period.id);
+        db.holidays = db.holidays.filter((h) => h.period_id !== period.id);
         save();
         return null;
       }
@@ -511,7 +583,7 @@ export async function upload(path, formData) {
           code: null,
           name: item.name,
           designation: null,
-          group_name: null,
+          religion: null,
           monthly_salary: item.salary,
           pf: item.pf,
           esi: item.esi,

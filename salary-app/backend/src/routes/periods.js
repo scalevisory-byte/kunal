@@ -1,11 +1,17 @@
 import { Router } from 'express';
 import {
+  applyHoliday,
   clearAttendance,
+  createHoliday,
   createPeriod,
+  deleteHoliday,
+  getHoliday,
   deletePeriod,
   findPeriod,
   getPeriod,
   listPeriods,
+  listHolidays,
+  listReligions,
   setAttendance,
   syncPayrollRows,
   updatePayrollRow,
@@ -120,6 +126,45 @@ periodsRouter.delete('/:id/attendance', (req, res) => {
   if (!period) return res.status(404).json({ error: 'period not found' });
   if (period.locked) return res.status(409).json({ error: 'period is locked' });
   res.json({ cleared: clearAttendance(period.id, Number(req.query.employee_id) || undefined) });
+});
+
+/* ---------------- festivals and holidays ---------------- */
+
+periodsRouter.get('/:id/holidays', (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  res.json({ holidays: listHolidays(period.id), religions: listReligions() });
+});
+
+periodsRouter.post('/:id/holidays', (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  if (period.locked) return res.status(409).json({ error: 'period is locked' });
+  const code = String(req.body?.code || 'PH').toUpperCase();
+  if (!ATTENDANCE_CODES[code]) return res.status(400).json({ error: `unknown mark: ${code}` });
+  try {
+    res.status(201).json(createHoliday(period.id, { ...req.body, code }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+periodsRouter.delete('/:id/holidays/:holidayId', (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  if (period.locked) return res.status(409).json({ error: 'period is locked' });
+  if (!deleteHoliday(Number(req.params.holidayId))) return res.status(404).json({ error: 'not found' });
+  res.status(204).end();
+});
+
+/** Writes the festival's mark onto that day for everyone it covers. */
+periodsRouter.post('/:id/holidays/:holidayId/apply', (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  if (period.locked) return res.status(409).json({ error: 'period is locked' });
+  const holiday = getHoliday(Number(req.params.holidayId));
+  if (!holiday || holiday.period_id !== period.id) return res.status(404).json({ error: 'not found' });
+  res.json({ marked: applyHoliday(holiday), holiday: getHoliday(holiday.id) });
 });
 
 periodsRouter.get('/:id/payslip/:employeeId', (req, res) => {

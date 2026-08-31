@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AuthError, STANDALONE, api, clearToken, getToken, setToken } from './api.js';
 import Attendance from './components/Attendance.jsx';
 import Employees from './components/Employees.jsx';
+import Festivals from './components/Festivals.jsx';
 import Login from './components/Login.jsx';
 import Payslip from './components/Payslip.jsx';
 import PeriodBar from './components/PeriodBar.jsx';
@@ -342,13 +343,22 @@ export default function App() {
         )}
 
         {tab === 'attendance' && period && payroll && (
-          <Attendance
+          <div className="stack">
+            <Festivals
+              period={period}
+              codes={codes}
+              employees={employees}
+              locked={locked}
+              onApplied={() => loadPayroll(periodId)}
+            />
+            <Attendance
             period={period}
             rows={visibleRows}
             codes={codes}
-            locked={locked}
-            onSave={saveAttendance}
-          />
+              locked={locked}
+              onSave={saveAttendance}
+            />
+          </div>
         )}
 
         {tab === 'sunday' && period && payroll && (

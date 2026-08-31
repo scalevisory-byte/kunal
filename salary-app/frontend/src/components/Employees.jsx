@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { rupees } from '../format.js';
 
-const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '', group_name: '' };
+const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '', religion: '' };
 
 /** The employee master: who gets paid, and what their monthly salary is. */
 export default function Employees({
@@ -22,10 +22,10 @@ export default function Employees({
   const [query, setQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [error, setError] = useState('');
-  // Setting a group one row at a time is fine for three people and hopeless for
-  // seventy, so rows can be ticked and given one in a single go.
+  // Setting a religion one row at a time is fine for three people and hopeless
+  // for seventy, so rows can be ticked and given one in a single go.
   const [picked, setPicked] = useState(() => new Set());
-  const [bulkGroup, setBulkGroup] = useState('');
+  const [bulkReligion, setBulkReligion] = useState('');
   const [busy, setBusy] = useState(false);
 
   const filtered = useMemo(() => {
@@ -55,13 +55,13 @@ export default function Employees({
     }
   };
 
-  const applyGroup = async (name) => {
+  const applyReligion = async (name) => {
     if (!picked.size) return;
     setBusy(true);
     setError('');
     try {
-      await onBulkPatch([...picked], { group_name: name.trim() });
-      setBulkGroup('');
+      await onBulkPatch([...picked], { religion: name.trim() });
+      setBulkReligion('');
       setPicked(new Set());
     } catch (err) {
       setError(err.message);
@@ -70,15 +70,18 @@ export default function Employees({
     }
   };
 
-  const groups = useMemo(
-    () => [...new Set(employees.map((e) => e.group_name).filter(Boolean))].sort(),
-    [employees]
-  );
+  // Whatever is already in use, plus the usual ones, as suggestions only -
+  // the box takes anything typed into it.
+  const religions = useMemo(() => {
+    const inUse = employees.map((e) => e.religion).filter(Boolean);
+    const common = ['Hindu', 'Muslim', 'Jain', 'Christian', 'Sikh', 'Buddhist', 'Parsi'];
+    return [...new Set([...inUse, ...common])].sort();
+  }, [employees]);
 
   return (
     <section className="stack">
-      <datalist id="employee-groups">
-        {groups.map((name) => (
+      <datalist id="religion-list">
+        {religions.map((name) => (
           <option key={name} value={name} />
         ))}
       </datalist>
@@ -129,24 +132,25 @@ export default function Employees({
               <option>Cheque</option>
             </select>
           </label>
-          <label title="People who take the same festival holidays. Anything you like goes here.">
-            Group
+          <label title="Decides which festivals are a paid holiday for this person">
+            Religion
             <input
-              list="employee-groups"
+              list="religion-list"
               placeholder="optional"
-              value={form.group_name}
-              onChange={(e) => setForm({ ...form, group_name: e.target.value })}
+              value={form.religion}
+              onChange={(e) => setForm({ ...form, religion: e.target.value })}
             />
           </label>
           <button className="primary" type="submit">Add</button>
         </form>
         {error && <p className="error">{error}</p>}
         <p className="muted small">
-          <strong>Group</strong> is for people who take the same festival holidays — put whatever
-          you like in it. On the attendance grid, clicking a date lets you mark a whole group for
-          that one day, so a holiday only some of the staff take is a couple of clicks rather
-          than seventy. To fill it in for a lot of people at once, tick them in the list below and
-          use <strong>Set group to</strong>.
+          <strong>Religion</strong> decides which festivals count as a paid holiday for someone.
+          Set it once and the <strong>Festivals</strong> panel on the attendance grid does the
+          rest — Eid marks the Muslim staff paid, Diwali the Hindu staff, and everyone else works
+          that day as normal. To fill it in for a lot of people at once, tick them in the list
+          below and use <strong>Set religion to</strong>. The box takes anything you type; the
+          suggestions are only suggestions.
         </p>
         <p className="muted small">
           A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
@@ -234,19 +238,19 @@ export default function Employees({
           <div className="bulk-bar">
             <strong>{picked.size} selected</strong>
             <label>
-              Set group to
+              Set religion to
               <input
-                list="employee-groups"
+                list="religion-list"
                 placeholder="e.g. Hindu, Muslim, Jain"
-                value={bulkGroup}
-                onChange={(e) => setBulkGroup(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && applyGroup(bulkGroup)}
+                value={bulkReligion}
+                onChange={(e) => setBulkReligion(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyReligion(bulkReligion)}
               />
             </label>
-            <button className="primary" disabled={busy || !bulkGroup.trim()} onClick={() => applyGroup(bulkGroup)}>
+            <button className="primary" disabled={busy || !bulkReligion.trim()} onClick={() => applyReligion(bulkReligion)}>
               {busy ? 'Saving…' : `Apply to ${picked.size}`}
             </button>
-            <button disabled={busy} onClick={() => applyGroup('')}>Clear group</button>
+            <button disabled={busy} onClick={() => applyReligion('')}>Clear</button>
             <span className="grow" />
             <button className="ghost" onClick={() => setPicked(new Set())}>Deselect</button>
           </div>
@@ -268,7 +272,7 @@ export default function Employees({
                 </th>
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
-                <th title="People who take the same festival holidays">Group</th>
+                <th title="Decides which festivals are a paid holiday">Religion</th>
                 <th>Salary</th>
                 <th>PF</th>
                 <th>ESI</th>
@@ -312,14 +316,14 @@ export default function Employees({
                   </td>
                   <td>
                     <input
-                      key={`group-${emp.id}-${emp.group_name || ''}`}
+                      key={`religion-${emp.id}-${emp.religion || ''}`}
                       className="cell-input wide"
-                      list="employee-groups"
-                      defaultValue={emp.group_name || ''}
+                      list="religion-list"
+                      defaultValue={emp.religion || ''}
                       placeholder="-"
                       onBlur={(e) =>
-                        e.target.value !== (emp.group_name || '') &&
-                        onPatch(emp.id, { group_name: e.target.value })
+                        e.target.value !== (emp.religion || '') &&
+                        onPatch(emp.id, { religion: e.target.value })
                       }
                     />
                   </td>

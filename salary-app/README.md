@@ -70,22 +70,36 @@ ticked off a list. It says on the button how many people it is about to change.
 Because it usually runs *after* everybody has been marked Present, it replaces marks
 already on that day by default, and tells you how many that is before you press it.
 
-**Group** on the employee master is what makes this quick the second time. Put anything in
-it — a festival group, a shift, a site — and everyone carrying that label becomes a
-one-press shortcut in the day marker.
+For festivals there is a better way than marking each one by hand — see below.
 
-Filling it in for a whole workforce takes about a minute. Under **Employees**, tick the
-box at the top of the list to select everyone on screen, type the group, press
-**Apply**. Then search for the handful who differ, select those, and give them theirs.
-Setting all 74 one way and then flipping five of them is two passes:
+### Festivals and religion
+
+A festival is rarely a holiday for the whole office: Eid is paid leave for the Muslim staff
+and an ordinary working day for the rest, Diwali the other way round. Two things make that
+work.
+
+**1. Religion, on the employee master.** A free-text column with the usual suggestions —
+anything typed into it is accepted, and it is only ever used to decide which festivals
+somebody gets paid for. Filling it in for a whole workforce takes about a minute: tick the
+box at the top of the employee list to select everyone on screen, type the religion, press
+**Apply**, then search out the handful who differ and give them theirs.
 
 ```
-tick all → "Hindu" → Apply          70 done
+tick all → "Hindu"  → Apply                    70 done
 search "Abdulhak" → tick → "Muslim" → Apply
-search "Sameer"   → tick → "Muslim" → Apply     …and so on
+search "Sameer"   → tick → "Muslim" → Apply    …and so on
 ```
 
-The search box matches the group too, so `Muslim` afterwards lists exactly that set.
+**2. Festivals & holidays**, at the top of the attendance tab. Add the festival with its
+date and the religions it covers, press **Apply**, and Paid Holiday is written onto that
+day for exactly those people. Leave every religion unticked and it covers everybody — a
+shutdown, a strike.
+
+They stay on a list rather than being marked and forgotten, so the month carries a record
+of why those days are paid, and **Apply again** catches up anyone who joined since.
+
+Apply a festival *after* **Mark everyone Present**, not before: it writes over whatever is
+on that day. A paid holiday costs nothing, so nobody's salary moves.
 
 ### Short hours, by the minute
 

@@ -218,7 +218,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
                   <button
                     className="day-head"
                     disabled={locked}
-                    title={`Mark ${d} ${monthName} for a whole group at once - a festival holiday, say`}
+                    title={`Mark ${d} ${monthName} for several people at once`}
                     onClick={() => setDayMarker(d)}
                   >
                     <span className="dow">{weekday(period.year, period.month, d)}</span>
@@ -369,9 +369,10 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
           <strong>Unpaid Leave</strong> deducts a day, the same as Absent, but is counted separately.
         </p>
         <p className="muted small">
-          <strong>Click a date in the header</strong> to mark that one day for a whole group at
-          once — a festival holiday that only some of the staff take, for instance. Pick the mark,
-          then pick who it applies to: everyone, a group, or names off a list.
+          <strong>Click a date in the header</strong> to mark one day for several people at once.
+          Pick the mark, then pick who: everyone, everyone of a religion, or names off a list. For
+          festivals there is a better way — add them to <strong>Festivals &amp; holidays</strong>
+          above, where they are kept as a list and can be re-applied.
         </p>
         <p className="muted small">
           <strong>Mark everyone Present</strong> fills every blank day for everybody on screen at
@@ -395,8 +396,8 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
  *
  * Festival holidays are the reason this exists: Eid is a paid holiday for some
  * of the staff and an ordinary working day for the rest, so "mark everyone" is
- * the wrong tool. Pick the mark, then pick who - everyone shown, a group, or
- * names ticked off a list.
+ * the wrong tool. Pick the mark, then pick who - everyone shown, everyone of a
+ * religion, or names ticked off a list.
  */
 function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
   const [code, setCode] = useState('PH');
@@ -404,9 +405,9 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
   const [chosen, setChosen] = useState(() => new Set(rows.map((r) => r.employee_id)));
   const [query, setQuery] = useState('');
 
-  const groups = useMemo(() => {
+  const religions = useMemo(() => {
     const names = new Set();
-    for (const row of rows) if (row.group_name) names.add(row.group_name);
+    for (const row of rows) if (row.religion) names.add(row.religion);
     return [...names].sort();
   }, [rows]);
 
@@ -417,7 +418,7 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
       (r) =>
         r.employee_name.toLowerCase().includes(q) ||
         (r.company_name || '').toLowerCase().includes(q) ||
-        (r.group_name || '').toLowerCase().includes(q)
+        (r.religion || '').toLowerCase().includes(q)
     );
   }, [rows, query]);
 
@@ -475,11 +476,11 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
           <div className="who-shortcuts">
             <button onClick={() => selectOnly(rows.map((r) => r.employee_id))}>Everyone</button>
             <button onClick={() => selectOnly([])}>Nobody</button>
-            {groups.map((name) => (
+            {religions.map((name) => (
               <button
                 key={name}
-                title={`Everyone in the ${name} group`}
-                onClick={() => selectOnly(rows.filter((r) => r.group_name === name).map((r) => r.employee_id))}
+                title={`Everyone whose religion is ${name}`}
+                onClick={() => selectOnly(rows.filter((r) => r.religion === name).map((r) => r.employee_id))}
               >
                 {name}
               </button>
@@ -502,7 +503,7 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
                   />
                   <span>{row.employee_name}</span>
                   <span className="muted small">
-                    {row.group_name || row.company_name}
+                    {row.religion || row.company_name}
                     {entryOf(row, day).code ? ` · now ${entryOf(row, day).code}` : ''}
                   </span>
                 </label>

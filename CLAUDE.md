@@ -111,10 +111,16 @@ assistant. See `salary-app/README.md`.
   for some staff and a working day for others** — Dinesh raised exactly this. It replaces
   marks already on that day by default (it normally runs after "Mark everyone Present") and
   states the count on the button before it acts.
-- `employees.group_name` is free text ("Eid", a shift, a site) and becomes a one-press
-  shortcut in the day marker. Deliberately neutral — Dinesh decides what goes in it rather
-  than the app recording religion as a field. He does use it religion-wise in practice.
-- Employees can be **ticked and given a group in bulk** (`onBulkPatch` in App.jsx patches
+- **`employees.religion`** (free text, with suggestions) plus a **`holidays` table** per
+  period drive the festival system Dinesh asked for: a festival carries the religions it
+  covers, and applying it writes its mark (Paid Holiday by default) onto that day for
+  exactly those people — Eid for the Muslim staff, Diwali for the Hindu staff, everyone
+  else works. No religions on a holiday = the whole office. `Festivals.jsx` is the panel,
+  at the top of the Attendance tab; holidays persist as a list with `applied_at`, and
+  "Apply again" is idempotent so a new joiner can be caught up.
+- Applying **overwrites** that day's marks, so it must run after "Mark everyone Present".
+- The column was briefly called `group_name`; the migration moves any values across.
+- Employees can be **ticked and given a religion in bulk** (`onBulkPatch` in App.jsx patches
   them all and reloads once, rather than reloading per employee). Setting 74 people takes
   two passes: select all → "Hindu", then search each exception → "Muslim".
 - The uncontrolled `defaultValue` boxes in the employee table are **keyed on their stored

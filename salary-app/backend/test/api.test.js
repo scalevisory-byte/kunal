@@ -232,6 +232,66 @@ test('the Sunday register records its own payment, apart from the salary', async
   await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_status: '', sunday_mode: '' });
 });
 
+test('a festival is a paid holiday for one religion and a working day for the rest', async () => {
+  const companies = await api('GET', '/api/companies');
+  const companyId = companies.body.companies[0].id;
+
+  // Two more people, of two religions; Ashutosh has none set.
+  const hindu = await api('POST', '/api/employees', {
+    company_id: companyId, name: 'Diwali Person', monthly_salary: 20000, religion: 'Hindu',
+  });
+  const muslim = await api('POST', '/api/employees', {
+    company_id: companyId, name: 'Eid Person', monthly_salary: 20000, religion: 'Muslim',
+  });
+  await api('POST', `/api/periods/${periodId}/sync`);
+
+  const listed = await api('GET', `/api/periods/${periodId}/holidays`);
+  assert.deepEqual(listed.body.religions, ['Hindu', 'Muslim'], 'the religions in use come back');
+
+  const eid = await api('POST', `/api/periods/${periodId}/holidays`, {
+    name: 'Eid', day: 20, code: 'PH', religions: ['Muslim'],
+  });
+  assert.equal(eid.status, 201);
+  assert.deepEqual(eid.body.religions, ['Muslim']);
+  assert.equal(eid.body.applied_at, null, 'nothing written until it is applied');
+
+  const applied = await api('POST', `/api/periods/${periodId}/holidays/${eid.body.id}/apply`);
+  assert.equal(applied.body.marked, 1, 'only the one Muslim employee');
+  assert.ok(applied.body.holiday.applied_at, 'and it records that it ran');
+
+  const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+  const byName = Object.fromEntries(body.rows.map((r) => [r.employee_name, r]));
+  assert.equal(byName['Eid Person'].attendance[20].code, 'PH');
+  assert.equal(byName['Diwali Person'].attendance[20], undefined, 'the Hindu employee works that day');
+  assert.equal(byName['Ashutosh Jha'].attendance[20], undefined, 'and so does anyone with no religion');
+  assert.equal(byName['Eid Person'].absent_days, 0, 'a paid holiday costs nothing');
+
+  // No religions means the whole office.
+  const shutdown = await api('POST', `/api/periods/${periodId}/holidays`, {
+    name: 'Office shut', day: 21, code: 'PH', religions: [],
+  });
+  const all = await api('POST', `/api/periods/${periodId}/holidays/${shutdown.body.id}/apply`);
+  assert.equal(all.body.marked, body.rows.length, 'everybody');
+
+  // A bad mark and a bad date are refused.
+  assert.equal(
+    (await api('POST', `/api/periods/${periodId}/holidays`, { name: 'X', day: 5, code: 'ZZ' })).status,
+    400
+  );
+  assert.equal(
+    (await api('POST', `/api/periods/${periodId}/holidays`, { name: 'X', day: 99 })).status,
+    400
+  );
+  assert.equal((await api('POST', `/api/periods/${periodId}/holidays`, { day: 5 })).status, 400);
+
+  // Tidy up so the rest of the tests see the month they expect.
+  await api('DELETE', `/api/periods/${periodId}/holidays/${eid.body.id}`);
+  await api('DELETE', `/api/periods/${periodId}/holidays/${shutdown.body.id}`);
+  await api('DELETE', `/api/periods/${periodId}/attendance`);
+  await api('DELETE', `/api/employees/${hindu.body.id}`);
+  await api('DELETE', `/api/employees/${muslim.body.id}`);
+});
+
 test('a locked month refuses edits', async () => {
   await api('PATCH', `/api/periods/${periodId}`, { locked: 1 });
   const blocked = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { adjustment: 500 });

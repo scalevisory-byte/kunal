@@ -21,9 +21,9 @@ db.exec(`
     code           TEXT,
     name           TEXT NOT NULL,
     designation    TEXT,
-    -- Free text, for people who take the same holidays. Whatever Dinesh wants
-    -- to write in it - a festival group, a shift, a site.
-    group_name     TEXT,
+    -- Drives which festivals are a paid holiday for this person. Free text with
+    -- suggestions rather than a fixed list, so nobody is forced into a box.
+    religion       TEXT,
     monthly_salary REAL NOT NULL DEFAULT 0,
     pf             REAL NOT NULL DEFAULT 0,
     esi            REAL NOT NULL DEFAULT 0,
@@ -88,6 +88,20 @@ db.exec(`
     PRIMARY KEY (period_id, employee_id, day)
   );
 
+  -- A festival or a shutdown: one day, one mark, and who it applies to.
+  -- religions is a comma-separated list; empty means everybody.
+  CREATE TABLE IF NOT EXISTS holidays (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_id  INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+    day        INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    religions  TEXT,
+    code       TEXT NOT NULL DEFAULT 'PH',
+    applied_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_holidays_period ON holidays(period_id);
   CREATE INDEX IF NOT EXISTS idx_employees_company ON employees(company_id, active);
   CREATE INDEX IF NOT EXISTS idx_payroll_period    ON payroll_rows(period_id);
   CREATE INDEX IF NOT EXISTS idx_attendance_period ON attendance(period_id, employee_id);
@@ -145,9 +159,16 @@ if (payrollColumns.some((c) => c.name === 'ot_minutes')) {
   log.info('Migrated payroll_rows: ot_minutes is now ot_minutes_override over the days.');
 }
 
-if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'group_name')) {
-  db.exec(`ALTER TABLE employees ADD COLUMN group_name TEXT`);
-  log.info('Migrated employees: added group_name for holiday groups.');
+const employeeColumns = db.prepare(`PRAGMA table_info(employees)`).all().map((c) => c.name);
+if (!employeeColumns.includes('religion')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN religion TEXT`);
+  // The column was called group_name for a day, and people were told to put
+  // their religion in it, so carry anything already there across.
+  if (employeeColumns.includes('group_name')) {
+    const moved = db.prepare(`UPDATE employees SET religion = group_name WHERE group_name IS NOT NULL`).run().changes;
+    if (moved) log.info(`Migrated employees: moved ${moved} group_name values into religion.`);
+  }
+  log.info('Migrated employees: added religion.');
 }
 
 for (const column of ['sunday_status', 'sunday_mode']) {
@@ -219,7 +240,7 @@ const EMPLOYEE_FIELDS = [
   'code',
   'name',
   'designation',
-  'group_name',
+  'religion',
   'monthly_salary',
   'pf',
   'esi',
@@ -268,7 +289,7 @@ export function createEmployee(input) {
     code: input.code || null,
     name: String(input.name || '').trim(),
     designation: input.designation || null,
-    group_name: input.group_name || null,
+    religion: input.religion || null,
     monthly_salary: Number(input.monthly_salary) || 0,
     pf: Number(input.pf) || 0,
     esi: Number(input.esi) || 0,
@@ -377,7 +398,7 @@ export function listPayrollRows(periodId, { company_id } = {}) {
   return db
     .prepare(
       `SELECT p.*, e.name AS employee_name, e.code AS employee_code, e.designation,
-              e.group_name, e.company_id, c.name AS company_name
+              e.religion, e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
        JOIN companies c ON c.id = e.company_id
@@ -477,6 +498,74 @@ export const syncPayrollRows = db.transaction((periodId) => {
   }
   return added;
 });
+
+/* ---------------- holidays ---------------- */
+
+export function listHolidays(periodId) {
+  return db
+    .prepare(`SELECT * FROM holidays WHERE period_id = ? ORDER BY day, name`)
+    .all(periodId)
+    .map((h) => ({ ...h, religions: h.religions ? h.religions.split(',').filter(Boolean) : [] }));
+}
+
+export function getHoliday(id) {
+  const row = db.prepare(`SELECT * FROM holidays WHERE id = ?`).get(id);
+  if (!row) return null;
+  return { ...row, religions: row.religions ? row.religions.split(',').filter(Boolean) : [] };
+}
+
+export function createHoliday(periodId, input) {
+  const name = String(input.name || '').trim();
+  const day = Number(input.day);
+  if (!name) throw new Error('the festival needs a name');
+  if (!day || day < 1 || day > 31) throw new Error('pick a date in the month');
+  const religions = Array.isArray(input.religions)
+    ? input.religions.map((r) => String(r).trim()).filter(Boolean)
+    : [];
+  const info = db
+    .prepare(`INSERT INTO holidays (period_id, day, name, religions, code) VALUES (?, ?, ?, ?, ?)`)
+    .run(periodId, day, name, religions.join(','), String(input.code || 'PH').toUpperCase());
+  return getHoliday(info.lastInsertRowid);
+}
+
+export function deleteHoliday(id) {
+  return db.prepare(`DELETE FROM holidays WHERE id = ?`).run(id).changes > 0;
+}
+
+/** Everyone the holiday covers: all active staff, or those of its religions. */
+export function employeesForHoliday(holiday) {
+  if (!holiday.religions.length) {
+    return db.prepare(`SELECT * FROM employees WHERE active = 1`).all();
+  }
+  const marks = holiday.religions.map(() => '?').join(', ');
+  return db
+    .prepare(`SELECT * FROM employees WHERE active = 1 AND religion IN (${marks})`)
+    .all(...holiday.religions);
+}
+
+/**
+ * Writes the holiday's mark onto that day for everyone it covers. Running it
+ * again is harmless - it simply sets the same marks - so it can be re-applied
+ * after the staff list changes.
+ */
+export const applyHoliday = db.transaction((holiday) => {
+  const people = employeesForHoliday(holiday);
+  const upsert = db.prepare(
+    `INSERT INTO attendance (period_id, employee_id, day, code, minutes) VALUES (?, ?, ?, ?, 0)
+     ON CONFLICT(period_id, employee_id, day) DO UPDATE SET code = excluded.code`
+  );
+  for (const person of people) upsert.run(holiday.period_id, person.id, holiday.day, holiday.code);
+  db.prepare(`UPDATE holidays SET applied_at = datetime('now') WHERE id = ?`).run(holiday.id);
+  return people.length;
+});
+
+/** The religions in use, for the pickers. */
+export function listReligions() {
+  return db
+    .prepare(`SELECT DISTINCT religion FROM employees WHERE religion IS NOT NULL AND religion <> '' ORDER BY religion`)
+    .all()
+    .map((r) => r.religion);
+}
 
 /* ---------------- attendance ---------------- */
 
