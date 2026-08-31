@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { STANDALONE, api, download, downloadBackup, restoreBackup } from '../api.js';
+import PunchImport from './PunchImport.jsx';
 import { rupees } from '../format.js';
 
 /** Totals, downloads, and pulling an existing spreadsheet in. */
@@ -166,6 +167,8 @@ export default function Reports({ period, payroll, onReload }) {
           </div>
         </div>
       )}
+
+      {period && <PunchImport period={period} onReload={onReload} />}
 
       <div className="card">
         <h2>Import a salary sheet</h2>

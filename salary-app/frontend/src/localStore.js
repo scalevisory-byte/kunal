@@ -9,6 +9,7 @@ import {
   totalRows,
 } from '../../shared/calc.js';
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
+import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
 import { buildWorkbook } from '../../shared/workbook.js';
 
 /**
@@ -547,6 +548,65 @@ export async function upload(path, formData) {
   const buffer = await file.arrayBuffer();
 
   if (path === '/import/sheets') return { sheets: await listSheetNames(ExcelJS, buffer) };
+
+  if (path === '/punches/read') {
+    const read = await readPunchFile(ExcelJS, buffer, {
+      sheetName: formData.get('sheet') || undefined,
+      headerRow: formData.get('header_row') || undefined,
+    });
+    if (read.error) throw new Error(read.error);
+    return {
+      sheet: read.sheet,
+      sheets: read.sheets,
+      headerRow: read.headerRow,
+      headers: read.headers,
+      sampleRows: read.rows.slice(0, 8).map((r) => r.values),
+      rowCount: read.rows.length,
+    };
+  }
+
+  const punchTarget = path.match(/^\/periods\/(\d+)\/punches$/);
+  if (punchTarget) {
+    const db = load();
+    const period = periodOf(Number(punchTarget[1]));
+    if (!period) throw new Error('period not found');
+    if (period.locked) throw new Error('period is locked');
+
+    const mapping = JSON.parse(formData.get('mapping') || '{}');
+    const rules = JSON.parse(formData.get('rules') || '{}');
+    if (!mapping.employee || !mapping.date) {
+      throw new Error('say which column holds the employee and which the date');
+    }
+
+    const read = await readPunchFile(ExcelJS, buffer, {
+      sheetName: formData.get('sheet') || undefined,
+      headerRow: formData.get('header_row') || undefined,
+    });
+    if (read.error) throw new Error(read.error);
+
+    const result = punchesToMarks({
+      rows: read.rows,
+      mapping,
+      rules,
+      employees: db.employees,
+      period,
+    });
+
+    const dryRun = String(formData.get('dry_run')) === 'true';
+    if (!dryRun) {
+      syncRows(period.id);
+      for (const entry of result.entries) {
+        const index = db.attendance.findIndex(
+          (a) => a.period_id === period.id && a.employee_id === entry.employee_id && a.day === entry.day
+        );
+        const record = { period_id: period.id, ...entry };
+        if (index >= 0) db.attendance[index] = record;
+        else db.attendance.push(record);
+      }
+      save();
+    }
+    return { ...result, dryRun, written: dryRun ? 0 : result.entries.length };
+  }
 
   if (path === '/import') {
     const read = await parseSheet(ExcelJS, buffer, { sheetName: formData.get('sheet') || undefined });

@@ -504,6 +504,9 @@ td.mark { padding: 0.1rem !important; }
 .sunday-amount { display: flex; flex-direction: column; }
 .sunday-amount .hint { margin-top: -0.1rem; }
 
+table.sample { font-size: 0.72rem; margin-top: 0.8rem; }
+table.sample td, table.sample th { padding: 0.2rem 0.4rem; }
+
 .result { margin-top: 0.8rem; }
 .restore {
   display: inline-flex;

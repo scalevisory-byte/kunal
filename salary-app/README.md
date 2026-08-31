@@ -109,6 +109,29 @@ of why those days are paid, and **Apply again** catches up anyone who joined sin
 Apply a festival *after* **Mark everyone Present**, not before: it writes over whatever is
 on that day. A paid holiday costs nothing, so nobody's salary moves.
 
+### Punches from the attendance machine
+
+**Reports → Attendance machine** brings a biometric export into the grid. eSSL, ZKTeco and
+the rest all lay their reports out differently, so nothing is assumed: the file is read
+first, the columns are pointed at by hand (with a guess made from the column names), a dry
+run says exactly what it would do, and only then is anything written.
+
+| In the file | Becomes |
+|---|---|
+| No punch that day | `A` |
+| Worked under the half-day line | `HF` |
+| A normal day | `P` |
+| Worked under the day's hours, past the grace | `P` with the shortfall as minutes |
+| Worked over | `P` with overtime minutes |
+
+One row per punch works as well as one row per day — the earliest time of a day is taken as
+the arrival and the latest as the departure. Names that are not on the staff list are
+listed back rather than guessed at; the machine's own code can be matched on instead, by
+putting it in each employee's **Code**.
+
+This is a file import, not a live link. A real-time feed needs a server the machine can
+reach, which is a different piece of work.
+
 ### Short hours, by the minute
 
 The same day menu sets that day's **short hours** — presets for 15, 30, 40, 45, 60, 90 and

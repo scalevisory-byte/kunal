@@ -136,6 +136,12 @@ assistant. See `salary-app/README.md`.
   attendance grid and employee list all honour it. Companies can be renamed and deleted
   from their chip — before this, clicking a company did nothing at all, which is what
   Dinesh reported.
+- **Biometric punches import** from `Reports`: `shared/punches.js` reads any export shape
+  (the caller maps the columns; header row is auto-detected), groups rows by person and day
+  (earliest punch = in, latest = out), and turns them into P/A/HF plus short-hour minutes.
+  Dry run first, then write. Dinesh asked for a **real-time eSSL link**; that needs the
+  server plus the device's ADMS/Cloud-Server push (device dials out, no port forwarding) —
+  he chose file import for now and will check his device model.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard
