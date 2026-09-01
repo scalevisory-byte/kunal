@@ -209,3 +209,33 @@ export function monthTotals(daysWithTimes = [], options = {}) {
   }
   return totals;
 }
+
+/**
+ * Came in after the usual start, or left before the usual finish.
+ *
+ * Both need a clock time to judge, so a day nobody clocked is neither - the
+ * caller has to say "not known", not "on time". The same grace the short-hours
+ * rule uses applies here, so a couple of minutes is never a black mark, and a
+ * shift that runs past midnight is not an early finish.
+ */
+export function isLateIn(times, { start, grace = TIME_RULES.graceMinutes } = {}) {
+  const cameAt = parseTime(times?.in_time);
+  const startsAt = parseTime(start);
+  if (cameAt === null || startsAt === null) return false;
+  return cameAt > startsAt + grace;
+}
+
+export function lateByMinutes(times, { start } = {}) {
+  const cameAt = parseTime(times?.in_time);
+  const startsAt = parseTime(start);
+  if (cameAt === null || startsAt === null) return null;
+  return cameAt - startsAt;
+}
+
+export function isEarlyOut(times, { end, grace = TIME_RULES.graceMinutes } = {}) {
+  const leftAt = parseTime(times?.out_time);
+  const endsAt = parseTime(end);
+  if (leftAt === null || endsAt === null) return false;
+  if (readTimes(times).overnight) return false;
+  return leftAt < endsAt - grace;
+}

@@ -139,8 +139,26 @@ is entered twice.
 
 The month on one screen, and the tab the app opens on.
 
-- **The headline** — staff, gross, deductions, net payable, paid and still to pay, with a
-  line under it comparing this month against the one before: net, gross, headcount and days
+**The roll call comes first, not the money.** The top of the page is one day — today, or
+the last day anybody was marked on — and answers who is in:
+
+| | |
+|---|---|
+| **Present** | and *show all* lists them by name, with the time each came in |
+| **Absent** | named, with which kind of absence |
+| **On leave** | named, with which kind of leave |
+| **Half day** | named |
+| **Late in** | named, with the time and how late — measured against the usual start set on the Time tab, with 15 minutes' grace |
+| **Early out** | named, with the time they left |
+| **On overtime** / **Short hours** | named, with the minutes |
+| **Not marked** | who has nothing on them for that day |
+
+`‹` and `›` step through the days. Late and early need a clock time to judge, so a day
+nobody clocked says so rather than reporting nobody late. A **half day, a leave, a holiday
+or an absence is never counted as late or early** — it was not a full day to begin with.
+
+- **The money**, below it — staff, gross, deductions, net payable, paid and still to pay,
+  with a line comparing this month against the one before: net, gross, headcount and days
   lost, each with the change and the percentage. Days lost is the one where up is bad, and
   it is coloured that way round.
 - **Last six months** — net payable per month as bars, with the headcount under each.
@@ -153,7 +171,10 @@ The month on one screen, and the tab the app opens on.
   expected, the Sunday register's total, and PF/ESI/PT/loans for the month.
 - **People** — who is on the books, who joined, who left, whose birthday it is and whose
   work anniversary, all off the employee master.
-- **Worth a look** — most days lost, most hours short, most overtime.
+- **Who stands out this month** — the month's totals (days present, days lost, hours
+  worked, late arrivals, early finishes) and then the names behind them: most days present,
+  most days lost, most and fewest hours worked, most late arrivals, most early finishes,
+  most hours short, most overtime.
 - **How it goes out** — what is being paid by bank, cash, GPay or cheque, and how much of
   it has actually gone. `Gpay` and `GPAY` count as one route, not two.
 - **Filing** — PF, ESI and professional tax with the ordinary Gujarat due dates. A

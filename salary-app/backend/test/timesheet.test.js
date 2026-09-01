@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   formatDuration,
+  isEarlyOut,
+  isLateIn,
+  lateByMinutes,
   formatTime,
   hasTimes,
   monthTotals,
@@ -120,4 +123,25 @@ test('the month\'s clock hours ride along on the calculated row', async () => {
     3: { code: 'A' },
   });
   assert.equal(row.worked_minutes, 495 + 540, 'only the days that were clocked');
+});
+
+test('late in and early out are judged against the usual day, with the same grace', () => {
+  const standard = { start: '09:30', end: '18:30' };
+
+  assert.equal(isLateIn({ in_time: '09:44' }, standard), false, 'fourteen minutes is grace');
+  assert.equal(isLateIn({ in_time: '09:46' }, standard), true, 'sixteen is late');
+  assert.equal(lateByMinutes({ in_time: '10:40' }, standard), 70);
+
+  assert.equal(isEarlyOut({ out_time: '18:16' }, standard), false);
+  assert.equal(isEarlyOut({ out_time: '16:00' }, standard), true);
+
+  // A shift that runs past midnight has not gone home early.
+  assert.equal(isEarlyOut({ in_time: '21:00', out_time: '05:00' }, standard), false);
+
+  // No clock time means it cannot be answered - which is not the same as "on
+  // time", and the caller has to say so.
+  assert.equal(isLateIn({}, standard), false);
+  assert.equal(lateByMinutes({}, standard), null);
+  assert.equal(isEarlyOut({}, standard), false);
+  assert.equal(isLateIn({ in_time: '11:00' }, {}), false, 'no standard, no judgement');
 });

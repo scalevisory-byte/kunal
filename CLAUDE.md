@@ -218,6 +218,20 @@ assistant. See `salary-app/README.md`.
   overtime), **How it goes out** (payment-mode split, `Gpay`/`GPAY` folded together), and
   **Filing** (PF/ESI/PT with the usual Gujarat dates, stated as a reminder and captioned as
   one). The alerts now name the first few people behind each count.
+- **Dashboard, third pass** — Dinesh: *"pay is not important in front, uski jagah pe how many
+  present, who is present, whos absent, whos late, whos doing OT"*, then *"monthly bhi add
+  karna"*. So the page now **opens on a daily roll call** and the money card sits below it.
+  The roll call is one day (today, else the last marked day, `‹ ›` to step) with Present /
+  Absent / On leave / Half day / Late in / Early out / On overtime / Not marked, each list
+  **named**; Present is collapsed behind "show all N" because it is usually everyone.
+- **Late and early live in `shared/timesheet.js`** (`isLateIn`, `lateByMinutes`,
+  `isEarlyOut`) against the usual day from `frontend/src/standardTimes.js` — the Time tab's
+  "usual timings", now its own module so both read one store. Same 15-minute grace as the
+  short-hours rule. An overnight shift is never an early finish, and **a half day, leave, a
+  holiday or an absence is never judged late or early** (`FULL_DAY_MARKS` in Dashboard.jsx)
+  — it was not a full day. No clock time means "not known", never "on time".
+- **"Who stands out this month"** card: month totals plus most days present / most days lost /
+  most and fewest hours worked / most late / most early / most short / most overtime.
 - **`GET /periods/:id/payroll` gained `?sync=false`.** Reading a month normally runs
   `syncPayrollRows` + `postRepayments`, so the dashboard fetching five past months for the
   trend would have backdated today's new hires into them and taken loan instalments out of

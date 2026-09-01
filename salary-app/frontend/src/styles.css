@@ -584,6 +584,8 @@ table.timesheet tr.sunday-row td { background: color-mix(in srgb, var(--bad) 6%,
 /* ---- the dashboard ---- */
 
 .dash-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.dash-grid .card.wide { grid-column: span 2; }
+@media (max-width: 60rem) { .dash-grid .card.wide { grid-column: span 1; } }
 .dashboard h2 { display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; margin: 0 0 0.7rem; }
 .dashboard .card > p:last-child { margin-bottom: 0; }
 .stat-sub { font-size: 0.7rem; }
@@ -656,7 +658,26 @@ button.trend-bar.now .trend-fill { background: var(--brand); }
 .trend-sub { font-size: 0.68rem; }
 
 .name-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.55rem; align-items: baseline; margin: 0.5rem 0 0; }
-.name-list > .muted:first-child { width: 100%; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.name-list > .muted:first-child {
+  width: 100%;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.name-list .count {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.roll-call .stat-row { grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); }
+.roll-head { flex-wrap: wrap; }
+.roll-head > span:first-of-type { font-size: 1.05rem; }
+.roll-head .ghost { font-weight: 400; }
 .name-item {
   border: 1px solid var(--line);
   border-radius: 999px;

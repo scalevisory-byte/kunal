@@ -11,6 +11,7 @@ import {
   timesToDay,
 } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
+import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -30,19 +31,6 @@ import { days, daysInMonth, isSunday, weekday } from '../format.js';
 /** Marks the times are allowed to overwrite - everything else is deliberate. */
 const AUTO_MARKS = new Set(['', 'P', 'A', 'HF']);
 
-const STANDARD_KEY = 'salary-app-standard-times';
-const DEFAULT_STANDARD = { in_time: '09:30', lunch_out: '13:00', lunch_in: '13:45', out_time: '18:30' };
-
-const readStandard = () => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STANDARD_KEY) || 'null');
-    if (stored && TIME_FIELDS.every((f) => typeof stored[f] === 'string')) return stored;
-  } catch {
-    // A corrupt or blocked store just means the usual timings.
-  }
-  return DEFAULT_STANDARD;
-};
-
 export default function TimeSheet({ period, rows, onSave, locked }) {
   const total = daysInMonth(period.year, period.month);
   const today = new Date();
@@ -53,7 +41,7 @@ export default function TimeSheet({ period, rows, onSave, locked }) {
   const [personId, setPersonId] = useState(rows[0]?.employee_id || null);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState({}); // "employeeId:day" -> the four times
-  const [standard, setStandard] = useState(readStandard);
+  const [standard, setStandard] = useState(readStandardTimes);
   const [showStandard, setShowStandard] = useState(false);
   const [status, setStatus] = useState('');
   const saveTimer = useRef(null);
@@ -251,16 +239,7 @@ export default function TimeSheet({ period, rows, onSave, locked }) {
                 value={standard[field]}
                 placeholder="09:30"
                 onChange={(e) => setStandard({ ...standard, [field]: e.target.value })}
-                onBlur={(e) => {
-                  const parsed = parseTime(e.target.value);
-                  const next = { ...standard, [field]: parsed === null ? '' : formatTime(parsed) };
-                  setStandard(next);
-                  try {
-                    localStorage.setItem(STANDARD_KEY, JSON.stringify(next));
-                  } catch {
-                    // Nothing to do - the timings just will not be remembered.
-                  }
-                }}
+                onBlur={(e) => setStandard(writeStandardTimes({ ...standard, [field]: e.target.value }))}
               />
             </label>
           ))}

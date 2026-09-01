@@ -2,8 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { LEAVE_TYPES, calculateRow, totalRows } from '../../../shared/calc.js';
 import { statutoryReport } from '../../../shared/statutory.js';
-import { formatDuration, monthTotals } from '../../../shared/timesheet.js';
-import { MONTHS, days, daysInMonth, rupees } from '../format.js';
+import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import {
+  formatDuration,
+  isEarlyOut,
+  isLateIn,
+  lateByMinutes,
+  monthTotals,
+  parseTime,
+} from '../../../shared/timesheet.js';
+import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
+import { readStandardTimes } from '../standardTimes.js';
 
 /**
  * The month at a glance, on one screen.
@@ -29,6 +38,8 @@ export default function Dashboard({
 }) {
   const [leave, setLeave] = useState([]);
   const [history, setHistory] = useState([]); // the last few months, for the trend
+  const [day, setDay] = useState(null); // which day the roll call is showing
+  const [showPresent, setShowPresent] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +120,89 @@ export default function Dashboard({
       unpaidCount: unpaid.length,
     };
   }, [rows]);
+
+  const monthLength = period ? daysInMonth(period.year, period.month) : 0;
+
+  /**
+   * Which day the roll call opens on: today if the open month is this one,
+   * otherwise the last day anybody was marked on, otherwise the first.
+   */
+  const defaultDay = useMemo(() => {
+    if (!period) return 1;
+    const today = new Date();
+    if (today.getFullYear() === period.year && today.getMonth() + 1 === period.month) {
+      return today.getDate();
+    }
+    let last = 0;
+    for (const row of payroll?.rows || []) {
+      for (const [d, entry] of Object.entries(row.attendance || {})) {
+        const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+        if (code && Number(d) > last) last = Number(d);
+      }
+    }
+    return last || 1;
+  }, [period?.id, payroll]);
+
+  useEffect(() => setDay(null), [period?.id]);
+  const shownDay = Math.min(Math.max(day ?? defaultDay, 1), monthLength || 1);
+
+  /**
+   * The roll call for one day: who was in, who was not, who came in late and
+   * who stayed on. Late needs a clock time to compare against the office's
+   * usual start, so a day nobody clocked simply cannot answer it - and says so
+   * rather than reporting nobody late.
+   */
+  const roll = useMemo(() => {
+    if (!period) return null;
+    const standard = readStandardTimes();
+    const grace = 15;
+
+    const out = {
+      present: [], absent: [], leave: [], halfDay: [], holiday: [], sunday: [],
+      unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
+    };
+
+    for (const row of payroll?.rows || []) {
+      const entry = row.attendance?.[shownDay];
+      const times = typeof entry === 'object' && entry ? entry : {};
+      const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+      const minutes = Number(times.minutes) || 0;
+      const person = {
+        id: row.employee_id,
+        employee_name: row.employee_name,
+        company_name: row.company_name,
+        code,
+        minutes,
+        in_time: times.in_time || '',
+        out_time: times.out_time || '',
+      };
+
+      if (!code) out.unmarked.push(person);
+      else if (code === 'A' || code === 'AD' || code === 'UL') out.absent.push(person);
+      else if (code === 'CL' || code === 'SL' || code === 'PL') out.leave.push(person);
+      else if (code === 'HF') out.halfDay.push(person);
+      else if (code === 'PH') out.holiday.push(person);
+      else if (code === 'S') out.sunday.push(person);
+      else out.present.push(person);
+
+      if (parseTime(times.in_time) !== null) out.clocked++;
+      if (judgedOnTime(code)) {
+        if (isLateIn(times, { start: standard.in_time, grace })) {
+          out.late.push({ ...person, lateBy: lateByMinutes(times, { start: standard.in_time }) });
+        }
+        if (isEarlyOut(times, { end: standard.out_time, grace })) out.early.push(person);
+      }
+      // Overtime and short hours are the day's own minutes, whether they came
+      // off the clock or were typed straight onto the grid.
+      if (minutes > 0) out.overtime.push(person);
+      if (minutes < 0) out.short.push(person);
+    }
+
+    out.late.sort((a, b) => b.lateBy - a.lateBy);
+    out.overtime.sort((a, b) => b.minutes - a.minutes);
+    out.short.sort((a, b) => a.minutes - b.minutes);
+    return { ...out, startsAt: standard.in_time, endsAt: standard.out_time, grace };
+  }, [payroll, shownDay, period]);
 
   /* Attendance, counted off the marks rather than the payroll columns, so an
      unmarked day shows as unmarked instead of quietly counting as present. */
@@ -255,22 +349,82 @@ export default function Dashboard({
     };
   }, [employees, companyId, period]);
 
-  /* The few rows worth opening: most days lost, and most hours short. */
-  const outliers = useMemo(() => {
-    const absent = rows
-      .filter((r) => r.absent_days > 0)
-      .sort((a, b) => b.absent_days - a.absent_days)
-      .slice(0, 5);
-    const short = rows
-      .filter((r) => r.ot_minutes < 0)
-      .sort((a, b) => a.ot_minutes - b.ot_minutes)
-      .slice(0, 5);
-    const over = rows
-      .filter((r) => r.ot_minutes > 0)
-      .sort((a, b) => b.ot_minutes - a.ot_minutes)
-      .slice(0, 5);
-    return { absent, short, over };
+  /**
+   * The month per person: days actually worked, days lost, hours on the clock,
+   * and how often they came in after the usual start or left before the usual
+   * finish. The late and early counts need clock times, so they only mean
+   * anything for people whose hours are being recorded.
+   */
+  const monthly = useMemo(() => {
+    const standard = readStandardTimes();
+    const grace = 15;
+
+    return rows.map((row) => {
+      const marks = Object.values(row.attendance || {});
+      let present = 0;
+      let late = 0;
+      let early = 0;
+      let clocked = 0;
+      for (const entry of marks) {
+        const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+        if (code === 'P' || code === 'WH' || code === 'SP' || code === 'HP') present++;
+        if (code === 'HF') present += 0.5;
+        const times = typeof entry === 'object' && entry ? entry : {};
+        const cameAt = parseTime(times.in_time);
+        const leftAt = parseTime(times.out_time);
+        if (cameAt !== null || leftAt !== null) clocked++;
+        if (!judgedOnTime(code)) continue;
+        if (isLateIn(times, { start: standard.in_time, grace })) late++;
+        if (isEarlyOut(times, { end: standard.out_time, grace })) early++;
+      }
+      return {
+        id: row.employee_id,
+        employee_name: row.employee_name,
+        company_name: row.company_name,
+        present,
+        absent: row.absent_days,
+        worked: row.worked_minutes || 0,
+        clocked,
+        late,
+        early,
+        ot: row.ot_minutes,
+      };
+    });
   }, [rows]);
+
+  /** The same month, added up across everybody. */
+  const monthTotalsOf = useMemo(
+    () =>
+      monthly.reduce(
+        (acc, m) => ({
+          present: acc.present + m.present,
+          absent: acc.absent + m.absent,
+          worked: acc.worked + m.worked,
+          late: acc.late + m.late,
+          early: acc.early + m.early,
+        }),
+        { present: 0, absent: 0, worked: 0, late: 0, early: 0 }
+      ),
+    [monthly]
+  );
+
+  /* The names worth opening, each list only as long as it has entries. */
+  const outliers = useMemo(() => {
+    const top = (list, by, keep = (x) => true) =>
+      list.filter(keep).sort(by).slice(0, 5);
+    const clocked = monthly.filter((m) => m.clocked > 0);
+    return {
+      mostPresent: top(monthly, (a, b) => b.present - a.present, (m) => m.present > 0),
+      mostAbsent: top(monthly, (a, b) => b.absent - a.absent, (m) => m.absent > 0),
+      mostHours: top(clocked, (a, b) => b.worked - a.worked, (m) => m.worked > 0),
+      leastHours: top(clocked, (a, b) => a.worked - b.worked, (m) => m.worked > 0),
+      late: top(monthly, (a, b) => b.late - a.late, (m) => m.late > 0),
+      early: top(monthly, (a, b) => b.early - a.early, (m) => m.early > 0),
+      short: top(rows, (a, b) => a.ot_minutes - b.ot_minutes, (r) => r.ot_minutes < 0),
+      over: top(rows, (a, b) => b.ot_minutes - a.ot_minutes, (r) => r.ot_minutes > 0),
+      anyClocked: clocked.length,
+    };
+  }, [monthly, rows]);
 
   /** What is going out by which route, for the person doing the paying. */
   const byMode = useMemo(() => {
@@ -401,11 +555,171 @@ export default function Dashboard({
     },
   ].filter(Boolean);
 
+  const now = new Date();
+  const monthHasToday = now.getFullYear() === period.year && now.getMonth() + 1 === period.month;
+  const isToday = monthHasToday && now.getDate() === shownDay;
+
   return (
     <section className="stack dashboard">
+      <div className="card roll-call">
+        <h2 className="roll-head">
+          <button
+            className="ghost"
+            disabled={shownDay <= 1}
+            onClick={() => setDay(shownDay - 1)}
+            title="The day before"
+          >
+            ‹
+          </button>
+          <span>
+            {weekday(period.year, period.month, shownDay)} {shownDay}{' '}
+            {MONTHS[period.month - 1]} {period.year}
+            {isToday && <span className="pill"> today</span>}
+            {isSunday(period.year, period.month, shownDay) && <span className="pill"> Sunday</span>}
+          </span>
+          <button
+            className="ghost"
+            disabled={shownDay >= monthLength}
+            onClick={() => setDay(shownDay + 1)}
+            title="The day after"
+          >
+            ›
+          </button>
+          {day !== null && day !== defaultDay && (
+            <button className="ghost tiny" onClick={() => setDay(null)}>
+              {monthHasToday ? 'back to today' : 'back to the latest day'}
+            </button>
+          )}
+          {companyName && <span className="muted small">{companyName}</span>}
+          <span className="grow" />
+          <button className="ghost tiny" onClick={() => onGo('attendance')}>
+            mark attendance
+          </button>
+        </h2>
+
+        <div className="stat-row">
+          <Stat label="Present" value={roll.present.length} plain strong go={onGo} to="attendance" />
+          <Stat label="Absent" value={roll.absent.length} plain go={onGo} to="attendance" />
+          <Stat label="On leave" value={roll.leave.length} plain go={onGo} to="leave" />
+          <Stat label="Half day" value={roll.halfDay.length} plain go={onGo} to="attendance" />
+          <Stat label="Late in" value={roll.late.length} plain go={onGo} to="time" />
+          <Stat label="Early out" value={roll.early.length} plain go={onGo} to="time" />
+          <Stat label="On overtime" value={roll.overtime.length} plain go={onGo} to="time" />
+          <Stat label="Not marked" value={roll.unmarked.length} plain go={onGo} to="attendance" />
+        </div>
+
+        <NameList
+          label="Absent"
+          list={roll.absent}
+          name={(p) => p.employee_name}
+          suffix={(p) => ATTENDANCE_CODES[p.code]?.label}
+          all
+        />
+        <NameList
+          label="On leave"
+          list={roll.leave}
+          name={(p) => p.employee_name}
+          suffix={(p) => ATTENDANCE_CODES[p.code]?.label}
+          all
+        />
+        <NameList
+          label="Half day"
+          list={roll.halfDay}
+          name={(p) => p.employee_name}
+          all
+        />
+        <NameList
+          label={`Late in — after ${roll.startsAt} plus ${roll.grace} minutes`}
+          list={roll.late}
+          name={(p) => p.employee_name}
+          suffix={(p) => `${p.in_time}, ${formatDuration(p.lateBy)} late`}
+          all
+        />
+        <NameList
+          label={`Left early — before ${roll.endsAt} less ${roll.grace} minutes`}
+          list={roll.early}
+          name={(p) => p.employee_name}
+          suffix={(p) => p.out_time}
+          all
+        />
+        <NameList
+          label="On overtime"
+          list={roll.overtime}
+          name={(p) => p.employee_name}
+          suffix={(p) => `+${formatDuration(p.minutes)}`}
+          all
+        />
+        <NameList
+          label="Short hours"
+          list={roll.short}
+          name={(p) => p.employee_name}
+          suffix={(p) => formatDuration(p.minutes)}
+          all
+        />
+        <NameList
+          label="Not marked yet"
+          list={roll.unmarked}
+          name={(p) => p.employee_name}
+          all
+        />
+
+        {roll.present.length > 0 && (
+          <>
+            <p className="name-list small">
+              <span className="muted">
+                Present
+                <button className="ghost tiny" onClick={() => setShowPresent((v) => !v)}>
+                  {showPresent ? 'hide the names' : `show all ${roll.present.length}`}
+                </button>
+              </span>
+            </p>
+            {showPresent && (
+              <NameList
+                label=""
+                list={roll.present}
+                name={(p) => p.employee_name}
+                suffix={(p) => p.in_time || undefined}
+                all
+              />
+            )}
+          </>
+        )}
+
+        {roll.clocked === 0 ? (
+          <p className="muted small">
+            Nobody clocked in on this day, so there is no way to say who was late — that
+            needs an <strong>In</strong> time on the <strong>Time</strong> tab or an import
+            from the punch machine. Overtime and short hours are still counted from the
+            minutes marked on the grid.
+          </p>
+        ) : (
+          <p className="muted small">
+            {roll.clocked} of {rows.length} clocked in. Late is measured against{' '}
+            {roll.startsAt}, the usual start set on the Time tab, with {roll.grace} minutes'
+            grace.
+          </p>
+        )}
+      </div>
+
+      {alerts.length > 0 && (
+        <div className="card">
+          <h2>Needs attention</h2>
+          <ul className="alerts">
+            {alerts.map((alert) => (
+              <li key={alert.key} className={alert.tone}>
+                <span>{alert.text}</span>
+                <button className="ghost tiny" onClick={() => onGo(alert.go)}>
+                  open
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="card">
         <h2>
-          {period.label}
+          {period.label} — the money
           {companyName && <span className="muted"> · {companyName}</span>}
           {period.locked ? <span className="pill locked"> Locked</span> : null}
         </h2>
@@ -445,22 +759,6 @@ export default function Dashboard({
         <div className="card">
           <h2>Last {trend.length} months</h2>
           <Trend trend={trend} current={period.id} onPeriod={onPeriod} />
-        </div>
-      )}
-
-      {alerts.length > 0 && (
-        <div className="card">
-          <h2>Needs attention</h2>
-          <ul className="alerts">
-            {alerts.map((alert) => (
-              <li key={alert.key} className={alert.tone}>
-                <span>{alert.text}</span>
-                <button className="ghost tiny" onClick={() => onGo(alert.go)}>
-                  open
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
 
@@ -565,15 +863,53 @@ export default function Dashboard({
             )}
         </div>
 
-        <div className="card">
+        <div className="card wide">
           <h2>
-            Worth a look <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
+            Who stands out this month{' '}
+            <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
           </h2>
+          <div className="stat-row">
+            <Stat label="Days present" value={days(monthTotalsOf.present)} plain />
+            <Stat label="Days lost" value={days(monthTotalsOf.absent)} plain />
+            <Stat label="Hours worked" value={formatDuration(monthTotalsOf.worked) || '-'} plain />
+            <Stat label="Late arrivals" value={monthTotalsOf.late} plain />
+            <Stat label="Early finishes" value={monthTotalsOf.early} plain />
+          </div>
+          <NameList
+            label="Most days present"
+            list={outliers.mostPresent}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${days(m.present)} day${m.present === 1 ? '' : 's'}`}
+          />
           <NameList
             label="Most days lost"
-            list={outliers.absent}
-            name={(r) => r.employee_name}
-            suffix={(r) => `${days(r.absent_days)} day${r.absent_days === 1 ? '' : 's'}`}
+            list={outliers.mostAbsent}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${days(m.absent)} day${m.absent === 1 ? '' : 's'}`}
+          />
+          <NameList
+            label="Most hours worked"
+            list={outliers.mostHours}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${formatDuration(m.worked)} over ${m.clocked} days`}
+          />
+          <NameList
+            label="Fewest hours worked"
+            list={outliers.leastHours}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${formatDuration(m.worked)} over ${m.clocked} days`}
+          />
+          <NameList
+            label="Most late arrivals"
+            list={outliers.late}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${m.late} day${m.late === 1 ? '' : 's'}`}
+          />
+          <NameList
+            label="Most early finishes"
+            list={outliers.early}
+            name={(m) => m.employee_name}
+            suffix={(m) => `${m.early} day${m.early === 1 ? '' : 's'}`}
           />
           <NameList
             label="Most hours short"
@@ -587,10 +923,16 @@ export default function Dashboard({
             name={(r) => r.employee_name}
             suffix={(r) => formatDuration(r.ot_minutes)}
           />
-          {!outliers.absent.length && !outliers.short.length && !outliers.over.length && (
+          {!outliers.mostPresent.length && !outliers.mostAbsent.length && (
             <p className="muted small">
-              Nobody is absent and nobody is short this month — either it is a clean month or
-              the attendance is not marked yet.
+              Nothing marked this month yet, so there is nobody to rank.
+            </p>
+          )}
+          {outliers.anyClocked === 0 && outliers.mostPresent.length > 0 && (
+            <p className="muted small">
+              Hours, late arrivals and early finishes need clock times — nobody's are recorded
+              this month. Type them on the <strong>Time</strong> tab or import the punch
+              machine's file.
             </p>
           )}
         </div>
@@ -716,6 +1058,16 @@ export default function Dashboard({
   );
 }
 
+/**
+ * Whether a day is one where coming in late or leaving early means anything.
+ *
+ * A half day, an approved leave, a holiday or an absence are not black marks
+ * for finishing before six - they were never a full day to begin with. A day
+ * with no mark at all still counts, because somebody clocked in on it.
+ */
+const FULL_DAY_MARKS = new Set(['', 'P', 'WH', 'SP', 'HP']);
+const judgedOnTime = (code) => FULL_DAY_MARKS.has(String(code || '').toUpperCase());
+
 /** Days marked present out of the days that carry any mark at all. */
 function presentRate(rows) {
   let marked = 0;
@@ -757,18 +1109,39 @@ function Delta({ label, now, was, money, invert }) {
   );
 }
 
-/** A handful of names with something after each, or nothing at all. */
-function NameList({ label, list, name = (e) => e.name, suffix }) {
+/**
+ * Names with something after each, or nothing at all.
+ *
+ * Long lists are cut short with a count, because a roll call of seventy people
+ * is not a list anybody reads - except where the caller says `all`, which is
+ * the roll call itself: who was absent is exactly the list you want in full.
+ */
+const NAME_LIMIT = 12;
+
+function NameList({ label, list, name = (e) => e.name, suffix, all }) {
+  const [expanded, setExpanded] = useState(false);
   if (!list?.length) return null;
+  const limit = all && !expanded ? 30 : NAME_LIMIT;
+  const shown = expanded ? list : list.slice(0, limit);
+  const hidden = list.length - shown.length;
   return (
     <p className="name-list small">
-      <span className="muted">{label}</span>
-      {list.map((item, i) => (
+      {label && (
+        <span className="muted">
+          {label} <span className="count">{list.length}</span>
+        </span>
+      )}
+      {shown.map((item, i) => (
         <span key={item.id ?? item.employee_id ?? i} className="name-item">
           {name(item)}
-          {suffix && <span className="muted"> {suffix(item)}</span>}
+          {suffix?.(item) && <span className="muted"> {suffix(item)}</span>}
         </span>
       ))}
+      {hidden > 0 && (
+        <button className="ghost tiny" onClick={() => setExpanded(true)}>
+          and {hidden} more
+        </button>
+      )}
     </p>
   );
 }
