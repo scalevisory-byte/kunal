@@ -39,6 +39,7 @@ test('times print back tidy', () => {
   assert.equal(formatDuration(495), '8h 15m');
   assert.equal(formatDuration(-45), '-45m', 'under an hour reads as minutes');
   assert.equal(formatDuration(60), '1h 00m');
+  assert.equal(formatDuration(60 * 12861 + 5), '12,861h', 'thousands of hours drop the minutes');
 });
 
 test('a normal day: out minus in, less the lunch break', () => {

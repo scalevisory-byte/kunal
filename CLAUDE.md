@@ -232,6 +232,20 @@ assistant. See `salary-app/README.md`.
   — it was not a full day. No clock time means "not known", never "on time".
 - **"Who stands out this month"** card: month totals plus most days present / most days lost /
   most and fewest hours worked / most late / most early / most short / most overtime.
+- **New joinees / birthdays / anniversaries** got their own card high on the dashboard
+  (Dinesh asked for them by name after they were already in the People card but empty). The
+  reason they were empty: nothing had `dob` or `joined_on`. So **Born and Joined are now
+  columns on the Employees table**, not just the profile drawer, and the card says how many
+  people still have neither. Anyone whose day falls on the roll call's day also shows at the
+  top of it (🎂 / 🎉 / 👋).
+- **UI pass** — *"graphics looks UI bhi change karo, make it handsome"* then *"isko minimal
+  banavo"*. `styles.css` was reworked, no framework and no new files: hairlines instead of
+  borders, cards with no shadow, **stat tiles replaced by hairline-separated figures**, tabs
+  marked by an underline rather than a filled pill, table headers as small caps on the
+  page's own background, one accent used only where it means something, tabular numerals.
+  Every class name was kept, so no component changed.
+- `formatDuration` groups thousands and drops the minutes past 1,000 hours — a company's
+  month reads `12,857h`, not `12857h 05m`.
 - **`GET /periods/:id/payroll` gained `?sync=false`.** Reading a month normally runs
   `syncPayrollRows` + `postRepayments`, so the dashboard fetching five past months for the
   trend would have backdated today's new hires into them and taken loan instalments out of

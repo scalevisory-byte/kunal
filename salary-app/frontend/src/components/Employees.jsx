@@ -275,6 +275,8 @@ export default function Employees({
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
                 <th title="Decides which festivals are a paid holiday">Religion</th>
+                <th title="Drives the birthday list on the dashboard">Born</th>
+                <th title="Drives the new joinees and work anniversaries on the dashboard">Joined</th>
                 <th>Salary</th>
                 <th>PF</th>
                 <th>ESI</th>
@@ -328,6 +330,29 @@ export default function Employees({
                       onBlur={(e) =>
                         e.target.value !== (emp.religion || '') &&
                         onPatch(emp.id, { religion: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      key={`dob-${emp.id}-${emp.dob || ''}`}
+                      className="cell-input date"
+                      type="date"
+                      defaultValue={emp.dob || ''}
+                      onBlur={(e) =>
+                        e.target.value !== (emp.dob || '') && onPatch(emp.id, { dob: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      key={`joined-${emp.id}-${emp.joined_on || ''}`}
+                      className="cell-input date"
+                      type="date"
+                      defaultValue={emp.joined_on || ''}
+                      onBlur={(e) =>
+                        e.target.value !== (emp.joined_on || '') &&
+                        onPatch(emp.id, { joined_on: e.target.value })
                       }
                     />
                   </td>
@@ -398,7 +423,7 @@ export default function Employees({
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={10} className="empty">No employees yet.</td></tr>
+                <tr><td colSpan={12} className="empty">No employees yet.</td></tr>
               )}
             </tbody>
           </table>

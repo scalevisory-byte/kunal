@@ -169,8 +169,13 @@ or an absence is never counted as late or early** — it was not a full day to b
   on hold. Each line **names the first few people**, and opens where it can be fixed.
 - **Attendance / Hours / Sunday duty / Statutory** — day counts, clock hours against
   expected, the Sunday register's total, and PF/ESI/PT/loans for the month.
-- **People** — who is on the books, who joined, who left, whose birthday it is and whose
-  work anniversary, all off the employee master.
+- **New joinees, birthdays & anniversaries** — its own card, high up: who joined this month,
+  whose birthday falls in it (and what they turn), whose work anniversary it is (and how
+  many years), and who left, each dated. Anyone whose day falls on the day the roll call is
+  showing also appears at the top of it — 🎂 and 🎉 beside the name.
+  It runs off **Born** and **Joined** on the employee master, which are columns on the
+  Employees table so a whole staff list can be filled in one pass; the card says how many
+  people still have neither.
 - **Who stands out this month** — the month's totals (days present, days lost, hours
   worked, late arrivals, early finishes) and then the names behind them: most days present,
   most days lost, most and fewest hours worked, most late arrivals, most early finishes,
@@ -533,6 +538,23 @@ salary-app/
     components/Reports.jsx       totals, downloads, import
     components/Payslip.jsx       printable slip
 ```
+
+## The look
+
+One stylesheet, no framework, and deliberately quiet — this is a sheet somebody reads for
+an hour at a time, so the ink goes on the numbers and the names rather than on boxes round
+them.
+
+- **Hairlines, not borders.** Cards are a thin rule and some room. Table headers are small
+  caps on the page's own background with one line under them, not a coloured band.
+- **Figures, not tiles.** A row of six bordered boxes is six rectangles competing with the
+  numbers inside them; here the columns are separated by a hairline and the number is the
+  biggest thing on the row.
+- **Tabs underline.** The open tab is marked by a rule under it, not by a filled pill.
+- **One accent**, used on the figure that matters, the open tab and the focus ring —
+  nowhere else.
+- **Tabular numerals** everywhere a column of figures appears, so digits line up.
+- Dark mode follows the system setting and is the same design, not a second one.
 
 ## Things to know
 

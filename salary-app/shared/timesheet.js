@@ -89,14 +89,21 @@ export function formatTime(minutes) {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 }
 
-/** 545 -> "9h 05m", 45 -> "45m". For reading rather than for sums. */
+/**
+ * 545 -> "9h 05m", 45 -> "45m", 771665 -> "12,861h". For reading rather than
+ * for sums: once a figure runs to thousands of hours - a whole company's month
+ * - the minutes on the end are noise, and the grouping is what makes it
+ * readable at a glance.
+ */
 export function formatDuration(minutes) {
   if (minutes === null || minutes === undefined || !Number.isFinite(Number(minutes))) return '';
   const total = Math.round(Number(minutes));
   const sign = total < 0 ? '-' : '';
   const abs = Math.abs(total);
   if (abs < 60) return `${sign}${abs}m`;
-  return `${sign}${Math.floor(abs / 60)}h ${String(abs % 60).padStart(2, '0')}m`;
+  const hours = Math.floor(abs / 60);
+  if (hours >= 1000) return `${sign}${hours.toLocaleString('en-IN')}h`;
+  return `${sign}${hours}h ${String(abs % 60).padStart(2, '0')}m`;
 }
 
 /**

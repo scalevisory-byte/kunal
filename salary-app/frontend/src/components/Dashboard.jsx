@@ -317,37 +317,60 @@ export default function Dashboard({
      even for a month nothing has been marked on yet. */
   const people = useMemo(() => {
     if (!period) return null;
-    const inMonth = (value) => {
-      if (!value) return false;
+    const on = (value) => {
+      if (!value) return null;
       const d = new Date(value);
-      return !Number.isNaN(d.getTime()) && d.getFullYear() === period.year && d.getMonth() + 1 === period.month;
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const inMonth = (value) => {
+      const d = on(value);
+      return !!d && d.getFullYear() === period.year && d.getMonth() + 1 === period.month;
     };
     const sameMonth = (value) => {
-      if (!value) return false;
-      const d = new Date(value);
-      return !Number.isNaN(d.getTime()) && d.getMonth() + 1 === period.month;
+      const d = on(value);
+      return !!d && d.getMonth() + 1 === period.month;
     };
     const mine = companyId ? employees.filter((e) => e.company_id === companyId) : employees;
     const active = mine.filter((e) => e.active);
+    const withDates = active.filter((e) => e.dob || e.joined_on).length;
     return {
       active: active.length,
       inactive: mine.length - active.length,
-      joined: active.filter((e) => inMonth(e.joined_on)),
-      left: mine.filter((e) => inMonth(e.left_on)),
+      withDates,
+      missingDates: active.length - withDates,
+      joined: active
+        .filter((e) => inMonth(e.joined_on))
+        .map((e) => ({ ...e, dayOfMonth: on(e.joined_on).getDate() }))
+        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+      left: mine
+        .filter((e) => inMonth(e.left_on))
+        .map((e) => ({ ...e, dayOfMonth: on(e.left_on).getDate() }))
+        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
       birthdays: active
         .filter((e) => sameMonth(e.dob))
-        .map((e) => ({ ...e, dayOfMonth: new Date(e.dob).getDate() }))
+        .map((e) => ({ ...e, dayOfMonth: on(e.dob).getDate(), turning: period.year - on(e.dob).getFullYear() }))
         .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+      // A first month is a joining, not an anniversary - that is the row above.
       anniversaries: active
-        .filter((e) => sameMonth(e.joined_on) && new Date(e.joined_on).getFullYear() < period.year)
+        .filter((e) => sameMonth(e.joined_on) && on(e.joined_on).getFullYear() < period.year)
         .map((e) => ({
           ...e,
-          dayOfMonth: new Date(e.joined_on).getDate(),
-          years: period.year - new Date(e.joined_on).getFullYear(),
+          dayOfMonth: on(e.joined_on).getDate(),
+          years: period.year - on(e.joined_on).getFullYear(),
         }))
         .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
     };
   }, [employees, companyId, period]);
+
+  /** Whose day it is on the day the roll call is showing. */
+  const todaysDates = useMemo(() => {
+    if (!people) return { birthdays: [], anniversaries: [], joined: [] };
+    return {
+      birthdays: people.birthdays.filter((e) => e.dayOfMonth === shownDay),
+      anniversaries: people.anniversaries.filter((e) => e.dayOfMonth === shownDay),
+      joined: people.joined.filter((e) => e.dayOfMonth === shownDay),
+    };
+  }, [people, shownDay]);
 
   /**
    * The month per person: days actually worked, days lost, hours on the clock,
@@ -597,6 +620,31 @@ export default function Dashboard({
           </button>
         </h2>
 
+        {(todaysDates.birthdays.length ||
+          todaysDates.anniversaries.length ||
+          todaysDates.joined.length) > 0 && (
+          <p className="celebrate">
+            {todaysDates.birthdays.map((e) => (
+              <span key={`b${e.id}`} className="celebrate-item">
+                🎂 <strong>{e.name}</strong>
+                {e.turning > 0 && <span className="muted"> turns {e.turning}</span>}
+              </span>
+            ))}
+            {todaysDates.anniversaries.map((e) => (
+              <span key={`a${e.id}`} className="celebrate-item">
+                🎉 <strong>{e.name}</strong>
+                <span className="muted"> {e.years} year{e.years === 1 ? '' : 's'} today</span>
+              </span>
+            ))}
+            {todaysDates.joined.map((e) => (
+              <span key={`j${e.id}`} className="celebrate-item">
+                👋 <strong>{e.name}</strong>
+                <span className="muted"> joined today</span>
+              </span>
+            ))}
+          </p>
+        )}
+
         <div className="stat-row">
           <Stat label="Present" value={roll.present.length} plain strong go={onGo} to="attendance" />
           <Stat label="Absent" value={roll.absent.length} plain go={onGo} to="attendance" />
@@ -717,6 +765,53 @@ export default function Dashboard({
         </div>
       )}
 
+      <div className="card dates-card">
+        <h2>
+          New joinees, birthdays &amp; anniversaries — {MONTHS[period.month - 1]} {period.year}
+          <button className="ghost tiny" onClick={() => onGo('employees')}>open Employees</button>
+        </h2>
+        <div className="dates-grid">
+          <DateGroup
+            icon="👋"
+            title="Joined this month"
+            list={people.joined}
+            month={period.month}
+            empty="Nobody new this month."
+          />
+          <DateGroup
+            icon="🎂"
+            title="Birthdays"
+            list={people.birthdays}
+            month={period.month}
+            note={(e) => (e.turning > 0 ? `turns ${e.turning}` : '')}
+            empty="No birthdays on record for this month."
+          />
+          <DateGroup
+            icon="🎉"
+            title="Work anniversaries"
+            list={people.anniversaries}
+            month={period.month}
+            note={(e) => `${e.years} year${e.years === 1 ? '' : 's'}`}
+            empty="No anniversaries this month."
+          />
+          <DateGroup
+            icon="👋"
+            title="Left this month"
+            list={people.left}
+            month={period.month}
+            empty="Nobody left."
+          />
+        </div>
+        {people.missingDates > 0 && (
+          <p className="muted small">
+            {people.missingDates} of {people.active} have no date of birth or joining date on
+            record, so they can never appear here. Both are columns on the{' '}
+            <button className="link" onClick={() => onGo('employees')}>Employees</button> table —
+            fill them in once and this looks after itself.
+          </p>
+        )}
+      </div>
+
       <div className="card">
         <h2>
           {period.label} — the money
@@ -788,8 +883,8 @@ export default function Dashboard({
               <div className="stat-row">
                 <Stat label="Worked" value={formatDuration(attendance.hours.worked)} plain />
                 <Stat label="Expected" value={formatDuration(attendance.hours.expected)} plain />
-                <Stat label="Short" value={`${attendance.hours.short}m`} plain />
-                <Stat label="Overtime" value={`${attendance.hours.overtime}m`} plain />
+                <Stat label="Short" value={formatDuration(attendance.hours.short) || '-'} plain />
+                <Stat label="Overtime" value={formatDuration(attendance.hours.overtime) || '-'} plain />
               </div>
               <p className="muted small">
                 From {attendance.hours.days} day{attendance.hours.days === 1 ? '' : 's'} with in
@@ -830,39 +925,6 @@ export default function Dashboard({
       </div>
 
       <div className="dash-grid">
-        <div className="card">
-          <h2>
-            People <button className="ghost tiny" onClick={() => onGo('employees')}>open</button>
-          </h2>
-          <div className="stat-row">
-            <Stat label="On the books" value={people.active} plain />
-            <Stat label="Joined" value={people.joined.length} plain />
-            <Stat label="Left" value={people.left.length} plain />
-            <Stat label="Not active" value={people.inactive} plain />
-          </div>
-          <NameList label="Joined this month" list={people.joined} />
-          <NameList label="Left this month" list={people.left} />
-          <NameList
-            label="Birthdays"
-            list={people.birthdays}
-            suffix={(e) => `${MONTHS[period.month - 1].slice(0, 3)} ${e.dayOfMonth}`}
-          />
-          <NameList
-            label="Work anniversaries"
-            list={people.anniversaries}
-            suffix={(e) => `${e.years} year${e.years === 1 ? '' : 's'}`}
-          />
-          {!people.joined.length &&
-            !people.left.length &&
-            !people.birthdays.length &&
-            !people.anniversaries.length && (
-              <p className="muted small">
-                Nothing this month. Dates of birth and joining dates are on each employee's
-                record — fill them in and they show up here.
-              </p>
-            )}
-        </div>
-
         <div className="card wide">
           <h2>
             Who stands out this month{' '}
@@ -1106,6 +1168,38 @@ function Delta({ label, now, was, money, invert }) {
       {change > 0 ? '▲' : '▼'} {show}
       {pct !== null && <span className="muted"> ({Math.abs(pct)}%)</span>} {label}
     </span>
+  );
+}
+
+/**
+ * One kind of date for the month - joiners, birthdays, anniversaries, leavers -
+ * as a short dated list rather than a row of chips, because the day it falls on
+ * is the useful part.
+ */
+function DateGroup({ icon, title, list, month, note, empty }) {
+  return (
+    <div className="date-group">
+      <h3>
+        <span className="date-icon" aria-hidden="true">{icon}</span>
+        {title}
+        {list.length > 0 && <span className="count">{list.length}</span>}
+      </h3>
+      {list.length ? (
+        <ul>
+          {list.map((person) => (
+            <li key={person.id}>
+              <span className="date-day">
+                {person.dayOfMonth} {MONTHS[month - 1].slice(0, 3)}
+              </span>
+              <span className="date-name">{person.name}</span>
+              {note?.(person) && <span className="muted small">{note(person)}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted small">{empty}</p>
+      )}
+    </div>
   );
 }
 

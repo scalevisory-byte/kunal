@@ -1,31 +1,41 @@
+/**
+ * One stylesheet, no framework.
+ *
+ * The look is deliberately quiet: this is a payroll sheet somebody reads for an
+ * hour at a time, so the ink goes on the numbers and the names, not on boxes
+ * round them. Hairlines instead of borders, space instead of fills, one accent
+ * used sparingly, and figures set in tabular numerals so columns line up.
+ */
+
 :root {
-  --bg: #f4f6fa;
+  --bg: #fbfbfa;
   --surface: #ffffff;
-  --line: #dde3ec;
-  --text: #1b2430;
-  --muted: #6b7684;
-  --brand: #1f3864;
-  --brand-soft: #e8eef8;
-  --good: #0f7b4f;
-  --bad: #c0392b;
-  --warn: #b26a00;
-  --radius: 8px;
-  --shadow: 0 1px 3px rgba(20, 30, 50, 0.08);
+  --line: #e6e6e3;
+  --line-soft: #f1f1ef;
+  --text: #16181d;
+  --muted: #757a83;
+  --brand: #2b4a8b;
+  --brand-soft: #f2f5fb;
+  --good: #16794f;
+  --bad: #b8402e;
+  --warn: #9a6400;
+  --radius: 10px;
+  --shadow: none;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12161d;
-    --surface: #1a2028;
-    --line: #2c3540;
-    --text: #e6eaf0;
-    --muted: #94a1b2;
-    --brand: #6f9be8;
-    --brand-soft: #22303f;
+    --bg: #0e1116;
+    --surface: #151a21;
+    --line: #262c35;
+    --line-soft: #1d232b;
+    --text: #e8ebef;
+    --muted: #8f98a5;
+    --brand: #7ba5f0;
+    --brand-soft: #182231;
     --good: #4ec78d;
     --bad: #f0776a;
     --warn: #e0a34a;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -35,15 +45,23 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-feature-settings: 'cv05', 'ss01';
   -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 1.15rem; margin: 0; }
-h2 { font-size: 1rem; margin: 0 0 0.6rem; }
+h1 { font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+h2 {
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+  margin: 0 0 0.85rem;
+}
+h3 { font-size: 0.8rem; font-weight: 650; margin: 0 0 0.4rem; }
 
-.app { max-width: 100%; padding: 0 0 3rem; }
-.loading { padding: 3rem; text-align: center; color: var(--muted); }
+.app { max-width: 100%; padding: 0 0 4rem; }
+.loading { padding: 4rem; text-align: center; color: var(--muted); }
 
 /* ---------- header ---------- */
 
@@ -51,27 +69,27 @@ header {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--line);
-  padding: 0.7rem 1rem;
+  padding: 0.85rem 1.25rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  box-shadow: var(--shadow);
+  gap: 0.7rem;
 }
 
 .period-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .inline-num {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
+  gap: 0.35rem;
+  font-size: 0.76rem;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -79,14 +97,12 @@ header {
 
 /* A setting the app fixes rather than asks about. */
 .fixed-setting {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: var(--muted);
   white-space: nowrap;
-  padding: 0.35rem 0.5rem;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
+  padding: 0.3rem 0;
 }
-.fixed-setting strong { color: var(--text); }
+.fixed-setting strong { color: var(--text); font-weight: 600; }
 
 .new-period {
   flex-basis: 100%;
@@ -95,23 +111,27 @@ header {
   gap: 0.6rem;
   align-items: end;
 }
-.new-period label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.new-period label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
 
-.tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+/* Tabs read as an underline, not as a row of buttons. */
+.tabs { display: flex; flex-wrap: wrap; gap: 0.15rem; margin-bottom: -1px; }
 .tabs button {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  padding: 0.4rem 0.8rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem 0.6rem;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 550;
+  letter-spacing: -0.005em;
 }
-.tabs button.active { background: var(--brand-soft); color: var(--brand); border-color: var(--line); }
+.tabs button:hover:not(:disabled) { color: var(--text); background: none; }
+.tabs button.active { color: var(--text); border-bottom-color: var(--brand); }
 .tabs .ghost { margin-left: auto; font-weight: 400; }
-.sub-tabs { margin: 0.6rem 0; align-items: center; }
-.sub-tabs button { font-size: 0.82rem; }
+.sub-tabs { margin: 0 0 0.6rem; align-items: center; gap: 0.15rem; }
+.sub-tabs button { font-size: 0.8rem; }
 
-main { padding: 1rem; display: block; }
+main { padding: 1.25rem; display: block; }
 
 /* ---------- controls ---------- */
 
@@ -121,69 +141,88 @@ button {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--text);
-  border-radius: var(--radius);
-  padding: 0.4rem 0.7rem;
+  border-radius: 7px;
+  padding: 0.4rem 0.75rem;
+  font-weight: 500;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
 }
-button:hover:not(:disabled) { border-color: var(--brand); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-button.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--text) 25%, var(--line)); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { filter: brightness(1.1); }
 button.danger { color: var(--bad); }
-button.ghost { border-color: transparent; color: var(--muted); }
-button.tiny { padding: 0.2rem 0.45rem; font-size: 0.75rem; }
+button.danger:hover:not(:disabled) { border-color: var(--bad); }
+button.ghost { border-color: transparent; background: none; color: var(--muted); }
+button.ghost:hover:not(:disabled) { color: var(--text); background: var(--line-soft); border-color: transparent; }
+button.tiny { padding: 0.15rem 0.45rem; font-size: 0.74rem; font-weight: 500; }
 button.link {
   border: none; background: none; padding: 0; color: var(--text);
-  font-weight: 600; text-align: left; text-decoration: underline dotted;
+  font-weight: 600; text-align: left; text-decoration: underline;
+  text-decoration-color: var(--line); text-underline-offset: 2px;
 }
+button.link:hover { text-decoration-color: var(--brand); }
 
 input, select {
   font: inherit;
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.35rem 0.45rem;
+  border-radius: 7px;
+  padding: 0.35rem 0.5rem;
   max-width: 100%;
 }
-input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
-input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
+input:hover:not(:disabled), select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--text) 20%, var(--line));
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+input:disabled, select:disabled { background: var(--line-soft); color: var(--muted); }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
 }
 .search { min-width: 12rem; flex: 1 1 12rem; }
 .grow { flex: 1 1 auto; }
-.check { display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--muted); }
-.button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
-.inline-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; margin: 0.6rem 0; }
-.inline-form label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.79rem; color: var(--muted); }
+.button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.inline-form { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: end; margin: 0.7rem 0; }
+.inline-form label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
 
+/* A card is a hairline and some room, nothing more. */
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1rem;
-  box-shadow: var(--shadow);
+  padding: 1.1rem 1.25rem;
 }
-.stack { display: flex; flex-direction: column; gap: 1rem; }
+.stack { display: flex; flex-direction: column; gap: 0.9rem; }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.6rem;
+  gap: 0.7rem;
   align-items: end;
 }
-.form-grid label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+.form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
 
 .muted { color: var(--muted); }
-.small { font-size: 0.78rem; }
+.small { font-size: 0.79rem; }
 .error { color: var(--bad); }
 .error.banner {
-  margin: 0 1rem;
-  padding: 0.6rem 0.8rem;
+  margin: 0 1.25rem;
+  padding: 0.6rem 0.85rem;
   background: var(--surface);
   border: 1px solid var(--bad);
   border-radius: var(--radius);
@@ -193,10 +232,17 @@ input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
   justify-content: space-between;
 }
 
-.pill { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--line); }
-.pill.saving { color: var(--brand); border-color: var(--brand); }
-.pill.locked { color: var(--warn); border-color: var(--warn); }
-.pill.error-pill { color: var(--bad); border-color: var(--bad); margin-left: 0.4rem; }
+.pill {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill.saving { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.pill.locked { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.pill.error-pill { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); margin-left: 0.4rem; }
 
 .bulk-bar {
   display: flex;
@@ -241,7 +287,7 @@ input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
 .chip .chip-action.danger:hover { background: var(--bad); color: #fff; }
 
 /* The company filter that follows you across the tabs */
-.company-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.company-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 .company-bar button {
   padding: 0.25rem 0.6rem;
   font-size: 0.8rem;
@@ -275,34 +321,44 @@ input:disabled, select:disabled { background: var(--bg); color: var(--muted); }
   background: var(--surface);
   max-height: 72vh;
 }
+.card .table-wrap { border: none; border-radius: 0; }
 
 table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.82rem; }
 .table-wrap.dense table.sheet { font-size: 0.75rem; }
 
 table.sheet th, table.sheet td {
-  border-bottom: 1px solid var(--line);
-  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0.38rem 0.55rem;
   text-align: left;
   white-space: nowrap;
 }
+table.sheet tbody tr:last-child td { border-bottom: none; }
+table.sheet tbody tr:hover td { background: var(--line-soft); }
+table.sheet tbody tr:hover .sticky-name { background: var(--line-soft); }
 .table-wrap.dense table.sheet th, .table-wrap.dense table.sheet td { padding: 0.2rem 0.3rem; }
 
 table.sheet thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-size: 0.72rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
 }
 
 table.sheet tfoot td {
   position: sticky;
   bottom: 0;
-  background: var(--brand-soft);
-  font-weight: 700;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  border-bottom: none;
+  font-weight: 650;
   text-align: right;
 }
 
@@ -316,19 +372,24 @@ table.sheet tfoot td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-thead .sticky-name, tfoot .sticky-name { z-index: 4; background: var(--brand-soft); text-align: left; }
+thead .sticky-name, tfoot .sticky-name { z-index: 4; background: var(--surface); text-align: left; }
 
 tr.company-row td {
-  background: var(--brand-soft);
-  font-weight: 700;
-  color: var(--brand);
+  background: var(--surface);
+  font-weight: 650;
+  color: var(--text);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom-color: var(--line);
+  padding-top: 0.9rem;
   position: sticky;
   left: 0;
 }
-tr.paid { opacity: 0.65; }
-tr.inactive { opacity: 0.5; }
-tr.subtotal td { font-weight: 700; background: var(--bg); }
-tr.grand-row td { font-weight: 700; font-size: 1.05em; background: var(--brand-soft); }
+tr.paid { opacity: 0.55; }
+tr.inactive { opacity: 0.45; }
+tr.subtotal td { font-weight: 650; background: var(--line-soft); }
+tr.grand-row td { font-weight: 650; font-size: 1.05em; border-top: 1px solid var(--line); }
 
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .strong { font-weight: 700; }
@@ -492,18 +553,45 @@ td.mark { padding: 0.1rem !important; }
 
 /* ---------- reports ---------- */
 
-.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+/*
+ * Figures, not boxes. A row of bordered tiles is six rectangles competing with
+ * the number inside them; a hairline between columns says the same thing and
+ * gets out of the way.
+ */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0 1.25rem;
+  margin: 0 0 1.1rem;
+}
 .stat {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.1rem;
+  padding: 0.15rem 0 0.15rem 1.25rem;
+  border-left: 1px solid var(--line);
+  text-align: left;
 }
-.stat.strong { border-color: var(--brand); background: var(--brand-soft); }
-.stat-label { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.03em; }
-.stat-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat:first-child { border-left: none; padding-left: 0; }
+.stat.strong .stat-value { color: var(--brand); }
+.stat-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.stat-value {
+  font-size: 1.35rem;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+button.stat-link { border-radius: 0; }
+button.stat-link:hover { border-left-color: var(--line); background: none; }
+button.stat-link:hover .stat-value { color: var(--brand); }
+button.stat-link:first-child:hover { border-left: none; }
 
 .sunday-amount { display: flex; flex-direction: column; }
 .sunday-amount .hint { margin-top: -0.1rem; }
@@ -591,23 +679,24 @@ table.timesheet tr.sunday-row td { background: color-mix(in srgb, var(--bad) 6%,
 .stat-sub { font-size: 0.7rem; }
 button.stat-link {
   font: inherit;
-  text-align: left;
-  background: var(--surface);
+  background: none;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
   cursor: pointer;
 }
-button.stat-link:hover { border-color: var(--brand); }
 
 .alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 .alerts li {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: var(--radius);
+  padding: 0.5rem 0 0.5rem 0.75rem;
+  border-left: 2px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
   font-size: 0.85rem;
 }
+.alerts li:last-child { border-bottom: none; }
 .alerts li span { flex: 1 1 auto; }
 .alerts li button { flex: 0 0 auto; }
 .alerts li.warn { border-left-color: var(--warn); }
@@ -635,7 +724,7 @@ button.trend-bar {
   cursor: pointer;
 }
 button.trend-bar:disabled { cursor: default; }
-button.trend-bar:hover:not(:disabled) { border-color: var(--line); background: var(--bg); }
+button.trend-bar:hover:not(:disabled) { border-color: transparent; background: none; }
 /* The track holds the height the bar is a fraction of; the bar is positioned
    against it so the percentage has something definite to resolve against. */
 .trend-track { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; }
@@ -646,13 +735,12 @@ button.trend-bar:hover:not(:disabled) { border-color: var(--line); background: v
   transform: translateX(-50%);
   width: 100%;
   max-width: 4rem;
-  background: var(--brand-soft);
-  border: 1px solid var(--brand);
-  border-bottom: none;
-  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--brand) 22%, transparent);
+  border-radius: 4px 4px 0 0;
   min-height: 2px;
 }
 button.trend-bar.now .trend-fill { background: var(--brand); }
+button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srgb, var(--brand) 45%, transparent); }
 .trend-value { font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--muted); }
 .trend-label { font-size: 0.75rem; font-weight: 600; }
 .trend-sub { font-size: 0.68rem; }
@@ -668,9 +756,9 @@ button.trend-bar.now .trend-fill { background: var(--brand); }
   gap: 0.4rem;
 }
 .name-list .count {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0 0.35rem;
+  background: var(--line-soft);
+  border-radius: 4px;
+  padding: 0 0.3rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -679,9 +767,9 @@ button.trend-bar.now .trend-fill { background: var(--brand); }
 .roll-head > span:first-of-type { font-size: 1.05rem; }
 .roll-head .ghost { font-weight: 400; }
 .name-item {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.1rem 0.55rem;
+  background: var(--line-soft);
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
   white-space: nowrap;
 }
 
@@ -697,6 +785,50 @@ button.trend-bar.now .trend-fill { background: var(--brand); }
 .due-what { flex: 1 1 auto; font-weight: 600; }
 .due-what .hint { font-weight: 400; text-align: left; }
 .due-list .num { font-variant-numeric: tabular-nums; }
+
+/* ---- roll call and the dates card ---- */
+
+.celebrate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--line-soft);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.celebrate-item { white-space: nowrap; }
+
+.dates-grid {
+  display: grid;
+  gap: 0 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+.date-group + .date-group { border-left: 1px solid var(--line); padding-left: 1.5rem; }
+.date-group h3 { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-weight: 600; }
+.date-group h3 .count {
+  background: var(--line-soft);
+  border-radius: 4px;
+  padding: 0 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.date-icon { font-size: 0.95rem; }
+.date-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.date-group li { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; }
+.date-day {
+  flex: 0 0 3.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.date-name { font-weight: 550; }
+
+.cell-input.date { width: 8.5rem; text-align: left; }
+
+@media (max-width: 60rem) {
+  .date-group + .date-group { border-left: none; padding-left: 0; padding-top: 0.9rem; }
+}
 
 @media print {
   body { background: #fff; }
