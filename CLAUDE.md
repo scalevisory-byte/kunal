@@ -238,6 +238,13 @@ assistant. See `salary-app/README.md`.
   columns on the Employees table**, not just the profile drawer, and the card says how many
   people still have neither. Anyone whose day falls on the roll call's day also shows at the
   top of it (🎂 / 🎉 / 👋).
+- **A day with nothing on it explains itself.** Dinesh asked *"ye marked ka kya matlab hai,
+  ye data to absent present report se ya time in out report se aayega"* — the roll call was
+  listing all 74 names as "not marked yet", which reads as a fault rather than as an empty
+  month. Now, when **nobody** is marked, the lists are replaced by one line saying nothing is
+  guessed plus three buttons — import the punch file (Reports), mark the grid, type times —
+  and the month-level alert says the same thing instead of counting blank days. A day with
+  only a few gaps still names them.
 - **UI pass** — *"graphics looks UI bhi change karo, make it handsome"* then *"isko minimal
   banavo"*. `styles.css` was reworked, no framework and no new files: hairlines instead of
   borders, cards with no shadow, **stat tiles replaced by hairline-separated figures**, tabs

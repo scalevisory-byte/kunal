@@ -527,15 +527,25 @@ export default function Dashboard({
       text: `${sunday.unpaidCount} Sunday payments still to make — ${rupees(sunday.unpaid)}`,
       go: 'sunday',
     },
-    unmarkedPeople.length > 0 && {
-      key: 'unmarked',
-      tone: 'warn',
-      text: `${unmarkedPeople.length} people have no attendance marked at all${naming(
-        unmarkedPeople,
-        (r) => r.employee_name
-      )}`,
-      go: 'attendance',
-    },
+    unmarkedPeople.length > 0 &&
+      unmarkedPeople.length === rows.length && {
+        key: 'no-attendance',
+        tone: 'warn',
+        text:
+          'No attendance for this month yet — import the punch machine\u2019s file from Reports, ' +
+          'or mark the grid by hand. Until then the salary is a full month for everybody.',
+        go: 'reports',
+      },
+    unmarkedPeople.length > 0 &&
+      unmarkedPeople.length < rows.length && {
+        key: 'unmarked',
+        tone: 'warn',
+        text: `${unmarkedPeople.length} people have no attendance marked at all${naming(
+          unmarkedPeople,
+          (r) => r.employee_name
+        )}`,
+        go: 'attendance',
+      },
     attendance?.blank > 0 &&
       unmarkedPeople.length === 0 && {
         key: 'blank',
@@ -579,6 +589,10 @@ export default function Dashboard({
   ].filter(Boolean);
 
   const now = new Date();
+  // Nothing at all on this day is a different thing from a day with a few gaps
+  // in it: naming seventy-four people who have no mark is noise, and the useful
+  // answer is where attendance comes from in the first place.
+  const nothingMarked = rows.length > 0 && roll.unmarked.length === rows.length;
   const monthHasToday = now.getFullYear() === period.year && now.getMonth() + 1 === period.month;
   const isToday = monthHasToday && now.getDate() === shownDay;
 
@@ -653,9 +667,39 @@ export default function Dashboard({
           <Stat label="Late in" value={roll.late.length} plain go={onGo} to="time" />
           <Stat label="Early out" value={roll.early.length} plain go={onGo} to="time" />
           <Stat label="On overtime" value={roll.overtime.length} plain go={onGo} to="time" />
-          <Stat label="Not marked" value={roll.unmarked.length} plain go={onGo} to="attendance" />
+          <Stat
+            label="Not marked"
+            value={roll.unmarked.length}
+            plain
+            go={onGo}
+            to="attendance"
+          />
         </div>
 
+        {nothingMarked ? (
+          <div className="nothing-yet">
+            <p>
+              <strong>No attendance has come in for this day yet.</strong> Nothing here is
+              guessed — every figure above is counted off the marks and clock times against
+              each person, so until one of these happens the day is simply blank.
+            </p>
+            <div className="button-row">
+              <button className="primary" onClick={() => onGo('reports')}>
+                Import the punch machine's file
+              </button>
+              <button onClick={() => onGo('attendance')}>Mark attendance by hand</button>
+              <button onClick={() => onGo('time')}>Type in and out times</button>
+            </div>
+            <p className="muted small">
+              <strong>Reports → Attendance machine</strong> takes the eSSL or ZKTeco export
+              and turns it into present, absent, half day and short hours for every person and
+              every day in it — that is the one to use for a whole month at once.{' '}
+              <strong>Attendance</strong> is the grid, with <em>Mark everyone Present</em> for
+              a quick start. <strong>Time</strong> is for typing in, lunch and out by hand.
+            </p>
+          </div>
+        ) : (
+          <>
         <NameList
           label="Absent"
           list={roll.absent}
@@ -736,9 +780,9 @@ export default function Dashboard({
         {roll.clocked === 0 ? (
           <p className="muted small">
             Nobody clocked in on this day, so there is no way to say who was late — that
-            needs an <strong>In</strong> time on the <strong>Time</strong> tab or an import
-            from the punch machine. Overtime and short hours are still counted from the
-            minutes marked on the grid.
+            needs an <strong>In</strong> time, either typed on the <strong>Time</strong> tab
+            or imported from the punch machine under <strong>Reports</strong>. Overtime and
+            short hours are still counted from the minutes marked on the grid.
           </p>
         ) : (
           <p className="muted small">
@@ -746,6 +790,8 @@ export default function Dashboard({
             {roll.startsAt}, the usual start set on the Time tab, with {roll.grace} minutes'
             grace.
           </p>
+        )}
+          </>
         )}
       </div>
 

@@ -157,6 +157,17 @@ the last day anybody was marked on — and answers who is in:
 nobody clocked says so rather than reporting nobody late. A **half day, a leave, a holiday
 or an absence is never counted as late or early** — it was not a full day to begin with.
 
+**Nothing here is guessed.** Every figure is counted off the marks and clock times stored
+against each person, so a day nothing has arrived for reads *Not marked*, not *Present*.
+Attendance gets in three ways, and the roll call says so on a blank day rather than listing
+everybody as unmarked:
+
+| | |
+|---|---|
+| **Reports → Attendance machine** | the eSSL or ZKTeco export, a whole month at once |
+| **Attendance** | the grid, with *Mark everyone Present* for a quick start |
+| **Time** | in, lunch and out typed by hand |
+
 - **The money**, below it — staff, gross, deductions, net payable, paid and still to pay,
   with a line comparing this month against the one before: net, gross, headcount and days
   lost, each with the change and the percentage. Days lost is the one where up is bad, and

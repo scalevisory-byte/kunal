@@ -800,6 +800,16 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
 }
 .celebrate-item { white-space: nowrap; }
 
+.nothing-yet {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-top: 0.2rem;
+}
+.nothing-yet > p:first-child { margin: 0; }
+.nothing-yet .button-row { margin-top: 0.75rem; }
+.nothing-yet > p:last-child { margin-bottom: 0; }
+
 .dates-grid {
   display: grid;
   gap: 0 1.5rem;
