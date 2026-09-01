@@ -112,7 +112,7 @@ export default function App() {
         <div className="header-actions">
           {pushSupported() && !pushOn && (
             <button className="btn ghost" onClick={onEnablePush}>
-              Enable notifications
+              Notifications
             </button>
           )}
           <button className="btn ghost" onClick={() => refresh()} disabled={loading}>

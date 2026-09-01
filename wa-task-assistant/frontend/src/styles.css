@@ -91,6 +91,7 @@ h1 {
   letter-spacing: -.028em;
   margin: 0;
   line-height: 1.1;
+  white-space: nowrap;
 }
 .subtitle { display: none; }
 .header-actions { display: flex; gap: 7px; flex-shrink: 0; }
@@ -416,6 +417,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login h1 { font-size: 1.9rem; margin-bottom: 8px; }
 .login .subtitle { display: block; color: var(--muted); font-size: .9rem; margin: 0; }
 .login-form { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+
+/* Small phones: the header actions were squeezing the title onto two lines. */
+@media (max-width: 400px) {
+  .app { padding-left: 13px; padding-right: 13px; }
+  h1 { font-size: 1.3rem; }
+  .header-actions .btn { padding: 7px 10px; font-size: .75rem; }
+  .board-num { font-size: 1.65rem; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
