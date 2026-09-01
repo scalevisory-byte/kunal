@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
+import {
+  festivalNames,
+  fixedFestivalsIn,
+  matchFestival,
+  religionsToTick,
+} from '../../../shared/festivals.js';
 import { daysInMonth, weekday } from '../format.js';
 
 /**
@@ -15,6 +21,10 @@ import { daysInMonth, weekday } from '../format.js';
  * carries a record of why those days are paid, and so a festival can be
  * re-applied after somebody joins.
  */
+/** "Hindu, Jain and Sikh" rather than "Hindu and Jain and Sikh". */
+const listOut = (items, last = 'and') =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} ${last} ${items.at(-1)}`;
+
 export default function Festivals({ period, codes, employees, locked, onApplied }) {
   const [holidays, setHolidays] = useState([]);
   const [name, setName] = useState('');
@@ -38,6 +48,37 @@ export default function Festivals({ period, codes, employees, locked, onApplied 
   }, [employees]);
 
   const withoutReligion = employees.filter((e) => e.active && !e.religion).length;
+
+  /**
+   * What the name typed into the box turns out to be. The app cannot know that
+   * Bakri Eid is Muslim on its own, so shared/festivals.js says so, and the
+   * ticks follow the name - they can still be changed afterwards.
+   */
+  const known = useMemo(() => matchFestival(name), [name]);
+  const suggested = useMemo(
+    () => religionsToTick(known, religions.map(([r]) => r)),
+    [known, religions]
+  );
+
+  /**
+   * Setting the name also sets the ticks, and the date where the festival has
+   * one that does not move. Every other date is left blank on purpose: these
+   * follow the moon and shift by a fortnight between years, and a guessed date
+   * here would cost somebody a day's pay.
+   */
+  const pickName = (value) => {
+    setName(value);
+    const festival = matchFestival(value);
+    if (!festival) return;
+    setChosen(new Set(religionsToTick(festival, religions.map(([r]) => r)).tick));
+    if (festival.fixed?.month === period.month) setDay(String(festival.fixed.day));
+  };
+
+  /** The ones falling in this month whose date is genuinely fixed. */
+  const thisMonth = useMemo(
+    () => fixedFestivalsIn(period.month).filter((f) => !holidays.some((h) => h.day === f.fixed.day)),
+    [period.month, holidays]
+  );
 
   const load = async () => {
     try {
@@ -121,9 +162,17 @@ export default function Festivals({ period, codes, employees, locked, onApplied 
     <div className="card">
       <h2>Festivals & holidays — {period.label}</h2>
       <p className="muted small">
-        A festival is not a holiday for everyone. Add it once with the religions it covers, press
-        <strong> Apply</strong>, and those people get the day paid while the rest work as normal.
-        Leave every religion unticked and it covers the whole office.
+        A festival is not a holiday for everyone. Type the name and the religions it covers are
+        ticked for you — Diwali is Hindu, Bakri Eid is Muslim, Christmas is Christian — then
+        press <strong>Apply</strong> and those people get the day paid while the rest work as
+        normal. Change the ticks if your office does it differently, and leave them all off for
+        a day that covers everybody.
+      </p>
+      <p className="muted small">
+        <strong>The date is yours to set.</strong> Almost every festival follows the moon and
+        moves by a fortnight or more between years, so it is never guessed here. Only the ones
+        with a genuinely fixed date — the national holidays, Uttarayan, Christmas — fill it in
+        by themselves.
       </p>
 
       {!religions.length && (
@@ -133,14 +182,37 @@ export default function Festivals({ period, codes, employees, locked, onApplied 
         </p>
       )}
 
+      <datalist id="festival-names">
+        {festivalNames().map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+
+      {thisMonth.length > 0 && (
+        <p className="name-list small">
+          <span className="muted">Falls in {monthName}</span>
+          {thisMonth.map((festival) => (
+            <button
+              key={festival.name}
+              type="button"
+              className="ghost tiny name-item"
+              onClick={() => pickName(festival.name)}
+            >
+              {festival.name} <span className="muted">{festival.fixed.day} {monthName}</span>
+            </button>
+          ))}
+        </p>
+      )}
+
       <form className="festival-form" onSubmit={add}>
         <label>
           Festival
           <input
             required
+            list="festival-names"
             placeholder="e.g. Eid, Diwali, Christmas"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => pickName(e.target.value)}
           />
         </label>
         <label>
@@ -176,6 +248,37 @@ export default function Festivals({ period, codes, employees, locked, onApplied 
           ))}
           {!chosen.size && <span className="muted small">nothing ticked = everybody</span>}
         </div>
+        {known && (
+          <p className="festival-hint small">
+            {known.religions.length ? (
+              <>
+                <strong>{known.name}</strong> is a {listOut(known.religions)} festival — ticked
+                for you. Change it if your office does it differently.
+              </>
+            ) : (
+              <>
+                <strong>{known.name}</strong> is a holiday for everybody, so nothing is ticked.
+              </>
+            )}
+            {suggested.missing.length > 0 && (
+              <span className="muted">
+                {' '}Nobody on the list is marked {listOut(suggested.missing, 'or')}, so that
+                part covers nobody.
+              </span>
+            )}
+            {known.fixed ? (
+              known.fixed.month === period.month ? (
+                <span className="muted"> The date is fixed at {known.fixed.day} {monthName}.</span>
+              ) : (
+                <span className="muted"> It falls outside {monthName}.</span>
+              )
+            ) : (
+              <span className="muted">
+                {' '}The date moves every year, so it is not guessed — pick it yourself.
+              </span>
+            )}
+          </p>
+        )}
         <button className="primary" type="submit" disabled={locked || busy === 'add'}>
           Add festival
         </button>

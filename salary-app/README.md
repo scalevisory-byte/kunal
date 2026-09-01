@@ -101,10 +101,21 @@ search "Abdulhak" → tick → "Muslim" → Apply
 search "Sameer"   → tick → "Muslim" → Apply    …and so on
 ```
 
-**2. Festivals & holidays**, at the top of the attendance tab. Add the festival with its
-date and the religions it covers, press **Apply**, and Paid Holiday is written onto that
-day for exactly those people. Leave every religion unticked and it covers everybody — a
-shutdown, a strike.
+**2. Festivals & holidays**, at the top of the attendance tab. **Type the name and the
+religions tick themselves** — Diwali is Hindu, Bakri Eid is Muslim, Christmas is Christian,
+Mahavir Jayanti is Jain, Gurpurab is Sikh. Spelling does not matter much: *Deepavali*,
+*Bakrid*, *Ramzan Eid*, *Uttarayan* and *Gurpurab* all find the right one. Press **Apply**
+and Paid Holiday is written onto that day for exactly those people.
+
+The ticks are a starting point, not a rule — change them, or clear them all for a day that
+covers the whole office. Religions nobody on the staff list carries are named rather than
+ticked, so a festival never quietly applies to nobody.
+
+> **The date is never guessed.** Almost every festival on the list follows a lunar calendar
+> and moves by a fortnight or more between years, and a wrong date here costs somebody a
+> day's pay. Only the handful with a genuinely fixed date fill themselves in — Republic Day,
+> Independence Day, Gandhi Jayanti, Labour Day, Uttarayan and Christmas — and those are also
+> offered as a one-click row when they fall in the open month.
 
 They stay on a list rather than being marked and forgotten, so the month carries a record
 of why those days are paid, and **Apply again** catches up anyone who joined since.
@@ -531,6 +542,7 @@ salary-app/
   shared/sheet.js      reads an April-shaped sheet   (server and browser)
   shared/workbook.js   writes one back out           (server and browser)
   shared/timesheet.js  clock times, and the hours they come to
+  shared/festivals.js  which religion a festival belongs to
   shared/punches.js    a biometric export, turned into marks and times
   shared/statutory.js  the PF, ESI, PT and wage registers
   backend/

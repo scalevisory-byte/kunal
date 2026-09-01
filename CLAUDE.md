@@ -136,6 +136,17 @@ assistant. See `salary-app/README.md`.
   at the top of the Attendance tab; holidays persist as a list with `applied_at`, and
   "Apply again" is idempotent so a new joiner can be caught up.
 - Applying **overwrites** that day's marks, so it must run after "Mark everyone Present".
+- **`shared/festivals.js` knows which religion a festival belongs to** — Dinesh asked *"konse
+  religion ka festival hai kaise pata chalega"*, and until then the answer was "you tell it".
+  Typing the name now ticks the religions: ~40 festivals with aliases, so *Deepavali*,
+  *Bakrid*, *Ramzan Eid*, *Uttarayan*, *Gurpurab* all resolve. `religionsToTick` narrows to
+  religions actually on the staff list and names the rest, so a festival never silently
+  applies to nobody. Ticks stay editable — it is a starting point, not a rule.
+- **Dates are deliberately NOT guessed.** Lunar festivals move a fortnight or more between
+  years and a wrong date costs a day's pay, so only genuinely fixed ones carry `fixed`
+  (Republic Day, Independence Day, Gandhi Jayanti, Labour Day, Makar Sankranti, Christmas);
+  those also show as a one-click row when they fall in the open month. There is a test
+  asserting the lunar ones carry no date.
 - The column was briefly called `group_name`; the migration moves any values across.
 - Employees can be **ticked and given a religion in bulk** (`onBulkPatch` in App.jsx patches
   them all and reloads once, rather than reloading per employee). Setting 74 people takes

@@ -800,6 +800,14 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
 }
 .celebrate-item { white-space: nowrap; }
 
+.festival-hint {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--line-soft);
+  border-radius: 6px;
+}
+
 .nothing-yet {
   border: 1px dashed var(--line);
   border-radius: 8px;
