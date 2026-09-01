@@ -146,6 +146,12 @@ is entered twice.
 > fields, correctly worked out, in a spreadsheet you can read. Check a file against the
 > portal's own template before uploading it rather than trusting it blind.
 
+### Which file am I looking at?
+
+Every download of the standalone file lands as `SalarySheet (2).html`, `(3)` and so on, so
+the name says nothing. **The build date is next to the title** at the top left — that is how
+to tell an old copy from the newest one.
+
 ### The Dashboard
 
 The month on one screen, and the tab the app opens on.

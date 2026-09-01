@@ -32,6 +32,10 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_STANDALONE': JSON.stringify(String(standalone)),
       __SEED__: seed,
+      // Stamped into the page so a downloaded file can say how old it is.
+      // Every download lands as "SalarySheet (3).html" and so on, and there is
+      // no other way to tell one from the next.
+      __BUILT__: JSON.stringify(new Date().toISOString()),
     },
     server: {
       port: 5174,

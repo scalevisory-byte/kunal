@@ -256,6 +256,9 @@ assistant. See `salary-app/README.md`.
   guessed plus three buttons — import the punch file (Reports), mark the grid, type times —
   and the month-level alert says the same thing instead of counting blank days. A day with
   only a few gaps still names them.
+- **The build date is stamped next to the title** (`__BUILT__` from vite.config.js). Every
+  download lands as `SalarySheet (2).html`, `(3)`… so Dinesh had no way to tell which copy he
+  had open — he asked "kaha gya, nahi he" about a feature that was simply in a newer file.
 - **UI pass** — *"graphics looks UI bhi change karo, make it handsome"* then *"isko minimal
   banavo"*. `styles.css` was reworked, no framework and no new files: hairlines instead of
   borders, cards with no shadow, **stat tiles replaced by hairline-separated figures**, tabs

@@ -27,6 +27,23 @@ const TABS = [
 ];
 
 const PERIOD_KEY = 'salary-app-period';
+
+/**
+ * The date this file was built, stamped in by vite.config.js. Every download
+ * lands as "SalarySheet (2).html", "(3)" and so on, so there is otherwise no
+ * way to tell an old copy from the newest one.
+ */
+const BUILT_ON = (() => {
+  try {
+    return new Date(__BUILT__).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+})();
 const COMPANY_KEY = 'salary-app-company';
 
 export default function App() {
@@ -272,7 +289,12 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Salary Sheet</h1>
+        <h1>
+          Salary Sheet
+          <span className="built" title="When this file was built. Every download lands as SalarySheet (2), (3)… so this is how to tell which one you have open.">
+            {BUILT_ON}
+          </span>
+        </h1>
         <PeriodBar
           periods={periods}
           period={period}
