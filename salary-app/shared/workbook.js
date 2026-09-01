@@ -4,6 +4,7 @@ const HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F386
 const TOTAL_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCE6F1' } };
 const MONEY = '#,##0.00';
 const MONEY0 = '#,##0';
+const HOURS = '#,##0.00';
 const THIN = { style: 'thin', color: { argb: 'FFBFBFBF' } };
 const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
 
@@ -32,6 +33,7 @@ const CALC_COLUMNS = [
   { head: 'Salary / Day', get: (r) => r.per_day, money: MONEY },
   { head: 'Salary / Hour', get: (r) => r.per_hour, money: MONEY },
   { head: 'Salary / Minutes', get: (r) => r.per_minute, money: MONEY },
+  { head: 'Hours Worked', get: (r) => round2((r.worked_minutes || 0) / 60), money: HOURS },
   { head: 'OT/LT In Minutes', get: (r) => r.ot_minutes },
   { head: 'OT/LT Salary', get: (r) => r.ot_salary, money: MONEY0 },
   { head: 'Addition', get: (r) => r.addition, money: MONEY0 },

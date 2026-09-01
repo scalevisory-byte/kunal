@@ -41,7 +41,7 @@ reportsRouter.get('/periods/:id/export.csv', (req, res) => {
     ['Company', 'company_name'], ['Employee', 'employee_name'], ['Working Days', 'working_days'],
     ['Sunday', 'sundays_worked'], ['Absent Days', 'absent_days'], ['Present Days', 'present_days'],
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
-    ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
+    ['Hours Worked', 'worked_hours'], ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
     ['Addition', 'addition'], ['Deduction', 'deduction'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
@@ -53,7 +53,11 @@ reportsRouter.get('/periods/:id/export.csv', (req, res) => {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [columns.map(([label]) => label).join(',')];
-  for (const row of payroll.rows) lines.push(columns.map(([, key]) => escape(row[key])).join(','));
+  const withHours = payroll.rows.map((row) => ({
+    ...row,
+    worked_hours: Math.round(((row.worked_minutes || 0) / 60) * 100) / 100,
+  }));
+  for (const row of withHours) lines.push(columns.map(([, key]) => escape(row[key])).join(','));
 
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="Salary-${slug(payroll.period.label)}.csv"`);

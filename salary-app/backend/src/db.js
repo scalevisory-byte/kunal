@@ -104,12 +104,18 @@ db.exec(`
 
   -- minutes is that day's short hours (negative) or overtime (positive).
   -- A day can carry minutes with no mark, and a mark with no minutes.
+  -- The four clock times are what the Time tab records; the minutes above are
+  -- worked out from them, or typed directly when nobody clocked the day.
   CREATE TABLE IF NOT EXISTS attendance (
     period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     day         INTEGER NOT NULL,
     code        TEXT NOT NULL DEFAULT '',
     minutes     REAL NOT NULL DEFAULT 0,
+    in_time     TEXT,
+    lunch_out   TEXT,
+    lunch_in    TEXT,
+    out_time    TEXT,
     PRIMARY KEY (period_id, employee_id, day)
   );
 
@@ -163,6 +169,12 @@ const attendanceColumns = new Set(db.prepare(`PRAGMA table_info(attendance)`).al
 if (!attendanceColumns.has('minutes')) {
   db.exec(`ALTER TABLE attendance ADD COLUMN minutes REAL NOT NULL DEFAULT 0`);
   log.info('Migrated attendance table: added per-day minutes.');
+}
+if (!attendanceColumns.has('in_time')) {
+  for (const column of ['in_time', 'lunch_out', 'lunch_in', 'out_time']) {
+    db.exec(`ALTER TABLE attendance ADD COLUMN ${column} TEXT`);
+  }
+  log.info('Migrated attendance table: added in/lunch/out times.');
 }
 
 // ot_minutes was NOT NULL DEFAULT 0 and named without the _override suffix. It
@@ -877,6 +889,9 @@ export function listReligions() {
 
 /* ---------------- attendance ---------------- */
 
+/** The clock-time columns on an attendance row, in the order they happen. */
+const TIME_COLUMNS = ['in_time', 'lunch_out', 'lunch_in', 'out_time'];
+
 export function listAttendance(periodId, { company_id } = {}) {
   const params = [periodId];
   let filter = '';
@@ -886,7 +901,8 @@ export function listAttendance(periodId, { company_id } = {}) {
   }
   return db
     .prepare(
-      `SELECT a.employee_id, a.day, a.code, a.minutes
+      `SELECT a.employee_id, a.day, a.code, a.minutes,
+              a.in_time, a.lunch_out, a.lunch_in, a.out_time
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
@@ -898,16 +914,32 @@ export function attendanceByEmployee(periodId, opts) {
   const map = new Map();
   for (const row of listAttendance(periodId, opts)) {
     if (!map.has(row.employee_id)) map.set(row.employee_id, {});
-    map.get(row.employee_id)[row.day] = { code: row.code || '', minutes: row.minutes || 0 };
+    map.get(row.employee_id)[row.day] = {
+      code: row.code || '',
+      minutes: row.minutes || 0,
+      in_time: row.in_time || '',
+      lunch_out: row.lunch_out || '',
+      lunch_in: row.lunch_in || '',
+      out_time: row.out_time || '',
+    };
   }
   return map;
 }
 
 export const setAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
-    `INSERT INTO attendance (period_id, employee_id, day, code, minutes) VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO attendance
+       (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time)
+     VALUES (@period_id, @employee_id, @day, @code, @minutes,
+             @in_time, @lunch_out, @lunch_in, @out_time)
      ON CONFLICT(period_id, employee_id, day)
-     DO UPDATE SET code = excluded.code, minutes = excluded.minutes`
+     DO UPDATE SET code = excluded.code, minutes = excluded.minutes,
+                   in_time = excluded.in_time, lunch_out = excluded.lunch_out,
+                   lunch_in = excluded.lunch_in, out_time = excluded.out_time`
+  );
+  const existing = db.prepare(
+    `SELECT in_time, lunch_out, lunch_in, out_time FROM attendance
+     WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
   const remove = db.prepare(
     `DELETE FROM attendance WHERE period_id = ? AND employee_id = ? AND day = ?`
@@ -918,9 +950,26 @@ export const setAttendance = db.transaction((periodId, entries) => {
     const code = String(entry.code || '').trim().toUpperCase();
     const minutes = Number(entry.minutes) || 0;
     if (!employeeId || !day) continue;
-    // A day with neither a mark nor minutes has nothing left to record.
-    if (code || minutes) upsert.run(periodId, employeeId, day, code, minutes);
-    else remove.run(periodId, employeeId, day);
+
+    // The grid saves marks, the Time tab saves clock times and the punch import
+    // saves in and out, all through here. Each time column is only touched by
+    // an entry that actually names it, so marking somebody Present never wipes
+    // their hours and an import that knows nothing about lunch leaves the
+    // lunch that was typed. Naming one with an empty value clears it.
+    const stored = existing.get(periodId, employeeId, day);
+    const times = {};
+    for (const column of TIME_COLUMNS) {
+      const value = column in entry ? entry[column] : stored?.[column];
+      times[column] = value === undefined || value === null || value === '' ? null : String(value);
+    }
+    const anyTime = TIME_COLUMNS.some((c) => times[c]);
+
+    // A day with no mark, no minutes and no times has nothing left to record.
+    if (code || minutes || anyTime) {
+      upsert.run({ period_id: periodId, employee_id: employeeId, day, code, minutes, ...times });
+    } else {
+      remove.run(periodId, employeeId, day);
+    }
   }
   return entries.length;
 });

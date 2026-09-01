@@ -185,6 +185,32 @@ assistant. See `salary-app/README.md`.
   deductions, so `gross - deductions = net` still balances.
 - `Payslip.jsx` **recomputes with `calculateRow`** rather than reading the row the server
   stored — it was showing stale numbers, and it was double-counting the deduction.
+- **Time tab** (`TimeSheet.jsx`) — Dinesh asked for "in out lunch in lunch out time dale ne
+  k liye time wala tab, total working hours k saath". The four clock times live on the
+  **attendance row itself** (`in_time`/`lunch_out`/`lunch_in`/`out_time`, with a migration),
+  not a separate table, so a day is one record. `shared/timesheet.js` parses what people
+  actually type (`9:30`, `930`, `9.30`, `9`, `6pm`, `18:30`), handles a shift crossing
+  midnight, and turns `out − in − lunch` into that day's `OT/LT` minutes — the same column
+  the salary sheet already pays from, so hours become money with nothing else touched.
+  `TIME_RULES` (4½ h half-day line, 15 min grace) is **shared with `punches.js`**, so a day
+  typed by hand and a day read off the biometric machine are judged identically; the punch
+  import now also writes `in_time`/`out_time` so imported days show on the tab.
+- **`setAttendance` merges times per field.** An entry only touches a time column it names,
+  so "Mark everyone Present" (which sends code+minutes) never wipes typed hours, and the
+  punch import (which sends in+out) never wipes a typed lunch. Naming one with `''` clears
+  it. There is an API test for exactly this.
+- The mark is only auto-set to P/HF when the day is blank or carries a plain P/A/HF —
+  leave, a holiday or a Sunday keeps its own mark and just records the hours. A day under
+  4½ h is HF and its short hours are **not** deducted as well (it is already paid at half).
+- `calculateRow` gained **`worked_minutes`**, so the month's clock hours ride into the
+  Excel export and the CSV as an **Hours Worked** column.
+- **Dashboard tab** (`Dashboard.jsx`), asked for as "dashboard do alag se" — and it is now
+  the tab the app opens on. Headline money, a **Needs attention** list (unpaid salaries,
+  unpaid Sundays, unmarked days, over-quota leave, missing UAN/ESIC, holds), and cards for
+  attendance / hours / Sunday / statutory, plus a by-company table. Every figure calls
+  `onGo(tab)` to open where it came from. It computes nothing of its own — same rows, same
+  `calculateRow`, same `statutoryReport` — and groups companies from the **visible** rows so
+  the company filter narrows it like every other tab.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard

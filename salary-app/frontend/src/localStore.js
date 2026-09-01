@@ -12,6 +12,7 @@ import { parseSheet, listSheetNames } from '../../shared/sheet.js';
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
 import { buildWorkbook } from '../../shared/workbook.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
+import { TIME_FIELDS, parseTime } from '../../shared/timesheet.js';
 
 /**
  * The standalone build's data layer.
@@ -31,7 +32,7 @@ const EMPTY = {
   employees: [],
   periods: [],
   payroll_rows: [],
-  attendance: [], // { period_id, employee_id, day, code, minutes }
+  attendance: [], // { period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time }
   holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
   loans: [], // { id, employee_id, amount, instalment, given_on, reason, status }
   repayments: [], // { loan_id, period_id, amount }
@@ -162,7 +163,14 @@ function attendanceFor(periodId, employeeId) {
   const marks = {};
   for (const a of load().attendance) {
     if (a.period_id !== periodId || a.employee_id !== employeeId) continue;
-    marks[a.day] = { code: a.code || '', minutes: a.minutes || 0 };
+    marks[a.day] = {
+      code: a.code || '',
+      minutes: a.minutes || 0,
+      in_time: a.in_time || '',
+      lunch_out: a.lunch_out || '',
+      lunch_in: a.lunch_in || '',
+      out_time: a.out_time || '',
+    };
   }
   return marks;
 }
@@ -630,12 +638,13 @@ export async function handle(method, path, body) {
         const index = db.attendance.findIndex(
           (a) => a.period_id === period.id && a.employee_id === person.id && a.day === holiday.day
         );
+        // Only the mark changes - the day's minutes and clock times stay.
         const record = {
+          ...(index >= 0 ? db.attendance[index] : { minutes: 0 }),
           period_id: period.id,
           employee_id: person.id,
           day: holiday.day,
           code: holiday.code,
-          minutes: index >= 0 ? db.attendance[index].minutes || 0 : 0,
         };
         if (index >= 0) db.attendance[index] = record;
         else db.attendance.push(record);
@@ -718,6 +727,15 @@ export async function handle(method, path, body) {
           throw new HttpError(400, `unknown attendance code(s): ${[...new Set(unknown)].join(', ')}`);
         }
         for (const entry of entries) {
+          for (const field of TIME_FIELDS) {
+            const value = entry[field];
+            if (value === undefined || value === null || value === '') continue;
+            if (parseTime(value) === null) {
+              throw new HttpError(400, `${field.replace('_', ' ')} is not a time: ${value}`);
+            }
+          }
+        }
+        for (const entry of entries) {
           const employeeId = Number(entry.employee_id);
           const day = Number(entry.day);
           const code = String(entry.code || '').trim().toUpperCase();
@@ -726,8 +744,19 @@ export async function handle(method, path, body) {
           const index = db.attendance.findIndex(
             (a) => a.period_id === period.id && a.employee_id === employeeId && a.day === day
           );
-          if (code || minutes) {
-            const record = { period_id: period.id, employee_id: employeeId, day, code, minutes };
+          // Each time is only touched by an entry that names it, so marking
+          // somebody Present on the grid never wipes the hours typed on the
+          // Time tab, and an import that knows nothing about lunch leaves the
+          // lunch alone. Naming one with an empty value clears it.
+          const stored = index >= 0 ? db.attendance[index] : null;
+          const times = {};
+          for (const field of TIME_FIELDS) {
+            const value = field in entry ? entry[field] : stored?.[field];
+            times[field] = value === undefined || value === null ? '' : String(value);
+          }
+          const anyTime = TIME_FIELDS.some((f) => times[f]);
+          if (code || minutes || anyTime) {
+            const record = { period_id: period.id, employee_id: employeeId, day, code, minutes, ...times };
             if (index >= 0) db.attendance[index] = record;
             else db.attendance.push(record);
           } else if (index >= 0) {
@@ -806,7 +835,9 @@ export async function upload(path, formData) {
         const index = db.attendance.findIndex(
           (a) => a.period_id === period.id && a.employee_id === entry.employee_id && a.day === entry.day
         );
-        const record = { period_id: period.id, ...entry };
+        // The machine is authoritative for the mark, the minutes and the in and
+        // out times; anything it does not carry (a typed lunch) stays.
+        const record = { ...(index >= 0 ? db.attendance[index] : {}), period_id: period.id, ...entry };
         if (index >= 0) db.attendance[index] = record;
         else db.attendance.push(record);
       }
@@ -969,7 +1000,7 @@ export async function file(path) {
     ['Company', 'company_name'], ['Employee', 'employee_name'], ['Working Days', 'working_days'],
     ['Sunday', 'sundays_worked'], ['Absent Days', 'absent_days'], ['Present Days', 'present_days'],
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
-    ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
+    ['Hours Worked', 'worked_hours'], ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
     ['Addition', 'addition'], ['Deduction', 'deduction'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
@@ -977,7 +1008,11 @@ export async function file(path) {
     ['Mode', 'payment_mode'], ['Status', 'status'],
   ];
   const lines = [columns.map(([label]) => label).join(',')];
-  for (const row of payroll.rows) lines.push(columns.map(([, key]) => escape(row[key])).join(','));
+  const withHours = payroll.rows.map((row) => ({
+    ...row,
+    worked_hours: Math.round(((row.worked_minutes || 0) / 60) * 100) / 100,
+  }));
+  for (const row of withHours) lines.push(columns.map(([, key]) => escape(row[key])).join(','));
   return new Blob([`﻿${lines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
 }
 

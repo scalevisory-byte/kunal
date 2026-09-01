@@ -32,6 +32,8 @@
  * OT amount, sunday salary), this module takes an override instead.
  */
 
+import { monthTotals } from './timesheet.js';
+
 /**
  * Attendance marks. P, A, HF, AD, PH, SP, HP, WH and S come from the legend in
  * columns BI/BJ of the sheet. The leave marks were added on top, because the
@@ -254,6 +256,11 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     pf: round2(pf),
     loan_deduction: round2(loan),
     net_salary: netSalary,
+    // Clock hours typed on the Time tab, or read off the punch machine. They
+    // do not price the month on their own - the day's short hours already went
+    // into ot_minutes above - but the total is what a wage-hour question is
+    // actually asking, so it travels with the row into the export.
+    worked_minutes: round0(monthTotals(Object.values(attendance || {})).worked),
     sunday_salary: round0(sundaySalary),
     // Sunday pay is settled on its own register, so it is deliberately NOT
     // added here - the month's salary and the Sunday duty are paid apart,

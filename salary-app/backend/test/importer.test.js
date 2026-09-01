@@ -112,6 +112,7 @@ test('the exported workbook has the grid, the calculation columns and a legend',
   assert.ok(!header.includes('Sunday Salary'), 'no Sunday amount on the monthly sheet');
   assert.ok(!header.includes('Final Payable'), 'net payable is the last money column');
   assert.ok(header.includes('Sunday'), 'the count of Sundays worked still is');
+  assert.ok(header.includes('Hours Worked'), 'clock hours travel with the month');
   assert.equal(ws.getRow(3).getCell(4).value, 1, 'the day strip starts at 1');
   assert.equal(ws.getRow(3).getCell(33).value, 30, 'June has 30 days');
 

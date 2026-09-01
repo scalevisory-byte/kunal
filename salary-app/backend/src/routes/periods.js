@@ -19,6 +19,7 @@ import {
 } from '../db.js';
 import { buildPayroll, buildPayslip } from '../payroll.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import { TIME_FIELDS, parseTime } from '../../../shared/timesheet.js';
 
 export const periodsRouter = Router();
 
@@ -118,6 +119,17 @@ periodsRouter.post('/:id/attendance', (req, res) => {
     (e) => e.minutes !== undefined && e.minutes !== null && e.minutes !== '' && !Number.isFinite(Number(e.minutes))
   );
   if (badMinutes.length) return res.status(400).json({ error: 'minutes must be a number' });
+  // Clock times are stored as typed, so anything unreadable is rejected here
+  // rather than sitting in the database as a blank hour.
+  for (const entry of entries) {
+    for (const field of TIME_FIELDS) {
+      const value = entry[field];
+      if (value === undefined || value === null || value === '') continue;
+      if (parseTime(value) === null) {
+        return res.status(400).json({ error: `${field.replace('_', ' ')} is not a time: ${value}` });
+      }
+    }
+  }
   res.json({ saved: setAttendance(period.id, entries) });
 });
 

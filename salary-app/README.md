@@ -4,8 +4,10 @@ A payroll app built to match the **April tab of `Salary_Sheet_2627.xlsx`** — t
 columns, the same formulas, the same attendance codes — so the numbers it produces can
 be checked against the sheet it replaces.
 
-It keeps the employee master, a month-by-month attendance grid, and the full salary
-calculation, and it exports back out to Excel in the same layout.
+It keeps the employee master, a month-by-month attendance grid, in/lunch/out times with
+the hours they come to, and the full salary calculation, and it exports back out to Excel
+in the same layout. A **Dashboard** puts the month's headline numbers and anything that
+needs attention on one screen.
 
 ---
 
@@ -133,6 +135,48 @@ is entered twice.
 > fields, correctly worked out, in a spreadsheet you can read. Check a file against the
 > portal's own template before uploading it rather than trusting it blind.
 
+### The Time tab — in, lunch, out
+
+The attendance grid says whether somebody was here; the **Time** tab says for how long. Each
+day carries four clock times — **In**, **Lunch out**, **Lunch in**, **Out** — and the hours
+fall out of them:
+
+```
+worked = out − in − lunch break
+```
+
+Type them however you like: `9:30`, `930`, `9.30`, `9`, `6pm` and `18:30` all land on the
+same minute, and the box tidies itself to `HH:MM` when you leave it. A shift that ends
+before it started is read as finishing after midnight rather than as a negative day.
+
+Two views, because they answer different questions:
+
+- **One day, everybody** — a date, and every employee's times on it, with each person's
+  hours for the month so far beside them.
+- **One person, whole month** — one employee down the calendar, with the month's total.
+
+**Fill the usual timings** puts your standard day onto every blank row on screen and leaves
+anything already typed alone. The timings are yours to set (**change**) and are remembered
+in that browser.
+
+What the hours do to the pay:
+
+| Worked | What happens |
+|---|---|
+| Within a few minutes of the day's hours | Nothing — the grace is 15 minutes |
+| Short of them, past the grace | The shortfall goes into that day's `OT/LT` minutes and is deducted |
+| Over them, past the grace | The excess goes in as overtime and is paid |
+| Under 4½ hours | Marked `HF` and paid at half — the missing hours are **not** charged again |
+
+The mark is only set to `P` or `HF` when the day has nothing on it, or carries a plain
+`P`/`A`/`HF`. A day marked as leave, a holiday or a Sunday keeps its own mark and simply
+records what was worked on it.
+
+The times and the marks are stored on the same row, so **marking somebody Present on the
+grid never wipes their hours**, and typing hours never disturbs a mark that was set on
+purpose. The month's total travels with the row into the Excel export and the CSV as
+**Hours Worked**.
+
 ### Punches from the attendance machine
 
 **Reports → Attendance machine** brings a biometric export into the grid. eSSL, ZKTeco and
@@ -149,9 +193,14 @@ run says exactly what it would do, and only then is anything written.
 | Worked over | `P` with overtime minutes |
 
 One row per punch works as well as one row per day — the earliest time of a day is taken as
-the arrival and the latest as the departure. Names that are not on the staff list are
-listed back rather than guessed at; the machine's own code can be matched on instead, by
-putting it in each employee's **Code**.
+the arrival and the latest as the departure, and both are written to the **Time** tab as
+that day's in and out, so an imported day reads exactly like one typed by hand. A lunch
+break typed by hand is left alone, since these reports rarely carry one. Names that are not
+on the staff list are listed back rather than guessed at; the machine's own code can be
+matched on instead, by putting it in each employee's **Code**.
+
+The half-day line and the grace are the same numbers the Time tab uses, so a day read off
+the machine and a day typed in are worth exactly the same.
 
 This is a file import, not a live link. A real-time feed needs a server the machine can
 reach, which is a different piece of work.
@@ -361,6 +410,10 @@ it — deleting takes its employees and their months with it, and says so first.
 
 ### First run
 
+The **Dashboard** is where the app opens: what the month costs, what is still to pay, and a
+**Needs attention** list — unpaid salaries, unmarked days, missing UAN or ESIC numbers,
+anyone over their leave. Every figure on it opens the tab it came from.
+
 1. **Employees** → check the staff list. If the file was built with a seed they are
    already there; otherwise add a company and its employees, or import the existing
    sheet from **Reports**.
@@ -371,14 +424,17 @@ it — deleting takes its employees and their months with it, and says so first.
    once (Sundays as S), then mark the exceptions: click a day and pick the mark by name,
    or type its code. **Fill blanks…** on the right does one row at a time. The absent, paid-leave,
    unpaid-leave and Sunday counts update as you go and save on their own.
-5. **Salary sheet** → the calculated month. Type into OT, **Add**, **Deduct**, ESI or PF and
+5. **Time** → in, lunch out, lunch in and out for whoever clocks their hours. Worked
+   hours and the day's short time or overtime fall out of them; **Fill the usual timings**
+   does a whole screen at once. Skip this tab entirely if nobody is on the clock.
+6. **Salary sheet** → the calculated month. Type into OT, **Add**, **Deduct**, ESI or PF and
    the row and the totals move immediately. Boxes outlined in orange are typed over a
    formula — empty them to hand the column back.
-6. **Sunday** → anyone who worked a Sunday or holiday, with the amount and its own
+7. **Sunday** → anyone who worked a Sunday or holiday, with the amount and its own
    Paid by / Status. This is where Sunday duty is paid; it is not on the salary sheet.
-7. **Reports** → download the Excel or CSV, or the payment list of everyone still
+8. **Reports** → download the Excel or CSV, or the payment list of everyone still
    unpaid. Click a name on the salary sheet for a printable payslip.
-8. **Lock** the month once it is paid, so nothing can be edited by accident.
+9. **Lock** the month once it is paid, so nothing can be edited by accident.
 
 ---
 
@@ -409,6 +465,9 @@ salary-app/
                        dashboard, so the browser recalculates with the same code
   shared/sheet.js      reads an April-shaped sheet   (server and browser)
   shared/workbook.js   writes one back out           (server and browser)
+  shared/timesheet.js  clock times, and the hours they come to
+  shared/punches.js    a biometric export, turned into marks and times
+  shared/statutory.js  the PF, ESI, PT and wage registers
   backend/
     src/db.js          SQLite schema and queries
     src/payroll.js     joins rows + attendance through the engine
@@ -419,6 +478,8 @@ salary-app/
     localStore.js                the standalone build's data layer (localStorage)
     components/SalarySheet.jsx   the calculation sheet
     components/Attendance.jsx    the day grid
+    components/TimeSheet.jsx     in / lunch / out and the hours
+    components/Dashboard.jsx     the month at a glance
     components/Employees.jsx     the master
     components/Reports.jsx       totals, downloads, import
     components/Payslip.jsx       printable slip

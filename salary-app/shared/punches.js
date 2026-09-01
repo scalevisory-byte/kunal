@@ -11,6 +11,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
+import { TIME_RULES, formatTime } from './timesheet.js';
 
 /* ---------------- reading whatever was uploaded ---------------- */
 
@@ -145,11 +146,9 @@ export function minutesOfDay(value) {
 /* ---------------- the rules ---------------- */
 
 export const DEFAULT_RULES = {
-  // Anything under this counts as a half day rather than a full one.
-  halfDayHours: 4.5,
-  // Short hours are only recorded once they pass this, so a minute or two late
-  // does not turn into a deduction.
-  graceMinutes: 15,
+  // halfDayHours and graceMinutes come from timesheet.js, so a day read off
+  // the machine and a day typed on the Time tab are judged the same way.
+  ...TIME_RULES,
   // Whether to write the shortfall into the day's minutes at all.
   countShortHours: true,
   // What to write when somebody has no punch on a working day.
@@ -257,7 +256,18 @@ export function punchesToMarks({ rows, mapping, rules, employees, period }) {
     }
 
     if (!ATTENDANCE_CODES[code]) continue;
-    entries.push({ employee_id: seen.employee.id, day: seen.day, code, minutes });
+    // The arrival and departure go through as clock times too, so an imported
+    // day shows on the Time tab exactly like one typed by hand. Lunch is left
+    // out: these reports rarely carry it, and naming it here would wipe a
+    // lunch somebody had already typed.
+    entries.push({
+      employee_id: seen.employee.id,
+      day: seen.day,
+      code,
+      minutes,
+      in_time: seen.in === null ? '' : formatTime(seen.in),
+      out_time: seen.out === null ? '' : formatTime(seen.out),
+    });
   }
 
   return {

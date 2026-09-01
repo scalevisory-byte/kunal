@@ -193,6 +193,59 @@ test('overrides and deductions save, and blanking an override restores the formu
   assert.equal(body.rows[0].overrides.absent_days, false);
 });
 
+test('clock times save, work out the day, and survive a mark being set', async () => {
+  const saved = await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      {
+        employee_id: employeeId,
+        day: 20,
+        in_time: '09:30',
+        lunch_out: '13:00',
+        lunch_in: '13:45',
+        out_time: '18:30',
+        code: 'P',
+        minutes: -45,
+      },
+    ],
+  });
+  assert.equal(saved.status, 200);
+
+  const { body } = await api('GET', `/api/periods/${periodId}/attendance`);
+  const day = body.employees.find((e) => e.employee_id === employeeId).attendance[20];
+  assert.equal(day.in_time, '09:30');
+  assert.equal(day.lunch_in, '13:45');
+  assert.equal(day.minutes, -45, 'eight and a quarter hours against nine');
+
+  // The grid saves marks without ever mentioning the times. They must stay.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: employeeId, day: 20, code: 'PH', minutes: 0 }],
+  });
+  const after = await api('GET', `/api/periods/${periodId}/attendance`);
+  const stillThere = after.body.employees.find((e) => e.employee_id === employeeId).attendance[20];
+  assert.equal(stillThere.code, 'PH', 'the new mark took');
+  assert.equal(stillThere.in_time, '09:30', 'and the hours are still on the day');
+  assert.equal(stillThere.out_time, '18:30');
+
+  // Naming a time with nothing in it is how one is cleared.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: employeeId, day: 20, code: '', minutes: 0, in_time: '', lunch_out: '', lunch_in: '', out_time: '' }],
+  });
+  const cleared = await api('GET', `/api/periods/${periodId}/attendance`);
+  assert.equal(
+    cleared.body.employees.find((e) => e.employee_id === employeeId).attendance[20],
+    undefined,
+    'a day with no mark, no minutes and no times is gone'
+  );
+});
+
+test('an unreadable clock time is refused rather than stored as a blank hour', async () => {
+  const bad = await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: employeeId, day: 21, in_time: 'morning' }],
+  });
+  assert.equal(bad.status, 400);
+  assert.match(bad.body.error, /in time is not a time/);
+});
+
 test('the Sunday register records its own payment, apart from the salary', async () => {
   await api('POST', `/api/periods/${periodId}/attendance`, {
     entries: [

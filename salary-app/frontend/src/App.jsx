@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AuthError, STANDALONE, api, clearToken, getToken, setToken } from './api.js';
 import Attendance from './components/Attendance.jsx';
+import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
 import Festivals from './components/Festivals.jsx';
 import Leave from './components/Leave.jsx';
@@ -11,10 +12,13 @@ import PeriodBar from './components/PeriodBar.jsx';
 import Reports from './components/Reports.jsx';
 import SalarySheet from './components/SalarySheet.jsx';
 import SundayRegister from './components/SundayRegister.jsx';
+import TimeSheet from './components/TimeSheet.jsx';
 
 const TABS = [
+  ['dashboard', 'Dashboard'],
   ['sheet', 'Salary sheet'],
   ['attendance', 'Attendance'],
+  ['time', 'Time'],
   ['sunday', 'Sunday'],
   ['leave', 'Leave'],
   ['loans', 'Loans'],
@@ -30,7 +34,7 @@ export default function App() {
   const [authed, setAuthed] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  const [tab, setTab] = useState('sheet');
+  const [tab, setTab] = useState('dashboard');
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState(Number(localStorage.getItem(PERIOD_KEY)) || null);
   const [payroll, setPayroll] = useState(null);
@@ -327,11 +331,21 @@ export default function App() {
       )}
 
       <main>
-        {!period && tab !== 'employees' && (
+        {!period && tab !== 'employees' && tab !== 'dashboard' && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
             employees, or import last month's sheet from <strong>Reports</strong>.
           </p>
+        )}
+
+        {tab === 'dashboard' && (
+          <Dashboard
+            period={period}
+            payroll={payroll && { ...payroll, rows: visibleRows }}
+            employees={employees}
+            companyName={companies.find((c) => c.id === companyId)?.name || ''}
+            onGo={setTab}
+          />
         )}
 
         {tab === 'sheet' && period && payroll && (
@@ -363,6 +377,15 @@ export default function App() {
               onSave={saveAttendance}
             />
           </div>
+        )}
+
+        {tab === 'time' && period && payroll && (
+          <TimeSheet
+            period={period}
+            rows={visibleRows}
+            locked={locked}
+            onSave={saveAttendance}
+          />
         )}
 
         {tab === 'sunday' && period && payroll && (

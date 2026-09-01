@@ -574,6 +574,42 @@ table.kv th, table.kv td { border: 1px solid var(--line); padding: 0.35rem 0.5re
 table.kv th { background: var(--bg); font-weight: 600; width: 8rem; }
 .totals-table { margin-top: 0.5rem; }
 
+/* ---- the Time tab ---- */
+
+table.timesheet .time-input { width: 4.2rem; text-align: center; }
+table.timesheet td { vertical-align: middle; }
+table.timesheet .sticky-name .hint { text-align: left; }
+table.timesheet tr.sunday-row td { background: color-mix(in srgb, var(--bad) 6%, transparent); }
+
+/* ---- the dashboard ---- */
+
+.dash-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.dashboard h2 { display: flex; align-items: center; gap: 0.5rem; font-size: 1rem; margin: 0 0 0.7rem; }
+.dashboard .card > p:last-child { margin-bottom: 0; }
+.stat-sub { font-size: 0.7rem; }
+button.stat-link {
+  font: inherit;
+  text-align: left;
+  background: var(--surface);
+  cursor: pointer;
+}
+button.stat-link:hover { border-color: var(--brand); }
+
+.alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.alerts li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+}
+.alerts li span { flex: 1 1 auto; }
+.alerts li.warn { border-left-color: var(--warn); }
+.alerts li.bad { border-left-color: var(--bad); }
+
 @media print {
   body { background: #fff; }
   header, .tabs, .no-print, .error.banner { display: none !important; }
