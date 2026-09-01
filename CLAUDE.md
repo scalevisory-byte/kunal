@@ -211,6 +211,18 @@ assistant. See `salary-app/README.md`.
   `onGo(tab)` to open where it came from. It computes nothing of its own — same rows, same
   `calculateRow`, same `statutoryReport` — and groups companies from the **visible** rows so
   the company filter narrows it like every other tab.
+- **Dashboard, second pass** ("dashboard alag se banavo and then other details"): a
+  month-on-month comparison strip, a six-month **trend** of net payable (hand-drawn bars, no
+  charting library, clicking one switches month), **People** (joined/left/birthdays/work
+  anniversaries off the master), **Worth a look** (most days lost, most hours short, most
+  overtime), **How it goes out** (payment-mode split, `Gpay`/`GPAY` folded together), and
+  **Filing** (PF/ESI/PT with the usual Gujarat dates, stated as a reminder and captioned as
+  one). The alerts now name the first few people behind each count.
+- **`GET /periods/:id/payroll` gained `?sync=false`.** Reading a month normally runs
+  `syncPayrollRows` + `postRepayments`, so the dashboard fetching five past months for the
+  trend would have backdated today's new hires into them and taken loan instalments out of
+  closed months. The trend passes `sync=false` for every month but the current one; there is
+  an API test.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard

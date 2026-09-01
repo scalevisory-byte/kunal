@@ -246,6 +246,29 @@ test('an unreadable clock time is refused rather than stored as a blank hour', a
   assert.match(bad.body.error, /in time is not a time/);
 });
 
+test('reading a month with sync=false does not pull new staff into it', async () => {
+  // A closed month, read only to be looked at - the dashboard's trend does
+  // exactly this - must come back as it was, not as it would be today.
+  const before = await api('GET', `/api/periods/${periodId}/payroll`);
+  const had = before.body.rows.length;
+
+  const company = before.body.rows[0].company_id;
+  const hire = await api('POST', '/api/employees', {
+    company_id: company,
+    name: 'Joined Later',
+    monthly_salary: 20000,
+  });
+  assert.equal(hire.status, 201);
+
+  const readOnly = await api('GET', `/api/periods/${periodId}/payroll?sync=false`);
+  assert.equal(readOnly.body.rows.length, had, 'the new hire is not backdated into the month');
+
+  const normal = await api('GET', `/api/periods/${periodId}/payroll`);
+  assert.equal(normal.body.rows.length, had + 1, 'and a normal read still picks them up');
+
+  await api('DELETE', `/api/employees/${hire.body.id}`);
+});
+
 test('the Sunday register records its own payment, apart from the salary', async () => {
   await api('POST', `/api/periods/${periodId}/attendance`, {
     entries: [

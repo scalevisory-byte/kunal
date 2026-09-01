@@ -135,6 +135,35 @@ is entered twice.
 > fields, correctly worked out, in a spreadsheet you can read. Check a file against the
 > portal's own template before uploading it rather than trusting it blind.
 
+### The Dashboard
+
+The month on one screen, and the tab the app opens on.
+
+- **The headline** — staff, gross, deductions, net payable, paid and still to pay, with a
+  line under it comparing this month against the one before: net, gross, headcount and days
+  lost, each with the change and the percentage. Days lost is the one where up is bad, and
+  it is coloured that way round.
+- **Last six months** — net payable per month as bars, with the headcount under each.
+  Clicking one opens that month. Past months are read **without** being touched: a month
+  looked at here never picks up today's new hires or a loan instalment.
+- **Needs attention** — unpaid salaries, unpaid Sunday duty, anyone with no attendance
+  marked at all, anyone over their leave entitlement, missing UAN or ESIC numbers, anyone
+  on hold. Each line **names the first few people**, and opens where it can be fixed.
+- **Attendance / Hours / Sunday duty / Statutory** — day counts, clock hours against
+  expected, the Sunday register's total, and PF/ESI/PT/loans for the month.
+- **People** — who is on the books, who joined, who left, whose birthday it is and whose
+  work anniversary, all off the employee master.
+- **Worth a look** — most days lost, most hours short, most overtime.
+- **How it goes out** — what is being paid by bank, cash, GPay or cheque, and how much of
+  it has actually gone. `Gpay` and `GPAY` count as one route, not two.
+- **Filing** — PF, ESI and professional tax with the ordinary Gujarat due dates. A
+  reminder, not advice — check them against the portal.
+- **By company** — staff, gross, deductions, net, attendance rate, days lost, paid and
+  outstanding, per company.
+
+It calculates nothing of its own: the same rows, through the same engine, as the salary
+sheet. The company filter narrows it like every other tab.
+
 ### The Time tab — in, lunch, out
 
 The attendance grid says whether somebody was here; the **Time** tab says for how long. Each
@@ -410,9 +439,8 @@ it — deleting takes its employees and their months with it, and says so first.
 
 ### First run
 
-The **Dashboard** is where the app opens: what the month costs, what is still to pay, and a
-**Needs attention** list — unpaid salaries, unmarked days, missing UAN or ESIC numbers,
-anyone over their leave. Every figure on it opens the tab it came from.
+The **Dashboard** is where the app opens — see below. Every figure on it opens the tab it
+came from.
 
 1. **Employees** → check the staff list. If the file was built with a seed they are
    already there; otherwise add a company and its employees, or import the existing

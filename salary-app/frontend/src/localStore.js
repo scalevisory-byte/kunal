@@ -681,7 +681,12 @@ export async function handle(method, path, body) {
       }
     }
 
-    if (tail[0] === 'payroll' && method === 'GET') return buildPayroll(period.id);
+    if (tail[0] === 'payroll' && method === 'GET') {
+      // sync=false is how a caller says it is only reading an old month - see
+      // the note on the same route in the API.
+      const sync = new URLSearchParams(path.split('?')[1] || '').get('sync') !== 'false';
+      return buildPayroll(period.id, { sync });
+    }
 
     if (tail[0] === 'sync' && method === 'POST') {
       if (period.locked) throw new HttpError(409, 'period is locked');

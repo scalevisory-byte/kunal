@@ -607,8 +607,75 @@ button.stat-link:hover { border-color: var(--brand); }
   font-size: 0.85rem;
 }
 .alerts li span { flex: 1 1 auto; }
+.alerts li button { flex: 0 0 auto; }
 .alerts li.warn { border-left-color: var(--warn); }
 .alerts li.bad { border-left-color: var(--bad); }
+
+/* ---- dashboard: comparison, trend, lists ---- */
+
+.compare { display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: baseline; margin: 0.8rem 0 0; }
+.delta { font-variant-numeric: tabular-nums; color: var(--muted); }
+.delta.up { color: var(--good); }
+.delta.down { color: var(--bad); }
+
+.trend { display: flex; align-items: stretch; gap: 0.5rem; height: 13rem; }
+button.trend-bar {
+  flex: 1 1 0;
+  max-width: 8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.2rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+button.trend-bar:disabled { cursor: default; }
+button.trend-bar:hover:not(:disabled) { border-color: var(--line); background: var(--bg); }
+/* The track holds the height the bar is a fraction of; the bar is positioned
+   against it so the percentage has something definite to resolve against. */
+.trend-track { position: relative; flex: 1 1 auto; width: 100%; min-height: 0; }
+.trend-fill {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 4rem;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+}
+button.trend-bar.now .trend-fill { background: var(--brand); }
+.trend-value { font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.trend-label { font-size: 0.75rem; font-weight: 600; }
+.trend-sub { font-size: 0.68rem; }
+
+.name-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.55rem; align-items: baseline; margin: 0.5rem 0 0; }
+.name-list > .muted:first-child { width: 100%; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.name-item {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  white-space: nowrap;
+}
+
+.due-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.due-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.35rem;
+}
+.due-list li:last-child { border-bottom: none; }
+.due-what { flex: 1 1 auto; font-weight: 600; }
+.due-what .hint { font-weight: 400; text-align: left; }
+.due-list .num { font-variant-numeric: tabular-nums; }
 
 @media print {
   body { background: #fff; }

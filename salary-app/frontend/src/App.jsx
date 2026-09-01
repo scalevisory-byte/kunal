@@ -341,10 +341,13 @@ export default function App() {
         {tab === 'dashboard' && (
           <Dashboard
             period={period}
+            periods={periods}
             payroll={payroll && { ...payroll, rows: visibleRows }}
             employees={employees}
+            companyId={companyId}
             companyName={companies.find((c) => c.id === companyId)?.name || ''}
             onGo={setTab}
+            onPeriod={setPeriodId}
           />
         )}
 

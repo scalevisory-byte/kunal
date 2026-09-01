@@ -59,6 +59,11 @@ periodsRouter.delete('/:id', (req, res) => {
 periodsRouter.get('/:id/payroll', (req, res) => {
   const payroll = buildPayroll(Number(req.params.id), {
     company_id: Number(req.query.company_id) || undefined,
+    // Reading a month normally pulls in new staff and posts this month's loan
+    // instalments. Anything reading an OLD month just to look at it - the
+    // dashboard's trend - must say sync=false, or a new hire lands in a month
+    // they were not there for and a loan takes an instalment out of it.
+    sync: req.query.sync !== 'false',
   });
   if (!payroll) return res.status(404).json({ error: 'period not found' });
   res.json(payroll);
