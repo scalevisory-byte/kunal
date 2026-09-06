@@ -36,8 +36,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY backend/src ./src
 COPY --from=frontend /build/dist ./public
 
+# No VOLUME instruction: Railway rejects it ("docker VOLUME ... is not supported,
+# use Railway Volumes") and the platform volume mounted at /data does this job.
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 EXPOSE 3001
 CMD ["node", "src/index.js"]
