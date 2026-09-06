@@ -106,14 +106,16 @@ body {
   max-width: 1460px;
   width: 100%;
 }
-/* Two long, slow curves. At this contrast they register as a surface, not a
-   picture - which is the point: felt, not noticed. */
+/* The same botanical mark as the sidebar, larger and turned, so the page has a
+   surface rather than an edge of empty ground. */
 .page::before {
   content: "";
-  position: fixed; inset: 0;
-  background: no-repeat right -140px top -60px/760px 900px
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 500' fill='none' stroke='%23404a46' stroke-width='1.1'%3E%3Cpath d='M420 -40C300 120 260 260 320 470'/%3E%3Cpath d='M470 -20C330 150 290 300 360 520'/%3E%3Cpath d='M370 -60C250 90 200 240 250 460'/%3E%3C/svg%3E");
-  opacity: .085;
+  position: fixed; right: -80px; top: 60px;
+  width: 440px; height: 540px;
+  background: no-repeat center/contain
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 130'%3E%3Cpath d='M50 128C50 70 20 44 6 20 40 24 62 52 62 96c8-30 26-46 32-72C104 62 82 118 50 128Z' fill='%230d5f57'/%3E%3C/svg%3E");
+  opacity: .038;
+  transform: rotate(14deg);
   pointer-events: none;
   z-index: 0;
 }
@@ -136,8 +138,7 @@ body {
   width: 210px; height: 260px;
   background: no-repeat center/contain
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 130'%3E%3Cpath d='M50 128C50 70 20 44 6 20 40 24 62 52 62 96c8-30 26-46 32-72C104 62 82 118 50 128Z' fill='%230d5f57'/%3E%3C/svg%3E");
-  opacity: .016;
-  filter: blur(1px);
+  opacity: .05;
   pointer-events: none;
 }
 

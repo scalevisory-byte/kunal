@@ -8,7 +8,7 @@ export default function QuickActions({ counts, onAction, active, onNewTask }) {
   const actions = [
     { key: 'myday', label: 'My Day', icon: 'sun', tone: 'warn' },
     { key: 'high', label: 'High Priority', icon: 'flag', tone: 'danger', count: counts.highOpen },
-    { key: 'chat', label: 'WhatsApp Tasks', icon: 'whatsapp', tone: 'ok' },
+    { key: 'chat', label: 'By Chat', icon: 'chat', tone: 'ok' },
     { key: 'ai', label: 'AI Tasks', icon: 'robot', tone: 'info' },
     { key: 'done', label: 'Completed', icon: 'check', tone: 'ok', count: counts.done },
   ];
