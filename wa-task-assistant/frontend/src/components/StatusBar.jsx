@@ -40,7 +40,11 @@ export default function StatusBar({ status, stats, overdueCount }) {
 
       {state === 'qr' && wa?.qrDataUrl && (
         <div className="qr">
-          <p>Open WhatsApp on your phone → Settings → Linked devices → Link a device, then scan:</p>
+          <p>
+            Open WhatsApp on your phone → <b>Settings → Linked devices → Link a device</b>,
+            get the camera ready <em>first</em>, then scan. The code refreshes every few
+            seconds — scan the one on screen right away.
+          </p>
           <img src={wa.qrDataUrl} alt="WhatsApp linking QR code" width="240" height="240" />
         </div>
       )}

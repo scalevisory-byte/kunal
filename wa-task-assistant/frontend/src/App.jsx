@@ -9,6 +9,9 @@ import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
 
 const POLL_MS = 30_000;
+// WhatsApp rotates the linking QR about every 20s, so a 30s poll shows an
+// already-dead code. While one is on screen, refresh fast enough to stay ahead.
+const QR_POLL_MS = 5_000;
 const FILTERS = [
   { key: 'open', label: 'Open' },
   { key: 'done', label: 'Done' },
@@ -49,11 +52,15 @@ export default function App() {
   );
 
   // Poll so tasks Claude extracts from WhatsApp show up without a manual reload.
+  const waitingForScan = status?.whatsapp?.status === 'qr';
   useEffect(() => {
     refresh();
-    const id = setInterval(() => refresh({ quiet: true }), POLL_MS);
+    const id = setInterval(
+      () => refresh({ quiet: true }),
+      waitingForScan ? QR_POLL_MS : POLL_MS
+    );
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, waitingForScan]);
 
   useEffect(() => {
     pushAlreadyEnabled().then(setPushOn).catch(() => {});
