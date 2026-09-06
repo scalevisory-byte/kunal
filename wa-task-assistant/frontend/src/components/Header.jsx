@@ -1,40 +1,38 @@
 import { useEffect, useRef } from 'react';
+import Icon from './Icon.jsx';
 import { formatWaNumber, initialOf } from '../lib/task.js';
 
 /** Which WhatsApp account this dashboard is reading. Identity, not a control. */
-function Account({ wa }) {
+function Account({ wa, onSettings }) {
   const number = formatWaNumber(wa?.me);
   const connected = wa?.status === 'ready';
 
-  if (!number && !wa?.meName) {
-    return (
-      <div className="account pending" title="No WhatsApp account is linked yet">
-        <span className="avatar">·</span>
-        <span className="account-text">
-          <strong>Not linked</strong>
-          <small>Scan the QR to connect</small>
-        </span>
-      </div>
-    );
-  }
+  const linked = Boolean(number || wa?.meName);
 
   return (
-    <div
-      className={`account ${connected ? 'on' : 'off'}`}
-      title={connected ? 'WhatsApp connected' : 'WhatsApp not connected'}
+    <button
+      className={`account ${linked ? (connected ? 'on' : 'off') : 'pending'}`}
+      title={
+        linked
+          ? `${wa?.meName || 'WhatsApp'} · ${number || 'number unknown'} · ${connected ? 'connected' : 'not connected'}`
+          : 'No WhatsApp account is linked yet'
+      }
+      onClick={onSettings}
     >
-      <span className="avatar">{initialOf(wa?.meName, wa?.me)}</span>
+      <span className="avatar">{linked ? initialOf(wa?.meName, wa?.me) : '·'}</span>
       <span className="account-text">
-        <strong>{wa?.meName || 'WhatsApp'}</strong>
-        <small>{number || '—'}</small>
+        <strong>{linked ? wa?.meName?.split(' ')[0] || 'WhatsApp' : 'Not linked'}</strong>
+        <small>{linked ? number || '—' : 'Open settings'}</small>
       </span>
-    </div>
+      <Icon name="chevronDown" size={15} className="account-chevron" />
+    </button>
   );
 }
 
 /** Brand, search and the actions that apply to the whole page. */
 export default function Header({
   query, onQuery, onRefresh, loading, onNewTask, onEnablePush, pushSupported, pushOn, wa, install,
+  onSettings, onMenu, alerts,
 }) {
   const search = useRef(null);
 
@@ -52,12 +50,12 @@ export default function Header({
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <h1>WA Tasks</h1>
-        <p>Task management</p>
-      </div>
+      <button className="menu-btn" onClick={onMenu} aria-label="Open sections">
+        <Icon name="list" size={20} />
+      </button>
 
       <div className="topbar-search">
+        <Icon name="search" size={17} className="search-icon" />
         <input
           ref={search}
           type="search"
@@ -70,10 +68,15 @@ export default function Header({
       </div>
 
       <div className="topbar-actions">
-        <Account wa={wa} />
         {pushSupported && !pushOn && (
-          <button className="btn ghost" onClick={onEnablePush} title="Enable browser notifications">
-            Notifications
+          <button
+            className={`icon-action ${alerts ? 'flagged' : ''}`}
+            onClick={onEnablePush}
+            title="Enable browser notifications"
+            aria-label="Enable browser notifications"
+          >
+            <Icon name="bell" size={19} />
+            {alerts > 0 && <span className="ping" />}
           </button>
         )}
         {install?.canPrompt && (
@@ -81,12 +84,16 @@ export default function Header({
             Install
           </button>
         )}
-        <button className="btn ghost" onClick={onRefresh} disabled={loading}>
-          {loading ? 'Refreshing' : 'Refresh'}
+        <button
+          className="icon-action"
+          onClick={onRefresh}
+          disabled={loading}
+          title="Refresh"
+          aria-label="Refresh"
+        >
+          <Icon name="refresh" size={19} className={loading ? 'spin' : ''} />
         </button>
-        <button className="btn primary" onClick={onNewTask}>
-          New task
-        </button>
+        <Account wa={wa} onSettings={onSettings} />
       </div>
     </header>
   );

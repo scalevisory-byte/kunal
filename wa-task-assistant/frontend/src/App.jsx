@@ -13,6 +13,7 @@ import Header from './components/Header.jsx';
 import QuickActions from './components/QuickActions.jsx';
 import SideRail from './components/SideRail.jsx';
 import MobileNav from './components/MobileNav.jsx';
+import Sidebar from './components/Sidebar.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -39,6 +40,9 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [composing, setComposing] = useState(false);
   const railRef = useRef(null);
+  // Which sidebar section is showing. 'settings' swaps the workspace for setup.
+  const [section, setSection] = useState('dashboard');
+  const [navOpen, setNavOpen] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
@@ -168,6 +172,24 @@ export default function App() {
   const summary = useMemo(() => summarise(tasks), [tasks]);
   const recent = useMemo(() => activity(tasks), [tasks]);
 
+  /**
+   * The sidebar sets the same state everything else does; it is navigation over
+   * one board, not a second application.
+   */
+  const goto = (key) => {
+    setSection(key);
+    setSelectedDate(null);
+    setQuery('');
+    setFilters(EMPTY_FILTERS);
+    if (key === 'myday') return setView('myday');
+    if (key === 'done') return setView('done');
+    if (key === 'all' || key === 'dashboard') return setView(key === 'dashboard' ? 'open' : 'all');
+    if (key === 'chat') { setGroupBy('chat'); return setView('open'); }
+    if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
+    if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
+    return undefined;
+  };
+
   /** Quick actions and rail rows drive the same state the toolbar does. */
   const quickAction = (key) => {
     setSelectedDate(null);
@@ -212,140 +234,186 @@ export default function App() {
   }
 
   const name = status?.whatsapp?.meName?.split(' ')[0] || null;
+  const connected = status?.whatsapp?.status === 'ready';
 
   return (
-    <div className="app">
-      <Header
-        query={query}
-        onQuery={setQuery}
-        onRefresh={() => refresh()}
-        loading={loading}
-        onNewTask={() => setComposing((v) => !v)}
-        onEnablePush={onEnablePush}
-        pushSupported={pushSupported()}
-        pushOn={pushOn}
-        wa={status?.whatsapp}
-        install={install}
+    <div className="shell">
+      <Sidebar
+        section={section}
+        onSection={goto}
+        connected={connected}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
       />
 
-      {install.iosHint && (
-        <p className="ios-hint">
-          To keep this on your home screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.
-        </p>
-      )}
+      <div className="main">
+        <Header
+          query={query}
+          onQuery={setQuery}
+          onRefresh={() => refresh()}
+          loading={loading}
+          onNewTask={() => setComposing((v) => !v)}
+          onEnablePush={onEnablePush}
+          pushSupported={pushSupported()}
+          pushOn={pushOn}
+          wa={status?.whatsapp}
+          install={install}
+          onSettings={() => goto('settings')}
+          onMenu={() => setNavOpen(true)}
+          alerts={summary.counts.overdue}
+        />
 
-      <div className="greet">
-        <h2>{greeting()}{name ? `, ${name}` : ''}</h2>
-        <p>Here is your task overview for today.</p>
-      </div>
+        <div className="page">
+          {install.iosHint && (
+            <p className="ios-hint">
+              To keep this on your home screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.
+            </p>
+          )}
 
-      <StatBoard counts={summary.counts} view={view} onPick={(v) => { setView(v); setSelectedDate(null); }} />
-
-      <QuickActions counts={summary.counts} onAction={quickAction} active={activeQuick} />
-
-      {error && (
-        <div className="banner error" role="alert">
-          Something went wrong. Your tasks may be out of date.
-          <button className="link" onClick={() => refresh()}>Retry</button>
-        </div>
-      )}
-
-      <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
-
-      <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
-
-      {composing && <AddTaskForm onAdd={(task) => { onAdd(task); setComposing(false); }} />}
-
-      <div className="workspace">
-        <main className="work">
-          <div className="work-head">
-            <nav className="tabs" role="tablist" aria-label="View">
-              {[
-                { key: 'myday', label: 'My day' },
-                { key: 'open', label: 'Open' },
-                { key: 'all', label: 'All' },
-              ].map((v) => (
-                <button
-                  key={v.key}
-                  role="tab"
-                  aria-selected={view === v.key}
-                  className={`tab ${view === v.key ? 'active' : ''}`}
-                  onClick={() => { setView(v.key); setSelectedDate(null); }}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </nav>
-
-            <Toolbar
-              groupBy={groupBy}
-              onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
-              filters={filters}
-              onFilters={setFilters}
-              chats={chats}
-              onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
-            />
-          </div>
-
-          {(selectedDate || query) && (
-            <div className="scope">
-              {selectedDate && (
-                <span className="scope-chip">
-                  Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
-                    day: 'numeric', month: 'long', timeZone: 'UTC',
-                  })}
-                  <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
-                </span>
-              )}
-              {query && (
-                <span className="scope-chip">
-                  “{query}”
-                  <button onClick={() => setQuery('')} aria-label="Clear search">✕</button>
-                </span>
-              )}
+          {error && (
+            <div className="banner error" role="alert">
+              Something went wrong. Your tasks may be out of date.
+              <button className="link" onClick={() => refresh()}>Retry</button>
             </div>
           )}
 
-          {view === 'myday' && (
-            <p className="work-intro">Here is what needs your attention today.</p>
+          {section === 'settings' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Settings</h2>
+                  <p>Connection, capture mode and the chats that are never read.</p>
+                </div>
+              </div>
+              <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+              <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
+            </section>
+          ) : (
+            <>
+              <div className="page-head">
+                <div>
+                  <h2>{greeting()}{name ? `, ${name}` : ''}</h2>
+                  <p>Here is your task overview for today.</p>
+                </div>
+                <button className="btn primary lg" onClick={() => setComposing((v) => !v)}>
+                  <span aria-hidden="true">+</span> New Task
+                </button>
+              </div>
+
+              {!connected && (
+                <div className="banner warn" role="status">
+                  WhatsApp is not connected, so no new tasks are arriving.
+                  <button className="link" onClick={() => goto('settings')}>Open settings</button>
+                </div>
+              )}
+
+              <StatBoard
+                counts={summary.counts}
+                view={view}
+                onPick={(v) => { setView(v); setSelectedDate(null); }}
+              />
+
+              <QuickActions
+                counts={summary.counts}
+                onAction={quickAction}
+                active={activeQuick}
+                onNewTask={() => setComposing(true)}
+              />
+
+              {composing && <AddTaskForm onAdd={(task) => { onAdd(task); setComposing(false); }} />}
+
+              <div className="workspace">
+                <main className="work">
+                  <div className="work-head">
+                    <nav className="tabs" role="tablist" aria-label="View">
+                      {[
+                        { key: 'myday', label: 'My Day' },
+                        { key: 'open', label: 'Open' },
+                        { key: 'all', label: 'All' },
+                      ].map((v) => (
+                        <button
+                          key={v.key}
+                          role="tab"
+                          aria-selected={view === v.key}
+                          className={`tab ${view === v.key ? 'active' : ''}`}
+                          onClick={() => { setView(v.key); setSelectedDate(null); }}
+                        >
+                          {v.label}
+                        </button>
+                      ))}
+                    </nav>
+
+                    <Toolbar
+                      groupBy={groupBy}
+                      onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
+                      filters={filters}
+                      onFilters={setFilters}
+                      chats={chats}
+                      onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
+                    />
+                  </div>
+
+                  {(selectedDate || query) && (
+                    <div className="scope">
+                      {selectedDate && (
+                        <span className="scope-chip">
+                          Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
+                            day: 'numeric', month: 'long', timeZone: 'UTC',
+                          })}
+                          <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
+                        </span>
+                      )}
+                      {query && (
+                        <span className="scope-chip">
+                          “{query}”
+                          <button onClick={() => setQuery('')} aria-label="Clear search">✕</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <TaskList
+                    tasks={visible}
+                    loading={loading}
+                    error={error && !tasks.length ? error : ''}
+                    groupBy={groupBy}
+                    view={view}
+                    query={query}
+                    onRetry={() => refresh()}
+                    onToggle={onToggle}
+                    onOpen={setOpenTask}
+                    onStatus={(task, next) => onEdit(task, { status: next })}
+                    onQuickDate={onQuickDate}
+                    onDelete={onDelete}
+                  />
+                </main>
+
+                <div ref={railRef} className="rail-wrap">
+                  <SideRail
+                    tasks={tasks}
+                    summary={summary}
+                    activity={recent}
+                    chats={chats}
+                    status={status}
+                    selectedDate={selectedDate}
+                    onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
+                    onUpcoming={showUpcoming}
+                    onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
+                    onViewAi={() => goto('ai')}
+                  />
+                </div>
+              </div>
+            </>
           )}
-
-          <TaskList
-            tasks={visible}
-            loading={loading}
-            error={error && !tasks.length ? error : ''}
-            groupBy={groupBy}
-            view={view}
-            query={query}
-            onRetry={() => refresh()}
-            onToggle={onToggle}
-            onOpen={setOpenTask}
-            onStatus={(task, status) => onEdit(task, { status })}
-            onQuickDate={onQuickDate}
-          />
-        </main>
-
-        <div ref={railRef} className="rail-wrap">
-        <SideRail
-          tasks={tasks}
-          summary={summary}
-          activity={recent}
-          chats={chats}
-          status={status}
-          selectedDate={selectedDate}
-          onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
-          onUpcoming={showUpcoming}
-          onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
-        />
         </div>
-      </div>
 
-      <MobileNav
-        view={view}
-        onView={(v) => { setView(v); setSelectedDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-        onNewTask={() => { setComposing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-        onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-      />
+        <MobileNav
+          view={view}
+          onView={(v) => { setSection('dashboard'); setView(v); setSelectedDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onNewTask={() => { setComposing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        />
+      </div>
 
       {openTask && (
         <TaskDetail

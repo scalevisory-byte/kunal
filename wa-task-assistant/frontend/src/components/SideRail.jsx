@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Progress from './Progress.jsx';
+import Icon from './Icon.jsx';
 import { dueByDay } from '../lib/derive.js';
 import { todayIso } from '../lib/task.js';
 
@@ -74,7 +75,7 @@ function Calendar({ tasks, selected, onSelect }) {
  * coming, whether the WhatsApp side is actually working, and what changed last.
  */
 export default function SideRail({
-  tasks, summary, activity, chats, status, selectedDate, onSelectDate, onUpcoming, onChat,
+  tasks, summary, activity, chats, status, selectedDate, onSelectDate, onUpcoming, onChat, onViewAi,
 }) {
   const wa = status?.whatsapp;
   const connected = wa?.status === 'ready';
@@ -83,15 +84,26 @@ export default function SideRail({
   return (
     <aside className="rail" aria-label="Summary">
       <section className="rail-card">
-        <h3 className="rail-title">Today</h3>
-        <dl className="rail-figures">
-          <div><dt>Total open</dt><dd>{counts.open}</dd></div>
-          <div><dt>Due today</dt><dd>{counts.dueToday}</dd></div>
-          <div className={counts.overdue ? 'alert' : ''}>
-            <dt>Overdue</dt><dd>{counts.overdue}</dd>
-          </div>
-          <div><dt>Completed today</dt><dd>{counts.completedToday}</dd></div>
-        </dl>
+        <h3 className="rail-title">Today's summary</h3>
+        <p className="rail-date">
+          {new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
+        </p>
+        <div className="mini-stats">
+          {[
+            { key: 'today', tone: 'info', icon: 'calendar', value: counts.dueToday, label: 'Today' },
+            { key: 'overdue', tone: 'danger', icon: 'alert', value: counts.overdue, label: 'Overdue' },
+            { key: 'pending', tone: 'plain', icon: 'clipboard', value: counts.open, label: 'Pending' },
+            { key: 'done', tone: 'ok', icon: 'check', value: counts.completedToday, label: 'Completed' },
+          ].map((m) => (
+            <div key={m.key} className={`mini t-${m.tone}`}>
+              <span className="mini-icon"><Icon name={m.icon} size={16} /></span>
+              <span className="mini-body">
+                <strong>{m.value}</strong>
+                <small>{m.label}</small>
+              </span>
+            </div>
+          ))}
+        </div>
         <Progress
           progress={summary.progress}
           completedToday={counts.completedToday}
@@ -113,8 +125,8 @@ export default function SideRail({
             {summary.upcoming.map((u) => (
               <li key={u.key}>
                 <button className="rail-row" onClick={() => onUpcoming(u.key)}>
-                  <span>{u.label}</span>
-                  <span className="rail-count">{u.count}</span>
+                  <span className="rail-name"><Icon name="calendar" size={15} /> {u.label}</span>
+                  <span className="rail-count">{u.count} {u.count === 1 ? 'task' : 'tasks'}</span>
                 </button>
               </li>
             ))}
@@ -122,22 +134,29 @@ export default function SideRail({
         )}
       </section>
 
-      <section className="rail-card">
-        <h3 className="rail-title">WhatsApp &amp; AI</h3>
-        <p className={`rail-state ${connected ? 'on' : 'off'}`}>
-          <span className="state-dot" />
-          {connected ? 'Connected' : wa?.status === 'authenticated' ? 'Syncing chats' : 'Not connected'}
-        </p>
-        <p className="rail-note">
-          {status?.config?.extractionMode === 'ai'
-            ? 'Claude reads incoming chats and turns actionable ones into tasks.'
-            : 'Manual capture: only messages you write yourself become tasks.'}
-        </p>
+      <section className="rail-card ai-card">
+        <h3 className="rail-title">AI task intelligence</h3>
+        <div className="ai-state">
+          <span className={`ai-mark ${connected ? 'on' : 'off'}`}><Icon name="whatsapp" size={17} /></span>
+          <span>
+            <strong className={connected ? 'ok-text' : 'warn-text'}>
+              {connected ? 'Connected to WhatsApp' : wa?.status === 'authenticated' ? 'Syncing chats' : 'Not connected'}
+            </strong>
+            <small>
+              {status?.config?.extractionMode === 'ai'
+                ? 'AI is monitoring actionable messages'
+                : 'Manual capture: only what you write becomes a task'}
+            </small>
+          </span>
+        </div>
         <dl className="rail-figures tight">
           <div><dt>AI-created today</dt><dd>{counts.aiCreatedToday}</dd></div>
           <div><dt>Chats with tasks</dt><dd>{chats.length}</dd></div>
           <div><dt>Blocked chats</dt><dd>{status?.config?.blockedChats ?? 0}</dd></div>
         </dl>
+        <button className="btn ghost wide" onClick={onViewAi}>
+          View AI tasks <Icon name="arrowRight" size={16} />
+        </button>
         {chats.length > 0 && (
           <>
             <p className="rail-sub">Most active</p>

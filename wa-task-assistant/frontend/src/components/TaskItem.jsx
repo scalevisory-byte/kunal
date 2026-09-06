@@ -1,13 +1,69 @@
+import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon.jsx';
 import { dateTimeLabel, dueLabel, isDone, isOverdue, taskChat, timeLabel } from '../lib/task.js';
 
-const PRIORITY_LABEL = { high: 'High priority', medium: 'Medium priority', low: 'Low priority' };
+const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
 
-/**
- * Title first, then only what is needed to trust it: where it came from, when
- * it is due, how urgent. The controls stay hidden until the row is hovered or
- * focused, so a list of twenty reads as twenty titles.
- */
-export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate }) {
+/** Everything you can do to a task without opening it, behind one control. */
+function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const run = (fn) => () => { setOpen(false); fn(); };
+
+  return (
+    <div className="row-menu" ref={wrap}>
+      <button
+        className="row-menu-btn"
+        aria-label={`Actions for ${task.title}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="more" size={17} />
+      </button>
+      {open && (
+        <div className="menu" role="menu">
+          {task.status !== 'in_progress' && !isDone(task) && (
+            <button role="menuitem" onClick={run(() => onStatus(task, 'in_progress'))}>
+              <Icon name="play" size={15} /> Start
+            </button>
+          )}
+          {task.status === 'in_progress' && (
+            <button role="menuitem" onClick={run(() => onStatus(task, 'open'))}>
+              <Icon name="circle" size={15} /> Back to open
+            </button>
+          )}
+          <button role="menuitem" onClick={run(() => onQuickDate(task, 0))}>
+            <Icon name="sun" size={15} /> Due today
+          </button>
+          <button role="menuitem" onClick={run(() => onQuickDate(task, 1))}>
+            <Icon name="calendar" size={15} /> Due tomorrow
+          </button>
+          <button role="menuitem" onClick={run(() => onOpen(task))}>
+            <Icon name="clipboard" size={15} /> Details
+          </button>
+          <button className="danger" role="menuitem" onClick={run(() => onDelete(task))}>
+            <Icon name="trash" size={15} /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate, onDelete }) {
   const done = isDone(task);
   const due = dueLabel(task.due_date);
   const chat = taskChat(task);
@@ -22,44 +78,43 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
       />
 
       <div className="t-main">
-        <div className="t-line">
-          <button type="button" className="t-title" onClick={() => onOpen(task)}>
-            {task.title}
-          </button>
-          {due && !done && <span className={`due ${due.tone}`}>{due.text}</span>}
-        </div>
+        <button type="button" className="t-title" onClick={() => onOpen(task)}>
+          {task.title}
+        </button>
 
         <div className="t-meta">
-          <span className={`pri p-${task.priority}`} title={PRIORITY_LABEL[task.priority]}>
+          {chat && (
+            <span className="m-item" title={chat}>
+              <Icon name="chat" size={13} /> {chat}
+            </span>
+          )}
+          <span className="m-item">
+            <Icon name={task.origin === 'ai' ? 'robot' : 'clipboard'} size={13} />
+            {task.origin === 'ai' ? 'AI-created' : 'Manual'}
+          </span>
+          <span className={`pri p-${task.priority}`}>
             <span className="pri-dot" />
-            {task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Medium' : 'Low'}
+            {PRIORITY[task.priority]}
           </span>
           {task.status === 'in_progress' && <span className="state-chip">In progress</span>}
-          {chat && <span className="m-item" title={chat}>{chat}</span>}
-          <span className="m-item">{task.origin === 'ai' ? 'AI-created' : 'Manual'}</span>
-          {task.remind_at && !done && <span className="m-item">{timeLabel(task.remind_at)}</span>}
+          {task.remind_at && !done && (
+            <span className="m-item"><Icon name="clock" size={13} /> {timeLabel(task.remind_at)}</span>
+          )}
           {done && task.completed_at && (
             <span className="m-item">Completed {dateTimeLabel(task.completed_at)}</span>
           )}
         </div>
       </div>
 
-      {!done && (
-        <div className="t-tools">
-          {task.status !== 'in_progress' && (
-            <button className="tool" title="Start" onClick={() => onStatus(task, 'in_progress')}>
-              Start
-            </button>
-          )}
-          {!task.due_date && (
-            <>
-              <button className="tool" title="Due today" onClick={() => onQuickDate(task, 0)}>Today</button>
-              <button className="tool" title="Due tomorrow" onClick={() => onQuickDate(task, 1)}>Tomorrow</button>
-            </>
-          )}
-          <button className="tool" title="Open details" onClick={() => onOpen(task)}>Details</button>
-        </div>
-      )}
+      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
+
+      <RowMenu
+        task={task}
+        onOpen={onOpen}
+        onStatus={onStatus}
+        onQuickDate={onQuickDate}
+        onDelete={onDelete}
+      />
     </li>
   );
 }

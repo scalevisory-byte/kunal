@@ -115,7 +115,7 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete }) {
                 value={task.due_date || ''}
                 onChange={(e) => onEdit(task, { due_date: e.target.value })}
               />
-              <div className="quick">
+              <div className="quick-dates">
                 <button className="link" onClick={() => onEdit(task, { due_date: isoDay(0) })}>today</button>
                 <button className="link" onClick={() => onEdit(task, { due_date: isoDay(1) })}>tomorrow</button>
                 {task.due_date && (

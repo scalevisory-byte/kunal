@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import TaskItem from './TaskItem.jsx';
+import Icon from './Icon.jsx';
 import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
 
 /** Sections by day: what is late, what is today, what is next. */
@@ -8,12 +10,12 @@ function byDate(open) {
   const dayAfter = isoDay(2);
 
   return [
-    { key: 'overdue', label: 'Overdue', match: (t) => t.due_date && t.due_date < today },
-    { key: 'today', label: 'Today', match: (t) => t.due_date === today },
-    { key: 'tomorrow', label: 'Tomorrow', match: (t) => t.due_date === tomorrow },
-    { key: 'dayafter', label: 'Day after', match: (t) => t.due_date === dayAfter },
-    { key: 'later', label: 'Upcoming', match: (t) => t.due_date && t.due_date > dayAfter },
-    { key: 'undated', label: 'No date', match: (t) => !t.due_date },
+    { key: 'overdue', label: 'Overdue', tone: 'danger', icon: 'alert', match: (t) => t.due_date && t.due_date < today },
+    { key: 'today', label: 'Today', tone: 'warn', icon: 'sun', match: (t) => t.due_date === today },
+    { key: 'tomorrow', label: 'Tomorrow', tone: 'info', icon: 'calendar', match: (t) => t.due_date === tomorrow },
+    { key: 'dayafter', label: 'Day after', tone: 'info', icon: 'calendar', match: (t) => t.due_date === dayAfter },
+    { key: 'later', label: 'Upcoming', tone: 'plain', icon: 'calendar', match: (t) => t.due_date && t.due_date > dayAfter },
+    { key: 'undated', label: 'No date', tone: 'plain', icon: 'circle', match: (t) => !t.due_date },
   ].map((c) => ({ ...c, items: open.filter(c.match) }));
 }
 
@@ -27,7 +29,7 @@ function byChat(open) {
   }
   return [...groups.entries()]
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-    .map(([name, items]) => ({ key: name, label: name, items }));
+    .map(([name, items]) => ({ key: name, label: name, tone: 'info', icon: 'chat', items }));
 }
 
 /**
@@ -39,33 +41,41 @@ function myDay(open, done) {
   const completedToday = done.filter((t) => (t.completed_at || '').slice(0, 10) === today);
 
   return [
-    { key: 'overdue', label: 'Overdue', items: open.filter(isOverdue) },
+    { key: 'overdue', label: 'Overdue', tone: 'danger', icon: 'alert', items: open.filter(isOverdue) },
     {
       key: 'today',
       label: 'Due today',
+      tone: 'warn',
+      icon: 'sun',
       items: open.filter((t) => t.due_date === today && !isOverdue(t)),
     },
     {
       key: 'doing',
       label: 'In progress',
+      tone: 'info',
+      icon: 'play',
       items: open.filter((t) => t.status === 'in_progress' && t.due_date !== today && !isOverdue(t)),
     },
     {
       key: 'high',
       label: 'High priority',
+      tone: 'danger',
+      icon: 'flag',
       items: open.filter(
         (t) => t.priority === 'high' && t.status !== 'in_progress' && t.due_date !== today && !isOverdue(t)
       ),
     },
-    { key: 'donetoday', label: 'Completed today', items: completedToday },
+    { key: 'donetoday', label: 'Completed today', tone: 'ok', icon: 'check', items: completedToday },
   ];
 }
 
 const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 
 export default function TaskList({
-  tasks, loading, error, groupBy, view, query, onRetry, onToggle, onOpen, onStatus, onQuickDate,
+  tasks, loading, error, groupBy, view, query,
+  onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete,
 }) {
+  const [collapsed, setCollapsed] = useState({});
   if (error) {
     return (
       <div className="empty error-state">
@@ -94,7 +104,9 @@ export default function TaskList({
   else sections = byDate(open);
 
   sections = sections.filter((s) => s.items.length);
-  if (view !== 'myday' && done.length) sections.push({ key: 'done', label: 'Completed', items: done });
+  if (view !== 'myday' && done.length) {
+    sections.push({ key: 'done', label: 'Completed', tone: 'ok', icon: 'check', items: done });
+  }
 
   if (!sections.length) {
     return (
@@ -113,26 +125,38 @@ export default function TaskList({
 
   return (
     <div className="sections">
-      {sections.map((section) => (
-        <section className={`section ${section.key}`} key={section.key}>
-          <header className="section-head">
-            <h3>{section.label}</h3>
-            <span className="section-count">{count(section.items.length)}</span>
-          </header>
-          <ul className="task-list">
-            {section.items.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onToggle={onToggle}
-                onOpen={onOpen}
-                onStatus={onStatus}
-                onQuickDate={onQuickDate}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {sections.map((section) => {
+        const shut = collapsed[section.key];
+        return (
+          <section className={`section tone-${section.tone || 'plain'}`} key={section.key}>
+            <button
+              className="section-head"
+              aria-expanded={!shut}
+              onClick={() => setCollapsed((c) => ({ ...c, [section.key]: !c[section.key] }))}
+            >
+              <Icon name={section.icon || 'circle'} size={17} className="section-icon" />
+              <h3>{section.label}</h3>
+              <span className="section-count">{count(section.items.length)}</span>
+              <Icon name="chevronDown" size={17} className={`section-chevron ${shut ? '' : 'up'}`} />
+            </button>
+            {!shut && (
+              <ul className="task-list">
+                {section.items.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    onToggle={onToggle}
+                    onOpen={onOpen}
+                    onStatus={onStatus}
+                    onQuickDate={onQuickDate}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
