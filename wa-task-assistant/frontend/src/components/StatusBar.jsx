@@ -137,6 +137,7 @@ function Pipeline({ wa, cfg, connected }) {
 
   const last = wa?.lastExtraction;
   const rows = connected ? [
+    ['Delivered by WhatsApp', wa?.rawSeen ?? 0],
     ['Messages read since start', wa?.messagesSeen ?? 0],
     ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
     ['Waiting to be read', wa?.bufferedCount ?? 0],
@@ -172,11 +173,18 @@ function Pipeline({ wa, cfg, connected }) {
         </p>
       )}
 
-      {connected && wa?.messagesSeen === 0 && (
+      {connected && wa?.rawSeen === 0 && (
         <p className="hint">
-          Nothing has arrived yet. Only messages that come in <b>after</b> the link are read —
-          older chats are not scanned. Ask someone to message you, or message yourself from
-          another phone, then wait about {cfg?.batchQuietSeconds ?? 15} seconds.
+          WhatsApp has not delivered a single message to this server yet. Only messages that
+          arrive <b>after</b> the link are seen — older chats are never scanned. Send yourself
+          one now and wait about {cfg?.batchQuietSeconds ?? 15} seconds. If this stays at 0
+          while chats are clearly moving, the connection is linked but not receiving.
+        </p>
+      )}
+      {connected && wa?.rawSeen > 0 && wa?.messagesSeen === 0 && (
+        <p className="hint error-text">
+          Messages are arriving but none are being kept. Check the blocked-chats list — that is
+          the only thing that drops a message before it is stored.
         </p>
       )}
 

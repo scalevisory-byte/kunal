@@ -70,6 +70,9 @@ export const state = {
   lastError: null,
   // Pipeline counters since this process started, so a chat that produces no
   // tasks can be told apart from one that is never being read at all.
+  // Every message the library hands us, before any filtering. Zero here while
+  // chats are clearly arriving means the connection is not delivering at all.
+  rawSeen: 0,
   messagesSeen: 0,
   tasksCreated: 0,
   lastExtraction: null, // { at, messages, tasks, error }
@@ -375,19 +378,23 @@ export function startWhatsApp() {
         (config.taskTrigger ? ` or any message starting with "${config.taskTrigger}".` : '.')
     );
   } else {
-    client.on('message', handleMessage);
-    // Your own replies are not scanned for tasks in this mode, but "done 2"
-    // still has to work, so listen for commands only.
+    // message_create covers both directions, so one listener sees everything.
+    // Messages you write yourself are read too: notes typed into a chat are
+    // tasks as much as anything someone sends you.
     client.on('message_create', async (message) => {
+      state.rawSeen += 1;
       try {
-        if (!message.fromMe || !message.body) return;
-        const chat = await message.getChat();
-        await handleCommand(message, chat.id?._serialized ?? message.to);
+        if (message.fromMe && message.body) {
+          const chat = await message.getChat();
+          // A reply command is an instruction, not a new task.
+          if (await handleCommand(message, chat.id?._serialized ?? message.to)) return;
+        }
+        await handleMessage(message);
       } catch (err) {
-        log.error('command listener:', err?.message || err);
+        log.error('message listener:', err?.message || err);
       }
     });
-    log.info(`AI mode: incoming chats are read by ${config.model}.`);
+    log.info(`AI mode: chats are read by ${config.model}.`);
   }
 
   client.initialize().catch((err) => {

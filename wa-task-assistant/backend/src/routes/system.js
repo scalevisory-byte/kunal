@@ -28,6 +28,7 @@ systemRouter.get('/status', (req, res) => {
       lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
       events: state.events,
+      rawSeen: state.rawSeen,
       messagesSeen: state.messagesSeen,
       tasksCreated: state.tasksCreated,
       lastExtraction: state.lastExtraction,
