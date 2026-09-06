@@ -71,6 +71,9 @@ export const api = {
   readAllNotifications: () => request('/notifications/read-all', { method: 'POST', body: JSON.stringify({}) }),
   dismissNotification: (id) => request(`/notifications/${id}`, { method: 'DELETE' }),
 
+  briefing: () => request('/briefing'),
+  runBriefing: () => request('/briefing/run', { method: 'POST' }),
+
   schedulingSettings: () => request('/scheduling-settings'),
   saveSchedulingSettings: (body) =>
     request('/scheduling-settings', { method: 'PATCH', body: JSON.stringify(body) }),

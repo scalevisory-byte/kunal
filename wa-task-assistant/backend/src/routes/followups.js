@@ -7,6 +7,8 @@ import {
   markAllNotificationsRead, dismissNotification,
 } from '../scheduling.js';
 import { taskSchedule, taskState, dueMoment } from '../task-lifecycle.js';
+import { buildBriefing, maybeSendBriefing, localDay } from '../briefing.js';
+import { briefingFor, recentBriefings } from '../scheduling.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
@@ -61,6 +63,26 @@ notificationsRouter.post('/:id/read', (req, res) => {
 notificationsRouter.delete('/:id', (req, res) => {
   if (!dismissNotification(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
   res.json({ unread: unreadNotificationCount() });
+});
+
+/* ---------------- daily briefing ---------------- */
+
+export const briefingRouter = Router();
+
+/** A preview of exactly what would go out, plus whether today's already has. */
+briefingRouter.get('/', (req, res) => {
+  const day = localDay();
+  const preview = buildBriefing();
+  res.json({ day, today: briefingFor(day), recent: recentBriefings(14), preview: preview.text, total: preview.total });
+});
+
+/** Sends it now, bypassing the schedule. Used to check the wiring works. */
+briefingRouter.post('/run', async (req, res, next) => {
+  try {
+    res.json(await maybeSendBriefing({ force: true }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 /* ---------------- settings ---------------- */

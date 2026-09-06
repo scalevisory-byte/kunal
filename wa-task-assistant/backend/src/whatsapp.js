@@ -13,6 +13,7 @@ import { parseCommand } from './commands.js';
 import { clearStaleBrowserLocks } from './session-store.js';
 import { planTask, completeTask, rescheduleTask } from './task-lifecycle.js';
 import { parseTaskInstruction } from './nl-commands.js';
+import { buildBriefing, collectToday, clockOf, localDay } from './briefing.js';
 import { EVENT, recordEvent } from './task-events.js';
 import { findDuplicateTask } from './task-matching.js';
 import { isoAtLocal } from './quickparse.js';
@@ -208,7 +209,9 @@ export async function handleCommand(message, chatId) {
         changed.push(updated);
       }
     } else {
-      const base = task.due_date ? new Date(`${task.due_date}T00:00:00Z`) : new Date();
+      // Anchored on the user's today, not the server's - after 18:30 UTC the two
+      // are different days in Kolkata and the snooze would land a day early.
+      const base = new Date(`${task.due_date || localDay()}T00:00:00Z`);
       base.setUTCDate(base.getUTCDate() + command.days);
       const updated = updateTask(task.id, { due_date: base.toISOString().slice(0, 10) });
       if (updated) changed.push(updated);
@@ -308,7 +311,33 @@ export async function handleTaskInstruction(text) {
   const instruction = parseTaskInstruction(text);
   if (!instruction) return false;
 
+  // Asking to see the list acts on nothing, so it is answered first.
+  if (instruction.action === 'show') {
+    const { overdue, dueToday, undated } = collectToday();
+    const rows = instruction.scope === 'overdue' ? overdue : [...dueToday, ...undated];
+    const heading = instruction.scope === 'overdue' ? '⚠️ *Overdue*' : '📋 *Today*';
+    const body = rows.length
+      ? rows.map((t, i) => `${i + 1}. ${t.title}`).join('\n')
+      : instruction.scope === 'overdue'
+        ? 'Nothing is overdue. 🎉'
+        : 'Nothing due today. 🎉';
+    await reply(`${heading}\n\n${body}`);
+    state.lastCommandAt = new Date().toISOString();
+    return true;
+  }
+
   const { task } = instruction;
+
+  if (instruction.action === 'snooze') {
+    const next = new Date(Date.now() + instruction.minutes * 60000).toISOString();
+    rescheduleTask(task.id, { due_at: next, due_date: localDay(new Date(next)) });
+    state.lastCommandAt = new Date().toISOString();
+    noteEvent('task snoozed', `${task.title} +${instruction.minutes}m`);
+    // The user's clock, not the server's - a cloud host reads UTC.
+    await reply(`😴 Snoozed: *${task.title}*\n_Now due ${clockOf(next)}._`);
+    return true;
+  }
+
   if (instruction.action === 'done') {
     updateTask(task.id, { status: 'done' });
     recordEvent(task.id, EVENT.statusChanged, 'marked done from WhatsApp');

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createTask, getTask, listTasks, updateTask, deleteTask, taskStats } from '../db.js';
-import { normalizeDueDate } from '../dates.js';
+import { normalizeDueDate, normalizeInstant } from '../dates.js';
 import {
   remindersForTask, snoozeReminder, acknowledgeReminder, cancelReminder, getReminder,
   scheduleCustomReminder, getSettings,
@@ -38,7 +38,7 @@ tasksRouter.post('/', (req, res) => {
       chat_name,
       due_date: normalizeDueDate(due_date),
       // The deadline itself, when a time was given rather than only a date.
-      due_at: due_at || remind_at || null,
+      due_at: normalizeInstant(due_at || remind_at),
       remind_at: null,
       notes: notes || null,
       priority,
@@ -82,7 +82,7 @@ tasksRouter.post('/:id/reminders', (req, res) => {
   try {
     const reminder = scheduleCustomReminder(
       task.id,
-      req.body?.fire_at,
+      normalizeInstant(req.body?.fire_at),
       req.body?.offset_minutes ?? null
     );
     syncNextReminder(task.id);
@@ -105,6 +105,8 @@ tasksRouter.delete('/:id/reminders/:reminderId', (req, res) => {
 tasksRouter.patch('/:id', (req, res) => {
   const patch = { ...(req.body || {}) };
   if ('due_date' in patch) patch.due_date = normalizeDueDate(patch.due_date);
+  if ('due_at' in patch) patch.due_at = normalizeInstant(patch.due_at);
+  if ('remind_at' in patch) patch.remind_at = normalizeInstant(patch.remind_at);
 
   const before = getTask(Number(req.params.id));
   const task = updateTask(Number(req.params.id), patch);
@@ -166,7 +168,7 @@ tasksRouter.post('/:id/reschedule', (req, res) => {
   try {
     const updated = rescheduleTask(task.id, {
       due_date: normalizeDueDate(req.body?.due_date),
-      due_at: req.body?.due_at || null,
+      due_at: normalizeInstant(req.body?.due_at),
     });
     res.json({ ...updated, ...taskSchedule(updated) });
   } catch (err) {

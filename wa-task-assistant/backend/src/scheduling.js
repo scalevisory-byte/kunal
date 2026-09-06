@@ -40,6 +40,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_rem_task  ON reminders(task_id, status);
   CREATE INDEX IF NOT EXISTS idx_notif_at  ON notifications(at DESC);
 
+  -- One briefing per day. The unique day is the claim: a restart, a retry or a
+  -- second worker finds the row already there and sends nothing.
+  CREATE TABLE IF NOT EXISTS briefings (
+    day        TEXT PRIMARY KEY,
+    claimed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at    TEXT,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    task_count INTEGER,
+    error      TEXT
+  );
+
   -- Two reminders of the same kind and round for one task are the same
   -- reminder. The database refuses the second, so no code path - a retry, a
   -- restart, a repeated message - can produce a duplicate.
@@ -68,7 +79,13 @@ const DEFAULTS = {
   businessEnd: '19:00',
   skipWeekends: false,
   notifyBrowser: true,
-  notifyWhatsApp: false,            // to the user's own chat only, never a contact
+  // Every WhatsApp message this app sends goes to the linked account's own
+  // chat. There is no path that messages a contact, and these switches only
+  // decide whether the user hears from themselves.
+  notifyWhatsApp: false,            // per-reminder messages before the deadline
+  whatsappFollowUps: false,         // per-reminder messages after it
+  dailyBriefing: false,             // one morning message listing the day
+  briefingTime: '09:00',            // in the configured timezone
 };
 
 export function getSettings() {
@@ -329,4 +346,47 @@ export const markAllNotificationsRead = () =>
 export const dismissNotification = (id) =>
   db.prepare(`UPDATE notifications SET dismissed_at = datetime('now') WHERE id = ?`).run(id).changes > 0;
 
-log.info('Scheduling tables ready (reminders, notifications).');
+/* ---------------- daily briefing ---------------- */
+
+/**
+ * Claims today's briefing. The insert is the claim - a primary key on the day
+ * means exactly one caller can take it, whatever restarts or retries happen.
+ * Returns null when somebody already has it and there is nothing left to do.
+ */
+export function claimBriefing(day, { maxAttempts = 3 } = {}) {
+  const inserted = db.prepare(`INSERT OR IGNORE INTO briefings (day) VALUES (?)`).run(day);
+  if (inserted.changes === 1) {
+    db.prepare(`UPDATE briefings SET attempts = 1 WHERE day = ?`).run(day);
+    return { day, attempt: 1 };
+  }
+
+  // Already claimed. Retry only a delivery that never succeeded, and only a
+  // bounded number of times - a send that may have gone out is not repeated
+  // indefinitely just because the confirmation was lost.
+  const row = db.prepare(`SELECT * FROM briefings WHERE day = ?`).get(day);
+  if (!row || row.sent_at || row.attempts >= maxAttempts) return null;
+  db.prepare(`UPDATE briefings SET attempts = attempts + 1 WHERE day = ?`).run(day);
+  return { day, attempt: row.attempts + 1 };
+}
+
+export function recordBriefingSent(day, taskCount) {
+  // A "send now" from Settings never went through claimBriefing, so the row may
+  // not exist yet. Marking it sent either way is what stops the scheduled run
+  // from delivering a second copy the same morning.
+  db.prepare(`INSERT OR IGNORE INTO briefings (day) VALUES (?)`).run(day);
+  db.prepare(
+    `UPDATE briefings SET sent_at = datetime('now'), task_count = ?, error = NULL WHERE day = ?`
+  ).run(taskCount, day);
+}
+
+export function recordBriefingFailed(day, error) {
+  db.prepare(`UPDATE briefings SET error = ? WHERE day = ?`).run(String(error).slice(0, 300), day);
+}
+
+export const briefingFor = (day) =>
+  db.prepare(`SELECT * FROM briefings WHERE day = ?`).get(day) || null;
+
+export const recentBriefings = (limit = 14) =>
+  db.prepare(`SELECT * FROM briefings ORDER BY day DESC LIMIT ?`).all(Math.min(Number(limit) || 14, 60));
+
+log.info('Scheduling tables ready (reminders, notifications, briefings).');

@@ -11,13 +11,14 @@ const Row = ({ label, note, children }) => (
   </div>
 );
 
-const Toggle = ({ on, onChange, label }) => (
+const Toggle = ({ on, onChange, label, disabled = false }) => (
   <button
     type="button"
     className={`toggle ${on ? 'on' : ''}`}
     role="switch"
     aria-checked={on}
     aria-label={label}
+    disabled={disabled}
     onClick={() => onChange(!on)}
   >
     <span />
@@ -167,11 +168,96 @@ export default function SchedulingSettings({ onError }) {
       </Row>
 
       <Row
-        label="WhatsApp"
-        note="Sends to your own chat only — never to a contact. Off by default."
+        label="WhatsApp — deadline reminders"
+        note="The reminder at or before the due time. Your own chat only, never a contact."
       >
-        <Toggle on={settings.notifyWhatsApp} label="WhatsApp" onChange={(v) => save({ notifyWhatsApp: v })} />
+        <Toggle on={settings.notifyWhatsApp} label="WhatsApp deadline reminders"
+          onChange={(v) => save({ notifyWhatsApp: v })} />
       </Row>
+
+      <Row
+        label="WhatsApp — follow-ups"
+        note="The nudges after a deadline passes, until the task is done."
+      >
+        <Toggle on={settings.whatsappFollowUps} label="WhatsApp follow-ups"
+          disabled={!settings.followUpEnabled}
+          onChange={(v) => save({ whatsappFollowUps: v })} />
+      </Row>
+
+      <header className="settings-head second">
+        <h3>Daily briefing</h3>
+        <span>One WhatsApp message each morning</span>
+      </header>
+
+      <Row
+        label="Daily WhatsApp briefing"
+        note="Today's tasks and anything overdue, in one message to your own chat."
+      >
+        <Toggle on={settings.dailyBriefing} label="Daily briefing"
+          onChange={(v) => save({ dailyBriefing: v })} />
+      </Row>
+
+      <Row label="Briefing time" note={`Sent at this time, ${timezone}.`}>
+        <input type="time" value={settings.briefingTime} disabled={!settings.dailyBriefing}
+          onChange={(e) => save({ briefingTime: e.target.value })} />
+      </Row>
+
+      <BriefingPreview timezone={timezone} onError={onError} />
     </section>
+  );
+}
+
+/** Exactly what would go out, and a way to send it now to check the wiring. */
+function BriefingPreview({ timezone, onError }) {
+  const [state, setState] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setState(await api.briefing());
+    } catch (err) {
+      onError(err);
+    }
+  }, [onError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const sendNow = async () => {
+    setSending(true);
+    setResult('');
+    try {
+      const out = await api.runBriefing();
+      setResult(out.sent ? 'Sent to your own WhatsApp chat.' : `Not sent — ${out.reason}.`);
+      load();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!state) return null;
+
+  const sentAt = state.today?.sent_at;
+
+  return (
+    <div className="briefing-preview">
+      <div className="briefing-preview-head">
+        <strong>Today's message</strong>
+        <span>
+          {sentAt
+            ? `Sent ${new Date(sentAt + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : `Not sent yet · ${timezone}`}
+        </span>
+      </div>
+      <pre>{state.preview}</pre>
+      <div className="briefing-preview-foot">
+        <button type="button" className="btn ghost" onClick={sendNow} disabled={sending}>
+          {sending ? 'Sending…' : 'Send now'}
+        </button>
+        {result && <small>{result}</small>}
+      </div>
+    </div>
   );
 }

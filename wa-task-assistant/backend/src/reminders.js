@@ -22,6 +22,7 @@ import {
   activeRemindersForTask,
 } from './task-lifecycle.js';
 import { EVENT, recordEvent } from './task-events.js';
+import { maybeSendBriefing } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -145,6 +146,12 @@ export function startReminderJobs() {
     cron.schedule(
       expression,
       () => {
+        // The daily briefing is the morning message when it is switched on;
+        // running the digest as well would be two lists before breakfast.
+        if (label === 'morning' && getSettings().dailyBriefing) {
+          log.info('Morning digest skipped: the daily briefing covers it.');
+          return;
+        }
         runReminderCheck({ label }).catch((err) => log.error('Reminder job:', err?.message || err));
       },
       options
@@ -188,6 +195,13 @@ const LABEL = {
  */
 export async function runReminderEngine({ now = new Date() } = {}) {
   const settings = getSettings();
+
+  // The briefing rides the same tick as everything else: one scheduler, and a
+  // claim that survives restarts, rather than a second cron to keep in step.
+  const briefing = await maybeSendBriefing({ now }).catch((err) => {
+    log.error('Daily briefing:', err?.message || err);
+    return { sent: false };
+  });
   const nowIso = now.toISOString();
   const missedBefore = new Date(now.getTime() - settings.missedAfterHours * 3600_000).toISOString();
 
@@ -241,7 +255,7 @@ export async function runReminderEngine({ now = new Date() } = {}) {
   if (sent || missed || planned) {
     log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
-  return { sent, missed, planned };
+  return { sent, missed, planned, briefing: Boolean(briefing?.sent) };
 }
 
 function updateTaskCount(taskId, count) {
@@ -305,10 +319,24 @@ async function deliver(task, reminder, settings) {
     await sendPush({ title: `${label}: ${task.title}`, body: body || '', url: '/' });
   }
 
-  // Outbound WhatsApp is off unless deliberately enabled, and even then it only
-  // ever messages the user's own chat - never a contact.
-  if (settings.notifyWhatsApp && state.status === 'ready') {
-    const text = [`⏰ *${label}*`, `   ${task.title}`, body ? `   ${body}` : null]
+  // WhatsApp is opt-in, per kind, and reminderChatId() is always the linked
+  // account's own chat - there is no path here that can message a contact.
+  const wantsWhatsApp = reminder.kind === 'follow_up'
+    ? settings.whatsappFollowUps
+    : settings.notifyWhatsApp;
+
+  if (wantsWhatsApp && state.status === 'ready') {
+    const heading = reminder.kind === 'follow_up' ? '🔔 *FOLLOW-UP*' : '⏰ *TASK REMINDER*';
+    const text = [
+      heading,
+      '',
+      `*${task.title}*`,
+      dueLabel ? `Deadline: ${dueLabel}` : null,
+      reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
+      '',
+      `Reply *done ${task.id}* to close it, *snooze ${task.id} 2 hours*,`,
+      'or open WA Tasks to reschedule.',
+    ]
       .filter(Boolean)
       .join('\n');
     try {
