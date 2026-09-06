@@ -7,19 +7,28 @@ import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
 import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
+import Toolbar from './components/Toolbar.jsx';
+import TaskDetail from './components/TaskDetail.jsx';
+import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
+
+const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null };
+
+const remember = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch { /* private window, or site data blocked */ }
+};
 
 const POLL_MS = 30_000;
 // WhatsApp rotates the linking QR about every 20s, so a 30s poll shows an
 // already-dead code. While one is on screen, refresh fast enough to stay ahead.
 const QR_POLL_MS = 5_000;
-const FILTERS = [
-  { key: 'open', label: 'Open' },
-  { key: 'done', label: 'Done' },
-  { key: 'all', label: 'All' },
-];
-
 export default function App() {
-  const [filter, setFilter] = useState('open');
+  // Which slice of work is on screen. Driven by the dashboard cells.
+  const [view, setView] = useState('open');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [openTask, setOpenTask] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
@@ -40,7 +49,7 @@ export default function App() {
     async ({ quiet = false } = {}) => {
       if (!quiet) setLoading(true);
       try {
-        const [taskData, statusData] = await Promise.all([api.listTasks(filter), api.status()]);
+        const [taskData, statusData] = await Promise.all([api.listTasks('all'), api.status()]);
         setTasks(taskData.tasks);
         setStats(taskData.stats);
         setStatus(statusData);
@@ -56,7 +65,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [filter]
+    []
   );
 
   // Poll so tasks Claude extracts from WhatsApp show up without a manual reload.
@@ -74,6 +83,10 @@ export default function App() {
     pushAlreadyEnabled().then(setPushOn).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
+  }, [tasks]);
+
   const act = useCallback(
     async (fn) => {
       try {
@@ -90,8 +103,16 @@ export default function App() {
   const onAdd = (task) => act(() => api.createTask(task));
   const onToggle = (task) =>
     act(() => api.updateTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }));
-  const onDelete = (task) => act(() => api.deleteTask(task.id));
-  const onEdit = (task, patch) => act(() => api.updateTask(task.id, patch));
+  const onDelete = (task) => {
+    setOpenTask(null);
+    return act(() => api.deleteTask(task.id));
+  };
+  const onEdit = (task, patch) => {
+    // Keep the open panel showing what was just changed, without a round trip.
+    setOpenTask((current) => (current?.id === task.id ? { ...current, ...patch } : current));
+    return act(() => api.updateTask(task.id, patch));
+  };
+  const onQuickDate = (task, offset) => onEdit(task, { due_date: isoDay(offset) });
 
   const onEnablePush = async () => {
     try {
@@ -102,10 +123,35 @@ export default function App() {
     }
   };
 
-  const overdueCount = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return tasks.filter((t) => t.status === 'open' && t.due_date && t.due_date < today).length;
+  const overdueCount = useMemo(() => tasks.filter(isOverdue).length, [tasks]);
+
+  // Chats that actually have tasks, most first - the filter offers only these.
+  const chats = useMemo(() => {
+    const counts = new Map();
+    for (const task of tasks) {
+      const name = taskChat(task);
+      if (name) counts.set(name, (counts.get(name) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [tasks]);
+
+  const visible = useMemo(() => {
+    const today = todayIso();
+    return tasks.filter((task) => {
+      if (view === 'open' && isDone(task)) return false;
+      if (view === 'in_progress' && task.status !== 'in_progress') return false;
+      if (view === 'overdue' && !isOverdue(task)) return false;
+      if (view === 'done' && !isDone(task)) return false;
+      if (view === 'myday' && isDone(task)) return false;
+
+      if (filters.status.length && !filters.status.includes(task.status)) return false;
+      if (filters.priority.length && !filters.priority.includes(task.priority)) return false;
+      if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
+      if (filters.chat && taskChat(task) !== filters.chat) return false;
+
+      return matchesQuery(task, query);
+    });
+  }, [tasks, view, filters, query]);
 
   if (needsAuth) {
     return (
@@ -136,7 +182,7 @@ export default function App() {
         </div>
       </header>
 
-      <StatBoard stats={stats} overdueCount={overdueCount} />
+      <StatBoard stats={stats} overdueCount={overdueCount} view={view} onPick={setView} />
 
       <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
 
@@ -156,52 +202,57 @@ export default function App() {
 
       <AddTaskForm onAdd={onAdd} />
 
-      <div className="toolbar">
-        <nav className="filters" role="tablist">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              role="tab"
-              aria-selected={filter === f.key}
-              className={`filter ${filter === f.key ? 'active' : ''}`}
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </nav>
-
-        <nav className="filters group-by" role="tablist" aria-label="Group tasks by">
-          {[
-            { key: 'date', label: 'By date' },
-            { key: 'chat', label: 'By chat' },
-          ].map((g) => (
-            <button
-              key={g.key}
-              role="tab"
-              aria-selected={groupBy === g.key}
-              className={`filter ${groupBy === g.key ? 'active' : ''}`}
-              onClick={() => {
-                setGroupBy(g.key);
-                try {
-                  localStorage.setItem('wa-tasks-group', g.key);
-                } catch { /* private window */ }
-              }}
-            >
-              {g.label}
-            </button>
-          ))}
-        </nav>
+      <div className="views">
+        {[
+          { key: 'myday', label: 'My day' },
+          { key: 'open', label: 'Open' },
+          { key: 'all', label: 'All' },
+        ].map((v) => (
+          <button
+            key={v.key}
+            className={`filter ${view === v.key ? 'active' : ''}`}
+            aria-pressed={view === v.key}
+            onClick={() => setView(v.key)}
+          >
+            {v.label}
+          </button>
+        ))}
       </div>
 
-      <TaskList
-        tasks={tasks}
-        loading={loading}
+      <Toolbar
+        query={query}
+        onQuery={setQuery}
         groupBy={groupBy}
-        onToggle={onToggle}
-        onDelete={onDelete}
-        onEdit={onEdit}
+        onGroupBy={(g) => {
+          setGroupBy(g);
+          remember('wa-tasks-group', g);
+        }}
+        filters={filters}
+        onFilters={setFilters}
+        chats={chats}
       />
+
+      <TaskList
+        tasks={visible}
+        loading={loading}
+        error={error && !tasks.length ? error : ''}
+        groupBy={groupBy}
+        view={view}
+        onRetry={() => refresh()}
+        onToggle={onToggle}
+        onOpen={setOpenTask}
+        onQuickDate={onQuickDate}
+      />
+
+      {openTask && (
+        <TaskDetail
+          task={openTask}
+          onClose={() => setOpenTask(null)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      )}
+
     </div>
   );
 }

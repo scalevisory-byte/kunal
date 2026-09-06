@@ -1,7 +1,5 @@
 import TaskItem from './TaskItem.jsx';
-
-const dayMs = 86400000;
-const isoDay = (offset = 0) => new Date(Date.now() + offset * dayMs).toISOString().slice(0, 10);
+import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
 
 /**
  * Columns by day, because that is how the work is actually decided: what is
@@ -9,26 +7,25 @@ const isoDay = (offset = 0) => new Date(Date.now() + offset * dayMs).toISOString
  * a separate column per future date would be mostly empty.
  */
 function byDate(open) {
-  const today = isoDay(0);
+  const today = todayIso();
   const tomorrow = isoDay(1);
   const dayAfter = isoDay(2);
 
-  const columns = [
+  return [
     { key: 'overdue', label: 'Overdue', match: (t) => t.due_date && t.due_date < today },
     { key: 'today', label: 'Today', match: (t) => t.due_date === today },
     { key: 'tomorrow', label: 'Tomorrow', match: (t) => t.due_date === tomorrow },
     { key: 'dayafter', label: 'Day after', match: (t) => t.due_date === dayAfter },
     { key: 'later', label: 'Later', match: (t) => t.due_date && t.due_date > dayAfter },
     { key: 'undated', label: 'No date', match: (t) => !t.due_date },
-  ];
-  return columns.map((c) => ({ ...c, items: open.filter(c.match) }));
+  ].map((c) => ({ ...c, items: open.filter(c.match) }));
 }
 
 /** Columns by conversation, for working through one person or group at a time. */
 function byChat(open) {
   const groups = new Map();
   for (const task of open) {
-    const name = task.chat_name || task.contact || 'Added by hand';
+    const name = taskChat(task) || 'Added by hand';
     if (!groups.has(name)) groups.set(name, []);
     groups.get(name).push(task);
   }
@@ -37,30 +34,78 @@ function byChat(open) {
     .map(([name, items]) => ({ key: name, label: name, items }));
 }
 
-export default function TaskList({ tasks, loading, groupBy, onToggle, onDelete, onEdit }) {
-  if (!tasks.length) {
+/**
+ * My Day is a single ranked list rather than columns: late first, then what is
+ * already underway, then what is high priority or due today.
+ */
+function myDay(open) {
+  const today = todayIso();
+  const rank = (t) => {
+    if (isOverdue(t)) return 0;
+    if (t.status === 'in_progress') return 1;
+    if (t.priority === 'high') return 2;
+    if (t.due_date === today) return 3;
+    return 4;
+  };
+  const items = open.filter((t) => rank(t) < 4).sort((a, b) => rank(a) - rank(b));
+  return [{ key: 'myday', label: 'My day', items }];
+}
+
+export default function TaskList({
+  tasks, loading, error, groupBy, view, onRetry, onToggle, onOpen, onQuickDate,
+}) {
+  if (error) {
     return (
-      <p className="empty">
-        {loading ? (
-          'Loading…'
-        ) : (
-          <>
-            <strong>Nothing pending</strong>
-            Tasks from WhatsApp show up here on their own.
-          </>
-        )}
+      <p className="empty error-state">
+        <strong>Unable to load tasks</strong>
+        Check your connection, then try again.
+        <button className="btn ghost" onClick={onRetry}>Try again</button>
       </p>
     );
   }
 
-  const open = tasks.filter((t) => t.status !== 'done');
-  const done = tasks.filter((t) => t.status === 'done');
+  if (loading && !tasks.length) {
+    return (
+      <p className="empty" aria-busy="true">
+        <strong>Loading tasks…</strong>
+        One moment.
+      </p>
+    );
+  }
 
-  const columns = (groupBy === 'chat' ? byChat(open) : byDate(open)).filter((c) => c.items.length);
+  if (!tasks.length) {
+    return (
+      <p className="empty">
+        <strong>You're all caught up 🎉</strong>
+        {view === 'all'
+          ? 'Tasks from WhatsApp show up here on their own.'
+          : 'Nothing matches this view.'}
+      </p>
+    );
+  }
+
+  const open = tasks.filter((t) => !isDone(t));
+  const done = tasks.filter(isDone);
+
+  let columns;
+  if (view === 'myday') columns = myDay(open);
+  else if (groupBy === 'chat') columns = byChat(open);
+  else columns = byDate(open);
+
+  columns = columns.filter((c) => c.items.length);
   if (done.length) columns.push({ key: 'done', label: 'Done', items: done });
 
+  if (!columns.length) {
+    return (
+      <p className="empty">
+        <strong>You're all caught up 🎉</strong>
+        No pending tasks in this view.
+      </p>
+    );
+  }
+
   return (
-    <div className="columns">
+    <div className={`columns ${view === 'myday' ? 'single' : ''}`}>
       {columns.map((column) => (
         <section className={`column ${column.key}`} key={column.key}>
           <header className="column-head">
@@ -73,8 +118,8 @@ export default function TaskList({ tasks, loading, groupBy, onToggle, onDelete, 
                 key={task.id}
                 task={task}
                 onToggle={onToggle}
-                onDelete={onDelete}
-                onEdit={onEdit}
+                onOpen={onOpen}
+                onQuickDate={onQuickDate}
               />
             ))}
           </ul>

@@ -153,6 +153,7 @@ export async function extractTasks(messages) {
         chat_id: source?.chat_id ?? null,
         message_id: source?.id ?? null,
         source: 'whatsapp',
+        origin: 'ai',
         due_date: dueDate,
         remind_at: remindAt,
         priority: task.priority,

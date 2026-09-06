@@ -5,12 +5,14 @@ import { normalizeDueDate } from '../dates.js';
 export const tasksRouter = Router();
 
 tasksRouter.get('/', (req, res) => {
-  const status = req.query.status === 'all' ? undefined : req.query.status;
+  // "open" from the dashboard means everything unfinished, in progress included.
+  const raw = req.query.status;
+  const status = raw === 'all' ? undefined : raw === 'open' ? 'pending' : raw;
   res.json({ tasks: listTasks({ status, limit: req.query.limit }), stats: taskStats() });
 });
 
 tasksRouter.post('/', (req, res) => {
-  const { title, description, contact, chat_name, due_date, priority } = req.body || {};
+  const { title, description, contact, chat_name, due_date, priority, remind_at } = req.body || {};
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: 'title is required' });
   }
@@ -21,8 +23,10 @@ tasksRouter.post('/', (req, res) => {
       contact,
       chat_name,
       due_date: normalizeDueDate(due_date),
+      remind_at: remind_at || null,
       priority,
       source: 'manual',
+      origin: 'manual',
       status: 'open',
     });
     res.status(201).json(task);

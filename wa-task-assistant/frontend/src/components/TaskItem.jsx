@@ -1,69 +1,20 @@
-import { useState } from 'react';
-
-const today = () => new Date().toISOString().slice(0, 10);
-const dayMs = 86400000;
-
-/** Short, human date. Long ISO strings read as noise on a phone. */
-function dueLabel(dueDate) {
-  if (!dueDate) return null;
-  const diff = Math.round(
-    (Date.parse(`${dueDate}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`)) / dayMs
-  );
-  if (diff < 0) return { text: `${Math.abs(diff)}d late`, tone: 'danger' };
-  if (diff === 0) return { text: 'Today', tone: 'warn' };
-  if (diff === 1) return { text: 'Tomorrow', tone: 'warn' };
-  if (diff <= 6) return { text: `${diff}d`, tone: '' };
-  return {
-    text: new Date(`${dueDate}T00:00:00Z`).toLocaleDateString(undefined, {
-      day: 'numeric',
-      month: 'short',
-      timeZone: 'UTC',
-    }),
-    tone: '',
-  };
-}
-
-const FILLER = new Set([
-  'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
-  'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',
-]);
-
-const words = (text) =>
-  new Set(
-    String(text || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter((w) => w && !FILLER.has(w))
-  );
+import { dueLabel, isDone, isOverdue, taskChat, timeLabel, dateTimeLabel } from '../lib/task.js';
 
 /**
- * "Process BNF salary" / "BNF salary payment needs to be done today" says the
- * same thing twice. A description only earns its line when it carries something
- * the title does not.
+ * One task, one card. The top line is the decision - is it done, what is it.
+ * The second line is the context you need to trust that decision: where it came
+ * from, when it is due, how urgent. Everything else lives in the detail panel.
  */
-function addsNothing(title, description) {
-  if (!description) return true;
-  const inTitle = words(title);
-  const inDesc = words(description);
-  if (!inDesc.size) return true;
-  let shared = 0;
-  for (const w of inDesc) if (inTitle.has(w)) shared += 1;
-  return shared / inDesc.size >= 0.6;
-}
-
-const timeLabel = (iso) =>
-  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-export default function TaskItem({ task, onToggle, onDelete, onEdit }) {
-  const [open, setOpen] = useState(false);
-  const done = task.status === 'done';
+export default function TaskItem({ task, onToggle, onOpen, onQuickDate }) {
+  const done = isDone(task);
   const due = dueLabel(task.due_date);
-  const description = addsNothing(task.title, task.description) ? null : task.description;
-  const source = task.contact || task.chat_name;
+  const chat = taskChat(task);
+  const overdue = isOverdue(task);
 
   return (
-    <li className={`task ${done ? 'done' : ''} p-${task.priority} ${open ? 'open' : ''}`}>
+    <li
+      className={`task ${done ? 'done' : ''} p-${task.priority} s-${task.status} ${overdue ? 'late' : ''}`}
+    >
       <div className="t-row">
         <input
           type="checkbox"
@@ -72,59 +23,36 @@ export default function TaskItem({ task, onToggle, onDelete, onEdit }) {
           aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
         />
 
-        <button
-          type="button"
-          className="t-title"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
+        <button type="button" className="t-title" onClick={() => onOpen(task)}>
           {task.title}
         </button>
 
-        {task.remind_at && <span className="tag warm">{timeLabel(task.remind_at)}</span>}
-        {due && <span className={`tag ${due.tone}`}>{due.text}</span>}
-        {task.reminder_count > 0 && <span className="tag nag">{task.reminder_count + 1}×</span>}
+        {/* One chip only on the title line - more than that squeezes the title. */}
+        {due && !done && <span className={`tag ${due.tone}`}>{due.text}</span>}
       </div>
 
-      {open && (
-        <div className="t-detail">
-          {description && <p className="t-desc">{description}</p>}
-          {source && <p className="t-source">from {source}</p>}
-
-          <div className="task-edit">
-            <input
-              type="date"
-              aria-label="Due date"
-              defaultValue={task.due_date || ''}
-              onChange={(event) => onEdit(task, { due_date: event.target.value })}
-            />
-            <select
-              aria-label="Priority"
-              defaultValue={task.priority}
-              onChange={(event) => onEdit(task, { priority: event.target.value })}
-            >
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <input
-              type="time"
-              aria-label="Remind at a specific time"
-              defaultValue={task.remind_at ? new Date(task.remind_at).toTimeString().slice(0, 5) : ''}
-              onChange={(event) => {
-                const time = event.target.value;
-                if (!time) return onEdit(task, { remind_at: '' });
-                // A time needs a day; fall back to today when the task has no due date.
-                const day = task.due_date || today();
-                onEdit(task, { remind_at: new Date(`${day}T${time}`).toISOString() });
-              }}
-            />
-            <button className="link danger" onClick={() => onDelete(task)}>
-              delete
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="t-meta">
+        <span className={`dot-p p-${task.priority}`} title={`${task.priority} priority`} />
+        {task.status === 'in_progress' && <span className="tag doing">In progress</span>}
+        {chat && <span className="m-item">💬 {chat}</span>}
+        <span className="m-item">{task.origin === 'ai' ? '🤖 AI-created' : '✋ Added by hand'}</span>
+        {task.remind_at && !done && <span className="m-item">⏰ {timeLabel(task.remind_at)}</span>}
+        {task.reminder_count > 0 && !done && (
+          <span className="m-item" title="Times you have been reminded">
+            reminded {task.reminder_count}×
+          </span>
+        )}
+        {done && task.completed_at && (
+          <span className="m-item">Completed {dateTimeLabel(task.completed_at)}</span>
+        )}
+        {!task.due_date && !done && (
+          <span className="m-actions">
+            <button className="link" onClick={() => onQuickDate(task, 0)}>today</button>
+            <button className="link" onClick={() => onQuickDate(task, 1)}>tomorrow</button>
+            <button className="link" onClick={() => onOpen(task)}>pick date</button>
+          </span>
+        )}
+      </div>
     </li>
   );
 }

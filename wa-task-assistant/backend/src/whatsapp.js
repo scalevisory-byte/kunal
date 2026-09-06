@@ -168,7 +168,7 @@ export async function handleCommand(message, chatId) {
 
   let targets = [];
   if (command.action === 'done' && command.all) {
-    targets = tasksInLastDigest().filter((t) => t.status === 'open');
+    targets = tasksInLastDigest().filter((t) => t.status !== 'done');
   } else {
     targets = command.positions.map((pos) => taskByDigestPos(pos)).filter(Boolean);
   }
@@ -246,6 +246,7 @@ export async function handleOwnMessage(message) {
       chat_name: inSelfChat ? 'Saved by you' : chat.name || null,
       chat_id: chatId,
       source: 'whatsapp',
+      origin: 'manual',
       status: 'open',
     });
 

@@ -31,6 +31,7 @@ db.exec(`
     chat_id       TEXT,
     message_id    INTEGER REFERENCES messages(id) ON DELETE SET NULL,
     source        TEXT NOT NULL DEFAULT 'whatsapp',
+    origin        TEXT NOT NULL DEFAULT 'manual',
     due_date      TEXT,
     priority      TEXT NOT NULL DEFAULT 'medium',
     status        TEXT NOT NULL DEFAULT 'open',
@@ -82,6 +83,7 @@ if (!taskColumns.has('last_reminded_at')) {
   log.info('Migrated tasks table: added last_reminded_at.');
 }
 for (const [name, ddl] of [
+  ['origin', "ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'"],
   ['remind_at', 'ALTER TABLE tasks ADD COLUMN remind_at TEXT'],
   ['remind_at_sent', 'ALTER TABLE tasks ADD COLUMN remind_at_sent INTEGER NOT NULL DEFAULT 0'],
   ['digest_pos', 'ALTER TABLE tasks ADD COLUMN digest_pos INTEGER'],
@@ -90,6 +92,12 @@ for (const [name, ddl] of [
     db.exec(ddl);
     log.info(`Migrated tasks table: added ${name}.`);
   }
+}
+
+if (!taskColumns.has('origin')) {
+  // Anything captured from WhatsApp was created by the extractor, not by hand.
+  db.exec(`UPDATE tasks SET origin = CASE WHEN source = 'whatsapp' THEN 'ai' ELSE 'manual' END`);
+  log.info('Migrated tasks table: backfilled origin from source.');
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
@@ -150,12 +158,25 @@ export function listMessages({ limit = 100 } = {}) {
 /* ---------------- tasks ---------------- */
 
 const PRIORITIES = new Set(['high', 'medium', 'low']);
-const STATUSES = new Set(['open', 'done']);
+const STATUSES = new Set(['open', 'in_progress', 'done']);
+/** Everything still owed. Used wherever "not finished" is what matters. */
+const OPEN_STATUSES = "status != 'done'";
+
+const ORIGINS = new Set(['ai', 'manual']);
 
 const insertTaskStmt = db.prepare(`
-  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, due_date, remind_at, priority, status)
-  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @due_date, @remind_at, @priority, @status)
+  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, origin, due_date, remind_at, priority, status)
+  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @origin, @due_date, @remind_at, @priority, @status)
 `);
+
+/**
+ * Tasks always carry the one message they came from, and never any other. The
+ * join is a single row by id, so no other chat content can reach the client.
+ */
+const TASK_SELECT = `
+  SELECT t.*, m.body AS source_message, m.sent_at AS source_message_at
+  FROM tasks t
+  LEFT JOIN messages m ON m.id = t.message_id`;
 
 export function createTask(input) {
   const row = {
@@ -166,6 +187,7 @@ export function createTask(input) {
     chat_id: input.chat_id ?? null,
     message_id: input.message_id ?? null,
     source: input.source || 'manual',
+    origin: ORIGINS.has(input.origin) ? input.origin : (input.message_id ? 'ai' : 'manual'),
     due_date: input.due_date || null,
     remind_at: input.remind_at || null,
     priority: PRIORITIES.has(input.priority) ? input.priority : 'medium',
@@ -177,21 +199,33 @@ export function createTask(input) {
 }
 
 export function getTask(id) {
-  return db.prepare(`SELECT * FROM tasks WHERE id = ?`).get(id) || null;
+  return db.prepare(`${TASK_SELECT} WHERE t.id = ?`).get(id) || null;
 }
 
+/**
+ * `status` takes one of the three statuses, or "open" as a shorthand for
+ * everything unfinished - which is what the dashboard's Open tab means now
+ * that a task can sit in progress.
+ */
 export function listTasks({ status, limit = 500 } = {}) {
-  const filtered = STATUSES.has(status);
-  const sql = `SELECT * FROM tasks
-       ${filtered ? 'WHERE status = ?' : ''}
+  let where = '';
+  const params = [];
+  if (status === 'pending') {
+    where = `WHERE t.${OPEN_STATUSES}`;
+  } else if (STATUSES.has(status)) {
+    where = 'WHERE t.status = ?';
+    params.push(status);
+  }
+  const sql = `${TASK_SELECT}
+       ${where}
        ORDER BY
-         CASE status WHEN 'open' THEN 0 ELSE 1 END,
-         due_date IS NULL, due_date ASC,
-         CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
-         id DESC
+         CASE t.status WHEN 'in_progress' THEN 0 WHEN 'open' THEN 1 ELSE 2 END,
+         t.due_date IS NULL, t.due_date ASC,
+         CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+         t.id DESC
        LIMIT ?`;
-  const capped = Math.min(Number(limit) || 500, 1000);
-  return filtered ? db.prepare(sql).all(status, capped) : db.prepare(sql).all(capped);
+  params.push(Math.min(Number(limit) || 500, 1000));
+  return db.prepare(sql).all(...params);
 }
 
 const UPDATABLE = ['title', 'description', 'contact', 'chat_name', 'due_date', 'priority', 'status', 'remind_at'];
@@ -221,7 +255,7 @@ export function updateTask(id, patch) {
   if (patch.status === 'done' && current.status !== 'done') {
     fields.push(`completed_at = datetime('now')`);
   }
-  if (patch.status === 'open' && current.status === 'done') {
+  if (patch.status !== 'done' && current.status === 'done') {
     fields.push(`completed_at = NULL`, `reminder_count = 0`, `last_reminded_at = NULL`, `remind_at_sent = 0`);
   }
 
@@ -243,7 +277,7 @@ export function pendingReminders(today) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE status = 'open' AND (due_date IS NULL OR due_date <= ?)
+       WHERE ${OPEN_STATUSES} AND (due_date IS NULL OR due_date <= ?)
        ORDER BY
          due_date IS NULL,
          due_date ASC,
@@ -271,8 +305,9 @@ export function taskStats() {
       `SELECT
          COUNT(*)                                                     AS total,
          COALESCE(SUM(status = 'open'), 0)                            AS open,
+         COALESCE(SUM(status = 'in_progress'), 0)                      AS in_progress,
          COALESCE(SUM(status = 'done'), 0)                            AS done,
-         COALESCE(SUM(status = 'open' AND priority = 'high'), 0)      AS high_open
+         COALESCE(SUM(status != 'done' AND priority = 'high'), 0)     AS high_open
        FROM tasks`
     )
     .get();
@@ -303,7 +338,7 @@ export function dueExactReminders(nowIso) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE status = 'open' AND remind_at_sent = 0
+       WHERE ${OPEN_STATUSES} AND remind_at_sent = 0
          AND remind_at IS NOT NULL AND remind_at <= ?
        ORDER BY remind_at ASC`
     )
