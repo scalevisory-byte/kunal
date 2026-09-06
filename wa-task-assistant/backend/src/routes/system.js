@@ -10,6 +10,8 @@ import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
+import { usageByDay, usageTotals } from '../db.js';
+import { PRICES, PRICES_UPDATED, costOf } from '../pricing.js';
 
 export const systemRouter = Router();
 
@@ -83,6 +85,41 @@ systemRouter.post('/selftest', async (req, res) => {
   } catch (err) {
     res.json({ ok: false, model: config.model, error: err?.message || String(err) });
   }
+});
+
+/**
+ * What the AI has cost. Token counts are what the API actually reported on each
+ * call; the money is those counts at Anthropic's published list prices. It is an
+ * estimate - the real bill lives in the Anthropic Console, which this app has no
+ * access to - so the response says as much.
+ */
+systemRouter.get('/usage', (req, res) => {
+  const days = usageByDay(req.query.days);
+  const totals = usageTotals();
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 8) + '01';
+
+  const withCost = days.map((d) => ({ ...d, ...costOf(d) }));
+  const sum = (rows) => rows.reduce((n, d) => n + d.usd, 0);
+
+  res.json({
+    model: config.model,
+    mode: config.extractionMode,
+    prices: PRICES[config.model] || null,
+    pricesUpdated: PRICES_UPDATED,
+    usdInr: config.usdInr,
+    days: withCost,
+    today: {
+      ...(withCost.find((d) => d.day === today) || { input_tokens: 0, output_tokens: 0, calls: 0, tasks: 0 }),
+      usd: sum(withCost.filter((d) => d.day === today)),
+    },
+    month: {
+      usd: sum(withCost.filter((d) => d.day >= monthStart)),
+      calls: withCost.filter((d) => d.day >= monthStart).reduce((n, d) => n + d.calls, 0),
+      tasks: withCost.filter((d) => d.day >= monthStart).reduce((n, d) => n + d.tasks, 0),
+    },
+    total: { ...totals, ...costOf({ ...totals, model: config.model }) },
+  });
 });
 
 systemRouter.get('/messages', (req, res) => {

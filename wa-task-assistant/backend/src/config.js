@@ -36,6 +36,9 @@ export const config = {
   model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
 
   timezone: process.env.TIMEZONE || 'Asia/Kolkata',
+  // Only used to show the dollar estimate in rupees as well. The rate is shown
+  // alongside the figure so it is never mistaken for a live conversion.
+  usdInr: num(process.env.USD_INR, 88),
   reminderTo: (process.env.REMINDER_TO || '').replace(/[^\d]/g, ''),
   reminderCronMorning: process.env.REMINDER_CRON_MORNING || '30 8 * * *',
   reminderCronEvening: process.env.REMINDER_CRON_EVENING || '0 18 * * *',

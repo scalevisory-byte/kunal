@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { today, todayLong, normalizeDueDate } from './dates.js';
 import { isoAtLocal } from './quickparse.js';
+import { recordUsage } from './db.js';
 
 let client = null;
 
@@ -118,9 +119,20 @@ export async function extractTasks(messages) {
       output_config: { format: zodOutputFormat(ExtractionSchema, 'extracted_tasks') },
     });
     parsed = response.parsed_output;
+    const usage = response.usage || {};
+    // Recorded per call, so spend is measured rather than guessed at later.
+    recordUsage({
+      model: config.model,
+      input_tokens: usage.input_tokens,
+      output_tokens: usage.output_tokens,
+      cache_read: usage.cache_read_input_tokens,
+      cache_write: usage.cache_creation_input_tokens,
+      messages: messages.length,
+      tasks: parsed?.tasks?.length ?? 0,
+    });
     log.info(
       `Claude extraction: ${messages.length} message(s) -> ${parsed?.tasks?.length ?? 0} task(s)` +
-        ` (in ${response.usage.input_tokens} / out ${response.usage.output_tokens} tokens)`
+        ` (in ${usage.input_tokens} / out ${usage.output_tokens} tokens)`
     );
   } catch (err) {
     log.error('Claude extraction failed:', err?.message || err);

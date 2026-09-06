@@ -21,7 +21,10 @@ const NAV = [
   },
   {
     label: 'System',
-    items: [{ key: 'settings', label: 'Settings', icon: 'settings' }],
+    items: [
+      { key: 'usage', label: 'AI Usage', icon: 'clipboard' },
+      { key: 'settings', label: 'Settings', icon: 'settings' },
+    ],
   },
 ];
 

@@ -15,6 +15,7 @@ import SideRail from './components/SideRail.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import FocusToday from './components/FocusToday.jsx';
+import UsagePage from './components/UsagePage.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -277,7 +278,17 @@ export default function App() {
             </div>
           )}
 
-          {section === 'settings' ? (
+          {section === 'usage' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>AI usage</h2>
+                  <p>What Claude has read, and what it has cost.</p>
+                </div>
+              </div>
+              <UsagePage onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'settings' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>

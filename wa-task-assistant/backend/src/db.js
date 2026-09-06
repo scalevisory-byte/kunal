@@ -59,11 +59,25 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS api_usage (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    at             TEXT NOT NULL DEFAULT (datetime('now')),
+    day            TEXT NOT NULL,
+    model          TEXT NOT NULL,
+    input_tokens   INTEGER NOT NULL DEFAULT 0,
+    output_tokens  INTEGER NOT NULL DEFAULT 0,
+    cache_read     INTEGER NOT NULL DEFAULT 0,
+    cache_write    INTEGER NOT NULL DEFAULT 0,
+    messages       INTEGER NOT NULL DEFAULT 0,
+    tasks          INTEGER NOT NULL DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
 
+  CREATE INDEX IF NOT EXISTS idx_usage_day ON api_usage(day);
   CREATE INDEX IF NOT EXISTS idx_messages_processed ON messages(processed);
   CREATE INDEX IF NOT EXISTS idx_tasks_status_due   ON tasks(status, due_date);
 `);
@@ -101,6 +115,64 @@ if (!taskColumns.has('origin')) {
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
+
+/* ---------------- api usage ---------------- */
+
+const insertUsageStmt = db.prepare(`
+  INSERT INTO api_usage (day, model, input_tokens, output_tokens, cache_read, cache_write, messages, tasks)
+  VALUES (@day, @model, @input_tokens, @output_tokens, @cache_read, @cache_write, @messages, @tasks)
+`);
+
+/** One row per call to the extractor, with the token counts the API reported. */
+export function recordUsage(row) {
+  insertUsageStmt.run({
+    day: new Date().toISOString().slice(0, 10),
+    model: row.model || 'unknown',
+    input_tokens: row.input_tokens || 0,
+    output_tokens: row.output_tokens || 0,
+    cache_read: row.cache_read || 0,
+    cache_write: row.cache_write || 0,
+    messages: row.messages || 0,
+    tasks: row.tasks || 0,
+  });
+}
+
+/** Per-day totals, newest first, for the last `days` days. */
+export function usageByDay(days = 30) {
+  return db
+    .prepare(
+      `SELECT day, model,
+              SUM(input_tokens)  AS input_tokens,
+              SUM(output_tokens) AS output_tokens,
+              SUM(cache_read)    AS cache_read,
+              SUM(cache_write)   AS cache_write,
+              SUM(messages)      AS messages,
+              SUM(tasks)         AS tasks,
+              COUNT(*)           AS calls
+       FROM api_usage
+       WHERE day >= date('now', ?)
+       GROUP BY day, model
+       ORDER BY day DESC`
+    )
+    .all(`-${Math.min(Number(days) || 30, 365)} days`);
+}
+
+/** Everything ever recorded, and when recording started. */
+export function usageTotals() {
+  return db
+    .prepare(
+      `SELECT COALESCE(SUM(input_tokens), 0)  AS input_tokens,
+              COALESCE(SUM(output_tokens), 0) AS output_tokens,
+              COALESCE(SUM(cache_read), 0)    AS cache_read,
+              COALESCE(SUM(cache_write), 0)   AS cache_write,
+              COALESCE(SUM(messages), 0)      AS messages,
+              COALESCE(SUM(tasks), 0)         AS tasks,
+              COUNT(*)                        AS calls,
+              MIN(day)                        AS since
+       FROM api_usage`
+    )
+    .get();
+}
 
 /* ---------------- meta ---------------- */
 
