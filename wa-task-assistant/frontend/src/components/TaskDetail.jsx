@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import { api } from '../api.js';
-import { REMINDER_OFFSETS } from '../lib/followup.js';
+import { REMINDER_OFFSETS, TASK_STATE, clock as fmtClock, dueLabel } from '../lib/schedule.js';
 import {
   PRIORITIES, STATUSES, dateTimeLabel, isoDay, taskChat, todayIso,
 } from '../lib/task.js';
@@ -9,8 +9,7 @@ import {
 /** Local "YYYY-MM-DDTHH:MM" for a date and time the user picked. */
 const localIso = (day, time) => new Date(`${day}T${time || '09:00'}`).toISOString();
 
-const clock = (iso) =>
-  new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const clock = fmtClock;
 
 const REMINDER_STATE = {
   scheduled: '', snoozed: 'snoozed', triggered: 'sent',
@@ -117,69 +116,43 @@ function Reminders({ task, onError, onChanged }) {
   );
 }
 
-/** Turning a task into something to chase, without leaving the drawer. */
-function FollowUpBlock({ task, onError }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ date: isoDay(3), time: '09:00', reason: '' });
-  const [created, setCreated] = useState(null);
+/**
+ * Where the task is in its chase: what has already gone out, what is next, and
+ * how many rounds are left before the app stops asking.
+ */
+function FollowUpLadder({ task }) {
+  if (!task.due_at) {
+    return (
+      <div className="field">
+        <label>Follow-ups</label>
+        <p className="field-note">
+          Give this task a due date and the app will remind you before it, at it, and keep
+          asking afterwards until it is done.
+        </p>
+      </div>
+    );
+  }
 
-  const create = async () => {
-    try {
-      const followUp = await api.createFollowUp({
-        title: `Follow up: ${task.title}`,
-        reason: form.reason.trim() || null,
-        task_id: task.id,
-        chat_id: task.chat_id,
-        chat_name: task.chat_name,
-        contact: task.contact,
-        due_at: localIso(form.date, form.time),
-        remind_at: localIso(form.date, form.time),
-      });
-      setCreated(followUp);
-      setOpen(false);
-    } catch (err) {
-      onError(err);
-    }
-  };
+  const count = task.follow_up_count || 0;
+  const max = task.follow_up_max || 0;
 
   return (
     <div className="field">
-      <label>Follow-up</label>
-      {created ? (
-        <p className="field-note ok-text">
-          Follow-up created for {new Date(created.due_at).toLocaleDateString([], { day: 'numeric', month: 'short' })}.
-        </p>
-      ) : open ? (
-        <div className="rem-add">
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="fub-date">Date</label>
-              <input id="fub-date" type="date" value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
-            </div>
-            <div className="field">
-              <label htmlFor="fub-time">Time</label>
-              <input id="fub-time" type="time" value={form.time}
-                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} />
-            </div>
-          </div>
-          <div className="field">
-            <label htmlFor="fub-reason">Reason</label>
-            <input id="fub-reason" value={form.reason} placeholder="Waiting for response"
-              onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
-          </div>
-          <div className="quick-dates">
-            <button className="btn small" onClick={create}>Create follow-up</button>
-            <button className="link" onClick={() => setOpen(false)}>Cancel</button>
-          </div>
+      <label>Follow-ups</label>
+      <dl className="facts tight">
+        <div>
+          <dt>Next follow-up</dt>
+          <dd>{task.next_follow_up_at ? clock(task.next_follow_up_at) : count >= max ? 'none left' : '—'}</dd>
         </div>
-      ) : (
-        <>
-          <p className="field-note">
-            A follow-up is for chasing somebody else — it reminds you to check, it never messages them.
-          </p>
-          <button className="link" onClick={() => setOpen(true)}>+ Add follow-up</button>
-        </>
+        <div>
+          <dt>Sent so far</dt>
+          <dd>{count} of {max}</dd>
+        </div>
+      </dl>
+      {task.needs_attention && (
+        <p className="field-note error-text">
+          The app has stopped asking after {max} follow-ups. Change the due date to start again.
+        </p>
       )}
     </div>
   );
@@ -303,9 +276,18 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, o
 
           <Reminders task={task} onError={onError} onChanged={onChanged} />
 
-          <FollowUpBlock task={task} onError={onError} />
+          <FollowUpLadder task={task} />
 
           <dl className="facts">
+            {task.state && (
+              <div>
+                <dt>State</dt>
+                <dd className={`s-${TASK_STATE[task.state]?.tone || 'plain'}`}>
+                  {TASK_STATE[task.state]?.label || task.state}
+                  {task.due_at && task.state !== 'done' && ` · ${dueLabel(task.due_at)}`}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Source</dt>
               <dd>{task.origin === 'ai' ? '🤖 AI-created' : '✋ Added by hand'}</dd>

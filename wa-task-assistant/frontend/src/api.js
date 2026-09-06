@@ -46,18 +46,14 @@ export const api = {
     request(`/tasks/${taskId}/reminders`, { method: 'POST', body: JSON.stringify(body) }),
   removeTaskReminder: (taskId, reminderId) =>
     request(`/tasks/${taskId}/reminders/${reminderId}`, { method: 'DELETE' }),
+  rescheduleTask: (taskId, body) =>
+    request(`/tasks/${taskId}/reschedule`, { method: 'POST', body: JSON.stringify(body) }),
   snoozeReminder: (reminderId, minutes) =>
     request(`/tasks/reminders/${reminderId}/snooze`, { method: 'POST', body: JSON.stringify({ minutes }) }),
   acknowledgeReminder: (reminderId) =>
     request(`/tasks/reminders/${reminderId}/acknowledge`, { method: 'POST', body: JSON.stringify({}) }),
 
-  followUps: (status) => request(`/follow-ups${status ? `?status=${status}` : ''}`),
-  createFollowUp: (body) => request('/follow-ups', { method: 'POST', body: JSON.stringify(body) }),
-  updateFollowUp: (id, body) =>
-    request(`/follow-ups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  snoozeFollowUp: (id, body) =>
-    request(`/follow-ups/${id}/snooze`, { method: 'POST', body: JSON.stringify(body) }),
-  deleteFollowUp: (id) => request(`/follow-ups/${id}`, { method: 'DELETE' }),
+  attention: () => request('/attention'),
 
   notifications: () => request('/notifications'),
   readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({}) }),

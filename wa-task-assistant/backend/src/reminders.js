@@ -8,11 +8,19 @@ import {
 import { sendMessage, reminderChatId, state } from './whatsapp.js';
 import { sendPush } from './push.js';
 import { today, daysUntil } from './dates.js';
+import { db } from './db.js';
+
+const dbUpdateCount = db.prepare(
+  `UPDATE tasks SET follow_up_count = ?, updated_at = datetime('now') WHERE id = ?`
+);
 import {
   getSettings, dueReminders, claimReminder, markMissed, addNotification,
-  refreshFollowUpStatuses, listFollowUps, advanceFollowUp, getFollowUp,
 } from './scheduling.js';
 import { getTask } from './db.js';
+import {
+  dueMoment, planTask, scheduleNextFollowUp, syncNextReminder, tasksWithDeadlines,
+  activeRemindersForTask,
+} from './task-lifecycle.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -157,151 +165,153 @@ export function startReminderJobs() {
 
 /* ---------------- the reminder engine ---------------- */
 
+const LABEL = {
+  pre_due: 'Reminder',
+  due: 'Task due',
+  follow_up: 'Follow-up',
+  custom: 'Reminder',
+};
+
 /**
- * One pass over everything whose moment has arrived. Each reminder is claimed
- * before anything is sent: the claim is a conditional UPDATE, so a second tick,
- * a restart mid-send, or a retry finds the row already out of the active states
- * and moves on. That is the whole duplicate-protection story, and it is why
- * delivery happens after the claim rather than before it.
+ * One pass. Two halves, in this order:
  *
- * A claim that is never delivered is a reminder lost rather than a reminder
- * repeated, which is the trade this makes deliberately: the notification row
- * is written in the same pass, so the user still sees it in the app.
+ *   1. Deliver anything whose moment has arrived. Each row is claimed with a
+ *      conditional UPDATE before a single notification is written, so a second
+ *      tick, a restart mid-send, or a retry finds nothing left to claim.
+ *   2. Walk open tasks with a deadline and make sure the next rung of their
+ *      ladder exists. Only ever the next one: a task that gets finished never
+ *      has a queue of future nagging waiting behind it.
+ *
+ * A task marked done is skipped in both halves, and its rows are cancelled the
+ * moment it is completed - so nothing is ever sent about finished work.
  */
 export async function runReminderEngine({ now = new Date() } = {}) {
   const settings = getSettings();
   const nowIso = now.toISOString();
   const missedBefore = new Date(now.getTime() - settings.missedAfterHours * 3600_000).toISOString();
 
-  const due = dueReminders(nowIso);
   let sent = 0;
   let missed = 0;
 
-  for (const row of due) {
-    // Too old to be useful; the user reschedules it instead of being shouted at.
+  for (const row of dueReminders(nowIso)) {
+    const task = getTask(row.task_id);
+    if (!task || task.status === 'done') continue; // finished work is never chased
+
     if (row.fire_at < missedBefore) {
       if (markMissed(row.id)) {
         missed += 1;
-        const subject = subjectOf(row);
-        if (subject) {
-          addNotification({
-            kind: 'missed',
-            title: `Missed reminder — ${subject.title}`,
-            body: 'The server was not running when this was due. Reschedule it if it still matters.',
-            task_id: row.task_id,
-            follow_up_id: row.follow_up_id,
-            reminder_id: row.id,
-          });
-        }
+        addNotification({
+          kind: 'missed',
+          title: `Missed reminder — ${task.title}`,
+          body: 'The server was not running when this was due. Reschedule it if it still matters.',
+          task_id: task.id,
+          reminder_id: row.id,
+        });
       }
       continue;
     }
 
     const claimed = claimReminder(row.id);
-    if (!claimed) continue; // something else took it; never send twice
+    if (!claimed) continue;
 
-    const subject = subjectOf(row);
-    if (!subject) continue; // task or follow-up deleted underneath us
-
-    await deliver(subject, claimed, settings);
+    await deliver(task, claimed, settings);
     sent += 1;
+
+    // A follow-up that has just gone out is the trigger for arranging the next
+    // rung, and only then - so the ladder advances one step per notification.
+    if (claimed.kind === 'follow_up') {
+      const after = getTask(task.id);
+      if (after && after.status !== 'done') {
+        const count = (after.follow_up_count || 0) + 1;
+        updateTaskCount(after.id, count);
+        scheduleNextFollowUp({ ...after, follow_up_count: count }, settings);
+      }
+    }
+    syncNextReminder(task.id);
   }
 
-  const moved = refreshFollowUpStatuses(nowIso);
-  const chased = await chaseFollowUps(settings, now);
+  const planned = planOpenTasks(settings, now);
 
-  if (sent || missed || chased) {
-    log.info(
-      `Reminder engine: ${sent} sent, ${missed} missed, ${chased} follow-up(s) advanced` +
-        `, ${moved.toDue} due, ${moved.toOverdue} overdue`
-    );
+  if (sent || missed || planned) {
+    log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
-  return { sent, missed, chased, ...moved };
+  return { sent, missed, planned };
 }
 
-/** What a reminder is about: a task, or a follow-up. */
-function subjectOf(reminder) {
-  if (reminder.task_id) {
-    const task = getTask(reminder.task_id);
-    if (!task || task.status === 'done') return null;
-    return { kind: 'task', id: task.id, title: task.title, context: task.contact || task.chat_name };
-  }
-  if (reminder.follow_up_id) {
-    const followUp = getFollowUp(reminder.follow_up_id);
-    if (!followUp || ['completed', 'cancelled'].includes(followUp.status)) return null;
-    return {
-      kind: 'follow_up',
-      id: followUp.id,
-      title: followUp.title,
-      context: followUp.contact || followUp.chat_name,
-      reason: followUp.reason,
-    };
-  }
-  return null;
+function updateTaskCount(taskId, count) {
+  dbUpdateCount.run(count, taskId);
 }
 
-/** In-app always, browser and WhatsApp only where the settings allow it. */
-async function deliver(subject, reminder, settings) {
-  const at = reminder.fire_at.slice(11, 16);
-  const label = subject.kind === 'follow_up' ? 'Follow-up due' : 'Reminder';
+/**
+ * Makes sure every open task with a deadline has its schedule laid out. Tasks
+ * created before the engine existed, or whose deadline was set elsewhere, are
+ * picked up here rather than needing a special path.
+ */
+function planOpenTasks(settings, now) {
+  let planned = 0;
+  for (const task of tasksWithDeadlines()) {
+    const due = dueMoment(task, settings);
+    if (!due) continue;
+
+    const active = activeRemindersForTask(task.id);
+    if (active.length) continue; // already has something waiting
+
+    if (due > now) {
+      planned += planTask(task).planned;
+    } else if (settings.followUpEnabled && !task.needs_attention) {
+      // Past its deadline with nothing pending: put the next rung in place.
+      planned += scheduleNextFollowUp(task, settings, due);
+      syncNextReminder(task.id);
+    }
+  }
+  return planned;
+}
+
+/** In-app always; browser and WhatsApp only where the settings allow it. */
+async function deliver(task, reminder, settings) {
+  const label = LABEL[reminder.kind] || 'Reminder';
+  const due = dueMoment(task, settings);
+  const dueLabel = due
+    ? due.toLocaleString('en-GB', {
+        timeZone: config.timezone, day: 'numeric', month: 'short',
+        hour: 'numeric', minute: '2-digit',
+      })
+    : null;
+
+  const body =
+    reminder.kind === 'follow_up'
+      ? `Still not done — was due ${dueLabel}. Follow-up ${reminder.round} of ${settings.followUpMax}.`
+      : reminder.kind === 'due'
+        ? `Due now (${dueLabel}).`
+        : dueLabel
+          ? `Due ${dueLabel}.`
+          : null;
 
   addNotification({
-    kind: subject.kind === 'follow_up' ? 'follow_up' : 'reminder',
-    title: `${label} — ${subject.title}`,
-    body: [subject.context, subject.reason, `set for ${at}`].filter(Boolean).join(' · '),
-    task_id: subject.kind === 'task' ? subject.id : null,
-    follow_up_id: subject.kind === 'follow_up' ? subject.id : null,
+    kind: reminder.kind === 'follow_up' ? 'follow_up' : 'reminder',
+    title: `${label} — ${task.title}`,
+    body,
+    task_id: task.id,
     reminder_id: reminder.id,
   });
 
   if (settings.notifyBrowser) {
-    await sendPush({ title: subject.title, body: `${label} — ${at}`, url: '/' });
+    await sendPush({ title: `${label}: ${task.title}`, body: body || '', url: '/' });
   }
 
-  // Outbound WhatsApp stays off unless it has been turned on deliberately, and
-  // even then it only ever messages the user's own chat - never a contact.
+  // Outbound WhatsApp is off unless deliberately enabled, and even then it only
+  // ever messages the user's own chat - never a contact.
   if (settings.notifyWhatsApp && state.status === 'ready') {
-    const body = [
-      `⏰ *${subject.title}*`,
-      subject.context ? `   ${subject.context}` : null,
-      subject.reason ? `   ${subject.reason}` : null,
-      `   ${label.toLowerCase()} — ${at}`,
-    ]
+    const text = [`⏰ *${label}*`, `   ${task.title}`, body ? `   ${body}` : null]
       .filter(Boolean)
       .join('\n');
     try {
-      await sendMessage(reminderChatId(), body);
+      await sendMessage(reminderChatId(), text);
     } catch (err) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
   }
 }
 
-/**
- * A follow-up whose date has passed and that has had no reply either repeats on
- * its interval or stops and asks for attention. Nothing is sent to the contact.
- */
-async function chaseFollowUps(settings, now) {
-  const open = listFollowUps({ status: 'open' }).filter(
-    (f) => !f.responded_at && f.due_at <= now.toISOString() && (f.status === 'due' || f.status === 'overdue')
-  );
-
-  let advanced = 0;
-  for (const followUp of open) {
-    // Only chase again once the current round has actually been notified about.
-    const notified = followUp.reminders.some((r) => r.status === 'triggered' || r.status === 'acknowledged');
-    if (!notified && followUp.reminders.length) continue;
-
-    const outcome = advanceFollowUp(followUp, settings);
-    if (outcome.repeated || outcome.reason === 'maximum reached') advanced += 1;
-  }
-  return advanced;
-}
-
-/* ---------------- backwards compatibility ---------------- */
-
-/**
- * Kept so the existing POST /api/reminders/exact route and anything calling it
- * keep working; the engine is where the logic lives now.
- */
+/** Kept so the existing POST /api/reminders/exact route keeps working. */
 export const runExactReminders = () => runReminderEngine();

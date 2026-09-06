@@ -44,18 +44,6 @@ const ExtractionSchema = z.object({
             '(e.g. "10 baje" -> "10:00", "5pm" -> "17:00"). Empty string if no time is given.'
         ),
       priority: z.enum(['high', 'medium', 'low']),
-      kind: z
-        .enum(['task', 'follow_up'])
-        .describe(
-          'follow_up when the item is about chasing somebody else for a reply or a decision; ' +
-            'task when it is work he does himself. Default to task.'
-        ),
-      follow_up_reason: z
-        .string()
-        .describe(
-          'For a follow_up only: what is being waited on, in a few words ' +
-            '("waiting for quotation approval"). Empty string for a task.'
-        ),
     })
   ),
 });
@@ -92,17 +80,7 @@ Rules:
 - source_index must be the index of the message the task came from.
 - If nothing in the batch is actionable, return an empty tasks array. That is a normal,
   expected outcome - do not invent tasks to fill the list.
-
-TASK vs FOLLOW-UP:
-- "task" is work he does himself: send the invoice, pay the challan, call Ravi.
-- "follow_up" is chasing somebody ELSE for a reply, a decision, or a delivery he is
-  waiting on: "follow up with Ravi if he does not reply", "check whether the client
-  confirmed", "remind them about the pending quotation".
-- Only use follow_up when the message carries a clear signal that HE is waiting on
-  SOMEONE ELSE - an explicit instruction to follow up, an unanswered request he made,
-  or a promise someone made to him. Ordinary conversation is NOT a follow-up.
-- When in doubt between the two, choose "task". A wrong follow-up is worse than a
-  wrong task, because it keeps asking about something nobody is waiting for.`;
+`;
 
 function renderBatch(messages) {
   return messages
@@ -181,8 +159,6 @@ export async function extractTasks(messages) {
       }
 
       return {
-        kind: task.kind === 'follow_up' ? 'follow_up' : 'task',
-        follow_up_reason: task.follow_up_reason?.trim() || null,
         title,
         description: task.description?.trim() || null,
         contact: task.contact?.trim() || source?.contact_name || source?.contact_number || null,
@@ -192,7 +168,7 @@ export async function extractTasks(messages) {
         source: 'whatsapp',
         origin: 'ai',
         due_date: dueDate,
-        remind_at: remindAt,
+        due_at: remindAt,
         priority: task.priority,
         status: 'open',
       };

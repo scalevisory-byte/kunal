@@ -1288,77 +1288,32 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 
 
-/* ---------- follow-ups ---------- */
+/* ---------- tasks needing attention ---------- */
 
-.followups .kpis { grid-template-columns: repeat(4, 1fr); margin-bottom: 16px; }
-.followups > .btn.primary { margin-bottom: 18px; }
+.attn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.attn-list li { display: grid; gap: 3px; }
+.attn-title {
+  border: 0; background: none; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; font-size: .84rem; font-weight: 600; color: var(--text);
+  overflow-wrap: break-word; transition: color .18s;
+}
+.attn-title:hover { color: var(--brand); }
+.attn-when { font-size: .74rem; }
+.attn-flag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .7rem; color: var(--danger);
+}
+.attn-tools { display: flex; gap: 4px; margin-top: 3px; }
+.attn-tools .tool { padding: 2px 7px; font-size: .72rem; }
 
-.fu-form {
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
-  padding: 18px; margin-bottom: 20px;
-}
-.fu-form-foot { display: flex; align-items: center; gap: 16px; margin-top: 18px; }
-
-.fu-list { list-style: none; margin: 0; padding: 0; }
-.fu {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center; gap: 14px;
-  padding: 12px 2px;
-  border-bottom: 1px solid var(--line);
-}
-.fu:last-child { border-bottom: 0; }
-.fu-main { min-width: 0; }
-.fu-title {
-  border: 0; background: none; padding: 0; cursor: pointer;
-  font: inherit; font-size: .91rem; font-weight: 600; color: var(--text);
-  text-align: left; overflow-wrap: break-word;
-  transition: color .18s;
-}
-.fu-title:hover { color: var(--brand); }
-.fu-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
-  margin-top: 3px; font-size: .74rem; color: var(--muted);
-}
-.fu-status { font-weight: 600; letter-spacing: .03em; }
-.fu-status.s-danger { color: var(--danger); }
-.fu-status.s-warn { color: var(--warn); }
-.fu-status.s-ok { color: var(--ok); }
-.fu-when {
-  font-size: .78rem; font-weight: 600; color: var(--text-2);
-  white-space: nowrap; font-variant-numeric: tabular-nums;
-}
-.fu.tone-danger .fu-when { color: var(--danger); }
-.fu.tone-warn .fu-when { color: var(--warn); }
-.fu-tools { display: flex; gap: 4px; opacity: 0; transition: opacity .18s; }
-.fu:hover .fu-tools, .fu:focus-within .fu-tools { opacity: 1; }
-@media (hover: none) { .fu-tools { opacity: 1; } }
-.fu.replied .fu-title { color: var(--ok); }
-
-.fu-detail {
-  grid-column: 1 / -1;
-  margin-top: 10px; padding: 13px 15px;
-  background: var(--raised); border-radius: var(--r);
-}
-.fu-snooze { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
-.fu-snooze span { margin-right: 4px; }
-.fu-detail h4 {
-  margin: 14px 0 7px;
-  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--muted); font-weight: 600;
-}
-.fu-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-.fu-history li {
-  display: grid; grid-template-columns: 130px 1fr; gap: 12px;
-  font-size: .78rem; color: var(--text-2);
-}
-.fu-history li span:first-child { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .72rem; }
-.fu-detail-foot { margin-top: 14px; }
-
-.fu-counts { margin: 0 0 10px; font-size: .82rem; font-weight: 600; display: flex; gap: 7px; }
+.fu-counts { margin: 0 0 11px; font-size: .82rem; font-weight: 600; display: flex; gap: 7px; }
 .fu-counts .sep { color: var(--line-2); font-weight: 400; }
 .danger-text { color: var(--danger); }
+.facts.tight { margin-top: 8px; padding: 11px 13px; gap: 5px; }
+.facts dd.s-danger { color: var(--danger); font-weight: 600; }
+.facts dd.s-warn { color: var(--warn); font-weight: 600; }
+.facts dd.s-ok { color: var(--ok); font-weight: 600; }
+.facts dd.s-info { color: var(--info); font-weight: 600; }
 
 /* ---------- notification centre ---------- */
 
@@ -1457,9 +1412,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .toggle.on span { transform: translateX(17px); }
 
 @media (max-width: 760px) {
-  .followups .kpis { grid-template-columns: repeat(2, 1fr); }
-  .fu { grid-template-columns: minmax(0, 1fr) auto; }
-  .fu-tools { grid-column: 1 / -1; }
   .notif-panel { right: 16px; left: 16px; width: auto; }
   .set-row { flex-direction: column; align-items: flex-start; gap: 10px; }
 }

@@ -37,6 +37,7 @@ db.exec(`
     status        TEXT NOT NULL DEFAULT 'open',
     reminder_count   INTEGER NOT NULL DEFAULT 0,
     last_reminded_at TEXT,
+    due_at           TEXT,
     remind_at        TEXT,
     remind_at_sent   INTEGER NOT NULL DEFAULT 0,
     digest_pos       INTEGER,
@@ -98,6 +99,9 @@ if (!taskColumns.has('last_reminded_at')) {
 }
 for (const [name, ddl] of [
   ['origin', "ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'"],
+  ['due_at', 'ALTER TABLE tasks ADD COLUMN due_at TEXT'],
+  ['follow_up_count', 'ALTER TABLE tasks ADD COLUMN follow_up_count INTEGER NOT NULL DEFAULT 0'],
+  ['needs_attention', 'ALTER TABLE tasks ADD COLUMN needs_attention INTEGER NOT NULL DEFAULT 0'],
   ['remind_at', 'ALTER TABLE tasks ADD COLUMN remind_at TEXT'],
   ['remind_at_sent', 'ALTER TABLE tasks ADD COLUMN remind_at_sent INTEGER NOT NULL DEFAULT 0'],
   ['digest_pos', 'ALTER TABLE tasks ADD COLUMN digest_pos INTEGER'],
@@ -112,6 +116,13 @@ if (!taskColumns.has('origin')) {
   // Anything captured from WhatsApp was created by the extractor, not by hand.
   db.exec(`UPDATE tasks SET origin = CASE WHEN source = 'whatsapp' THEN 'ai' ELSE 'manual' END`);
   log.info('Migrated tasks table: backfilled origin from source.');
+}
+
+// `remind_at` was carrying the clock time parsed out of a message - which is the
+// deadline, not the moment to be reminded. Move it to due_at once.
+if (!taskColumns.has('due_at')) {
+  db.exec(`UPDATE tasks SET due_at = remind_at WHERE remind_at IS NOT NULL`);
+  log.info('Migrated tasks table: remind_at times carried over to due_at.');
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
@@ -237,8 +248,8 @@ const OPEN_STATUSES = "status != 'done'";
 const ORIGINS = new Set(['ai', 'manual']);
 
 const insertTaskStmt = db.prepare(`
-  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, origin, due_date, remind_at, priority, status)
-  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @origin, @due_date, @remind_at, @priority, @status)
+  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, origin, due_date, due_at, remind_at, priority, status)
+  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @origin, @due_date, @due_at, @remind_at, @priority, @status)
 `);
 
 /**
@@ -261,6 +272,7 @@ export function createTask(input) {
     source: input.source || 'manual',
     origin: ORIGINS.has(input.origin) ? input.origin : (input.message_id ? 'ai' : 'manual'),
     due_date: input.due_date || null,
+    due_at: input.due_at || input.remind_at || null,
     remind_at: input.remind_at || null,
     priority: PRIORITIES.has(input.priority) ? input.priority : 'medium',
     status: STATUSES.has(input.status) ? input.status : 'open',
@@ -300,7 +312,10 @@ export function listTasks({ status, limit = 500 } = {}) {
   return db.prepare(sql).all(...params);
 }
 
-const UPDATABLE = ['title', 'description', 'contact', 'chat_name', 'due_date', 'priority', 'status', 'remind_at'];
+const UPDATABLE = [
+  'title', 'description', 'contact', 'chat_name', 'due_date', 'due_at',
+  'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
+];
 
 export function updateTask(id, patch) {
   const current = getTask(id);
@@ -326,6 +341,9 @@ export function updateTask(id, patch) {
   }
   if (patch.status === 'done' && current.status !== 'done') {
     fields.push(`completed_at = datetime('now')`);
+  }
+  if (('due_at' in patch || 'due_date' in patch) && !('follow_up_count' in patch)) {
+    fields.push(`follow_up_count = 0`, `needs_attention = 0`);
   }
   if (patch.status !== 'done' && current.status === 'done') {
     fields.push(`completed_at = NULL`, `reminder_count = 0`, `last_reminded_at = NULL`, `remind_at_sent = 0`);

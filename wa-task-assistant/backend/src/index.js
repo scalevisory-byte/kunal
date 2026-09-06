@@ -5,10 +5,8 @@ import { startWhatsApp, shutdown } from './whatsapp.js';
 import { startReminderJobs } from './reminders.js';
 import { reportBoot } from './diagnostics.js';
 import './scheduling.js';
-import { migrateLegacyReminders } from './task-reminders.js';
 
 reportBoot(log);
-migrateLegacyReminders();
 
 const app = createServer();
 

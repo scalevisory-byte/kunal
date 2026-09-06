@@ -26,7 +26,7 @@ const HIGH_WORDS = /\b(urgent|asap|turant|jaldi|important|critical)\b/i;
  * Find a clock time: "10 baje", "at 5pm", "5:30 PM", "17:00".
  * Returns { hour, minute, match } or null.
  */
-function findTime(text) {
+export function findTime(text) {
   const patterns = [
     // 5:30 pm / 5.30pm / 17:00
     [/\b(\d{1,2})[:.](\d{2})\s*(am|pm)?\b/i, (m) => ({
@@ -104,7 +104,7 @@ function nextDayOfMonth(day) {
  * Look for a date. Returns { date, match } so the caller can strip the phrase
  * out of the title, or null when nothing matched.
  */
-function findDate(text) {
+export function findDate(text) {
   const patterns = [
     [/\b(today|aaj)\b/i, () => isoFromOffset(0)],
     [/\b(tomorrow|tmrw|kal)\b/i, () => isoFromOffset(1)],

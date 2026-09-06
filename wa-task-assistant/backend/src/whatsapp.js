@@ -11,8 +11,10 @@ import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
 import { parseCommand } from './commands.js';
 import { clearStaleBrowserLocks } from './session-store.js';
-import { createFollowUp, recordReply, scheduleReminder, getSettings } from './scheduling.js';
-import { addTaskReminder, clearTaskReminders } from './task-reminders.js';
+import { planTask, completeTask, rescheduleTask } from './task-lifecycle.js';
+import { parseTaskInstruction } from './nl-commands.js';
+import { findDuplicateTask } from './task-matching.js';
+import { isoAtLocal } from './quickparse.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -128,14 +130,19 @@ async function flushBuffer() {
 
   flushing = true;
   try {
-    const extracted = await extractTasks(batch);
-    const tasks = extracted.filter((t) => t.kind !== 'follow_up');
-    const followUps = extracted.filter((t) => t.kind === 'follow_up');
+    const tasks = await extractTasks(batch);
 
     for (const task of tasks) {
       try {
+        // The same job mentioned again is the same job. Creating a second copy
+        // would double every reminder it goes on to produce.
+        const existing = findDuplicateTask(task.title);
+        if (existing) {
+          log.info(`Skipped duplicate task: "${task.title}" matches open task ${existing.id}`);
+          continue;
+        }
         const created = createTask(task);
-        if (created?.remind_at) addTaskReminder(created.id, created.remind_at);
+        planTask(created);
         state.tasksCreated += 1;
         log.info(`Task created: "${task.title}"${task.due_date ? ` (due ${task.due_date})` : ''}`);
       } catch (err) {
@@ -143,31 +150,6 @@ async function flushBuffer() {
       }
     }
 
-    for (const item of followUps) {
-      try {
-        // Without a date there is nothing to chase towards, so fall back to the
-        // configured interval rather than inventing a deadline.
-        const settings = getSettings();
-        const dueAt = item.remind_at
-          || (item.due_date ? `${item.due_date}T09:00:00.000Z` : null)
-          || new Date(Date.now() + settings.followUpIntervalDays * 86400000).toISOString();
-
-        const followUp = createFollowUp({
-          title: item.title,
-          reason: item.follow_up_reason,
-          chat_id: item.chat_id,
-          chat_name: item.chat_name,
-          contact: item.contact,
-          message_id: item.message_id,
-          due_at: dueAt,
-          origin: 'ai',
-        });
-        scheduleReminder({ followUpId: followUp.id, fireAt: dueAt });
-        log.info(`Follow-up created: "${item.title}" (due ${dueAt.slice(0, 10)})`);
-      } catch (err) {
-        log.error('Could not store extracted follow-up:', err?.message || err);
-      }
-    }
     markMessagesProcessed(batch.map((m) => m.id));
     state.lastExtractionAt = new Date().toISOString();
     state.lastExtraction = { at: state.lastExtractionAt, messages: batch.length, tasks: tasks.length, error: null };
@@ -216,7 +198,7 @@ export async function handleCommand(message, chatId) {
     if (command.action === 'done') {
       const updated = updateTask(task.id, { status: 'done' });
       if (updated) {
-        clearTaskReminders(task.id);
+        completeTask(task.id);
         changed.push(updated);
       }
     } else {
@@ -277,8 +259,11 @@ export async function handleOwnMessage(message) {
     const parsed = parseQuickTask(body, { trigger: hasTrigger ? trigger : '' });
     if (!parsed) return;
 
-    createTask({
-      ...parsed,
+    const { remind_at: parsedTime, ...rest } = parsed;
+    const created = createTask({
+      ...rest,
+      // The clock time in a message is the deadline, not the moment to be nudged.
+      due_at: parsedTime,
       // A forward keeps the original text but not its author, so record where it landed.
       chat_name: inSelfChat ? 'Saved by you' : chat.name || null,
       chat_id: chatId,
@@ -286,6 +271,7 @@ export async function handleOwnMessage(message) {
       origin: 'manual',
       status: 'open',
     });
+    planTask(created);
 
     state.lastMessageAt = new Date().toISOString();
     state.lastExtractionAt = new Date().toISOString();
@@ -300,6 +286,52 @@ function drop(reason, detail = null) {
   state.drops[reason] = (state.drops[reason] || 0) + 1;
   if (detail) state.lastDropError = String(detail).slice(0, 300);
   noteEvent(`dropped: ${reason}`, detail);
+}
+
+/**
+ * "BNF salary done" and "sunshine audit kal karunga" act on the task the user
+ * already has, rather than becoming new ones. Nothing happens unless the
+ * sentence identifies exactly one open task - an ambiguous match is left alone
+ * and falls through to ordinary handling.
+ */
+export async function handleTaskInstruction(text) {
+  const instruction = parseTaskInstruction(text);
+  if (!instruction) return false;
+
+  const { task } = instruction;
+  if (instruction.action === 'done') {
+    updateTask(task.id, { status: 'done' });
+    completeTask(task.id);
+    state.lastCommandAt = new Date().toISOString();
+    noteEvent('task marked done', task.title);
+    log.info(`Task ${task.id} marked done from WhatsApp: "${task.title}"`);
+    await reply(`✅ Done: *${task.title}*\n_Reminders for it have stopped._`);
+    return true;
+  }
+
+  if (instruction.action === 'reschedule') {
+    const dueAt = instruction.time
+      ? isoAtLocal(instruction.due_date, instruction.time.hour, instruction.time.minute, config.timezone)
+      : null;
+    rescheduleTask(task.id, { due_date: instruction.due_date, due_at: dueAt });
+    state.lastCommandAt = new Date().toISOString();
+    noteEvent('task rescheduled', `${task.title} -> ${instruction.due_date}`);
+    log.info(`Task ${task.id} rescheduled from WhatsApp to ${instruction.due_date}`);
+    await reply(
+      `🕓 Moved: *${task.title}*\n_Now due ${instruction.due_date}${instruction.time ? ` at ${String(instruction.time.hour).padStart(2, '0')}:${String(instruction.time.minute).padStart(2, '0')}` : ''}._`
+    );
+    return true;
+  }
+  return false;
+}
+
+/** Confirmations go to the digest chat, which is the user's own. */
+async function reply(text) {
+  try {
+    if (state.status === 'ready') await sendMessage(reminderChatId(), text);
+  } catch (err) {
+    log.error('instruction reply failed:', err?.message || err);
+  }
 }
 
 /** Exported so the batching path can be driven directly in tests. */
@@ -360,15 +392,6 @@ export async function handleMessage(message) {
 
     state.lastMessageAt = new Date().toISOString();
     state.messagesSeen += 1;
-    // Somebody replying in a chat we are chasing pauses the chase. It does not
-    // close the follow-up: only the user knows whether the reply answered it.
-    if (!message.fromMe) {
-      try {
-        recordReply(row.chat_id, body);
-      } catch (err) {
-        log.error('recordReply:', err?.message || err);
-      }
-    }
     noteEvent('message', `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60)}`);
     buffer.push({ ...row, id });
     state.bufferedCount = buffer.length;
@@ -456,14 +479,15 @@ export function startWhatsApp() {
     // tasks as much as anything someone sends you.
     client.on('message_create', async (message) => {
       state.rawSeen += 1;
-      // A reply command is an instruction, not a new task. It is checked in its
-      // own try block: a failure here must not cost us the message itself.
+      // Instructions about an existing task are checked first, in their own try
+      // block: a failure here must not cost us the message itself.
       if (message.fromMe && message.body) {
         try {
           const chat = await message.getChat();
           if (await handleCommand(message, chat.id?._serialized ?? message.to)) return;
+          if (await handleTaskInstruction(message.body)) return;
         } catch (err) {
-          noteEvent('command check failed', err?.message || err);
+          noteEvent('instruction check failed', err?.message || err);
         }
       }
       await handleMessage(message);

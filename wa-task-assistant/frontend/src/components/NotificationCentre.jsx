@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
 import { api } from '../api.js';
-import { SNOOZE_OPTIONS } from '../lib/followup.js';
+import { SNOOZE_OPTIONS } from '../lib/schedule.js';
 import { dateTimeLabel } from '../lib/task.js';
 import { parseStamp } from '../lib/derive.js';
 

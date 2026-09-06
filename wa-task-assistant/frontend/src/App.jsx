@@ -16,15 +16,15 @@ import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import FocusToday from './components/FocusToday.jsx';
 import UsagePage from './components/UsagePage.jsx';
-import FollowUps from './components/FollowUps.jsx';
-import FollowUpWidget from './components/FollowUpWidget.jsx';
+import AttentionWidget from './components/AttentionWidget.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
+import { needsAttention } from './lib/schedule.js';
 
-const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null };
+const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false };
 
 const remember = (key, value) => {
   try {
@@ -51,7 +51,7 @@ export default function App() {
   const [navOpen, setNavOpen] = useState(false);
   const [notifications, setNotifications] = useState({ notifications: [], unread: 0 });
   const [notifOpen, setNotifOpen] = useState(false);
-  const [followUps, setFollowUps] = useState([]);
+
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
@@ -73,17 +73,15 @@ export default function App() {
     async ({ quiet = false } = {}) => {
       if (!quiet) setLoading(true);
       try {
-        const [taskData, statusData, notifData, followUpData] = await Promise.all([
+        const [taskData, statusData, notifData] = await Promise.all([
           api.listTasks('all'),
           api.status(),
           api.notifications().catch(() => ({ notifications: [], unread: 0 })),
-          api.followUps().catch(() => ({ followUps: [] })),
         ]);
         setTasks(taskData.tasks);
         setStats(taskData.stats);
         setStatus(statusData);
         setNotifications(notifData);
-        setFollowUps(followUpData.followUps || []);
         setNeedsAuth(false);
         setError('');
       } catch (err) {
@@ -144,6 +142,11 @@ export default function App() {
     return act(() => api.updateTask(task.id, patch));
   };
   const onQuickDate = (task, offset) => onEdit(task, { due_date: isoDay(offset) });
+  /** Pushing a deadline back restarts the reminder and follow-up cycle. */
+  const onSnoozeTask = (task, minutes) =>
+    act(() => api.rescheduleTask(task.id, {
+      due_at: new Date(Date.now() + minutes * 60000).toISOString(),
+    }));
 
   const onEnablePush = async () => {
     try {
@@ -179,6 +182,7 @@ export default function App() {
       if (filters.priority.length && !filters.priority.includes(task.priority)) return false;
       if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
       if (filters.chat && taskChat(task) !== filters.chat) return false;
+      if (filters.attention && !(['due', 'overdue'].includes(task.state) || task.needs_attention)) return false;
       if (selectedDate && task.due_date !== selectedDate) return false;
 
       return matchesQuery(task, query);
@@ -203,7 +207,7 @@ export default function App() {
     if (key === 'chat') { setGroupBy('chat'); return setView('open'); }
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
-    if (key === 'followups') return undefined;
+    if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }
     return undefined;
   };
 
@@ -304,17 +308,7 @@ export default function App() {
             />
           )}
 
-          {section === 'followups' ? (
-            <section className="settings-page">
-              <div className="page-head">
-                <div>
-                  <h2>Follow-ups</h2>
-                  <p>What you are waiting on, and when to chase it. Nothing is ever sent for you.</p>
-                </div>
-              </div>
-              <FollowUps chats={chats} onError={(err) => setError(err.message)} />
-            </section>
-          ) : section === 'usage' ? (
+          {section === 'usage' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>
@@ -450,8 +444,13 @@ export default function App() {
                     onUpcoming={showUpcoming}
                     onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
                     onViewAi={() => goto('ai')}
-                    followUpWidget={
-                      <FollowUpWidget followUps={followUps} onOpenAll={() => goto('followups')} />
+                    attentionWidget={
+                      <AttentionWidget
+                        tasks={tasks}
+                        onDone={(task) => onEdit(task, { status: 'done' })}
+                        onSnooze={onSnoozeTask}
+                        onOpen={setOpenTask}
+                      />
                     }
                   />
                 </div>

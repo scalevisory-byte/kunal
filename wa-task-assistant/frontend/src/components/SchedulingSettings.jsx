@@ -61,7 +61,7 @@ export default function SchedulingSettings({ onError }) {
   return (
     <section className="settings-block">
       <header className="settings-head">
-        <h3>Reminders &amp; follow-ups</h3>
+        <h3>Before the deadline</h3>
         <span>{saving ? 'Saving…' : `Times in ${timezone}`}</span>
       </header>
 
@@ -101,25 +101,57 @@ export default function SchedulingSettings({ onError }) {
         </select>
       </Row>
 
-      <Row label="Follow-up interval" note="How long an AI-created follow-up waits by default.">
-        <select value={settings.followUpIntervalDays} onChange={(e) => save({ followUpIntervalDays: Number(e.target.value) })}>
-          <option value={1}>1 day</option>
-          <option value={2}>2 days</option>
-          <option value={3}>3 days</option>
-          <option value={7}>7 days</option>
-        </select>
+      <Row label="Remind at the due time" note="One notification the moment a task falls due.">
+        <Toggle on={settings.remindAtDue} label="Remind at due" onChange={(v) => save({ remindAtDue: v })} />
       </Row>
 
-      <Row label="Maximum follow-ups" note="After this many with no reply, it asks for your attention.">
-        <select value={settings.followUpMax} onChange={(e) => save({ followUpMax: Number(e.target.value) })}>
+      <header className="settings-head second">
+        <h3>Follow up until it is done</h3>
+        <span>After the deadline, while a task is still open</span>
+      </header>
+
+      <Row label="Keep following up" note="Turn off to stop after the due reminder.">
+        <Toggle on={settings.followUpEnabled} label="Follow up" onChange={(v) => save({ followUpEnabled: v })} />
+      </Row>
+
+      {[0, 1, 2].map((index) => (
+        <Row
+          key={index}
+          label={`${['First', 'Second', 'Third'][index]} follow-up`}
+          note={`How long after the deadline the ${['first', 'second', 'third'][index]} nudge goes out.`}
+        >
+          <select
+            value={settings.followUpOffsets[index] ?? ''}
+            disabled={!settings.followUpEnabled}
+            onChange={(e) => {
+              const next = [...settings.followUpOffsets];
+              next[index] = Number(e.target.value);
+              save({ followUpOffsets: next });
+            }}
+          >
+            <option value={15}>15 minutes after</option>
+            <option value={30}>30 minutes after</option>
+            <option value={60}>1 hour after</option>
+            <option value={120}>2 hours after</option>
+            <option value={480}>8 hours after</option>
+            <option value={960}>16 hours after (next morning)</option>
+            <option value={1440}>1 day after</option>
+          </select>
+        </Row>
+      ))}
+
+      <Row label="Maximum follow-ups" note="After this many, the task is flagged and the app stops asking.">
+        <select value={settings.followUpMax} disabled={!settings.followUpEnabled}
+          onChange={(e) => save({ followUpMax: Number(e.target.value) })}>
+          <option value={1}>1</option>
           <option value={2}>2</option>
           <option value={3}>3</option>
-          <option value={5}>5</option>
         </select>
       </Row>
 
-      <Row label="Escalation" note="Stop repeating after the maximum and flag it, instead of chasing forever.">
-        <Toggle on={settings.escalation} label="Escalation" onChange={(v) => save({ escalation: v })} />
+      <Row label="Default due time" note="Used when a task has a date but no time.">
+        <input type="time" value={settings.defaultDueTime}
+          onChange={(e) => save({ defaultDueTime: e.target.value })} />
       </Row>
 
       <header className="settings-head second">
