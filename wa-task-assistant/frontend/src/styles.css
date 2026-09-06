@@ -210,6 +210,21 @@ h1 {
 }
 .diagnostics .hint { margin: 10px 0 0; }
 
+/* The connection's own history, so a scan that was accepted and then lost is visible. */
+.trail { margin-top: 12px; }
+.trail .hint { margin: 0 0 6px; }
+.trail ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.trail li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: .8rem;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+.trail-time { color: var(--muted); flex: none; }
+.trail-kind { color: var(--text-2); flex: none; }
+.trail-detail { color: var(--muted); overflow-wrap: anywhere; }
+
 
 .banner {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

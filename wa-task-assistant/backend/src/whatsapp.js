@@ -10,6 +10,7 @@ import {
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
 import { parseCommand } from './commands.js';
+import { clearStaleBrowserLocks } from './session-store.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -67,7 +68,16 @@ export const state = {
   blockedCount: 0,
   lastCommandAt: null,
   lastError: null,
+  // A short trail of connection events, newest last. This is what tells you
+  // whether a scan was accepted and then lost, or never accepted at all.
+  events: [],
 };
+
+/** Records one connection event so the dashboard can show what actually happened. */
+export function noteEvent(kind, detail = null) {
+  state.events.push({ at: new Date().toISOString(), kind, detail: detail ? String(detail).slice(0, 200) : null });
+  if (state.events.length > 25) state.events.shift();
+}
 
 let client = null;
 let buffer = [];
@@ -278,6 +288,9 @@ export async function handleMessage(message) {
 }
 
 export function startWhatsApp() {
+  clearStaleBrowserLocks();
+  noteEvent('starting');
+
   client = new Client({
     authStrategy: new LocalAuth({ dataPath: config.waSessionDir }),
     puppeteer: {
@@ -292,8 +305,17 @@ export function startWhatsApp() {
     },
   });
 
+  client.on('loading_screen', (percent, message) => {
+    noteEvent('loading', `${percent}% ${message || ''}`.trim());
+  });
+
+  client.on('change_state', (waState) => {
+    noteEvent('state', waState);
+  });
+
   client.on('qr', async (qr) => {
     state.status = 'qr';
+    noteEvent('qr issued');
     state.qrDataUrl = await QRCode.toDataURL(qr).catch(() => null);
     log.info('Scan this QR code in WhatsApp > Linked devices (also available at GET /api/status):');
     qrcodeTerminal.generate(qr, { small: true });
@@ -301,18 +323,21 @@ export function startWhatsApp() {
 
   client.on('authenticated', () => {
     state.status = 'authenticated';
+    noteEvent('authenticated');
     state.qrDataUrl = null;
     log.info('WhatsApp authenticated.');
   });
 
   client.on('auth_failure', (msg) => {
     state.status = 'error';
+    noteEvent('auth failure', msg);
     state.lastError = String(msg);
     log.error('WhatsApp auth failure:', msg);
   });
 
   client.on('ready', () => {
     state.status = 'ready';
+    noteEvent('ready');
     state.qrDataUrl = null;
     state.me = client.info?.wid?._serialized ?? null;
     log.info(`WhatsApp ready as ${state.me}`);
@@ -320,6 +345,7 @@ export function startWhatsApp() {
 
   client.on('disconnected', (reason) => {
     state.status = 'disconnected';
+    noteEvent('disconnected', reason);
     state.lastError = String(reason);
     log.warn('WhatsApp disconnected:', reason);
   });
@@ -350,6 +376,7 @@ export function startWhatsApp() {
   client.initialize().catch((err) => {
     state.status = 'error';
     state.lastError = err?.message || String(err);
+    noteEvent('initialize failed', err?.message || err);
     log.error('WhatsApp initialize failed:', err);
   });
 

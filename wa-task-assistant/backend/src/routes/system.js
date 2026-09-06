@@ -26,6 +26,7 @@ systemRouter.get('/status', (req, res) => {
       blockedCount: state.blockedCount,
       lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
+      events: state.events,
     },
     tasks: taskStats(),
     security: authStats(),

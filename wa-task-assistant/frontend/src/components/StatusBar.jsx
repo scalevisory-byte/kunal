@@ -19,6 +19,26 @@ function since(seconds) {
  * question you would otherwise need server logs for: is the disk actually
  * persisting, is a session saved on it, and has the server just restarted?
  */
+/** The connection events this process has seen, newest first. */
+function EventTrail({ events }) {
+  if (!events?.length) return null;
+  const shown = [...events].reverse().slice(0, 8);
+  return (
+    <div className="trail">
+      <p className="hint">What the connection has done since this server started:</p>
+      <ol>
+        {shown.map((e, i) => (
+          <li key={`${e.at}-${i}`}>
+            <span className="trail-time">{new Date(e.at).toLocaleTimeString()}</span>
+            <span className="trail-kind">{e.kind}</span>
+            {e.detail && <span className="trail-detail">{e.detail}</span>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function Diagnostics({ d }) {
   if (!d) return null;
 
@@ -35,10 +55,23 @@ function Diagnostics({ d }) {
         : `${d.dataDir} — not proven yet${volumeMissing ? ' (no volume mounted here)' : ''}`,
     ],
     [
-      'WhatsApp session on disk',
+      'Saved login on disk',
       d.sessionOnDisk ? `yes (${Math.round(d.sessionBytes / 1024)} kB)` : 'no — a scan is needed',
     ],
+    [
+      'Browser profile',
+      `${Math.round((d.browserProfileBytes || 0) / 1024 / 1024)} MB (cache, not the login)`,
+    ],
+    [
+      'Memory',
+      d.container?.limitMb
+        ? `${d.container.usedMb} MB of ${d.container.limitMb} MB`
+        : `${d.container?.usedMb ?? d.memoryMb} MB used`,
+    ],
   ];
+
+  const memoryTight =
+    d.container?.limitMb && d.container.usedMb > d.container.limitMb * 0.85;
 
   return (
     <div className="diagnostics">
@@ -61,6 +94,12 @@ function Diagnostics({ d }) {
           No volume is mounted at <code>{d.dataDir}</code>. Every restart wipes the linked
           session, so the QR keeps coming back. In Railway: attach a volume at{' '}
           <code>{d.dataDir}</code> and set <code>DATA_DIR={d.dataDir}</code>.
+        </p>
+      )}
+      {memoryTight && (
+        <p className="hint error-text">
+          Memory is nearly full. Chromium gets killed mid-login when that happens, which
+          hands you a fresh QR code even though the phone shows the device as linked.
         </p>
       )}
       {restarting && !volumeMissing && (
@@ -117,7 +156,12 @@ export default function StatusBar({ status, stats, overdueCount }) {
 
       {state === 'error' && wa?.lastError && <p className="hint error-text">{wa.lastError}</p>}
 
-      {state !== 'ready' && <Diagnostics d={status?.diagnostics} />}
+      {state !== 'ready' && (
+        <>
+          <Diagnostics d={status?.diagnostics} />
+          <EventTrail events={wa?.events} />
+        </>
+      )}
     </section>
   );
 }

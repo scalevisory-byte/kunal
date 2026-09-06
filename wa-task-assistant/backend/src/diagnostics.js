@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
 import { recordBoot, getMeta } from './db.js';
+import { sessionOnDisk } from './session-store.js';
 
 export const startedAt = new Date().toISOString();
 
@@ -42,13 +43,35 @@ function isMountPoint(dir) {
 }
 
 /**
+ * Container memory, from the cgroup the process actually runs in. Chromium is
+ * the memory-hungry part here: if the container ceiling is close to what is in
+ * use, the browser gets killed mid-login and the QR comes back on its own.
+ */
+function containerMemory() {
+  const read = (file) => {
+    try {
+      return fs.readFileSync(file, 'utf8').trim();
+    } catch {
+      return null;
+    }
+  };
+  const toMb = (v) => (v && /^\d+$/.test(v) ? Math.round(Number(v) / 1024 / 1024) : null);
+
+  const limit = toMb(read('/sys/fs/cgroup/memory.max')) ?? toMb(read('/sys/fs/cgroup/memory/memory.limit_in_bytes'));
+  const used = toMb(read('/sys/fs/cgroup/memory.current')) ?? toMb(read('/sys/fs/cgroup/memory/memory.usage_in_bytes'));
+  // An unbounded cgroup reports a number close to all of host RAM; not a real cap.
+  return { limitMb: limit && limit < 1024 * 1024 ? limit : null, usedMb: used };
+}
+
+/**
  * Everything needed to answer "why is it asking me to scan again?" without
  * shell access or log files: whether the data directory persists across
  * restarts, whether a WhatsApp session is actually on disk, and how long this
  * process has been up (a number that keeps resetting means it is crash-looping).
  */
 export function diagnostics() {
-  const session = dirSize(config.waSessionDir);
+  const profile = dirSize(config.waSessionDir);
+  const session = sessionOnDisk();
   let dbBytes = 0;
   try {
     dbBytes = fs.statSync(config.dbPath).size;
@@ -70,10 +93,14 @@ export function diagnostics() {
     // The database remembering an earlier start is proof the directory survived one.
     storagePersists: boots > 1 && Boolean(firstBootAt) && firstBootAt < startedAt,
     dbBytes,
-    sessionOnDisk: session.files > 0,
+    // The browser profile appears as soon as Chromium starts; only the login
+    // credentials inside it mean a scan was accepted and saved.
+    browserProfileBytes: profile.bytes,
+    sessionOnDisk: session.loggedIn,
     sessionFiles: session.files,
     sessionBytes: session.bytes,
     memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    container: containerMemory(),
   };
 }
 
@@ -87,7 +114,7 @@ export function reportBoot(log) {
   );
   log.info(
     d.sessionOnDisk
-      ? `WhatsApp session found on disk (${d.sessionFiles} files, ${Math.round(d.sessionBytes / 1024)} kB) - no QR should be needed.`
+      ? `Saved WhatsApp login found on disk (${d.sessionFiles} files, ${Math.round(d.sessionBytes / 1024)} kB) - no QR should be needed.`
       : 'No WhatsApp session on disk: a QR scan is required.'
   );
   return d;
