@@ -55,6 +55,17 @@ export const api = {
 
   attention: () => request('/attention'),
 
+  history: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== '')
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request(`/history${query ? `?${query}` : ''}`);
+  },
+  historySummary: () => request('/history/summary'),
+  historyTask: (id) => request(`/history/${id}`),
+  restoreTask: (id) => request(`/tasks/${id}/restore`, { method: 'POST', body: JSON.stringify({}) }),
+
   notifications: () => request('/notifications'),
   readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({}) }),
   readAllNotifications: () => request('/notifications/read-all', { method: 'POST', body: JSON.stringify({}) }),

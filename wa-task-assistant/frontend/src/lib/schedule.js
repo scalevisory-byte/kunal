@@ -2,6 +2,7 @@
 export const TASK_STATE = {
   open: { label: 'Open', tone: 'plain' },
   in_progress: { label: 'In progress', tone: 'info' },
+  waiting: { label: 'Waiting', tone: 'plain' },
   due: { label: 'Due', tone: 'warn' },
   overdue: { label: 'Overdue', tone: 'danger' },
   done: { label: 'Done', tone: 'ok' },

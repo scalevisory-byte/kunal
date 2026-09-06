@@ -7,6 +7,7 @@ export const isoDay = (offset = 0) =>
 export const STATUSES = [
   { key: 'open', label: 'Open' },
   { key: 'in_progress', label: 'In progress' },
+  { key: 'waiting', label: 'Waiting' },
   { key: 'done', label: 'Done' },
 ];
 

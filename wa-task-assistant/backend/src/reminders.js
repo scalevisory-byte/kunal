@@ -21,6 +21,7 @@ import {
   dueMoment, planTask, scheduleNextFollowUp, syncNextReminder, tasksWithDeadlines,
   activeRemindersForTask,
 } from './task-lifecycle.js';
+import { EVENT, recordEvent } from './task-events.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -215,6 +216,11 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     if (!claimed) continue;
 
     await deliver(task, claimed, settings);
+    recordEvent(
+      task.id,
+      claimed.kind === 'follow_up' ? EVENT.followUpTriggered : EVENT.reminderTriggered,
+      claimed.kind === 'follow_up' ? `round ${claimed.round}` : claimed.kind
+    );
     sent += 1;
 
     // A follow-up that has just gone out is the trigger for arranging the next

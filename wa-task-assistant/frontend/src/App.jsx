@@ -17,6 +17,7 @@ import Sidebar from './components/Sidebar.jsx';
 import FocusToday from './components/FocusToday.jsx';
 import UsagePage from './components/UsagePage.jsx';
 import AttentionWidget from './components/AttentionWidget.jsx';
+import WorkHistory from './components/WorkHistory.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
 import { useInstall } from './lib/install.js';
@@ -208,6 +209,7 @@ export default function App() {
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
     if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }
+    if (key === 'history') return undefined;
     return undefined;
   };
 
@@ -308,7 +310,17 @@ export default function App() {
             />
           )}
 
-          {section === 'usage' ? (
+          {section === 'history' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Work history</h2>
+                  <p>Everything finished or archived, kept permanently.</p>
+                </div>
+              </div>
+              <WorkHistory chats={chats} onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'usage' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>
@@ -362,7 +374,12 @@ export default function App() {
                 onNewTask={() => setComposing(true)}
               />
 
-              {composing && <AddTaskForm onAdd={(task) => { onAdd(task); setComposing(false); }} />}
+              {composing && (
+                <AddTaskForm
+                  onAdd={(task) => { onAdd(task); setComposing(false); }}
+                  onClose={() => setComposing(false)}
+                />
+              )}
 
               <div className="workspace">
                 <main className="work">

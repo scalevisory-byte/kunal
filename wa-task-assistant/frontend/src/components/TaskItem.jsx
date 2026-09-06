@@ -4,6 +4,12 @@ import { dateTimeLabel, dueLabel, isDone, isOverdue, taskChat, timeLabel } from 
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
 
+/** "10 Sep · 6:00 PM" - short enough for a list line. */
+const stamp = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : null;
+
 /** Everything you can do to a task without opening it, behind one control. */
 function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
   const [open, setOpen] = useState(false);
@@ -82,6 +88,27 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
           {task.title}
         </button>
 
+        {/* The two dates a person plans around, without opening anything. */}
+        {(task.due_at || task.next_follow_up_at) && !done && (
+          <div className="t-when">
+            {task.due_at && (
+              <span className={isOverdue(task) ? 'danger-text' : ''}>
+                <Icon name="clock" size={12} /> Deadline: {stamp(task.due_at)}
+              </span>
+            )}
+            {task.next_follow_up_at && (
+              <span>
+                <Icon name="refresh" size={12} /> Follow-up: {stamp(task.next_follow_up_at)}
+              </span>
+            )}
+            {task.needs_attention && (
+              <span className="danger-text">
+                <Icon name="alert" size={12} /> Needs attention
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="t-meta">
           {chat && (
             <span className="m-item" title={chat}>
@@ -97,6 +124,11 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
             {PRIORITY[task.priority]}
           </span>
           {task.status === 'in_progress' && <span className="state-chip">In progress</span>}
+          {task.status === 'waiting' && (
+            <span className="state-chip waiting">
+              Waiting{task.waiting_for ? ` · ${task.waiting_for}` : ''}
+            </span>
+          )}
           {task.remind_at && !done && (
             <span className="m-item"><Icon name="clock" size={13} /> {timeLabel(task.remind_at)}</span>
           )}

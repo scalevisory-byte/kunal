@@ -8,6 +8,7 @@ import {
 import {
   planTask, completeTask, rescheduleTask, syncNextReminder, taskSchedule,
 } from '../task-lifecycle.js';
+import { EVENT, recordEvent, eventsForTask } from '../task-events.js';
 
 export const tasksRouter = Router();
 
@@ -22,7 +23,10 @@ tasksRouter.get('/', (req, res) => {
 });
 
 tasksRouter.post('/', (req, res) => {
-  const { title, description, contact, chat_name, due_date, due_at, priority, remind_at } = req.body || {};
+  const {
+    title, description, notes, contact, chat_name, due_date, due_at, priority, remind_at,
+    reminder_offset, follow_up_offset,
+  } = req.body || {};
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: 'title is required' });
   }
@@ -36,12 +40,21 @@ tasksRouter.post('/', (req, res) => {
       // The deadline itself, when a time was given rather than only a date.
       due_at: due_at || remind_at || null,
       remind_at: null,
+      notes: notes || null,
       priority,
       source: 'manual',
       origin: 'manual',
       status: 'open',
     });
-    planTask(task);
+    recordEvent(task.id, EVENT.created, 'added by hand');
+    if (task.due_at || task.due_date) {
+      recordEvent(task.id, EVENT.deadlineSet, task.due_at || task.due_date);
+    }
+    // Per-task overrides of the defaults, applied only when one was given.
+    planTask(task, {
+      reminderOffset: Number.isFinite(Number(reminder_offset)) ? Number(reminder_offset) : undefined,
+      followUpOffset: Number.isFinite(Number(follow_up_offset)) ? Number(follow_up_offset) : undefined,
+    });
     const fresh = getTask(task.id);
     res.status(201).json({ ...fresh, ...taskSchedule(fresh) });
   } catch (err) {
@@ -52,7 +65,7 @@ tasksRouter.post('/', (req, res) => {
 tasksRouter.get('/:id', (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
-  res.json({ ...task, ...taskSchedule(task) });
+  res.json({ ...task, ...taskSchedule(task), events: eventsForTask(task.id) });
 });
 
 /* ---------------- a task's reminders ---------------- */
@@ -97,6 +110,21 @@ tasksRouter.patch('/:id', (req, res) => {
   const task = updateTask(Number(req.params.id), patch);
   if (!task) return res.status(404).json({ error: 'not found' });
 
+  // Every change worth looking back at is recorded before anything is rescheduled.
+  if (patch.status && before && patch.status !== before.status) {
+    recordEvent(task.id, EVENT.statusChanged, `${before.status} → ${patch.status}`,
+      patch.status === 'waiting' && task.waiting_for ? { waiting_for: task.waiting_for } : null);
+  }
+  if ('notes' in patch && (patch.notes || '') !== (before?.notes || '')) {
+    recordEvent(task.id, EVENT.noteAdded, patch.notes ? String(patch.notes).slice(0, 120) : 'cleared');
+  }
+  if (('title' in patch || 'description' in patch || 'priority' in patch) && before) {
+    recordEvent(task.id, EVENT.edited, Object.keys(patch).join(', '));
+  }
+  if (task.status !== 'done' && before?.status === 'done') {
+    recordEvent(task.id, EVENT.reopened);
+  }
+
   // Finishing a task retires everything still scheduled for it.
   if (task.status === 'done' && before?.status !== 'done') {
     completeTask(task.id);
@@ -107,7 +135,7 @@ tasksRouter.patch('/:id', (req, res) => {
     planTask(task);
   }
   const fresh = getTask(task.id);
-  res.json({ ...fresh, ...taskSchedule(fresh) });
+  res.json({ ...fresh, ...taskSchedule(fresh), events: eventsForTask(fresh.id) });
 });
 
 /* ---------------- acting on a fired reminder ---------------- */
@@ -119,6 +147,7 @@ tasksRouter.post('/reminders/:reminderId/snooze', (req, res) => {
   }
   const reminder = snoozeReminder(Number(req.params.reminderId), minutes);
   if (!reminder) return res.status(404).json({ error: 'not found' });
+  recordEvent(reminder.task_id, EVENT.reminderSnoozed, `until ${reminder.fire_at}`);
   syncNextReminder(reminder.task_id);
   res.json({ reminder });
 });
@@ -145,8 +174,32 @@ tasksRouter.post('/:id/reschedule', (req, res) => {
   }
 });
 
+/**
+ * Archive rather than delete. A completed task is a record of work done, and
+ * losing it to a stray tap is not recoverable - `?hard=1` still does the old
+ * thing for anyone who genuinely wants the row gone.
+ */
 tasksRouter.delete('/:id', (req, res) => {
-  const removed = deleteTask(Number(req.params.id));
-  if (!removed) return res.status(404).json({ error: 'not found' });
-  res.status(204).end();
+  const id = Number(req.params.id);
+  const task = getTask(id);
+  if (!task) return res.status(404).json({ error: 'not found' });
+
+  if (req.query.hard === '1') {
+    deleteTask(id);
+    return res.status(204).end();
+  }
+
+  completeTask(id);
+  updateTask(id, { archived_at: new Date().toISOString() });
+  recordEvent(id, EVENT.archived);
+  res.json({ archived: true, id });
+});
+
+tasksRouter.post('/:id/restore', (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return res.status(404).json({ error: 'not found' });
+  updateTask(task.id, { archived_at: '' });
+  recordEvent(task.id, EVENT.statusChanged, 'restored from archive');
+  const fresh = getTask(task.id);
+  res.json({ ...fresh, ...taskSchedule(fresh) });
 });

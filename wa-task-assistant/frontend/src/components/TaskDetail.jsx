@@ -201,7 +201,7 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, o
           </div>
 
           <div className="field">
-            <label htmlFor="d-desc">Notes</label>
+            <label htmlFor="d-desc">Description</label>
             <textarea
               id="d-desc"
               rows={3}
@@ -225,6 +225,31 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, o
                 </button>
               ))}
             </div>
+          </div>
+
+          {task.status === 'waiting' && (
+            <div className="field">
+              <label htmlFor="d-waiting">Waiting for</label>
+              <input
+                id="d-waiting"
+                defaultValue={task.waiting_for || ''}
+                placeholder="Client, vendor, colleague…"
+                onBlur={(e) => e.target.value !== (task.waiting_for || '')
+                  && onEdit(task, { waiting_for: e.target.value })}
+              />
+              <p className="field-note">Waiting is not done — reminders and follow-ups keep running.</p>
+            </div>
+          )}
+
+          <div className="field">
+            <label htmlFor="d-notes">Notes</label>
+            <textarea
+              id="d-notes"
+              rows={2}
+              defaultValue={task.notes || ''}
+              placeholder="Internal note — never sent to WhatsApp"
+              onBlur={(e) => e.target.value !== (task.notes || '') && onEdit(task, { notes: e.target.value })}
+            />
           </div>
 
           <div className="field">
@@ -348,7 +373,7 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, o
             </button>
           )}
           <button className="link danger" onClick={() => onDelete(task)}>
-            Delete
+            Archive
           </button>
         </footer>
       </aside>

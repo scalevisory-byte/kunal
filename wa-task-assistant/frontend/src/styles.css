@@ -1415,3 +1415,120 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .notif-panel { right: 16px; left: 16px; width: auto; }
   .set-row { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
+
+
+/* ---------- deadline and follow-up on a task row ---------- */
+
+.t-when {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  margin-top: 4px;
+  font-size: .74rem; color: var(--text-2);
+}
+.t-when span { display: inline-flex; align-items: center; gap: 5px; }
+.t-when .icon { color: var(--muted); flex: none; }
+.t-when .danger-text .icon { color: var(--danger); }
+.state-chip.waiting { color: var(--warn); }
+
+/* ---------- add form ---------- */
+
+.add-toggle {
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line);
+}
+.add-summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .76rem; color: var(--muted); margin-left: auto;
+}
+.add-detail { margin-top: 14px; }
+.field-group { border: 0; margin: 15px 0 0; padding: 0; }
+.field-group legend {
+  padding: 0;
+  font-size: .66rem; font-weight: 600;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+.field-group .field-note { margin: 4px 0 9px; }
+
+/* ---------- work history ---------- */
+
+.history .kpis { grid-template-columns: repeat(4, 1fr); margin-bottom: 16px; }
+
+.hist-controls {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+}
+.hist-controls input[type=search] { flex: 1 1 220px; min-width: 0; }
+.hist-controls select { flex: 0 0 auto; font-size: .82rem; }
+.hist-summary { margin: 0 0 14px; font-size: .8rem; color: var(--muted); }
+
+.hist-table {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.hist-head, .hist-row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) 88px 96px 84px;
+  gap: 14px; align-items: center;
+  padding: 10px 16px;
+  text-align: left;
+}
+.hist-head {
+  background: var(--raised);
+  font-size: .66rem; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.hist-row {
+  width: 100%; border: 0; border-top: 1px solid var(--line);
+  background: none; font: inherit; cursor: pointer;
+  transition: background .18s;
+}
+.hist-row:hover { background: var(--sunken); }
+.h-date, .h-due { font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.h-title { display: grid; gap: 1px; min-width: 0; }
+.h-title small { font-size: .72rem; color: var(--muted); }
+.h-result, .h-source { font-size: .76rem; color: var(--text-2); }
+.ok-text { color: var(--ok); }
+
+/* ---------- lifecycle timeline ---------- */
+
+.timeline { list-style: none; margin: 8px 0 0; padding: 0 0 0 4px; }
+.timeline li {
+  display: grid; grid-template-columns: 12px 118px 1fr; gap: 10px;
+  align-items: start; padding: 6px 0; position: relative;
+}
+.timeline li::before {
+  content: ""; position: absolute;
+  left: 5px; top: 18px; bottom: -6px; width: 1px; background: var(--line);
+}
+.timeline li:last-child::before { display: none; }
+.tl-dot {
+  width: 7px; height: 7px; border-radius: 50%; margin-top: 6px;
+  background: var(--line-2); flex: none;
+}
+.timeline li.k-completed .tl-dot { background: var(--ok); }
+.timeline li.k-deadline-changed .tl-dot,
+.timeline li.k-needs-attention .tl-dot { background: var(--danger); }
+.timeline li.k-follow-up-triggered .tl-dot,
+.timeline li.k-reminder-triggered .tl-dot { background: var(--warn); }
+.tl-at {
+  font-size: .72rem; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; padding-top: 2px;
+}
+.tl-what { font-size: .82rem; color: var(--text-2); display: grid; gap: 1px; }
+.tl-what small { font-size: .74rem; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .history .kpis { grid-template-columns: repeat(2, 1fr); }
+  .hist-head { display: none; }
+  .hist-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title result" "meta source";
+    row-gap: 4px; padding: 13px 14px;
+  }
+  .h-title { grid-area: title; }
+  .h-result { grid-area: result; text-align: right; }
+  .h-date { grid-area: meta; }
+  .h-due { display: none; }
+  .h-source { grid-area: source; text-align: right; }
+  .timeline li { grid-template-columns: 12px 1fr; }
+  .tl-at { grid-column: 2; }
+  .tl-what { grid-column: 2; }
+}

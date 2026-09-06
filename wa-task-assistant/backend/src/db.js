@@ -38,6 +38,10 @@ db.exec(`
     reminder_count   INTEGER NOT NULL DEFAULT 0,
     last_reminded_at TEXT,
     due_at           TEXT,
+    original_due_at  TEXT,
+    notes            TEXT,
+    waiting_for      TEXT,
+    archived_at      TEXT,
     remind_at        TEXT,
     remind_at_sent   INTEGER NOT NULL DEFAULT 0,
     digest_pos       INTEGER,
@@ -100,6 +104,10 @@ if (!taskColumns.has('last_reminded_at')) {
 for (const [name, ddl] of [
   ['origin', "ALTER TABLE tasks ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'"],
   ['due_at', 'ALTER TABLE tasks ADD COLUMN due_at TEXT'],
+  ['notes', 'ALTER TABLE tasks ADD COLUMN notes TEXT'],
+  ['waiting_for', 'ALTER TABLE tasks ADD COLUMN waiting_for TEXT'],
+  ['archived_at', 'ALTER TABLE tasks ADD COLUMN archived_at TEXT'],
+  ['original_due_at', 'ALTER TABLE tasks ADD COLUMN original_due_at TEXT'],
   ['follow_up_count', 'ALTER TABLE tasks ADD COLUMN follow_up_count INTEGER NOT NULL DEFAULT 0'],
   ['needs_attention', 'ALTER TABLE tasks ADD COLUMN needs_attention INTEGER NOT NULL DEFAULT 0'],
   ['remind_at', 'ALTER TABLE tasks ADD COLUMN remind_at TEXT'],
@@ -241,15 +249,19 @@ export function listMessages({ limit = 100 } = {}) {
 /* ---------------- tasks ---------------- */
 
 const PRIORITIES = new Set(['high', 'medium', 'low']);
-const STATUSES = new Set(['open', 'in_progress', 'done']);
+const STATUSES = new Set(['open', 'in_progress', 'waiting', 'done']);
 /** Everything still owed. Used wherever "not finished" is what matters. */
 const OPEN_STATUSES = "status != 'done'";
 
 const ORIGINS = new Set(['ai', 'manual']);
 
 const insertTaskStmt = db.prepare(`
-  INSERT INTO tasks (title, description, contact, chat_name, chat_id, message_id, source, origin, due_date, due_at, remind_at, priority, status)
-  VALUES (@title, @description, @contact, @chat_name, @chat_id, @message_id, @source, @origin, @due_date, @due_at, @remind_at, @priority, @status)
+  INSERT INTO tasks
+    (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
+     due_date, due_at, original_due_at, waiting_for, remind_at, priority, status)
+  VALUES
+    (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
+     @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status)
 `);
 
 /**
@@ -273,6 +285,9 @@ export function createTask(input) {
     origin: ORIGINS.has(input.origin) ? input.origin : (input.message_id ? 'ai' : 'manual'),
     due_date: input.due_date || null,
     due_at: input.due_at || input.remind_at || null,
+    original_due_at: input.due_at || input.remind_at || null,
+    notes: input.notes ?? null,
+    waiting_for: input.waiting_for ?? null,
     remind_at: input.remind_at || null,
     priority: PRIORITIES.has(input.priority) ? input.priority : 'medium',
     status: STATUSES.has(input.status) ? input.status : 'open',
@@ -295,10 +310,12 @@ export function listTasks({ status, limit = 500 } = {}) {
   let where = '';
   const params = [];
   if (status === 'pending') {
-    where = `WHERE t.${OPEN_STATUSES}`;
+    where = `WHERE t.${OPEN_STATUSES} AND t.archived_at IS NULL`;
   } else if (STATUSES.has(status)) {
-    where = 'WHERE t.status = ?';
+    where = 'WHERE t.status = ? AND t.archived_at IS NULL';
     params.push(status);
+  } else {
+    where = 'WHERE t.archived_at IS NULL';
   }
   const sql = `${TASK_SELECT}
        ${where}
@@ -313,8 +330,9 @@ export function listTasks({ status, limit = 500 } = {}) {
 }
 
 const UPDATABLE = [
-  'title', 'description', 'contact', 'chat_name', 'due_date', 'due_at',
+  'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
+  'waiting_for', 'archived_at',
 ];
 
 export function updateTask(id, patch) {
@@ -396,9 +414,10 @@ export function taskStats() {
          COUNT(*)                                                     AS total,
          COALESCE(SUM(status = 'open'), 0)                            AS open,
          COALESCE(SUM(status = 'in_progress'), 0)                      AS in_progress,
+         COALESCE(SUM(status = 'waiting'), 0)                          AS waiting,
          COALESCE(SUM(status = 'done'), 0)                            AS done,
          COALESCE(SUM(status != 'done' AND priority = 'high'), 0)     AS high_open
-       FROM tasks`
+       FROM tasks WHERE archived_at IS NULL`
     )
     .get();
 }

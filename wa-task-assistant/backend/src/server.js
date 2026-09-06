@@ -10,6 +10,7 @@ import { requireAuth } from './auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { systemRouter } from './routes/system.js';
 import { attentionRouter, notificationsRouter, settingsRouter } from './routes/followups.js';
+import { historyRouter } from './routes/history.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -61,6 +62,7 @@ export function createServer() {
 
   app.use('/api/tasks', requireAuth, tasksRouter);
   app.use('/api/attention', requireAuth, attentionRouter);
+  app.use('/api/history', requireAuth, historyRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
   app.use('/api/scheduling-settings', requireAuth, settingsRouter);
   app.use('/api', requireAuth, systemRouter);

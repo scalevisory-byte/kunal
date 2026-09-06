@@ -18,6 +18,7 @@ const NAV = [
       { key: 'chat', label: 'By Chat', icon: 'chat' },
       { key: 'ai', label: 'AI Tasks', icon: 'robot' },
       { key: 'done', label: 'Completed', icon: 'check' },
+      { key: 'history', label: 'Work History', icon: 'clipboard' },
     ],
   },
   {

@@ -13,6 +13,7 @@ import { parseCommand } from './commands.js';
 import { clearStaleBrowserLocks } from './session-store.js';
 import { planTask, completeTask, rescheduleTask } from './task-lifecycle.js';
 import { parseTaskInstruction } from './nl-commands.js';
+import { EVENT, recordEvent } from './task-events.js';
 import { findDuplicateTask } from './task-matching.js';
 import { isoAtLocal } from './quickparse.js';
 
@@ -142,6 +143,10 @@ async function flushBuffer() {
           continue;
         }
         const created = createTask(task);
+        recordEvent(created.id, EVENT.created, `AI, from ${task.chat_name || 'WhatsApp'}`);
+        if (created.due_at || created.due_date) {
+          recordEvent(created.id, EVENT.deadlineSet, created.due_at || created.due_date);
+        }
         planTask(created);
         state.tasksCreated += 1;
         log.info(`Task created: "${task.title}"${task.due_date ? ` (due ${task.due_date})` : ''}`);
@@ -198,6 +203,7 @@ export async function handleCommand(message, chatId) {
     if (command.action === 'done') {
       const updated = updateTask(task.id, { status: 'done' });
       if (updated) {
+        recordEvent(task.id, EVENT.statusChanged, 'marked done from the digest');
         completeTask(task.id);
         changed.push(updated);
       }
@@ -271,6 +277,10 @@ export async function handleOwnMessage(message) {
       origin: 'manual',
       status: 'open',
     });
+    recordEvent(created.id, EVENT.created, 'from your own message');
+    if (created.due_at || created.due_date) {
+      recordEvent(created.id, EVENT.deadlineSet, created.due_at || created.due_date);
+    }
     planTask(created);
 
     state.lastMessageAt = new Date().toISOString();
@@ -301,6 +311,7 @@ export async function handleTaskInstruction(text) {
   const { task } = instruction;
   if (instruction.action === 'done') {
     updateTask(task.id, { status: 'done' });
+    recordEvent(task.id, EVENT.statusChanged, 'marked done from WhatsApp');
     completeTask(task.id);
     state.lastCommandAt = new Date().toISOString();
     noteEvent('task marked done', task.title);

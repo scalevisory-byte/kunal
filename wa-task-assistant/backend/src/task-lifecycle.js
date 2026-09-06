@@ -5,6 +5,7 @@ import {
   getSettings, applyQuietHours, scheduleReminder, cancelRemindersForTask,
   resetSchedule, nextReminderFor, remindersForTask, activeRemindersForTask,
 } from './scheduling.js';
+import { EVENT, recordEvent, eventCounts, eventsForTask } from './task-events.js';
 
 const MIN = 60_000;
 
@@ -68,8 +69,17 @@ export function taskSchedule(task, settings = getSettings()) {
  * one at a time by the engine, so a task that gets done never has a queue of
  * future nagging waiting behind it.
  */
-export function planTask(task, { reset = false } = {}) {
-  const settings = getSettings();
+export function planTask(task, { reset = false, reminderOffset, followUpOffset } = {}) {
+  // A per-task choice overrides the default for this task only; the saved
+  // settings are never written to from here.
+  const saved = getSettings();
+  const settings = {
+    ...saved,
+    ...(reminderOffset !== undefined ? { defaultReminderOffset: reminderOffset } : {}),
+    ...(followUpOffset !== undefined
+      ? { followUpOffsets: [followUpOffset, ...saved.followUpOffsets.slice(1)] }
+      : {}),
+  };
   if (task.status === 'done') {
     cancelRemindersForTask(task.id);
     return { planned: 0 };
@@ -88,7 +98,8 @@ export function planTask(task, { reset = false } = {}) {
     const before = new Date(due.getTime() - offset * MIN);
     // A reminder for a moment that has already gone is not worth arranging.
     if (before > new Date()) {
-      scheduleReminder({ taskId: task.id, fireAt: at(before), kind: 'pre_due', offsetMinutes: offset });
+      const made = scheduleReminder({ taskId: task.id, fireAt: at(before), kind: 'pre_due', offsetMinutes: offset });
+      if (made?.created_at) recordEvent(task.id, EVENT.reminderCreated, at(before));
       planned += 1;
     }
   }
@@ -119,6 +130,7 @@ export function scheduleNextFollowUp(task, settings = getSettings(), due = null)
   if (round > max || round > settings.followUpOffsets.length) {
     if (!task.needs_attention) {
       updateTask(task.id, { needs_attention: 1 });
+      recordEvent(task.id, EVENT.needsAttention, `${max} follow-ups with no completion`);
       log.info(`Task ${task.id} reached ${max} follow-ups; flagged for attention.`);
     }
     return 0;
@@ -154,6 +166,7 @@ export function scheduleNextFollowUp(task, settings = getSettings(), due = null)
     round,
     offsetMinutes: offset,
   });
+  recordEvent(task.id, EVENT.followUpScheduled, fireAt.toISOString(), { round });
   return 1;
 }
 
@@ -169,6 +182,8 @@ export function syncNextReminder(taskId) {
 /** Completing a task ends its lifecycle: nothing further is ever sent about it. */
 export function completeTask(taskId) {
   const cancelled = cancelRemindersForTask(taskId);
+  if (cancelled) recordEvent(taskId, EVENT.reminderCancelled, `${cancelled} pending`);
+  recordEvent(taskId, EVENT.completed, onTimeLabel(getTask(taskId)));
   db.prepare(
     `UPDATE tasks SET remind_at = NULL, needs_attention = 0, updated_at = datetime('now') WHERE id = ?`
   ).run(taskId);
@@ -180,6 +195,7 @@ export function completeTask(taskId) {
  * schedule goes, the escalation count resets, and the ladder is rebuilt.
  */
 export function rescheduleTask(taskId, { due_date, due_at }) {
+  const before = getTask(taskId);
   const patch = { follow_up_count: 0, needs_attention: 0 };
   if (due_date !== undefined) patch.due_date = due_date;
   if (due_at !== undefined) patch.due_at = due_at;
@@ -188,7 +204,38 @@ export function rescheduleTask(taskId, { due_date, due_at }) {
 
   resetSchedule(taskId);
   planTask(task, { reset: true });
+
+  const wasAt = before?.due_at || before?.due_date || null;
+  const nowAt = task.due_at || task.due_date || null;
+  if (wasAt !== nowAt) {
+    recordEvent(taskId, wasAt ? EVENT.deadlineChanged : EVENT.deadlineSet, nowAt, { from: wasAt });
+  }
   return getTask(taskId);
+}
+
+/**
+ * Whether a finished task beat its deadline. Unknown when there was no
+ * deadline to beat - which is not the same as being on time.
+ */
+export function onTimeLabel(task) {
+  if (!task?.completed_at) return null;
+  const due = dueMoment(task);
+  if (!due) return 'no deadline';
+  const completed = new Date(task.completed_at.includes('T')
+    ? task.completed_at
+    : `${task.completed_at.replace(' ', 'T')}Z`);
+  return completed <= due ? 'on time' : 'late';
+}
+
+/** Everything the history view shows about one finished task. */
+export function taskHistory(task) {
+  return {
+    ...task,
+    ...taskSchedule(task),
+    on_time: onTimeLabel(task),
+    counts: eventCounts(task.id),
+    events: eventsForTask(task.id),
+  };
 }
 
 /** Open tasks with a deadline, for the engine to walk. */
