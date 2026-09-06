@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Icon from './Icon.jsx';
 import { PRIORITIES, STATUSES } from '../lib/task.js';
 
 const SOURCES = [
@@ -50,10 +51,11 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
         </div>
 
         <button
-          className={`btn ghost ${active ? 'on' : ''}`}
+          className={`btn ghost with-icon ${active ? 'on' : ''}`}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
+          <Icon name="filter" size={16} />
           Filter{active ? ` (${active})` : ''}
         </button>
 

@@ -325,7 +325,7 @@ export default function App() {
               <div className="workspace">
                 <main className="work">
                   <div className="work-head">
-                    <nav className="tabs" role="tablist" aria-label="View">
+                    <nav className="segment tabs" role="tablist" aria-label="View">
                       {[
                         { key: 'myday', label: 'My Day' },
                         { key: 'open', label: 'Open' },
@@ -335,7 +335,7 @@ export default function App() {
                           key={v.key}
                           role="tab"
                           aria-selected={view === v.key}
-                          className={`tab ${view === v.key ? 'active' : ''}`}
+                          className={view === v.key ? 'active' : ''}
                           onClick={() => { setView(v.key); setSelectedDate(null); }}
                         >
                           {v.label}

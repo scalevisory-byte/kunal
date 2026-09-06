@@ -26,6 +26,7 @@ const PATHS = {
   more: 'M12 6.5h.01M12 12h.01M12 17.5h.01',
   trash: 'M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10.5 11v5M13.5 11v5',
   circle: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z',
+  filter: 'M3.5 5.5h17l-6.5 7.5v5.5l-4 2v-7.5L3.5 5.5Z',
 };
 
 export default function Icon({ name, size = 18, className = '', strokeWidth = 1.6 }) {
