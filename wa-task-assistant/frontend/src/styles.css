@@ -70,10 +70,12 @@ body {
 }
 
 .app {
-  max-width: 620px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 18px 16px calc(48px + env(safe-area-inset-bottom));
+  padding: 18px 22px calc(48px + env(safe-area-inset-bottom));
 }
+/* The panels above the board stay readable; only the board itself goes wide. */
+.board, .status, .banner, .panel-block, .add-form, .toolbar { max-width: 780px; }
 
 /* ---------- header ---------- */
 
@@ -212,7 +214,13 @@ h1 {
 .diagnostics .link { margin-top: 8px; text-decoration: underline; }
 
 /* The connection's own history, so a scan that was accepted and then lost is visible. */
-.trail { margin-top: 12px; }
+.trail {
+  margin-top: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+}
 .trail .hint { margin: 0 0 6px; }
 .trail ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
 .trail li {
@@ -312,42 +320,16 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 }
 .filter.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
 
-/* ---------- task groups ---------- */
-
-.group + .group { margin-top: 20px; }
-.group-head {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 9px;
-}
-.group-title {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: .68rem;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-}
-.group.overdue .group-title { color: var(--danger); }
-.group.today .group-title { color: var(--warn); }
-.group-rule { flex: 1; height: 1px; background: var(--line); }
-.group-count {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: .68rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---------- tasks ---------- */
 
-.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 
+/* One line per task. Detail is a tap away, not stacked on every row. */
 .task {
   position: relative;
-  display: flex; gap: 12px; align-items: flex-start;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 13px 14px 13px 16px;
+  border-radius: 10px;
   box-shadow: var(--shadow-sm);
   transition: opacity .2s, border-color .15s;
 }
@@ -355,7 +337,7 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .task::before {
   content: "";
   position: absolute;
-  left: 0; top: 10px; bottom: 10px;
+  left: 0; top: 8px; bottom: 8px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--line-2);
@@ -365,14 +347,23 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .task.p-low::before { background: var(--line-2); }
 .task.done { opacity: .5; }
 .task.done .t-title { text-decoration: line-through; }
+.task.open { border-color: var(--line-2); }
+
+.t-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px 8px 14px;
+  min-height: 42px;
+}
 
 .task input[type=checkbox] {
   appearance: none;
-  width: 22px; height: 22px;
-  margin: 1px 0 0;
+  width: 20px; height: 20px;
+  margin: 0;
   flex: none;
   border: 2px solid var(--line-2);
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--bg);
   cursor: pointer;
   display: grid; place-items: center;
@@ -381,23 +372,40 @@ input[type='checkbox'] { width: auto; min-height: 0; }
 .task input[type=checkbox]:checked { background: var(--ok); border-color: var(--ok); }
 .task input[type=checkbox]:checked::after {
   content: "";
-  width: 6px; height: 10px;
+  width: 5px; height: 9px;
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-.t-body { flex: 1; min-width: 0; }
-.t-title { font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
-.t-desc { font-size: .86rem; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }
-.t-foot {
-  display: flex; align-items: flex-end; justify-content: space-between;
-  gap: 10px; margin-top: 8px;
+/* The title is the tap target that opens the detail, but must read as text. */
+.t-title {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
 }
-.t-tags { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
-.t-edit, .task-edit { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.task-edit input, .task-edit select { width: auto; flex: 1 1 130px; font-size: .84rem; }
-.t-actions { display: flex; gap: 9px; flex: none; align-items: center; }
+.t-title:hover { color: var(--brand); }
+.t-row .tag { flex: none; }
+
+.t-detail {
+  padding: 2px 12px 11px 14px;
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+}
+.t-desc { font-size: .86rem; color: var(--text-2); margin: 9px 0 0; overflow-wrap: anywhere; }
+.t-source { font-size: .78rem; color: var(--muted); margin: 5px 0 0; }
+.task-edit { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.task-edit input, .task-edit select { width: auto; flex: 1 1 120px; font-size: .82rem; }
 
 .tag {
   font-family: "IBM Plex Mono", monospace;
@@ -424,6 +432,66 @@ input[type='checkbox'] { width: auto; min-height: 0; }
   border-radius: 14px;
 }
 .empty strong { display: block; color: var(--text); margin-bottom: 4px; font-size: 1rem; }
+
+/* ---------- board columns ---------- */
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.toolbar .filters { margin: 0; flex: 1 1 200px; }
+.toolbar .group-by { flex: 0 0 auto; }
+.toolbar .group-by .filter { flex: 0 0 auto; padding: 7px 14px; }
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.column {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 11px 11px 13px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+.column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 3px 9px;
+}
+.column-title {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .68rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-count {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .72rem;
+  color: var(--muted);
+  flex: none;
+}
+/* The columns that mean "act now" carry their colour on the heading. */
+.column.overdue .column-title, .column.overdue .column-count { color: var(--danger); }
+.column.today .column-title, .column.today .column-count { color: var(--warn); }
+.column.done { opacity: .72; }
+
+/* Inside a column the cards are already grouped, so drop their own frame. */
+.column .task { border-color: transparent; box-shadow: none; background: var(--raised); }
+.column .task.open { border-color: var(--line-2); }
 
 /* ---------- blocked chats ---------- */
 

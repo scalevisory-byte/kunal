@@ -23,6 +23,14 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
+  // How the board is split into columns. Remembered per browser.
+  const [groupBy, setGroupBy] = useState(() => {
+    try {
+      return localStorage.getItem('wa-tasks-group') || 'date';
+    } catch {
+      return 'date'; // private window, or site data blocked
+    }
+  });
   const [error, setError] = useState('');
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -148,23 +156,48 @@ export default function App() {
 
       <AddTaskForm onAdd={onAdd} />
 
-      <nav className="filters" role="tablist">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            role="tab"
-            aria-selected={filter === f.key}
-            className={`filter ${filter === f.key ? 'active' : ''}`}
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </nav>
+      <div className="toolbar">
+        <nav className="filters" role="tablist">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              role="tab"
+              aria-selected={filter === f.key}
+              className={`filter ${filter === f.key ? 'active' : ''}`}
+              onClick={() => setFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </nav>
+
+        <nav className="filters group-by" role="tablist" aria-label="Group tasks by">
+          {[
+            { key: 'date', label: 'By date' },
+            { key: 'chat', label: 'By chat' },
+          ].map((g) => (
+            <button
+              key={g.key}
+              role="tab"
+              aria-selected={groupBy === g.key}
+              className={`filter ${groupBy === g.key ? 'active' : ''}`}
+              onClick={() => {
+                setGroupBy(g.key);
+                try {
+                  localStorage.setItem('wa-tasks-group', g.key);
+                } catch { /* private window */ }
+              }}
+            >
+              {g.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <TaskList
         tasks={tasks}
         loading={loading}
+        groupBy={groupBy}
         onToggle={onToggle}
         onDelete={onDelete}
         onEdit={onEdit}

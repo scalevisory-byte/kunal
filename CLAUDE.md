@@ -25,7 +25,8 @@ Located at `/wa-task-assistant/` (backend + frontend). Rebuilt in-repo from this
 - REST API (`/api/tasks` — GET/POST/PATCH/DELETE) for the dashboard to read/write tasks.
 
 ### Frontend (React)
-- Dashboard: a three-up stat board (open / overdue / done), then tasks **grouped by urgency** — Overdue, Today, Coming up, No date — rather than one flat list. Filter open/done/all, manual add, mark done, delete, inline edit of due date, priority and reminder time. Polls every 30s.
+- Dashboard: a three-up stat board (open / overdue / done), then a **wide column board**, up to 1280px. Columns are **Overdue / Today / Tomorrow / Day after / Later / No date**, switchable to **one column per chat** (the choice is remembered per browser). A task is **one compact row** — checkbox, title, date chip; tapping the title opens description, source and the edit controls. Descriptions that merely restate the title are suppressed, in the UI and in the extraction prompt. Filter open/done/all, manual add, mark done, delete. Polls every 30s.
+- The connection/pipeline detail collapses to a single line when everything is healthy, and opens itself when something needs attention (not connected, missing API key, a failed extraction, or messages arriving but not being kept).
 - Plain CSS in `src/styles.css`, no UI framework. Self-hosted Archivo + IBM Plex Sans/Mono in `public/fonts/` (186 KB, works offline — the same faces as the demo and deploy artifacts, so all three read as one product). Priority is a coloured spine on the card rather than another chip. All text meets WCAG AA in both themes, verified in a browser.
 
 ### Two capture modes (`EXTRACTION_MODE`)

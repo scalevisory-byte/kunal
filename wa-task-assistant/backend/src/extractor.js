@@ -27,7 +27,10 @@ const ExtractionSchema = z.object({
       title: z.string().describe('Short imperative summary, max ~80 characters.'),
       description: z
         .string()
-        .describe('One or two sentences of context. Empty string if none is needed.'),
+        .describe(
+          'Context the title does not already carry - what exactly, for whom, why. ' +
+            'Empty string when the title says it all; never restate the title.'
+        ),
       contact: z.string().describe('Who asked for it. Empty string if unclear.'),
       chat_name: z.string().describe('The chat or group the request came from.'),
       due_date: z
@@ -62,6 +65,9 @@ Do NOT extract:
 
 Rules:
 - title: short and imperative, e.g. "Send GST invoice to Rakesh".
+- description: leave it an EMPTY STRING unless it adds something the title does not.
+  "Process BNF salary" needs no description saying "BNF salary payment needs to be done";
+  that is the same sentence twice and it clutters the list.
 - due_date: only when the message states or clearly implies one. Resolve relative words
   ("today", "tomorrow", "by Friday", "month end") against the current date given below,
   and output YYYY-MM-DD. If there is no date signal, use an empty string. Do not guess.

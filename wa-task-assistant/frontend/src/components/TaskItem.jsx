@@ -9,10 +9,10 @@ function dueLabel(dueDate) {
   const diff = Math.round(
     (Date.parse(`${dueDate}T00:00:00Z`) - Date.parse(`${today()}T00:00:00Z`)) / dayMs
   );
-  if (diff < 0) return { text: `Overdue ${Math.abs(diff)}d`, tone: 'danger' };
+  if (diff < 0) return { text: `${Math.abs(diff)}d late`, tone: 'danger' };
   if (diff === 0) return { text: 'Today', tone: 'warn' };
   if (diff === 1) return { text: 'Tomorrow', tone: 'warn' };
-  if (diff <= 6) return { text: `in ${diff}d`, tone: '' };
+  if (diff <= 6) return { text: `${diff}d`, tone: '' };
   return {
     text: new Date(`${dueDate}T00:00:00Z`).toLocaleDateString(undefined, {
       day: 'numeric',
@@ -23,58 +23,74 @@ function dueLabel(dueDate) {
   };
 }
 
+const FILLER = new Set([
+  'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
+  'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',
+]);
+
+const words = (text) =>
+  new Set(
+    String(text || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w && !FILLER.has(w))
+  );
+
+/**
+ * "Process BNF salary" / "BNF salary payment needs to be done today" says the
+ * same thing twice. A description only earns its line when it carries something
+ * the title does not.
+ */
+function addsNothing(title, description) {
+  if (!description) return true;
+  const inTitle = words(title);
+  const inDesc = words(description);
+  if (!inDesc.size) return true;
+  let shared = 0;
+  for (const w of inDesc) if (inTitle.has(w)) shared += 1;
+  return shared / inDesc.size >= 0.6;
+}
+
+const timeLabel = (iso) =>
+  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
 export default function TaskItem({ task, onToggle, onDelete, onEdit }) {
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const done = task.status === 'done';
   const due = dueLabel(task.due_date);
+  const description = addsNothing(task.title, task.description) ? null : task.description;
+  const source = task.contact || task.chat_name;
 
   return (
-    <li className={`task ${done ? 'done' : ''} p-${task.priority}`}>
-      <input
-        type="checkbox"
-        checked={done}
-        onChange={() => onToggle(task)}
-        aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
-      />
+    <li className={`task ${done ? 'done' : ''} p-${task.priority} ${open ? 'open' : ''}`}>
+      <div className="t-row">
+        <input
+          type="checkbox"
+          checked={done}
+          onChange={() => onToggle(task)}
+          aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
+        />
 
-      <div className="t-body">
-        <div className="t-title">{task.title}</div>
-        {task.description && <div className="t-desc">{task.description}</div>}
+        <button
+          type="button"
+          className="t-title"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {task.title}
+        </button>
 
-        <div className="t-foot">
-          <div className="t-tags">
-            {due && <span className={`tag ${due.tone}`}>{due.text}</span>}
-            {task.remind_at && (
-              <span className="tag warm">
-                ⏰{' '}
-                {new Date(task.remind_at).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-            )}
-            {task.contact && <span className="tag">{task.contact}</span>}
-            {task.chat_name && task.chat_name !== task.contact && (
-              <span className="tag">{task.chat_name}</span>
-            )}
-            {task.reminder_count > 0 && (
-              <span className="tag nag" title={`Last reminded ${task.last_reminded_at} UTC`}>
-                asked {task.reminder_count + 1}×
-              </span>
-            )}
-          </div>
+        {task.remind_at && <span className="tag warm">{timeLabel(task.remind_at)}</span>}
+        {due && <span className={`tag ${due.tone}`}>{due.text}</span>}
+        {task.reminder_count > 0 && <span className="tag nag">{task.reminder_count + 1}×</span>}
+      </div>
 
-          <div className="t-actions">
-            <button className="link" onClick={() => setEditing((v) => !v)}>
-              {editing ? 'close' : 'edit'}
-            </button>
-            <button className="link danger" onClick={() => onDelete(task)}>
-              delete
-            </button>
-          </div>
-        </div>
+      {open && (
+        <div className="t-detail">
+          {description && <p className="t-desc">{description}</p>}
+          {source && <p className="t-source">from {source}</p>}
 
-        {editing && (
           <div className="task-edit">
             <input
               type="date"
@@ -103,9 +119,12 @@ export default function TaskItem({ task, onToggle, onDelete, onEdit }) {
                 onEdit(task, { remind_at: new Date(`${day}T${time}`).toISOString() });
               }}
             />
+            <button className="link danger" onClick={() => onDelete(task)}>
+              delete
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </li>
   );
 }

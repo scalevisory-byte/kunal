@@ -210,7 +210,6 @@ function Pipeline({ wa, cfg, connected }) {
         </p>
       )}
 
-      <EventTrail events={wa?.events} />
     </div>
   );
 }
@@ -218,6 +217,18 @@ function Pipeline({ wa, cfg, connected }) {
 export default function StatusBar({ status, stats, overdueCount }) {
   const wa = status?.whatsapp;
   const state = wa?.status || 'starting';
+  const cfg = status?.config;
+
+  // Anything the user has to act on opens the detail by itself; a healthy
+  // connection stays one line, because that is all it has to say.
+  const needsAttention =
+    state !== 'ready' ||
+    !cfg?.apiKeySet ||
+    Boolean(wa?.lastExtraction?.error) ||
+    (wa?.rawSeen > 0 && wa?.messagesSeen === 0);
+
+  const [openDetail, setOpenDetail] = useState(false);
+  const showDetail = needsAttention || openDetail;
 
   return (
     <section className="status">
@@ -228,6 +239,11 @@ export default function StatusBar({ status, stats, overdueCount }) {
         {wa?.mode && <span className="pill">{wa.mode === 'manual' ? 'manual capture' : 'AI reading'}</span>}
         {wa?.bufferedCount > 0 && (
           <span className="pill">{wa.bufferedCount} message(s) queued</span>
+        )}
+        {!needsAttention && (
+          <button type="button" className="link" onClick={() => setOpenDetail((v) => !v)}>
+            {openDetail ? 'hide details' : 'details'}
+          </button>
         )}
       </div>
 
@@ -266,14 +282,13 @@ export default function StatusBar({ status, stats, overdueCount }) {
         </p>
       )}
 
-      {state !== 'ready' && (
+      {showDetail && (
         <>
-          <Diagnostics d={status?.diagnostics} />
+          {state !== 'ready' && <Diagnostics d={status?.diagnostics} />}
+          <Pipeline wa={wa} cfg={cfg} connected={state === 'ready'} />
           <EventTrail events={wa?.events} />
         </>
       )}
-
-      <Pipeline wa={wa} cfg={status?.config} connected={state === 'ready'} />
     </section>
   );
 }
