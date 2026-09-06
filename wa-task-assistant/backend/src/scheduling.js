@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db, ensureColumns } from './db.js';
 import { log } from './logger.js';
 
 /**
@@ -36,10 +36,6 @@ db.exec(`
     dismissed_at  TEXT
   );
 
-  CREATE INDEX IF NOT EXISTS idx_rem_due   ON reminders(status, fire_at);
-  CREATE INDEX IF NOT EXISTS idx_rem_task  ON reminders(task_id, status);
-  CREATE INDEX IF NOT EXISTS idx_notif_at  ON notifications(at DESC);
-
   -- One briefing per day. The unique day is the claim: a restart, a retry or a
   -- second worker finds the row already there and sends nothing.
   CREATE TABLE IF NOT EXISTS briefings (
@@ -50,6 +46,41 @@ db.exec(`
     task_count INTEGER,
     error      TEXT
   );
+`);
+
+/*
+ * An earlier design hung reminders off follow-up records rather than tasks, so
+ * a database from that version has a `reminders` table with no `kind` and no
+ * `round`. The CREATE above leaves such a table exactly as it found it, and the
+ * index below then fails on a column that is not there - which is precisely how
+ * the deployed service came to refuse to start. Add what is missing first.
+ */
+const addedToReminders = ensureColumns('reminders', [
+  ['kind', "ALTER TABLE reminders ADD COLUMN kind TEXT NOT NULL DEFAULT 'pre_due'"],
+  ['round', 'ALTER TABLE reminders ADD COLUMN round INTEGER NOT NULL DEFAULT 0'],
+]);
+
+ensureColumns('notifications', [
+  ['task_id', 'ALTER TABLE notifications ADD COLUMN task_id INTEGER'],
+  ['reminder_id', 'ALTER TABLE notifications ADD COLUMN reminder_id INTEGER'],
+  ['read_at', 'ALTER TABLE notifications ADD COLUMN read_at TEXT'],
+  ['dismissed_at', 'ALTER TABLE notifications ADD COLUMN dismissed_at TEXT'],
+]);
+
+if (addedToReminders.includes('kind')) {
+  // Those rows were scheduled by the removed follow-up engine, against records
+  // this app no longer has. Giving them a default kind would make them look
+  // like rungs of a ladder nobody built. Reminders are derived state - the
+  // engine rebuilds them from each task's deadline on its next pass - so
+  // clearing them is a rebuild, not a loss. Tasks and history are untouched.
+  const cleared = db.prepare(`DELETE FROM reminders`).run().changes;
+  if (cleared) log.warn(`Cleared ${cleared} reminder(s) from the previous design; they will be rescheduled.`);
+}
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_rem_due   ON reminders(status, fire_at);
+  CREATE INDEX IF NOT EXISTS idx_rem_task  ON reminders(task_id, status);
+  CREATE INDEX IF NOT EXISTS idx_notif_at  ON notifications(at DESC);
 
   -- Two reminders of the same kind and round for one task are the same
   -- reminder. The database refuses the second, so no code path - a retry, a

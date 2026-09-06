@@ -89,6 +89,30 @@ db.exec(`
 
 // Databases created before reminders repeated have `reminder_sent` instead.
 // Carry it over as a count of 1 so already-reminded tasks are not double-counted.
+/**
+ * Add any column a table is missing.
+ *
+ * `CREATE TABLE IF NOT EXISTS` is a no-op against a table that already exists,
+ * so changing a table's definition in code changes nothing on a database that
+ * predates the change - and the first query naming the new column fails with
+ * "no such column". That is what took the deployed service down: the reminders
+ * table was rebuilt around `kind` and `round`, while the live volume still held
+ * the older shape.
+ *
+ * Returns the names actually added, so a caller can act on having migrated.
+ */
+export function ensureColumns(table, columns) {
+  const present = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  const added = [];
+  for (const [name, ddl] of columns) {
+    if (present.has(name)) continue;
+    db.exec(ddl);
+    added.push(name);
+  }
+  if (added.length) log.info(`Migrated ${table} table: added ${added.join(', ')}.`);
+  return added;
+}
+
 const taskColumns = new Set(db.prepare(`PRAGMA table_info(tasks)`).all().map((c) => c.name));
 if (!taskColumns.has('reminder_count')) {
   db.exec(`ALTER TABLE tasks ADD COLUMN reminder_count INTEGER NOT NULL DEFAULT 0`);
