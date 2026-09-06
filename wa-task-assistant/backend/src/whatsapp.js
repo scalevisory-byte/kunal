@@ -74,6 +74,10 @@ export const state = {
   // chats are clearly arriving means the connection is not delivering at all.
   rawSeen: 0,
   messagesSeen: 0,
+  // Why messages were dropped. Without this a message that never becomes a task
+  // looks the same whatever the reason.
+  drops: { ignoredChat: 0, status: 0, noText: 0, blocked: 0, duplicate: 0, error: 0 },
+  lastDropError: null,
   tasksCreated: 0,
   lastExtraction: null, // { at, messages, tasks, error }
   // A short trail of connection events, newest last. This is what tells you
@@ -253,48 +257,68 @@ export async function handleOwnMessage(message) {
   }
 }
 
+/** Records why a message was not kept, so a silent drop becomes a visible one. */
+function drop(reason, detail = null) {
+  state.drops[reason] = (state.drops[reason] || 0) + 1;
+  if (detail) state.lastDropError = String(detail).slice(0, 300);
+  noteEvent(`dropped: ${reason}`, detail);
+}
+
 /** Exported so the batching path can be driven directly in tests. */
 export async function handleMessage(message) {
   try {
-    if (IGNORED_CHAT_IDS.has(message.from)) return;
-    if (message.isStatus) return;
+    if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
+    if (message.isStatus) return drop('status');
 
     const body = (message.body || '').trim();
-    if (!body) return; // media with no caption: nothing to extract from
+    if (!body) return drop('noText'); // media with no caption: nothing to extract from
 
-    const chat = await message.getChat();
-    if (IGNORED_CHAT_IDS.has(chat.id?._serialized)) return;
+    // Chat and contact lookups go back to WhatsApp and can fail on their own -
+    // a Meta-hosted business chat, a contact that will not resolve. The message
+    // text is already in hand, so degrade to what is known instead of losing it.
+    let chat = null;
+    let contact = null;
+    try {
+      chat = await message.getChat();
+    } catch (err) {
+      noteEvent('chat lookup failed', err?.message || err);
+    }
+    if (chat && IGNORED_CHAT_IDS.has(chat.id?._serialized)) return drop('ignoredChat');
 
-    const contact = await message.getContact();
+    try {
+      contact = await message.getContact();
+    } catch (err) {
+      noteEvent('contact lookup failed', err?.message || err);
+    }
     const contactName =
       contact?.pushname || contact?.name || contact?.verifiedName || contact?.number || null;
 
     // Blocked chats are dropped before anything is stored or sent to the API.
     if (
       isBlockedChat({
-        chatName: chat.name,
-        chatId: chat.id?._serialized,
+        chatName: chat?.name,
+        chatId: chat?.id?._serialized ?? message.from,
         contactNumber: contact?.number,
       })
     ) {
       state.blockedCount += 1;
-      return;
+      return drop('blocked');
     }
 
     const row = {
       wa_message_id: message.id?._serialized ?? null,
-      chat_id: chat.id?._serialized ?? message.from,
-      chat_name: chat.name || contactName || message.from,
+      chat_id: chat?.id?._serialized ?? message.from ?? message.to ?? 'unknown',
+      chat_name: chat?.name || contactName || message.from || 'unknown',
       contact_name: contactName,
       contact_number: contact?.number ?? null,
       body,
-      is_group: chat.isGroup ? 1 : 0,
+      is_group: chat?.isGroup ? 1 : 0,
       from_me: message.fromMe ? 1 : 0,
       sent_at: new Date((message.timestamp ?? Date.now() / 1000) * 1000).toISOString(),
     };
 
     const id = insertMessage(row);
-    if (!id) return; // already seen this message id
+    if (!id) return drop('duplicate'); // already seen this message id
 
     state.lastMessageAt = new Date().toISOString();
     state.messagesSeen += 1;
@@ -303,6 +327,7 @@ export async function handleMessage(message) {
     state.bufferedCount = buffer.length;
     scheduleFlush();
   } catch (err) {
+    drop('error', err?.message || err);
     log.error('handleMessage:', err?.message || err);
   }
 }
@@ -383,16 +408,17 @@ export function startWhatsApp() {
     // tasks as much as anything someone sends you.
     client.on('message_create', async (message) => {
       state.rawSeen += 1;
-      try {
-        if (message.fromMe && message.body) {
+      // A reply command is an instruction, not a new task. It is checked in its
+      // own try block: a failure here must not cost us the message itself.
+      if (message.fromMe && message.body) {
+        try {
           const chat = await message.getChat();
-          // A reply command is an instruction, not a new task.
           if (await handleCommand(message, chat.id?._serialized ?? message.to)) return;
+        } catch (err) {
+          noteEvent('command check failed', err?.message || err);
         }
-        await handleMessage(message);
-      } catch (err) {
-        log.error('message listener:', err?.message || err);
       }
+      await handleMessage(message);
     });
     log.info(`AI mode: chats are read by ${config.model}.`);
   }

@@ -119,6 +119,13 @@ function Diagnostics({ d }) {
  * Shown once WhatsApp is connected. Answers the next question after "is it
  * linked?" - namely whether messages are arriving, and what the AI made of them.
  */
+/** "duplicate 3, error 1", or "none" when nothing was thrown away. */
+function dropSummary(drops) {
+  if (!drops) return '—';
+  const parts = Object.entries(drops).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`);
+  return parts.length ? parts.join(', ') : 'none';
+}
+
 function Pipeline({ wa, cfg, connected }) {
   const [test, setTest] = useState(null);
   const [testing, setTesting] = useState(false);
@@ -140,6 +147,7 @@ function Pipeline({ wa, cfg, connected }) {
     ['Delivered by WhatsApp', wa?.rawSeen ?? 0],
     ['Messages read since start', wa?.messagesSeen ?? 0],
     ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
+    ['Dropped', dropSummary(wa?.drops)],
     ['Waiting to be read', wa?.bufferedCount ?? 0],
     ['Tasks created since start', wa?.tasksCreated ?? 0],
     [
@@ -183,8 +191,8 @@ function Pipeline({ wa, cfg, connected }) {
       )}
       {connected && wa?.rawSeen > 0 && wa?.messagesSeen === 0 && (
         <p className="hint error-text">
-          Messages are arriving but none are being kept. Check the blocked-chats list — that is
-          the only thing that drops a message before it is stored.
+          Messages are arriving but none are being kept. The <b>Dropped</b> line above says why.
+          {wa?.lastDropError && <> Last error: {wa.lastDropError}</>}
         </p>
       )}
 
