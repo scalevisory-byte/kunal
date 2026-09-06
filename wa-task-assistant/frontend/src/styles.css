@@ -7,18 +7,20 @@
 
 :root {
   /* Paper, not a coloured surface: the work supplies the colour. */
-  --bg:         #f4f4f2;
+  --bg:         #efece4;
+  --bg-2:       #e5e0d5;
   --card:       #ffffff;
-  --raised:     #f0f0ee;
-  --sunken:     #fbfbfa;
+  --raised:     #f4f2ec;
+  --sunken:     #faf8f3;
+  --band:       #ffffff;
 
   --text:       #1a1c1b;
   --text-2:     #40464a;
   --muted:      #6a7278;
 
   /* One hairline weight everywhere; a second, darker one for emphasis only. */
-  --line:       #e3e3df;
-  --line-2:     #cfd0cb;
+  --line:       #e2ded4;
+  --line-2:     #cbc6b9;
 
   --brand:      #0d5f57;
   --brand-ink:  #ffffff;
@@ -44,7 +46,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:#101211; --card:#181b1a; --raised:#1f2322; --sunken:#141716;
+    --bg:#0d100f; --bg-2:#090b0b; --card:#181c1b; --raised:#212524; --sunken:#141817;
+    --band:#151918;
     --text:#e9ecea; --text-2:#c0c6c3; --muted:#8d9691;
     --line:#272c2a; --line-2:#3a4240;
     --brand:#4fb9a8; --brand-ink:#06211d; --brand-wash:#16302c;
@@ -56,7 +59,8 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg:#101211; --card:#181b1a; --raised:#1f2322; --sunken:#141716;
+  --bg:#0d100f; --bg-2:#090b0b; --card:#181c1b; --raised:#212524; --sunken:#141817;
+  --band:#151918;
   --text:#e9ecea; --text-2:#c0c6c3; --muted:#8d9691;
   --line:#272c2a; --line-2:#3a4240;
   --brand:#4fb9a8; --brand-ink:#06211d; --brand-wash:#16302c;
@@ -72,7 +76,14 @@ b, strong { font-weight: 600; }
 
 body {
   margin: 0;
-  background: var(--bg);
+  /* Paper, not flat fill: a faint grain over a ground that warms towards the
+     bottom, so white cards read as sheets laid on a surface. */
+  background-color: var(--bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+  background-attachment: fixed, fixed;
+  background-size: 140px 140px, 100% 100%;
   color: var(--text);
   font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
@@ -86,15 +97,36 @@ body {
   padding: 0 24px calc(56px + env(safe-area-inset-bottom));
 }
 
+:root[data-theme="dark"] body,
+:root:not([data-theme="light"]) body { background-blend-mode: overlay, normal; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) body { background-blend-mode: multiply, normal; }
+}
+:root[data-theme="light"] body { background-blend-mode: multiply, normal; }
+
 /* ---------- top bar ---------- */
 
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 35;
   display: flex;
   align-items: center;
   gap: 20px;
-  padding: 16px 0 15px;
+  padding: 14px 0 13px;
+  margin-bottom: 24px;
+}
+/* A band that ignores the container's width, so the bar reads as a fixed edge
+   of the application rather than a card floating on the page. */
+.topbar::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%; margin-left: -50vw; width: 100vw;
+  background: var(--band);
   border-bottom: 1px solid var(--line);
-  margin-bottom: 22px;
+  box-shadow: 0 1px 0 rgba(20, 24, 22, .02), 0 10px 22px -20px rgba(20, 24, 22, .5);
+  z-index: -1;
 }
 .brand { flex: none; }
 .brand h1 {
@@ -254,6 +286,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
   padding: 14px 16px 15px;
   font: inherit;
   color: inherit;
@@ -386,8 +419,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* ---------- task sections ---------- */
 
-.sections { margin-top: 18px; }
-.section + .section { margin-top: 26px; }
+.sections {
+  margin-top: 18px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 4px 18px 10px;
+}
+.section { padding-top: 14px; }
+.section + .section { margin-top: 4px; }
 .section-head {
   display: flex; align-items: baseline; gap: 12px;
   padding-bottom: 8px;
@@ -413,10 +454,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 11px 12px 11px 2px;
+  padding: 11px 10px 11px 8px;
+  margin: 0 -10px 0 -8px;
+  border-radius: var(--r);
   border-bottom: 1px solid var(--line);
   transition: background .16s;
 }
+.task:last-child { border-bottom: 0; }
 .task:hover { background: var(--sunken); }
 .task.done { opacity: .55; }
 .task.done .t-title { text-decoration: line-through; }
@@ -507,6 +551,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
   padding: 15px 16px 16px;
 }
 .rail-title {
@@ -614,11 +659,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .empty {
   color: var(--muted);
-  padding: 52px 20px;
+  padding: 56px 20px;
   text-align: center;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
   margin-top: 18px;
 }
 .empty strong { display: block; color: var(--text); font-size: .98rem; margin-bottom: 4px; }
