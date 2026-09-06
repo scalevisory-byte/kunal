@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { api } from '../api.js';
+
 const LABELS = {
   starting: 'Starting…',
   qr: 'Waiting for QR scan',
@@ -112,6 +115,88 @@ function Diagnostics({ d }) {
   );
 }
 
+/**
+ * Shown once WhatsApp is connected. Answers the next question after "is it
+ * linked?" - namely whether messages are arriving, and what the AI made of them.
+ */
+function Pipeline({ wa, cfg }) {
+  const [test, setTest] = useState(null);
+  const [testing, setTesting] = useState(false);
+
+  async function runTest() {
+    setTesting(true);
+    setTest(null);
+    try {
+      setTest(await api.selfTest());
+    } catch (err) {
+      setTest({ ok: false, error: err.message });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const last = wa?.lastExtraction;
+  const rows = [
+    ['Messages read since start', wa?.messagesSeen ?? 0],
+    ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
+    ['Waiting to be read', wa?.bufferedCount ?? 0],
+    ['Tasks created since start', wa?.tasksCreated ?? 0],
+    [
+      'Last AI run',
+      last
+        ? last.error
+          ? `failed — ${last.error}`
+          : `${last.messages} message(s) → ${last.tasks} task(s)`
+        : 'not run yet',
+    ],
+    ['Anthropic key', cfg?.apiKeySet ? 'set' : 'MISSING — nothing can be extracted'],
+  ];
+
+  return (
+    <div className="diagnostics">
+      <dl>
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {!cfg?.apiKeySet && (
+        <p className="hint error-text">
+          <code>ANTHROPIC_API_KEY</code> is not set on the server, so no message can ever
+          become a task. Add it in the hosting provider's variables and redeploy.
+        </p>
+      )}
+
+      {wa?.messagesSeen === 0 && (
+        <p className="hint">
+          Nothing has arrived yet. Only messages that come in <b>after</b> the link are read —
+          older chats are not scanned. Ask someone to message you, or message yourself from
+          another phone, then wait about {cfg?.batchQuietSeconds ?? 15} seconds.
+        </p>
+      )}
+
+      <button type="button" className="link" onClick={runTest} disabled={testing}>
+        {testing ? 'Testing…' : 'Test the AI on a sample message'}
+      </button>
+
+      {test && (
+        <p className={`hint ${test.ok ? '' : 'error-text'}`}>
+          {test.ok
+            ? test.tasks?.length
+              ? `Works. ${test.model} read the sample and made: "${test.tasks[0].title}"${test.tasks[0].due_date ? ` (due ${test.tasks[0].due_date})` : ''}.`
+              : `${test.model} answered but found no task in the sample, which is unexpected.`
+            : `Failed: ${test.error}`}
+        </p>
+      )}
+
+      <EventTrail events={wa?.events} />
+    </div>
+  );
+}
+
 export default function StatusBar({ status, stats, overdueCount }) {
   const wa = status?.whatsapp;
   const state = wa?.status || 'starting';
@@ -162,6 +247,8 @@ export default function StatusBar({ status, stats, overdueCount }) {
           <EventTrail events={wa?.events} />
         </>
       )}
+
+      {state === 'ready' && <Pipeline wa={wa} cfg={status?.config} />}
     </section>
   );
 }

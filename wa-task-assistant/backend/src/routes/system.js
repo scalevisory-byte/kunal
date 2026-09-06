@@ -9,6 +9,7 @@ import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
+import { extractTasks } from '../extractor.js';
 
 export const systemRouter = Router();
 
@@ -27,6 +28,9 @@ systemRouter.get('/status', (req, res) => {
       lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
       events: state.events,
+      messagesSeen: state.messagesSeen,
+      tasksCreated: state.tasksCreated,
+      lastExtraction: state.lastExtraction,
     },
     tasks: taskStats(),
     security: authStats(),
@@ -39,10 +43,42 @@ systemRouter.get('/status', (req, res) => {
       batchQuietSeconds: config.batchQuietMs / 1000,
       reminderCron: [config.reminderCronMorning, config.reminderCronEvening],
       authEnabled,
+      // Presence only. The key itself never leaves the server.
+      apiKeySet: Boolean(config.anthropicApiKey),
       pushEnabled: vapidEnabled,
       blockedChats: listBlockedChats().length,
     },
   });
+});
+
+/**
+ * Runs one synthetic message through the extractor. This is the quickest way to
+ * tell a missing or wrong ANTHROPIC_API_KEY apart from chats that simply have
+ * nothing actionable in them.
+ */
+systemRouter.post('/selftest', async (req, res) => {
+  if (config.extractionMode !== 'ai') {
+    return res.json({ ok: false, error: 'Extraction mode is manual, so no AI is used.' });
+  }
+  const sample = [{
+    id: null,
+    chat_name: 'Self test',
+    contact_name: 'Self test',
+    contact_number: null,
+    is_group: 0,
+    sent_at: new Date().toISOString(),
+    body: 'Bhai kal 5 baje tak GST invoice bhej dena, urgent hai.',
+  }];
+  try {
+    const tasks = await extractTasks(sample);
+    res.json({
+      ok: true,
+      model: config.model,
+      tasks: tasks.map((t) => ({ title: t.title, due_date: t.due_date, priority: t.priority })),
+    });
+  } catch (err) {
+    res.json({ ok: false, model: config.model, error: err?.message || String(err) });
+  }
 });
 
 systemRouter.get('/messages', (req, res) => {

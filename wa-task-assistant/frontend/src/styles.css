@@ -209,6 +209,7 @@ h1 {
   overflow-wrap: anywhere;
 }
 .diagnostics .hint { margin: 10px 0 0; }
+.diagnostics .link { margin-top: 8px; text-decoration: underline; }
 
 /* The connection's own history, so a scan that was accepted and then lost is visible. */
 .trail { margin-top: 12px; }

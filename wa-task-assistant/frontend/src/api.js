@@ -38,6 +38,7 @@ async function request(path, options = {}) {
 
 export const api = {
   status: () => request('/status'),
+  selfTest: () => request('/selftest', { method: 'POST' }),
   listTasks: (status) => request(`/tasks?status=${encodeURIComponent(status)}`),
   createTask: (task) => request('/tasks', { method: 'POST', body: JSON.stringify(task) }),
   updateTask: (id, patch) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

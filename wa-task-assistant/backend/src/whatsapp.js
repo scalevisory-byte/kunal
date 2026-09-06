@@ -68,6 +68,11 @@ export const state = {
   blockedCount: 0,
   lastCommandAt: null,
   lastError: null,
+  // Pipeline counters since this process started, so a chat that produces no
+  // tasks can be told apart from one that is never being read at all.
+  messagesSeen: 0,
+  tasksCreated: 0,
+  lastExtraction: null, // { at, messages, tasks, error }
   // A short trail of connection events, newest last. This is what tells you
   // whether a scan was accepted and then lost, or never accepted at all.
   events: [],
@@ -116,6 +121,7 @@ async function flushBuffer() {
     for (const task of tasks) {
       try {
         createTask(task);
+        state.tasksCreated += 1;
         log.info(`Task created: "${task.title}"${task.due_date ? ` (due ${task.due_date})` : ''}`);
       } catch (err) {
         log.error('Could not store extracted task:', err?.message || err);
@@ -123,10 +129,19 @@ async function flushBuffer() {
     }
     markMessagesProcessed(batch.map((m) => m.id));
     state.lastExtractionAt = new Date().toISOString();
+    state.lastExtraction = { at: state.lastExtractionAt, messages: batch.length, tasks: tasks.length, error: null };
+    noteEvent('extraction', `${batch.length} message(s) -> ${tasks.length} task(s)`);
   } catch (err) {
     // Extraction failed (API down, rate limited). Leave the messages unprocessed
     // so they stay visible in /api/messages, but do not retry forever in a loop.
     log.error('Batch extraction failed, messages left unprocessed:', err?.message || err);
+    state.lastExtraction = {
+      at: new Date().toISOString(),
+      messages: batch.length,
+      tasks: 0,
+      error: err?.message || String(err),
+    };
+    noteEvent('extraction failed', err?.message || err);
   } finally {
     flushing = false;
   }
@@ -279,6 +294,8 @@ export async function handleMessage(message) {
     if (!id) return; // already seen this message id
 
     state.lastMessageAt = new Date().toISOString();
+    state.messagesSeen += 1;
+    noteEvent('message', `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60)}`);
     buffer.push({ ...row, id });
     state.bufferedCount = buffer.length;
     scheduleFlush();
