@@ -115,19 +115,26 @@ export default function WorkHistory({ chats, onError }) {
   const [open, setOpen] = useState(null);
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({ range: '', source: '', priority: '', chat: '', timing: '' });
+  const [exporting, setExporting] = useState(false);
+
+  // Built once and used for both the list and the CSV, so the file that
+  // downloads is exactly the rows on screen rather than an approximation.
+  const params = useMemo(() => {
+    const next = {
+      q: query || undefined,
+      source: filters.source || undefined,
+      priority: filters.priority || undefined,
+      chat: filters.chat || undefined,
+      timing: filters.timing || undefined,
+    };
+    const range = DATE_RANGES.find((r) => r.key === filters.range);
+    if (range?.days !== undefined) next.from = isoDaysAgo(range.days);
+    return next;
+  }, [query, filters]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
-        q: query || undefined,
-        source: filters.source || undefined,
-        priority: filters.priority || undefined,
-        chat: filters.chat || undefined,
-        timing: filters.timing || undefined,
-      };
-      const range = DATE_RANGES.find((r) => r.key === filters.range);
-      if (range?.days !== undefined) params.from = isoDaysAgo(range.days);
 
       const [rows, totals] = await Promise.all([api.history(params), api.historySummary()]);
       setData(rows);
@@ -137,7 +144,7 @@ export default function WorkHistory({ chats, onError }) {
     } finally {
       setLoading(false);
     }
-  }, [query, filters, onError]);
+  }, [params, onError]);
 
   useEffect(() => {
     const id = setTimeout(load, query ? 250 : 0); // debounce typing, not filters
@@ -216,6 +223,23 @@ export default function WorkHistory({ chats, onError }) {
             {chats.map(([name]) => <option key={name} value={name}>{name}</option>)}
           </select>
         )}
+        <button
+          type="button"
+          className="btn ghost"
+          disabled={exporting || !data?.tasks?.length}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              await api.exportHistory(params);
+            } catch (err) {
+              onError(err);
+            } finally {
+              setExporting(false);
+            }
+          }}
+        >
+          {exporting ? 'Preparing…' : 'Export CSV'}
+        </button>
       </div>
 
       {stats && stats.total > 0 && (

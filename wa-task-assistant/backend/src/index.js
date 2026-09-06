@@ -86,8 +86,10 @@ try {
   shutdownApp = shutdown;
   log.info(`API listening on http://localhost:${port}`);
 
-  startWhatsApp();
-  startReminderJobs();
+  // Independent on purpose: WhatsApp failing to launch must not also cancel the
+  // reminder schedule, and neither should blank the dashboard that is now up.
+  try { startWhatsApp(); } catch (err) { log.error('WhatsApp failed to start:', err?.message || err); }
+  try { startReminderJobs(); } catch (err) { log.error('Reminder jobs failed to start:', err?.message || err); }
 } catch (err) {
   bootError = err;
   console.error('[boot] the application failed to load:', err?.stack || err);

@@ -15,8 +15,9 @@ const HISTORY_WHERE = `(t.status = 'done' OR t.archived_at IS NOT NULL)`;
 
 const like = (value) => `%${String(value).toLowerCase()}%`;
 
-historyRouter.get('/', (req, res) => {
-  const { q, from, to, source, priority, chat, timing, limit } = req.query;
+/** The rows a set of filters selects. Shared so the CSV is exactly what is shown. */
+function queryHistory(query) {
+  const { q, from, to, source, priority, chat, timing, limit } = query;
   const settings = getSettings();
 
   const clauses = [HISTORY_WHERE];
@@ -52,11 +53,57 @@ historyRouter.get('/', (req, res) => {
     }));
 
   // Timing is a property of the row, not something SQL can filter on cleanly.
-  const filtered = ['on time', 'late', 'no deadline'].includes(timing)
+  return ['on time', 'late', 'no deadline'].includes(timing)
     ? rows.filter((t) => t.on_time === timing)
     : rows;
+}
 
-  res.json({ tasks: filtered, stats: historyStats(filtered) });
+historyRouter.get('/', (req, res) => {
+  const rows = queryHistory(req.query);
+  res.json({ tasks: rows, stats: historyStats(rows) });
+});
+
+/* ---------------- CSV export ---------------- */
+
+const CSV_COLUMNS = [
+  ['Title', (t) => t.title],
+  ['Status', (t) => (t.archived_at ? 'archived' : t.status)],
+  ['Priority', (t) => t.priority],
+  ['Chat', (t) => t.chat_name],
+  ['Contact', (t) => t.contact],
+  ['Source', (t) => (t.origin === 'ai' ? 'AI' : 'manual')],
+  ['Created', (t) => t.created_at],
+  ['Deadline', (t) => t.due_at_resolved],
+  ['Completed', (t) => t.completed_at],
+  ['On time', (t) => t.on_time],
+  ['Notes', (t) => t.notes],
+  ['Description', (t) => t.description],
+  ['Original message', (t) => t.source_message],
+];
+
+/**
+ * A spreadsheet of the same rows the page is showing. Excel decides a field is
+ * a formula when it starts with =, + or @, so those are prefixed with a quote -
+ * a task literally titled "=total" should not execute when the file is opened.
+ */
+function csvCell(value) {
+  if (value === null || value === undefined) return '';
+  let text = String(value);
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+historyRouter.get('/export', (req, res) => {
+  const rows = queryHistory({ ...req.query, limit: req.query.limit || 1000 });
+  const lines = [CSV_COLUMNS.map(([name]) => csvCell(name)).join(',')];
+  for (const task of rows) {
+    lines.push(CSV_COLUMNS.map(([, read]) => csvCell(read(task))).join(','));
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="wa-tasks-history-${day}.csv"`);
+  // A BOM, so Excel opens the Gujarati and Hindi titles as UTF-8 rather than mojibake.
+  res.send(`\uFEFF${lines.join('\r\n')}\r\n`);
 });
 
 /** Figures over exactly the rows being shown, so they always agree with the list. */

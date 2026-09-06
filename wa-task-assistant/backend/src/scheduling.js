@@ -86,6 +86,11 @@ const DEFAULTS = {
   whatsappFollowUps: false,         // per-reminder messages after it
   dailyBriefing: false,             // one morning message listing the day
   briefingTime: '09:00',            // in the configured timezone
+  // One review of the week just finished. Sunday evening by default: the week
+  // is over, and it is when there is time to read it.
+  weeklySummary: false,
+  weeklyDay: 0,                     // 0 = Sunday, matching localParts()
+  weeklyTime: '20:00',            // in the configured timezone
 };
 
 export function getSettings() {

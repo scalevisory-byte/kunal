@@ -22,7 +22,7 @@ import {
   activeRemindersForTask,
 } from './task-lifecycle.js';
 import { EVENT, recordEvent } from './task-events.js';
-import { maybeSendBriefing } from './briefing.js';
+import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -202,6 +202,10 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     log.error('Daily briefing:', err?.message || err);
     return { sent: false };
   });
+  const weekly = await maybeSendWeekly({ now }).catch((err) => {
+    log.error('Weekly summary:', err?.message || err);
+    return { sent: false };
+  });
   const nowIso = now.toISOString();
   const missedBefore = new Date(now.getTime() - settings.missedAfterHours * 3600_000).toISOString();
 
@@ -255,7 +259,7 @@ export async function runReminderEngine({ now = new Date() } = {}) {
   if (sent || missed || planned) {
     log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
-  return { sent, missed, planned, briefing: Boolean(briefing?.sent) };
+  return { sent, missed, planned, briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent) };
 }
 
 function updateTaskCount(taskId, count) {

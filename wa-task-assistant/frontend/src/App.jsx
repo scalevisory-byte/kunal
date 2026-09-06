@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, getToken, setToken, UnauthorizedError } from './api.js';
+import { api, getToken, setToken, UnauthorizedError, LockedOutError } from './api.js';
 import { enablePush, pushAlreadyEnabled, pushSupported } from './push.js';
 import TaskList from './components/TaskList.jsx';
 import AddTaskForm from './components/AddTaskForm.jsx';
@@ -65,6 +65,9 @@ export default function App() {
     }
   });
   const [error, setError] = useState('');
+  // Asked once, unauthenticated: the app should be able to tell you it is
+  // unprotected rather than leaving you to test it from an incognito window.
+  const [authOpen, setAuthOpen] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
@@ -88,6 +91,9 @@ export default function App() {
       } catch (err) {
         if (err instanceof UnauthorizedError) {
           setNeedsAuth(true);
+        } else if (err instanceof LockedOutError) {
+          const mins = Math.max(1, Math.ceil(err.retryAfterSeconds / 60));
+          setError(`Too many wrong passwords. This device is locked out for about ${mins} minute${mins === 1 ? '' : 's'}.`);
         } else {
           setError(err.message);
         }
@@ -114,6 +120,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    api.authState().then((s) => setAuthOpen(!s.required)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
   }, [tasks]);
 
@@ -124,7 +134,10 @@ export default function App() {
         await refresh({ quiet: true });
       } catch (err) {
         if (err instanceof UnauthorizedError) setNeedsAuth(true);
-        else setError(err.message);
+        else if (err instanceof LockedOutError) {
+          const mins = Math.max(1, Math.ceil(err.retryAfterSeconds / 60));
+          setError(`Too many wrong passwords. This device is locked out for about ${mins} minute${mins === 1 ? '' : 's'}.`);
+        } else setError(err.message);
       }
     },
     [refresh]
@@ -293,9 +306,18 @@ export default function App() {
             </p>
           )}
 
+          {authOpen && (
+            <div className="banner error" role="alert">
+              This dashboard has no password. Anyone with the link can read and change your tasks.
+              Set <code>DASHBOARD_PASSWORD</code> in the hosting provider&rsquo;s variables and redeploy.
+            </div>
+          )}
+
           {error && (
             <div className="banner error" role="alert">
-              Something went wrong. Your tasks may be out of date.
+              {/* The server's own words: "locked out for 14 minutes" is worth
+                  reading, and a generic sentence hides it. */}
+              {error}
               <button className="link" onClick={() => refresh()}>Retry</button>
             </div>
           )}

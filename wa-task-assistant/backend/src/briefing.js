@@ -1,7 +1,7 @@
 import { config } from './config.js';
 import { log } from './logger.js';
-import { listTasks } from './db.js';
-import { dueMoment, taskState } from './task-lifecycle.js';
+import { listTasks, db } from './db.js';
+import { dueMoment, taskState, onTimeLabel } from './task-lifecycle.js';
 import {
   getSettings, localParts, claimBriefing, recordBriefingSent, recordBriefingFailed, briefingFor,
 } from './scheduling.js';
@@ -175,4 +175,141 @@ export async function maybeSendBriefing({ now = new Date(), force = false } = {}
   recordBriefingSent(day, briefing.total);
   log.info(`Daily briefing sent for ${day}: ${briefing.total} task(s).`);
   return { sent: true, day, total: briefing.total, text: briefing.text };
+}
+
+
+/* ---------------- weekly summary ---------------- */
+
+/**
+ * A key for the week a moment falls in, on the user's calendar: the Monday that
+ * starts it. It goes into the same `briefings` table as a daily briefing, so the
+ * "one per day" guarantee becomes "one per week" with no new schema and no
+ * second implementation of the thing that must not go wrong twice.
+ */
+export function localWeek(now = new Date(), timezone = config.timezone) {
+  const day = localDay(now, timezone);
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, weekday: 'short' })
+    .format(now);
+  const index = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }[parts] ?? 0;
+  const monday = new Date(`${day}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - index);
+  return `week:${monday.toISOString().slice(0, 10)}`;
+}
+
+/** Everything finished, and everything still owed, over the seven days ending now. */
+export function collectWeek(now = new Date()) {
+  const settings = getSettings();
+  const since = new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+
+  const finished = db
+    .prepare(
+      `SELECT * FROM tasks
+       WHERE status = 'done' AND completed_at IS NOT NULL AND completed_at >= ?
+       ORDER BY completed_at DESC`
+    )
+    .all(since)
+    .map((task) => ({ ...task, on_time: onTimeLabel(task) }));
+
+  const open = listTasks({ status: 'pending', limit: 500 });
+  const overdue = open.filter((t) => taskState(t, now, settings) === 'overdue');
+
+  // Which chats the week's work actually came from, busiest first.
+  const byChat = new Map();
+  for (const task of finished) {
+    const name = task.chat_name || 'No chat';
+    byChat.set(name, (byChat.get(name) || 0) + 1);
+  }
+  const chats = [...byChat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  return {
+    finished,
+    open,
+    overdue,
+    chats,
+    onTime: finished.filter((t) => t.on_time === 'on time').length,
+    late: finished.filter((t) => t.on_time === 'late').length,
+  };
+}
+
+/** The message itself. Every figure is counted from real rows; none are invented. */
+export function buildWeeklySummary(now = new Date()) {
+  const week = collectWeek(now);
+  const lines = ['📊 *Your week*', ''];
+
+  if (!week.finished.length && !week.open.length) {
+    lines.push('Nothing recorded this week — no tasks completed and none outstanding.');
+    return { text: lines.join('\n'), finished: 0, open: 0 };
+  }
+
+  lines.push(`✅ Completed: *${week.finished.length}*`);
+  // Only claimed where a deadline existed to judge against - and the tasks that
+  // had none are counted too, so the parts add up to the total above them.
+  if (week.onTime || week.late) {
+    const noDeadline = week.finished.length - week.onTime - week.late;
+    const parts = [`${week.onTime} on time`, `${week.late} late`];
+    if (noDeadline > 0) parts.push(`${noDeadline} without a deadline`);
+    lines.push(`   ${parts.join(' · ')}`);
+  }
+  lines.push(`📋 Still open: *${week.open.length}*`);
+  if (week.overdue.length) lines.push(`⚠️ Overdue: *${week.overdue.length}*`);
+
+  if (week.chats.length) {
+    lines.push('', '*Where the work came from*');
+    for (const [name, count] of week.chats) {
+      lines.push(`• ${name} — ${count}`);
+    }
+  }
+
+  if (week.finished.length) {
+    lines.push('', '*Finished this week*');
+    for (const task of week.finished.slice(0, MAX_LISTED)) {
+      lines.push(`• ${task.title}`);
+    }
+    if (week.finished.length > MAX_LISTED) {
+      lines.push(`_…and ${week.finished.length - MAX_LISTED} more._`);
+    }
+  }
+
+  return { text: lines.join('\n'), finished: week.finished.length, open: week.open.length };
+}
+
+/** True when the configured weekday and hour have both arrived, on the user's clock. */
+export function weeklyDue(now, settings) {
+  const local = localParts(now, config.timezone);
+  if (local.weekday !== Number(settings.weeklyDay ?? 0)) return false;
+  const [h, m] = String(settings.weeklyTime || '20:00').split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return false;
+  return local.hour * 60 + local.minute >= h * 60 + m;
+}
+
+/** Sent at most once a week, by exactly the mechanism the daily briefing uses. */
+export async function maybeSendWeekly({ now = new Date(), force = false } = {}) {
+  const settings = getSettings();
+  if (!force && !settings.weeklySummary) return { sent: false, reason: 'off' };
+  if (!force && !weeklyDue(now, settings)) return { sent: false, reason: 'not yet' };
+
+  const key = localWeek(now);
+  if (!force && briefingFor(key)?.sent_at) return { sent: false, reason: 'already sent' };
+
+  const claim = force ? { day: key } : claimBriefing(key);
+  if (!claim) return { sent: false, reason: 'claimed elsewhere' };
+
+  const summary = buildWeeklySummary(now);
+
+  if (state.status !== 'ready') {
+    if (!force) recordBriefingFailed(key, 'WhatsApp not connected');
+    return { sent: false, reason: 'whatsapp not connected', text: summary.text };
+  }
+
+  try {
+    await sendMessage(reminderChatId(), summary.text);
+  } catch (err) {
+    if (!force) recordBriefingFailed(key, err?.message || err);
+    log.error('Weekly summary send failed:', err?.message || err);
+    return { sent: false, reason: 'send failed', error: err?.message || String(err) };
+  }
+
+  recordBriefingSent(key, summary.finished);
+  log.info(`Weekly summary sent for ${key}: ${summary.finished} completed.`);
+  return { sent: true, week: key, finished: summary.finished, text: summary.text };
 }

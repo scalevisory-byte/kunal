@@ -7,7 +7,10 @@ import {
   markAllNotificationsRead, dismissNotification,
 } from '../scheduling.js';
 import { taskSchedule, taskState, dueMoment } from '../task-lifecycle.js';
-import { buildBriefing, maybeSendBriefing, localDay } from '../briefing.js';
+import {
+  buildBriefing, maybeSendBriefing, localDay,
+  buildWeeklySummary, maybeSendWeekly, localWeek,
+} from '../briefing.js';
 import { briefingFor, recentBriefings } from '../scheduling.js';
 
 /**
@@ -80,6 +83,21 @@ briefingRouter.get('/', (req, res) => {
 briefingRouter.post('/run', async (req, res, next) => {
   try {
     res.json(await maybeSendBriefing({ force: true }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** The week's review, same shape: a preview and a way to send it now. */
+briefingRouter.get('/weekly', (req, res) => {
+  const week = localWeek();
+  const preview = buildWeeklySummary();
+  res.json({ week, sent: briefingFor(week), preview: preview.text, finished: preview.finished });
+});
+
+briefingRouter.post('/weekly/run', async (req, res, next) => {
+  try {
+    res.json(await maybeSendWeekly({ force: true }));
   } catch (err) {
     next(err);
   }

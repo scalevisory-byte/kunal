@@ -183,6 +183,80 @@ await run('the day rolls over on the user clock', () => {
   assert.equal(B.localDay(new Date('2026-09-21T19:00:00Z')), '2026-09-22');
 });
 
+console.log('\nweekly summary');
+
+await run('a week is keyed on the Monday that starts it, on the user clock', () => {
+  // Sunday 2026-09-20 in Kolkata belongs to the week beginning Monday the 14th.
+  assert.equal(B.localWeek(new Date('2026-09-20T14:00:00Z')), 'week:2026-09-14');
+  // Monday the 21st starts the next one.
+  assert.equal(B.localWeek(new Date('2026-09-21T06:00:00Z')), 'week:2026-09-21');
+  // 19:00 UTC on Sunday is already Monday in Kolkata, so the week has turned.
+  assert.equal(B.localWeek(new Date('2026-09-20T19:00:00Z')), 'week:2026-09-21');
+});
+
+await run('the weekly summary shares the daily briefing\'s send-once guarantee', () => {
+  const key = B.localWeek(new Date('2026-10-04T14:00:00Z'));
+  assert.ok(S.claimBriefing(key), 'the first claim wins');
+  S.recordBriefingSent(key, 4);
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal(S.claimBriefing(key), null, 'a sent week is never claimed again');
+  }
+});
+
+await run('it is only due on the configured day, at the configured hour', () => {
+  const settings = { weeklySummary: true, weeklyDay: 0, weeklyTime: '20:00' };
+  // Sunday 2026-09-20, 14:30 UTC = 20:00 in Kolkata.
+  assert.equal(B.weeklyDue(new Date('2026-09-20T14:30:00Z'), settings), true);
+  // Same Sunday, an hour earlier.
+  assert.equal(B.weeklyDue(new Date('2026-09-20T13:00:00Z'), settings), false);
+  // Saturday at the right hour is still the wrong day.
+  assert.equal(B.weeklyDue(new Date('2026-09-19T14:30:00Z'), settings), false);
+});
+
+await run('the on-time breakdown adds up to the completed total', () => {
+  const now = new Date('2026-11-04T06:00:00Z');
+  const iso = (d) => new Date(d).toISOString().slice(0, 19).replace('T', ' ');
+
+  // Three finished: one early, one late, one that never had a deadline.
+  const rows = [
+    { title: 'on time one', due: '2026-11-03T12:00:00.000Z', done: '2026-11-03T09:00:00Z' },
+    { title: 'late one', due: '2026-11-02T12:00:00.000Z', done: '2026-11-03T09:00:00Z' },
+    { title: 'no deadline one', due: null, done: '2026-11-03T09:00:00Z' },
+  ];
+  for (const row of rows) {
+    const task = db.createTask({ title: row.title, due_at: row.due, status: 'open', source: 'manual' });
+    db.updateTask(task.id, { status: 'done' });
+    db.db.prepare(`UPDATE tasks SET completed_at = ? WHERE id = ?`).run(iso(row.done), task.id);
+  }
+
+  const out = B.buildWeeklySummary(now);
+  assert.equal(out.finished, 3);
+  assert.match(out.text, /1 on time · 1 late · 1 without a deadline/);
+});
+
+await run('a week with nothing finished reports the open work, not a fake total', () => {
+  // Far enough ahead that nothing in the fixture completed inside the window.
+  const out = B.buildWeeklySummary(new Date('2027-01-01T04:00:00Z'));
+  assert.equal(out.finished, 0, 'nothing was completed in that week');
+  assert.match(out.text, /Completed: \*0\*/);
+  // The open count is real, so it is stated; on-time figures are not invented
+  // for a week where nothing was finished.
+  assert.doesNotMatch(out.text, /on time/);
+  assert.doesNotMatch(out.text, /Finished this week/);
+});
+
+await run('an empty database says the week was quiet rather than showing zeroes', () => {
+  // Proven directly on the builder's own branch: no tasks at all, either side.
+  const before = db.listTasks({ status: 'all', limit: 500 });
+  const ids = before.map((t) => t.id);
+  for (const id of ids) db.deleteTask(id);
+
+  const out = B.buildWeeklySummary(new Date('2027-01-01T04:00:00Z'));
+  assert.match(out.text, /Nothing recorded this week/);
+  assert.equal(out.finished, 0);
+  assert.equal(out.open, 0);
+});
+
 console.log('\ndeadlines are read on the user clock');
 
 await run('a bare wall-clock time is read in the user timezone, not the server one', () => {

@@ -6,7 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { requireAuth } from './auth.js';
+import { requireAuth, authEnabled } from './auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { systemRouter } from './routes/system.js';
 import {
@@ -61,6 +61,12 @@ export function createServer() {
 
   // Unauthenticated: lets a load balancer or Railway health check reach the app.
   app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+  // Deliberately outside requireAuth: the dashboard has to be able to ask
+  // "am I actually protected?" before it holds a token. It reveals only
+  // whether a password is set, never what it is - and if the answer is no,
+  // an attacker could read every task anyway, so it leaks nothing new.
+  app.get('/api/auth-state', (req, res) => res.json({ required: authEnabled }));
 
   app.use('/api/tasks', requireAuth, tasksRouter);
   app.use('/api/attention', requireAuth, attentionRouter);

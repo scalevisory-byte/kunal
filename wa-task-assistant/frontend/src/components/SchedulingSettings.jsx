@@ -203,7 +203,83 @@ export default function SchedulingSettings({ onError }) {
       </Row>
 
       <BriefingPreview timezone={timezone} onError={onError} />
+
+      <header className="settings-head second">
+        <h3>Weekly review</h3>
+        <span>One message summing up the week</span>
+      </header>
+
+      <Row
+        label="Weekly summary"
+        note="What you finished, what is still open, and which chats the work came from."
+      >
+        <Toggle on={settings.weeklySummary} label="Weekly summary"
+          onChange={(v) => save({ weeklySummary: v })} />
+      </Row>
+
+      <Row label="Sent on" note={`Day and time, ${timezone}.`}>
+        <div className="set-inline">
+          <select value={settings.weeklyDay} disabled={!settings.weeklySummary}
+            onChange={(e) => save({ weeklyDay: Number(e.target.value) })}>
+            {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+              .map((name, index) => <option key={name} value={index}>{name}</option>)}
+          </select>
+          <input type="time" value={settings.weeklyTime} disabled={!settings.weeklySummary}
+            onChange={(e) => save({ weeklyTime: e.target.value })} />
+        </div>
+      </Row>
+
+      <WeeklyPreview onError={onError} />
     </section>
+  );
+}
+
+/** The week's review as it would arrive, and a way to send it now. */
+function WeeklyPreview({ onError }) {
+  const [state, setState] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      setState(await api.weeklySummary());
+    } catch (err) {
+      onError(err);
+    }
+  }, [onError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const sendNow = async () => {
+    setSending(true);
+    setResult('');
+    try {
+      const out = await api.runWeekly();
+      setResult(out.sent ? 'Sent to your own WhatsApp chat.' : `Not sent — ${out.reason}.`);
+      load();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!state) return null;
+
+  return (
+    <div className="briefing-preview">
+      <div className="briefing-preview-head">
+        <strong>This week's message</strong>
+        <span>{state.sent?.sent_at ? 'Already sent this week' : 'Not sent yet'}</span>
+      </div>
+      <pre>{state.preview}</pre>
+      <div className="briefing-preview-foot">
+        <button type="button" className="btn ghost" onClick={sendNow} disabled={sending}>
+          {sending ? 'Sending…' : 'Send now'}
+        </button>
+        {result && <small>{result}</small>}
+      </div>
+    </div>
   );
 }
 

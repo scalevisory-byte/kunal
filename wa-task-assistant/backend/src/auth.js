@@ -104,6 +104,13 @@ export function requireAuth(req, res, next) {
     return next();
   }
 
+  // A request carrying no token at all is not a guess: it is the dashboard on
+  // first load, asking before it has anything to ask with. Counting those was
+  // spending three or four of the five attempts before the user had typed a
+  // character, so a single typo locked them out for fifteen minutes. Only a
+  // wrong password counts - which is still every attempt an attacker can make.
+  if (!token) return res.status(401).json({ error: 'unauthorized' });
+
   const rec = recordFailure(ip);
   log.warn(`Auth: failed attempt from ${ip} (${rec.failures}/${MAX_FAILURES}) on ${req.method} ${req.originalUrl}`);
   return res.status(401).json({ error: 'unauthorized' });
