@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken, UnauthorizedError } from './api.js';
 import { enablePush, pushAlreadyEnabled, pushSupported } from './push.js';
 import TaskList from './components/TaskList.jsx';
@@ -9,7 +9,13 @@ import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
+import Header from './components/Header.jsx';
+import QuickActions from './components/QuickActions.jsx';
+import SideRail from './components/SideRail.jsx';
+import MobileNav from './components/MobileNav.jsx';
+import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
+import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
 
 const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null };
 
@@ -29,6 +35,10 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openTask, setOpenTask] = useState(null);
+  // A day picked in the calendar narrows the board to that date.
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [composing, setComposing] = useState(false);
+  const railRef = useRef(null);
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
@@ -44,6 +54,7 @@ export default function App() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
+  const install = useInstall();
 
   const refresh = useCallback(
     async ({ quiet = false } = {}) => {
@@ -148,10 +159,44 @@ export default function App() {
       if (filters.priority.length && !filters.priority.includes(task.priority)) return false;
       if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
       if (filters.chat && taskChat(task) !== filters.chat) return false;
+      if (selectedDate && task.due_date !== selectedDate) return false;
 
       return matchesQuery(task, query);
     });
-  }, [tasks, view, filters, query]);
+  }, [tasks, view, filters, query, selectedDate]);
+
+  const summary = useMemo(() => summarise(tasks), [tasks]);
+  const recent = useMemo(() => activity(tasks), [tasks]);
+
+  /** Quick actions and rail rows drive the same state the toolbar does. */
+  const quickAction = (key) => {
+    setSelectedDate(null);
+    if (key === 'myday') return setView('myday');
+    if (key === 'done') return setView('done');
+    if (key === 'chat') return setGroupBy('chat');
+    if (key === 'high') {
+      setView('open');
+      return setFilters({ ...EMPTY_FILTERS, priority: ['high'] });
+    }
+    if (key === 'ai') {
+      setView('open');
+      return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] });
+    }
+    return undefined;
+  };
+
+  const activeQuick =
+    view === 'myday' ? 'myday'
+      : view === 'done' ? 'done'
+        : filters.priority.length === 1 && filters.priority[0] === 'high' ? 'high'
+          : filters.origin.length === 1 && filters.origin[0] === 'ai' ? 'ai'
+            : groupBy === 'chat' ? 'chat' : null;
+
+  const showUpcoming = (key) => {
+    setView('open');
+    setFilters(EMPTY_FILTERS);
+    setSelectedDate(key === 'tomorrow' ? isoDay(1) : null);
+  };
 
   if (needsAuth) {
     return (
@@ -166,82 +211,140 @@ export default function App() {
     );
   }
 
+  const name = status?.whatsapp?.meName?.split(' ')[0] || null;
+
   return (
     <div className="app">
-      <header className="header">
-        <h1>WA Tasks</h1>
-        <div className="header-actions">
-          {pushSupported() && !pushOn && (
-            <button className="btn ghost" onClick={onEnablePush}>
-              Notifications
-            </button>
-          )}
-          <button className="btn ghost" onClick={() => refresh()} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
-      </header>
+      <Header
+        query={query}
+        onQuery={setQuery}
+        onRefresh={() => refresh()}
+        loading={loading}
+        onNewTask={() => setComposing((v) => !v)}
+        onEnablePush={onEnablePush}
+        pushSupported={pushSupported()}
+        pushOn={pushOn}
+        wa={status?.whatsapp}
+        install={install}
+      />
 
-      <StatBoard stats={stats} overdueCount={overdueCount} view={view} onPick={setView} />
+      {install.iosHint && (
+        <p className="ios-hint">
+          To keep this on your home screen: tap <b>Share</b>, then <b>Add to Home Screen</b>.
+        </p>
+      )}
 
-      <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+      <div className="greet">
+        <h2>{greeting()}{name ? `, ${name}` : ''}</h2>
+        <p>Here is your task overview for today.</p>
+      </div>
+
+      <StatBoard counts={summary.counts} view={view} onPick={(v) => { setView(v); setSelectedDate(null); }} />
+
+      <QuickActions counts={summary.counts} onAction={quickAction} active={activeQuick} />
 
       {error && (
         <div className="banner error" role="alert">
-          {error}
-          <button className="link" onClick={() => setError('')}>
-            dismiss
-          </button>
+          Something went wrong. Your tasks may be out of date.
+          <button className="link" onClick={() => refresh()}>Retry</button>
         </div>
       )}
 
-      <BlockedChats
-        mode={status?.whatsapp?.mode}
-        onError={(err) => setError(err.message)}
-      />
+      <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
 
-      <AddTaskForm onAdd={onAdd} />
+      <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
 
-      <div className="views">
-        {[
-          { key: 'myday', label: 'My day' },
-          { key: 'open', label: 'Open' },
-          { key: 'all', label: 'All' },
-        ].map((v) => (
-          <button
-            key={v.key}
-            className={`filter ${view === v.key ? 'active' : ''}`}
-            aria-pressed={view === v.key}
-            onClick={() => setView(v.key)}
-          >
-            {v.label}
-          </button>
-        ))}
+      {composing && <AddTaskForm onAdd={(task) => { onAdd(task); setComposing(false); }} />}
+
+      <div className="workspace">
+        <main className="work">
+          <div className="work-head">
+            <nav className="tabs" role="tablist" aria-label="View">
+              {[
+                { key: 'myday', label: 'My day' },
+                { key: 'open', label: 'Open' },
+                { key: 'all', label: 'All' },
+              ].map((v) => (
+                <button
+                  key={v.key}
+                  role="tab"
+                  aria-selected={view === v.key}
+                  className={`tab ${view === v.key ? 'active' : ''}`}
+                  onClick={() => { setView(v.key); setSelectedDate(null); }}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </nav>
+
+            <Toolbar
+              groupBy={groupBy}
+              onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
+              filters={filters}
+              onFilters={setFilters}
+              chats={chats}
+              onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
+            />
+          </div>
+
+          {(selectedDate || query) && (
+            <div className="scope">
+              {selectedDate && (
+                <span className="scope-chip">
+                  Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
+                    day: 'numeric', month: 'long', timeZone: 'UTC',
+                  })}
+                  <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
+                </span>
+              )}
+              {query && (
+                <span className="scope-chip">
+                  “{query}”
+                  <button onClick={() => setQuery('')} aria-label="Clear search">✕</button>
+                </span>
+              )}
+            </div>
+          )}
+
+          {view === 'myday' && (
+            <p className="work-intro">Here is what needs your attention today.</p>
+          )}
+
+          <TaskList
+            tasks={visible}
+            loading={loading}
+            error={error && !tasks.length ? error : ''}
+            groupBy={groupBy}
+            view={view}
+            query={query}
+            onRetry={() => refresh()}
+            onToggle={onToggle}
+            onOpen={setOpenTask}
+            onStatus={(task, status) => onEdit(task, { status })}
+            onQuickDate={onQuickDate}
+          />
+        </main>
+
+        <div ref={railRef} className="rail-wrap">
+        <SideRail
+          tasks={tasks}
+          summary={summary}
+          activity={recent}
+          chats={chats}
+          status={status}
+          selectedDate={selectedDate}
+          onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
+          onUpcoming={showUpcoming}
+          onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
+        />
+        </div>
       </div>
 
-      <Toolbar
-        query={query}
-        onQuery={setQuery}
-        groupBy={groupBy}
-        onGroupBy={(g) => {
-          setGroupBy(g);
-          remember('wa-tasks-group', g);
-        }}
-        filters={filters}
-        onFilters={setFilters}
-        chats={chats}
-      />
-
-      <TaskList
-        tasks={visible}
-        loading={loading}
-        error={error && !tasks.length ? error : ''}
-        groupBy={groupBy}
+      <MobileNav
         view={view}
-        onRetry={() => refresh()}
-        onToggle={onToggle}
-        onOpen={setOpenTask}
-        onQuickDate={onQuickDate}
+        onView={(v) => { setView(v); setSelectedDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onNewTask={() => { setComposing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+        onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
       />
 
       {openTask && (
@@ -252,7 +355,6 @@ export default function App() {
           onDelete={onDelete}
         />
       )}
-
     </div>
   );
 }

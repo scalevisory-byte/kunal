@@ -20,6 +20,7 @@ systemRouter.get('/status', (req, res) => {
       mode: state.mode,
       status: state.status,
       me: state.me,
+      meName: state.meName,
       qrDataUrl: state.qrDataUrl,
       lastMessageAt: state.lastMessageAt,
       lastExtractionAt: state.lastExtractionAt,

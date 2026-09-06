@@ -96,3 +96,20 @@ export function matchesQuery(task, query) {
     .filter(Boolean)
     .some((field) => String(field).toLowerCase().includes(q));
 }
+
+/**
+ * "919909993565@c.us" is what WhatsApp gives us. Show it the way the number is
+ * actually written, and fall back to the raw digits for anything unexpected.
+ */
+export function formatWaNumber(wid) {
+  const digits = String(wid || '').split('@')[0].replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  return `+${digits}`;
+}
+
+/** First letter of the account name, for the header badge. */
+export const initialOf = (name, fallback) =>
+  (String(name || '').trim()[0] || String(fallback || '').replace(/\D/g, '')[0] || '·').toUpperCase();

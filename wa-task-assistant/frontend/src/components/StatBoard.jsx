@@ -1,24 +1,51 @@
-/** Answers "what needs me right now?" before any list is read. Each cell is a view. */
-export default function StatBoard({ stats, overdueCount, view, onPick }) {
+/**
+ * The four figures that decide what to do next. Each is a view, and each
+ * carries one line of context so the number means something on its own.
+ */
+export default function StatBoard({ counts, view, onPick }) {
   const cells = [
-    { key: 'open', label: 'open', value: stats?.open ?? 0 },
-    { key: 'in_progress', label: 'in progress', value: stats?.in_progress ?? 0 },
-    { key: 'overdue', label: 'overdue', value: overdueCount, tone: overdueCount > 0 ? 'alert' : '' },
-    { key: 'done', label: 'done', value: stats?.done ?? 0, tone: (stats?.done ?? 0) > 0 ? 'good' : '' },
+    {
+      key: 'open',
+      label: 'Open',
+      value: counts.open,
+      note: counts.open === 0
+        ? 'Nothing outstanding'
+        : `${counts.dueToday} due today`,
+    },
+    {
+      key: 'in_progress',
+      label: 'In progress',
+      value: counts.inProgress,
+      note: counts.inProgress === 0 ? 'Nothing currently active' : 'Being worked on',
+    },
+    {
+      key: 'overdue',
+      label: 'Overdue',
+      value: counts.overdue,
+      tone: counts.overdue > 0 ? 'alert' : '',
+      note: counts.overdue === 0 ? "You're all caught up" : 'Needs attention',
+    },
+    {
+      key: 'done',
+      label: 'Done',
+      value: counts.done,
+      note: `${counts.completedToday} completed today`,
+    },
   ];
 
   return (
-    <section className="board" aria-label="Task summary">
+    <section className="kpis" aria-label="Task summary">
       {cells.map((cell) => (
         <button
           key={cell.key}
           type="button"
-          className={`board-cell ${cell.tone || ''} ${view === cell.key ? 'picked' : ''}`}
+          className={`kpi ${cell.tone || ''} ${view === cell.key ? 'picked' : ''}`}
           aria-pressed={view === cell.key}
           onClick={() => onPick(view === cell.key ? 'all' : cell.key)}
         >
-          <span className="board-num">{cell.value}</span>
-          <span className="board-label">{cell.label}</span>
+          <span className="kpi-label">{cell.label}</span>
+          <span className="kpi-num">{cell.value}</span>
+          <span className="kpi-note">{cell.note}</span>
         </button>
       ))}
     </section>

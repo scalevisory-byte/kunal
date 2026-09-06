@@ -7,7 +7,7 @@ const SOURCES = [
 ];
 
 /** Search, grouping, and a filter popover that stays out of the way until asked. */
-export default function Toolbar({ query, onQuery, groupBy, onGroupBy, filters, onFilters, chats }) {
+export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats, onClearAll }) {
   const [open, setOpen] = useState(false);
   const popover = useRef(null);
 
@@ -36,16 +36,6 @@ export default function Toolbar({ query, onQuery, groupBy, onGroupBy, filters, o
 
   return (
     <div className="toolbar">
-      <div className="search">
-        <input
-          type="search"
-          value={query}
-          placeholder="Search tasks…"
-          aria-label="Search tasks"
-          onChange={(event) => onQuery(event.target.value)}
-        />
-      </div>
-
       <div className="toolbar-right" ref={popover}>
         <div className="segment small">
           {[{ key: 'date', label: 'By date' }, { key: 'chat', label: 'By chat' }].map((g) => (
@@ -104,14 +94,10 @@ export default function Toolbar({ query, onQuery, groupBy, onGroupBy, filters, o
               </div>
             )}
 
-            {active > 0 && (
-              <button
-                className="link"
-                onClick={() => onFilters({ status: [], priority: [], origin: [], chat: null })}
-              >
-                Clear all filters
-              </button>
-            )}
+            <div className="popover-foot">
+              <button className="link" onClick={onClearAll}>Clear all</button>
+              <button className="btn small" onClick={() => setOpen(false)}>Done</button>
+            </div>
           </div>
         )}
       </div>

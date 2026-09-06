@@ -208,7 +208,7 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete }) {
 
         <footer className="sheet-foot">
           {task.status !== 'done' ? (
-            <button className="btn" onClick={() => onEdit(task, { status: 'done' })}>
+            <button className="btn primary" onClick={() => onEdit(task, { status: 'done' })}>
               Mark done
             </button>
           ) : (

@@ -62,6 +62,8 @@ export const state = {
   status: 'starting', // starting | qr | authenticated | ready | disconnected | error
   qrDataUrl: null,
   me: null,
+  // The linked account's own WhatsApp display name, used to address the user.
+  meName: null,
   lastMessageAt: null,
   lastExtractionAt: null,
   bufferedCount: 0,
@@ -386,6 +388,7 @@ export function startWhatsApp() {
     noteEvent('ready');
     state.qrDataUrl = null;
     state.me = client.info?.wid?._serialized ?? null;
+    state.meName = client.info?.pushname || null;
     log.info(`WhatsApp ready as ${state.me}`);
   });
 
