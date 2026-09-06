@@ -9,6 +9,7 @@ import { log } from './logger.js';
 import { requireAuth } from './auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { systemRouter } from './routes/system.js';
+import { followUpsRouter, notificationsRouter, settingsRouter } from './routes/followups.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -59,6 +60,9 @@ export function createServer() {
   app.get('/healthz', (req, res) => res.json({ ok: true }));
 
   app.use('/api/tasks', requireAuth, tasksRouter);
+  app.use('/api/follow-ups', requireAuth, followUpsRouter);
+  app.use('/api/notifications', requireAuth, notificationsRouter);
+  app.use('/api/scheduling-settings', requireAuth, settingsRouter);
   app.use('/api', requireAuth, systemRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.

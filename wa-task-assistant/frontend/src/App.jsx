@@ -16,6 +16,10 @@ import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import FocusToday from './components/FocusToday.jsx';
 import UsagePage from './components/UsagePage.jsx';
+import FollowUps from './components/FollowUps.jsx';
+import FollowUpWidget from './components/FollowUpWidget.jsx';
+import NotificationCentre from './components/NotificationCentre.jsx';
+import SchedulingSettings from './components/SchedulingSettings.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -45,6 +49,9 @@ export default function App() {
   // Which sidebar section is showing. 'settings' swaps the workspace for setup.
   const [section, setSection] = useState('dashboard');
   const [navOpen, setNavOpen] = useState(false);
+  const [notifications, setNotifications] = useState({ notifications: [], unread: 0 });
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [followUps, setFollowUps] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
@@ -66,10 +73,17 @@ export default function App() {
     async ({ quiet = false } = {}) => {
       if (!quiet) setLoading(true);
       try {
-        const [taskData, statusData] = await Promise.all([api.listTasks('all'), api.status()]);
+        const [taskData, statusData, notifData, followUpData] = await Promise.all([
+          api.listTasks('all'),
+          api.status(),
+          api.notifications().catch(() => ({ notifications: [], unread: 0 })),
+          api.followUps().catch(() => ({ followUps: [] })),
+        ]);
         setTasks(taskData.tasks);
         setStats(taskData.stats);
         setStatus(statusData);
+        setNotifications(notifData);
+        setFollowUps(followUpData.followUps || []);
         setNeedsAuth(false);
         setError('');
       } catch (err) {
@@ -189,6 +203,7 @@ export default function App() {
     if (key === 'chat') { setGroupBy('chat'); return setView('open'); }
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
+    if (key === 'followups') return undefined;
     return undefined;
   };
 
@@ -260,8 +275,9 @@ export default function App() {
           wa={status?.whatsapp}
           install={install}
           onSettings={() => goto('settings')}
+          onBell={() => setNotifOpen((v) => !v)}
           onMenu={() => setNavOpen(true)}
-          alerts={summary.counts.overdue}
+          alerts={notifications.unread}
         />
 
         <div className="page">
@@ -278,7 +294,27 @@ export default function App() {
             </div>
           )}
 
-          {section === 'usage' ? (
+          {notifOpen && (
+            <NotificationCentre
+              items={notifications.notifications}
+              onClose={() => setNotifOpen(false)}
+              onReload={() => refresh({ quiet: true })}
+              onOpenTask={(id) => setOpenTask(tasks.find((t) => t.id === id) || null)}
+              onError={(err) => setError(err.message)}
+            />
+          )}
+
+          {section === 'followups' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Follow-ups</h2>
+                  <p>What you are waiting on, and when to chase it. Nothing is ever sent for you.</p>
+                </div>
+              </div>
+              <FollowUps chats={chats} onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'usage' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>
@@ -296,6 +332,7 @@ export default function App() {
                   <p>Connection, capture mode and the chats that are never read.</p>
                 </div>
               </div>
+              <SchedulingSettings onError={(err) => setError(err.message)} />
               <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>
@@ -413,6 +450,9 @@ export default function App() {
                     onUpcoming={showUpcoming}
                     onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
                     onViewAi={() => goto('ai')}
+                    followUpWidget={
+                      <FollowUpWidget followUps={followUps} onOpenAll={() => goto('followups')} />
+                    }
                   />
                 </div>
               </div>
@@ -434,6 +474,8 @@ export default function App() {
           onClose={() => setOpenTask(null)}
           onEdit={onEdit}
           onDelete={onDelete}
+          onError={(err) => setError(err.message)}
+          onChanged={() => refresh({ quiet: true })}
         />
       )}
     </div>

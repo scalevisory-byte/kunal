@@ -40,6 +40,33 @@ export const api = {
   status: () => request('/status'),
   selfTest: () => request('/selftest', { method: 'POST' }),
   usage: (days = 30) => request(`/usage?days=${days}`),
+
+  taskReminders: (taskId) => request(`/tasks/${taskId}/reminders`),
+  addTaskReminder: (taskId, body) =>
+    request(`/tasks/${taskId}/reminders`, { method: 'POST', body: JSON.stringify(body) }),
+  removeTaskReminder: (taskId, reminderId) =>
+    request(`/tasks/${taskId}/reminders/${reminderId}`, { method: 'DELETE' }),
+  snoozeReminder: (reminderId, minutes) =>
+    request(`/tasks/reminders/${reminderId}/snooze`, { method: 'POST', body: JSON.stringify({ minutes }) }),
+  acknowledgeReminder: (reminderId) =>
+    request(`/tasks/reminders/${reminderId}/acknowledge`, { method: 'POST', body: JSON.stringify({}) }),
+
+  followUps: (status) => request(`/follow-ups${status ? `?status=${status}` : ''}`),
+  createFollowUp: (body) => request('/follow-ups', { method: 'POST', body: JSON.stringify(body) }),
+  updateFollowUp: (id, body) =>
+    request(`/follow-ups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  snoozeFollowUp: (id, body) =>
+    request(`/follow-ups/${id}/snooze`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteFollowUp: (id) => request(`/follow-ups/${id}`, { method: 'DELETE' }),
+
+  notifications: () => request('/notifications'),
+  readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST', body: JSON.stringify({}) }),
+  readAllNotifications: () => request('/notifications/read-all', { method: 'POST', body: JSON.stringify({}) }),
+  dismissNotification: (id) => request(`/notifications/${id}`, { method: 'DELETE' }),
+
+  schedulingSettings: () => request('/scheduling-settings'),
+  saveSchedulingSettings: (body) =>
+    request('/scheduling-settings', { method: 'PATCH', body: JSON.stringify(body) }),
   listTasks: (status) => request(`/tasks?status=${encodeURIComponent(status)}`),
   createTask: (task) => request('/tasks', { method: 'POST', body: JSON.stringify(task) }),
   updateTask: (id, patch) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),

@@ -1,21 +1,191 @@
 import { useEffect, useState } from 'react';
+import Icon from './Icon.jsx';
+import { api } from '../api.js';
+import { REMINDER_OFFSETS } from '../lib/followup.js';
 import {
   PRIORITIES, STATUSES, dateTimeLabel, isoDay, taskChat, todayIso,
 } from '../lib/task.js';
 
-/** Reminder offsets, all expressed against the task's own due date and time. */
-const REMINDERS = [
-  { key: 'none', label: 'No reminder', minutes: null },
-  { key: 'at', label: 'At due time', minutes: 0 },
-  { key: 'h1', label: '1 hour before', minutes: 60 },
-  { key: 'h2', label: '2 hours before', minutes: 120 },
-  { key: 'd1', label: '1 day before', minutes: 1440 },
-];
-
 /** Local "YYYY-MM-DDTHH:MM" for a date and time the user picked. */
 const localIso = (day, time) => new Date(`${day}T${time || '09:00'}`).toISOString();
 
-export default function TaskDetail({ task, onClose, onEdit, onDelete }) {
+const clock = (iso) =>
+  new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+const REMINDER_STATE = {
+  scheduled: '', snoozed: 'snoozed', triggered: 'sent',
+  acknowledged: 'done', cancelled: 'cancelled', missed: 'missed',
+};
+
+/**
+ * A task can carry several reminders. They are listed with their state so a
+ * fired one is visibly different from one still waiting, and adding the same
+ * moment twice is refused by the server rather than producing two alarms.
+ */
+function Reminders({ task, onError, onChanged }) {
+  const [rows, setRows] = useState(task.reminders || []);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ date: task.due_date || todayIso(), time: '09:00' });
+
+  const reload = async () => {
+    try {
+      const data = await api.taskReminders(task.id);
+      setRows(data.reminders);
+      onChanged?.();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const add = async (fireAt, offset) => {
+    try {
+      await api.addTaskReminder(task.id, { fire_at: fireAt, offset_minutes: offset ?? null });
+      setAdding(false);
+      await reload();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const remove = async (id) => {
+    try {
+      await api.removeTaskReminder(task.id, id);
+      await reload();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const base = task.due_date ? new Date(`${task.due_date}T${(task.remind_at || '').slice(11, 16) || '17:00'}`) : null;
+  const active = rows.filter((r) => !['cancelled'].includes(r.status));
+
+  return (
+    <div className="field">
+      <label>Reminders</label>
+
+      {active.length === 0 ? (
+        <p className="field-note">None set. The twice-daily WhatsApp digest still covers this task until it is done.</p>
+      ) : (
+        <ul className="rem-list">
+          {active.map((r) => (
+            <li key={r.id} className={`s-${r.status}`}>
+              <Icon name="clock" size={14} />
+              <span className="rem-when">{clock(r.fire_at)}</span>
+              {REMINDER_STATE[r.status] && <span className="rem-state">{REMINDER_STATE[r.status]}</span>}
+              <button className="link danger" onClick={() => remove(r.id)} aria-label="Remove reminder">
+                remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {adding ? (
+        <div className="rem-add">
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="rem-date">Date</label>
+              <input id="rem-date" type="date" value={draft.date}
+                onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label htmlFor="rem-time">Time</label>
+              <input id="rem-time" type="time" value={draft.time}
+                onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))} />
+            </div>
+          </div>
+          <div className="quick-dates">
+            <button className="btn small" onClick={() => add(localIso(draft.date, draft.time))}>Add</button>
+            <button className="link" onClick={() => setAdding(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="rem-presets">
+          <button className="link" onClick={() => setAdding(true)}>+ Add reminder</button>
+          {base && REMINDER_OFFSETS.map((o) => (
+            <button
+              key={o.key}
+              className="tool"
+              onClick={() => add(new Date(base.getTime() - o.key * 60000).toISOString(), o.key)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Turning a task into something to chase, without leaving the drawer. */
+function FollowUpBlock({ task, onError }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ date: isoDay(3), time: '09:00', reason: '' });
+  const [created, setCreated] = useState(null);
+
+  const create = async () => {
+    try {
+      const followUp = await api.createFollowUp({
+        title: `Follow up: ${task.title}`,
+        reason: form.reason.trim() || null,
+        task_id: task.id,
+        chat_id: task.chat_id,
+        chat_name: task.chat_name,
+        contact: task.contact,
+        due_at: localIso(form.date, form.time),
+        remind_at: localIso(form.date, form.time),
+      });
+      setCreated(followUp);
+      setOpen(false);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  return (
+    <div className="field">
+      <label>Follow-up</label>
+      {created ? (
+        <p className="field-note ok-text">
+          Follow-up created for {new Date(created.due_at).toLocaleDateString([], { day: 'numeric', month: 'short' })}.
+        </p>
+      ) : open ? (
+        <div className="rem-add">
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="fub-date">Date</label>
+              <input id="fub-date" type="date" value={form.date}
+                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label htmlFor="fub-time">Time</label>
+              <input id="fub-time" type="time" value={form.time}
+                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))} />
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor="fub-reason">Reason</label>
+            <input id="fub-reason" value={form.reason} placeholder="Waiting for response"
+              onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} />
+          </div>
+          <div className="quick-dates">
+            <button className="btn small" onClick={create}>Create follow-up</button>
+            <button className="link" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="field-note">
+            A follow-up is for chasing somebody else — it reminds you to check, it never messages them.
+          </p>
+          <button className="link" onClick={() => setOpen(true)}>+ Add follow-up</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, onChanged }) {
   const [showMessage, setShowMessage] = useState(false);
 
   // Escape closes the panel, as it does in every other tool.
@@ -29,13 +199,6 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete }) {
 
   const chat = taskChat(task);
   const dueTime = task.remind_at ? new Date(task.remind_at).toTimeString().slice(0, 5) : '';
-
-  const setReminder = (minutes) => {
-    if (minutes === null) return onEdit(task, { remind_at: '' });
-    const day = task.due_date || todayIso();
-    const base = new Date(`${day}T${dueTime || '09:00'}`);
-    onEdit(task, { remind_at: new Date(base.getTime() - minutes * 60000).toISOString() });
-  };
 
   return (
     <div className="sheet-backdrop" onClick={onClose} role="presentation">
@@ -138,23 +301,9 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete }) {
             </div>
           </div>
 
-          <div className="field">
-            <label htmlFor="d-remind">Reminder</label>
-            <select
-              id="d-remind"
-              value={task.remind_at ? 'at' : 'none'}
-              onChange={(e) => setReminder(REMINDERS.find((r) => r.key === e.target.value)?.minutes ?? null)}
-            >
-              {REMINDERS.map((r) => (
-                <option key={r.key} value={r.key}>{r.label}</option>
-              ))}
-            </select>
-            <p className="field-note">
-              {task.remind_at
-                ? `Set for ${dateTimeLabel(task.remind_at)}. Reminders also repeat twice a day on WhatsApp until this is done.`
-                : 'Twice-daily WhatsApp reminders still apply until this is done.'}
-            </p>
-          </div>
+          <Reminders task={task} onError={onError} onChanged={onChanged} />
+
+          <FollowUpBlock task={task} onError={onError} />
 
           <dl className="facts">
             <div>

@@ -32,7 +32,7 @@ function Account({ wa, onSettings }) {
 /** Brand, search and the actions that apply to the whole page. */
 export default function Header({
   query, onQuery, onRefresh, loading, onNewTask, onEnablePush, pushSupported, pushOn, wa, install,
-  onSettings, onMenu, alerts,
+  onSettings, onMenu, alerts, onBell,
 }) {
   const search = useRef(null);
 
@@ -68,15 +68,18 @@ export default function Header({
       </div>
 
       <div className="topbar-actions">
+        <button
+          className="icon-action"
+          onClick={onBell}
+          title={alerts > 0 ? `${alerts} unread` : 'Notifications'}
+          aria-label="Notifications"
+        >
+          <Icon name="bell" size={19} />
+          {alerts > 0 && <span className="ping" />}
+        </button>
         {pushSupported && !pushOn && (
-          <button
-            className={`icon-action ${alerts ? 'flagged' : ''}`}
-            onClick={onEnablePush}
-            title="Enable browser notifications"
-            aria-label="Enable browser notifications"
-          >
-            <Icon name="bell" size={19} />
-            {alerts > 0 && <span className="ping" />}
+          <button className="btn ghost" onClick={onEnablePush} title="Enable browser notifications">
+            Enable alerts
           </button>
         )}
         {install?.canPrompt && (

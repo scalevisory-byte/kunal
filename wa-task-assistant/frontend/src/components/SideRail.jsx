@@ -76,6 +76,7 @@ function Calendar({ tasks, selected, onSelect }) {
  */
 export default function SideRail({
   tasks, summary, activity, chats, status, selectedDate, onSelectDate, onUpcoming, onChat, onViewAi,
+  followUpWidget,
 }) {
   const wa = status?.whatsapp;
   const connected = wa?.status === 'ready';
@@ -115,6 +116,8 @@ export default function SideRail({
         <h3 className="rail-title">Calendar</h3>
         <Calendar tasks={tasks} selected={selectedDate} onSelect={onSelectDate} />
       </section>
+
+      {followUpWidget}
 
       <section className="rail-card">
         <h3 className="rail-title">Upcoming</h3>

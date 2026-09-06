@@ -11,6 +11,8 @@ import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
 import { parseCommand } from './commands.js';
 import { clearStaleBrowserLocks } from './session-store.js';
+import { createFollowUp, recordReply, scheduleReminder, getSettings } from './scheduling.js';
+import { addTaskReminder, clearTaskReminders } from './task-reminders.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -126,14 +128,44 @@ async function flushBuffer() {
 
   flushing = true;
   try {
-    const tasks = await extractTasks(batch);
+    const extracted = await extractTasks(batch);
+    const tasks = extracted.filter((t) => t.kind !== 'follow_up');
+    const followUps = extracted.filter((t) => t.kind === 'follow_up');
+
     for (const task of tasks) {
       try {
-        createTask(task);
+        const created = createTask(task);
+        if (created?.remind_at) addTaskReminder(created.id, created.remind_at);
         state.tasksCreated += 1;
         log.info(`Task created: "${task.title}"${task.due_date ? ` (due ${task.due_date})` : ''}`);
       } catch (err) {
         log.error('Could not store extracted task:', err?.message || err);
+      }
+    }
+
+    for (const item of followUps) {
+      try {
+        // Without a date there is nothing to chase towards, so fall back to the
+        // configured interval rather than inventing a deadline.
+        const settings = getSettings();
+        const dueAt = item.remind_at
+          || (item.due_date ? `${item.due_date}T09:00:00.000Z` : null)
+          || new Date(Date.now() + settings.followUpIntervalDays * 86400000).toISOString();
+
+        const followUp = createFollowUp({
+          title: item.title,
+          reason: item.follow_up_reason,
+          chat_id: item.chat_id,
+          chat_name: item.chat_name,
+          contact: item.contact,
+          message_id: item.message_id,
+          due_at: dueAt,
+          origin: 'ai',
+        });
+        scheduleReminder({ followUpId: followUp.id, fireAt: dueAt });
+        log.info(`Follow-up created: "${item.title}" (due ${dueAt.slice(0, 10)})`);
+      } catch (err) {
+        log.error('Could not store extracted follow-up:', err?.message || err);
       }
     }
     markMessagesProcessed(batch.map((m) => m.id));
@@ -183,7 +215,10 @@ export async function handleCommand(message, chatId) {
   for (const task of targets) {
     if (command.action === 'done') {
       const updated = updateTask(task.id, { status: 'done' });
-      if (updated) changed.push(updated);
+      if (updated) {
+        clearTaskReminders(task.id);
+        changed.push(updated);
+      }
     } else {
       const base = task.due_date ? new Date(`${task.due_date}T00:00:00Z`) : new Date();
       base.setUTCDate(base.getUTCDate() + command.days);
@@ -325,6 +360,15 @@ export async function handleMessage(message) {
 
     state.lastMessageAt = new Date().toISOString();
     state.messagesSeen += 1;
+    // Somebody replying in a chat we are chasing pauses the chase. It does not
+    // close the follow-up: only the user knows whether the reply answered it.
+    if (!message.fromMe) {
+      try {
+        recordReply(row.chat_id, body);
+      } catch (err) {
+        log.error('recordReply:', err?.message || err);
+      }
+    }
     noteEvent('message', `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60)}`);
     buffer.push({ ...row, id });
     state.bufferedCount = buffer.length;

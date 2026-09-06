@@ -8,6 +8,11 @@ import {
 import { sendMessage, reminderChatId, state } from './whatsapp.js';
 import { sendPush } from './push.js';
 import { today, daysUntil } from './dates.js';
+import {
+  getSettings, dueReminders, claimReminder, markMissed, addNotification,
+  refreshFollowUpStatuses, listFollowUps, advanceFollowUp, getFollowUp,
+} from './scheduling.js';
+import { getTask } from './db.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -138,54 +143,165 @@ export function startReminderJobs() {
     log.info(`Reminder job scheduled: ${label} "${expression}" (${config.timezone})`);
   }
 
-  // Exact-time reminders need a finer tick than twice a day.
+  // The reminder engine needs a finer tick than twice a day. This is the only
+  // scheduler in the application - everything timed hangs off these three jobs.
   cron.schedule(
     config.exactReminderCron,
     () => {
-      runExactReminders().catch((err) => log.error('Exact reminder job:', err?.message || err));
+      runReminderEngine().catch((err) => log.error('Reminder engine:', err?.message || err));
     },
     options
   );
-  log.info(`Exact-time reminder job scheduled: "${config.exactReminderCron}"`);
+  log.info(`Reminder engine scheduled: "${config.exactReminderCron}" (${config.timezone})`);
 }
 
-/* ---------------- exact-time reminders ---------------- */
+/* ---------------- the reminder engine ---------------- */
 
 /**
- * Tasks can carry a specific time ("remind me at 10 AM"). This runs often and
- * sends each one individually the first time its moment has passed - separate
- * from the twice-daily digest, which keeps nagging until the task is done.
+ * One pass over everything whose moment has arrived. Each reminder is claimed
+ * before anything is sent: the claim is a conditional UPDATE, so a second tick,
+ * a restart mid-send, or a retry finds the row already out of the active states
+ * and moves on. That is the whole duplicate-protection story, and it is why
+ * delivery happens after the claim rather than before it.
+ *
+ * A claim that is never delivered is a reminder lost rather than a reminder
+ * repeated, which is the trade this makes deliberately: the notification row
+ * is written in the same pass, so the user still sees it in the app.
  */
-export async function runExactReminders() {
-  const due = dueExactReminders(new Date().toISOString());
-  if (!due.length) return { sent: 0 };
+export async function runReminderEngine({ now = new Date() } = {}) {
+  const settings = getSettings();
+  const nowIso = now.toISOString();
+  const missedBefore = new Date(now.getTime() - settings.missedAfterHours * 3600_000).toISOString();
 
-  const delivered = [];
-  for (const task of due) {
-    const when = task.remind_at.slice(11, 16);
+  const due = dueReminders(nowIso);
+  let sent = 0;
+  let missed = 0;
+
+  for (const row of due) {
+    // Too old to be useful; the user reschedules it instead of being shouted at.
+    if (row.fire_at < missedBefore) {
+      if (markMissed(row.id)) {
+        missed += 1;
+        const subject = subjectOf(row);
+        if (subject) {
+          addNotification({
+            kind: 'missed',
+            title: `Missed reminder — ${subject.title}`,
+            body: 'The server was not running when this was due. Reschedule it if it still matters.',
+            task_id: row.task_id,
+            follow_up_id: row.follow_up_id,
+            reminder_id: row.id,
+          });
+        }
+      }
+      continue;
+    }
+
+    const claimed = claimReminder(row.id);
+    if (!claimed) continue; // something else took it; never send twice
+
+    const subject = subjectOf(row);
+    if (!subject) continue; // task or follow-up deleted underneath us
+
+    await deliver(subject, claimed, settings);
+    sent += 1;
+  }
+
+  const moved = refreshFollowUpStatuses(nowIso);
+  const chased = await chaseFollowUps(settings, now);
+
+  if (sent || missed || chased) {
+    log.info(
+      `Reminder engine: ${sent} sent, ${missed} missed, ${chased} follow-up(s) advanced` +
+        `, ${moved.toDue} due, ${moved.toOverdue} overdue`
+    );
+  }
+  return { sent, missed, chased, ...moved };
+}
+
+/** What a reminder is about: a task, or a follow-up. */
+function subjectOf(reminder) {
+  if (reminder.task_id) {
+    const task = getTask(reminder.task_id);
+    if (!task || task.status === 'done') return null;
+    return { kind: 'task', id: task.id, title: task.title, context: task.contact || task.chat_name };
+  }
+  if (reminder.follow_up_id) {
+    const followUp = getFollowUp(reminder.follow_up_id);
+    if (!followUp || ['completed', 'cancelled'].includes(followUp.status)) return null;
+    return {
+      kind: 'follow_up',
+      id: followUp.id,
+      title: followUp.title,
+      context: followUp.contact || followUp.chat_name,
+      reason: followUp.reason,
+    };
+  }
+  return null;
+}
+
+/** In-app always, browser and WhatsApp only where the settings allow it. */
+async function deliver(subject, reminder, settings) {
+  const at = reminder.fire_at.slice(11, 16);
+  const label = subject.kind === 'follow_up' ? 'Follow-up due' : 'Reminder';
+
+  addNotification({
+    kind: subject.kind === 'follow_up' ? 'follow_up' : 'reminder',
+    title: `${label} — ${subject.title}`,
+    body: [subject.context, subject.reason, `set for ${at}`].filter(Boolean).join(' · '),
+    task_id: subject.kind === 'task' ? subject.id : null,
+    follow_up_id: subject.kind === 'follow_up' ? subject.id : null,
+    reminder_id: reminder.id,
+  });
+
+  if (settings.notifyBrowser) {
+    await sendPush({ title: subject.title, body: `${label} — ${at}`, url: '/' });
+  }
+
+  // Outbound WhatsApp stays off unless it has been turned on deliberately, and
+  // even then it only ever messages the user's own chat - never a contact.
+  if (settings.notifyWhatsApp && state.status === 'ready') {
     const body = [
-      `⏰ *${task.title}*`,
-      task.contact ? `   ${task.contact}` : null,
-      `   reminder set for ${when}`,
+      `⏰ *${subject.title}*`,
+      subject.context ? `   ${subject.context}` : null,
+      subject.reason ? `   ${subject.reason}` : null,
+      `   ${label.toLowerCase()} — ${at}`,
     ]
       .filter(Boolean)
       .join('\n');
-
-    let ok = false;
     try {
-      if (state.status === 'ready') {
-        await sendMessage(reminderChatId(), body);
-        ok = true;
-      }
+      await sendMessage(reminderChatId(), body);
     } catch (err) {
-      log.error('Exact reminder send failed:', err?.message || err);
+      log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
-
-    const push = await sendPush({ title: task.title, body: `Reminder — ${when}`, url: '/' });
-    if (ok || push.sent > 0) delivered.push(task.id);
   }
-
-  markExactRemindersSent(delivered);
-  if (delivered.length) log.info(`Exact reminders sent: ${delivered.length}`);
-  return { sent: delivered.length };
 }
+
+/**
+ * A follow-up whose date has passed and that has had no reply either repeats on
+ * its interval or stops and asks for attention. Nothing is sent to the contact.
+ */
+async function chaseFollowUps(settings, now) {
+  const open = listFollowUps({ status: 'open' }).filter(
+    (f) => !f.responded_at && f.due_at <= now.toISOString() && (f.status === 'due' || f.status === 'overdue')
+  );
+
+  let advanced = 0;
+  for (const followUp of open) {
+    // Only chase again once the current round has actually been notified about.
+    const notified = followUp.reminders.some((r) => r.status === 'triggered' || r.status === 'acknowledged');
+    if (!notified && followUp.reminders.length) continue;
+
+    const outcome = advanceFollowUp(followUp, settings);
+    if (outcome.repeated || outcome.reason === 'maximum reached') advanced += 1;
+  }
+  return advanced;
+}
+
+/* ---------------- backwards compatibility ---------------- */
+
+/**
+ * Kept so the existing POST /api/reminders/exact route and anything calling it
+ * keep working; the engine is where the logic lives now.
+ */
+export const runExactReminders = () => runReminderEngine();
