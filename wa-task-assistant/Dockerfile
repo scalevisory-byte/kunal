@@ -1,5 +1,6 @@
 # Builds the dashboard, then runs the backend with a system Chromium for whatsapp-web.js.
-# Build context is the wa-task-assistant/ directory (see railway.json).
+# Lives at the root of wa-task-assistant/ so Railway finds it with no configured
+# path - set the service Root Directory to wa-task-assistant and nothing else.
 
 FROM node:20-bookworm-slim AS frontend
 ENV PUPPETEER_SKIP_DOWNLOAD=true

@@ -214,7 +214,8 @@ session keeps receiving messages even when the phone is offline.
 
 1. **New project → Deploy from GitHub repo**, pick this repo.
 2. In the service's **Settings → Root Directory**, set `wa-task-assistant`. The Dockerfile at
-   `backend/Dockerfile` builds the frontend and installs Chromium for `whatsapp-web.js`.
+   The `Dockerfile` there builds the frontend and installs Chromium for `whatsapp-web.js`.
+   Railway finds it automatically — no Dockerfile path needs configuring.
 3. **Add a volume** mounted at `/data`. This is the part that matters: it holds
    `tasks.db` and `wa-session/`. Without it every redeploy loses the tasks and forces a
    re-scan of the QR code.
