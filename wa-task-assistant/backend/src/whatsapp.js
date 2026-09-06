@@ -10,7 +10,7 @@ import {
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
 import { parseCommand } from './commands.js';
-import { clearStaleBrowserLocks } from './session-store.js';
+import { clearStaleBrowserLocks, pruneProfileCaches } from './session-store.js';
 import { planTask, completeTask, rescheduleTask } from './task-lifecycle.js';
 import { parseTaskInstruction } from './nl-commands.js';
 import { buildBriefing, collectToday, clockOf, localDay } from './briefing.js';
@@ -444,6 +444,9 @@ export async function handleMessage(message) {
 
 export function startWhatsApp() {
   clearStaleBrowserLocks();
+  // Anything a previous run left cached on the volume goes now; the flags below
+  // keep this run's cache off it entirely.
+  pruneProfileCaches();
   noteEvent('starting');
 
   client = new Client({
@@ -456,6 +459,11 @@ export function startWhatsApp() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        // Cache on the container's own disk, not the data volume, and bounded.
+        // A full volume stops SQLite writing, which stops the app booting.
+        `--disk-cache-dir=${config.browserCacheDir}`,
+        '--disk-cache-size=67108864',
+        '--media-cache-size=67108864',
       ],
     },
   });

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs';
 import dotenv from 'dotenv';
 
@@ -21,6 +22,11 @@ export const config = {
   dataDir,
   dbPath: path.join(dataDir, 'tasks.db'),
   waSessionDir: path.join(dataDir, 'wa-session'),
+  // Chromium's disk cache, deliberately NOT on the data volume: it is rebuilt
+  // from the network whenever it is missing, and left on the volume it grows
+  // without limit until writes start failing and the app cannot boot.
+  browserCacheDir: process.env.BROWSER_CACHE_DIR
+    || path.join(os.tmpdir(), 'wa-browser-cache'),
 
   dashboardPassword: process.env.DASHBOARD_PASSWORD || '',
 

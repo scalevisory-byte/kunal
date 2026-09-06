@@ -9,6 +9,26 @@ import { log } from './logger.js';
  */
 export const profileDir = path.join(config.waSessionDir, 'session');
 
+/**
+ * Chromium's throwaway caches. These are rebuilt from the network on demand, so
+ * losing them costs a slower first load and nothing else. They matter because
+ * the profile sits on the Railway volume: during the first WhatsApp sync this
+ * directory was measured growing by ~50 MB a minute, and a volume that fills up
+ * takes SQLite down with it - which reads as the app simply not starting.
+ * The login itself (IndexedDB, Local Storage, Cookies) is never touched here.
+ */
+const CACHE_DIRS = [
+  'Default/Cache',
+  'Default/Code Cache',
+  'Default/GPUCache',
+  'Default/DawnWebGPUCache',
+  'Default/DawnGraphiteCache',
+  'GrShaderCache',
+  'ShaderCache',
+  'GraphiteDawnCache',
+  'component_crx_cache',
+];
+
 /** Chromium's login data for web.whatsapp.com lives here once a scan is accepted. */
 const CREDENTIAL_DIR = path.join(profileDir, 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
 
@@ -58,4 +78,51 @@ export function clearStaleBrowserLocks() {
   }
   if (cleared.length) log.warn(`Cleared stale Chromium locks from a previous run: ${cleared.join(', ')}`);
   return cleared;
+}
+
+/** Bytes under a directory, or 0 if it is missing. */
+function dirSize(dir) {
+  let bytes = 0;
+  let stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else {
+        try { bytes += fs.statSync(full).size; } catch { /* vanished mid-read */ }
+      }
+    }
+  }
+  return bytes;
+}
+
+/**
+ * Delete the disposable caches from the profile on the volume. Safe to call at
+ * boot: Chromium is not running yet, and nothing here is the login.
+ */
+export function pruneProfileCaches() {
+  if (!exists(profileDir)) return { freed: 0, removed: [] };
+  let freed = 0;
+  const removed = [];
+  for (const rel of CACHE_DIRS) {
+    const target = path.join(profileDir, rel);
+    if (!exists(target)) continue;
+    const bytes = dirSize(target);
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+      freed += bytes;
+      removed.push(rel);
+    } catch { /* in use, or already gone */ }
+  }
+  if (removed.length) {
+    log.info(`Freed ${(freed / 1e6).toFixed(1)} MB of Chromium cache from the data volume.`);
+  }
+  return { freed, removed };
 }
