@@ -83,6 +83,24 @@ The engine chases **Dinesh about his own tasks**. There is no notion of chasing 
 - The dashboard's **AI Usage** section shows today, this month, all-time and total tokens, plus a daily breakdown. It states plainly that this is an **estimate** from measured tokens at list prices, and that the real bill is in the Anthropic Console, which the app cannot read. Rupees are shown at the rate in `USD_INR` (default 88) with the rate printed next to the figure, so it is never mistaken for a live conversion.
 - Spend before this shipped is not recoverable — nothing was recorded then, and the page counts only from its first run rather than back-filling a guess.
 
+### Daily briefing, weekly review, CSV
+- **Daily briefing** — one WhatsApp message each morning listing what is due today and what is already late, to Dinesh's own chat. Off by default; Settings carries the toggle, the hour, a preview of the exact message and a **Send now** button. Sending it once is the design: the day is the claim (a row in `briefings` keyed on the local date), so a restart, a retry, a second worker or Send now all find the day taken. A *failed* send may retry, three times at most. While it is on, the 08:30 digest stands down so both never arrive.
+- **Weekly review** — the same machinery once a week (Sunday 8 PM by default): finished, on time vs late, still open, and which chats the work came from. The claim key is the Monday that starts the week, so "one per week" is the same guarantee as "one per day". The breakdown adds up to the total — work finished with no deadline is counted as such rather than vanishing between on-time and late.
+- **WhatsApp questions** — `aaj ke task dikhao`, `pending kaam batao`, and `<task> snooze 2 hours`.
+- **CSV export** of Work History over exactly the filters on screen. Titles starting `=` or `+` are quoted so a spreadsheet treats them as text; a BOM keeps Gujarati and Hindi readable in Excel. It goes through `fetch` with the bearer token and a blob, because a plain link sends no Authorization header.
+
+### Reliability work after the first outage
+The deployed app went down with Railway's "Application failed to respond". Cause: **the whole Chromium profile lived on the data volume**, cache included, growing ~50 MB/minute during a WhatsApp sync with nothing pruning it. A full volume stops SQLite writing; the database opens while modules are still loading, so the process died before the HTTP server was ever bound, ten times over, and Railway gave up.
+- **Chromium's cache is off the volume** now (`BROWSER_CACHE_DIR`, bounded at 64 MB) and anything an earlier run left there is deleted at boot. Only the login (IndexedDB, Local Storage, Cookies) stays on the volume.
+- **Boot order is inverted.** The HTTP server binds first from nothing but `PORT`; everything else loads after inside a try/catch. A failure now serves "WA Tasks did not start — <reason>" on the URL already open. The health check answers 200 while degraded **on purpose** — a 503 fails the deploy and restores Railway's blank page, which is what this exists to prevent; the body says `ok: false`.
+- **WhatsApp and the reminder schedule start independently**, so one failing cannot cancel the other.
+
+### Auth: the lockout was locking out its own user
+`requireAuth` counted **every** request without a valid token. The dashboard fires three or four before it has a password to send, so opening the page spent most of the five attempts and one typo locked the address out for fifteen minutes. Now only a *wrong password* counts — a request with no token at all is the dashboard on first load, not a guess, and an attacker still has exactly five tries. Covered by `backend/tests/auth.test.mjs` (9 cases).
+- A locked-out dashboard used to say "Something went wrong" because the banner discarded the message; it now shows what the server said, including the wait.
+- **`GET /api/auth-state`** is unauthenticated and reports whether a password is required at all. With none set, the dashboard shows a standing banner saying anyone with the link can read and change the tasks. It leaks nothing: without a password every task was already readable.
+- **Verified end to end**, which had been outstanding for a long time: with `DASHBOARD_PASSWORD` set every `/api/*` route 401s without a valid token, the login screen appears, a wrong password is rejected, the right one gets in, and five wrong ones return 429 with `retryAfterSeconds`.
+
 ### Added since the original spec
 - **Deployment config** — `wa-task-assistant/Dockerfile` (bundles Chromium for `whatsapp-web.js`, builds the frontend) plus `railway.json`. The Dockerfile sits at the build-context root so Railway auto-detects it, and carries **no `VOLUME` instruction** — Railway rejects it outright (`docker VOLUME ... is not supported, use Railway Volumes`) and the build dies in ~2s at "Build image". Attach a Railway volume at `/data` instead. `railway.json` also names no `dockerfilePath`, since that resolves against the repo root rather than the service root directory. Set the Railway service root directory to `wa-task-assistant` and mount a volume at `/data` (`DATA_DIR=/data`) so the SQLite file and WhatsApp session survive restarts. Not yet actually deployed.
 - **Dashboard auth** — a single shared secret via `DASHBOARD_PASSWORD`. Every `/api/*` route requires `Authorization: Bearer <it>`; `/healthz` stays open. Unset means no auth, which is fine locally but not on a public URL.
@@ -91,7 +109,7 @@ The engine chases **Dinesh about his own tasks**. There is no notion of chasing 
 - **Connection diagnostics in the dashboard** — `GET /api/status` also returns a `diagnostics` block (uptime, boot count, `DATA_DIR`, whether that path is a real mount, whether a WhatsApp session is on disk), and the status panel renders it whenever the session is not connected. The boot count lives in a `meta` table inside SQLite, so a count that resets to 1 after a restart proves the volume is not persisting — which is the reason a scanned QR would keep coming back. Added because Railway's log view was unreadable in screenshots; the diagnosis now lives in the app itself.
 
 ### Not yet done
-- **Actually deploying it** — the config exists but nothing is running on Railway yet, and the pipeline has never been exercised against the real WhatsApp Web or the real Anthropic API (no key available in the build environment; extraction is verified against a mock of the Messages API).
+- **Real-world verification of the pipeline.** It is deployed and running on Railway, but no code path has ever been exercised against the real WhatsApp Web or the real Anthropic API from this environment — there is no API key here and web.whatsapp.com is unreachable. Extraction is verified against a mock of the Messages API; sending is verified against the disconnected path and the message text, not actual delivery.
 - **Chat filtering** — in `ai` mode it still scans ALL incoming chats. Dinesh may want an allow-list of specific chats/groups rather than personal/family chats. Ask before building this — not yet decided. (`manual` mode sidesteps it entirely: nothing incoming is read.)
 - **Mobile access** — decided against building a native app that reads WhatsApp on-device (no legitimate API for that; workarounds are accessibility-hack/spyware-adjacent territory, ruled out). The PWA above is the answer instead: the backend runs 24/7 in the cloud (works independently of Dinesh's phone thanks to WhatsApp multi-device — a linked device session doesn't need the phone online), and the dashboard installs to the home screen.
 
@@ -104,13 +122,15 @@ Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (officia
 - Dashboard auth is one shared secret (`DASHBOARD_PASSWORD`), which suits a single user. It is not multi-user auth, and messages/tasks sit unencrypted in SQLite. Leaving it unset disables auth entirely — only do that locally.
 
 ## Immediate next steps (in order)
-1. Deploy to Railway: root directory `wa-task-assistant`, volume at `/data`, and the variables listed in the README (`ANTHROPIC_API_KEY`, `DATA_DIR=/data`, `DASHBOARD_PASSWORD`, VAPID keys).
-2. Scan the QR on the deployed dashboard to link the device.
-3. Confirm the pipeline end to end against real messages: send yourself an actionable message, check the task appears, then `POST /api/reminders/run` and check the digest arrives.
+Deployed on Railway and running. What is left needs Dinesh's phone or his eyes, not code:
+1. Confirm the WhatsApp link survived the outage; re-scan the QR on the dashboard if it did not.
+2. Confirm the pipeline end to end against real messages: send yourself an actionable message, check the task appears, then `POST /api/reminders/run` and check the digest arrives. **This has never been done against the real APIs.**
+3. Turn on the daily briefing in Settings and press **Send now** once to prove the WhatsApp send path works.
 4. Install the dashboard to the home screen and tap "Enable notifications" to confirm push works (iOS requires Add to Home Screen first).
 5. Chat filtering is **decided and built** — a blocklist, manageable from the dashboard.
 
 ## Open decisions / not built
 - **Scaling to other users is a dead end and Dinesh has accepted that.** Each user needs their own Chromium (~500 MB idle, measured), so 10 users is ~10 GB RAM, and `whatsapp-web.js` commercially breaches WhatsApp's terms. The ambient behaviour that makes this worth having is exactly what stops it being a product. A Business API version would scale legally but loses personal-chat reading and lands in a crowded market (Any.do, Zuno, WapTask, Higgle all ship the "message a bot" model already).
-- **Voice-note capture** — probably the highest-value unbuilt feature for his chats, needs a speech-to-text service chosen for Gujarati/Hindi. Not started.
+- **Voice-note capture** — probably the highest-value unbuilt feature for his chats. Deliberately not started: the Anthropic API does not take audio, so it needs a separate speech-to-text service chosen and paid for (Whisper, Google, Sarvam) for Gujarati/Hindi. Building it without a key would mean shipping code that has never run.
+- **Subtasks, dependencies, templates, attachments, and AI confirmation prompts on low confidence** — from the master prompt, still not built and not started.
 - **Encryption at rest** for the session file and SQLite — deferred, not refused.

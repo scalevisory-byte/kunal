@@ -161,6 +161,50 @@ refuses anything that reads like a sentence — *"invoice ka kaam done karna hai
 message, not a command. Each digest renumbers, so the numbers always refer to the most
 recent one. The app confirms what it changed.
 
+### The daily briefing
+
+One message each morning listing what is due today and what is already late, sent to your
+own chat. Off by default; `Settings → Daily briefing` turns it on and sets the hour, and
+shows a preview of exactly what would go out plus a **Send now** button to check the wiring.
+
+Sending it **once** is the design. The day itself is the claim: a row in `briefings` keyed
+on the local date, so a restart, a retry, a second worker, or pressing Send now all find
+the day already taken and send nothing. A failed send is the one case that may be retried,
+three times at most — a morning with no briefing beats a morning with two.
+
+While the briefing is on, the 08:30 digest stands down so you do not get both.
+
+```
+🌅 *Good morning!*
+
+You have:
+⚠️ 1 overdue
+📋 1 due today
+
+*⚠️ OVERDUE*
+1. 🟡 BNF salary transfer
+   ⏰ Due: 5 Sept · 6:00 pm
+
+*📋 TODAY'S TASKS*
+2. 🔴 GST return file karna
+   ⏰ Due: 12:30 pm
+
+Reply *done 2* to close one, or *show overdue* for the list.
+```
+
+You can also ask it things: `aaj ke task dikhao`, `pending kaam batao`, or snooze a named
+task by duration — `GST audit snooze 2 hours`.
+
+### The weekly review
+
+Same machinery, once a week: what you finished, how much of it was on time, what is still
+open, and which chats the work came from. Sunday 8 PM by default. The claim key is the
+Monday that starts the week, so "one per week" is the same guarantee as "one per day"
+rather than a second thing to get right.
+
+The breakdown adds up to the total — tasks finished with no deadline are counted as
+"without a deadline" rather than quietly disappearing between on time and late.
+
 ### Reminders at a specific time
 
 A task can also carry `remind_at` — a single reminder at a stated moment, separate from
@@ -206,6 +250,19 @@ set. `/healthz` is always open.
 | GET | `/api/blocked-chats` | Blocked patterns + recently seen chats |
 | POST | `/api/blocked-chats` | Block a chat by name or number |
 | DELETE | `/api/blocked-chats/:id` | Unblock |
+| GET | `/api/history` | Finished and archived work, filterable |
+| GET | `/api/history/export` | The same rows as a CSV download |
+| GET | `/api/briefing` | Today's briefing: preview, and whether it has gone |
+| POST | `/api/briefing/run` | Send the briefing now |
+| GET | `/api/briefing/weekly` | The week's review, same shape |
+| POST | `/api/briefing/weekly/run` | Send the weekly review now |
+| GET | `/api/scheduling-settings` | Reminder, briefing and follow-up settings |
+| PATCH | `/api/scheduling-settings` | Change them |
+| GET | `/api/auth-state` | **Unauthenticated.** Whether a password is required at all |
+
+`/api/auth-state` is deliberately outside the gate: the dashboard has to be able to ask
+"am I actually protected?" before it holds a token. It reveals only whether a password is
+set, never what it is — and if the answer is no, every task was readable anyway.
 
 ## Deploying to Railway
 
@@ -238,6 +295,34 @@ session keeps receiving messages even when the phone is offline.
    Rakesh by tomorrow"*, wait ~20s, and it should appear as a task. Then hit
    `POST /api/reminders/run` to confirm the digest arrives.
 
+### If the URL shows "Application failed to respond"
+
+That is Railway's own page, and it means the container is not answering — usually a crash
+during startup. The app is built so this should not happen: the HTTP server binds **first**,
+from nothing but `PORT`, and the database, WhatsApp client and schedulers load after it
+inside a try/catch. A failure now leaves a running server that says what broke, on the URL
+you already have open, instead of a crash loop that says nothing.
+
+So if you still see Railway's page rather than the app's own "WA Tasks did not start", the
+container never got as far as running `node src/index.js` — check the build logs, not the
+deploy logs.
+
+The health check answers `200` while degraded on purpose. A `503` would fail the deploy and
+put Railway's blank error page back, which is the outcome the fallback exists to prevent;
+the body reports `ok: false` either way.
+
+### What lives on the volume
+
+`tasks.db` and the WhatsApp login — and **not** Chromium's cache. The whole browser profile
+used to go to `/data`, and during the first WhatsApp sync that directory was measured
+growing by roughly 50 MB a minute with nothing ever pruning it. Given enough uptime it fills
+the volume, SQLite stops being able to write, and the app stops booting.
+
+Chromium's disk cache now goes to the container's own filesystem (`BROWSER_CACHE_DIR`,
+defaulting under the system temp directory), bounded at 64 MB, and whatever an earlier run
+left on the volume is deleted at startup. Only the login — IndexedDB, Local Storage,
+Cookies — is kept there, which is all that ever needed to survive a restart.
+
 Keep `numReplicas` at 1. Two instances would mean two WhatsApp sessions fighting over one
 account and duplicate reminders.
 
@@ -269,6 +354,9 @@ What is in place:
 
 - **Brute-force lockout** — 5 wrong passwords from one address locks it out for 15
   minutes, correct password included. A success clears the counter.
+  A request carrying **no** token does not count: that is the dashboard on first load,
+  not a guess. Counting them spent three or four attempts before the user typed a
+  character, so a single typo locked them out for a quarter of an hour.
 - **Security headers** via helmet: a CSP that allows only same-origin assets plus the
   `data:` URL the linking QR needs, `frame-ancestors 'none'`, HSTS, nosniff, no
   `X-Powered-By`.
@@ -285,6 +373,11 @@ What is still weak, and worth knowing:
 - One shared password, no second factor.
 - The dashboard token lives in `localStorage`.
 - Set `CORS_ORIGIN`; unset means every origin is allowed and the app warns loudly at boot.
+
+Leaving `DASHBOARD_PASSWORD` unset disables the gate entirely — fine locally, never on a
+public URL. The app no longer leaves that to be discovered: `/api/auth-state` reports it and
+the dashboard shows a standing banner saying anyone with the link can read and change
+your tasks.
 
 The account-level controls matter more than any of this: turn on 2FA for Railway, GitHub
 and Anthropic, and set a spend cap on the API key.
