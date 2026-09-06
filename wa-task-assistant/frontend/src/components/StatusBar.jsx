@@ -119,7 +119,7 @@ function Diagnostics({ d }) {
  * Shown once WhatsApp is connected. Answers the next question after "is it
  * linked?" - namely whether messages are arriving, and what the AI made of them.
  */
-function Pipeline({ wa, cfg }) {
+function Pipeline({ wa, cfg, connected }) {
   const [test, setTest] = useState(null);
   const [testing, setTesting] = useState(false);
 
@@ -136,7 +136,7 @@ function Pipeline({ wa, cfg }) {
   }
 
   const last = wa?.lastExtraction;
-  const rows = [
+  const rows = connected ? [
     ['Messages read since start', wa?.messagesSeen ?? 0],
     ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
     ['Waiting to be read', wa?.bufferedCount ?? 0],
@@ -149,6 +149,8 @@ function Pipeline({ wa, cfg }) {
           : `${last.messages} message(s) → ${last.tasks} task(s)`
         : 'not run yet',
     ],
+    ['Anthropic key', cfg?.apiKeySet ? 'set' : 'MISSING — nothing can be extracted'],
+  ] : [
     ['Anthropic key', cfg?.apiKeySet ? 'set' : 'MISSING — nothing can be extracted'],
   ];
 
@@ -170,7 +172,7 @@ function Pipeline({ wa, cfg }) {
         </p>
       )}
 
-      {wa?.messagesSeen === 0 && (
+      {connected && wa?.messagesSeen === 0 && (
         <p className="hint">
           Nothing has arrived yet. Only messages that come in <b>after</b> the link are read —
           older chats are not scanned. Ask someone to message you, or message yourself from
@@ -241,6 +243,13 @@ export default function StatusBar({ status, stats, overdueCount }) {
 
       {state === 'error' && wa?.lastError && <p className="hint error-text">{wa.lastError}</p>}
 
+      {state === 'authenticated' && (
+        <p className="hint">
+          Logged in, now syncing your chats. On a busy account this takes several minutes and
+          sits at 99% for most of it. Messages are only read once this says <b>Connected</b>.
+        </p>
+      )}
+
       {state !== 'ready' && (
         <>
           <Diagnostics d={status?.diagnostics} />
@@ -248,7 +257,7 @@ export default function StatusBar({ status, stats, overdueCount }) {
         </>
       )}
 
-      {state === 'ready' && <Pipeline wa={wa} cfg={status?.config} />}
+      <Pipeline wa={wa} cfg={status?.config} connected={state === 'ready'} />
     </section>
   );
 }
