@@ -14,6 +14,7 @@ import QuickActions from './components/QuickActions.jsx';
 import SideRail from './components/SideRail.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import FocusToday from './components/FocusToday.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -233,7 +234,6 @@ export default function App() {
     );
   }
 
-  const name = status?.whatsapp?.meName?.split(' ')[0] || null;
   const connected = status?.whatsapp?.status === 'ready';
 
   return (
@@ -292,8 +292,8 @@ export default function App() {
             <>
               <div className="page-head">
                 <div>
-                  <h2>{greeting()}{name ? `, ${name}` : ''}</h2>
-                  <p>Here is your task overview for today.</p>
+                  <h2>{greeting()} <span className="wave">👋</span></h2>
+                  <p>Here&rsquo;s your task overview for today.</p>
                 </div>
                 <button className="btn primary lg" onClick={() => setComposing((v) => !v)}>
                   <span aria-hidden="true">+</span> New Task
@@ -324,6 +324,8 @@ export default function App() {
 
               <div className="workspace">
                 <main className="work">
+                  {view !== 'done' && <FocusToday tasks={tasks} onOpen={setOpenTask} onToggle={onToggle} />}
+
                   <div className="work-head">
                     <nav className="segment tabs" role="tablist" aria-label="View">
                       {[

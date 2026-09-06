@@ -20,7 +20,7 @@ export default function StatBoard({ counts, view, onPick }) {
       icon: 'play',
       label: 'In Progress',
       value: counts.inProgress,
-      note: counts.inProgress === 0 ? 'Nothing currently active' : 'Being worked on',
+      note: counts.inProgress === 0 ? 'Nothing active' : 'Being worked on',
     },
     {
       key: 'overdue',
@@ -50,12 +50,12 @@ export default function StatBoard({ counts, view, onPick }) {
           aria-pressed={view === cell.key}
           onClick={() => onPick(view === cell.key ? 'all' : cell.key)}
         >
-          <span className="kpi-icon"><Icon name={cell.icon} size={20} /></span>
-          <span className="kpi-body">
-            <span className="kpi-num">{cell.value}</span>
+          <span className="kpi-top">
             <span className="kpi-label">{cell.label}</span>
-            <span className="kpi-note">{cell.note}</span>
+            <Icon name={cell.icon} size={15} className="kpi-icon" />
           </span>
+          <span className="kpi-num">{cell.value}</span>
+          <span className="kpi-note">{cell.note}</span>
         </button>
       ))}
     </section>

@@ -7,14 +7,20 @@ import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
 function byDate(open) {
   const today = todayIso();
   const tomorrow = isoDay(1);
-  const dayAfter = isoDay(2);
+  const weekEnd = isoDay(7);
 
   return [
     { key: 'overdue', label: 'Overdue', tone: 'danger', icon: 'alert', match: (t) => t.due_date && t.due_date < today },
     { key: 'today', label: 'Today', tone: 'warn', icon: 'sun', match: (t) => t.due_date === today },
     { key: 'tomorrow', label: 'Tomorrow', tone: 'info', icon: 'calendar', match: (t) => t.due_date === tomorrow },
-    { key: 'dayafter', label: 'Day after', tone: 'info', icon: 'calendar', match: (t) => t.due_date === dayAfter },
-    { key: 'later', label: 'Upcoming', tone: 'plain', icon: 'calendar', match: (t) => t.due_date && t.due_date > dayAfter },
+    {
+      key: 'week',
+      label: 'This week',
+      tone: 'plain',
+      icon: 'calendar',
+      match: (t) => t.due_date > tomorrow && t.due_date <= weekEnd,
+    },
+    { key: 'later', label: 'Later', tone: 'plain', icon: 'calendar', match: (t) => t.due_date > weekEnd },
     { key: 'undated', label: 'No date', tone: 'plain', icon: 'circle', match: (t) => !t.due_date },
   ].map((c) => ({ ...c, items: open.filter(c.match) }));
 }

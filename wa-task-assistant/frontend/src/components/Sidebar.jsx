@@ -1,14 +1,28 @@
 import Icon from './Icon.jsx';
 
+/** Grouped so the list reads as three short lists rather than one long one. */
 const NAV = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { key: 'myday', label: 'My Day', icon: 'sun' },
-  { key: 'all', label: 'All Tasks', icon: 'list' },
-  { key: 'chat', label: 'By Chat', icon: 'chat' },
-  { key: 'ai', label: 'AI Tasks', icon: 'robot' },
-  { key: 'calendar', label: 'Calendar', icon: 'calendar' },
-  { key: 'done', label: 'Completed', icon: 'check' },
-  { key: 'settings', label: 'Settings', icon: 'settings' },
+  {
+    label: 'Workspace',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { key: 'myday', label: 'My Day', icon: 'sun' },
+      { key: 'all', label: 'All Tasks', icon: 'list' },
+      { key: 'calendar', label: 'Calendar', icon: 'calendar' },
+    ],
+  },
+  {
+    label: 'Organise',
+    items: [
+      { key: 'chat', label: 'By Chat', icon: 'chat' },
+      { key: 'ai', label: 'AI Tasks', icon: 'robot' },
+      { key: 'done', label: 'Completed', icon: 'check' },
+    ],
+  },
+  {
+    label: 'System',
+    items: [{ key: 'settings', label: 'Settings', icon: 'settings' }],
+  },
 ];
 
 /** The application's spine: where you are, and the one fact that matters below. */
@@ -26,16 +40,21 @@ export default function Sidebar({ section, onSection, connected, open, onClose }
         </div>
 
         <nav className="side-nav">
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              className={`side-item ${section === item.key ? 'on' : ''}`}
-              aria-current={section === item.key ? 'page' : undefined}
-              onClick={() => { onSection(item.key); onClose(); }}
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </button>
+          {NAV.map((group) => (
+            <div className="side-group" key={group.label}>
+              <p className="side-group-label">{group.label}</p>
+              {group.items.map((item) => (
+                <button
+                  key={item.key}
+                  className={`side-item ${section === item.key ? 'on' : ''}`}
+                  aria-current={section === item.key ? 'page' : undefined}
+                  onClick={() => { onSection(item.key); onClose(); }}
+                >
+                  <Icon name={item.icon} size={17} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 

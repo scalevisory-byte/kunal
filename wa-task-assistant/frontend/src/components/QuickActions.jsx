@@ -14,26 +14,25 @@ export default function QuickActions({ counts, onAction, active, onNewTask }) {
   ];
 
   return (
-    <section className="quick">
-      <h3 className="quick-title">Quick actions</h3>
-      <div className="quick-row">
-        <button className="qa primary" onClick={onNewTask}>
-          <Icon name="plus" size={17} />
-          New Task
+    <section className="quick" aria-label="Quick actions">
+      <span className="quick-title">Quick actions</span>
+      <button className="qa primary" onClick={onNewTask}>
+        <Icon name="plus" size={15} />
+        New Task
+      </button>
+      <span className="quick-rule" />
+      {actions.map((a) => (
+        <button
+          key={a.key}
+          className={`qa t-${a.tone} ${active === a.key ? 'on' : ''}`}
+          aria-pressed={active === a.key}
+          onClick={() => onAction(a.key)}
+        >
+          <Icon name={a.icon} size={15} />
+          {a.label}
+          {a.count > 0 && <span className="qa-count">{a.count}</span>}
         </button>
-        {actions.map((a) => (
-          <button
-            key={a.key}
-            className={`qa t-${a.tone} ${active === a.key ? 'on' : ''}`}
-            aria-pressed={active === a.key}
-            onClick={() => onAction(a.key)}
-          >
-            <Icon name={a.icon} size={17} />
-            {a.label}
-            {a.count > 0 && <span className="qa-count">{a.count}</span>}
-          </button>
-        ))}
-      </div>
+      ))}
     </section>
   );
 }
