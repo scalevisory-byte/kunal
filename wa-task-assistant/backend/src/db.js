@@ -58,6 +58,11 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_messages_processed ON messages(processed);
   CREATE INDEX IF NOT EXISTS idx_tasks_status_due   ON tasks(status, due_date);
 `);
@@ -88,6 +93,32 @@ for (const [name, ddl] of [
 }
 
 log.info(`SQLite ready at ${config.dbPath}`);
+
+/* ---------------- meta ---------------- */
+
+export function getMeta(key) {
+  return db.prepare(`SELECT value FROM meta WHERE key = ?`).get(key)?.value ?? null;
+}
+
+export function setMeta(key, value) {
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(key, String(value));
+}
+
+/**
+ * Counts starts of the process against the database file. If the count keeps
+ * resetting to 1, the database is not on a volume that survives a restart -
+ * which is also why a linked WhatsApp session would keep disappearing.
+ */
+export function recordBoot() {
+  const boots = Number(getMeta('boot_count') || 0) + 1;
+  setMeta('boot_count', boots);
+  if (!getMeta('first_boot_at')) setMeta('first_boot_at', new Date().toISOString());
+  setMeta('last_boot_at', new Date().toISOString());
+  return { boots, firstBootAt: getMeta('first_boot_at') };
+}
 
 /* ---------------- messages ---------------- */
 

@@ -3,6 +3,9 @@ import { log } from './logger.js';
 import { createServer } from './server.js';
 import { startWhatsApp, shutdown } from './whatsapp.js';
 import { startReminderJobs } from './reminders.js';
+import { reportBoot } from './diagnostics.js';
+
+reportBoot(log);
 
 const app = createServer();
 

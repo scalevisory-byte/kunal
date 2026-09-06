@@ -7,6 +7,72 @@ const LABELS = {
   error: 'Error',
 };
 
+function since(seconds) {
+  if (!Number.isFinite(seconds)) return '—';
+  if (seconds < 90) return `${seconds}s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
+  return `${Math.round(seconds / 3600)} h`;
+}
+
+/**
+ * Shown whenever the session is not connected. Every line here answers one
+ * question you would otherwise need server logs for: is the disk actually
+ * persisting, is a session saved on it, and has the server just restarted?
+ */
+function Diagnostics({ d }) {
+  if (!d) return null;
+
+  const restarting = d.uptimeSeconds < 120 && d.boots > 1;
+  // Only a data directory that is supposed to be a mounted volume can be missing one.
+  const volumeMissing = d.dataDirIsMount === false && d.dataDirInsideApp === false;
+  const rows = [
+    ['Server up for', since(d.uptimeSeconds)],
+    ['Starts so far', d.boots || '—'],
+    [
+      'Storage',
+      d.storagePersists
+        ? `${d.dataDir} — saved across restarts`
+        : `${d.dataDir} — not proven yet${volumeMissing ? ' (no volume mounted here)' : ''}`,
+    ],
+    [
+      'WhatsApp session on disk',
+      d.sessionOnDisk ? `yes (${Math.round(d.sessionBytes / 1024)} kB)` : 'no — a scan is needed',
+    ],
+  ];
+
+  return (
+    <div className="diagnostics">
+      <dl>
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {d.boots === 1 && !volumeMissing && (
+        <p className="hint">
+          Restart the service once. If <b>Starts so far</b> comes back as 1 again, the disk is
+          being wiped on every restart and a scan will never stick.
+        </p>
+      )}
+      {volumeMissing && (
+        <p className="hint error-text">
+          No volume is mounted at <code>{d.dataDir}</code>. Every restart wipes the linked
+          session, so the QR keeps coming back. In Railway: attach a volume at{' '}
+          <code>{d.dataDir}</code> and set <code>DATA_DIR={d.dataDir}</code>.
+        </p>
+      )}
+      {restarting && !volumeMissing && (
+        <p className="hint error-text">
+          The server restarted {since(d.uptimeSeconds)} ago. If this number keeps resetting,
+          it is crash-looping — scanning will not stick until that stops.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function StatusBar({ status, stats, overdueCount }) {
   const wa = status?.whatsapp;
   const state = wa?.status || 'starting';
@@ -50,6 +116,8 @@ export default function StatusBar({ status, stats, overdueCount }) {
       )}
 
       {state === 'error' && wa?.lastError && <p className="hint error-text">{wa.lastError}</p>}
+
+      {state !== 'ready' && <Diagnostics d={status?.diagnostics} />}
     </section>
   );
 }

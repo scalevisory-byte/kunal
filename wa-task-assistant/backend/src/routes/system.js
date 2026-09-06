@@ -8,6 +8,7 @@ import { state, flushNow } from '../whatsapp.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
+import { diagnostics } from '../diagnostics.js';
 
 export const systemRouter = Router();
 
@@ -28,6 +29,7 @@ systemRouter.get('/status', (req, res) => {
     },
     tasks: taskStats(),
     security: authStats(),
+    diagnostics: diagnostics(),
     config: {
       extractionMode: config.extractionMode,
       taskTrigger: config.taskTrigger,

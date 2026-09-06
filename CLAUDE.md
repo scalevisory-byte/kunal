@@ -52,6 +52,7 @@ He asked to see both before choosing, so both ship and the dashboard shows which
 - **Dashboard auth** — a single shared secret via `DASHBOARD_PASSWORD`. Every `/api/*` route requires `Authorization: Bearer <it>`; `/healthz` stays open. Unset means no auth, which is fine locally but not on a public URL.
 - **PWA layer** — `manifest.webmanifest`, a service worker (app-shell cache + push handler), and web push via VAPID keys. Reminder digests go out on WhatsApp *and* as browser/phone notifications.
 - **QR code over HTTP** — `GET /api/status` returns the linking QR as a data URL and the dashboard renders it, so re-linking after a deploy doesn't need shell access.
+- **Connection diagnostics in the dashboard** — `GET /api/status` also returns a `diagnostics` block (uptime, boot count, `DATA_DIR`, whether that path is a real mount, whether a WhatsApp session is on disk), and the status panel renders it whenever the session is not connected. The boot count lives in a `meta` table inside SQLite, so a count that resets to 1 after a restart proves the volume is not persisting — which is the reason a scanned QR would keep coming back. Added because Railway's log view was unreadable in screenshots; the diagnosis now lives in the app itself.
 
 ### Not yet done
 - **Actually deploying it** — the config exists but nothing is running on Railway yet, and the pipeline has never been exercised against the real WhatsApp Web or the real Anthropic API (no key available in the build environment; extraction is verified against a mock of the Messages API).
