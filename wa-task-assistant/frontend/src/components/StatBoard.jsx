@@ -52,7 +52,7 @@ export default function StatBoard({ counts, view, onPick }) {
         >
           <span className="kpi-top">
             <span className="kpi-label">{cell.label}</span>
-            <Icon name={cell.icon} size={15} className="kpi-icon" />
+            <Icon name={cell.icon} size={14} className="kpi-icon" />
           </span>
           <span className="kpi-num">{cell.value}</span>
           <span className="kpi-note">{cell.note}</span>

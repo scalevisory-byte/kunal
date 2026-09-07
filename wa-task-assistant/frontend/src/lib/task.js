@@ -65,30 +65,16 @@ export const dateTimeLabel = (value) => {
  * capture from this afternoon's. Anything older gives the day, because the
  * exact minute of a task from last week has stopped mattering.
  */
-export const addedLabel = (value) => {
-  if (!value) return null;
-  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return null;
-
-  const day = at.toLocaleDateString('en-CA');
-  const today = new Date().toLocaleDateString('en-CA');
-  if (day === today) {
-    return `Added ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-  }
-  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA');
-  if (day === yesterday) return 'Added yesterday';
-  return `Added ${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
-};
-
 /**
- * When a task's message arrived, short enough to sit in a row of meta.
+ * When a task was added, said so it cannot be read as anything else.
  *
- * Today is the clock time alone - the day is obvious and repeating it on twenty
- * rows is noise. Anything older carries the day as well, because by then
- * "2:16 PM" on its own says nothing.
+ * A bare "7:55 PM" beside a column that can say "No deadline" gave no way to
+ * tell which of the two dates it was — so the label is part of the value.
+ *
+ * This is `created_at`: the moment the task was made. The WhatsApp message's
+ * own time is a different fact and lives with the message, in the drawer.
  */
-export const arrivedLabel = (value) => {
+export const addedLabel = (value) => {
   if (!value) return null;
   const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
   const at = new Date(iso);
@@ -96,21 +82,21 @@ export const arrivedLabel = (value) => {
 
   const clock = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const day = at.toLocaleDateString('en-CA');
-  /*
-   * The day is named, even when it is today.
-   *
-   * This used to give the clock alone for anything captured today, on the
-   * reasoning that the day was obvious and repeating it twenty times was noise.
-   * It is not obvious: on a list where the column beside it can read "No date",
-   * a bare "9:44 PM" gives you no way to tell whether it means this evening or
-   * something you are missing. One word costs almost nothing and removes the
-   * question.
-   */
-  if (day === new Date().toLocaleDateString('en-CA')) return `Today ${clock}`;
-  if (day === new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA')) return `Yesterday ${clock}`;
-  return `${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
-};
+  const now = new Date();
 
+  if (day === now.toLocaleDateString('en-CA')) return `Added Today · ${clock}`;
+  if (day === new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA')) {
+    return `Added Yesterday · ${clock}`;
+  }
+  // The year only when it is not this one — on a list where almost everything
+  // is from this month, "2026" on every row is four characters of nothing.
+  const date = at.toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
+  return `Added ${date} · ${clock}`;
+};
 const FILLER = new Set([
   'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
   'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',

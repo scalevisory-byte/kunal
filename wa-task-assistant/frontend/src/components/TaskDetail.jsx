@@ -419,6 +419,19 @@ export default function TaskDetail({
               <dt>Created</dt>
               <dd>{dateTimeLabel(task.created_at)}</dd>
             </div>
+            {/* Beside Created, so the two dates are read together and neither
+                can be mistaken for the other. The date fields above set it;
+                this is the fact, stated. */}
+            <div>
+              <dt>Deadline</dt>
+              <dd>
+                {task.due_at
+                  ? dateTimeLabel(task.due_at)
+                  : task.due_date
+                    ? dateTimeLabel(`${task.due_date}T00:00:00Z`)
+                    : 'No deadline'}
+              </dd>
+            </div>
             <div>
               <dt>Updated</dt>
               <dd>{dateTimeLabel(task.updated_at)}</dd>

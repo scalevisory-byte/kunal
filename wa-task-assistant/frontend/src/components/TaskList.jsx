@@ -52,7 +52,7 @@ function byDate(open) {
     { key: 'later', label: 'Later', tone: 'plain', icon: 'calendar', match: (t) => t.due_date > weekEnd },
     {
       key: 'undated',
-      label: 'No date',
+      label: 'No deadline',
       tone: 'plain',
       icon: 'circle',
       /*

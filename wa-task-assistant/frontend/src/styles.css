@@ -439,18 +439,25 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
+/*
+ * Compact metrics, not feature cards.
+ *
+ * These support the dashboard; they are not what it is for. Held to roughly
+ * eighty pixels so the figures stay readable and the work — Focus today and
+ * the list — starts higher up the screen.
+ */
 .kpi {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   text-align: left;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
-  padding: 10px 13px 11px;
+  padding: 9px 13px 10px;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -461,7 +468,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi-label {
-  font-size: .68rem; font-weight: 600;
+  font-size: .655rem; font-weight: 600;
   letter-spacing: .11em; text-transform: uppercase;
   color: var(--muted);
 }
@@ -477,11 +484,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
    * were carrying its loudest type.
    */
   font-family: Archivo, sans-serif;
-  font-weight: 700; font-size: 1.55rem; line-height: 1.08;
+  font-weight: 700; font-size: 1.45rem; line-height: 1.1;
   letter-spacing: -.035em; font-variant-numeric: tabular-nums;
   margin-top: 1px;
 }
-.kpi-note { font-size: .74rem; color: var(--muted); line-height: 1.4; }
+.kpi-note { font-size: .71rem; color: var(--muted); line-height: 1.35; }
 
 /* Colour marks the state, and only in the one place it has to. */
 .kpi.t-warn .kpi-icon { color: var(--warn); }
@@ -1424,7 +1431,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     scroll-snap-align: start;
     padding: 9px 12px 10px;
   }
-  .kpi-num { font-size: 1.35rem; }
+  .kpi-num { font-size: 1.3rem; }
   /* The shortcuts scroll on one line too, rather than wrapping to two. */
   .quick {
     flex-wrap: nowrap;

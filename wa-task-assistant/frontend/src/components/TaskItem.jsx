@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import {
-  agoLabel, arrivedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
+  addedLabel, agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
 } from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
@@ -132,8 +132,14 @@ export default function TaskItem({
   const done = isDone(task);
   const due = dueLabel(task.due_date);
   const source = taskSource(task);
-  // The message's time if it came from one, otherwise when it was typed.
-  const arrived = arrivedLabel(task.source_message_at || task.created_at);
+  /*
+   * When the task was added — created_at, and said so.
+   *
+   * This was the message's own time, unlabelled, which is a different fact and
+   * read as the deadline as often as not. The message's time still exists and
+   * still matters; it lives with the message, in the drawer.
+   */
+  const added = addedLabel(task.created_at);
 
   return (
     <li className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}>
@@ -232,12 +238,11 @@ export default function TaskItem({
             * extractor got round to it - and the two differ by however long the
             * batch waited.
             */}
-          {arrived && (
-            <span className="m-item quiet" title={`Arrived ${dateTimeLabel(task.source_message_at || task.created_at)}`}>
-              {/* An inbox, not a clock. Wearing the same icon as the deadline,
-                  the two times read as one fact stated twice — and the wrong
-                  one of them is the one you act on. */}
-              <Icon name="inbox" size={12} /> {arrived}
+          {added && (
+            <span className="m-item quiet" title={dateTimeLabel(task.created_at)}>
+              {/* An inbox, not a clock: the clock belongs to the deadline, and
+                  wearing the same icon the two read as one fact stated twice. */}
+              <Icon name="inbox" size={12} /> {added}
             </span>
           )}
           <span className="m-item" title={task.origin === 'ai' ? 'Created by Claude' : 'Added by hand'}>
@@ -282,7 +287,9 @@ export default function TaskItem({
       {/* One time per row: the arrival is in the meta line above, on every
           task, so this column stays about the deadline alone. Two different
           times on one row read as a contradiction. */}
-      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
+      {/* The deadline column, and it says so when there is none — "No date"
+          beside an "Added …" stamp read as the task having no dates at all. */}
+      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No deadline'}</span>
 
       {extra}
 

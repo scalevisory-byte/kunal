@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
-const { taskChat, taskSource, readableName, addedLabel, arrivedLabel } = new Function(
+const { taskChat, taskSource, readableName, addedLabel } = new Function(
   src.replace(/^import.*$/gm, '').replace(/export /g, '') +
-  '; return { taskChat, taskSource, readableName, addedLabel, arrivedLabel };'
+  '; return { taskChat, taskSource, readableName, addedLabel };'
 )();
 
 let pass = 0, fail = 0;
@@ -100,67 +100,45 @@ run('accents, Gujarati, Hindi and emoji are left exactly as they are', () => {
   }
 });
 
-console.log('\nwhen a task with no deadline arrived');
+console.log('\nwhen a task was added, on every task');
 
-run("today's captures give the clock time", () => {
-  // What tells this morning's capture from this afternoon's.
-  assert.match(addedLabel(new Date().toISOString()), /^Added \d{1,2}:\d{2}/);
+/*
+ * These used to be about arrivedLabel — the WhatsApp message's own time, shown
+ * unlabelled. Two different dates were being shown in one place with nothing
+ * saying which, so the row now states created_at and says "Added". The cases
+ * are the same; what they assert is that the label is part of the value.
+ */
+run('today says so, with the time', () => {
+  const label = addedLabel(new Date().toISOString());
+  assert.match(label, /^Added Today · \d{1,2}:\d{2}/, label);
 });
 
-run('yesterday is said as yesterday', () => {
-  assert.equal(addedLabel(new Date(Date.now() - 86_400_000).toISOString()), 'Added yesterday');
+run('yesterday is named rather than dated', () => {
+  const label = addedLabel(new Date(Date.now() - 86_400_000).toISOString());
+  assert.match(label, /^Added Yesterday · \d{1,2}:\d{2}/, label);
 });
 
-run('anything older gives the day, since the minute has stopped mattering', () => {
-  // Day and month, in whatever order the reader's locale puts them.
-  const label = addedLabel(new Date(Date.now() - 7 * 86_400_000).toISOString());
-  assert.match(label, /^Added /);
-  assert.match(label, /\d{1,2}/);
-  assert.ok(!/:/.test(label), `no clock time on an old one: ${label}`);
+run('anything older carries its date and its time', () => {
+  const label = addedLabel(new Date(Date.now() - 5 * 86_400_000).toISOString());
+  assert.match(label, /^Added /, label);
+  assert.match(label, /\d{1,2}:\d{2}/, `the hour is the point: ${label}`);
+  assert.ok(!/Today|Yesterday/.test(label), label);
 });
 
-run("SQLite's own format is read correctly", () => {
-  // Stored as "YYYY-MM-DD HH:MM:SS" in UTC with no marker on it.
-  assert.ok(addedLabel('2026-09-01 08:30:00'));
-});
-
-run('a missing or unreadable timestamp says nothing rather than guessing', () => {
-  assert.equal(addedLabel(null), null);
-  assert.equal(addedLabel('not a date'), null);
-});
-
-console.log('\nwhen the message arrived, on every task');
-
-run("today's messages say so, rather than giving the clock alone", () => {
-  /*
-   * This used to be the clock on its own, on the reasoning that the day was
-   * obvious. On a real board it is not: beside a column that can read "No
-   * date", a bare "9:44 PM" leaves you unable to tell whether it means this
-   * evening or something you are missing.
-   */
-  const label = arrivedLabel(new Date().toISOString());
-  assert.match(label, /^Today \d{1,2}:\d{2}/, `should name the day: ${label}`);
-});
-
-run('yesterday is named too, rather than dated', () => {
-  const label = arrivedLabel(new Date(Date.now() - 86_400_000).toISOString());
-  assert.match(label, /^Yesterday \d{1,2}:\d{2}/, label);
-});
-
-run('an older message carries the day as well', () => {
-  // By then "2:16 PM" on its own says nothing.
-  const label = arrivedLabel(new Date(Date.now() - 3 * 86_400_000).toISOString());
-  assert.match(label, /\d{1,2}:\d{2}/);
-  assert.match(label, /\w{3}/);
+run('the year appears only when it is not this one', () => {
+  const recent = new Date();
+  recent.setDate(recent.getDate() - 5);
+  assert.ok(!new RegExp(String(recent.getFullYear())).test(addedLabel(recent.toISOString())));
+  assert.match(addedLabel('2020-09-05T14:25:00Z'), /2020/);
 });
 
 run("SQLite's own format is read here too", () => {
-  assert.ok(arrivedLabel('2026-09-04 08:52:00'));
+  assert.match(addedLabel('2026-09-04 08:52:00'), /^Added /);
 });
 
 run('nothing to show rather than a guess', () => {
-  assert.equal(arrivedLabel(null), null);
-  assert.equal(arrivedLabel('not a date'), null);
+  assert.equal(addedLabel(null), null);
+  assert.equal(addedLabel('not a date'), null);
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
