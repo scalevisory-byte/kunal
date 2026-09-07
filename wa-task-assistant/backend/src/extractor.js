@@ -89,6 +89,25 @@ Rules:
   back for him to confirm rather than being chased, so marking one honestly costs
   nothing - inventing confidence you do not have is what causes wrong reminders.
 - source_index must be the index of the message the task came from.
+
+Some messages arrive with a PHOTO attached; the picture follows the message it belongs
+to and is labelled with the same index. People here send invoices, bills, cheques,
+tickets, forms and screenshots of bank transfers as photos, often with no caption at
+all, and the thing to do is usually visible only in the picture.
+
+- Read the photo the way you read the text: extract a task only when it implies
+  something HE must do. An invoice to be paid, a form to be filled, a bill to be
+  checked, a document to be sent on - those are tasks.
+- Put what identifies it in the title, from the image itself: a name, a bill number,
+  an amount. "Pay Sunshine invoice 4471 - Rs 84,000" is useful; "Pay invoice" is not.
+- A date printed on the document (a due date, a filing deadline) counts as stated.
+  A date it was merely issued on does not.
+- Ignore photos that are not work: greetings and festival images, memes, forwards,
+  screenshots of jokes, family pictures, status broadcasts. These are the majority of
+  photos in a personal chat, and returning nothing for them is the correct outcome.
+- If a photo is too blurred or cropped to read, do not guess at what it says. Either
+  leave it alone or, if it is clearly a document that matters, extract it with
+  confidence "low" so he is asked rather than reminded about something invented.
 - If nothing in the batch is actionable, return an empty tasks array. That is a normal,
   expected outcome - do not invent tasks to fill the list.
 `;
@@ -100,8 +119,11 @@ function renderBatch(messages) {
       return [
         `[${i}] from: ${m.contact_name || m.contact_number || 'unknown'} (${where})`,
         `    sent: ${m.sent_at}`,
-        `    text: ${m.body}`,
-      ].join('\n');
+        // Says so explicitly, so a caption-less photo does not look like an
+        // empty message the model should ignore.
+        m.image?.data ? '    a photo is attached below' : null,
+        `    text: ${m.body || '(no text, see the photo)'}`,
+      ].filter(Boolean).join('\n');
     })
     .join('\n\n');
 }
@@ -113,7 +135,9 @@ function renderBatch(messages) {
 export async function extractTasks(messages) {
   if (!messages.length) return [];
 
-  const userContent = [
+  const withImages = messages.filter((m) => m.image?.data);
+
+  const intro = [
     `Current date: ${todayLong()} (${today()}), timezone ${config.timezone}.`,
     '',
     `Here are ${messages.length} incoming WhatsApp message(s). Extract the actionable tasks.`,
@@ -121,13 +145,30 @@ export async function extractTasks(messages) {
     renderBatch(messages),
   ].join('\n');
 
+  /*
+   * Text first, then each picture introduced by its own index. The API takes
+   * images as separate blocks rather than inside the text, so the index line is
+   * what ties a photo back to the message it arrived with.
+   */
+  const content = [{ type: 'text', text: intro }];
+  for (const m of withImages) {
+    content.push({
+      type: 'text',
+      text: `Photo attached to message [${messages.indexOf(m)}]:`,
+    });
+    content.push({
+      type: 'image',
+      source: { type: 'base64', media_type: m.image.mime, data: m.image.data },
+    });
+  }
+
   let parsed;
   try {
     const response = await anthropic().messages.parse({
       model: config.model,
       max_tokens: 8000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userContent }],
+      messages: [{ role: 'user', content }],
       output_config: { format: zodOutputFormat(ExtractionSchema, 'extracted_tasks') },
     });
     parsed = response.parsed_output;
@@ -186,6 +227,9 @@ export async function extractTasks(messages) {
         ai_confidence: task.confidence || null,
         needs_confirmation: task.confidence === 'low' ? 1 : 0,
         status: 'open',
+        // Not a column: the caller attaches this to the created task so the
+        // invoice is on the task it produced, then drops it.
+        _image: source?.image || null,
       };
     })
     .filter(Boolean);

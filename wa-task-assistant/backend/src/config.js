@@ -41,6 +41,16 @@ export const config = {
   // Per the project spec. Swap to `claude-opus-5` for harder extraction.
   model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
 
+  // Claude can read a photo, so an invoice or a screenshot can become a task
+  // the same way a sentence does. Off by default: every image is roughly a
+  // page of tokens, and a chat full of forwarded good-mornings would spend
+  // real money on nothing. Turn it on in Settings.
+  readImages: process.env.READ_IMAGES === 'true',
+  // A WhatsApp photo above this is downscaled by WhatsApp already; anything
+  // larger than this is refused rather than sent, so one huge file cannot
+  // quietly cost a fortune.
+  maxImageBytes: Number(process.env.MAX_IMAGE_BYTES) || 4_000_000,
+
   timezone: process.env.TIMEZONE || 'Asia/Kolkata',
   // Only used to show the dollar estimate in rupees as well. The rate is shown
   // alongside the figure so it is never mistaken for a live conversion.

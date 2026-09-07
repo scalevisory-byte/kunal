@@ -16,6 +16,8 @@ import { parseTaskInstruction } from './nl-commands.js';
 import { buildBriefing, collectToday, clockOf, localDay } from './briefing.js';
 import { EVENT, recordEvent } from './task-events.js';
 import { findDuplicateTask } from './task-matching.js';
+import { addAttachment } from './attachments.js';
+import { getSettings } from './scheduling.js';
 import { isoAtLocal } from './quickparse.js';
 
 const { Client, LocalAuth } = pkg;
@@ -143,8 +145,29 @@ async function flushBuffer() {
           log.info(`Skipped duplicate task: "${task.title}" matches open task ${existing.id}`);
           continue;
         }
-        const created = createTask(task);
+        const { _image, ...fields } = task;
+        const created = createTask(fields);
         recordEvent(created.id, EVENT.created, `AI, from ${task.chat_name || 'WhatsApp'}`);
+
+        /*
+         * The photo the task came from goes onto the task, so the invoice is
+         * where the work is rather than back in a chat. This is the first point
+         * at which any picture reaches the disk, and it goes through the bounded
+         * attachment store - a full store refuses, and refusing must cost the
+         * photo, never the task.
+         */
+        if (_image) {
+          try {
+            addAttachment(created.id, {
+              filename: _image.filename || 'whatsapp-photo.jpg',
+              mime: _image.mime,
+              buffer: Buffer.from(_image.data, 'base64'),
+            });
+            recordEvent(created.id, EVENT.edited, 'photo from WhatsApp attached');
+          } catch (err) {
+            log.warn(`Could not attach the photo to task ${created.id}: ${err?.message || err}`);
+          }
+        }
         if (created.due_at || created.due_date) {
           recordEvent(created.id, EVENT.deadlineSet, created.due_at || created.due_date);
         }
@@ -375,13 +398,59 @@ async function reply(text) {
 }
 
 /** Exported so the batching path can be driven directly in tests. */
+/**
+ * The photo on a message, as base64, or null.
+ *
+ * Held in memory only. Nothing is written to the data volume unless the picture
+ * goes on to produce a task, and then it goes through the attachment store,
+ * which is bounded - this is the volume whose filling up once stopped the
+ * service from booting.
+ */
+export async function downloadImage(message) {
+  // The env var forces it on; otherwise the saved setting decides, so it can be
+  // turned on from Settings without a redeploy.
+  if (!config.readImages && !getSettings().readImages) return null;
+  if (!message.hasMedia || message.type !== 'image') return null;
+
+  try {
+    const media = await message.downloadMedia();
+    if (!media?.data) return null;
+
+    const bytes = Buffer.byteLength(media.data, 'base64');
+    if (bytes > config.maxImageBytes) {
+      log.warn(`Skipped a ${Math.round(bytes / 1e6)} MB image: over the ${Math.round(config.maxImageBytes / 1e6)} MB limit.`);
+      return null;
+    }
+    const mime = String(media.mimetype || 'image/jpeg').split(';')[0].trim();
+    // The API takes these four; anything else is not worth guessing at.
+    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mime)) return null;
+
+    return { data: media.data, mime, bytes, filename: media.filename || null };
+  } catch (err) {
+    // A photo that will not download must not cost the message its text.
+    log.warn('Could not download an image:', err?.message || err);
+    return null;
+  }
+}
+
 export async function handleMessage(message) {
   try {
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
     if (message.isStatus) return drop('status');
 
     const body = (message.body || '').trim();
-    if (!body) return drop('noText'); // media with no caption: nothing to extract from
+
+    /*
+     * A photo is worth reading on its own. Invoices, bills, cheques, tickets and
+     * bank-transfer screenshots arrive here as pictures, usually with no caption
+     * at all, and what has to be done is visible only in the image.
+     *
+     * It stays opt-in (`readImages`): a picture costs roughly a page of tokens,
+     * and a chat full of forwarded good-mornings would spend real money on
+     * nothing. With it off, the old rule holds - no text, nothing to extract.
+     */
+    const image = await downloadImage(message);
+    if (!body && !image) return drop('noText');
 
     // Chat and contact lookups go back to WhatsApp and can fail on their own -
     // a Meta-hosted business chat, a contact that will not resolve. The message
@@ -421,7 +490,8 @@ export async function handleMessage(message) {
       chat_name: chat?.name || contactName || message.from || 'unknown',
       contact_name: contactName,
       contact_number: contact?.number ?? null,
-      body,
+      // A caption-less photo still needs something readable in the message list.
+      body: body || (image ? '[photo]' : ''),
       is_group: chat?.isGroup ? 1 : 0,
       from_me: message.fromMe ? 1 : 0,
       sent_at: new Date((message.timestamp ?? Date.now() / 1000) * 1000).toISOString(),
@@ -432,8 +502,13 @@ export async function handleMessage(message) {
 
     state.lastMessageAt = new Date().toISOString();
     state.messagesSeen += 1;
-    noteEvent('message', `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60)}`);
-    buffer.push({ ...row, id });
+    noteEvent(
+      'message',
+      `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60) || (image ? '[photo]' : '')}`
+    );
+    // The picture rides on the buffered copy only. The stored row stays text:
+    // the database is not where megabytes of photo belong.
+    buffer.push({ ...row, id, image });
     state.bufferedCount = buffer.length;
     scheduleFlush();
   } catch (err) {

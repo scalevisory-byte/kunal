@@ -7,6 +7,7 @@ import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
 import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
+import CaptureSettings from './components/CaptureSettings.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
@@ -417,6 +418,32 @@ export default function App() {
               </div>
               <UsagePage onError={(err) => setError(err.message)} />
             </section>
+          ) : section === 'reminders' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Reminders &amp; follow-ups</h2>
+                  <p>
+                    When you are reminded, how long the app keeps asking, and where
+                    the reminders go.
+                  </p>
+                </div>
+              </div>
+              <SchedulingSettings onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'templates' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Templates</h2>
+                  <p>Work you set up the same way each time, kept as a shape you can reuse.</p>
+                </div>
+              </div>
+              <Templates
+                onUsed={() => { refresh({ quiet: true }); goto('dashboard'); }}
+                onError={(err) => setError(err.message)}
+              />
+            </section>
           ) : section === 'settings' ? (
             <section className="settings-page">
               <div className="page-head">
@@ -425,12 +452,8 @@ export default function App() {
                   <p>Connection, capture mode and the chats that are never read.</p>
                 </div>
               </div>
-              <SchedulingSettings onError={(err) => setError(err.message)} />
-              <Templates
-                onUsed={() => refresh({ quiet: true })}
-                onError={(err) => setError(err.message)}
-              />
               <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+              <CaptureSettings onError={(err) => setError(err.message)} />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>
           ) : (

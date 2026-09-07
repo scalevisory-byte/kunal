@@ -83,79 +83,86 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
         aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
       />
 
+      {/*
+        * One line per task.
+        *
+        * Three lines each meant ten tasks filled the screen and the list had to
+        * be scrolled to be read at all. Everything still shown is here; what
+        * moved is only the labelling - a clock instead of the word "Deadline",
+        * an icon instead of "AI-created" - and the follow-up time, which now
+        * appears only while a task is actually late, which is the only moment
+        * it tells you anything. The drawer still has all of it.
+        */}
       <div className="t-main">
         <button type="button" className="t-title" onClick={() => onOpen(task)}>
           {task.title}
         </button>
 
-        {/* The two dates a person plans around, without opening anything. */}
-        {(task.due_at || task.next_follow_up_at) && !done && (
-          <div className="t-when">
-            {task.due_at && (
-              <span className={isOverdue(task) ? 'danger-text' : ''}>
-                <Icon name="clock" size={12} /> Deadline: {stamp(task.due_at)}
-              </span>
-            )}
-            {task.next_follow_up_at && (
-              <span>
-                <Icon name="refresh" size={12} /> Follow-up: {stamp(task.next_follow_up_at)}
-              </span>
-            )}
-            {task.needs_attention && (
-              <span className="danger-text">
-                <Icon name="alert" size={12} /> Needs attention
-              </span>
-            )}
-          </div>
-        )}
+        <span className="t-line">
+          {task.blocked_by?.length > 0 && !done && (
+            <span className="m-item warn-text" title={`Waiting on ${task.blocked_by.map((b) => b.title).join(', ')}`}>
+              <Icon name="alert" size={12} />
+              {task.blocked_by.length === 1 ? task.blocked_by[0].title : `${task.blocked_by.length} blockers`}
+            </span>
+          )}
 
-        {/* Blocked is stated plainly: the reminder still fires, so the row has
-            to say why it may not be startable. */}
-        {task.blocked_by?.length > 0 && !done && (
-          <div className="t-blocked">
-            <Icon name="alert" size={12} />
-            Waiting on {task.blocked_by.map((b) => b.title).join(', ')}
-          </div>
-        )}
+          {task.needs_attention && !done && (
+            <span className="m-item danger-text" title="Asked the maximum number of times">
+              <Icon name="alert" size={12} /> Stopped asking
+            </span>
+          )}
 
-        <div className="t-meta">
           {task.subtask_progress?.total > 0 && (
-            <span className="m-item">
-              <Icon name="check" size={13} />
+            <span className="m-item" title="Checklist">
+              <Icon name="check" size={12} />
               {task.subtask_progress.done}/{task.subtask_progress.total}
             </span>
           )}
+
           {task.attachment_count > 0 && (
-            <span className="m-item">
-              <Icon name="clipboard" size={13} /> {task.attachment_count}
+            <span className="m-item" title={`${task.attachment_count} file(s)`}>
+              <Icon name="clipboard" size={12} /> {task.attachment_count}
             </span>
           )}
+
           {chat && (
-            <span className="m-item" title={chat}>
-              <Icon name="chat" size={13} /> {chat}
+            <span className="m-item t-chat" title={chat}>
+              <Icon name="chat" size={12} /> {chat}
             </span>
           )}
-          <span className="m-item">
-            <Icon name={task.origin === 'ai' ? 'robot' : 'clipboard'} size={13} />
-            {task.origin === 'ai' ? 'AI-created' : 'Manual'}
+
+          <span className="m-item" title={task.origin === 'ai' ? 'Created by Claude' : 'Added by hand'}>
+            <Icon name={task.origin === 'ai' ? 'robot' : 'clipboard'} size={12} />
           </span>
-          <span className={`pri p-${task.priority}`}>
+
+          {task.due_at && !done && (
+            <span className={`m-item ${isOverdue(task) ? 'danger-text' : ''}`} title={`Deadline ${stamp(task.due_at)}`}>
+              <Icon name="clock" size={12} /> {stamp(task.due_at)}
+            </span>
+          )}
+
+          {/* Only while it is late: before that, the next follow-up is a time
+              nothing is going to happen at. */}
+          {task.next_follow_up_at && isOverdue(task) && !done && (
+            <span className="m-item" title={`Next follow-up ${stamp(task.next_follow_up_at)}`}>
+              <Icon name="refresh" size={12} /> {stamp(task.next_follow_up_at)}
+            </span>
+          )}
+
+          <span className={`pri p-${task.priority}`} title={`${PRIORITY[task.priority]} priority`}>
             <span className="pri-dot" />
-            {PRIORITY[task.priority]}
           </span>
+
           {task.status === 'in_progress' && <span className="state-chip">In progress</span>}
           {task.status === 'waiting' && (
             <span className="state-chip waiting">
               Waiting{task.waiting_for ? ` · ${task.waiting_for}` : ''}
             </span>
           )}
-          {task.remind_at && !done && (
-            <span className="m-item"><Icon name="clock" size={13} /> {timeLabel(task.remind_at)}</span>
-          )}
           {done && task.completed_at && (
-            <span className="m-item">Completed {dateTimeLabel(task.completed_at)}</span>
+            <span className="m-item">Done {dateTimeLabel(task.completed_at)}</span>
           )}
-        </div>
+        </span>
       </div>
 
       <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>

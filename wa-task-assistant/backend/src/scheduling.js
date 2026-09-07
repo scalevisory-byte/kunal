@@ -121,7 +121,10 @@ const DEFAULTS = {
   // is over, and it is when there is time to read it.
   weeklySummary: false,
   weeklyDay: 0,                     // 0 = Sunday, matching localParts()
-  weeklyTime: '20:00',            // in the configured timezone
+  weeklyTime: '20:00',
+  // Claude reads photos as well as text. Off by default: a picture costs
+  // roughly a page of tokens, and most photos in a personal chat are forwards.
+  readImages: false,            // in the configured timezone
 };
 
 export function getSettings() {

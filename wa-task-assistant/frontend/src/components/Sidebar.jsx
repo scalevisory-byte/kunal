@@ -22,6 +22,15 @@ const NAV = [
     ],
   },
   {
+    label: 'Automation',
+    items: [
+      // The reminder and follow-up engine is the heart of this thing; it was
+      // buried at the top of Settings, under the connection panel.
+      { key: 'reminders', label: 'Reminders', icon: 'bell' },
+      { key: 'templates', label: 'Templates', icon: 'flag' },
+    ],
+  },
+  {
     label: 'System',
     items: [
       { key: 'usage', label: 'AI Usage', icon: 'clipboard' },

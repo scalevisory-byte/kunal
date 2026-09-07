@@ -696,7 +696,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   display: flex;
   gap: 13px;
   align-items: center;
-  padding: 11px 12px;
+  padding: 7px 12px;
   margin: 0 -12px;
   border-radius: var(--r-sm);
   transition: background .18s, box-shadow .18s;
@@ -731,13 +731,26 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-.t-main { flex: 1; min-width: 0; }
+/* One row, one line: the title takes the space left over and elides, the meta
+   sits beside it and never wraps. Ten tasks used to be a screenful. */
+.t-main {
+  flex: 1; min-width: 0;
+  display: flex; align-items: baseline; gap: 14px;
+}
+.t-line {
+  flex: none;
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: .74rem; color: var(--muted); white-space: nowrap;
+}
+.t-chat { max-width: 130px; }
+.warn-text { color: var(--warn); }
 .t-title {
   flex: 1; min-width: 0;
   background: none; border: 0; padding: 0; margin: 0;
-  font: inherit; font-size: .91rem; font-weight: 600; line-height: 1.4;
+  font: inherit; font-size: .88rem; font-weight: 600; line-height: 1.4;
   color: var(--text); text-align: left; cursor: pointer;
-  overflow-wrap: break-word; word-break: normal;
+  /* Elide rather than wrap: a wrapped title is what made the row two lines. */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   transition: color .16s;
 }
 .t-title:hover { color: var(--brand); }
@@ -1761,6 +1774,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .cal-cell.has-late .cal-count { background: var(--danger, #a3231b); }
 
 .cal-day { min-width: 0; }
+/* The day column is half the page, not all of it, so a task row wraps here the
+   way it does on a phone rather than pushing the page sideways. */
+.cal-day .t-main { flex-direction: column; align-items: flex-start; gap: 3px; }
+.cal-day .t-title { white-space: normal; overflow: visible; }
+.cal-day .t-line { flex-wrap: wrap; white-space: normal; }
+.cal-day .t-chat { display: inline-flex; }
 .cal-day header {
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
@@ -1782,4 +1801,25 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .cal-cell { aspect-ratio: auto; min-height: 42px; padding: 5px 2px; }
   .cal-dow { font-size: .58rem; letter-spacing: .04em; }
   .cal-num { font-size: .76rem; }
+}
+
+
+/* ---------- the one-line row on smaller screens ---------- */
+
+/* Drop the least useful items first, rather than letting the line overflow. */
+@media (max-width: 1240px) {
+  .t-chat { max-width: 90px; }
+}
+@media (max-width: 1080px) {
+  .t-line { gap: 10px; }
+  .t-chat { display: none; }
+}
+@media (max-width: 760px) {
+  /* On a phone one line cannot hold both, so the meta drops under the title -
+     two lines, still not three. */
+  .t-main { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .t-title { white-space: normal; overflow: visible; }
+  .t-line { flex-wrap: wrap; white-space: normal; gap: 10px; }
+  .t-chat { display: inline-flex; max-width: 120px; }
+  .task { padding: 9px 12px; }
 }
