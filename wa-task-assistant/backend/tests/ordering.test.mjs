@@ -62,9 +62,26 @@ run('a task with no time sits after the ones that have one', () => {
   assert.deepEqual(order.slice(1).sort(), [1, 3]);
 });
 
-run('two undated tasks fall back to priority', () => {
-  const undated = [t(1, 'medium'), t(2, 'high', null, 'high'), t(3, 'low', null, 'low')];
-  assert.deepEqual(undated.sort(byClock).map((x) => x.id), [2, 1, 3]);
+run('undated tasks are ordered by when they arrived, newest first', () => {
+  /*
+   * "No date" is where most of the list ends up - twenty-three of them on the
+   * dashboard - and every one showed the same label and no useful order. What
+   * separates them is when they came in: this morning's capture belongs at the
+   * top, not buried under a fortnight of older ones.
+   */
+  const pile = [
+    { id: 1, title: 'a week ago', due_at: null, priority: 'high', created_at: '2026-09-01 09:00:00' },
+    { id: 2, title: 'this morning', due_at: null, priority: 'low', created_at: '2026-09-07 08:00:00' },
+    { id: 3, title: 'yesterday', due_at: null, priority: 'medium', created_at: '2026-09-06 15:00:00' },
+  ];
+  assert.deepEqual(pile.sort(byClock).map((x) => x.id), [2, 3, 1]);
+});
+
+run('priority still breaks a genuine tie', () => {
+  const same = (id, priority) =>
+    ({ id, due_at: null, priority, created_at: '2026-09-07 08:00:00' });
+  assert.deepEqual([same(1, 'medium'), same(2, 'high'), same(3, 'low')].sort(byClock).map((x) => x.id),
+    [2, 1, 3]);
 });
 
 run('the ordering is stable rather than shuffling on every render', () => {

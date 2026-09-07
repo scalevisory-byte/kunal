@@ -19,6 +19,15 @@ function byClock(a, b) {
   if (at && bt && at !== bt) return at < bt ? -1 : 1;
   if (at && !bt) return -1;
   if (!at && bt) return 1;
+
+  /*
+   * Neither has a deadline, so there is no hour to sort by - and "No date" is
+   * where most of the list ends up. What separates them is when they arrived:
+   * newest first, so what came in this morning is at the top rather than buried
+   * under a fortnight of older captures. Priority only breaks a genuine tie.
+   */
+  const added = (t) => String(t.created_at || '');
+  if (added(a) !== added(b)) return added(a) < added(b) ? 1 : -1;
   const rank = (t) => (t.priority === 'high' ? 0 : t.priority === 'medium' ? 1 : 2);
   return rank(a) - rank(b) || b.id - a.id;
 }

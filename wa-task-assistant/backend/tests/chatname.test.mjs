@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
-const { taskChat, taskSource, readableName } = new Function(
+const { taskChat, taskSource, readableName, addedLabel } = new Function(
   src.replace(/^import.*$/gm, '').replace(/export /g, '') +
-  '; return { taskChat, taskSource, readableName };'
+  '; return { taskChat, taskSource, readableName, addedLabel };'
 )();
 
 let pass = 0, fail = 0;
@@ -98,6 +98,35 @@ run('accents, Gujarati, Hindi and emoji are left exactly as they are', () => {
   for (const n of ['José Fernández', 'ગુજરાતી ગ્રુપ', 'अकाउंट्स', 'BNF - GROWTH TEAM 🌟', 'Mummy ❤️ Home']) {
     assert.equal(readableName(n), n, n);
   }
+});
+
+console.log('\nwhen a task with no deadline arrived');
+
+run("today's captures give the clock time", () => {
+  // What tells this morning's capture from this afternoon's.
+  assert.match(addedLabel(new Date().toISOString()), /^Added \d{1,2}:\d{2}/);
+});
+
+run('yesterday is said as yesterday', () => {
+  assert.equal(addedLabel(new Date(Date.now() - 86_400_000).toISOString()), 'Added yesterday');
+});
+
+run('anything older gives the day, since the minute has stopped mattering', () => {
+  // Day and month, in whatever order the reader's locale puts them.
+  const label = addedLabel(new Date(Date.now() - 7 * 86_400_000).toISOString());
+  assert.match(label, /^Added /);
+  assert.match(label, /\d{1,2}/);
+  assert.ok(!/:/.test(label), `no clock time on an old one: ${label}`);
+});
+
+run("SQLite's own format is read correctly", () => {
+  // Stored as "YYYY-MM-DD HH:MM:SS" in UTC with no marker on it.
+  assert.ok(addedLabel('2026-09-01 08:30:00'));
+});
+
+run('a missing or unreadable timestamp says nothing rather than guessing', () => {
+  assert.equal(addedLabel(null), null);
+  assert.equal(addedLabel('not a date'), null);
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

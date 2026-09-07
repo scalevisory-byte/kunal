@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel } from '../lib/task.js';
+import { addedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel } from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -179,7 +179,17 @@ export default function TaskItem({
         </span>
       </div>
 
-      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
+      {/*
+        * A task with no deadline says when it arrived instead.
+        *
+        * "No date" is the same on all twenty-three of them and says nothing:
+        * you cannot tell what came in this morning from what has been sitting
+        * there a fortnight. The moment it was captured is the one fact such a
+        * task actually has.
+        */}
+      <span className={`due ${due?.tone || 'none'}`}>
+        {due ? due.text : addedLabel(task.created_at) || 'No date'}
+      </span>
 
       {extra}
 

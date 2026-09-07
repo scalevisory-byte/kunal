@@ -58,6 +58,29 @@ export const dateTimeLabel = (value) => {
     : at.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 };
 
+/**
+ * When an undated task arrived, said the way you would say it.
+ *
+ * Today gives the clock time, because that is what tells this morning's
+ * capture from this afternoon's. Anything older gives the day, because the
+ * exact minute of a task from last week has stopped mattering.
+ */
+export const addedLabel = (value) => {
+  if (!value) return null;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+
+  const day = at.toLocaleDateString('en-CA');
+  const today = new Date().toLocaleDateString('en-CA');
+  if (day === today) {
+    return `Added ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  }
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA');
+  if (day === yesterday) return 'Added yesterday';
+  return `Added ${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
+};
+
 const FILLER = new Set([
   'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
   'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',
