@@ -118,6 +118,7 @@ export default function App() {
   // Which slice of work is on screen. Driven by the dashboard cells.
   const [view, setView] = useState('open');
   const [query, setQuery] = useState('');
+  const searching = query.trim().length > 0;
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openTask, setOpenTask] = useState(null);
   // A day picked in the calendar narrows the board to that date.
@@ -311,6 +312,20 @@ export default function App() {
 
   const visible = useMemo(() => {
     const today = todayIso();
+    /*
+     * Searching is its own mode, not a filter on the page you were looking at.
+     *
+     * Typing "salary" on the dashboard used to narrow the list far below the
+     * fold while the greeting, the figures, the quick actions and Focus today
+     * all stayed put - so nothing appeared to happen. It now searches every
+     * task you have, whatever view you were in, whether it is done, and
+     * including groups kept out of the main list: if you went looking for it,
+     * you want to find it.
+     */
+    if (searching) {
+      return tasks.filter((task) => matchesQuery(task, query));
+    }
+
     return tasks.filter((task) => {
       /*
        * Work in a set-aside group is fetched with everything else - a group's
@@ -347,7 +362,7 @@ export default function App() {
 
       return matchesQuery(task, query);
     });
-  }, [tasks, view, filters, query, selectedDate]);
+  }, [tasks, view, filters, query, selectedDate, searching]);
 
   const summary = useMemo(() => summarise(tasks), [tasks]);
   const recent = useMemo(() => activity(tasks), [tasks]);
@@ -625,7 +640,23 @@ export default function App() {
               {/* The dashboard is the overview. Every other section is one
                   focused list, so it gets its own heading and only the controls
                   that mean something there. */}
-              {page.overview ? (
+              {searching ? (
+                <div className="page-head">
+                  <div>
+                    <h2>
+                      {visible.length} {visible.length === 1 ? 'result' : 'results'} for
+                      {' '}&ldquo;{query.trim()}&rdquo;
+                    </h2>
+                    <p>
+                      Across every task you have — finished ones and groups kept out of the
+                      main list included.
+                    </p>
+                  </div>
+                  <button className="btn ghost lg" onClick={() => setQuery('')}>
+                    Clear search
+                  </button>
+                </div>
+              ) : page.overview ? (
                 <div className="page-head">
                   <div>
                     <h2>{greeting()} <span className="wave">👋</span></h2>
@@ -666,7 +697,11 @@ export default function App() {
                 </div>
               )}
 
-              {page.overview && (
+              {/* Results are the page while a search is on: the greeting, the
+                  figures, the quick actions and Focus today all pushed the
+                  matches below the fold, which is why typing appeared to do
+                  nothing at all. */}
+              {page.overview && !searching && (
                 <>
                   <DueSoonBanner
                     onOpenTask={(taskId) => {
@@ -728,7 +763,7 @@ export default function App() {
                   onNotATask={onNotATask}
                 />
               ) : (
-                <div className={`workspace ${page.overview ? '' : 'solo'}`}>
+                <div className={`workspace ${page.overview && !searching ? '' : 'solo'}`}>
                   <main className="work">
                     {/*
                       * Directly above Focus today, because that is where the
@@ -749,7 +784,7 @@ export default function App() {
                       </p>
                     )}
 
-                    {(page.overview || page.focus) && view !== 'done' && (
+                    {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <Duplicates
                         onOpen={setOpenTask}
                         onChanged={() => refresh({ quiet: true })}
@@ -757,7 +792,7 @@ export default function App() {
                       />
                     )}
 
-                    {(page.overview || page.focus) && view !== 'done' && (
+                    {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <FocusToday
                         tasks={tasks}
                         onOpen={setOpenTask}
@@ -766,7 +801,7 @@ export default function App() {
                       />
                     )}
 
-                    {(page.overview || page.tabs || page.toolbar) && (
+                    {(page.overview || page.tabs || page.toolbar) && !searching && (
                       <div className="work-head">
                         {(page.overview || page.tabs) ? (
                           <nav className="segment tabs" role="tablist" aria-label="View">
@@ -801,7 +836,9 @@ export default function App() {
                       </div>
                     )}
 
-                    {(selectedDate || query) && (
+                    {/* The search term is the heading now, so the chip that
+                        repeated it is only shown for a date. */}
+                    {(selectedDate || (query && !searching)) && (
                       <div className="scope">
                         {selectedDate && (
                           <span className="scope-chip">
@@ -824,7 +861,7 @@ export default function App() {
                       tasks={visible}
                       loading={loading}
                       error={error && !tasks.length ? error : ''}
-                      groupBy={groupBy}
+                      groupBy={searching ? 'none' : groupBy}
                       view={view}
                       query={query}
                       onRetry={() => refresh()}
@@ -840,7 +877,7 @@ export default function App() {
                   {/* The rail belongs to the overview. On a focused list its
                       "today at a glance" figures are about a different scope
                       than the list beside them, which is just noise. */}
-                  {page.overview && (
+                  {page.overview && !searching && (
                     <div ref={railRef} className="rail-wrap">
                       <SideRail
                         tasks={tasks}
