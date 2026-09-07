@@ -387,6 +387,14 @@ export default function TaskDetail({
               <dt>Source</dt>
               <dd>{task.origin === 'ai' ? '🤖 AI-created' : '✋ Added by hand'}</dd>
             </div>
+            {/* Work that came out of something written down. The note itself
+                stays where it is - this only says where this came from. */}
+            {task.note_id && (
+              <div>
+                <dt>From</dt>
+                <dd>📝 A note</dd>
+              </div>
+            )}
             {task.requested_by && (
               <div>
                 <dt>Asked by</dt>

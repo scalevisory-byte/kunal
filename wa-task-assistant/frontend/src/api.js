@@ -222,6 +222,22 @@ export const api = {
   deadlineNotice: (id, body) =>
     request(`/recurring/${id}/notice`, { method: 'POST', body: JSON.stringify(body) }),
 
+  /* ---- notes: things to remember, as opposed to things to do ---- */
+  notes: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    ).toString();
+    return request(`/notes${query ? `?${query}` : ''}`);
+  },
+  note: (id) => request(`/notes/${id}`),
+  createNote: (body) => request('/notes', { method: 'POST', body: JSON.stringify(body) }),
+  updateNote: (id, body) => request(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  archiveNote: (id) => request(`/notes/${id}`, { method: 'DELETE' }),
+  deleteNote: (id) => request(`/notes/${id}?hard=1`, { method: 'DELETE' }),
+  restoreNote: (id) => request(`/notes/${id}/restore`, { method: 'POST' }),
+  noteToTask: (id, body) =>
+    request(`/notes/${id}/task`, { method: 'POST', body: JSON.stringify(body) }),
+
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),
 

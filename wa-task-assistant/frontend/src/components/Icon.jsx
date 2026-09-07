@@ -39,6 +39,14 @@ const PATHS = {
   moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   // A person, for the name a delegated task carries.
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8.5a7 7 0 0 1 14 0',
+  /* A sheet with a folded corner: something written down and kept. */
+  note: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8m-5-5 5 5m-5-5v5h5M9 13h6M9 17h4',
+  /* A drawing pin, seen from the side. */
+  pin: 'M12 17v4M8.5 3.5h7l-1 5 3 3.5H6.5l3-3.5-1-5Z',
+  /* A box with its lid off: archived, not gone. */
+  archive: 'M4 8h16M5 8V6a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2M6 8v11a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8M10 12h4',
+  /* A label with its eyelet: a tag. */
+  tag: 'M3 12.5V5a2 2 0 0 1 2-2h7.5L21 11.5 12.5 20 3 12.5Zm4-6h.01',
 };
 
 export default function Icon({ name, size = 18, className = '', strokeWidth = 1.6 }) {

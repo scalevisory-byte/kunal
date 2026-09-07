@@ -33,6 +33,7 @@ import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
 import Recurring from './components/Recurring.jsx';
 import DueSoonBanner from './components/DueSoonBanner.jsx';
+import NotesPage from './components/NotesPage.jsx';
 import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
@@ -105,6 +106,11 @@ const PAGES = {
     lede: 'The dates that never move — TDS, GST, GSTR-3B. Each becomes a task before its date.',
     settings: true,
   },
+  notes: {
+    title: 'Notes',
+    lede: 'Things worth remembering, as opposed to things that have to be done. Nothing here is chased.',
+    notes: true,
+  },
   calendar: {
     title: 'Calendar',
     lede: 'Your month, and what falls on each day.',
@@ -140,6 +146,14 @@ export default function App() {
   // to type into rather than needing to be found. Held as an id rather than a
   // flag so it cannot leak onto the next task opened some other way.
   const [focusProgress, setFocusProgress] = useState(null);
+  /*
+   * A note the top-bar search was clicked through to.
+   *
+   * Held here rather than inside the notes page because the click happens in
+   * the search results, before that page is on screen; it is cleared the moment
+   * the note is opened so closing it does not bring it straight back.
+   */
+  const [noteToOpen, setNoteToOpen] = useState(null);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   const [composing, setComposing] = useState(false);
@@ -354,6 +368,29 @@ export default function App() {
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   }, [tasks]);
+
+  /*
+   * The notes the search box matches.
+   *
+   * Loaded once when a search starts rather than on every keystroke: the whole
+   * set is small, it is the same data the notes page holds, and filtering it
+   * here costs nothing next to a request per character.
+   */
+  const [allNotes, setAllNotes] = useState([]);
+  useEffect(() => {
+    if (!searching || allNotes.length) return;
+    api.notes().then((d) => setAllNotes(d.notes)).catch(() => {});
+  }, [searching, allNotes.length]);
+
+  const noteHits = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return allNotes.filter((note) =>
+      [note.title, note.body, note.group_name, note.chat_name, (note.tags || []).join(' ')]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(needle))
+    );
+  }, [allNotes, query]);
 
   const visible = useMemo(() => {
     const today = todayIso();
@@ -721,6 +758,22 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
             </section>
+          ) : page.notes ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>{page.title}</h2>
+                  <p>{page.lede}</p>
+                </div>
+              </div>
+              <NotesPage
+                groups={groups}
+                query={query}
+                openId={noteToOpen}
+                onOpened={() => setNoteToOpen(null)}
+                onError={(err) => setError(err.message)}
+              />
+            </section>
           ) : section === 'settings' ? (
             <section className="settings-page">
               <div className="page-head">
@@ -796,21 +849,58 @@ export default function App() {
                   focused list, so it gets its own heading and only the controls
                   that mean something there. */}
               {searching ? (
-                <div className="page-head">
-                  <div>
-                    <h2>
-                      {visible.length} {visible.length === 1 ? 'result' : 'results'} for
-                      {' '}&ldquo;{query.trim()}&rdquo;
-                    </h2>
-                    <p>
-                      Across every task you have — finished ones and groups kept out of the
-                      main list included.
-                    </p>
+                <>
+                  <div className="page-head">
+                    <div>
+                      <h2>
+                        {visible.length} {visible.length === 1 ? 'result' : 'results'} for
+                        {' '}&ldquo;{query.trim()}&rdquo;
+                      </h2>
+                      <p>
+                        Across every task you have — finished ones and groups kept out of the
+                        main list included{noteHits.length ? ', and your notes' : ''}.
+                      </p>
+                    </div>
+                    <button className="btn ghost lg" onClick={() => setQuery('')}>
+                      Clear search
+                    </button>
                   </div>
-                  <button className="btn ghost lg" onClick={() => setQuery('')}>
-                    Clear search
-                  </button>
-                </div>
+
+                  {/*
+                    * Notes, in the same results as tasks.
+                    *
+                    * "Search tasks, chats or notes" was the promise the box had
+                    * always made, and notes are where half of what he writes
+                    * down actually lives. They are a separate strip rather than
+                    * mixed into the list because a note is not work: it has no
+                    * deadline, and putting one in a list of tasks says it does.
+                    */}
+                  {noteHits.length > 0 && (
+                    <section className="note-hits">
+                      <h3>
+                        {noteHits.length} {noteHits.length === 1 ? 'note' : 'notes'}
+                      </h3>
+                      <ul>
+                        {noteHits.slice(0, 6).map((note) => (
+                          <li key={note.id}>
+                            <button onClick={() => { setNoteToOpen(note.id); setSection('notes'); }}>
+                              <Icon name="note" size={14} />
+                              <span className="note-hit-title">
+                                {note.title || (note.body || '').slice(0, 60) || 'Untitled note'}
+                              </span>
+                              {note.group_name && <span className="note-hit-group">{note.group_name}</span>}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {noteHits.length > 6 && (
+                        <button className="link" onClick={() => setSection('notes')}>
+                          See all {noteHits.length} in Notes
+                        </button>
+                      )}
+                    </section>
+                  )}
+                </>
               ) : page.overview ? (
                 <div className="page-head">
                   <div>

@@ -21,6 +21,7 @@ import { addAttachment } from './attachments.js';
 import { getSettings } from './scheduling.js';
 import { transcribe, transcriptionEnabled } from './transcribe.js';
 import { isoAtLocal } from './quickparse.js';
+import { createNote } from './notes.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -292,6 +293,55 @@ export async function handleCommand(message, chatId) {
   return true;
 }
 
+
+/**
+ * "note: ..." — saving something to remember, on purpose.
+ *
+ * Only ever a message the user wrote himself, and only when it opens with the
+ * word: nothing anybody else sends can become a note, and nothing of his own
+ * becomes one unless he says so. That is the whole rule — a notebook that
+ * fills itself is not a notebook.
+ *
+ * Returns true when the message was a note, so the caller stops there and it
+ * is not also read as a task.
+ */
+const NOTE_PREFIX = /^(?:#\s*note|note)\s*[:\-]?\s+/i;
+
+export async function maybeSaveNote(message, chat, chatId) {
+  if (!message.fromMe) return false;
+  const body = (message.body || '').trim();
+  const match = body.match(NOTE_PREFIX);
+  if (!match) return false;
+
+  const text = body.slice(match[0].length).trim();
+  if (!text) return false;
+
+  // The first line is the title where there is more than one; a one-line note
+  // is all body, because half a sentence as a heading reads like a mistake.
+  const lines = text.split('\n');
+  const multi = lines.length > 1 && lines[0].trim().length <= 80;
+
+  try {
+    const note = createNote({
+      title: multi ? lines[0].trim() : null,
+      body: multi ? lines.slice(1).join('\n').trim() : text,
+      source: 'whatsapp',
+      source_ref: message.id?._serialized || null,
+      chat_name: chatId === state.me ? 'Saved by you' : chat?.name || null,
+    });
+    log.info(`Saved a note from WhatsApp: ${note.title || note.body.slice(0, 40)}`);
+    try {
+      await sendMessage(chatId, `📝 Saved as a note. It is in WA Tasks under Notes — nothing will chase you about it.`);
+    } catch (err) {
+      log.warn('Could not confirm the note:', err?.message || err);
+    }
+    return true;
+  } catch (err) {
+    log.error('Saving a note from WhatsApp failed:', err?.message || err);
+    return false;
+  }
+}
+
 /**
  * Manual mode: no AI, no API key, and nothing anyone else sends is stored.
  * A task is created only when YOU write it - either in your own "message
@@ -309,6 +359,8 @@ export async function handleOwnMessage(message) {
 
     // "done 2" must close a task, not become a new one.
     if (await handleCommand(message, chatId)) return;
+    // "note: ..." is something to remember, not something to do.
+    if (await maybeSaveNote(message, chat, chatId)) return;
 
     const inSelfChat = Boolean(state.me) && chatId === state.me;
     const trigger = config.taskTrigger;
@@ -900,7 +952,9 @@ export function startWhatsApp() {
       if (message.fromMe && message.body) {
         try {
           const chat = await message.getChat();
-          if (await handleCommand(message, chat.id?._serialized ?? message.to)) return;
+          const chatId = chat.id?._serialized ?? message.to;
+          if (await handleCommand(message, chatId)) return;
+          if (await maybeSaveNote(message, chat, chatId)) return;
           if (await handleTaskInstruction(message.body)) return;
         } catch (err) {
           noteEvent('instruction check failed', err?.message || err);

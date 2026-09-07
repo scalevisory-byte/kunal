@@ -5,7 +5,7 @@ import { SNOOZE_OPTIONS } from '../lib/schedule.js';
 import { dateTimeLabel } from '../lib/task.js';
 import { parseStamp } from '../lib/derive.js';
 
-const KIND_ICON = { reminder: 'clock', follow_up: 'chat', missed: 'alert' };
+const KIND_ICON = { reminder: 'clock', follow_up: 'chat', missed: 'alert', note: 'note' };
 
 const isToday = (at) => {
   const stamp = parseStamp(at);

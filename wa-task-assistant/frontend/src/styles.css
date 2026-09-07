@@ -3055,3 +3055,183 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .notice-foot { flex-direction: column; align-items: stretch; }
   .notice-foot .link { align-self: center; }
 }
+
+
+/* ---------- notes ---------- */
+
+/*
+ * A page of notes is scanned, not read: you are looking for the one you
+ * half-remember writing. So: small cards, a lot of them visible at once, and
+ * nothing on a card that is not part of recognising it. No status, no
+ * deadline, no priority spine - a note is not work, and dressing it as a task
+ * is the one thing this page must not do.
+ */
+.notes-page { display: block; }
+
+.notes-bar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.notes-search {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 0 10px;
+  color: var(--muted);
+}
+.notes-search input {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  padding: 9px 0; font: inherit; font-size: .86rem; color: var(--text);
+}
+.notes-search:focus-within { border-color: var(--line-2); }
+
+.notes-filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+  margin-bottom: 16px;
+}
+.notes-filters select {
+  font-size: .78rem; padding: 4px 8px; min-height: 30px;
+  border-radius: var(--r);
+}
+.chip.on { border-color: var(--accent); color: var(--accent); background: var(--accent-wash, var(--raised)); }
+
+.notes-head {
+  margin: 0 0 9px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
+.notes-grid + .notes-head { margin-top: 22px; }
+
+.notes-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  align-items: start;
+}
+
+.note-card {
+  position: relative;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); overflow: hidden;
+  transition: border-color .16s, box-shadow .16s;
+}
+.note-card:hover { border-color: var(--line-2); box-shadow: var(--shadow-sm); }
+/* Pinned is a mark on the edge, not a different coloured card: the grid stays
+   one material, the way a page of paper does. */
+.note-card.pinned { border-left: 3px solid var(--accent); }
+
+.note-open {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; cursor: pointer;
+  padding: 13px 34px 12px 14px; font: inherit; color: inherit;
+}
+.note-open h3 {
+  margin: 0 0 5px;
+  font-family: Archivo, sans-serif; font-weight: 700;
+  font-size: .92rem; line-height: 1.3; letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+}
+.note-body {
+  margin: 0; font-size: .82rem; line-height: 1.5; color: var(--text-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.note-meta {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px;
+}
+.note-chip {
+  font-size: .68rem; padding: 2px 7px; border-radius: 4px;
+  background: color-mix(in srgb, var(--group, var(--brand)) 12%, transparent);
+  color: var(--group, var(--brand));
+}
+.note-tag {
+  font-size: .68rem; padding: 2px 7px; border-radius: 4px;
+  background: var(--raised); color: var(--muted);
+}
+.note-flag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: .68rem; color: var(--muted);
+}
+.note-when {
+  display: block; margin-top: 9px;
+  font-size: .7rem; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.note-pin {
+  position: absolute; top: 8px; right: 8px;
+  border: 0; background: none; cursor: pointer;
+  color: var(--muted); padding: 4px; border-radius: 6px; line-height: 0;
+  opacity: 0; transition: opacity .16s, color .16s;
+}
+.note-card:hover .note-pin, .note-pin:focus-visible { opacity: 1; }
+.note-pin.on { opacity: 1; color: var(--accent); }
+.note-pin:hover { background: var(--raised); color: var(--text); }
+
+/* The editor is the detail view: a note is short enough that reading it and
+   changing it are the same screen. */
+.note-sheet .sheet-body textarea { min-height: 180px; line-height: 1.55; }
+.note-foot { flex-wrap: wrap; }
+.note-foot .btn.primary { flex: 1 1 120px; }
+.note-foot .btn.small { flex: 0 0 auto; }
+.link.danger { color: var(--danger, #b91c1c); }
+
+.note-convert {
+  margin: 18px 0 0; padding: 14px 15px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.note-convert h4, .facts h4 {
+  margin: 0 0 10px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.note-convert-foot { display: flex; align-items: center; gap: 12px; margin-top: 13px; }
+
+.note-tasks, .note-events {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 6px;
+}
+.note-tasks li, .note-events li {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: .8rem;
+}
+.note-tasks .done { text-decoration: line-through; color: var(--muted); }
+.note-task-state, .note-event-at { flex: none; color: var(--muted); font-size: .72rem; }
+
+/* Notes among the search results: their own strip, because a note has no
+   deadline and listing one beside tasks says that it does. */
+.note-hits {
+  margin-bottom: 16px; padding: 13px 15px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
+}
+.note-hits h3 {
+  margin: 0 0 9px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.note-hits ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.note-hits li button {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  background: none; border: 0; cursor: pointer; font: inherit;
+  color: var(--text); text-align: left;
+  padding: 6px 7px; border-radius: var(--r); min-height: 34px;
+}
+.note-hits li button:hover { background: var(--raised); }
+.note-hit-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; }
+.note-hit-group { flex: none; font-size: .72rem; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .notes-bar { flex-wrap: wrap; }
+  .notes-bar .btn.primary { width: 100%; justify-content: center; }
+  .notes-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  /* Every control is reachable without hover here, so the pin is always shown. */
+  .note-pin { opacity: 1; }
+}
+
+/* Two columns hold on a phone - 150px is enough to recognise a note by, and
+   twice as many fit on the first screen. One column only where two would be
+   too narrow to read a line of. */
+@media (max-width: 340px) {
+  .notes-grid { grid-template-columns: minmax(0, 1fr); }
+}

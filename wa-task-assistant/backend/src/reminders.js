@@ -24,6 +24,7 @@ import {
 import { EVENT, recordEvent } from './task-events.js';
 import { openBlockers } from './dependencies.js';
 import { materialiseDue, ruleForTask } from './recurring.js';
+import { dueNoteReminders, claimNoteReminder } from './notes.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
@@ -291,13 +292,17 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     syncNextReminder(task.id);
   }
 
+  // A note can carry one reminder, and it rides this same pass rather than a
+  // second engine: same claim, same notification centre, same channels.
+  const notes = await deliverNoteReminders(nowIso, settings);
+
   const planned = planOpenTasks(settings, now);
 
   if (sent || missed || planned) {
     log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
   return {
-    sent, missed, planned, recurring: recurring.length,
+    sent, missed, planned, recurring: recurring.length, notes,
     briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent),
   };
 }
@@ -435,6 +440,44 @@ async function deliver(task, reminder, settings) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
   }
+}
+
+/**
+ * The reminders people put on notes.
+ *
+ * A note is not owed, so there is no ladder here and no follow-up: one moment,
+ * one notification, and the note goes quiet again. The claim is a conditional
+ * UPDATE on the note itself, so a second tick, a restart mid-send or a retry
+ * delivers nothing twice.
+ */
+async function deliverNoteReminders(nowIso, settings) {
+  let sent = 0;
+  for (const row of dueNoteReminders(nowIso)) {
+    const note = claimNoteReminder(row.id);
+    if (!note) continue;
+
+    const heading = note.title || (note.body || '').split('\n')[0].slice(0, 60) || 'Note';
+    const body = note.title && note.body ? note.body.slice(0, 200) : null;
+
+    addNotification({ kind: 'note', title: `Note — ${heading}`, body });
+    if (settings.notifyBrowser) {
+      await sendPush({ title: `Note: ${heading}`, body: body || '', url: '/' });
+    }
+    // Same rule as every other message: the linked account's own chat, never
+    // a contact's, and only when the user has switched WhatsApp on.
+    if (settings.notifyWhatsApp && state.status === 'ready') {
+      const text = ['📝 *NOTE REMINDER*', '', `*${heading}*`, body || null, '', 'Open WA Tasks to read it.']
+        .filter((line) => line !== null)
+        .join('\n');
+      try {
+        await sendMessage(reminderChatId(), text);
+      } catch (err) {
+        log.error('Note reminder WhatsApp send failed:', err?.message || err);
+      }
+    }
+    sent += 1;
+  }
+  return sent;
 }
 
 function ordinal(n) {

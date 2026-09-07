@@ -17,6 +17,7 @@ import { delegationRouter } from './routes/delegation.js';
 import {
   subtaskRouter, attachmentRouter, templateRouter, groupRouter, recurringRouter,
 } from './routes/extras.js';
+import { notesRouter } from './routes/notes.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -81,6 +82,7 @@ export function createServer() {
   app.use('/api/templates', requireAuth, templateRouter);
   app.use('/api/groups', requireAuth, groupRouter);
   app.use('/api/recurring', requireAuth, recurringRouter);
+  app.use('/api/notes', requireAuth, notesRouter);
   app.use('/api/delegation', requireAuth, delegationRouter);
   app.use('/api/attention', requireAuth, attentionRouter);
   app.use('/api/history', requireAuth, historyRouter);

@@ -283,6 +283,22 @@ for (const [name, ddl] of [
    * such a task gets is exactly the schedule it got before.
    */
   ['warn_days', 'ALTER TABLE tasks ADD COLUMN warn_days INTEGER'],
+
+  /*
+   * The note this task was made from, where it was made from one.
+   *
+   * Notes and tasks are deliberately different things - one is remembered, the
+   * other is owed - and this is the single thread between them: pressing
+   * "Create task" inside a note leaves a trace both ways, so the note can list
+   * what came out of it and the task can say where it came from. NULL is every
+   * task that was not made that way, which is nearly all of them.
+   *
+   * A plain integer rather than a declared foreign key: this table is built
+   * before the notes table exists, and a REFERENCES clause pointing at a table
+   * that is not there yet fails at the first insert rather than at the ALTER.
+   * Deleting a note clears the column itself - see notes.js.
+   */
+  ['note_id', 'ALTER TABLE tasks ADD COLUMN note_id INTEGER'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -497,12 +513,12 @@ const insertTaskStmt = db.prepare(`
   INSERT INTO tasks
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
-     ai_confidence, needs_confirmation, group_id, warn_days,
+     ai_confidence, needs_confirmation, group_id, warn_days, note_id,
      assigned_to, assigned_to_wid, assigned_at, requested_by, requested_by_wid, is_group)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
-     @ai_confidence, @needs_confirmation, @group_id, @warn_days,
+     @ai_confidence, @needs_confirmation, @group_id, @warn_days, @note_id,
      @assigned_to, @assigned_to_wid, @assigned_at, @requested_by, @requested_by_wid, @is_group)
 `);
 
@@ -562,6 +578,7 @@ export function createTask(input) {
     needs_confirmation: input.needs_confirmation ? 1 : 0,
     group_id: numberOrNull(input.group_id),
     warn_days: numberOrNull(input.warn_days),
+    note_id: numberOrNull(input.note_id),
     assigned_to: input.assigned_to ? String(input.assigned_to).trim().slice(0, 80) : null,
     assigned_to_wid: input.assigned_to_wid || null,
     assigned_at: input.assigned_to ? new Date().toISOString() : null,
