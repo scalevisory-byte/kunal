@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Icon from './Icon.jsx';
 import TaskItem from './TaskItem.jsx';
 import { api } from '../api.js';
+import { lastActivityLabel, pipeline, peopleFrom, soonestFirst, stageCounts, stageOf } from '../lib/pipeline.js';
 
 /**
  * Work between the user and other people, read from whichever end you are on.
@@ -271,6 +272,119 @@ function GiveSheet({ onClose, onSaved, onError }) {
   );
 }
 
+const VIEW_STORE = 'wa.allotted.view';
+
+const readView = () => {
+  try { return localStorage.getItem(VIEW_STORE) === 'list' ? 'list' : 'pipeline'; }
+  catch { return 'pipeline'; }
+};
+
+const when = (iso) => {
+  if (!iso) return null;
+  const at = new Date(String(iso).includes('T') ? iso : `${String(iso).replace(' ', 'T')}Z`);
+  if (Number.isNaN(at.getTime())) return null;
+  const today = at.toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA');
+  return at.toLocaleString([], {
+    hour: 'numeric', minute: '2-digit',
+    ...(today ? {} : { day: 'numeric', month: 'short' }),
+  });
+};
+
+/** One delegated task, the same card in both views. */
+function Card({ task, onOpen, onNudge }) {
+  const activity = lastActivityLabel(task);
+  return (
+    <li className="al-card">
+      <button className="al-title" onClick={() => onOpen(task)}>{task.title}</button>
+      <p className="al-who">
+        <Icon name="person" size={12} /> {task.assigned_to}
+        {task.group_name && <span className="al-group">{task.group_name}</span>}
+      </p>
+      <p className="al-facts">
+        {task.due_at
+          ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>Due {when(task.due_at)}</span>
+          : <span className="muted">No deadline</span>}
+        {task.next_follow_up_at && task.state === 'overdue' && (
+          <span className="al-follow"><Icon name="refresh" size={11} /> {when(task.next_follow_up_at)}</span>
+        )}
+        {task.follow_up_count > 0 && (
+          <span className="muted">
+            {task.follow_up_count >= task.follow_up_max
+              ? `all ${task.follow_up_max} follow-ups spent`
+              : `follow-up ${task.follow_up_count} of ${task.follow_up_max}`}
+          </span>
+        )}
+      </p>
+      {activity && <p className="al-activity">{activity}</p>}
+      {task.status !== 'done' && (
+        <button className="tool al-nudge" onClick={() => onNudge(task)}>Nudge</button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The pipeline: one column per stage.
+ *
+ * Every stage is derived from what a task already is — status, deadline,
+ * follow-up counter — so nothing here can disagree with the task itself, and a
+ * task moves between columns because the facts changed, not because somebody
+ * dragged it.
+ */
+function Board({ stages, onOpen, onNudge }) {
+  return (
+    <div className="al-board">
+      {stages.map((stage) => (
+        <section className="al-col" key={stage.key}>
+          <header className="al-col-head">
+            <h4>{stage.label}</h4>
+            <span className="board-count">{stage.items.length}</span>
+          </header>
+          {stage.items.length === 0
+            ? <p className="board-empty">Nothing here.</p>
+            : <ul className="al-list">
+                {stage.items.map((t) => <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge} />)}
+              </ul>}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** The same work as rows, for reading down rather than across. */
+function Rows({ tasks, onOpen, onNudge }) {
+  if (!tasks.length) return <p className="board-empty">Nothing in this stage.</p>;
+  return (
+    <ul className="al-rows">
+      {[...tasks].sort(soonestFirst).map((task) => {
+        const stage = stageOf(task);
+        const activity = lastActivityLabel(task);
+        return (
+          <li key={task.id}>
+            <div className="al-row-main">
+              <button className="al-title" onClick={() => onOpen(task)}>{task.title}</button>
+              <span className="al-row-meta">
+                <Icon name="person" size={12} /> {task.assigned_to}
+                {task.group_name && <span className="al-group">{task.group_name}</span>}
+                {activity && <span className="muted">{activity}</span>}
+              </span>
+            </div>
+            <span className={`al-stage s-${stage.key}`}>{stage.label}</span>
+            <span className="al-row-due">
+              {task.due_at
+                ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>{when(task.due_at)}</span>
+                : <span className="muted">No deadline</span>}
+            </span>
+            {task.status !== 'done'
+              ? <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
+              : <span />}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function Delegation({ side, onOpenTask, onError, onChanged, wa }) {
   const [data, setData] = useState(null);
   const [showDone, setShowDone] = useState(false);
@@ -279,6 +393,10 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
   // chat; this is for the ones agreed on a call, or in the room.
   const [giving, setGiving] = useState(false);
   const [sent, setSent] = useState(null);
+  // The pipeline's own controls: which layout, which stage, whose work.
+  const [view, setView] = useState(readView);
+  const [stage, setStage] = useState(null);
+  const [who, setWho] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -336,6 +454,17 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
   const listed = new Set(tasks.map((t) => (side === 'allotted' ? t.assigned_to : t.requested_by)));
   const shown = people.filter((p) => listed.has(p.name));
 
+  // Person first, then stage — so a stage column shows that person's work in
+  // it rather than everybody's, which is how the two filters are read together.
+  const scoped = who ? tasks.filter((t) => t.assigned_to === who) : tasks;
+  const stages = pipeline(scoped);
+  const counts = stageCounts(scoped);
+  const pipelinePeople = peopleFrom(tasks);
+  const pickView = (next) => {
+    setView(next);
+    try { localStorage.setItem(VIEW_STORE, next); } catch { /* private window */ }
+  };
+
   return (
     <div className="deleg">
       <div className="toolbar">
@@ -377,6 +506,88 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
         </p>
       )}
 
+      {/*
+        * The pipeline, on the allotted side only.
+        *
+        * "What have I given, to whom, what state is it in, and who needs
+        * chasing" is one question, and it was being answered by scrolling a
+        * list of people. Every stage below is derived from the task itself —
+        * nothing new is stored, and no assignee needs an account to appear in
+        * it, because what identifies them is the name already on the task.
+        */}
+      {side === 'allotted' && tasks.length > 0 && (
+        <>
+          <div className="al-summary">
+            <button
+              className={`al-count ${!stage ? 'on' : ''}`}
+              onClick={() => setStage(null)}
+            >
+              <b>{counts.total}</b><span>Total</span>
+            </button>
+            {stages.map((s) => (
+              <button
+                key={s.key}
+                className={`al-count ${stage === s.key ? 'on' : ''}`}
+                title={s.note}
+                onClick={() => setStage(stage === s.key ? null : s.key)}
+              >
+                <b>{s.items.length}</b><span>{s.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {pipelinePeople.length > 1 && (
+            <div className="al-people">
+              {pipelinePeople.map((p) => (
+                <button
+                  key={p.name}
+                  className={`al-person ${who === p.name ? 'on' : ''}`}
+                  onClick={() => setWho(who === p.name ? null : p.name)}
+                >
+                  <b>{p.name}</b>
+                  <span>
+                    {p.active} active
+                    {p.overdue > 0 && <span className="danger-text"> · {p.overdue} overdue</span>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="al-head">
+            <div className="board-views" role="group" aria-label="How to show the work">
+              <button
+                className={view === 'pipeline' ? 'on' : ''}
+                aria-pressed={view === 'pipeline'}
+                title="Pipeline" aria-label="Pipeline view"
+                onClick={() => pickView('pipeline')}
+              >
+                <Icon name="board" size={16} />
+              </button>
+              <button
+                className={view === 'list' ? 'on' : ''}
+                aria-pressed={view === 'list'}
+                title="List" aria-label="List view"
+                onClick={() => pickView('list')}
+              >
+                <Icon name="list" size={16} />
+              </button>
+            </div>
+            {(stage || who) && (
+              <button className="link" onClick={() => { setStage(null); setWho(null); }}>
+                Clear filter
+              </button>
+            )}
+          </div>
+
+          {view === 'pipeline'
+            ? <Board stages={stage ? stages.filter((s) => s.key === stage) : stages}
+                     onOpen={actions.onOpen} onNudge={setNudging} />
+            : <Rows tasks={stage ? stages.find((s) => s.key === stage).items : scoped}
+                    onOpen={actions.onOpen} onNudge={setNudging} />}
+        </>
+      )}
+
       {!tasks.length ? (
         <div className="empty">
           <strong>
@@ -406,7 +617,7 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
             </p>
           )}
         </div>
-      ) : (
+      ) : side === 'received' ? (
         shown.map((person) => (
           <Person
             key={person.name}
@@ -417,7 +628,7 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
             onNudge={setNudging}
           />
         ))
-      )}
+      ) : null}
 
       {giving && (
         <GiveSheet

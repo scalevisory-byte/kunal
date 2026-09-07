@@ -63,6 +63,33 @@ export const eventsForTask = (taskId) =>
     .map((row) => ({ ...row, meta: row.meta ? JSON.parse(row.meta) : null }));
 
 /** The most recent events across all tasks, for the dashboard's activity list. */
+/**
+ * The last thing that happened to each of many tasks.
+ *
+ * For delegated work this is the question — not "when is it due" but "when did
+ * anything last move". A task given three days ago with nothing since is the
+ * one to chase, and that is invisible from the deadline alone.
+ *
+ * One query for the page rather than one per row, the same way the list builds
+ * every other per-task figure.
+ */
+export function lastActivityFor(taskIds) {
+  const out = new Map();
+  if (!taskIds.length) return out;
+  const marks = taskIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT e.task_id, e.kind, e.detail, e.at
+       FROM task_events e
+       JOIN (SELECT task_id, MAX(id) AS id FROM task_events
+             WHERE task_id IN (${marks}) GROUP BY task_id) last
+         ON last.id = e.id`
+    )
+    .all(...taskIds);
+  for (const row of rows) out.set(row.task_id, { kind: row.kind, detail: row.detail, at: row.at });
+  return out;
+}
+
 export const recentEvents = (limit = 12) =>
   db
     .prepare(

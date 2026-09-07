@@ -2820,6 +2820,137 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .focus-when { margin-left: 0; padding-left: 0; align-items: flex-start; text-align: left; }
 }
 
+/* ---------- task allotted: the delegated-work pipeline ---------- */
+
+/*
+ * Work in somebody else's hands, laid out by where it has got to.
+ *
+ * The stages are read, not set — a task is in one because of its status, its
+ * deadline and its follow-up count, so the board cannot drift from the task.
+ * Colour stays out of it: the stage names carry the meaning and only a passed
+ * deadline earns red.
+ */
+.al-summary {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 14px 0 12px;
+}
+.al-count {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 7px 12px 8px;
+  border: 1px solid var(--line); background: var(--card);
+  border-radius: var(--r-sm); cursor: pointer;
+  font: inherit; min-width: 84px;
+  transition: border-color .16s, background .16s;
+}
+.al-count b {
+  font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.05rem;
+  color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.al-count span {
+  font-size: .66rem; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.al-count:hover { border-color: var(--line-2); }
+.al-count.on { border-color: var(--brand); background: var(--brand-wash); }
+.al-count.on b, .al-count.on span { color: var(--brand); }
+
+.al-people { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.al-person {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 6px 11px 7px;
+  border: 1px solid var(--line); background: var(--card);
+  border-radius: var(--r-sm); cursor: pointer; font: inherit;
+  transition: border-color .16s, background .16s;
+}
+.al-person b { font-size: .82rem; font-weight: 600; color: var(--text); }
+.al-person span { font-size: .7rem; color: var(--muted); }
+.al-person:hover { border-color: var(--line-2); }
+.al-person.on { border-color: var(--brand); background: var(--brand-wash); }
+
+.al-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.al-head .board-views { margin-bottom: 0; }
+
+.al-board {
+  display: flex; gap: 12px; align-items: flex-start;
+  overflow-x: auto; padding-bottom: 10px;
+  scroll-snap-type: x proximity;
+}
+.al-col {
+  flex: 0 0 268px; scroll-snap-align: start; min-width: 0;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--shadow-sm);
+  padding: 12px 13px;
+}
+.al-col-head {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.al-col-head h4 {
+  flex: 1; margin: 0;
+  font-size: .7rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--text-2);
+}
+
+.al-list { list-style: none; margin: 0; padding: 0; }
+.al-card { padding: 11px 0; border-bottom: 1px solid var(--line); }
+.al-card:last-child { border-bottom: 0; }
+.al-title {
+  border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; font-size: .85rem; font-weight: 600; color: var(--text);
+  text-align: left; cursor: pointer; overflow-wrap: anywhere;
+  transition: color .16s;
+}
+.al-title:hover { color: var(--brand); }
+.al-who, .al-facts, .al-activity { margin: 3px 0 0; font-size: .73rem; color: var(--muted); }
+.al-who { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--text-2); font-weight: 500; }
+.al-who .icon { color: var(--muted); flex: none; }
+.al-group {
+  padding: 0 6px; border-radius: 999px; border: 1px solid var(--line-2);
+  font-size: .66rem; font-weight: 600; color: var(--muted);
+}
+.al-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.al-follow { display: inline-flex; align-items: center; gap: 4px; }
+.al-activity { font-size: .71rem; }
+.al-nudge { margin-top: 8px; }
+
+/* The same work as rows: read down a column rather than across the board. */
+.al-rows { list-style: none; margin: 0; padding: 0; }
+.al-rows li {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.al-rows li:last-child { border-bottom: 0; }
+.al-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.al-row-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: .73rem; color: var(--muted);
+}
+.al-row-meta .icon { color: var(--muted); flex: none; }
+.al-stage {
+  flex: none; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--line-2); background: var(--raised);
+  font-size: .68rem; font-weight: 600; color: var(--text-2);
+  white-space: nowrap;
+}
+.al-stage.s-overdue, .al-stage.s-followup {
+  color: var(--danger); border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+  background: var(--danger-wash);
+}
+.al-stage.s-done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 28%, transparent); background: var(--ok-wash); }
+.al-row-due {
+  flex: none; min-width: 108px; text-align: right;
+  font-size: .76rem; font-weight: 600; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .al-col { flex-basis: 84vw; }
+  .al-rows li { flex-wrap: wrap; gap: 8px; }
+  .al-row-main { flex-basis: 100%; }
+  .al-row-due { min-width: 0; text-align: left; }
+}
+
 /* ---------- touch targets ---------- */
 
 /*

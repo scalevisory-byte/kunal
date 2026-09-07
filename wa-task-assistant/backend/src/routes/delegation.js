@@ -3,7 +3,7 @@ import { getTask, listTasks } from '../db.js';
 import {
   delegates, requesters, delegationCounts, assignTask, followUpText, directionOf,
 } from '../assignment.js';
-import { EVENT, recordEvent } from '../task-events.js';
+import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
 import { getSettings, nextRemindersFor } from '../scheduling.js';
 import { sendMessage, state as waState } from '../whatsapp.js';
@@ -26,11 +26,17 @@ export const delegationRouter = Router();
 
 const decorate = (rows) => {
   const settings = getSettings();
-  const next = nextRemindersFor(rows.map((t) => t.id));
+  const ids = rows.map((t) => t.id);
+  const next = nextRemindersFor(ids);
+  // For work in somebody else's hands, "when did anything last move" is the
+  // question — a task given three days ago with nothing since is the one to
+  // chase, and the deadline alone does not say that.
+  const activity = lastActivityFor(ids);
   return rows.map((task) => ({
     ...task,
     ...taskSchedule(task, settings, { next: next.get(task.id) || {} }),
     direction: directionOf(task),
+    last_activity: activity.get(task.id) || null,
   }));
 };
 
