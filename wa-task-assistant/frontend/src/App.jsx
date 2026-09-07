@@ -64,7 +64,10 @@ const PAGES = {
   },
   attention: {
     title: 'Needs Attention',
-    lede: 'Everything that wants doing now: overdue, due today, or asked about so many times the app has stopped chasing it.',
+    lede: 'Work that is late, owed today, or has been asked about as many times as the app is willing to ask. Grouped by which of those it is.',
+    /* Grouped by the reason it is here, not by date: the page is about now, so
+       a section headed "Today" told you nothing you had not read in the title. */
+    groupBy: 'reason',
   },
   chat: {
     title: 'By Chat',
@@ -971,7 +974,9 @@ export default function App() {
                       tasks={visible}
                       loading={loading}
                       error={error && !tasks.length ? error : ''}
-                      groupBy={searching ? 'none' : groupBy}
+                      /* A page may fix its own grouping — Needs Attention is
+                         about why, not when — otherwise the toolbar decides. */
+                      groupBy={searching ? 'none' : (page.groupBy || groupBy)}
                       view={view}
                       query={query}
                       onRetry={() => refresh()}

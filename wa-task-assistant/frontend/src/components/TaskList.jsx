@@ -54,6 +54,56 @@ function byDate(open) {
   ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
 }
 
+/**
+ * Sections by why a task is on the Needs Attention page.
+ *
+ * The page gathers three different problems — the app has given up chasing it,
+ * the deadline has passed, it is owed today — and listed them flat they were
+ * indistinguishable from any other list: the same rows, in the same order,
+ * under a heading that said "Today". Nothing on the screen answered the only
+ * question the page exists to answer, which is *why is this one here*.
+ *
+ * So the reason is the section. Worst first, and each task appears once under
+ * the most serious thing true about it: a task the app stopped chasing is not
+ * also filed under "overdue", because what to do about it is different.
+ */
+function byReason(open) {
+  const today = todayIso();
+  const taken = new Set();
+  const claim = (match) => (t) => {
+    if (taken.has(t.id) || !match(t)) return false;
+    taken.add(t.id);
+    return true;
+  };
+
+  return [
+    {
+      key: 'stopped',
+      label: 'Stopped asking',
+      note: 'Reminded the maximum number of times. The app will not ask again — this one is yours to decide.',
+      tone: 'warn',
+      icon: 'alert',
+      match: claim((t) => t.needs_attention),
+    },
+    {
+      key: 'overdue',
+      label: 'Past its deadline',
+      note: 'The deadline has gone. Finish it, or give it a new one.',
+      tone: 'danger',
+      icon: 'alert',
+      match: claim((t) => isOverdue(t) || t.state === 'overdue'),
+    },
+    {
+      key: 'today',
+      label: 'Owed today',
+      note: 'Due before the day is out.',
+      tone: 'warn',
+      icon: 'sun',
+      match: claim((t) => t.due_date === today || t.state === 'due'),
+    },
+  ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
+}
+
 /** Sections by conversation, for working through one person or group at a time. */
 function byChat(open) {
   const groups = new Map();
@@ -150,6 +200,7 @@ export default function TaskList({
 
   let sections;
   if (view === 'myday') sections = myDay(open, done);
+  else if (groupBy === 'reason') sections = byReason(open);
   else if (groupBy === 'chat') sections = byChat(open);
   /*
    * Recent asks a different question from every other view: not what is most
@@ -211,7 +262,7 @@ export default function TaskList({
       {sections.map((section) => {
         const shut = touched[section.key] ? collapsed[section.key] : shutByDefault;
         return (
-          <section className={`section tone-${section.tone || 'plain'}`} key={section.key}>
+          <section className={`section s-${section.key} tone-${section.tone || 'plain'}`} key={section.key}>
             <button
               className="section-head"
               aria-expanded={!shut}
@@ -223,6 +274,9 @@ export default function TaskList({
               <Icon name={section.icon || 'circle'} size={17} className="section-icon" />
               <h3>{section.label}</h3>
               <span className="section-count">{count(section.items.length)}</span>
+              {/* What this section means, where the heading alone is not enough
+                  to act on — "Stopped asking" says nothing about what to do. */}
+              {section.note && <span className="section-note">{section.note}</span>}
               <Icon name="chevronDown" size={17} className={`section-chevron ${shut ? '' : 'up'}`} />
             </button>
             {!shut && (

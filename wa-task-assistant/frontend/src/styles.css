@@ -699,7 +699,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* A quiet label with a rule, the way a printed schedule is broken up. */
 .section-head {
-  display: flex; align-items: center; gap: 9px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 9px;
   width: 100%; text-align: left;
   border: 0; background: none; cursor: pointer; font: inherit;
   padding: 0 2px 8px;
@@ -2501,6 +2501,29 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/*
+ * What a section means, on the pages where its heading is not self-explanatory.
+ *
+ * Set quietly on the same line, so it reads as a caption to the heading rather
+ * than as another thing to get through before the tasks.
+ */
+.section-note {
+  flex: 1 1 100%;
+  order: 9;
+  margin: 2px 0 0 27px;
+  font-size: .76rem;
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+  text-align: left;
+}
+@media (max-width: 560px) { .section-note { margin-left: 0; } }
+/* Under a heading that already says it, the badge on each row is the same word
+   twice. It stays everywhere else, where it is the only thing that says it. */
+.section.s-stopped .state-chip.attention { display: none; }
 
 /* ---------- touch targets ---------- */
 
