@@ -81,6 +81,24 @@ export const addedLabel = (value) => {
   return `Added ${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
 };
 
+/**
+ * When a task's message arrived, short enough to sit in a row of meta.
+ *
+ * Today is the clock time alone - the day is obvious and repeating it on twenty
+ * rows is noise. Anything older carries the day as well, because by then
+ * "2:16 PM" on its own says nothing.
+ */
+export const arrivedLabel = (value) => {
+  if (!value) return null;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+
+  const clock = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (at.toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')) return clock;
+  return `${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
+};
+
 const FILLER = new Set([
   'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
   'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',

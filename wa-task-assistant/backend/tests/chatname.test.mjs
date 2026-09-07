@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
-const { taskChat, taskSource, readableName, addedLabel } = new Function(
+const { taskChat, taskSource, readableName, addedLabel, arrivedLabel } = new Function(
   src.replace(/^import.*$/gm, '').replace(/export /g, '') +
-  '; return { taskChat, taskSource, readableName, addedLabel };'
+  '; return { taskChat, taskSource, readableName, addedLabel, arrivedLabel };'
 )();
 
 let pass = 0, fail = 0;
@@ -127,6 +127,31 @@ run("SQLite's own format is read correctly", () => {
 run('a missing or unreadable timestamp says nothing rather than guessing', () => {
   assert.equal(addedLabel(null), null);
   assert.equal(addedLabel('not a date'), null);
+});
+
+console.log('\nwhen the message arrived, on every task');
+
+run("today's messages give the clock alone", () => {
+  // The day is obvious; repeating it on twenty rows is noise.
+  const label = arrivedLabel(new Date().toISOString());
+  assert.match(label, /^\d{1,2}:\d{2}/);
+  assert.ok(!/\w{3}/.test(label.replace(/AM|PM/, '')), `no date on today's: ${label}`);
+});
+
+run('an older message carries the day as well', () => {
+  // By then "2:16 PM" on its own says nothing.
+  const label = arrivedLabel(new Date(Date.now() - 3 * 86_400_000).toISOString());
+  assert.match(label, /\d{1,2}:\d{2}/);
+  assert.match(label, /\w{3}/);
+});
+
+run("SQLite's own format is read here too", () => {
+  assert.ok(arrivedLabel('2026-09-04 08:52:00'));
+});
+
+run('nothing to show rather than a guess', () => {
+  assert.equal(arrivedLabel(null), null);
+  assert.equal(arrivedLabel('not a date'), null);
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { addedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel } from '../lib/task.js';
+import {
+  arrivedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
+} from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -79,6 +81,8 @@ export default function TaskItem({
   const done = isDone(task);
   const due = dueLabel(task.due_date);
   const source = taskSource(task);
+  // The message's time if it came from one, otherwise when it was typed.
+  const arrived = arrivedLabel(task.source_message_at || task.created_at);
 
   return (
     <li className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}>
@@ -145,6 +149,19 @@ export default function TaskItem({
             </span>
           )}
 
+          {/*
+            * When it arrived, on every task rather than only undated ones.
+            *
+            * The message's own time when there is one, because "when did this
+            * come in" is a question about the message, not about the moment the
+            * extractor got round to it - and the two differ by however long the
+            * batch waited.
+            */}
+          {arrived && (
+            <span className="m-item" title={`Arrived ${dateTimeLabel(task.source_message_at || task.created_at)}`}>
+              <Icon name="clock" size={12} /> {arrived}
+            </span>
+          )}
           <span className="m-item" title={task.origin === 'ai' ? 'Created by Claude' : 'Added by hand'}>
             <Icon name={task.origin === 'ai' ? 'robot' : 'clipboard'} size={12} />
           </span>
@@ -179,17 +196,10 @@ export default function TaskItem({
         </span>
       </div>
 
-      {/*
-        * A task with no deadline says when it arrived instead.
-        *
-        * "No date" is the same on all twenty-three of them and says nothing:
-        * you cannot tell what came in this morning from what has been sitting
-        * there a fortnight. The moment it was captured is the one fact such a
-        * task actually has.
-        */}
-      <span className={`due ${due?.tone || 'none'}`}>
-        {due ? due.text : addedLabel(task.created_at) || 'No date'}
-      </span>
+      {/* One time per row: the arrival is in the meta line above, on every
+          task, so this column stays about the deadline alone. Two different
+          times on one row read as a contradiction. */}
+      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
 
       {extra}
 
