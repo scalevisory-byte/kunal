@@ -482,8 +482,44 @@ async function transcribeVoice(message) {
   }
 }
 
+/**
+ * A message arriving proves the connection, whatever the library said.
+ *
+ * whatsapp-web.js does not always emit 'ready' - on a busy account the sync can
+ * stall at 99% and the event never comes, while messages are delivered
+ * perfectly well the whole time. The dashboard then says "still syncing" beside
+ * a task list that is visibly growing.
+ *
+ * That contradiction is not cosmetic. Every path that *sends* is gated on
+ * 'ready': the digest, the daily briefing, a follow-up, the nudge button. So a
+ * connection stuck here captures everything and can never answer - which is
+ * exactly the "no WhatsApp message arrived" that was reported and put down to
+ * something else.
+ *
+ * Delivering a message is a better proof of a working connection than an event
+ * that may never fire, so it is treated as one. The account's own id comes from
+ * client.info, which is populated by then; without it `reminderChatId()` has
+ * nowhere to send, and nothing can tell his own notes chat from any other.
+ */
+let caughtUp = false;
+
+function promoteToReady() {
+  if (state.status === 'ready' || !client) return;
+  const me = client.info?.wid?._serialized ?? null;
+  if (!me) return; // not far enough along to know who we are
+
+  state.status = 'ready';
+  state.me = me;
+  state.meName = client.info?.pushname || state.meName;
+  state.qrDataUrl = null;
+  noteEvent('ready', 'messages are arriving, so the connection is up');
+  log.info(`WhatsApp treated as ready as ${state.me}: messages are being delivered.`);
+  runCatchUpOnce();
+}
+
 export async function handleMessage(message) {
   try {
+    promoteToReady();
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
     if (message.isStatus) return drop('status');
 
@@ -657,6 +693,14 @@ function noteSeen(sentAt) {
   }
 }
 
+/** Once per connection, from whichever of the two paths gets there first. */
+function runCatchUpOnce() {
+  if (caughtUp) return;
+  caughtUp = true;
+  // Its own catch: missing the catch-up must never cost the connection.
+  catchUp().catch((err) => log.error('Catch-up failed:', err?.message || err));
+}
+
 export async function catchUp() {
   const since = getMeta('last_message_at');
   if (!since) {
@@ -796,8 +840,7 @@ export function startWhatsApp() {
     state.meName = client.info?.pushname || null;
     log.info(`WhatsApp ready as ${state.me}`);
 
-    // Its own catch: missing the catch-up must never cost the connection.
-    catchUp().catch((err) => log.error('Catch-up failed:', err?.message || err));
+    runCatchUpOnce();
   });
 
   client.on('disconnected', (reason) => {
