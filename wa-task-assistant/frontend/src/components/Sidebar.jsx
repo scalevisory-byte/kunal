@@ -6,10 +6,8 @@ const NAV = [
   {
     label: 'Workspace',
     items: [
-      { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
       { key: 'myday', label: 'My Day', icon: 'sun' },
       { key: 'all', label: 'All Tasks', icon: 'list' },
-      { key: 'attention', label: 'Needs Attention', icon: 'alert' },
       { key: 'calendar', label: 'Calendar', icon: 'calendar' },
     ],
   },
@@ -38,6 +36,7 @@ const NAV = [
   {
     label: 'Automation',
     items: [
+      { key: 'reminders', label: 'Reminders & follow-ups', icon: 'bell' },
       { key: 'monthly', label: 'Monthly deadlines', icon: 'calendar' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
       { key: 'groups', label: 'Manage groups', icon: 'settings' },
@@ -54,13 +53,13 @@ const NAV = [
 ];
 
 /*
- * The reminder and follow-up engine is the heart of this thing, and it kept
- * ending up behind something: first the connection panel at the top of
- * Settings, then a group heading that folds shut. It sits outside the groups
- * now, always visible, because "am I going to be reminded about this" is not a
- * question that should need two clicks to reach.
+ * The one item that is never behind a fold.
+ *
+ * Every group here collapses, so with them all shut the first thing on the
+ * screen was a heading rather than a way in. The dashboard is where you start,
+ * so it sits outside the groups and above them.
  */
-const PINNED = { key: 'reminders', label: 'Reminders & follow-ups', icon: 'bell' };
+const PINNED = { key: 'dashboard', label: 'Dashboard', icon: 'dashboard' };
 
 /*
  * Which groups are open.
