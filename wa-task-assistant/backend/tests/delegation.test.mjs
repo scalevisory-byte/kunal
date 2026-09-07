@@ -122,6 +122,36 @@ run('people who asked him are listed the same way', () => {
   assert.equal(who.open, 2);
 });
 
+console.log('\nwork handed over from a set-aside group');
+
+run('the page and the sidebar badge count the same thing', () => {
+  /*
+   * They did not. The badge runs its own query with no set-aside filter; the
+   * page went through listTasks, which drops set-aside work. So a vacancy
+   * handed to a recruiter was counted and not shown — badge 2, page 1 — and
+   * since recruitment is most of what gets handed over, the page was empty of
+   * very nearly every automatic delegation. Which is how "Task allotted is not
+   * working" survived five rounds of looking at the extractor.
+   */
+  const G = DB.db.prepare(
+    `INSERT INTO task_groups (name, colour, keywords, position, separate) VALUES (?,?,?,?,1)`
+  ).run('Set aside', 'slate', '[]', 99).lastInsertRowid;
+
+  task('Fill or forward accountant position', { assigned_to: 'Krupa', group_id: G });
+
+  const badge = A.delegationCounts().allotted;
+  const page = DB.listTasks({ status: 'pending', limit: 500, includeSetAside: true })
+    .filter((t) => t.assigned_to).length;
+  assert.equal(page, badge, `page ${page} vs badge ${badge}`);
+});
+
+run('"who owes what" is a different question from "what is due today"', () => {
+  // The task stays out of the day's work and out of the figures; it is only
+  // the delegation pages that have to see it, because the person is real.
+  const listed = DB.listTasks({ status: 'pending', limit: 500 }).map((t) => t.title);
+  assert.ok(!listed.includes('Fill or forward accountant position'), 'still off the main list');
+});
+
 console.log('\nhanding over, and taking back');
 
 run('assigning names the person and records it', () => {

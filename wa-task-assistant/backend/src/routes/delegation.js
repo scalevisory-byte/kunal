@@ -38,7 +38,22 @@ const decorate = (rows) => {
 delegationRouter.get('/', (req, res) => {
   // "all" includes finished work, for the same reason the task list offers it.
   const all = req.query.status === 'all';
-  const rows = listTasks({ status: all ? undefined : 'pending', limit: 500 });
+  /*
+   * Set-aside work is included here, unlike everywhere else.
+   *
+   * "Who owes me what" is a different question from "what is on my list
+   * today", and it is the only question this page asks. A vacancy handed to a
+   * recruiter is still with that recruiter — and since most of what gets handed
+   * over here is recruitment, excluding it emptied the page of very nearly
+   * every automatic delegation. The sidebar badge counted them (its own query
+   * has no such filter) while the page did not, which is how the two came to
+   * disagree: 2 against 1.
+   */
+  const rows = listTasks({
+    status: all ? undefined : 'pending',
+    limit: 500,
+    includeSetAside: true,
+  });
   const allotted = decorate(rows.filter((t) => t.assigned_to));
   const received = decorate(rows.filter((t) => t.requested_by && !t.assigned_to));
 
