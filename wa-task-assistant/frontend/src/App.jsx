@@ -614,7 +614,12 @@ export default function App() {
 
               {!connected && (
                 <div className="banner warn" role="status">
-                  WhatsApp is not connected, so no new tasks are arriving.
+                  {/* Logged in but still syncing is not the same problem as not
+                      being logged in, and saying "not connected" for both sends
+                      you looking for a QR code that is not there. */}
+                  {status?.whatsapp?.status === 'authenticated'
+                    ? 'WhatsApp is logged in and still syncing your chats. New messages will be read once it finishes.'
+                    : 'WhatsApp is not connected, so no new tasks are arriving.'}
                   <button className="link" onClick={() => goto('settings')}>Open settings</button>
                 </div>
               )}

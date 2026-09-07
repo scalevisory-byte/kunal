@@ -9,20 +9,30 @@ function Account({ wa, onSettings }) {
 
   const linked = Boolean(number || wa?.meName);
 
+  /*
+   * The account's name and number only arrive with the `ready` event, so
+   * between accepting a login and finishing the sync there is nothing to show.
+   * It used to say "Not linked" through all of that - which is wrong, and sends
+   * you looking for a QR code that is not there. Say what is actually true.
+   */
+  const syncing = !linked && wa?.status === 'authenticated';
+
   return (
     <button
-      className={`account ${linked ? (connected ? 'on' : 'off') : 'pending'}`}
+      className={`account ${linked ? (connected ? 'on' : 'off') : syncing ? 'off' : 'pending'}`}
       title={
         linked
           ? `${wa?.meName || 'WhatsApp'} · ${number || 'number unknown'} · ${connected ? 'connected' : 'not connected'}`
-          : 'No WhatsApp account is linked yet'
+          : syncing
+            ? 'Logged in, still syncing your chats'
+            : 'No WhatsApp account is linked yet'
       }
       onClick={onSettings}
     >
-      <span className="avatar">{linked ? initialOf(wa?.meName, wa?.me) : '·'}</span>
+      <span className="avatar">{linked ? initialOf(wa?.meName, wa?.me) : syncing ? '⋯' : '·'}</span>
       <span className="account-text">
-        <strong>{linked ? wa?.meName?.split(' ')[0] || 'WhatsApp' : 'Not linked'}</strong>
-        <small>{linked ? number || '—' : 'Open settings'}</small>
+        <strong>{linked ? wa?.meName?.split(' ')[0] || 'WhatsApp' : syncing ? 'Syncing' : 'Not linked'}</strong>
+        <small>{linked ? number || '—' : syncing ? 'Logged in' : 'Open settings'}</small>
       </span>
       <Icon name="chevronDown" size={15} className="account-chevron" />
     </button>
