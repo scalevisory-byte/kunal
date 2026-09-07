@@ -541,13 +541,20 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`)
     )
     .run().changes;
 
-  // The sender's name, for the same reason: without it there is nothing to put
-  // beside the group.
+  /*
+   * The sender's name, for the same reason: without it there is nothing to put
+   * beside the group.
+   *
+   * Also replaced where it merely repeats the group - the extractor used to
+   * take the model's guess ahead of the message's own sender, and the guess was
+   * often the group's name, which left the row with the same text twice and no
+   * sender at all.
+   */
   const named = db
     .prepare(
       `UPDATE tasks SET contact = (SELECT contact_name FROM messages WHERE id = tasks.message_id)
-       WHERE (contact IS NULL OR contact = '')
-         AND message_id IN (SELECT id FROM messages WHERE contact_name IS NOT NULL)`
+       WHERE message_id IN (SELECT id FROM messages WHERE contact_name IS NOT NULL AND is_group = 1)
+         AND (contact IS NULL OR contact = '' OR contact = chat_name)`
     )
     .run().changes;
 

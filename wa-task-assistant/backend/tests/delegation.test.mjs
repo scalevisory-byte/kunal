@@ -370,6 +370,33 @@ run('a one-to-one message is never marked as aimed elsewhere', () => {
   assert.ok(!/addressed to somebody else/.test(out.prompt));
 });
 
+run('in a group, the message\'s own sender beats the model\'s guess', () => {
+  /*
+   * The row showed "Bhavesh- sena global dmc" once and nothing beside it. The
+   * model had filled `contact` with the group's own name, so the sender and the
+   * group were the same text - and a label that repeats itself collapses to
+   * one, losing exactly the name the group was meant to sit beside. The message
+   * knows who sent it; a guess does not get to overrule that.
+   */
+  const out = extract(answer({ contact: 'ACCT - SENA GLOBAL DMC' }), [
+    message({
+      from_me: 0, is_group: 1,
+      chat_name: 'ACCT - SENA GLOBAL DMC', contact_name: 'Bhavesh',
+    }),
+  ]);
+  assert.equal(out.tasks[0].contact, 'Bhavesh');
+  assert.equal(out.tasks[0].chat_name, 'ACCT - SENA GLOBAL DMC', 'and the group is still the chat');
+});
+
+run('in a one-to-one chat the model may still name somebody', () => {
+  // There the message's sender is the chat, so a name the model read out of
+  // the text is the more useful answer.
+  const out = extract(answer({ contact: 'Ajay at IDMC' }), [
+    message({ from_me: 0, is_group: 0, contact_name: 'Meera' }),
+  ]);
+  assert.equal(out.tasks[0].contact, 'Ajay at IDMC');
+});
+
 run('an unnamed sender falls back to their number, never to nothing', () => {
   const out = extract(answer(), [message({ from_me: 0, contact_name: null })]);
   assert.equal(out.tasks[0].requested_by, '9199');

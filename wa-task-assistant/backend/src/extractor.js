@@ -318,7 +318,17 @@ export async function extractTasks(messages) {
       return {
         title,
         description: task.description?.trim() || null,
-        contact: task.contact?.trim() || source?.contact_name || source?.contact_number || null,
+        /*
+         * Who sent it. In a group the message itself knows, and that beats a
+         * guess every time - the model was filling this with the group's own
+         * name often enough that the row had the same text twice and collapsed
+         * to one label, losing the sender the group name was meant to sit
+         * beside. Claude's answer is kept for a one-to-one chat, where it can
+         * name somebody the message only mentions.
+         */
+        contact: source?.is_group
+          ? source.contact_name || source.contact_number || task.contact?.trim() || null
+          : task.contact?.trim() || source?.contact_name || source?.contact_number || null,
         chat_name: task.chat_name?.trim() || source?.chat_name || null,
         chat_id: source?.chat_id ?? null,
         is_group: source?.is_group ? 1 : 0,
