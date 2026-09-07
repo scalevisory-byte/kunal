@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Icon from './Icon.jsx';
+import { resolvedTheme } from '../lib/theme.js';
 import { formatWaNumber, initialOf } from '../lib/task.js';
 
 /** Which WhatsApp account this dashboard is reading. Identity, not a control. */
@@ -42,7 +43,7 @@ function Account({ wa, onSettings }) {
 /** Brand, search and the actions that apply to the whole page. */
 export default function Header({
   query, onQuery, onRefresh, loading, onNewTask, onEnablePush, pushSupported, pushOn, wa, install,
-  onSettings, onMenu, alerts, onBell,
+  onSettings, onMenu, alerts, onBell, onThemeChange,
 }) {
   const search = useRef(null);
 
@@ -97,6 +98,20 @@ export default function Header({
             Install
           </button>
         )}
+        {/*
+          * Straight to the other one. Settings has the three-way choice,
+          * including "match my device"; this is the one people reach for when
+          * the room gets dark, and making them go two levels in for it is the
+          * reason theme switches go unused.
+          */}
+        <button
+          className="icon-action"
+          onClick={() => onThemeChange(resolvedTheme() === 'dark' ? 'light' : 'dark')}
+          title={resolvedTheme() === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          aria-label={resolvedTheme() === 'dark' ? 'Switch to light' : 'Switch to dark'}
+        >
+          <Icon name={resolvedTheme() === 'dark' ? 'sun' : 'moon'} size={19} />
+        </button>
         <button
           className="icon-action"
           onClick={onRefresh}

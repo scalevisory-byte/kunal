@@ -15,6 +15,7 @@ import QuickActions from './components/QuickActions.jsx';
 import SideRail from './components/SideRail.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import Icon from './components/Icon.jsx';
 import FocusToday from './components/FocusToday.jsx';
 import UsagePage from './components/UsagePage.jsx';
 import AttentionWidget from './components/AttentionWidget.jsx';
@@ -32,6 +33,7 @@ import DueSoonBanner from './components/DueSoonBanner.jsx';
 import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
+import { getTheme, setTheme } from './lib/theme.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
@@ -119,6 +121,13 @@ export default function App() {
   const [view, setView] = useState('open');
   const [query, setQuery] = useState('');
   const searching = query.trim().length > 0;
+  /*
+   * Held in state only so the icons and the segmented control re-render when it
+   * changes; the theme itself lives on the root element and in localStorage,
+   * applied before the first render — see lib/theme.js.
+   */
+  const [theme, setThemeState] = useState(getTheme);
+  const chooseTheme = (next) => setThemeState(setTheme(next));
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openTask, setOpenTask] = useState(null);
   // A day picked in the calendar narrows the board to that date.
@@ -481,6 +490,7 @@ export default function App() {
           onBell={() => setNotifOpen((v) => !v)}
           onMenu={() => setNavOpen(true)}
           alerts={notifications.unread}
+          onThemeChange={chooseTheme}
         />
 
         <div className="page">
@@ -632,6 +642,48 @@ export default function App() {
                 </div>
               </div>
               <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+
+              {/*
+                * Three states, because "match my device" is a real answer and
+                * not the absence of one — a phone that goes dark in the evening
+                * should take this with it unless you have said otherwise.
+                */}
+              <section className="settings-block">
+                <header className="settings-head">
+                  <h3>Appearance</h3>
+                  <span>Kept in this browser</span>
+                </header>
+                <div className="set-row">
+                  <div className="set-label">
+                    <strong>Light or dark</strong>
+                    <small>
+                      Matching your device is the default, and a real answer rather than the
+                      absence of one: a phone that goes dark in the evening takes this with
+                      it. Choosing light or dark is choosing to stop following it. The
+                      switch in the top bar flips straight between the two.
+                    </small>
+                  </div>
+                  <div className="set-control">
+                    <div className="segment">
+                      {[
+                        { key: 'light', label: 'Light', icon: 'sun' },
+                        { key: 'dark', label: 'Dark', icon: 'moon' },
+                        { key: 'system', label: 'My device', icon: 'settings' },
+                      ].map((o) => (
+                        <button
+                          key={o.key}
+                          className={theme === o.key ? 'active' : ''}
+                          aria-pressed={theme === o.key}
+                          onClick={() => chooseTheme(o.key)}
+                        >
+                          <Icon name={o.icon} size={14} /> {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <CaptureSettings onError={(err) => setError(err.message)} />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>

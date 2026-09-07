@@ -31,6 +31,8 @@ const PATHS = {
   inbox: 'M4 13h4l1.5 3h5L16 13h4M4 13 6.5 5h11L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5Z',
   // Work going out: an arrow leaving the tray.
   outbox: 'M4 14h4l1.5 3h5l1.5-3h4v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4Zm8-2V3m0 0L8.5 6.5M12 3l3.5 3.5',
+  // The other half of the light/dark switch.
+  moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z',
   // A person, for the name a delegated task carries.
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8.5a7 7 0 0 1 14 0',
 };

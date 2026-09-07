@@ -2165,3 +2165,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   display: flex; flex-wrap: wrap; gap: 4px;
 }
 .build-line code { font-size: .74rem; color: var(--text-2); }
+
+/* Appearance, in Settings: the segmented choice sits in an ordinary set-row. */
+.set-control .segment button { display: inline-flex; align-items: center; gap: 6px; }
