@@ -140,6 +140,12 @@ export default function App() {
   // to type into rather than needing to be found. Held as an id rather than a
   // flag so it cannot leak onto the next task opened some other way.
   const [focusProgress, setFocusProgress] = useState(null);
+  /* Columns to compare, a list to work through. Remembered, because a person
+     settles on one of the two and does not want to pick it again tomorrow. */
+  const [boardView, setBoardView] = useState(() => {
+    try { return localStorage.getItem('wa.board.view') === 'list' ? 'list' : 'columns'; }
+    catch { return 'columns'; }
+  });
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   const [composing, setComposing] = useState(false);
@@ -636,11 +642,50 @@ export default function App() {
                 <div>
                   <h2>Businesses</h2>
                   <p>
-                    Every business side by side, so you can read across them rather than
-                    opening each in turn. Click a name for that one on its own.
+                    {boardView === 'list'
+                      ? 'One section per business, with the full row for each task. Columns are for comparing them; this is for working through one.'
+                      : 'Every business side by side, so you can read across them rather than opening each in turn. Click a name for that one on its own.'}
                   </p>
                 </div>
               </div>
+              <nav className="segment tabs board-switch" role="tablist" aria-label="How to show the businesses">
+                {[['columns', 'Columns'], ['list', 'List']].map(([key, label]) => (
+                  <button
+                    key={key}
+                    role="tab"
+                    aria-selected={boardView === key}
+                    className={boardView === key ? 'active' : ''}
+                    onClick={() => {
+                      setBoardView(key);
+                      try { localStorage.setItem('wa.board.view', key); } catch { /* private window */ }
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+
+              {boardView === 'list' ? (
+                <TaskList
+                  tasks={tasks}
+                  loading={loading}
+                  error={error && !tasks.length ? error : ''}
+                  groupBy="business"
+                  view={view}
+                  query={query}
+                  groups={groups}
+                  onRetry={() => refresh()}
+                  onToggle={onToggle}
+                  onOpen={setOpenTask}
+                  onStatus={(task, next) => onEdit(task, { status: next })}
+                  onQuickDate={onQuickDate}
+                  onDelete={onDelete}
+                  onNotATask={onNotATask}
+                  onMove={onMove}
+                  onManageGroups={() => setSection('groups')}
+                  onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                />
+              ) : (
               <BoardPage
                 tasks={tasks}
                 groups={groups}
@@ -655,6 +700,7 @@ export default function App() {
                 onChanged={() => { refresh({ quiet: true }); api.groups().then((d) => setGroups(d.groups)).catch(() => {}); }}
                 onError={(err) => setError(err.message)}
               />
+              )}
             </section>
           ) : section === 'groups' ? (
             <section className="settings-page">

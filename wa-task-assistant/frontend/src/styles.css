@@ -2524,6 +2524,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Under a heading that already says it, the badge on each row is the same word
    twice. It stays everywhere else, where it is the only thing that says it. */
 .section.s-stopped .state-chip.attention { display: none; }
+/* Same rule under a business heading: the tag on every row is the heading
+   again, once per task. It stays in every view that is not grouped by it. */
+.section.by-business .group-tag { display: none; }
 
 /* ---------- the businesses board ---------- */
 
@@ -2613,6 +2616,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   border: 1px solid var(--line-2); color: var(--text-2);
   font-size: .68rem; font-weight: 600;
 }
+
+/* The two ways to read this page, above both of them. */
+.board-switch { align-self: flex-start; margin-bottom: 16px; }
 
 /* Work with no business yet: a line, not a column that takes over the page. */
 .board-unfiled {

@@ -104,6 +104,29 @@ function byReason(open) {
   ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
 }
 
+/**
+ * Sections by business, stacked instead of side by side.
+ *
+ * The board's columns are for comparing — five businesses read across in one
+ * glance. This is for working: the same split, but each task gets the full row
+ * it gets everywhere else, with its chat, its times and its ⋮ menu. Neither is
+ * the right one; they answer different questions on the same page.
+ *
+ * Unfiled work is left out, exactly as the board leaves it out. What belongs on
+ * this page is what was put in a business.
+ */
+function byBusiness(open, groups) {
+  return groups.map((g) => ({
+    key: `g${g.id}`,
+    cls: 'by-business',
+    label: g.name,
+    tone: 'plain',
+    icon: 'board',
+    dot: g.colour,
+    items: open.filter((t) => t.group_id === g.id).sort(byClock),
+  }));
+}
+
 /** Sections by conversation, for working through one person or group at a time. */
 function byChat(open) {
   const groups = new Map();
@@ -200,6 +223,7 @@ export default function TaskList({
 
   let sections;
   if (view === 'myday') sections = myDay(open, done);
+  else if (groupBy === 'business') sections = byBusiness(open, groups);
   else if (groupBy === 'reason') sections = byReason(open);
   else if (groupBy === 'chat') sections = byChat(open);
   /*
@@ -262,7 +286,10 @@ export default function TaskList({
       {sections.map((section) => {
         const shut = touched[section.key] ? collapsed[section.key] : shutByDefault;
         return (
-          <section className={`section s-${section.key} tone-${section.tone || 'plain'}`} key={section.key}>
+          <section
+            className={`section s-${section.key} ${section.cls || ''} tone-${section.tone || 'plain'}`}
+            key={section.key}
+          >
             <button
               className="section-head"
               aria-expanded={!shut}
@@ -271,7 +298,9 @@ export default function TaskList({
                 setCollapsed((c) => ({ ...c, [section.key]: !shut }));
               }}
             >
-              <Icon name={section.icon || 'circle'} size={17} className="section-icon" />
+              {section.dot
+                ? <span className={`board-dot c-${section.dot}`} aria-hidden="true" />
+                : <Icon name={section.icon || 'circle'} size={17} className="section-icon" />}
               <h3>{section.label}</h3>
               <span className="section-count">{count(section.items.length)}</span>
               {/* What this section means, where the heading alone is not enough
