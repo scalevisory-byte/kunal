@@ -1062,6 +1062,12 @@ export default function App() {
                             onDone={(task) => onEdit(task, { status: 'done' })}
                             onSnooze={onSnoozeTask}
                             onOpen={setOpenTask}
+                            onViewAll={() => {
+                              setSection('all');
+                              setView('open');
+                              setFilters({ ...EMPTY_FILTERS, attention: true });
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
                           />
                         }
                       />

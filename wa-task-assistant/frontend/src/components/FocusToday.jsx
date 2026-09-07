@@ -1,5 +1,5 @@
 import Icon from './Icon.jsx';
-import { dueLabel, isOverdue, taskSource, todayIso } from '../lib/task.js';
+import { dueLabel, isOverdue, taskSource, timeLabel, todayIso } from '../lib/task.js';
 
 const PRIORITY = { high: 'High priority', medium: 'Medium priority', low: 'Low priority' };
 
@@ -77,11 +77,32 @@ export default function FocusToday({ tasks, onOpen, onToggle, onShowAll }) {
                 />
                 <button className="focus-body" onClick={() => onOpen(task)}>
                   <strong>{task.title}</strong>
+                  {/*
+                    * Where it came from and how urgent, then when — two lines,
+                    * not four. The business was missing here while every other
+                    * list carried it, and "Today" without the hour is the one
+                    * thing you cannot act on: it is the difference between a
+                    * deadline at 11:30 and one at six.
+                    */}
                   <small>
-                    {due ? due.text : 'No date'} · {PRIORITY[task.priority]}
-                    {source ? ` · ${source.label}` : ''} · {task.origin === 'ai' ? 'AI-created' : 'Manual'}
+                    {task.group_name ? `${task.group_name} · ` : ''}
+                    {PRIORITY[task.priority]}
+                    {source ? ` · ${source.label}` : ''} · {task.origin === 'ai' ? 'AI' : 'Manual'}
                   </small>
                 </button>
+                <span className="focus-when">
+                  <span className={due?.tone ? `${due.tone}-text` : ''}>
+                    {due ? due.text : 'No date'}
+                    {task.due_at ? ` · ${timeLabel(task.due_at)}` : ''}
+                  </span>
+                  {/* Only while it is actually late: before that, the next
+                      follow-up is a time nothing is going to happen at. */}
+                  {task.next_follow_up_at && isOverdue(task) && (
+                    <span className="focus-follow">
+                      <Icon name="refresh" size={11} /> {timeLabel(task.next_follow_up_at)}
+                    </span>
+                  )}
+                </span>
               </li>
             );
           })}

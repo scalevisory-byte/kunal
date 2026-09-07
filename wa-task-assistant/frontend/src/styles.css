@@ -450,7 +450,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
-  padding: 12px 14px 13px;
+  padding: 10px 13px 11px;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -468,8 +468,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .kpi-icon { color: var(--line-2); flex: none; transition: color .18s; }
 .kpi:hover .kpi-icon { color: var(--muted); }
 .kpi-num {
+  /*
+   * Smaller than it was.
+   *
+   * At nearly 2rem, "26" was the biggest thing on the page — bigger than any
+   * task title — so the first thing the dashboard said was a count rather than
+   * a piece of work. These are the page's least urgent information and they
+   * were carrying its loudest type.
+   */
   font-family: Archivo, sans-serif;
-  font-weight: 700; font-size: 1.95rem; line-height: 1.08;
+  font-weight: 700; font-size: 1.55rem; line-height: 1.08;
   letter-spacing: -.035em; font-variant-numeric: tabular-nums;
   margin-top: 1px;
 }
@@ -1394,7 +1402,38 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .topbar-actions { margin-left: auto; }
   .account { max-width: 160px; }
   .page-head .btn.lg { width: 100%; }
-  .kpis { grid-template-columns: repeat(2, 1fr); }
+  /*
+   * One scrolling strip, not a 2x2 block.
+   *
+   * As four stacked cards the figures cost two hundred pixels before any task
+   * was on screen — and they are the least urgent thing the dashboard says.
+   * Side by side in their own scroller they keep the same order as the desktop
+   * and give the height back to the work.
+   */
+  .kpis {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    gap: 8px;
+    margin: 0 -18px 12px;
+    padding: 0 18px 4px;
+    scroll-snap-type: x proximity;
+  }
+  .kpis .kpi {
+    flex: 0 0 46%;
+    scroll-snap-align: start;
+    padding: 9px 12px 10px;
+  }
+  .kpi-num { font-size: 1.35rem; }
+  /* The shortcuts scroll on one line too, rather than wrapping to two. */
+  .quick {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin: -4px -18px 12px;
+    padding: 0 18px 4px;
+  }
+  .quick .qa { flex: none; }
+  .quick-title { flex: none; white-space: nowrap; }
   .work-head { align-items: flex-start; }
   .task { padding-right: 0; }
   /* Reaching a hover-only control is impossible here, so they sit under the row. */
@@ -2720,6 +2759,58 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 @media (max-width: 560px) {
   /* Nearly the full width, so a column is a screen and the next one peeks. */
   .board-col { flex-basis: 84vw; }
+}
+
+/* ---------- dashboard polish ---------- */
+
+/*
+ * The rail's small actions.
+ *
+ * `.tool` had no rule at all, so Done / +1h / Reschedule rendered as the
+ * browser's own grey buttons — the one place in the app that did not look like
+ * the app.
+ */
+.tool {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line-2);
+  background: var(--card);
+  border-radius: var(--r-sm);
+  padding: 4px 10px; min-height: 28px;
+  font: inherit; font-size: .74rem; font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer; white-space: nowrap;
+  transition: background .16s, border-color .16s, color .16s;
+}
+.tool:hover { background: var(--raised); border-color: var(--brand); color: var(--brand); }
+.attn-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.attn-more { margin-top: 12px; font-size: .78rem; }
+
+/*
+ * Focus today: two lines a task, and the deadline in its own column.
+ *
+ * It carries everything a row of the main list does — business, priority,
+ * source, the hour it is due and the next follow-up while it is late — without
+ * becoming four lines each. Long, it scrolls inside itself rather than pushing
+ * the task list, which is the thing this strip sits above and must never
+ * bury.
+ */
+.focus-list { max-height: 264px; overflow-y: auto; }
+.focus-list li { align-items: flex-start; }
+.focus-when {
+  flex: none; margin-left: auto; padding-left: 12px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-size: .74rem; font-weight: 600; color: var(--text-2);
+  white-space: nowrap; text-align: right;
+}
+.focus-follow {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-weight: 500; color: var(--muted);
+}
+.focus-follow .icon { color: var(--muted); }
+
+@media (max-width: 560px) {
+  /* Stacked, the deadline goes under the meta rather than off the edge. */
+  .focus-when { margin-left: 0; padding-left: 0; align-items: flex-start; text-align: left; }
 }
 
 /* ---------- touch targets ---------- */

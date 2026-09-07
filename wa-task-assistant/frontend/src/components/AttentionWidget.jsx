@@ -6,7 +6,16 @@ import { SNOOZE_OPTIONS, clock, dueLabel, needsAttention } from '../lib/schedule
  * from the loaded tasks; with nothing outstanding it says so rather than
  * showing a zero.
  */
-export default function AttentionWidget({ tasks, onDone, onSnooze, onOpen }) {
+/*
+ * How many fit before the card becomes the page.
+ *
+ * Three, and then it says how many there are — a card that quietly stops at
+ * three leaves you believing three is all there is, which is the one thing a
+ * count like this must never do.
+ */
+const SHOWN = 3;
+
+export default function AttentionWidget({ tasks, onDone, onSnooze, onOpen, onViewAll }) {
   const chasing = needsAttention(tasks);
   const overdue = chasing.filter((t) => t.state === 'overdue' || t.needs_attention).length;
   const due = chasing.filter((t) => t.state === 'due').length;
@@ -29,12 +38,19 @@ export default function AttentionWidget({ tasks, onDone, onSnooze, onOpen }) {
           </p>
 
           <ul className="attn-list">
-            {chasing.slice(0, 3).map((task) => (
+            {chasing.slice(0, SHOWN).map((task) => (
               <li key={task.id}>
                 <button className="attn-title" onClick={() => onOpen(task)}>{task.title}</button>
                 <span className={`attn-when ${task.state === 'overdue' ? 'danger-text' : 'warn-text'}`}>
                   {dueLabel(task.due_at)}
-                  {task.follow_up_count > 0 && ` · follow-up ${task.follow_up_count} of ${task.follow_up_max}`}
+                  {task.follow_up_count > 0 && (
+                    // Past the cap the counter keeps climbing internally, and
+                    // "follow-up 4 of 3" is not a thing anyone can read. The
+                    // same wording the engine page uses.
+                    task.follow_up_count >= task.follow_up_max
+                      ? ` · all ${task.follow_up_max} follow-ups spent`
+                      : ` · follow-up ${task.follow_up_count} of ${task.follow_up_max}`
+                  )}
                 </span>
                 {task.needs_attention && (
                   <span className="attn-flag"><Icon name="alert" size={12} /> No more reminders</span>
@@ -47,6 +63,12 @@ export default function AttentionWidget({ tasks, onDone, onSnooze, onOpen }) {
               </li>
             ))}
           </ul>
+
+          {chasing.length > SHOWN && (
+            <button className="link attn-more" onClick={onViewAll}>
+              Showing {SHOWN} of {chasing.length} — view all
+            </button>
+          )}
         </>
       )}
     </section>
