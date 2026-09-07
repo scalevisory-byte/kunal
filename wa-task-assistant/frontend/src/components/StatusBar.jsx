@@ -298,7 +298,28 @@ export default function StatusBar({ status, stats, overdueCount }) {
         </div>
       )}
 
-      {state === 'error' && wa?.lastError && <p className="hint error-text">{wa.lastError}</p>}
+      {/*
+        * What went wrong, said first in words.
+        *
+        * This printed the raw failure — "net::ERR_TUNNEL_CONNECTION_FAILED at
+        * https://web.whatsapp.com/" — as the first thing on the Settings page.
+        * That is a line for whoever is debugging the server, not for the person
+        * whose tasks have stopped arriving. It says what it means now, and the
+        * original text is still one click away for when it is needed.
+        */}
+      {state === 'error' && wa?.lastError && (
+        <div className="status-error">
+          <p>
+            <b>WA Tasks could not reach WhatsApp.</b> No new messages are being read
+            until the connection comes back. It retries on its own; if it stays like
+            this, re-link the phone from the QR code above.
+          </p>
+          <details>
+            <summary>Technical detail</summary>
+            <code>{wa.lastError}</code>
+          </details>
+        </div>
+      )}
 
       {state === 'authenticated' && (
         <p className="hint">

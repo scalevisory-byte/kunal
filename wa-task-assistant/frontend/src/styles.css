@@ -109,14 +109,15 @@ b, strong { font-weight: 600; }
 
 body {
   margin: 0;
-  /* Paper, not flat fill: a faint grain over a ground that warms towards the
-     bottom, so white cards read as sheets laid on a surface. */
-  background-color: var(--bg);
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.3'/%3E%3C/svg%3E"),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
-  background-attachment: fixed, fixed;
-  background-size: 140px 140px, 100% 100%;
+  /*
+   * A flat, quiet ground.
+   *
+   * There was a noise texture and a vertical gradient here — paper, from an
+   * earlier warm direction this palette no longer is. On a navy-and-white
+   * business system it was texture competing with the only thing on the page
+   * worth looking at, and the grain sat behind every row of every list.
+   */
+  background: var(--bg);
   color: var(--text);
   font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
@@ -134,20 +135,6 @@ body {
   max-width: 1460px;
   width: 100%;
 }
-/* The same botanical mark as the sidebar, larger and turned, so the page has a
-   surface rather than an edge of empty ground. */
-.page::before {
-  content: "";
-  position: fixed; right: -80px; top: 60px;
-  width: 440px; height: 540px;
-  background: no-repeat center/contain
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 130'%3E%3Cpath d='M50 128C50 70 20 44 6 20 40 24 62 52 62 96c8-30 26-46 32-72C104 62 82 118 50 128Z' fill='%230d5f57'/%3E%3C/svg%3E");
-  opacity: .038;
-  transform: rotate(14deg);
-  pointer-events: none;
-  z-index: 0;
-}
-.page > * { position: relative; z-index: 1; }
 
 .sidebar {
   position: sticky; top: 0; align-self: flex-start;
@@ -158,16 +145,6 @@ body {
   padding: 16px 12px;
   z-index: 45;
   overflow: hidden;
-}
-/* A leaf, barely there: the surface should feel considered, not decorated. */
-.sidebar::after {
-  content: "";
-  position: absolute; right: -46px; bottom: -30px;
-  width: 210px; height: 260px;
-  background: no-repeat center/contain
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 130'%3E%3Cpath d='M50 128C50 70 20 44 6 20 40 24 62 52 62 96c8-30 26-46 32-72C104 62 82 118 50 128Z' fill='%230d5f57'/%3E%3C/svg%3E");
-  opacity: .05;
-  pointer-events: none;
 }
 
 .side-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
@@ -208,6 +185,7 @@ body {
   transition: background .16s, opacity .16s, color .16s;
 }
 .side-group-label:hover { background: var(--nav-bg-2); opacity: 1; }
+
 .side-group-label .side-group-name { flex: 1; min-width: 0; }
 .side-chevron { flex: none; opacity: .7; transition: transform .18s; }
 .side-chevron.shut { transform: rotate(-90deg); }
@@ -506,18 +484,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* ---------- quick actions ---------- */
 
+/*
+ * A row of destinations, not a panel.
+ *
+ * As a white card with a border and a shadow it read as a section of the page
+ * with something in it, and sat between the figures and the work taking up the
+ * height of one. It is a line of links; it now looks like one.
+ */
 .quick {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: var(--r); box-shadow: var(--shadow-sm);
-  padding: 7px 10px; margin-bottom: 18px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+  padding: 0 2px; margin: -4px 0 16px;
 }
 .quick-title {
   font-size: .66rem; font-weight: 600;
   letter-spacing: .12em; text-transform: uppercase;
   color: var(--muted); margin-right: 10px; padding-left: 3px;
 }
-.quick-rule { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
 .qa {
   display: inline-flex; align-items: center; gap: 7px;
   border: 1px solid transparent; background: none;
@@ -529,18 +511,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .qa .icon { color: var(--muted); transition: color .18s; }
 .qa:hover { background: var(--raised); color: var(--text); }
-.qa.t-warn .icon { color: var(--warn); }
-.qa.t-danger .icon { color: var(--danger); }
-.qa.t-ok .icon { color: var(--ok); }
-.qa.t-info .icon { color: var(--info); }
-.qa.on { background: var(--brand-wash); color: var(--brand); }
+.qa:hover .icon { color: var(--text-2); }
+.qa.on { background: var(--brand-wash); color: var(--brand); border-color: var(--brand-wash); }
 .qa.on .icon { color: var(--brand); }
-.qa.primary {
-  background: var(--brand); border-color: var(--brand); color: var(--brand-ink);
-  font-weight: 600; padding: 6px 13px;
-}
-.qa.primary .icon { color: var(--brand-ink); }
-.qa.primary:hover { filter: brightness(1.1); background: var(--brand); color: var(--brand-ink); }
 .qa-count {
   font-family: "IBM Plex Mono", monospace; font-size: .72rem;
   color: var(--muted); font-variant-numeric: tabular-nums;
@@ -597,6 +570,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   transition: background .16s, color .16s;
 }
 .segment button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
+
 .btn.ghost.on { border-color: var(--brand); color: var(--brand); }
 .btn.with-icon { display: inline-flex; align-items: center; gap: 7px; }
 .btn.with-icon .icon { color: var(--muted); }
@@ -811,8 +785,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   display: flex; align-items: baseline; gap: 14px;
 }
 .t-line {
-  flex: none;
+  /* Shrinks before the title does, and elides rather than pushing the row. */
+  flex: 0 1 auto; min-width: 0; margin-right: auto;
   display: inline-flex; align-items: center; gap: 12px;
+  overflow: hidden;
   font-size: .74rem; color: var(--muted); white-space: nowrap;
 }
 .t-chat { max-width: 130px; }
@@ -884,7 +860,17 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .stage-chip.small { font-size: .66rem; padding: 0 7px; }
 .stage-chip.dim { opacity: .45; }
 .t-title {
-  flex: 1; min-width: 0;
+  /*
+   * The title takes what it needs, not everything left over.
+   *
+   * At flex:1 it pushed the whole meta group hard against the right edge, so a
+   * wide screen showed a title on the far left, its chat and times on the far
+   * right, and four inches of nothing in between — two disconnected columns
+   * rather than one row. Now the details sit next to the title they belong to,
+   * and only the deadline keeps its own right-hand column, because that is the
+   * one field read down the list rather than across it.
+   */
+  flex: 0 1 auto; min-width: 3rem; max-width: 100%;
   background: none; border: 0; padding: 0; margin: 0;
   font: inherit; font-size: .88rem; font-weight: 600; line-height: 1.4;
   color: var(--text); text-align: left; cursor: pointer;
@@ -902,7 +888,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .due.danger { color: var(--danger); }
 .due.warn { color: var(--warn); }
-.due.none { color: var(--line-2); font-weight: 500; }
+/* A border colour used as text failed contrast outright. Quiet, but legible:
+   "no date" is a fact about the task, not a disabled control. */
+.due.none { color: var(--muted); font-weight: 500; }
 .task.done .due { opacity: .6; }
 
 .t-meta {
@@ -917,14 +905,32 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .pri.p-medium .pri-dot { background: var(--warn); }
 .pri.p-low .pri-dot { background: var(--ok); }
 .state-chip {
+  flex: none;
   font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
   color: var(--brand);
+}
+/*
+ * The engine has given up on this one.
+ *
+ * It was red prose in a line of grey prose, which read as part of the sentence
+ * rather than as a state. Amber, not red: nothing has failed — the app has
+ * stopped asking and it is now a person's turn.
+ */
+.state-chip.attention {
+  color: var(--warn);
+  background: var(--warn-wash);
+  border: 1px solid color-mix(in srgb, var(--warn) 22%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+  text-transform: none; letter-spacing: .01em;
 }
 .m-item {
   display: inline-flex; align-items: center; gap: 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .m-item .icon { color: var(--muted); flex: none; }
+/* When it came in: worth having, never worth reading first. */
+.m-item.quiet { color: color-mix(in srgb, var(--muted) 78%, transparent); }
 .t-meta { gap: 12px; }
 
 .row-menu { position: relative; flex: none; }
@@ -2088,12 +2094,25 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   background: var(--group, var(--line-2)); flex: none;
 }
 
+/*
+ * The business a task belongs to.
+ *
+ * A coloured pill each meant a list of five businesses was five different
+ * bright labels competing with the status colours that actually mean something.
+ * The colour survives as a dot — enough to tell them apart down a column — and
+ * the name is set in ordinary text.
+ */
 .group-tag {
-  flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 1px 7px; border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--group, var(--line-2)) 35%, transparent);
-  color: var(--group, var(--muted));
-  font-size: .68rem; font-weight: 600; letter-spacing: .01em;
+  flex: none; max-width: 130px;
+  display: inline-flex; align-items: center; gap: 6px;
+  overflow: hidden; white-space: nowrap;
+  color: var(--text-2);
+  font-size: .7rem; font-weight: 600; letter-spacing: .01em;
+}
+.group-tag::before {
+  content: ""; flex: none;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--group, var(--muted));
 }
 
 .side-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
@@ -2200,6 +2219,27 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .kpi-usd { font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .u-cost { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.35; }
 .u-usd { font-size: .72rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* A failure explained before it is quoted. */
+.status-error {
+  margin: 10px 0 0;
+  padding: 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent);
+  background: var(--danger-wash);
+  border-radius: var(--r-sm);
+}
+.status-error p { margin: 0; font-size: .84rem; color: var(--text-2); }
+.status-error details { margin-top: 7px; }
+.status-error summary {
+  cursor: pointer; font-size: .76rem; color: var(--muted);
+  width: fit-content;
+}
+.status-error summary:hover { color: var(--text-2); }
+.status-error code {
+  display: block; margin-top: 6px;
+  font-family: "IBM Plex Mono", monospace; font-size: .74rem;
+  color: var(--muted); overflow-wrap: anywhere;
+}
 
 .ladder-list { list-style: none; margin: 0; padding: 0; }
 .ladder-list > li {
@@ -2460,4 +2500,41 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- touch targets ---------- */
+
+/*
+ * Everything a thumb has to find, made worth aiming at.
+ *
+ * Last in the file on purpose: these are overrides of sizes set for a pointer
+ * further up, and anywhere earlier the later rule simply won. Nothing here
+ * changes a layout on a desktop — the whole block is behind `hover: none`.
+ *
+ * Two techniques. Controls that are already boxes just get bigger. The
+ * checkbox and the focus tick keep their drawn size and gain an invisible pad
+ * around them, because a 26px tick reads as a heavy form control in a list
+ * meant to be scanned — the target grows, the design does not.
+ */
+@media (hover: none) {
+  .side-group-label { padding: 11px; }
+  .segment button, .segment.small button { min-height: 36px; padding: 7px 13px; }
+  .btn.small { min-height: 36px; }
+  .row-dismiss, .row-menu-btn { width: 36px; height: 36px; }
+  .section-head { min-height: 40px; }
+
+  /*
+   * The tick keeps its drawn size and gains an invisible pad, because a 26px
+   * box reads as a heavy form control in a list meant to be scanned. A real
+   * button takes a pseudo-element reliably; a checkbox with appearance:none
+   * does not, so that one is simply drawn larger.
+   */
+  .focus-tick { position: relative; }
+  .focus-tick::before {
+    content: "";
+    position: absolute;
+    top: -12px; left: -12px; right: -12px; bottom: -12px;
+  }
+  .task input[type=checkbox] { width: 24px; height: 24px; margin-top: 0; }
+  .task input[type=checkbox]:checked::after { width: 5px; height: 10px; border-width: 0 2px 2px 0; }
 }

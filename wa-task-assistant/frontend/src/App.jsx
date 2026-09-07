@@ -696,7 +696,17 @@ export default function App() {
                   <p>Connection, capture mode and the chats that are never read.</p>
                 </div>
               </div>
-              <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+              {/* Given a heading like every other section on the page. It was
+                  the one block with none, which made the connection state read
+                  as loose debris above the settings rather than the first
+                  setting. */}
+              <section className="settings-block">
+                <header className="settings-head">
+                  <h3>WhatsApp connection</h3>
+                  <span>Where tasks come from</span>
+                </header>
+                <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+              </section>
 
               {/*
                 * Three states, because "match my device" is a real answer and
@@ -852,7 +862,6 @@ export default function App() {
                     counts={summary.counts}
                     onAction={quickAction}
                     active={activeQuick}
-                    onNewTask={() => setComposing(true)}
                   />
                 </>
               )}
@@ -877,15 +886,6 @@ export default function App() {
               ) : (
                 <div className={`workspace ${page.overview && !searching ? '' : 'solo'}`}>
                   <main className="work">
-                    {/*
-                      * Directly above Focus today, because that is where the
-                      * copies are seen: two "Process BNF salary" rows one under
-                      * the other. It sat above the KPI cards before, which reads
-                      * fine on an empty dashboard and is scrolled past on a busy
-                      * one — the page had moved down by the time anybody noticed
-                      * the duplicates it was offering to fix. Renders nothing
-                      * when there is nothing to merge.
-                      */}
                     {undo && (
                       <p className="banner ok undo-bar" role="status">
                         <span>
@@ -900,14 +900,6 @@ export default function App() {
                         <button className="link" onClick={undoLast}>Undo</button>
                         <button className="link" onClick={() => setUndo(null)}>Dismiss</button>
                       </p>
-                    )}
-
-                    {(page.overview || page.focus) && view !== 'done' && !searching && (
-                      <Duplicates
-                        onOpen={setOpenTask}
-                        onChanged={() => refresh({ quiet: true })}
-                        onError={(err) => setError(err.message)}
-                      />
                     )}
 
                     {(page.overview || page.focus) && view !== 'done' && !searching && (
@@ -994,6 +986,23 @@ export default function App() {
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                     />
+
+                    {/*
+                      * Below the list, not above it.
+                      *
+                      * Merging duplicates is tidying up, and tidying up is not
+                      * the day's work — sitting above Focus today it pushed the
+                      * task list, the one thing this page exists to show, off
+                      * the bottom of the screen whenever there were copies to
+                      * fix. Renders nothing when there is nothing to merge.
+                      */}
+                    {(page.overview || page.focus) && view !== 'done' && !searching && (
+                      <Duplicates
+                        onOpen={setOpenTask}
+                        onChanged={() => refresh({ quiet: true })}
+                        onError={(err) => setError(err.message)}
+                      />
+                    )}
                   </main>
 
                   {/* The rail belongs to the overview. On a focused list its

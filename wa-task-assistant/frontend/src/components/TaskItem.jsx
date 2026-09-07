@@ -192,8 +192,8 @@ export default function TaskItem({
           )}
 
           {task.needs_attention && !done && (
-            <span className="m-item danger-text" title="Asked the maximum number of times">
-              <Icon name="alert" size={12} /> Stopped asking
+            <span className="state-chip attention" title="Asked the maximum number of times">
+              Stopped asking
             </span>
           )}
 
@@ -233,12 +233,15 @@ export default function TaskItem({
             * batch waited.
             */}
           {arrived && (
-            <span className="m-item" title={`Arrived ${dateTimeLabel(task.source_message_at || task.created_at)}`}>
-              <Icon name="clock" size={12} /> {arrived}
+            <span className="m-item quiet" title={`Arrived ${dateTimeLabel(task.source_message_at || task.created_at)}`}>
+              {/* An inbox, not a clock. Wearing the same icon as the deadline,
+                  the two times read as one fact stated twice — and the wrong
+                  one of them is the one you act on. */}
+              <Icon name="inbox" size={12} /> {arrived}
             </span>
           )}
           <span className="m-item" title={task.origin === 'ai' ? 'Created by Claude' : 'Added by hand'}>
-            <Icon name={task.origin === 'ai' ? 'robot' : 'clipboard'} size={12} />
+            <Icon name={task.origin === 'ai' ? 'robot' : 'person'} size={12} />
           </span>
 
           {task.due_at && !done && (
@@ -255,9 +258,14 @@ export default function TaskItem({
             </span>
           )}
 
-          <span className={`pri p-${task.priority}`} title={`${PRIORITY[task.priority]} priority`}>
-            <span className="pri-dot" />
-          </span>
+          {/* High and low only. Medium is the default and most of the list is
+              medium, so a dot on every row marked nothing — it just spent a
+              colour that then had nothing left to say. */}
+          {task.priority !== 'medium' && (
+            <span className={`pri p-${task.priority}`} title={`${PRIORITY[task.priority]} priority`}>
+              <span className="pri-dot" />
+            </span>
+          )}
 
           {task.status === 'in_progress' && <span className="state-chip">In progress</span>}
           {task.status === 'waiting' && (

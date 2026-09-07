@@ -1,30 +1,32 @@
 import Icon from './Icon.jsx';
 
 /**
- * Shortcuts into views that already exist. Each one sets the same state the
- * sidebar and toolbar do, so nothing here is a second way of doing something.
+ * Shortcuts into views that already exist.
+ *
+ * Each one sets the same state the sidebar and toolbar do, so nothing here is
+ * a second way of doing something. Two things it deliberately does not do any
+ * more: carry its own New Task button — the primary action already sits in the
+ * page header three inches above, and one screen with two of the same button
+ * makes neither read as the one to press — and colour its icons by "tone".
+ * These are destinations, not states; spending the status palette on
+ * navigation leaves nothing left to say a task is actually overdue.
  */
-export default function QuickActions({ counts, onAction, active, onNewTask }) {
+export default function QuickActions({ counts, onAction, active }) {
   const actions = [
-    { key: 'myday', label: 'My Day', icon: 'sun', tone: 'warn' },
-    { key: 'high', label: 'High Priority', icon: 'flag', tone: 'danger', count: counts.highOpen },
-    { key: 'chat', label: 'By Chat', icon: 'chat', tone: 'ok' },
-    { key: 'ai', label: 'AI Tasks', icon: 'robot', tone: 'info' },
-    { key: 'done', label: 'Completed', icon: 'check', tone: 'ok', count: counts.done },
+    { key: 'myday', label: 'My Day', icon: 'sun' },
+    { key: 'high', label: 'High Priority', icon: 'flag', count: counts.highOpen },
+    { key: 'chat', label: 'By Chat', icon: 'chat' },
+    { key: 'ai', label: 'AI Tasks', icon: 'robot' },
+    { key: 'done', label: 'Completed', icon: 'check', count: counts.done },
   ];
 
   return (
-    <section className="quick" aria-label="Quick actions">
-      <span className="quick-title">Quick actions</span>
-      <button className="qa primary" onClick={onNewTask}>
-        <Icon name="plus" size={15} />
-        New Task
-      </button>
-      <span className="quick-rule" />
+    <section className="quick" aria-label="Jump to">
+      <span className="quick-title">Jump to</span>
       {actions.map((a) => (
         <button
           key={a.key}
-          className={`qa t-${a.tone} ${active === a.key ? 'on' : ''}`}
+          className={`qa ${active === a.key ? 'on' : ''}`}
           aria-pressed={active === a.key}
           onClick={() => onAction(a.key)}
         >
