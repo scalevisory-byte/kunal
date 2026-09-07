@@ -10,11 +10,17 @@ const PRIORITY = { high: 'High priority', medium: 'Medium priority', low: 'Low p
  */
 export function focusTasks(tasks, limit = 3) {
   const today = todayIso();
+  /*
+   * Late first, then what is actually due today, then urgent work with no date,
+   * then what is underway. High priority used to outrank a deadline, so an
+   * undated "high" pushed today's 6pm deadline out of a strip called Focus
+   * today. Within today's work, priority still decides the order.
+   */
   const rank = (t) => {
     if (isOverdue(t)) return 0;
-    if (t.priority === 'high') return 1;
-    if (t.due_date === today) return 2;
-    if (t.status === 'in_progress') return 3;
+    if (t.due_date === today) return t.priority === 'high' ? 1 : 2;
+    if (t.priority === 'high') return 3;
+    if (t.status === 'in_progress') return 4;
     return 9;
   };
   return tasks

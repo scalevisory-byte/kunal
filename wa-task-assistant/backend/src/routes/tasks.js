@@ -3,7 +3,7 @@ import { createTask, getTask, listTasks, updateTask, deleteTask, taskStats } fro
 import { normalizeDueDate, normalizeInstant } from '../dates.js';
 import {
   remindersForTask, snoozeReminder, acknowledgeReminder, cancelReminder, getReminder,
-  scheduleCustomReminder, getSettings,
+  scheduleCustomReminder, getSettings, nextRemindersFor,
 } from '../scheduling.js';
 import {
   planTask, completeTask, rescheduleTask, syncNextReminder, taskSchedule,
@@ -26,10 +26,11 @@ tasksRouter.get('/', (req, res) => {
   const progress = subtaskProgressFor(ids);
   const blocked = blockedMap(ids);
   const files = attachmentCounts(ids);
+  const nextReminders = nextRemindersFor(ids);
 
   const tasks = rows.map((task) => ({
     ...task,
-    ...taskSchedule(task, settings),
+    ...taskSchedule(task, settings, { next: nextReminders.get(task.id) || {} }),
     subtask_progress: progress.get(task.id) || null,
     blocked_by: blocked.get(task.id) || [],
     attachment_count: files.get(task.id) || 0,

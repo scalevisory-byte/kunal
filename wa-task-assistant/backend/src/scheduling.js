@@ -230,6 +230,34 @@ export const activeRemindersForTask = (taskId) =>
   db.prepare(`SELECT * FROM reminders WHERE task_id = ? AND ${ACTIVE} ORDER BY fire_at ASC`).all(taskId);
 
 /**
+ * The next scheduled reminder and follow-up for many tasks, in one query.
+ *
+ * The task list used to call remindersForTask() per row - three hundred tasks
+ * meant three hundred queries and a quarter of a megabyte of reminder rows the
+ * list never reads, on a poll that runs every thirty seconds.
+ */
+export function nextRemindersFor(taskIds) {
+  const out = new Map();
+  if (!taskIds.length) return out;
+  const marks = taskIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT task_id, kind, fire_at FROM reminders
+       WHERE task_id IN (${marks}) AND ${ACTIVE}
+       ORDER BY fire_at ASC`
+    )
+    .all(...taskIds);
+
+  for (const row of rows) {
+    const entry = out.get(row.task_id) || { next: null, followUp: null };
+    if (!entry.next) entry.next = row.fire_at;
+    if (!entry.followUp && row.kind === 'follow_up') entry.followUp = row.fire_at;
+    out.set(row.task_id, entry);
+  }
+  return out;
+}
+
+/**
  * Schedules one reminder for a task. `kind` and `round` together identify it,
  * so asking for the same one twice returns what is already there instead of
  * arranging a second alarm.

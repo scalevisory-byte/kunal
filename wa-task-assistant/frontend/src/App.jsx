@@ -55,7 +55,7 @@ const PAGES = {
   },
   attention: {
     title: 'Needs Attention',
-    lede: 'Asked about the maximum number of times and still not done — the app has stopped chasing these.',
+    lede: 'Everything that wants doing now: overdue, due today, or asked about so many times the app has stopped chasing it.',
   },
   chat: {
     title: 'By Chat',
@@ -264,7 +264,18 @@ export default function App() {
       if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
       if (filters.chat && taskChat(task) !== filters.chat) return false;
       if (filters.group && task.group_id !== filters.group) return false;
-      if (filters.attention && !(['due', 'overdue'].includes(task.state) || task.needs_attention)) return false;
+      /*
+       * "Due" is only the first hour after a deadline, so a task due at 6pm was
+       * plain "open" all day and never reached this page - at nine in the
+       * morning the page was empty while six things were due that evening.
+       * Today's work needs attention today, which is what the page is called.
+       */
+      if (filters.attention) {
+        const wants = ['due', 'overdue'].includes(task.state)
+          || task.due_date === todayIso()
+          || task.needs_attention;
+        if (!wants) return false;
+      }
       if (selectedDate && task.due_date !== selectedDate) return false;
 
       return matchesQuery(task, query);

@@ -45,21 +45,30 @@ export function taskState(task, now = new Date(), settings = getSettings()) {
 }
 
 /** Everything the drawer and the widget need, computed from real rows. */
-export function taskSchedule(task, settings = getSettings()) {
+export function taskSchedule(task, settings = getSettings(), options = {}) {
   const due = dueMoment(task, settings);
-  const reminders = remindersForTask(task.id);
-  const active = reminders.filter((r) => ['scheduled', 'snoozed'].includes(r.status));
-  const nextFollowUp = active.find((r) => r.kind === 'follow_up');
+
+  /*
+   * `next` lets a caller hand in what it already looked up for the whole page.
+   * Without it this reads one task's reminders, which is right for a drawer and
+   * wrong for a list of three hundred rows.
+   */
+  const preloaded = options.next;
+  const reminders = preloaded ? null : remindersForTask(task.id);
+  const active = reminders?.filter((r) => ['scheduled', 'snoozed'].includes(r.status));
+  const nextFollowUp = active?.find((r) => r.kind === 'follow_up');
 
   return {
     state: taskState(task, new Date(), settings),
     due_at: due ? due.toISOString() : null,
-    next_reminder_at: active.length ? active[0].fire_at : null,
-    next_follow_up_at: nextFollowUp ? nextFollowUp.fire_at : null,
+    next_reminder_at: preloaded ? preloaded.next ?? null : (active.length ? active[0].fire_at : null),
+    next_follow_up_at: preloaded ? preloaded.followUp ?? null : (nextFollowUp ? nextFollowUp.fire_at : null),
     follow_up_count: task.follow_up_count || 0,
     follow_up_max: settings.followUpMax,
     needs_attention: Boolean(task.needs_attention),
-    reminders,
+    // Only where it is actually read: the drawer. Sending every task's whole
+    // reminder history down a thirty-second poll is bytes nobody looks at.
+    ...(reminders ? { reminders } : {}),
   };
 }
 

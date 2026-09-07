@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node tests/lifecycle.test.mjs && node tests/history.test.mjs && node tests/briefing.test.mjs && node tests/auth.test.mjs && node tests/migration.test.mjs && node tests/extras.test.mjs && node tests/images.test.mjs && node tests/groups.test.mjs"
+    "test": "node tests/lifecycle.test.mjs && node tests/history.test.mjs && node tests/briefing.test.mjs && node tests/auth.test.mjs && node tests/migration.test.mjs && node tests/extras.test.mjs && node tests/images.test.mjs && node tests/groups.test.mjs && node tests/runaway.test.mjs"
   },
   "engines": {
     "node": ">=20"

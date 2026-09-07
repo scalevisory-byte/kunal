@@ -227,6 +227,23 @@ export async function runReminderEngine({ now = new Date() } = {}) {
           task_id: task.id,
           reminder_id: row.id,
         });
+
+        /*
+         * A missed follow-up still counts as a rung of the ladder.
+         *
+         * Without this the count never moved, so `followUpMax` was never
+         * reached and the task was never flagged. planOpenTasks would then find
+         * nothing pending and schedule the rung again - a new row, and a new
+         * "missed" notification, every five minutes for as long as the task
+         * stayed overdue. The whole point of the cap is that the app stops
+         * asking; a task nobody got to must reach it too.
+         */
+        if (row.kind === 'follow_up') {
+          const count = (task.follow_up_count || 0) + 1;
+          updateTaskCount(task.id, count);
+          scheduleNextFollowUp({ ...task, follow_up_count: count }, settings);
+          syncNextReminder(task.id);
+        }
       }
       continue;
     }
