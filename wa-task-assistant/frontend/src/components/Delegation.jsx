@@ -161,10 +161,123 @@ function NudgeSheet({ task, onClose, onSent, onError }) {
   );
 }
 
+/**
+ * Recording a handover by hand.
+ *
+ * The extractor catches work handed over in a chat. Plenty is not: agreed on a
+ * call, said across a desk, decided in a meeting. Those never touch WhatsApp,
+ * so no amount of reading messages will ever find them — and without this the
+ * page can only ever show half of what he has given out.
+ *
+ * Three fields, because three is what the page is asking: who, what, and by
+ * when. Everything else a task can carry is in the drawer afterwards.
+ */
+function GiveSheet({ onClose, onSaved, onError }) {
+  const [form, setForm] = useState({ name: '', title: '', date: '', time: '18:00' });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const isoDay = (offset) => {
+    const at = new Date();
+    at.setDate(at.getDate() + offset);
+    return at.toISOString().slice(0, 10);
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    const name = form.name.trim();
+    const title = form.title.trim();
+    if (!name || !title) return;
+
+    setBusy(true);
+    try {
+      await api.createTask({
+        title,
+        assigned_to: name,
+        due_date: form.date || null,
+        // The deadline is a moment when one was given, so it enters the same
+        // reminder ladder as anything else - and the reminders come to you.
+        due_at: form.date ? new Date(`${form.date}T${form.time || '18:00'}:00`).toISOString() : null,
+      });
+      onSaved();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return createPortal(
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+      <form
+        className="sheet"
+        onSubmit={save}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Give someone a task"
+      >
+        <header className="sheet-head">
+          <h2>Give someone a task</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">✕</button>
+        </header>
+
+        <div className="sheet-body">
+          <label className="field">
+            <span>Who is doing it</span>
+            <input value={form.name} onChange={set('name')} placeholder="Rahul" autoFocus />
+          </label>
+
+          <label className="field">
+            <span>What they have to do</span>
+            <input value={form.title} onChange={set('title')} placeholder="Send the GST documents" />
+          </label>
+
+          <div className="field-row">
+            <label className="field">
+              <span>By when</span>
+              <input type="date" value={form.date} onChange={set('date')} />
+              <div className="quick-dates">
+                <button type="button" className="link" onClick={() => setForm((f) => ({ ...f, date: isoDay(0) }))}>today</button>
+                <button type="button" className="link" onClick={() => setForm((f) => ({ ...f, date: isoDay(1) }))}>tomorrow</button>
+                {form.date && (
+                  <button type="button" className="link" onClick={() => setForm((f) => ({ ...f, date: '' }))}>clear</button>
+                )}
+              </div>
+            </label>
+            <label className="field">
+              <span>Time</span>
+              <input type="time" value={form.time} onChange={set('time')} disabled={!form.date} />
+            </label>
+          </div>
+
+          <p className="field-note">
+            The reminders come to you, not to them. Chasing them is the Nudge button on the
+            row, and only when you press it.
+          </p>
+        </div>
+
+        <footer className="sheet-foot">
+          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+          <button
+            type="submit"
+            className="btn primary"
+            disabled={busy || !form.name.trim() || !form.title.trim()}
+          >
+            {busy ? 'Saving…' : 'Add'}
+          </button>
+        </footer>
+      </form>
+    </div>,
+    document.body
+  );
+}
+
 export default function Delegation({ side, onOpenTask, onError, onChanged, wa }) {
   const [data, setData] = useState(null);
   const [showDone, setShowDone] = useState(false);
   const [nudging, setNudging] = useState(null);
+  // Recording a handover by hand. The extractor catches the ones written in a
+  // chat; this is for the ones agreed on a call, or in the room.
+  const [giving, setGiving] = useState(false);
   const [sent, setSent] = useState(null);
 
   const load = useCallback(async () => {
@@ -226,6 +339,11 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
   return (
     <div className="deleg">
       <div className="toolbar">
+        {side === 'allotted' && (
+          <button className="btn primary" onClick={() => setGiving(true)}>
+            <span aria-hidden="true">+</span> Give someone a task
+          </button>
+        )}
         <label className="check-inline">
           <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
           <span>Include finished</span>
@@ -263,10 +381,11 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
             */}
           {side === 'allotted' && wa && (
             <p className="empty-why">
-              Since this server started it has read <b>{wa.ownSeen ?? 0}</b>{' '}
-              {wa.ownSeen === 1 ? 'message' : 'messages'} you wrote yourself, and none of them
-              looked like handing work to somebody.
-              {!wa.ownSeen && ' Nothing you have written has been read yet — send something in a chat and check back.'}
+              It has read <b>{wa.ownSeenEver ?? 0}</b>{' '}
+              {wa.ownSeenEver === 1 ? 'message' : 'messages'} you wrote yourself
+              {wa.ownSeen !== wa.ownSeenEver && ` (${wa.ownSeen ?? 0} since this server started)`}
+              , and none looked like handing work to somebody.
+              {!wa.ownSeenEver && ' Nothing you have written has been read at all — that is a connection problem, not a wording one.'}
             </p>
           )}
         </div>
@@ -281,6 +400,14 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
             onNudge={setNudging}
           />
         ))
+      )}
+
+      {giving && (
+        <GiveSheet
+          onClose={() => setGiving(false)}
+          onSaved={() => { setGiving(false); load(); onChanged?.(); }}
+          onError={onError}
+        />
       )}
 
       {nudging && (

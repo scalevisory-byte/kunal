@@ -39,6 +39,10 @@ systemRouter.get('/status', (req, res) => {
       // So an empty "Task allotted" can say which half is not working.
       ownSeen: state.ownSeen,
       delegatedCreated: state.delegatedCreated,
+      // Totals that survive a restart; the since-start pair above resets on
+      // every deploy, which is exactly when somebody comes looking.
+      ownSeenEver: state.ownSeenEver,
+      delegatedEver: state.delegatedEver,
       tasksCreated: state.tasksCreated,
       lastExtraction: state.lastExtraction,
     },

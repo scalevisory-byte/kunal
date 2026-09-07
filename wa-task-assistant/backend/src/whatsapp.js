@@ -96,6 +96,11 @@ export const state = {
    */
   ownSeen: 0,
   delegatedCreated: 0,
+  // Kept across restarts too. Since-start alone is misleading: every deploy
+  // restarts the container, so the number resets exactly when somebody goes
+  // looking at it, and a fresh zero reads the same as a broken pipeline.
+  ownSeenEver: 0,
+  delegatedEver: 0,
   // Why messages were dropped. Without this a message that never becomes a task
   // looks the same whatever the reason.
   drops: { ignoredChat: 0, status: 0, noText: 0, blocked: 0, duplicate: 0, error: 0 },
@@ -161,7 +166,10 @@ async function flushBuffer() {
         }
         const { _image, ...fields } = task;
         const created = createTask(fields);
-        if (created.assigned_to) state.delegatedCreated += 1;
+        if (created.assigned_to) {
+          state.delegatedCreated += 1;
+          state.delegatedEver = bumpCounter('delegated_created');
+        }
         recordEvent(created.id, EVENT.created, `AI, from ${task.chat_name || 'WhatsApp'}`);
 
         /*
@@ -553,7 +561,10 @@ export async function handleMessage(message) {
     state.lastMessageAt = new Date().toISOString();
     noteSeen(row.sent_at);
     state.messagesSeen += 1;
-    if (row.from_me) state.ownSeen += 1;
+    if (row.from_me) {
+      state.ownSeen += 1;
+      state.ownSeenEver = bumpCounter('own_messages_seen');
+    }
     noteEvent(
       'message',
       `${contactName || row.contact_number || 'unknown'}: ${text.slice(0, 60) || (image ? '[photo]' : '')}`
@@ -624,6 +635,17 @@ export async function handleMessage(message) {
  * moves forward — messages can arrive slightly out of order, and a watermark
  * that goes backwards would re-read what has already been read.
  */
+/** A running total that survives a restart. */
+function bumpCounter(key) {
+  try {
+    const next = Number(getMeta(key) || 0) + 1;
+    setMeta(key, String(next));
+    return next;
+  } catch {
+    return 0;
+  }
+}
+
 function noteSeen(sentAt) {
   if (!sentAt) return;
   try {
@@ -701,7 +723,16 @@ export async function catchUp() {
   }
 }
 
+/** The stored totals, so the page is right before anything new arrives. */
+export function loadCounters() {
+  try {
+    state.ownSeenEver = Number(getMeta('own_messages_seen') || 0);
+    state.delegatedEver = Number(getMeta('delegated_created') || 0);
+  } catch { /* a database that is not ready yet */ }
+}
+
 export function startWhatsApp() {
+  loadCounters();
   clearStaleBrowserLocks();
   // Anything a previous run left cached on the volume goes now; the flags below
   // keep this run's cache off it entirely.
