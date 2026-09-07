@@ -6,6 +6,7 @@ import {
 } from '../db.js';
 import { state, flushNow } from '../whatsapp.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
+import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
@@ -52,6 +53,8 @@ systemRouter.get('/status', (req, res) => {
       // Presence only. The key itself never leaves the server.
       apiKeySet: Boolean(config.anthropicApiKey),
       pushEnabled: vapidEnabled,
+      // Whether voice notes can be read, and by whom. Never the key itself.
+      speech: transcriptionState(),
       blockedChats: listBlockedChats().length,
     },
   });

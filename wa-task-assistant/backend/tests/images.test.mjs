@@ -73,6 +73,52 @@ await run('a message with no photo is left alone', async () => {
   assert.equal(await WA.downloadImage({ hasMedia: true, type: 'ptt' }), null);
 });
 
+console.log('\nmessages you send yourself');
+
+await run('a note typed into your own chat is captured like any other', async () => {
+  /*
+   * The "message yourself" chat is how a lot of this actually gets used - you
+   * think of something and type it to yourself. Those arrive with fromMe set
+   * and from === to === your own id, which is a shape nothing else has, so it
+   * is worth pinning down.
+   */
+  const me = '919909993565@c.us';
+  WA.state.me = me;
+  const before = DB.listMessages({ limit: 200 }).length;
+
+  await WA.handleMessage({
+    id: { _serialized: 'self-note-1' },
+    from: me, to: me, fromMe: true, isStatus: false,
+    body: 'Kal BNF salary 5 baje process karni hai',
+    timestamp: Date.now() / 1000, hasMedia: false, type: 'chat',
+    getChat: async () => ({ id: { _serialized: me }, name: 'You', isGroup: false }),
+    getContact: async () => ({ pushname: 'Me', number: '919909993565' }),
+  });
+
+  const rows = DB.listMessages({ limit: 200 });
+  assert.equal(rows.length, before + 1, 'the note was stored');
+  const stored = rows.find((r) => r.body.includes('BNF salary'));
+  assert.ok(stored, 'with its text intact');
+  assert.equal(stored.from_me, 1, 'and marked as written by you');
+});
+
+await run('the same note twice is stored once', async () => {
+  const me = '919909993565@c.us';
+  const before = DB.listMessages({ limit: 200 }).length;
+  const msg = {
+    id: { _serialized: 'self-note-dup' },
+    from: me, to: me, fromMe: true, isStatus: false,
+    body: 'GST return file karna hai',
+    timestamp: Date.now() / 1000, hasMedia: false, type: 'chat',
+    getChat: async () => ({ id: { _serialized: me }, name: 'You', isGroup: false }),
+    getContact: async () => ({ pushname: 'Me', number: '919909993565' }),
+  };
+  // message_create can fire more than once for the same message.
+  await WA.handleMessage(msg);
+  await WA.handleMessage(msg);
+  assert.equal(DB.listMessages({ limit: 200 }).length, before + 1);
+});
+
 console.log('\nguards against spending');
 
 await run('an oversized photo is dropped rather than sent', async () => {

@@ -51,6 +51,19 @@ export const config = {
   // quietly cost a fortune.
   maxImageBytes: Number(process.env.MAX_IMAGE_BYTES) || 4_000_000,
 
+  /*
+   * Voice notes. Claude reads text and pictures but not audio, so this is the
+   * one step that needs a service outside Anthropic - and which one matters,
+   * because these notes move between Gujarati, Hindi and English mid-sentence.
+   * With no key the feature is off and voice notes are left alone.
+   */
+  speechProvider: (process.env.SPEECH_PROVIDER || 'sarvam').toLowerCase(),
+  speechApiKey: process.env.SPEECH_API_KEY || '',
+  speechModel: process.env.SPEECH_MODEL || '',
+  speechLanguage: process.env.SPEECH_LANGUAGE || '',
+  speechTimeoutMs: Number(process.env.SPEECH_TIMEOUT_MS) || 30_000,
+  maxAudioBytes: Number(process.env.MAX_AUDIO_BYTES) || 8_000_000,
+
   timezone: process.env.TIMEZONE || 'Asia/Kolkata',
   // Only used to show the dollar estimate in rupees as well. The rate is shown
   // alongside the figure so it is never mistaken for a live conversion.

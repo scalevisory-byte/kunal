@@ -18,6 +18,7 @@ import { EVENT, recordEvent } from './task-events.js';
 import { findDuplicateTask } from './task-matching.js';
 import { addAttachment } from './attachments.js';
 import { getSettings } from './scheduling.js';
+import { transcribe, transcriptionEnabled } from './transcribe.js';
 import { isoAtLocal } from './quickparse.js';
 
 const { Client, LocalAuth } = pkg;
@@ -433,6 +434,32 @@ export async function downloadImage(message) {
   }
 }
 
+/**
+ * The words in a voice note, or null.
+ *
+ * A transcript is treated as though the sentence had been typed: it goes into
+ * the same buffer, through the same extractor, under the same rules. There is
+ * no separate path for spoken tasks, because there should not be a second kind
+ * of task in the system.
+ */
+async function transcribeVoice(message) {
+  if (!transcriptionEnabled()) return null;
+  // 'ptt' is a held-to-record voice note; 'audio' is a sent audio file.
+  if (!message.hasMedia || !['ptt', 'audio'].includes(message.type)) return null;
+
+  try {
+    const media = await message.downloadMedia();
+    if (!media?.data) return null;
+    const buffer = Buffer.from(media.data, 'base64');
+    return await transcribe({ buffer, mime: media.mimetype });
+  } catch (err) {
+    // A note that will not download or transcribe is simply not heard. It must
+    // never cost the message it arrived with.
+    log.warn('Could not read a voice note:', err?.message || err);
+    return null;
+  }
+}
+
 export async function handleMessage(message) {
   try {
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
@@ -450,7 +477,16 @@ export async function handleMessage(message) {
      * nothing. With it off, the old rule holds - no text, nothing to extract.
      */
     const image = await downloadImage(message);
-    if (!body && !image) return drop('noText');
+
+    /*
+     * A voice note becomes its own words. Written into `body`, so everything
+     * downstream - the extractor, the message list, search, the task's source
+     * message - sees an ordinary sentence and needs to know nothing about audio.
+     */
+    const spoken = await transcribeVoice(message);
+    const text = spoken ? [body, spoken].filter(Boolean).join(' ') : body;
+
+    if (!text && !image) return drop('noText');
 
     // Chat and contact lookups go back to WhatsApp and can fail on their own -
     // a Meta-hosted business chat, a contact that will not resolve. The message
@@ -491,7 +527,7 @@ export async function handleMessage(message) {
       contact_name: contactName,
       contact_number: contact?.number ?? null,
       // A caption-less photo still needs something readable in the message list.
-      body: body || (image ? '[photo]' : ''),
+      body: text || (image ? '[photo]' : ''),
       is_group: chat?.isGroup ? 1 : 0,
       from_me: message.fromMe ? 1 : 0,
       sent_at: new Date((message.timestamp ?? Date.now() / 1000) * 1000).toISOString(),
@@ -504,7 +540,7 @@ export async function handleMessage(message) {
     state.messagesSeen += 1;
     noteEvent(
       'message',
-      `${contactName || row.contact_number || 'unknown'}: ${body.slice(0, 60) || (image ? '[photo]' : '')}`
+      `${contactName || row.contact_number || 'unknown'}: ${text.slice(0, 60) || (image ? '[photo]' : '')}`
     );
     // The picture rides on the buffered copy only. The stored row stays text:
     // the database is not where megabytes of photo belong.
