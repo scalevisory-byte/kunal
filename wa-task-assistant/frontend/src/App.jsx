@@ -25,6 +25,7 @@ import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
 import Groups from './components/Groups.jsx';
+import EnginePage from './components/EnginePage.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -461,11 +462,18 @@ export default function App() {
                 <div>
                   <h2>Reminders &amp; follow-ups</h2>
                   <p>
-                    When you are reminded, how long the app keeps asking, and where
-                    the reminders go.
+                    What the engine has lined up, what it has already sent, and the rules
+                    it works to.
                   </p>
                 </div>
               </div>
+              <EnginePage
+                onOpenTask={(taskId) => {
+                  const found = tasks.find((t) => t.id === taskId);
+                  if (found) setOpenTask(found);
+                }}
+                onError={(err) => setError(err.message)}
+              />
               <SchedulingSettings onError={(err) => setError(err.message)} />
             </section>
           ) : section === 'groups' ? (

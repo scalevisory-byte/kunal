@@ -178,6 +178,9 @@ export const api = {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
 
+  engine: () => request('/attention/engine'),
+  runEngine: () => request('/reminders/exact', { method: 'POST' }),
+
   briefing: () => request('/briefing'),
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
   weeklySummary: () => request('/briefing/weekly'),

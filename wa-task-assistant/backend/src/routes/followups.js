@@ -11,13 +11,27 @@ import {
   buildBriefing, maybeSendBriefing, localDay,
   buildWeeklySummary, maybeSendWeekly, localWeek,
 } from '../briefing.js';
-import { briefingFor, recentBriefings } from '../scheduling.js';
+import { briefingFor, recentBriefings, engineOverview } from '../scheduling.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
  * still not done - the app chasing them, not them chasing a customer.
  */
 export const attentionRouter = Router();
+
+/**
+ * The engine's live state: what is scheduled, what has fired, what was missed,
+ * and what it has given up on. Read-only - acting on a row goes through the
+ * task routes that already exist, so there is one path for every change.
+ */
+attentionRouter.get('/engine', (req, res) => {
+  const settings = getSettings();
+  res.json({
+    ...engineOverview({ upcoming: req.query.upcoming, recent: req.query.recent }),
+    settings,
+    timezone: config.timezone,
+  });
+});
 
 attentionRouter.get('/', (req, res) => {
   const settings = getSettings();

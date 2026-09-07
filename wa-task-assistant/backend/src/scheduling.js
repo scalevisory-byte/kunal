@@ -457,3 +457,72 @@ export const recentBriefings = (limit = 14) =>
   db.prepare(`SELECT * FROM briefings ORDER BY day DESC LIMIT ?`).all(Math.min(Number(limit) || 14, 60));
 
 log.info('Scheduling tables ready (reminders, notifications, briefings).');
+
+
+/* ---------------- the engine, as something you can look at ---------------- */
+
+/**
+ * What the reminder engine has lined up, what it has already done, and what it
+ * has given up on - joined to the tasks they belong to.
+ *
+ * The settings page said how the engine is configured; nothing said what it is
+ * actually doing. A schedule you cannot see is a schedule you cannot trust.
+ */
+export function engineOverview({ upcoming = 50, recent = 50 } = {}) {
+  const JOIN = `
+    FROM reminders r
+    JOIN tasks t ON t.id = r.task_id
+    WHERE t.archived_at IS NULL`;
+
+  const shape = `
+    r.id, r.task_id, r.kind, r.round, r.fire_at, r.status,
+    r.triggered_at, r.offset_minutes, r.snooze_count,
+    t.title, t.priority, t.status AS task_status, t.due_at, t.due_date,
+    t.chat_name, t.needs_attention, t.follow_up_count, t.assigned_to`;
+
+  return {
+    upcoming: db
+      .prepare(
+        `SELECT ${shape} ${JOIN} AND r.status IN ('scheduled','snoozed') AND t.status != 'done'
+         ORDER BY r.fire_at ASC LIMIT ?`
+      )
+      .all(Math.min(Number(upcoming) || 50, 200)),
+
+    recent: db
+      .prepare(
+        `SELECT ${shape} ${JOIN} AND r.triggered_at IS NOT NULL
+         ORDER BY r.triggered_at DESC LIMIT ?`
+      )
+      .all(Math.min(Number(recent) || 50, 200)),
+
+    missed: db
+      .prepare(
+        `SELECT ${shape} ${JOIN} AND r.status = 'missed' AND t.status != 'done'
+         ORDER BY r.fire_at DESC LIMIT 25`
+      )
+      .all(),
+
+    counts: db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN r.status IN ('scheduled','snoozed') AND t.status != 'done' THEN 1 ELSE 0 END) AS scheduled,
+           SUM(CASE WHEN r.kind = 'follow_up' AND r.status IN ('scheduled','snoozed') AND t.status != 'done' THEN 1 ELSE 0 END) AS follow_ups,
+           SUM(CASE WHEN r.status = 'triggered' THEN 1 ELSE 0 END) AS triggered,
+           SUM(CASE WHEN r.status = 'missed' THEN 1 ELSE 0 END) AS missed
+         ${JOIN}`
+      )
+      .get(),
+
+    // Tasks the engine has stopped chasing: the cap did its job and now a
+    // person has to decide what happens.
+    attention: db
+      .prepare(
+        `SELECT id, title, priority, status, due_at, due_date, chat_name,
+                follow_up_count, assigned_to
+         FROM tasks
+         WHERE needs_attention = 1 AND status != 'done' AND archived_at IS NULL
+         ORDER BY due_at IS NULL, due_at ASC`
+      )
+      .all(),
+  };
+}

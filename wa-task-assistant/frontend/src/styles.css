@@ -1893,3 +1893,72 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .group-list li { flex-direction: column; align-items: stretch; }
   .group-actions { justify-content: flex-start; }
 }
+
+/* ---------- the reminder engine, made visible ---------- */
+
+.engine { margin-bottom: 22px; }
+
+.engine-figures {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px; margin-bottom: 18px;
+}
+.engine-figure {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 9px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.ef-value { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ef-label { font-size: .78rem; font-weight: 600; }
+.ef-note { font-size: .72rem; color: var(--muted); }
+
+.engine-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.tab-count {
+  margin-left: 5px; font-family: "IBM Plex Mono", monospace;
+  font-size: .68rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+
+.engine-list { list-style: none; margin: 0; padding: 0; }
+.engine-list li {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.engine-list li:last-child { border-bottom: 0; }
+.engine-title {
+  flex: 1; min-width: 0; border: 0; background: none; padding: 0;
+  font: inherit; font-size: .86rem; font-weight: 600; color: var(--text);
+  text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.engine-title:hover { color: var(--brand); }
+.engine-meta {
+  flex: none; display: inline-flex; align-items: center; gap: 12px;
+  font-size: .74rem; color: var(--muted); white-space: nowrap;
+}
+.engine-rel { color: var(--line-2); }
+.engine-kind {
+  padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line-2);
+  font-size: .68rem; font-weight: 600;
+}
+.engine-kind.k-follow_up { color: var(--warn); border-color: var(--warn); }
+.engine-kind.k-due { color: var(--brand); border-color: var(--brand); }
+.engine-kind.attention { color: var(--danger); border-color: var(--danger); }
+.engine-who { font-weight: 600; color: var(--text-2); }
+.engine-chat { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+
+.engine-empty, .engine-foot {
+  font-size: .8rem; color: var(--muted); line-height: 1.55; margin: 14px 0 0;
+}
+.engine-foot { padding-top: 12px; border-top: 1px solid var(--line); }
+
+@media (max-width: 1080px) {
+  .engine-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .engine-chat { display: none; }
+}
+@media (max-width: 760px) {
+  .engine-list li { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .engine-title { white-space: normal; overflow: visible; }
+  .engine-meta { flex-wrap: wrap; white-space: normal; }
+}

@@ -214,6 +214,18 @@ for (const [name, ddl] of [
   ['needs_confirmation', 'ALTER TABLE tasks ADD COLUMN needs_confirmation INTEGER NOT NULL DEFAULT 0'],
   // Which business this belongs to. Nullable: a task need not have one.
   ['group_id', 'ALTER TABLE tasks ADD COLUMN group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL'],
+  /*
+   * Who is meant to do this. NULL means the user - the overwhelming majority of
+   * tasks, and the shape every existing row already has, so no back-fill and no
+   * change to what any current query returns.
+   *
+   * The wid is WhatsApp's own id for the person, kept only so a follow-up the
+   * user explicitly asks to send has somewhere to go. It is never used to send
+   * anything on its own.
+   */
+  ['assigned_to', 'ALTER TABLE tasks ADD COLUMN assigned_to TEXT'],
+  ['assigned_to_wid', 'ALTER TABLE tasks ADD COLUMN assigned_to_wid TEXT'],
+  ['assigned_at', 'ALTER TABLE tasks ADD COLUMN assigned_at TEXT'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -361,11 +373,13 @@ const insertTaskStmt = db.prepare(`
   INSERT INTO tasks
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
-     ai_confidence, needs_confirmation, group_id)
+     ai_confidence, needs_confirmation, group_id,
+     assigned_to, assigned_to_wid, assigned_at)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
-     @ai_confidence, @needs_confirmation, @group_id)
+     @ai_confidence, @needs_confirmation, @group_id,
+     @assigned_to, @assigned_to_wid, @assigned_at)
 `);
 
 /**
@@ -420,6 +434,9 @@ export function createTask(input) {
     ai_confidence: CONFIDENCE.has(input.ai_confidence) ? input.ai_confidence : null,
     needs_confirmation: input.needs_confirmation ? 1 : 0,
     group_id: Number.isFinite(Number(input.group_id)) ? Number(input.group_id) : null,
+    assigned_to: input.assigned_to ? String(input.assigned_to).trim().slice(0, 80) : null,
+    assigned_to_wid: input.assigned_to_wid || null,
+    assigned_at: input.assigned_to ? new Date().toISOString() : null,
   };
   if (!row.title) throw new Error('title is required');
   const info = insertTaskStmt.run(row);
@@ -461,6 +478,7 @@ export function listTasks({ status, limit = 500 } = {}) {
 // Created after the migration above, since it names a column that database may
 // only just have been given.
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_group ON tasks(group_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to)`);
 
 /*
  * Group names are unique regardless of case. SQLite's UNIQUE is case-sensitive,
@@ -474,6 +492,7 @@ const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
   'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence', 'group_id',
+  'assigned_to', 'assigned_to_wid',
 ];
 
 export function updateTask(id, patch) {
