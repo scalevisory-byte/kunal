@@ -189,12 +189,18 @@ await run('a task with no stage adds no clutter to the digest', () => {
 });
 
 await run('the morning briefing carries the stage too', () => {
+  // Asked at nine in the morning, not at whatever hour the suite happens to
+  // run: "due in two hours" is tomorrow after 10pm, and the case would fail
+  // every evening for a reason that has nothing to do with stages.
+  const at9 = new Date(
+    `${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}T09:00:00+05:30`
+  );
   const t = DB.createTask({
     title: 'Briefing stage',
-    due_at: new Date(Date.now() + 2 * 3600_000).toISOString(),
+    due_at: new Date(at9.getTime() + 2 * 3600_000).toISOString(),
   });
   P.addUpdate(t.id, { body: 'x', stage: 'With the bank' });
-  const { text } = B.buildBriefing();
+  const { text } = B.buildBriefing(at9);
   assert.match(text || '', /With the bank/);
 });
 

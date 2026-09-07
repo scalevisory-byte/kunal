@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { useCallback, useState } from 'react';
 import Icon from './Icon.jsx';
 
 /** Grouped so the list reads as three short lists rather than one long one. */
@@ -56,10 +56,121 @@ const NAV = [
   },
 ];
 
+/*
+ * Which groups are open.
+ *
+ * Shut is the starting state: twenty-two items is a wall to read past every
+ * time, and six headings is a map. What is open is remembered, because a
+ * person opens the two groups they actually live in and wants them there
+ * tomorrow.
+ */
+const STORE = 'wa.sidebar.open';
+
+const readOpen = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE) || '[]');
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const writeOpen = (set) => {
+  try { localStorage.setItem(STORE, JSON.stringify([...set])); } catch { /* private window */ }
+};
+
+/**
+ * One group of the nav.
+ *
+ * Shut, it still shows the item you are currently on — so the sidebar folds
+ * down to the headings plus your own position, rather than to headings and no
+ * idea where you are. And the badges add up onto the heading, because a count
+ * you cannot see is the one thing collapsing must not cost.
+ */
+function NavGroup({ label, items, section, open, onToggle, onPick }) {
+  const total = items.reduce((sum, item) => sum + (item.badge || 0), 0);
+  const here = items.some((item) => item.key === section);
+  const shown = open ? items : items.filter((item) => item.key === section);
+
+  return (
+    <div className={`side-group ${open ? 'open' : 'shut'}`}>
+      <button
+        type="button"
+        className={`side-group-label ${here ? 'here' : ''}`}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <Icon name="chevronDown" size={13} className={`side-chevron ${open ? '' : 'shut'}`} />
+        <span className="side-group-name">{label}</span>
+        {!open && total > 0 && <span className="side-count">{total}</span>}
+      </button>
+
+      {shown.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          className={`side-item ${section === item.key ? 'on' : ''}`}
+          aria-current={section === item.key ? 'page' : undefined}
+          onClick={() => onPick(item.key)}
+        >
+          {item.dot
+            ? <span className={`group-dot c-${item.dot}`} aria-hidden="true" />
+            : <Icon name={item.icon} size={17} />}
+          <span className="side-item-name">{item.label}</span>
+          {item.badge > 0 && <span className="side-count">{item.badge}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** The application's spine: where you are, and the one fact that matters below. */
 export default function Sidebar({
   section, onSection, connected, open, onClose, groups = [], delegation = null,
 }) {
+  const [openGroups, setOpenGroups] = useState(readOpen);
+
+  const toggle = useCallback((label) => {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      writeOpen(next);
+      return next;
+    });
+  }, []);
+
+  const pick = (key) => { onSection(key); onClose(); };
+
+  // The businesses sit with the work, above the housekeeping. Built here so
+  // they are one more group like any other rather than a special case inside
+  // the render.
+  const businesses = groups.length
+    ? [{
+        label: 'Businesses',
+        items: groups.map((g) => ({
+          key: `group:${g.id}`,
+          label: g.name,
+          dot: g.colour,
+          badge: g.counts?.open || 0,
+        })),
+      }]
+    : [];
+
+  const sections = [];
+  for (const group of NAV) {
+    if (group.afterBusinesses) sections.push(...businesses);
+    sections.push({
+      label: group.label,
+      items: group.items.map((item) => ({
+        ...item,
+        // Only what is still outstanding is worth a badge; a count of finished
+        // delegations is history, not a nudge.
+        badge: item.count ? (delegation?.[item.count] || 0) : 0,
+      })),
+    });
+  }
+
   return (
     <>
       <div className={`scrim ${open ? 'on' : ''}`} onClick={onClose} role="presentation" />
@@ -73,49 +184,16 @@ export default function Sidebar({
         </div>
 
         <nav className="side-nav">
-          {NAV.map((group) => (
-            <Fragment key={group.label}>
-              {/* The businesses sit with the work, above the housekeeping. */}
-              {group.afterBusinesses && groups.length > 0 && (
-                <div className="side-group">
-                  <p className="side-group-label">Businesses</p>
-                  {groups.map((g) => {
-                    const key = `group:${g.id}`;
-                    return (
-                      <button
-                        key={key}
-                        className={`side-item ${section === key ? 'on' : ''}`}
-                        aria-current={section === key ? 'page' : undefined}
-                        onClick={() => { onSection(key); onClose(); }}
-                      >
-                        <span className={`group-dot c-${g.colour}`} aria-hidden="true" />
-                        <span className="side-item-name">{g.name}</span>
-                        {g.counts?.open > 0 && <span className="side-count">{g.counts.open}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            <div className="side-group">
-              <p className="side-group-label">{group.label}</p>
-              {group.items.map((item) => (
-                <button
-                  key={item.key}
-                  className={`side-item ${section === item.key ? 'on' : ''}`}
-                  aria-current={section === item.key ? 'page' : undefined}
-                  onClick={() => { onSection(item.key); onClose(); }}
-                >
-                  <Icon name={item.icon} size={17} />
-                  <span className="side-item-name">{item.label}</span>
-                  {/* Only what is still outstanding is worth a badge; a count
-                      of finished delegations is history, not a nudge. */}
-                  {item.count && delegation?.[item.count] > 0 && (
-                    <span className="side-count">{delegation[item.count]}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-            </Fragment>
+          {sections.map((group) => (
+            <NavGroup
+              key={group.label}
+              label={group.label}
+              items={group.items}
+              section={section}
+              open={openGroups.has(group.label)}
+              onToggle={() => toggle(group.label)}
+              onPick={pick}
+            />
           ))}
         </nav>
 

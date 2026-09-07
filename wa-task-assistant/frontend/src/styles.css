@@ -186,11 +186,36 @@ body {
 
 .side-nav { display: grid; gap: 2px; }
 .side-group + .side-group { margin-top: 16px; }
+/*
+ * The heading is the control.
+ *
+ * Twenty-two items is a wall to read past on every visit; six headings is a
+ * map. Shut, a group still shows the item you are on — so the sidebar folds to
+ * the headings plus your own position, never to headings and no idea where you
+ * are — and its badges add up onto the heading, because a count you cannot see
+ * is the one thing collapsing must not cost.
+ */
 .side-group-label {
-  margin: 0 0 5px; padding: 0 11px;
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; text-align: left;
+  margin: 0 0 5px; padding: 5px 11px;
+  border: 0; background: none; cursor: pointer;
+  font: inherit;
   font-size: .62rem; font-weight: 600;
   letter-spacing: .14em; text-transform: uppercase;
   color: var(--nav-muted); opacity: .72;
+  border-radius: var(--r-sm);
+  transition: background .16s, opacity .16s, color .16s;
+}
+.side-group-label:hover { background: var(--nav-bg-2); opacity: 1; }
+.side-group-label .side-group-name { flex: 1; min-width: 0; }
+.side-chevron { flex: none; opacity: .7; transition: transform .18s; }
+.side-chevron.shut { transform: rotate(-90deg); }
+/* Where you are, readable even with the group shut. */
+.side-group-label.here { opacity: 1; color: var(--nav-text); }
+.side-group.shut { margin-bottom: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .side-chevron { transition: none; }
 }
 .side-item {
   display: flex; align-items: center; gap: 11px;

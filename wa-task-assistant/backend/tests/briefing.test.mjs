@@ -31,14 +31,27 @@ const run = async (name, fn) => {
 };
 
 const HOUR = 3600_000;
-const iso = (ms) => new Date(Date.now() + ms).toISOString();
+
+/*
+ * The briefing is a question about a calendar day, so the tests fix the hour
+ * they ask it at.
+ *
+ * Anchored to the wall clock, "due in two hours" was tomorrow after 10pm IST
+ * and these cases failed every evening — a suite you cannot trust after dinner
+ * is worse than no suite. Nine in the morning is when the briefing actually
+ * goes out, which is the hour worth testing anyway.
+ */
+const NOW = new Date(
+  `${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}T09:00:00+05:30`
+);
+const iso = (ms) => new Date(NOW.getTime() + ms).toISOString();
 const clear = () => db.db.prepare(`DELETE FROM tasks`).run();
 
 console.log('\nwhat the message says');
 
 await run('no tasks reads as a clear morning', () => {
   clear();
-  const { text, total } = B.buildBriefing();
+  const { text, total } = B.buildBriefing(NOW);
   assert.equal(total, 0);
   assert.match(text, /no pending tasks/i);
   assert.ok(!text.includes('OVERDUE'));
@@ -48,7 +61,7 @@ await run('only overdue says so up front', () => {
   clear();
   db.createTask({ title: 'Pay TDS challan', due_at: iso(-30 * HOUR), priority: 'high' });
   db.createTask({ title: 'File GSTR-3B', due_at: iso(-50 * HOUR) });
-  const { text } = B.buildBriefing();
+  const { text } = B.buildBriefing(NOW);
   assert.match(text, /2 overdue tasks/i);
   assert.match(text, /OVERDUE/);
   assert.ok(!text.includes('TODAY’S TASKS'), 'nothing is due today');
@@ -58,7 +71,7 @@ await run('both groups are separated and counted', () => {
   clear();
   db.createTask({ title: 'Old thing', due_at: iso(-30 * HOUR) });
   db.createTask({ title: 'Today thing', due_at: iso(2 * HOUR) });
-  const { text } = B.buildBriefing();
+  const { text } = B.buildBriefing(NOW);
   assert.match(text, /⚠️ 1 overdue/);
   assert.match(text, /📋 1 due today/);
   assert.ok(text.indexOf('OVERDUE') < text.indexOf('TODAY'), 'overdue comes first');
@@ -67,7 +80,7 @@ await run('both groups are separated and counted', () => {
 await run('a task with no date is listed without inventing a time', () => {
   clear();
   db.createTask({ title: 'Call the accountant' });
-  const { text } = B.buildBriefing();
+  const { text } = B.buildBriefing(NOW);
   assert.match(text, /No fixed time/);
   assert.ok(!/Due: \d/.test(text));
 });
@@ -76,7 +89,7 @@ await run('completed work never appears', () => {
   clear();
   const t = db.createTask({ title: 'Already finished', due_at: iso(2 * HOUR) });
   db.updateTask(t.id, { status: 'done' });
-  const { text, total } = B.buildBriefing();
+  const { text, total } = B.buildBriefing(NOW);
   assert.equal(total, 0);
   assert.ok(!text.includes('Already finished'));
 });
@@ -84,7 +97,7 @@ await run('completed work never appears', () => {
 await run('a long list is capped and points at the app', () => {
   clear();
   for (let i = 0; i < 14; i += 1) db.createTask({ title: `Task ${i}`, due_at: iso(2 * HOUR) });
-  const { text, listed, total } = B.buildBriefing();
+  const { text, listed, total } = B.buildBriefing(NOW);
   assert.equal(total, 14);
   assert.equal(listed, 10, 'ten is enough for one message');
   assert.match(text, /and 4 more/);
@@ -94,14 +107,14 @@ await run('the most urgent is listed first', () => {
   clear();
   db.createTask({ title: 'Low today', due_at: iso(3 * HOUR), priority: 'low' });
   db.createTask({ title: 'Late one', due_at: iso(-40 * HOUR), priority: 'medium' });
-  const { text } = B.buildBriefing();
+  const { text } = B.buildBriefing(NOW);
   assert.ok(text.indexOf('Late one') < text.indexOf('Low today'));
 });
 
 await run('priority marks are carried through', () => {
   clear();
   db.createTask({ title: 'Urgent', due_at: iso(2 * HOUR), priority: 'high' });
-  assert.match(B.buildBriefing().text, /🔴 Urgent/);
+  assert.match(B.buildBriefing(NOW).text, /🔴 Urgent/);
 });
 
 console.log('\nsent once, whatever happens');
