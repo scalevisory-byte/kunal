@@ -131,11 +131,20 @@ run('a missing or unreadable timestamp says nothing rather than guessing', () =>
 
 console.log('\nwhen the message arrived, on every task');
 
-run("today's messages give the clock alone", () => {
-  // The day is obvious; repeating it on twenty rows is noise.
+run("today's messages say so, rather than giving the clock alone", () => {
+  /*
+   * This used to be the clock on its own, on the reasoning that the day was
+   * obvious. On a real board it is not: beside a column that can read "No
+   * date", a bare "9:44 PM" leaves you unable to tell whether it means this
+   * evening or something you are missing.
+   */
   const label = arrivedLabel(new Date().toISOString());
-  assert.match(label, /^\d{1,2}:\d{2}/);
-  assert.ok(!/\w{3}/.test(label.replace(/AM|PM/, '')), `no date on today's: ${label}`);
+  assert.match(label, /^Today \d{1,2}:\d{2}/, `should name the day: ${label}`);
+});
+
+run('yesterday is named too, rather than dated', () => {
+  const label = arrivedLabel(new Date(Date.now() - 86_400_000).toISOString());
+  assert.match(label, /^Yesterday \d{1,2}:\d{2}/, label);
 });
 
 run('an older message carries the day as well', () => {

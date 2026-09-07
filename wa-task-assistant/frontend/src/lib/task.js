@@ -95,7 +95,19 @@ export const arrivedLabel = (value) => {
   if (Number.isNaN(at.getTime())) return null;
 
   const clock = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  if (at.toLocaleDateString('en-CA') === new Date().toLocaleDateString('en-CA')) return clock;
+  const day = at.toLocaleDateString('en-CA');
+  /*
+   * The day is named, even when it is today.
+   *
+   * This used to give the clock alone for anything captured today, on the
+   * reasoning that the day was obvious and repeating it twenty times was noise.
+   * It is not obvious: on a list where the column beside it can read "No date",
+   * a bare "9:44 PM" gives you no way to tell whether it means this evening or
+   * something you are missing. One word costs almost nothing and removes the
+   * question.
+   */
+  if (day === new Date().toLocaleDateString('en-CA')) return `Today ${clock}`;
+  if (day === new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA')) return `Yesterday ${clock}`;
   return `${at.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${clock}`;
 };
 
