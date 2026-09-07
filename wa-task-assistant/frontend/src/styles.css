@@ -214,6 +214,8 @@ body {
 /* Where you are, readable even with the group shut. */
 .side-group-label.here { opacity: 1; color: var(--nav-text); }
 .side-group.shut { margin-bottom: 2px; }
+/* Outside the groups, so nothing can fold it away. */
+.side-pinned { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--nav-bg-2); }
 @media (prefers-reduced-motion: reduce) {
   .side-chevron { transition: none; }
 }
@@ -2182,7 +2184,78 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .engine-who { font-weight: 600; color: var(--text-2); }
 .engine-chat { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 
-.engine-empty, .engine-foot {
+.engine-empty, /* ---------- the ladder, per task ---------- */
+
+/*
+ * What the engine is doing to one task.
+ *
+ * The flat lists answer "what fires next"; this answers the question actually
+ * asked of a follow-up engine — how many times it has asked, and when it asks
+ * again. A rung that has gone is filled, the one coming is outlined, and one
+ * that will never fire is struck through, so the shape reads without reading a
+ * single timestamp.
+ */
+/* Both currencies on the usage page: rupees lead, dollars stay legible under
+   them as the currency actually charged. */
+.kpi-usd { font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.u-cost { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.35; }
+.u-usd { font-size: .72rem; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.ladder-list { list-style: none; margin: 0; padding: 0; }
+.ladder-list > li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.ladder-list > li:last-child { border-bottom: 0; }
+.ladder-head {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px;
+}
+.ladder-next {
+  margin-left: auto;
+  font-size: .76rem; color: var(--text-2);
+  white-space: nowrap;
+}
+.ladder-next.quiet { color: var(--muted); }
+.ladder-line {
+  margin: 3px 0 0;
+  font-size: .76rem; color: var(--muted);
+}
+
+.rungs {
+  list-style: none;
+  margin: 11px 0 0; padding: 0 0 0 9px;
+  border-left: 2px solid var(--line);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.rung {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: .76rem; color: var(--text-2);
+  position: relative;
+}
+.rung-dot {
+  position: absolute; left: -14px; top: 5px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--card);
+  border: 1.5px solid var(--line-2);
+}
+.rung.s-triggered .rung-dot { background: var(--brand); border-color: var(--brand); }
+.rung.s-scheduled .rung-dot,
+.rung.s-snoozed .rung-dot { border-color: var(--brand); }
+.rung.s-missed .rung-dot { background: var(--danger); border-color: var(--danger); }
+.rung-name { min-width: 116px; font-weight: 600; color: var(--text); }
+.rung-when { font-variant-numeric: tabular-nums; }
+.rung-state { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.rung.s-missed .rung-state { color: var(--danger); }
+.rung.s-cancelled { opacity: .5; }
+.rung.s-cancelled .rung-name, .rung.s-cancelled .rung-when { text-decoration: line-through; }
+
+@media (max-width: 620px) {
+  .rung { flex-wrap: wrap; row-gap: 1px; }
+  .rung-name { min-width: 0; flex-basis: 100%; }
+  .ladder-next { margin-left: 0; flex-basis: 100%; }
+}
+
+.engine-foot {
   font-size: .8rem; color: var(--muted); line-height: 1.55; margin: 14px 0 0;
 }
 .engine-foot { padding-top: 12px; border-top: 1px solid var(--line); }

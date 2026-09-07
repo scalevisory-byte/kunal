@@ -37,7 +37,7 @@ const relative = (iso) => {
  */
 export default function EnginePage({ onOpenTask, onError }) {
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState('upcoming');
+  const [tab, setTab] = useState('byTask');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -71,6 +71,7 @@ export default function EnginePage({ onOpenTask, onError }) {
   const tz = data.timezone;
   const rows = data[tab] || [];
   const TABS = [
+    ['byTask', 'By task', data.byTask?.length ?? 0],
     ['upcoming', 'Scheduled', data.counts?.scheduled ?? 0],
     ['recent', 'Already sent', data.counts?.triggered ?? 0],
     ['missed', 'Missed', data.counts?.missed ?? 0],
@@ -115,11 +116,88 @@ export default function EnginePage({ onOpenTask, onError }) {
 
       {rows.length === 0 ? (
         <p className="engine-empty">
+          {tab === 'byTask' && 'The engine is not chasing anything. A task with a deadline gets a ladder, and it appears here.'}
           {tab === 'upcoming' && 'Nothing is scheduled. Give a task a deadline and its ladder appears here.'}
           {tab === 'recent' && 'Nothing has fired yet.'}
           {tab === 'missed' && 'Nothing was missed — the engine has been running when it was needed.'}
           {tab === 'attention' && 'Nothing has been given up on.'}
         </p>
+      ) : tab === 'byTask' ? (
+        <ul className="ladder-list">
+          {rows.map((task) => {
+            const max = data.settings?.followUpMax ?? 3;
+            return (
+              <li key={task.id}>
+                <div className="ladder-head">
+                  <button className="engine-title" onClick={() => onOpenTask(task.id)}>
+                    {task.title}
+                  </button>
+                  {task.stage && <span className="stage-chip small">{task.stage}</span>}
+                  {task.needs_attention
+                    ? <span className="engine-kind attention">Stopped asking</span>
+                    : task.next
+                      ? <span className="ladder-next">
+                          Next {when(task.next.fire_at, tz)}
+                          <span className="engine-rel"> · {relative(task.next.fire_at)}</span>
+                        </span>
+                      : <span className="ladder-next quiet">Nothing scheduled</span>}
+                </div>
+
+                <p className="ladder-line">
+                  {task.due_at
+                    ? <>Deadline {when(task.due_at, tz)}</>
+                    : <>No deadline</>}
+                  {' · '}
+                  {/*
+                    * Two different facts, said as two different things.
+                    * "asked 0× · 2 of 3 follow-ups spent" read as a
+                    * contradiction: the first counts messages that actually
+                    * went out, the second counts how far up the ladder the
+                    * engine has climbed, and they only look like the same
+                    * number. The cap is worth showing either way — it is why
+                    * this stops rather than nags.
+                    */}
+                  {task.sent > 0 ? `${task.sent} sent` : 'nothing sent yet'}
+                  {task.follow_up_count > 0 && (
+                    task.follow_up_count >= max
+                      // Past the cap the count keeps climbing internally, and
+                      // "follow-up 4 of 3" is not a thing anyone can read. What
+                      // matters at that point is that there are none left.
+                      ? ` · all ${max} follow-ups spent`
+                      : ` · on follow-up ${task.follow_up_count} of ${max}`
+                  )}
+                  {task.chat_name && ` · ${task.chat_name}`}
+                  {task.assigned_to && ` · given to ${task.assigned_to}`}
+                </p>
+
+                {/* The ladder itself, in order. A rung that has gone is filled,
+                    the one coming is outlined, and what will never fire now is
+                    struck through — the shape of it is readable without
+                    reading a single timestamp. */}
+                <ol className="rungs">
+                  {task.ladder.map((r) => (
+                    <li key={r.id} className={`rung s-${r.status} k-${r.kind}`}>
+                      <span className="rung-dot" aria-hidden="true" />
+                      <span className="rung-name">
+                        {KIND[r.kind] || r.kind}{r.kind === 'follow_up' ? ` ${r.round}` : ''}
+                      </span>
+                      <span className="rung-when">
+                        {when(r.status === 'triggered' ? `${r.triggered_at}Z` : r.fire_at, tz)}
+                      </span>
+                      <span className="rung-state">
+                        {r.status === 'triggered' ? 'sent'
+                          : r.status === 'missed' ? 'missed'
+                          : r.status === 'cancelled' ? 'cancelled'
+                          : r.snooze_count > 0 ? `snoozed ${r.snooze_count}×`
+                          : 'waiting'}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <ul className="engine-list">
           {rows.map((r) => (

@@ -38,9 +38,6 @@ const NAV = [
   {
     label: 'Automation',
     items: [
-      // The reminder and follow-up engine is the heart of this thing; it was
-      // buried at the top of Settings, under the connection panel.
-      { key: 'reminders', label: 'Reminders', icon: 'bell' },
       { key: 'monthly', label: 'Monthly deadlines', icon: 'calendar' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
       { key: 'groups', label: 'Manage groups', icon: 'settings' },
@@ -55,6 +52,15 @@ const NAV = [
     ],
   },
 ];
+
+/*
+ * The reminder and follow-up engine is the heart of this thing, and it kept
+ * ending up behind something: first the connection panel at the top of
+ * Settings, then a group heading that folds shut. It sits outside the groups
+ * now, always visible, because "am I going to be reminded about this" is not a
+ * question that should need two clicks to reach.
+ */
+const PINNED = { key: 'reminders', label: 'Reminders & follow-ups', icon: 'bell' };
 
 /*
  * Which groups are open.
@@ -184,6 +190,18 @@ export default function Sidebar({
         </div>
 
         <nav className="side-nav">
+          <div className="side-group side-pinned">
+            <button
+              type="button"
+              className={`side-item ${section === PINNED.key ? 'on' : ''}`}
+              aria-current={section === PINNED.key ? 'page' : undefined}
+              onClick={() => pick(PINNED.key)}
+            >
+              <Icon name={PINNED.icon} size={17} />
+              <span className="side-item-name">{PINNED.label}</span>
+            </button>
+          </div>
+
           {sections.map((group) => (
             <NavGroup
               key={group.label}

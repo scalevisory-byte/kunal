@@ -468,6 +468,57 @@ log.info('Scheduling tables ready (reminders, notifications, briefings).');
  * The settings page said how the engine is configured; nothing said what it is
  * actually doing. A schedule you cannot see is a schedule you cannot trust.
  */
+/**
+ * Each task the engine is chasing, with every rung of its ladder.
+ *
+ * Two queries and a group rather than one row per reminder: a task is the unit
+ * you think in, and the rungs are only meaningful read in order against it.
+ * Finished and archived work is left out — the engine is not chasing it, so it
+ * is not in flight.
+ */
+function laddersInFlight() {
+  const tasks = db
+    .prepare(
+      `SELECT DISTINCT t.id, t.title, t.priority, t.status, t.due_at, t.due_date,
+              t.chat_name, t.assigned_to, t.stage, t.needs_attention, t.follow_up_count
+       FROM tasks t
+       JOIN reminders r ON r.task_id = t.id
+       WHERE t.status != 'done' AND t.archived_at IS NULL
+       ORDER BY t.due_at IS NULL, t.due_at ASC
+       LIMIT 100`
+    )
+    .all();
+
+  if (!tasks.length) return [];
+
+  const marks = tasks.map(() => '?').join(',');
+  const rungs = db
+    .prepare(
+      `SELECT id, task_id, kind, round, fire_at, status, triggered_at, snooze_count
+       FROM reminders WHERE task_id IN (${marks})
+       ORDER BY fire_at ASC, id ASC`
+    )
+    .all(...tasks.map((t) => t.id));
+
+  const byId = new Map();
+  for (const rung of rungs) {
+    if (!byId.has(rung.task_id)) byId.set(rung.task_id, []);
+    byId.get(rung.task_id).push(rung);
+  }
+
+  return tasks.map((task) => {
+    const ladder = byId.get(task.id) || [];
+    return {
+      ...task,
+      ladder,
+      // Only one rung is ever scheduled ahead, so "the next one" is a fact
+      // rather than a guess about which of several will win.
+      next: ladder.find((r) => r.status === 'scheduled' || r.status === 'snoozed') || null,
+      sent: ladder.filter((r) => r.status === 'triggered').length,
+    };
+  });
+}
+
 export function engineOverview({ upcoming = 50, recent = 50 } = {}) {
   const JOIN = `
     FROM reminders r
@@ -512,6 +563,14 @@ export function engineOverview({ upcoming = 50, recent = 50 } = {}) {
          ${JOIN}`
       )
       .get(),
+
+    // Every task the engine is currently working on, with its whole ladder.
+    //
+    // The flat lists answer "what fires next"; this answers the question
+    // actually asked of a follow-up engine — "is task pe kitni baar poocha,
+    // aur ab kab poochega". Read off a flat list of reminders that takes
+    // counting on your fingers.
+    byTask: laddersInFlight(),
 
     // Tasks the engine has stopped chasing: the cap did its job and now a
     // person has to decide what happens.
