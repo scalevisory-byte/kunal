@@ -192,6 +192,23 @@ run('a task carries its group name and colour for display', () => {
   assert.ok(fresh.group_colour, 'and a colour, so it reads the same everywhere');
 });
 
+await run('adding a keyword later picks up work already on the list', () => {
+  const t = DB.createTask({ title: 'Arrohan sofa delivery follow up' });
+  const g = G.createGroup({ name: 'Interiors' });
+  assert.equal(G.applyGroupToExisting(g.id).moved, 0, 'nothing matches its name yet');
+  G.updateGroup(g.id, { name: 'Interiors', keywords: 'sofa, furniture' });
+  assert.equal(G.applyGroupToExisting(g.id).moved, 1, 'the new word counts for what is already there');
+  assert.equal(DB.getTask(t.id).group_id, g.id);
+});
+
+await run('applying words never takes a task off a group it was filed into', () => {
+  const home = G.createGroup({ name: 'Filed by hand' });
+  const t = DB.createTask({ title: 'Arrohan sofa cushions', group_id: home.id });
+  const g = G.groupByName('Interiors');
+  G.applyGroupToExisting(g.id);
+  assert.equal(DB.getTask(t.id).group_id, home.id, 'a hand-filed task stays where it was put');
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

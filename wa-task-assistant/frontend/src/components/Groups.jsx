@@ -43,17 +43,28 @@ export default function Groups({ onChanged, onError }) {
         keywords: form.keywords,
         separate: form.separate,
       };
-      if (editing) await api.updateGroup(editing, body);
-      else {
-        const { group } = await api.createGroup(body);
-        // A group made today should pick up work already sitting in the list.
-        const { moved } = await api.applyGroup(group.id);
-        setNote(
-          moved > 0
-            ? `${group.name} created — ${moved} existing task${moved === 1 ? '' : 's'} moved into it.`
+      /*
+       * The words are applied to work already on the list, on a new group and
+       * on an edited one alike.
+       *
+       * Adding "sofa" to a group a week later means the same thing as having
+       * written it there on the first day, and a rule that only counts for
+       * tasks that have not arrived yet is a rule you cannot fix anything
+       * with. It is safe to run on every save: it only ever picks up tasks in
+       * no group at all, so a task filed by hand is never taken back off him.
+       */
+      const group = editing
+        ? (await api.updateGroup(editing, body)).group
+        : (await api.createGroup(body)).group;
+      const { moved } = await api.applyGroup(group.id);
+      const verb = editing ? 'updated' : 'created';
+      setNote(
+        moved > 0
+          ? `${group.name} ${verb} — ${moved} task${moved === 1 ? '' : 's'} already on the list moved into it.`
+          : editing
+            ? `${group.name} updated. Nothing else on the list matched its words.`
             : `${group.name} created. New tasks matching its words will go here.`
-        );
-      }
+      );
       setForm(null);
       setEditing(null);
       await load();
