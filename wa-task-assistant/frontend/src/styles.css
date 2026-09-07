@@ -2168,3 +2168,10 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* Appearance, in Settings: the segmented choice sits in an ordinary set-row. */
 .set-control .segment button { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Why a delegation page is empty, rather than only that it is. */
+.empty-why {
+  margin: 14px auto 0; max-width: 48ch;
+  padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: .8rem; color: var(--muted); line-height: 1.55;
+}

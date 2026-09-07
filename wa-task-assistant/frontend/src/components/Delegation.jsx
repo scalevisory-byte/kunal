@@ -161,7 +161,7 @@ function NudgeSheet({ task, onClose, onSent, onError }) {
   );
 }
 
-export default function Delegation({ side, onOpenTask, onError, onChanged }) {
+export default function Delegation({ side, onOpenTask, onError, onChanged, wa }) {
   const [data, setData] = useState(null);
   const [showDone, setShowDone] = useState(false);
   const [nudging, setNudging] = useState(null);
@@ -243,11 +243,33 @@ export default function Delegation({ side, onOpenTask, onError, onChanged }) {
       )}
 
       {!tasks.length ? (
-        <p className="empty">
-          {side === 'allotted'
-            ? 'Nothing is with anybody else. When you write "Rahul, GST documents kal bhej dena" in a chat, the task lands here with his name on it.'
-            : 'Nobody has asked you for anything. Requests that arrive in your chats show up here, alongside who sent them.'}
-        </p>
+        <div className="empty">
+          <strong>
+            {side === 'allotted'
+              ? 'Nothing is with anybody else.'
+              : 'Nobody has asked you for anything.'}
+          </strong>
+          <p>
+            {side === 'allotted'
+              ? 'When you write "Rahul, GST documents kal bhej dena" in a chat, or type an instruction into one of your team groups, the task lands here with their name on it.'
+              : 'Requests that arrive in your chats show up here, alongside who sent them.'}
+          </p>
+
+          {/*
+            * Delegation has two halves and they fail differently: either his own
+            * messages are never read, or they are read and never look like
+            * handing work over. An empty page that does not say which is a
+            * guess, and it was guessed at three times.
+            */}
+          {side === 'allotted' && wa && (
+            <p className="empty-why">
+              Since this server started it has read <b>{wa.ownSeen ?? 0}</b>{' '}
+              {wa.ownSeen === 1 ? 'message' : 'messages'} you wrote yourself, and none of them
+              looked like handing work to somebody.
+              {!wa.ownSeen && ' Nothing you have written has been read yet — send something in a chat and check back.'}
+            </p>
+          )}
+        </div>
       ) : (
         shown.map((person) => (
           <Person

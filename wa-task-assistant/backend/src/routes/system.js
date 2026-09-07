@@ -36,6 +36,9 @@ systemRouter.get('/status', (req, res) => {
       drops: state.drops,
       lastDropError: state.lastDropError,
       messagesSeen: state.messagesSeen,
+      // So an empty "Task allotted" can say which half is not working.
+      ownSeen: state.ownSeen,
+      delegatedCreated: state.delegatedCreated,
       tasksCreated: state.tasksCreated,
       lastExtraction: state.lastExtraction,
     },

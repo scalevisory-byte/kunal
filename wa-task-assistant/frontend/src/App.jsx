@@ -625,6 +625,7 @@ export default function App() {
               </div>
               <Delegation
                 side={page.delegation}
+                wa={status?.whatsapp}
                 onOpenTask={(id) => {
                   const found = tasks.find((t) => t.id === id);
                   if (found) setOpenTask(found);

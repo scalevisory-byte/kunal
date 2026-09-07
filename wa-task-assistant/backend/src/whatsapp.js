@@ -86,6 +86,16 @@ export const state = {
   // chats are clearly arriving means the connection is not delivering at all.
   rawSeen: 0,
   messagesSeen: 0,
+  /*
+   * The two numbers that answer "why is Task allotted empty?".
+   *
+   * Delegation has two halves and they fail differently: either his own
+   * messages are never read, or they are read and never look like handing work
+   * over. Without counting both, the page is empty and the cause is a guess -
+   * which it was, three times.
+   */
+  ownSeen: 0,
+  delegatedCreated: 0,
   // Why messages were dropped. Without this a message that never becomes a task
   // looks the same whatever the reason.
   drops: { ignoredChat: 0, status: 0, noText: 0, blocked: 0, duplicate: 0, error: 0 },
@@ -151,6 +161,7 @@ async function flushBuffer() {
         }
         const { _image, ...fields } = task;
         const created = createTask(fields);
+        if (created.assigned_to) state.delegatedCreated += 1;
         recordEvent(created.id, EVENT.created, `AI, from ${task.chat_name || 'WhatsApp'}`);
 
         /*
@@ -542,6 +553,7 @@ export async function handleMessage(message) {
     state.lastMessageAt = new Date().toISOString();
     noteSeen(row.sent_at);
     state.messagesSeen += 1;
+    if (row.from_me) state.ownSeen += 1;
     noteEvent(
       'message',
       `${contactName || row.contact_number || 'unknown'}: ${text.slice(0, 60) || (image ? '[photo]' : '')}`
