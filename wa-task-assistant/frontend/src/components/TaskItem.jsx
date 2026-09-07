@@ -60,18 +60,6 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onNotATask }) 
           <button role="menuitem" onClick={run(() => onOpen(task))}>
             <Icon name="clipboard" size={15} /> Details
           </button>
-          {/*
-            * Distinct from Delete, and from Done. An ambient reader produces a
-            * lot of near-misses — a sales pitch, a price enquiry, small talk —
-            * and the list is only worth reading if throwing one out is as quick
-            * as ticking one off. It keeps the row in Work History, because what
-            * the extractor got wrong is worth being able to look back at.
-            */}
-          {onNotATask && (
-            <button role="menuitem" onClick={run(() => onNotATask(task))}>
-              <Icon name="circle" size={15} /> Not a task
-            </button>
-          )}
           <button className="danger" role="menuitem" onClick={run(() => onDelete(task))}>
             <Icon name="trash" size={15} /> Delete
           </button>
@@ -192,6 +180,30 @@ export default function TaskItem({
       <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
 
       {extra}
+
+      {/*
+        * Throwing one out is one press, in the row.
+        *
+        * It was in the ⋮ menu, which is right for something you do occasionally
+        * and wrong for this: reading all the chats produces a steady stream of
+        * near-misses, and clearing forty of them a menu at a time is work
+        * nobody does. So the list grows instead.
+        *
+        * Safe to have out in the open because it archives rather than deletes,
+        * and because one press puts it back — see the undo banner in App.jsx.
+        * Permanent deletion stays in the menu, where a rare and final thing
+        * belongs.
+        */}
+      {onNotATask && (
+        <button
+          className="row-dismiss"
+          title={`Not a task — take "${task.title}" off the list`}
+          aria-label={`Not a task: ${task.title}`}
+          onClick={() => onNotATask(task)}
+        >
+          ✕
+        </button>
+      )}
 
       <RowMenu
         task={task}

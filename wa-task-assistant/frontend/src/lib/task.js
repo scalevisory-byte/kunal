@@ -87,7 +87,23 @@ export function addsNothing(title, description) {
   return shared / inDesc.size >= 0.6;
 }
 
-export const taskChat = (task) => task.chat_name || task.contact || null;
+/*
+ * Where the task came from, always answerable.
+ *
+ * A saved contact gives a name; an unsaved one gives WhatsApp's own id,
+ * "919909993565@c.us", which is not something to put on a row. The number is,
+ * written the way it would be dialled. In that order: the chat's name, the
+ * person's name, then the number — falling back rather than giving up, because
+ * "which chat was this?" is the question people ask of a task they do not
+ * recognise, and a blank is no answer.
+ */
+const looksLikeWid = (value) => /^\d[\d\s+-]*(@[a-z.]+)?$/i.test(String(value || '').trim());
+
+export const taskChat = (task) => {
+  const named = [task.chat_name, task.contact].find((v) => v && !looksLikeWid(v));
+  if (named) return named;
+  return formatWaNumber(task.chat_id || task.chat_name || task.contact) || null;
+};
 
 /** Free-text match across the fields a person would actually search by. */
 export function matchesQuery(task, query) {

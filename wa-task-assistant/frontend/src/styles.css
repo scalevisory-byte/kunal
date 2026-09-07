@@ -837,6 +837,29 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 @media (hover: none) { .row-menu-btn { opacity: 1; } }
 .row-menu-btn:hover { background: var(--raised); color: var(--text); }
 
+/*
+ * Taking a task off the list, in the row rather than behind the ⋮.
+ *
+ * Same reveal as the menu button — hidden until the row is hovered, always
+ * there on a touch screen, where there is no hover to reveal it. It goes red
+ * only under the pointer, so a list of forty rows is not a row of forty red
+ * crosses.
+ */
+.row-dismiss {
+  width: 26px; height: 26px; border-radius: var(--r-sm);
+  border: 0; background: none; color: var(--muted);
+  font-size: 13px; line-height: 1; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  opacity: 0; transition: opacity .16s, background .16s, color .16s;
+}
+.task:hover .row-dismiss, .task:focus-within .row-dismiss { opacity: 1; }
+@media (hover: none) { .row-dismiss { opacity: 1; } }
+.row-dismiss:hover { background: var(--danger-wash, var(--raised)); color: var(--danger); }
+
+/* One press put it back, which is what makes the cross safe to leave visible. */
+.undo-bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.undo-bar span { flex: 1; }
+
 .menu {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 25;
   min-width: 178px;

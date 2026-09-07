@@ -151,6 +151,8 @@ export default function App() {
   const [groups, setGroups] = useState([]);
   // The two badges beside Task received / Task allotted.
   const [delegation, setDelegation] = useState(null);
+  // The last task taken off the list, so one press puts it back.
+  const [undo, setUndo] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
@@ -254,9 +256,25 @@ export default function App() {
    * "This was never a task." Archived, not deleted: what the extractor got
    * wrong stays in Work History, and its reminders stop with it.
    */
-  const onNotATask = (task) => {
+  /*
+   * "This was never a task." Archived, not deleted: what the extractor got
+   * wrong stays in Work History, and its reminders stop with it.
+   *
+   * The undo is what makes it safe to have out in the open on every row. It
+   * holds one task — the last one — because that is the mistake people actually
+   * make, and a stack of undos is a second list to reason about.
+   */
+  const onNotATask = async (task) => {
     setOpenTask(null);
-    return act(() => api.rejectTask(task.id));
+    await act(() => api.rejectTask(task.id));
+    setUndo({ id: task.id, title: task.title });
+  };
+
+  const undoRemove = async () => {
+    if (!undo) return;
+    const id = undo.id;
+    setUndo(null);
+    await act(() => api.restoreTask(id));
   };
   const onEdit = (task, patch) => {
     // Keep the open panel showing what was just changed, without a round trip.
@@ -721,6 +739,16 @@ export default function App() {
                       * the duplicates it was offering to fix. Renders nothing
                       * when there is nothing to merge.
                       */}
+                    {undo && (
+                      <p className="banner ok undo-bar" role="status">
+                        <span>
+                          Took <b>{undo.title}</b> off the list.
+                        </span>
+                        <button className="link" onClick={undoRemove}>Undo</button>
+                        <button className="link" onClick={() => setUndo(null)}>Dismiss</button>
+                      </p>
+                    )}
+
                     {(page.overview || page.focus) && view !== 'done' && (
                       <Duplicates
                         onOpen={setOpenTask}
