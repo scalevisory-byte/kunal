@@ -2525,6 +2525,100 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    twice. It stays everywhere else, where it is the only thing that says it. */
 .section.s-stopped .state-chip.attention { display: none; }
 
+/* ---------- the businesses board ---------- */
+
+/*
+ * One column per business, read across rather than one at a time.
+ *
+ * Columns scroll sideways in their own track — never the page — so five
+ * businesses on a laptop behave the same as two on a phone. Each column is a
+ * sheet like the task list is, not a card with a card inside it.
+ */
+.board {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  scroll-snap-type: x proximity;
+}
+.board-col {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 15px 12px;
+  min-width: 0;
+}
+.board-head { display: flex; align-items: center; gap: 9px; }
+.board-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: var(--group, var(--muted));
+}
+.board-name {
+  flex: 1; min-width: 0;
+  border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; font-size: .92rem; font-weight: 600; color: var(--text);
+  text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color .16s;
+}
+.board-name:hover { color: var(--brand); }
+.board-name.plain { cursor: default; color: var(--text-2); }
+.board-count {
+  flex: none;
+  font-family: "IBM Plex Mono", monospace; font-size: .74rem;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.board-late { margin: 5px 0 0; font-size: .74rem; color: var(--danger); font-weight: 600; }
+.board-note { margin: 5px 0 0; font-size: .72rem; color: var(--muted); }
+.board-empty { margin: 12px 0 2px; font-size: .8rem; color: var(--muted); }
+
+.board-list {
+  list-style: none; margin: 11px 0 0; padding: 0;
+  display: flex; flex-direction: column;
+}
+.board-list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.board-list input[type=checkbox] {
+  appearance: none;
+  width: 16px; height: 16px; margin: 2px 0 0; flex: none;
+  border: 1.5px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--card); cursor: pointer;
+  transition: border-color .16s;
+}
+.board-list input[type=checkbox]:hover { border-color: var(--brand); }
+.board-task {
+  flex: 1; min-width: 0;
+  border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.board-title {
+  font-size: .84rem; font-weight: 500; color: var(--text); line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.board-task:hover .board-title { color: var(--brand); }
+.board-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: .73rem; color: var(--muted);
+}
+.board-stage {
+  padding: 0 6px; border-radius: 999px;
+  border: 1px solid var(--line-2); color: var(--text-2);
+  font-size: .68rem; font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  /* Nearly the full width, so a column is a screen and the next one peeks. */
+  .board-col { flex-basis: 84vw; }
+}
+
 /* ---------- touch targets ---------- */
 
 /*

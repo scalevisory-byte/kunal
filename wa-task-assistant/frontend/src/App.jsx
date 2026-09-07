@@ -28,6 +28,7 @@ import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import Duplicates from './components/Duplicates.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
+import BoardPage from './components/BoardPage.jsx';
 import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
 import Recurring from './components/Recurring.jsx';
@@ -625,6 +626,25 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
               <SchedulingSettings onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'board' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Businesses</h2>
+                  <p>
+                    Every business side by side, so you can read across them rather than
+                    opening each in turn. Click a name for that one on its own.
+                  </p>
+                </div>
+              </div>
+              <BoardPage
+                tasks={tasks}
+                groups={groups}
+                onOpen={setOpenTask}
+                onToggle={onToggle}
+                onPickGroup={(id) => setSection(`group:${id}`)}
+              />
             </section>
           ) : section === 'groups' ? (
             <section className="settings-page">

@@ -8,6 +8,7 @@ const NAV = [
     items: [
       { key: 'myday', label: 'My Day', icon: 'sun' },
       { key: 'all', label: 'All Tasks', icon: 'list' },
+      { key: 'board', label: 'Businesses', icon: 'board' },
       { key: 'calendar', label: 'Calendar', icon: 'calendar' },
     ],
   },
