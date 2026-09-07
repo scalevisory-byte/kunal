@@ -649,12 +649,6 @@ export default function App() {
                     }}
                   />
 
-                  {/* Shows itself only when there is something to merge. */}
-                  <Duplicates
-                    onOpen={setOpenTask}
-                    onChanged={() => refresh({ quiet: true })}
-                    onError={(err) => setError(err.message)}
-                  />
 
                   <NeedsConfirmation
                     tasks={unsure}
@@ -709,6 +703,23 @@ export default function App() {
               ) : (
                 <div className={`workspace ${page.overview ? '' : 'solo'}`}>
                   <main className="work">
+                    {/*
+                      * Directly above Focus today, because that is where the
+                      * copies are seen: two "Process BNF salary" rows one under
+                      * the other. It sat above the KPI cards before, which reads
+                      * fine on an empty dashboard and is scrolled past on a busy
+                      * one — the page had moved down by the time anybody noticed
+                      * the duplicates it was offering to fix. Renders nothing
+                      * when there is nothing to merge.
+                      */}
+                    {(page.overview || page.focus) && view !== 'done' && (
+                      <Duplicates
+                        onOpen={setOpenTask}
+                        onChanged={() => refresh({ quiet: true })}
+                        onError={(err) => setError(err.message)}
+                      />
+                    )}
+
                     {(page.overview || page.focus) && view !== 'done' && (
                       <FocusToday
                         tasks={tasks}
