@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { dateTimeLabel, dueLabel, isDone, isOverdue, taskChat, timeLabel } from '../lib/task.js';
+import { dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel } from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
 
@@ -78,7 +78,7 @@ export default function TaskItem({
 }) {
   const done = isDone(task);
   const due = dueLabel(task.due_date);
-  const chat = taskChat(task);
+  const source = taskSource(task);
 
   return (
     <li className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}>
@@ -137,9 +137,11 @@ export default function TaskItem({
             </span>
           )}
 
-          {chat && (
-            <span className="m-item t-chat" title={chat}>
-              <Icon name="chat" size={12} /> {chat}
+          {source && (
+            <span className="m-item t-chat" title={source.label}>
+              {/* In a group: who wrote it, then where. The sender is the half
+                  that says what the request actually is. */}
+              <Icon name="chat" size={12} /> {source.label}
             </span>
           )}
 

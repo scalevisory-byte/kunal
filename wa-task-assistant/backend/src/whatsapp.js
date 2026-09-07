@@ -6,6 +6,7 @@ import { log } from './logger.js';
 import {
   insertMessage, markMessagesProcessed, createTask,
   listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
+  getMeta, setMeta,
 } from './db.js';
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
@@ -539,6 +540,7 @@ export async function handleMessage(message) {
     if (!id) return drop('duplicate'); // already seen this message id
 
     state.lastMessageAt = new Date().toISOString();
+    noteSeen(row.sent_at);
     state.messagesSeen += 1;
     noteEvent(
       'message',
@@ -579,6 +581,111 @@ export async function handleMessage(message) {
   } catch (err) {
     drop('error', err?.message || err);
     log.error('handleMessage:', err?.message || err);
+  }
+}
+
+/**
+ * Messages that arrived while this was not running.
+ *
+ * The client only ever hears messages sent while it is connected - there is no
+ * replay. Every restart is therefore a hole: a request sent on Tuesday
+ * afternoon, with the service redeployed that evening, is never seen by
+ * anything and never becomes a task. Nobody knows it was lost, which is the
+ * worst property a capture tool can have.
+ *
+ * Bounded on every side, because the alternative - reading history - would send
+ * thousands of messages to the API on a single boot:
+ *
+ *   - only chats with unread messages, and only that many messages from each
+ *   - only messages newer than the last one already stored
+ *   - a hard cap on the total, oldest first, so the ones nearest the gap win
+ *   - the same blocklist, the same buffer, the same extractor as live messages
+ *
+ * The first ever boot reads nothing. With no record of what has been seen, the
+ * only honest starting point is now.
+ */
+/**
+ * How far the capture has got, for the next boot's catch-up to resume from.
+ *
+ * Written per message rather than on shutdown: a container that is killed never
+ * runs a shutdown hook, and that is exactly the case this exists for. Only ever
+ * moves forward — messages can arrive slightly out of order, and a watermark
+ * that goes backwards would re-read what has already been read.
+ */
+function noteSeen(sentAt) {
+  if (!sentAt) return;
+  try {
+    const current = getMeta('last_message_at');
+    if (!current || sentAt > current) setMeta('last_message_at', sentAt);
+  } catch (err) {
+    // Losing the watermark costs a re-read, never a message.
+    log.warn('Could not record the last message time:', err?.message || err);
+  }
+}
+
+export async function catchUp() {
+  const since = getMeta('last_message_at');
+  if (!since) {
+    // Nothing has ever been captured, so there is no gap to fill - only the
+    // whole of history, which is not what this is for.
+    setMeta('last_message_at', new Date().toISOString());
+    log.info('Catch-up skipped: nothing seen before, so now is the starting point.');
+    return;
+  }
+
+  const after = new Date(since).getTime();
+  if (!Number.isFinite(after)) return;
+
+  const gapMinutes = Math.round((Date.now() - after) / 60000);
+  if (gapMinutes < 1) return;
+
+  let chats;
+  try {
+    chats = await client.getChats();
+  } catch (err) {
+    log.warn('Catch-up could not list chats:', err?.message || err);
+    return;
+  }
+
+  const unread = chats.filter((c) => (c.unreadCount || 0) > 0);
+  const missed = [];
+
+  for (const chat of unread) {
+    if (missed.length >= config.catchUpMax) break;
+    try {
+      const take = Math.min(chat.unreadCount, config.catchUpPerChat);
+      const recent = await chat.fetchMessages({ limit: take });
+      for (const m of recent) {
+        const at = (m.timestamp ?? 0) * 1000;
+        if (at > after) missed.push(m);
+      }
+    } catch (err) {
+      // One unreadable chat is not a reason to abandon the rest.
+      noteEvent('catch-up chat failed', err?.message || err);
+    }
+  }
+
+  if (!missed.length) {
+    log.info(`Catch-up: nothing missed in the last ${gapMinutes} min.`);
+    return;
+  }
+
+  // Oldest first, and only as many as the cap allows - the messages nearest the
+  // gap are the ones most likely still to matter.
+  missed.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+  const take = missed.slice(-config.catchUpMax);
+
+  log.info(`Catch-up: ${take.length} message(s) missed over ${gapMinutes} min, reading them now.`);
+  noteEvent('catching up', `${take.length} message(s) from ${unread.length} chat(s)`);
+
+  for (const message of take) {
+    // The ordinary path: same blocklist, same buffer, same extractor. A message
+    // that was missed is not a different kind of message.
+    try {
+      await handleMessage(message);
+    } catch (err) {
+      noteEvent('catch-up message failed', err?.message || err);
+    }
   }
 }
 
@@ -645,6 +752,9 @@ export function startWhatsApp() {
     state.me = client.info?.wid?._serialized ?? null;
     state.meName = client.info?.pushname || null;
     log.info(`WhatsApp ready as ${state.me}`);
+
+    // Its own catch: missing the catch-up must never cost the connection.
+    catchUp().catch((err) => log.error('Catch-up failed:', err?.message || err));
   });
 
   client.on('disconnected', (reason) => {

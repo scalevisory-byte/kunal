@@ -52,6 +52,17 @@ export const config = {
   maxImageBytes: Number(process.env.MAX_IMAGE_BYTES) || 4_000_000,
 
   /*
+   * Reading what arrived while this was not running.
+   *
+   * Both caps exist to stop a single boot turning into a bill: without them,
+   * "catch up" over a long outage means every unread message in 200 chats going
+   * to the API at once. Per-chat first, then a hard total, oldest trimmed away -
+   * the messages nearest the gap are the ones most likely still to matter.
+   */
+  catchUpPerChat: Number(process.env.CATCH_UP_PER_CHAT) || 20,
+  catchUpMax: Number(process.env.CATCH_UP_MAX) || 120,
+
+  /*
    * Voice notes. Claude reads text and pictures but not audio, so this is the
    * one step that needs a service outside Anthropic - and which one matters,
    * because these notes move between Gujarati, Hindi and English mid-sentence.

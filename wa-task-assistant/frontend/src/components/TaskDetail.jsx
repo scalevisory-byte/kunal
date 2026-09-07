@@ -6,7 +6,7 @@ import Attachments from './Attachments.jsx';
 import { api } from '../api.js';
 import { REMINDER_OFFSETS, TASK_STATE, clock as fmtClock, dueLabel } from '../lib/schedule.js';
 import {
-  PRIORITIES, STATUSES, dateTimeLabel, isoDay, taskChat, todayIso,
+  PRIORITIES, STATUSES, dateTimeLabel, isoDay, taskSource, todayIso,
 } from '../lib/task.js';
 
 /** Local "YYYY-MM-DDTHH:MM" for a date and time the user picked. */
@@ -175,7 +175,7 @@ export default function TaskDetail({
 
   if (!task) return null;
 
-  const chat = taskChat(task);
+  const source = taskSource(task);
   const dueTime = task.remind_at ? new Date(task.remind_at).toTimeString().slice(0, 5) : '';
 
   return (
@@ -388,10 +388,17 @@ export default function TaskDetail({
                 </dd>
               </div>
             )}
-            {chat && (
+            {source && (
               <div>
-                <dt>WhatsApp chat</dt>
-                <dd>💬 {chat}</dd>
+                <dt>{source.group ? 'WhatsApp group' : 'WhatsApp chat'}</dt>
+                <dd>💬 {source.chat}</dd>
+              </div>
+            )}
+            {/* The drawer has room to say them separately rather than joined. */}
+            {source?.sender && (
+              <div>
+                <dt>Written by</dt>
+                <dd>{source.sender}</dd>
               </div>
             )}
             <div>

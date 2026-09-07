@@ -1,5 +1,5 @@
 import Icon from './Icon.jsx';
-import { dueLabel, isOverdue, taskChat, todayIso } from '../lib/task.js';
+import { dueLabel, isOverdue, taskSource, todayIso } from '../lib/task.js';
 
 const PRIORITY = { high: 'High priority', medium: 'Medium priority', low: 'Low priority' };
 
@@ -67,7 +67,7 @@ export default function FocusToday({ tasks, onOpen, onToggle, onShowAll }) {
         <ul className="focus-list">
           {focus.map((task) => {
             const due = dueLabel(task.due_date);
-            const chat = taskChat(task);
+            const source = taskSource(task);
             return (
               <li key={task.id} className={isOverdue(task) ? 'late' : ''}>
                 <button
@@ -79,7 +79,7 @@ export default function FocusToday({ tasks, onOpen, onToggle, onShowAll }) {
                   <strong>{task.title}</strong>
                   <small>
                     {due ? due.text : 'No date'} · {PRIORITY[task.priority]}
-                    {chat ? ` · ${chat}` : ''} · {task.origin === 'ai' ? 'AI-created' : 'Manual'}
+                    {source ? ` · ${source.label}` : ''} · {task.origin === 'ai' ? 'AI-created' : 'Manual'}
                   </small>
                 </button>
               </li>

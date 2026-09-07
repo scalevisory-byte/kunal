@@ -321,6 +321,7 @@ export async function extractTasks(messages) {
         contact: task.contact?.trim() || source?.contact_name || source?.contact_number || null,
         chat_name: task.chat_name?.trim() || source?.chat_name || null,
         chat_id: source?.chat_id ?? null,
+        is_group: source?.is_group ? 1 : 0,
         message_id: source?.id ?? null,
         source: 'whatsapp',
         origin: 'ai',

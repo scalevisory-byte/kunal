@@ -54,6 +54,7 @@ tasksRouter.post('/', (req, res) => {
   const {
     title, description, notes, contact, chat_name, due_date, due_at, priority, remind_at,
     reminder_offset, follow_up_offset, assigned_to, assigned_to_wid, requested_by,
+    is_group,
   } = req.body || {};
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: 'title is required' });
@@ -79,6 +80,8 @@ tasksRouter.post('/', (req, res) => {
       assigned_to,
       assigned_to_wid,
       requested_by,
+      // So a task entered against a group chat still shows who wrote it.
+      is_group,
     });
     recordEvent(task.id, EVENT.created, 'added by hand');
     if (task.assigned_to) recordEvent(task.id, EVENT.assigned, task.assigned_to);

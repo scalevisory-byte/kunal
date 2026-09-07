@@ -239,6 +239,17 @@ for (const [name, ddl] of [
    */
   ['requested_by', 'ALTER TABLE tasks ADD COLUMN requested_by TEXT'],
   ['requested_by_wid', 'ALTER TABLE tasks ADD COLUMN requested_by_wid TEXT'],
+
+  /*
+   * Whether the message arrived in a group.
+   *
+   * Stored rather than guessed at from the names, because in a group the row
+   * has to say both who wrote it and where - "Hasmukh · BOOK N FLY LEGAL TEAM"
+   * - and in a one-to-one chat those two are the same person said twice.
+   * Nothing existing has it, and 0 is the safe reading of that: a task with no
+   * recorded group shows exactly what it showed before.
+   */
+  ['is_group', 'ALTER TABLE tasks ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -387,12 +398,12 @@ const insertTaskStmt = db.prepare(`
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
      ai_confidence, needs_confirmation, group_id,
-     assigned_to, assigned_to_wid, assigned_at, requested_by, requested_by_wid)
+     assigned_to, assigned_to_wid, assigned_at, requested_by, requested_by_wid, is_group)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
      @ai_confidence, @needs_confirmation, @group_id,
-     @assigned_to, @assigned_to_wid, @assigned_at, @requested_by, @requested_by_wid)
+     @assigned_to, @assigned_to_wid, @assigned_at, @requested_by, @requested_by_wid, @is_group)
 `);
 
 /**
@@ -455,6 +466,7 @@ export function createTask(input) {
     assigned_at: input.assigned_to ? new Date().toISOString() : null,
     requested_by: input.requested_by ? String(input.requested_by).trim().slice(0, 80) : null,
     requested_by_wid: input.requested_by_wid || null,
+    is_group: input.is_group ? 1 : 0,
   };
   if (!row.title) throw new Error('title is required');
   const info = insertTaskStmt.run(row);

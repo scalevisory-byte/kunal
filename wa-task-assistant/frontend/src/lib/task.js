@@ -99,11 +99,55 @@ export function addsNothing(title, description) {
  */
 const looksLikeWid = (value) => /^\d[\d\s+-]*(@[a-z.]+)?$/i.test(String(value || '').trim());
 
+/*
+ * WhatsApp group names written in stylised letters, made readable.
+ *
+ * "𝔻𝕂𝕊𝕃_𝕊𝕀𝕋𝕄" is not decoration in a font — they are different characters,
+ * Unicode's mathematical alphabets, and the app's self-hosted faces have no
+ * glyphs for them, so a real group name arrives on the row as a row of boxes.
+ * You cannot tell which group a task came from, which is the one thing the
+ * label is there to say.
+ *
+ * NFKC is compatibility composition: it maps those alphabets, circled letters
+ * and fullwidth forms back to plain ones and leaves everything else exactly as
+ * it is — accents stay accents, and Gujarati, Hindi and emoji are untouched.
+ */
+export const readableName = (text) => {
+  const value = String(text ?? '').trim();
+  if (!value) return value;
+  try {
+    return value.normalize('NFKC');
+  } catch {
+    return value;
+  }
+};
+
 export const taskChat = (task) => {
   const named = [task.chat_name, task.contact].find((v) => v && !looksLikeWid(v));
-  if (named) return named;
+  if (named) return readableName(named);
   return formatWaNumber(task.chat_id || task.chat_name || task.contact) || null;
 };
+
+/**
+ * Where a task came from, as the row shows it.
+ *
+ * In a group, "where" is two facts and both matter: a request in BOOK N FLY
+ * LEGAL TEAM is a different thing depending on whether Hasmukh or the advocate
+ * wrote it, and the group alone does not say. So a group reads
+ * "Hasmukh · BOOK N FLY LEGAL TEAM" and a one-to-one chat stays a single name,
+ * because there the two are the same person written twice.
+ */
+export function taskSource(task) {
+  const chat = taskChat(task);
+  if (!task?.is_group) return chat ? { label: chat, chat } : null;
+
+  const who = [task.contact, task.requested_by].find((v) => v && !looksLikeWid(v));
+  const sender = who ? readableName(who) : null;
+  // Only when they are genuinely two different names: a group whose name is
+  // also the sender's would otherwise be printed twice.
+  if (!sender || !chat || sender === chat) return chat ? { label: chat, chat } : null;
+  return { label: `${sender} · ${chat}`, chat, sender, group: chat };
+}
 
 /** Free-text match across the fields a person would actually search by. */
 export function matchesQuery(task, query) {
@@ -111,7 +155,12 @@ export function matchesQuery(task, query) {
   if (!q) return true;
   return [task.title, task.description, task.chat_name, task.contact, task.source_message]
     .filter(Boolean)
-    .some((field) => String(field).toLowerCase().includes(q));
+    // Both forms: searching "DKSL" has to find a group whose name is stored as
+    // "𝔻𝕂𝕊𝕃", because that is what the row shows and what you would type.
+    .some((field) => {
+      const raw = String(field).toLowerCase();
+      return raw.includes(q) || readableName(raw).toLowerCase().includes(q);
+    });
 }
 
 /**

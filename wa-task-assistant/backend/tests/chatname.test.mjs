@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
-const { taskChat, formatWaNumber } = new Function(
+const { taskChat, taskSource, readableName } = new Function(
   src.replace(/^import.*$/gm, '').replace(/export /g, '') +
-  '; return { taskChat, formatWaNumber };'
+  '; return { taskChat, taskSource, readableName };'
 )();
 
 let pass = 0, fail = 0;
@@ -46,6 +46,58 @@ run('a name that happens to contain digits is still a name', () => {
 
 run('a task with no source at all says nothing rather than guessing', () => {
   assert.equal(taskChat({ title: 'Typed by hand' }), null);
+});
+
+console.log('\na group message says who wrote it, as well as where');
+
+run('a group shows the sender and the group', () => {
+  /*
+   * A request in BOOK N FLY LEGAL TEAM is a different thing depending on
+   * whether Hasmukh or the advocate wrote it, and the group alone does not say.
+   */
+  const s = taskSource({ is_group: 1, chat_name: 'BOOK N FLY LEGAL TEAM', contact: 'HASMUKH' });
+  assert.equal(s.label, 'HASMUKH · BOOK N FLY LEGAL TEAM');
+  assert.equal(s.group, 'BOOK N FLY LEGAL TEAM');
+  assert.equal(s.sender, 'HASMUKH');
+});
+
+run('a one-to-one chat stays one name', () => {
+  const s = taskSource({ is_group: 0, chat_name: 'Dipen Shah', contact: 'Dipen Shah' });
+  assert.equal(s.label, 'Dipen Shah', 'the two are the same person written twice');
+  assert.equal(s.sender, undefined);
+});
+
+run('a group with no known sender still names the group', () => {
+  assert.equal(taskSource({ is_group: 1, chat_name: 'BNF - GROWTH TEAM' }).label, 'BNF - GROWTH TEAM');
+});
+
+run('a group whose name is also the sender is not printed twice', () => {
+  assert.equal(taskSource({ is_group: 1, chat_name: 'Booknfly', contact: 'Booknfly' }).label, 'Booknfly');
+});
+
+console.log('\na stylised group name is made readable');
+
+run('mathematical letters become plain ones', () => {
+  /*
+   * Not decoration in a font - they are different characters, Unicode's
+   * mathematical alphabets, and the app's self-hosted faces have no glyphs for
+   * them, so a real group name arrived on the row as a row of boxes.
+   */
+  assert.equal(readableName('\u{1D53B}\u{1D542}\u{1D54A}\u{1D543}'), 'DKSL');
+  assert.equal(taskSource({ is_group: 1, chat_name: '\u{1D401}\u{1D40D}\u{1D40D}', contact: 'Vikas' }).label,
+    'Vikas · BNN');
+});
+
+run('circled and fullwidth letters too', () => {
+  assert.equal(readableName('\u24B7\u24C3\u24BB'), 'BNF');
+  assert.equal(readableName('\uFF26\uFF55\uFF4C\uFF4C'), 'Full');
+});
+
+run('accents, Gujarati, Hindi and emoji are left exactly as they are', () => {
+  // NFKC composes compatibility forms; it does not strip anything real.
+  for (const n of ['José Fernández', 'ગુજરાતી ગ્રુપ', 'अकाउंट्स', 'BNF - GROWTH TEAM 🌟', 'Mummy ❤️ Home']) {
+    assert.equal(readableName(n), n, n);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
