@@ -42,6 +42,8 @@ systemRouter.get('/status', (req, res) => {
       // Totals that survive a restart; the since-start pair above resets on
       // every deploy, which is exactly when somebody comes looking.
       ownSeenEver: state.ownSeenEver,
+      // Each one silently cost a group name and a sender.
+      chatLookupFailures: state.chatLookupFailures,
       delegatedEver: state.delegatedEver,
       tasksCreated: state.tasksCreated,
       lastExtraction: state.lastExtraction,

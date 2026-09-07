@@ -96,6 +96,8 @@ export const state = {
    */
   ownSeen: 0,
   delegatedCreated: 0,
+  // Every failed one cost a group name and a sender, silently, until now.
+  chatLookupFailures: 0,
   // Kept across restarts too. Since-start alone is misleading: every deploy
   // restarts the container, so the number resets exactly when somebody goes
   // looking at it, and a fresh zero reads the same as a broken pipeline.
@@ -558,13 +560,37 @@ export async function handleMessage(message) {
     }
     if (chat && IGNORED_CHAT_IDS.has(chat.id?._serialized)) return drop('ignoredChat');
 
+    /*
+     * Which chat this is, without needing the lookup to have worked.
+     *
+     * WhatsApp's own ids say it: a group always ends "@g.us" and a one-to-one
+     * chat "@c.us". That is on every message, always, and it does not go back
+     * to the browser for anything - whereas getChat() can fail, and when it did
+     * the row fell back to the *sender's* name as the chat name and recorded
+     * is_group as 0. A group message then looked exactly like a private one,
+     * which is why "Bhavesh · ACCT - SENA GLOBAL DMC" kept coming out as
+     * "Bhavesh" alone: there was no group left in the record to show.
+     *
+     * The id also has to come from the right end. On a message he sent,
+     * `message.from` is his own account and `message.to` is the chat.
+     */
+    const fallbackChatId = (message.fromMe ? message.to : message.from) || message.from || null;
+    const chatId = chat?.id?._serialized ?? fallbackChatId ?? 'unknown';
+    const isGroup = String(chatId).endsWith('@g.us') || Boolean(chat?.isGroup);
+    if (!chat) state.chatLookupFailures += 1;
+
+
     try {
       contact = await message.getContact();
     } catch (err) {
       noteEvent('contact lookup failed', err?.message || err);
     }
     const contactName =
-      contact?.pushname || contact?.name || contact?.verifiedName || contact?.number || null;
+      contact?.pushname || contact?.name || contact?.verifiedName || contact?.number
+      // In a group the sender is on the message itself, so a failed contact
+      // lookup does not have to mean an anonymous row.
+      || (isGroup && message.author ? String(message.author).split('@')[0] : null)
+      || null;
 
     // Blocked chats are dropped before anything is stored or sent to the API.
     if (
@@ -580,13 +606,16 @@ export async function handleMessage(message) {
 
     const row = {
       wa_message_id: message.id?._serialized ?? null,
-      chat_id: chat?.id?._serialized ?? message.from ?? message.to ?? 'unknown',
-      chat_name: chat?.name || contactName || message.from || 'unknown',
+      chat_id: chatId,
+      // With no lookup there is no group name to be had; the id is at least
+      // honest about which group, and better than the sender's name pretending
+      // to be one.
+      chat_name: chat?.name || (isGroup ? chatId : contactName || chatId) || 'unknown',
       contact_name: contactName,
       contact_number: contact?.number ?? null,
       // A caption-less photo still needs something readable in the message list.
       body: text || (image ? '[photo]' : ''),
-      is_group: chat?.isGroup ? 1 : 0,
+      is_group: isGroup ? 1 : 0,
       from_me: message.fromMe ? 1 : 0,
       sent_at: new Date((message.timestamp ?? Date.now() / 1000) * 1000).toISOString(),
     };

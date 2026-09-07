@@ -533,11 +533,21 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`)
  * left with a message that disagrees.
  */
 {
+  /*
+   * Messages stored before the group flag came from the id rather than a
+   * lookup have it wrong too, so this reads the id as well: "@g.us" is a group,
+   * always, and needs nothing from WhatsApp to establish.
+   */
+  db.prepare(
+    `UPDATE messages SET is_group = 1 WHERE is_group = 0 AND chat_id LIKE '%@g.us'`
+  ).run();
+
   const fixed = db
     .prepare(
       `UPDATE tasks SET is_group = 1
        WHERE is_group = 0
-         AND message_id IN (SELECT id FROM messages WHERE is_group = 1)`
+         AND (message_id IN (SELECT id FROM messages WHERE is_group = 1)
+              OR chat_id LIKE '%@g.us')`
     )
     .run().changes;
 
