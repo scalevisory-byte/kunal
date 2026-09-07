@@ -42,6 +42,31 @@ function EventTrail({ events }) {
   );
 }
 
+/**
+ * Which build is running, always visible.
+ *
+ * Not a vanity line. Several times now something has been reported as still
+ * broken when it was fixed and simply had not deployed yet, and a screenshot
+ * cannot tell those two apart. The commit can, and it comes from the hosting
+ * provider's own environment rather than being written by hand, so it cannot
+ * drift from what is actually running.
+ */
+function Build({ build }) {
+  if (!build?.commit && !build?.deployedAt) return null;
+  const when = build.deployedAt
+    ? new Date(build.deployedAt).toLocaleString([], {
+        day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
+      })
+    : null;
+  return (
+    <p className="build-line">
+      {build.commit ? <code>{build.commit}</code> : 'build unknown'}
+      {build.message && <span title={build.message}> · {build.message.split('\n')[0].slice(0, 60)}</span>}
+      {when && <span> · running since {when}</span>}
+    </p>
+  );
+}
+
 function Diagnostics({ d }) {
   if (!d) return null;
 
@@ -278,7 +303,8 @@ export default function StatusBar({ status, stats, overdueCount }) {
       {state === 'authenticated' && (
         <p className="hint">
           Logged in, now syncing your chats. On a busy account this takes several minutes and
-          sits at 99% for most of it. Messages are only read once this says <b>Connected</b>.
+          sits at 99% for most of it. Until it says <b>Connected</b>, new messages may not be
+          picked up.
         </p>
       )}
 
@@ -289,6 +315,8 @@ export default function StatusBar({ status, stats, overdueCount }) {
           <EventTrail events={wa?.events} />
         </>
       )}
+
+      <Build build={status?.diagnostics?.build} />
     </section>
   );
 }

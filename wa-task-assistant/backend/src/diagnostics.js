@@ -6,6 +6,23 @@ import { sessionOnDisk } from './session-store.js';
 
 export const startedAt = new Date().toISOString();
 
+/*
+ * Which build is running.
+ *
+ * Half a dozen times now, something has been reported as still broken when it
+ * was fixed and simply had not deployed yet — and from a screenshot there is no
+ * way to tell those two apart. The commit is the answer: it comes from the
+ * hosting provider's own environment (Railway sets these), so it cannot drift
+ * from what is actually running the way a hand-written version number can.
+ */
+export const build = {
+  commit: (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 7) || null,
+  message: process.env.RAILWAY_GIT_COMMIT_MESSAGE || null,
+  branch: process.env.RAILWAY_GIT_BRANCH || null,
+  // When this process started, which for a container is when it was deployed.
+  deployedAt: startedAt,
+};
+
 /** Recursive size of a directory, in bytes. Missing directory counts as zero. */
 function dirSize(dir) {
   let bytes = 0;
@@ -82,6 +99,7 @@ export function diagnostics() {
 
   return {
     startedAt,
+    build,
     uptimeSeconds: Math.round(process.uptime()),
     dataDir: config.dataDir,
     dataDirIsMount: isMountPoint(config.dataDir),
