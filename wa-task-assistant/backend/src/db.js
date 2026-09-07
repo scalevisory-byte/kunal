@@ -371,6 +371,12 @@ export function insertMessage(msg) {
   return info.lastInsertRowid;
 }
 
+/** Note that a message was read as a task that already existed. */
+export function noteMessageMerged(messageId, taskId) {
+  if (!messageId || !taskId) return;
+  db.prepare(`UPDATE messages SET merged_into = ? WHERE id = ?`).run(taskId, messageId);
+}
+
 export function markMessagesProcessed(ids) {
   if (!ids.length) return;
   const stmt = db.prepare(`UPDATE messages SET processed = 1 WHERE id = ?`);
@@ -390,7 +396,7 @@ export function listMessagesWithOutcome({ limit = 60 } = {}) {
   const messages = db
     .prepare(
       `SELECT id, chat_name, contact_name, contact_number, body,
-              is_group, from_me, sent_at, processed
+              is_group, from_me, sent_at, processed, merged_into
        FROM messages
        ORDER BY sent_at DESC, id DESC
        LIMIT ?`
@@ -418,7 +424,24 @@ export function listMessagesWithOutcome({ limit = 60 } = {}) {
     byMessage.get(task.message_id).push(task);
   }
 
-  return messages.map((message) => ({ ...message, tasks: byMessage.get(message.id) || [] }));
+  // A merged message points at a task that some earlier message created, so it
+  // is looked up separately rather than found by message_id.
+  const mergedIds = [...new Set(messages.map((m) => m.merged_into).filter(Boolean))];
+  const merged = new Map();
+  if (mergedIds.length) {
+    const spots = mergedIds.map(() => '?').join(',');
+    for (const task of db
+      .prepare(`SELECT id, title, assigned_to, status, archived_at FROM tasks WHERE id IN (${spots})`)
+      .all(...mergedIds)) {
+      merged.set(task.id, task);
+    }
+  }
+
+  return messages.map((message) => ({
+    ...message,
+    tasks: byMessage.get(message.id) || [],
+    merged: (message.merged_into && merged.get(message.merged_into)) || null,
+  }));
 }
 
 export function listMessages({ limit = 100 } = {}) {
@@ -637,6 +660,19 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_group_name ON task_groups(name CO
  */
 ensureColumns('task_groups', [
   ['separate', 'ALTER TABLE task_groups ADD COLUMN separate INTEGER NOT NULL DEFAULT 0'],
+]);
+
+/**
+ * When a message was read as a task that already existed.
+ *
+ * Merging a repeat into the open task is right - a second copy doubles every
+ * reminder - but from outside it is indistinguishable from the message having
+ * been ignored, and "no task was made from this" would be a lie: a task WAS
+ * read, and it was one already on the list. So the merge is written down,
+ * naming the task it went to.
+ */
+ensureColumns('messages', [
+  ['merged_into', 'ALTER TABLE messages ADD COLUMN merged_into INTEGER'],
 ]);
 
 /**

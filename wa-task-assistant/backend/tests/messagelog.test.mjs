@@ -89,6 +89,22 @@ await run('an archived task is still shown, and says it was archived', () => {
   assert.ok(row.tasks[0].archived_at, 'the message still explains where the task went');
 });
 
+await run('a message merged into an existing task says so, not nothing', () => {
+  const first = arrive({ body: 'BNF salary process kar do', from_me: 1 });
+  const task = db.createTask({ title: 'Process BNF salary', message_id: first });
+  const again = arrive({ body: 'salary ka kya hua bhai', from_me: 0 });
+  db.noteMessageMerged(again, task.id);
+  const row = db.listMessagesWithOutcome().find((m) => m.id === again);
+  assert.deepEqual(row.tasks, [], 'no new task was created, correctly');
+  assert.equal(row.merged?.title, 'Process BNF salary', 'but a task WAS read, and it was that one');
+});
+
+await run('a message that produced nothing has nothing merged either', () => {
+  const id = arrive({ body: 'good morning all' });
+  const row = db.listMessagesWithOutcome().find((m) => m.id === id);
+  assert.equal(row.merged, null);
+});
+
 await run('newest is first, so the message just sent is at the top', () => {
   const id = arrive({ body: 'last one in', sent_at: new Date(Date.now() + 60_000).toISOString() });
   assert.equal(db.listMessagesWithOutcome()[0].id, id);

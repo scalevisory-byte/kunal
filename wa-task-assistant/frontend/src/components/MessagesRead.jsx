@@ -87,7 +87,7 @@ export default function MessagesRead({ mode, onError }) {
 
       <ul className="msg-log">
         {shown.map((m) => (
-          <li key={m.id} className={m.tasks?.length ? 'made' : ''}>
+          <li key={m.id} className={m.tasks?.length || m.merged ? 'made' : ''}>
             <div className="msg-head">
               <b>{m.from_me ? 'You' : readableName(m.contact_name || m.contact_number || 'unknown')}</b>
               {m.chat_name && <span className="msg-chat">{readableName(m.chat_name)}</span>}
@@ -103,6 +103,11 @@ export default function MessagesRead({ mode, onError }) {
                   {t.archived_at ? ' · archived' : t.status === 'done' ? ' · done' : ''}
                 </p>
               ))
+            ) : m.merged ? (
+              <p className="msg-out">
+                → <b>{m.merged.title}</b>
+                <span className="muted"> · already on the list, so nothing new was made</span>
+              </p>
             ) : (
               <p className="msg-out"><span className="muted">no task was made from this</span></p>
             )}

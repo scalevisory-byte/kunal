@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { config } from './config.js';
 import { log } from './logger.js';
 import {
-  insertMessage, markMessagesProcessed, createTask,
+  insertMessage, markMessagesProcessed, noteMessageMerged, createTask,
   listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
   getMeta, setMeta,
 } from './db.js';
@@ -164,6 +164,9 @@ async function flushBuffer() {
         const existing = findDuplicateTask(task.title, { dueDate: task.due_date });
         if (existing) {
           log.info(`Skipped duplicate task: "${task.title}" matches open task ${existing.id}`);
+          // Written down, so the message log can say the task was read and
+          // merged rather than showing nothing and reading as ignored.
+          noteMessageMerged(task.message_id, existing.id);
           continue;
         }
         const { _image, ...fields } = task;
