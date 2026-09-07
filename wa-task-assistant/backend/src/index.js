@@ -84,6 +84,15 @@ try {
   const { pruneOrphanFiles } = await import('./attachments.js');
   pruneOrphanFiles();
 
+  // Made once, on the first boot that has this code. Its own try/catch: a
+  // convenience must never be the reason the application does not come up.
+  try {
+    const { seedVacancyGroup } = await import('./groups.js');
+    seedVacancyGroup();
+  } catch (err) {
+    log.warn('Could not set up the Vacancies group:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

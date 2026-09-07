@@ -1,4 +1,5 @@
-import { db } from './db.js';
+import { db, getMeta, setMeta } from './db.js';
+import { log } from './logger.js';
 
 /**
  * One group per business.
@@ -223,4 +224,45 @@ export function applyGroupToExisting(groupId) {
   })();
 
   return { moved: moved.length, ids: moved, group };
+}
+
+/*
+ * The vacancies group, made once so nobody has to.
+ *
+ * Recruitment is one of the businesses, and its work arrives in volume: fifteen
+ * "fill or forward" lines in a morning, each real, none of it belonging beside
+ * "Pay TDS today". Set aside, they are kept and grouped and out of the way. The
+ * mechanism for that is a switch on any group - this just turns it on for the
+ * one group everybody with a recruitment desk needs, instead of leaving it as
+ * homework.
+ *
+ * Made exactly once. The marker is written whether or not a group results, so
+ * renaming it, editing its keywords or deleting it outright all stick: this
+ * decides the starting state, never the current one.
+ */
+const VACANCY_KEYWORDS = [
+  'vacancy', 'vacancies', 'candidate', 'candidates', 'recruitment', 'hiring',
+  'job opening', 'job openings', 'job for', 'jobs', 'fill or forward',
+  'resume', 'cv', 'interview', 'walkin', 'walk-in', 'placement', 'shortlist',
+];
+
+export function seedVacancyGroup() {
+  if (getMeta('seeded_vacancies')) return null;
+  setMeta('seeded_vacancies', new Date().toISOString());
+
+  // Somebody may already have made one by hand; do not make a second.
+  if (groupByName('Vacancies')) return null;
+
+  const group = createGroup({
+    name: 'Vacancies',
+    colour: 'slate',
+    keywords: VACANCY_KEYWORDS,
+    separate: true,
+  });
+  const { moved } = applyGroupToExisting(group.id);
+  log.info(
+    `Created the Vacancies group (kept out of the main list)` +
+      `${moved ? `, and moved ${moved} existing task(s) into it` : ''}.`
+  );
+  return group;
 }

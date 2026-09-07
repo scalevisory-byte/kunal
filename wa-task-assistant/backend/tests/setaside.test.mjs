@@ -39,7 +39,7 @@ const run = (name, fn) => {
 };
 
 const today = new Date().toISOString().slice(0, 10);
-const vacancies = G.createGroup({ name: 'Vacancies', keywords: ['vacancy', 'candidate'], separate: true });
+const vacancies = G.createGroup({ name: 'Openings', keywords: ['opening', 'candidate'], separate: true });
 const bnf = G.createGroup({ name: 'BNF' });
 
 const task = (title, extra = {}) =>
@@ -174,6 +174,67 @@ run('every new task goes through it, whichever way it was made', () => {
     DB.createTask({ title: 'FILL ACCOUNTANT VACANCY IN SURAT', source: 'manual' }).title,
     'Fill Accountant Vacancy in Surat'
   );
+});
+
+console.log('\nthe vacancies group makes itself');
+
+run('it is created, set aside, on the first boot that has this code', () => {
+  /*
+   * Built because leaving it as homework did not work: the switch existed, the
+   * group did not, and the vacancies stayed in the list. A mechanism nobody
+   * turns on is the same as no mechanism.
+   */
+  const made = G.seedVacancyGroup();
+  assert.ok(made, 'a group was made');
+  assert.equal(made.name, 'Vacancies');
+  assert.equal(made.separate, true);
+});
+
+run('it is made exactly once, so editing or deleting it sticks', () => {
+  assert.equal(G.seedVacancyGroup(), null, 'a second boot makes nothing');
+  G.deleteGroup(G.groupByName('Vacancies').id);
+  assert.equal(G.seedVacancyGroup(), null, 'and deleting it does not bring it back');
+});
+
+console.log('\nwhat it catches, and what it leaves alone');
+
+run("the morning's recruitment work goes into it", () => {
+  // The titles that were on the dashboard when this was asked for.
+  const fresh = G.createGroup({
+    name: 'Vacancies 2', separate: true,
+    keywords: ['vacancy', 'candidates', 'recruitment', 'job opening', 'job for', 'fill or forward'],
+  });
+  const recruitment = [
+    'Source driver candidates for Vesu-RRTM route (Surat)',
+    'Source recruitment candidates for Surat accountant/data entry roles',
+    'Fill or forward accountant position (Adty246)',
+    'Fill or forward dukan staff position (Adty242)',
+    'Forward peon job opening (Adty241) to suitable contacts',
+    'Find a job for this person',
+  ];
+  for (const t of recruitment) DB.createTask({ title: t, status: 'open', source: 'whatsapp', origin: 'ai' });
+
+  G.applyGroupToExisting(fresh.id);
+  const listed = DB.listTasks({ status: 'pending' }).map((t) => t.title);
+  for (const t of recruitment) assert.ok(!listed.includes(t), `"${t}" left the main list`);
+});
+
+run('ordinary work is not swept up with it', () => {
+  const keep = [
+    'Provide last year payment of 25,000 to Himanshu Kapadia',
+    'Arrange for owner to courier one copy',
+    'Send rental agreement to check',
+    'Collect invoices and receipts from other agents',
+    'Give Reva money',
+    'Pay BNF TDS',
+  ];
+  for (const t of keep) DB.createTask({ title: t, status: 'open', source: 'whatsapp', origin: 'ai' });
+
+  G.applyGroupToExisting(G.groupByName('Vacancies 2').id);
+  const listed = DB.listTasks({ status: 'pending' }).map((t) => t.title);
+  // The cost of a wrong catch here is a task that silently disappears, which is
+  // worse than a vacancy left on the list, so the vocabulary stays specific.
+  for (const t of keep) assert.ok(listed.includes(t), `"${t}" stayed`);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
