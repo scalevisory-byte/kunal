@@ -73,6 +73,50 @@ await run('a message with no photo is left alone', async () => {
   assert.equal(await WA.downloadImage({ hasMedia: true, type: 'ptt' }), null);
 });
 
+console.log('\nthe linked session survives a restart');
+
+await run('clearing the browser cache never clears the login', async () => {
+  /*
+   * The Chromium profile lives on the data volume and its caches are pruned at
+   * boot, because unbounded they once filled the volume and stopped the service
+   * starting. The login lives in the same profile - IndexedDB, Local Storage,
+   * Cookies - so the prune has to be able to tell them apart. Getting this
+   * wrong logs the user out on every deploy, which is worse than the disk
+   * problem it was fixing.
+   */
+  const S = await import('../src/session-store.js');
+  const profile = S.profileDir;
+
+  const login = [
+    'Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb',
+    'Default/Local Storage/leveldb',
+    'Default/Service Worker/CacheStorage',
+    'Default/Session Storage',
+  ];
+  const disposable = [
+    'Default/Cache', 'Default/Code Cache', 'Default/GPUCache',
+    'GrShaderCache', 'component_crx_cache',
+  ];
+
+  for (const d of [...login, ...disposable]) {
+    fs.mkdirSync(path.join(profile, d), { recursive: true });
+    fs.writeFileSync(path.join(profile, d, '000003.log'), 'x'.repeat(500));
+  }
+  fs.writeFileSync(path.join(profile, 'Default', 'Cookies'), 'cookie-data');
+
+  assert.equal(S.sessionOnDisk().loggedIn, true, 'the fixture looks logged in');
+  S.pruneProfileCaches();
+
+  assert.equal(S.sessionOnDisk().loggedIn, true, 'and still does afterwards');
+  for (const d of login) {
+    assert.ok(fs.existsSync(path.join(profile, d)), `kept: ${d}`);
+  }
+  assert.ok(fs.existsSync(path.join(profile, 'Default', 'Cookies')), 'cookies kept');
+  for (const d of disposable) {
+    assert.equal(fs.existsSync(path.join(profile, d)), false, `pruned: ${d}`);
+  }
+});
+
 console.log('\nmessages you send yourself');
 
 await run('a note typed into your own chat is captured like any other', async () => {
