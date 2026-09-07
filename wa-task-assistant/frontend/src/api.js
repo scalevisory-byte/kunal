@@ -218,6 +218,9 @@ export const api = {
   createRule: (body) => request('/recurring', { method: 'POST', body: JSON.stringify(body) }),
   updateRule: (id, body) => request(`/recurring/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteRule: (id) => request(`/recurring/${id}`, { method: 'DELETE' }),
+  // What was done with one occurrence's day-before notice: 'dismiss' or 'later'.
+  deadlineNotice: (id, body) =>
+    request(`/recurring/${id}/notice`, { method: 'POST', body: JSON.stringify(body) }),
 
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),

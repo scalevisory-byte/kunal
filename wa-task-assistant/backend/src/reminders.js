@@ -23,7 +23,7 @@ import {
 } from './task-lifecycle.js';
 import { EVENT, recordEvent } from './task-events.js';
 import { openBlockers } from './dependencies.js';
-import { materialiseDue } from './recurring.js';
+import { materialiseDue, ruleForTask } from './recurring.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
@@ -180,6 +180,7 @@ export function startReminderJobs() {
 /* ---------------- the reminder engine ---------------- */
 
 const LABEL = {
+  warning: 'Upcoming deadline',
   pre_due: 'Reminder',
   due: 'Task due',
   follow_up: 'Follow-up',
@@ -341,14 +342,26 @@ async function deliver(task, reminder, settings) {
       })
     : null;
 
+  /*
+   * A warning is days out, so it says which day rather than only the hour -
+   * "due tomorrow at 6:00 pm" is the whole message, and "Due 11 Sep" read on
+   * the 10th is not obviously about tomorrow.
+   */
+  const days = reminder.kind === 'warning' && due
+    ? daysUntil(due.toLocaleDateString('en-CA', { timeZone: config.timezone }))
+    : null;
+  const whenWord = days === 0 ? 'today' : days === 1 ? 'tomorrow' : days !== null ? `in ${days} days` : null;
+
   const base =
-    reminder.kind === 'follow_up'
-      ? `Still not done — was due ${dueLabel}. Follow-up ${reminder.round} of ${settings.followUpMax}.`
-      : reminder.kind === 'due'
-        ? `Due now (${dueLabel}).`
-        : dueLabel
-          ? `Due ${dueLabel}.`
-          : null;
+    reminder.kind === 'warning'
+      ? `Due ${whenWord}: ${dueLabel}.`
+      : reminder.kind === 'follow_up'
+        ? `Still not done — was due ${dueLabel}. Follow-up ${reminder.round} of ${settings.followUpMax}.`
+        : reminder.kind === 'due'
+          ? `Due now (${dueLabel}).`
+          : dueLabel
+            ? `Due ${dueLabel}.`
+            : null;
 
   /*
    * A blocked task is still reminded about - going quiet on a deadline is how
@@ -367,7 +380,13 @@ async function deliver(task, reminder, settings) {
    * press. See routes/delegation.js.
    */
   const withWhom = task.assigned_to ? `With ${task.assigned_to}.` : null;
-  const body = [base, withWhom, blockedNote].filter(Boolean).join(' ') || null;
+
+  // A statutory date is a different kind of deadline: it will be back on the
+  // same day next month, and that is worth saying once, on the warning.
+  const rule = reminder.kind === 'warning' ? ruleForTask(task.id) : null;
+  const monthly = rule ? `Monthly deadline — the ${ordinal(rule.day_of_month)} of each month.` : null;
+
+  const body = [base, monthly, withWhom, blockedNote].filter(Boolean).join(' ') || null;
 
   addNotification({
     kind: reminder.kind === 'follow_up' ? 'follow_up' : 'reminder',
@@ -388,14 +407,21 @@ async function deliver(task, reminder, settings) {
     : settings.notifyWhatsApp;
 
   if (wantsWhatsApp && state.status === 'ready') {
-    const heading = reminder.kind === 'follow_up' ? '🔔 *FOLLOW-UP*' : '⏰ *TASK REMINDER*';
+    const heading = reminder.kind === 'follow_up'
+      ? '🔔 *FOLLOW-UP*'
+      : reminder.kind === 'warning'
+        ? '🔔 *UPCOMING DEADLINE*'
+        : '⏰ *TASK REMINDER*';
     const text = [
       heading,
       '',
       `*${task.title}*`,
       task.assigned_to ? `Given to: ${task.assigned_to}` : null,
       dueLabel ? `Deadline: ${dueLabel}` : null,
-      reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
+      monthly,
+      reminder.kind === 'warning'
+        ? `This is due ${whenWord}.`
+        : reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
       blockedNote ? `⛔ ${blockedNote}` : null,
       '',
       `Reply *done ${task.id}* to close it, *snooze ${task.id} 2 hours*,`,
@@ -409,6 +435,12 @@ async function deliver(task, reminder, settings) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
   }
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 /** Kept so the existing POST /api/reminders/exact route keeps working. */

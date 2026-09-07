@@ -20,7 +20,7 @@ import {
   groupCounts, applyGroupToExisting, COLOURS,
 } from '../groups.js';
 import {
-  listRules, getRule, createRule, updateRule, deleteRule, upcoming, materialiseDue,
+  listRules, getRule, createRule, updateRule, deleteRule, upcoming, materialiseDue, setNotice,
 } from '../recurring.js';
 import { EVENT, recordEvent } from '../task-events.js';
 import { addUpdate, deleteUpdate, knownStages, updatesFor } from '../progress.js';
@@ -353,6 +353,29 @@ recurringRouter.patch('/:id', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+/**
+ * What was done with a day-before notice: seen and closed, or put back.
+ *
+ * The state is kept here rather than in the browser so the same notice does
+ * not return on a refresh, in another tab or on another device - which is what
+ * the popup is required not to do.
+ */
+recurringRouter.post('/:id/notice', (req, res) => {
+  const rule = getRule(Number(req.params.id));
+  if (!rule) return res.status(404).json({ error: 'not found' });
+
+  const { due_date: dueDate, action, minutes } = req.body || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dueDate || ''))) {
+    return res.status(400).json({ error: 'which occurrence? a date like 2026-09-11 is needed' });
+  }
+  if (!['dismiss', 'later'].includes(action)) {
+    return res.status(400).json({ error: 'action must be dismiss or later' });
+  }
+
+  const notice = setNotice(rule.id, dueDate, action, minutes);
+  res.json({ notice, upcoming: upcoming() });
 });
 
 /** Removing a rule stops future months. Tasks it already made are left alone. */

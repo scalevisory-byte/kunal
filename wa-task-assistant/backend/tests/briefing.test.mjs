@@ -49,6 +49,32 @@ const clear = () => db.db.prepare(`DELETE FROM tasks`).run();
 
 console.log('\nwhat the message says');
 
+await run('a deadline tomorrow is listed, and not counted as today', () => {
+  /*
+   * The statutory dates are why this section exists: GSTR-1 at 6 PM tomorrow
+   * is the thing you want to hear about this morning, while there is a day
+   * left to act. It is listed under TOMORROW and left out of the day's count,
+   * because the count answers "what do I have to do today".
+   */
+  clear();
+  db.createTask({ title: 'File GSTR-1', due_at: iso(33 * HOUR) });
+  const { text, total } = B.buildBriefing(NOW);
+  assert.match(text, /TOMORROW/);
+  assert.match(text, /File GSTR-1/);
+  assert.equal(total, 0, "tomorrow's work is not today's total");
+  assert.match(text, /Nothing is due today/);
+});
+
+await run("tomorrow never crowds out today's work", () => {
+  clear();
+  db.createTask({ title: 'Today job', due_at: iso(4 * HOUR) });
+  for (let i = 0; i < 9; i += 1) db.createTask({ title: `Tomorrow job ${i}`, due_at: iso(30 * HOUR) });
+  const { text } = B.buildBriefing(NOW);
+  assert.match(text, /Today job/, "today's task is listed whatever tomorrow holds");
+  assert.match(text, /more tomorrow/, 'the rest of tomorrow is summarised, not printed');
+});
+
+
 await run('no tasks reads as a clear morning', () => {
   clear();
   const { text, total } = B.buildBriefing(NOW);

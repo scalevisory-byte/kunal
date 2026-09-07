@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { log } from './logger.js';
-import { listTasks, db, NOT_SET_ASIDE_BARE } from './db.js';
+import { listTasks, db, setDigestPositions, NOT_SET_ASIDE_BARE } from './db.js';
 import { dueMoment, taskState, onTimeLabel } from './task-lifecycle.js';
 import {
   getSettings, localParts, claimBriefing, recordBriefingSent, recordBriefingFailed, briefingFor,
@@ -8,6 +8,7 @@ import {
 import { sendMessage, reminderChatId, state } from './whatsapp.js';
 
 const MARK = { high: '🔴', medium: '🟡', low: '🟢' };
+const TOMORROW_LISTED = 5;
 const MAX_LISTED = 10;
 
 /** Today's date in the user's timezone, not the server's. */
@@ -37,8 +38,13 @@ export function collectToday(now = new Date()) {
   // Unconfirmed extractions are not part of the day's work yet.
   const open = listTasks({ status: 'pending', limit: 500 }).filter((t) => !t.needs_confirmation);
 
+  // Tomorrow, on the user's calendar rather than 24 hours from now.
+  const tomorrow = new Date(Date.parse(`${today}T00:00:00Z`) + 86_400_000)
+    .toISOString().slice(0, 10);
+
   const overdue = [];
   const dueToday = [];
+  const dueTomorrow = [];
   const undated = [];
 
   for (const task of open) {
@@ -52,6 +58,14 @@ export function collectToday(now = new Date()) {
       overdue.push({ ...task, due });
     } else if (localDay(due) === today) {
       dueToday.push({ ...task, due });
+    } else if (localDay(due) === tomorrow) {
+      /*
+       * Tomorrow is here for the statutory dates: a monthly filing due at 6 PM
+       * tomorrow is the one thing you want to hear about this morning, while
+       * there is still a day to act. It is listed but deliberately not counted
+       * in the day's total - the total answers "what do I have to do today".
+       */
+      dueTomorrow.push({ ...task, due });
     }
   }
 
@@ -62,9 +76,13 @@ export function collectToday(now = new Date()) {
 
   overdue.sort(order);
   dueToday.sort(order);
+  dueTomorrow.sort(order);
   undated.sort((a, b) => rank[a.priority] - rank[b.priority]);
 
-  return { overdue, dueToday, undated, total: overdue.length + dueToday.length + undated.length };
+  return {
+    overdue, dueToday, dueTomorrow, undated,
+    total: overdue.length + dueToday.length + undated.length,
+  };
 }
 
 const line = (task, index, withDate = false) => {
@@ -84,12 +102,13 @@ const line = (task, index, withDate = false) => {
  * a summary that points at the app.
  */
 export function buildBriefing(now = new Date()) {
-  const { overdue, dueToday, undated, total } = collectToday(now);
+  const { overdue, dueToday, dueTomorrow, undated, total } = collectToday(now);
 
-  if (total === 0) {
+  if (total === 0 && dueTomorrow.length === 0) {
     return {
       text: '🌅 *Good morning!*\n\nYou have no pending tasks for today. 🎉',
       total: 0,
+      listedIds: [],
     };
   }
 
@@ -125,14 +144,39 @@ export function buildBriefing(now = new Date()) {
     lines.push(`…and ${ordered.length - MAX_LISTED} more. Open WA Tasks to see them all.`, '');
   }
 
+  /*
+   * Tomorrow, after today's work and outside the cap that governs it: a day's
+   * list should not lose a task it has to do today because four things are due
+   * tomorrow. Capped separately for the same reason in reverse.
+   */
+  const ahead = dueTomorrow.slice(0, TOMORROW_LISTED);
+  if (ahead.length) {
+    lines.push('📅 *TOMORROW*');
+    for (const task of ahead) lines.push(line(task, (position += 1)));
+    if (dueTomorrow.length > ahead.length) {
+      lines.push(`   …and ${dueTomorrow.length - ahead.length} more tomorrow.`);
+    }
+    lines.push('');
+  }
+
   lines.push(
-    `You have ${total} task${total === 1 ? '' : 's'} to look at today.`,
+    total === 0
+      ? 'Nothing is due today.'
+      : `You have ${total} task${total === 1 ? '' : 's'} to look at today.`,
     '',
     'Reply *done 2* to close one, or *show overdue* for the list.',
     'Have a productive day! 💼'
   );
 
-  return { text: lines.join('\n'), total, listed: listed.length };
+  /*
+   * The numbers in the message are what "done 2" means, so the tasks are
+   * recorded in exactly the order they were printed. Without this the briefing
+   * invited a reply it could not resolve, because only the twice-daily digest
+   * had ever numbered anything.
+   */
+  const listedIds = [...listed, ...ahead].map((t) => t.id);
+
+  return { text: lines.join('\n'), total, listed: listed.length, listedIds };
 }
 
 /** True when the configured briefing hour has arrived in the user's timezone. */
@@ -176,6 +220,9 @@ export async function maybeSendBriefing({ now = new Date(), force = false } = {}
 
   // Recorded whether it was scheduled or sent by hand: one message a day is the
   // whole point, and a "send now" at 08:00 must not be followed by the 08:30 one.
+  // The message numbers its tasks and invites "done 2", so those numbers are
+  // recorded against the tasks before the reply can arrive.
+  if (briefing.listedIds?.length) setDigestPositions(briefing.listedIds);
   recordBriefingSent(day, briefing.total);
   log.info(`Daily briefing sent for ${day}: ${briefing.total} task(s).`);
   return { sent: true, day, total: briefing.total, text: briefing.text };

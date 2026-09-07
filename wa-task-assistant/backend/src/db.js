@@ -268,6 +268,21 @@ for (const [name, ddl] of [
    * recorded group shows exactly what it showed before.
    */
   ['is_group', 'ALTER TABLE tasks ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0'],
+
+  /*
+   * How many days before the deadline to say something.
+   *
+   * A monthly statutory date is the case this exists for: "TDS on the 7th,
+   * warn me a day before" means a notice on the 6th at the same hour, which is
+   * a different thing from the hour-before reminder every task gets. It lives
+   * on the task rather than on the rule so the ordinary lifecycle owns it -
+   * moving the deadline moves the warning, finishing the task cancels it, and
+   * nothing needs to know a task came from a monthly rule.
+   *
+   * NULL is every task written before this, and means no warning: the schedule
+   * such a task gets is exactly the schedule it got before.
+   */
+  ['warn_days', 'ALTER TABLE tasks ADD COLUMN warn_days INTEGER'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -482,12 +497,12 @@ const insertTaskStmt = db.prepare(`
   INSERT INTO tasks
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
-     ai_confidence, needs_confirmation, group_id,
+     ai_confidence, needs_confirmation, group_id, warn_days,
      assigned_to, assigned_to_wid, assigned_at, requested_by, requested_by_wid, is_group)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
-     @ai_confidence, @needs_confirmation, @group_id,
+     @ai_confidence, @needs_confirmation, @group_id, @warn_days,
      @assigned_to, @assigned_to_wid, @assigned_at, @requested_by, @requested_by_wid, @is_group)
 `);
 
@@ -546,6 +561,7 @@ export function createTask(input) {
     ai_confidence: CONFIDENCE.has(input.ai_confidence) ? input.ai_confidence : null,
     needs_confirmation: input.needs_confirmation ? 1 : 0,
     group_id: numberOrNull(input.group_id),
+    warn_days: numberOrNull(input.warn_days),
     assigned_to: input.assigned_to ? String(input.assigned_to).trim().slice(0, 80) : null,
     assigned_to_wid: input.assigned_to_wid || null,
     assigned_at: input.assigned_to ? new Date().toISOString() : null,
@@ -714,7 +730,7 @@ const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
   'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence', 'group_id',
-  'assigned_to', 'assigned_to_wid', 'requested_by', 'stage',
+  'assigned_to', 'assigned_to_wid', 'requested_by', 'stage', 'warn_days',
 ];
 
 export function updateTask(id, patch) {

@@ -110,6 +110,35 @@ export function planTask(task, { reset = false, reminderOffset, followUpOffset }
   const at = (date) => applyQuietHours(date, settings, config.timezone).toISOString();
   let planned = 0;
 
+  /*
+   * The warning, days ahead of the deadline rather than minutes.
+   *
+   * "One day before" means the same hour on the previous day - a statutory
+   * deadline at 6 PM on the 11th warns at 6 PM on the 10th, not at midnight,
+   * which would be both a different day's evening and useless. Working in
+   * whole days from the deadline instant preserves the wall-clock time in the
+   * user's zone, daylight saving included, because the arithmetic is done on
+   * the moment and read back in that zone.
+   *
+   * It is a rung like any other: the unique index makes a second one
+   * impossible, completing the task cancels it, and moving the deadline
+   * rebuilds it from the new one.
+   */
+  const warnDays = Number(task.warn_days);
+  if (Number.isFinite(warnDays) && warnDays > 0) {
+    const warnAt = daysBefore(due, warnDays);
+    if (warnAt > new Date()) {
+      const made = scheduleReminder({
+        taskId: task.id,
+        fireAt: warnAt.toISOString(),
+        kind: 'warning',
+        offsetMinutes: warnDays * 24 * 60,
+      });
+      if (made?.created_at) recordEvent(task.id, EVENT.reminderCreated, warnAt.toISOString());
+      planned += 1;
+    }
+  }
+
   const offset = settings.defaultReminderOffset;
   if (Number.isFinite(offset) && offset > 0) {
     const before = new Date(due.getTime() - offset * MIN);
@@ -130,6 +159,30 @@ export function planTask(task, { reset = false, reminderOffset, followUpOffset }
 
   syncNextReminder(task.id);
   return { planned };
+}
+
+/**
+ * The same clock time, `days` earlier, on the user's calendar.
+ *
+ * Quiet hours are deliberately not applied here. Their job is to stop a nudge
+ * arriving at 3 AM; a warning that says "this is due tomorrow at 6 PM" is only
+ * true if it goes out at 6 PM the day before, and shifting it to 9 AM the next
+ * morning would move it to the deadline day itself, which is the one thing it
+ * exists to get ahead of.
+ */
+function daysBefore(due, days) {
+  const back = new Date(due.getTime() - days * 24 * 60 * MIN);
+  // DST: rebuild the wall-clock time the deadline reads at, in the user's zone.
+  const read = (date) => {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: config.timezone, hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(date).map((p) => [p.type, p.value])
+    );
+    return Number(parts.hour) * 60 + Number(parts.minute);
+  };
+  const drift = read(back) - read(due);
+  return new Date(back.getTime() - drift * MIN);
 }
 
 /**

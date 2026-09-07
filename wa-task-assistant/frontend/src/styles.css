@@ -1422,8 +1422,10 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     grid-template-columns: none;
     overflow-x: auto;
     gap: 8px;
-    margin: 0 -18px 12px;
-    padding: 0 18px 4px;
+    /* Full bleed to the page's own edge - 16px here, not the desktop's 18,
+       which overhung by two pixels and gave the whole page a sideways scroll. */
+    margin: 0 -16px 12px;
+    padding: 0 16px 4px;
     scroll-snap-type: x proximity;
   }
   .kpis .kpi {
@@ -1436,8 +1438,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .quick {
     flex-wrap: nowrap;
     overflow-x: auto;
-    margin: -4px -18px 12px;
-    padding: 0 18px 4px;
+    margin: -4px -16px 12px;
+    padding: 0 16px 4px;
   }
   .quick .qa { flex: none; }
   .quick-title { flex: none; white-space: nowrap; }
@@ -2359,7 +2361,21 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* ---------- monthly deadlines ---------- */
 
 /* A statutory date is worth interrupting for, which a row in a list is not. */
+/* ---------- upcoming monthly deadlines ---------- */
+
+/*
+ * The card and the popup share one voice: orange, held back, on the app's own
+ * surfaces. A statutory date is the one thing on the dashboard that costs money
+ * if it is missed, and orange is what this design keeps for exactly that - so
+ * it is a coloured rule and a mark, not a coloured panel.
+ */
 .due-soon { margin-bottom: 18px; display: flex; flex-direction: column; gap: 8px; }
+.due-soon-title {
+  margin: 0 0 2px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 600; color: var(--muted);
+}
 .due-soon-row {
   display: flex; align-items: center; gap: 13px;
   padding: 12px 15px; border-radius: 9px;
@@ -2986,4 +3002,56 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   }
   .task input[type=checkbox] { width: 24px; height: 24px; margin-top: 0; }
   .task input[type=checkbox]:checked::after { width: 5px; height: 10px; border-width: 0 2px 2px 0; }
+}
+
+
+/* ---------- the day-before notice ---------- */
+
+/*
+ * Small and centred. It interrupts once per occurrence - the server decides
+ * when one is owed - so it can afford to be a dialog rather than another row
+ * competing for the top of the page.
+ */
+.notice-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(13, 33, 29, .42);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.notice {
+  background: var(--card);
+  width: min(380px, 100%);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--warn);
+  border-radius: var(--r-lg, 10px);
+  padding: 18px 20px 16px;
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, .55);
+}
+.notice-kicker {
+  margin: 0 0 9px; display: flex; align-items: center; gap: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 600; color: var(--warn);
+}
+.notice h2 {
+  margin: 0;
+  font-family: Archivo, sans-serif; font-weight: 800;
+  font-size: 1.08rem; line-height: 1.3; letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.notice-sub { margin: 3px 0 0; font-size: .76rem; color: var(--muted); }
+.notice-when {
+  margin: 11px 0 0; font-weight: 700; font-size: .92rem; color: var(--warn);
+}
+.notice-body { margin: 6px 0 0; font-size: .82rem; color: var(--muted); }
+.notice-foot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 16px;
+}
+.notice-foot .btn { flex: 1 1 auto; }
+.notice-foot .link { flex: none; }
+
+@media (max-width: 480px) {
+  .notice-foot { flex-direction: column; align-items: stretch; }
+  .notice-foot .link { align-self: center; }
 }
