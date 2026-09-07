@@ -2175,3 +2175,13 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   padding-top: 12px; border-top: 1px solid var(--line);
   font-size: .8rem; color: var(--muted); line-height: 1.55;
 }
+
+/* Every rewrite shown before any of it is applied. */
+.tidy-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.tidy-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.tidy-list li.off { opacity: .45; }
+.tidy-list .check-inline { align-items: flex-start; width: 100%; }
+.tidy-pair { display: flex; flex-direction: column; gap: 2px; font-size: .84rem; }
+.tidy-pair s { color: var(--muted); text-decoration-color: var(--line-2); }
+.tidy-pair b { font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.tidy-pair b .icon { color: var(--ok); flex: none; }

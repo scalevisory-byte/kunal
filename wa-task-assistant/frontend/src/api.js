@@ -78,6 +78,12 @@ export const api = {
 
   attention: () => request('/attention'),
 
+  // Costs one API call, so it is asked for rather than automatic, and it only
+  // ever proposes — applying is a second, explicit call.
+  tidyPreview: () => request('/tasks/tidy/preview', { method: 'POST', body: JSON.stringify({}) }),
+  tidyApply: (titles) =>
+    request('/tasks/tidy/apply', { method: 'POST', body: JSON.stringify({ titles }) }),
+
   // Copies of the same job already on the list. Reading is free; merging only
   // happens on a press, because two rows that look alike are not always one job.
   duplicates: () => request('/tasks/duplicates/open'),

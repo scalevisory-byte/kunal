@@ -43,6 +43,8 @@ const SMALL = new Set([
 ]);
 
 const SHOUTED = /^[^a-z]*$/;
+// Nothing capitalised anywhere: typed in a hurry, lower case throughout.
+const MUMBLED = /^[^A-Z]*$/;
 
 /** One word, cased the way it should be read. */
 function fix(word, first) {
@@ -56,16 +58,40 @@ function fix(word, first) {
   return lower.replace(/[a-z]/, (c) => c.toUpperCase());
 }
 
+/** The same word from a lower-case title: only the first, and the acronyms. */
+function lift(word, first) {
+  const bare = word.replace(/[^A-Za-z0-9]/g, '');
+  if (!bare) return word;
+  // "pay bnf tds" is three words worth reading as "Pay BNF TDS".
+  if (ACRONYMS.has(bare.toLowerCase())) return word.toUpperCase();
+  if (!first) return word;
+  return word.replace(/[a-z]/, (c) => c.toUpperCase());
+}
+
 /**
- * A title in sentence case, or the title unchanged.
+ * A title cased the way it should be read, or the title unchanged.
  *
- * Unchanged whenever there is any lowercase at all, whenever it is a single
- * word (which may simply be a name), and whenever it is too short to be a
- * sentence - "TDS" must stay "TDS".
+ * Two shapes are worth touching and everything else is left exactly alone:
+ *
+ *   ALL CAPS      - a shout rather than a choice; put into readable case.
+ *   all lowercase - typed in a hurry; the first letter is raised and the
+ *                   acronyms are restored, and nothing else is guessed at.
+ *
+ * A title with any capital in it already was cased deliberately. And a single
+ * word is left alone in both directions - "TDS" must stay "TDS", and "salary"
+ * on its own may be exactly what was meant.
+ *
+ * Proper nouns are the deliberate gap. A rule cannot know that "odisha" is a
+ * place and "nidhi" a person, and it cannot know which "pendig" was meant.
+ * That is what the extractor is for; see the prompt in extractor.js.
  */
 export function unshout(title) {
   const text = String(title ?? '').trim();
-  if (!text || !SHOUTED.test(text)) return text;
+  if (!text) return text;
+
+  const shouted = SHOUTED.test(text);
+  const mumbled = MUMBLED.test(text);
+  if (!shouted && !mumbled) return text;
 
   const parts = text.split(/(\s+)/);
   const words = parts.filter((p) => p.trim());
@@ -75,7 +101,7 @@ export function unshout(title) {
   return parts
     .map((part) => {
       if (!part.trim()) return part;
-      const cased = fix(part, !seenWord);
+      const cased = shouted ? fix(part, !seenWord) : lift(part, !seenWord);
       seenWord = true;
       return cased;
     })

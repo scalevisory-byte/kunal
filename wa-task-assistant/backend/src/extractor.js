@@ -373,3 +373,91 @@ export async function extractTasks(messages) {
     })
     .filter(Boolean);
 }
+
+/* ---------------- tidying up titles that are already on the list ---------------- */
+
+const TidySchema = z.object({
+  titles: z.array(
+    z.object({
+      id: z.number().describe('The id given with the title, copied back exactly.'),
+      title: z.string().describe('The title rewritten, or the original unchanged.'),
+      changed: z.boolean().describe('Whether anything was actually changed.'),
+    })
+  ),
+});
+
+const TIDY_PROMPT = `You are tidying the titles of tasks on one person's list.
+
+He runs several businesses in Gujarat - travel, accounting and tax, recruitment,
+debt recovery, furniture - and types these on a phone, fast, in a hurry. They are
+read back on a list for weeks, so they should read like something written on
+purpose.
+
+Fix, in each title:
+
+- Spelling. "regstaon" -> "registration", "pendig" -> "pending", "documnets" ->
+  "documents", "reviw" -> "review", "sunhine" -> "Sunshine", "tommorow" ->
+  "tomorrow", "recieved" -> "received".
+- Capitalisation. Names of people, places and companies get capitals: odisha ->
+  Odisha, jayesh chelaramani -> Jayesh Chelaramani, nidhi -> Nidhi. Sentence case
+  otherwise.
+- Acronyms and codes stay exactly as they are: GST, TDS, TCS, GSTR-3B, PAN, NOC,
+  ITR, JV, IDMC, BNF, RRTM, AY 2026-27.
+
+Do NOT:
+
+- Change what the task means, or shorten it, or make it more formal. "Give Reva
+  money" is a complete instruction; leave it as one.
+- Translate. Hindi and Gujarati words stay in the words he used - "kal", "karna",
+  "bhej dena" - because that is how he will recognise the task.
+- "Correct" a word you do not recognise into one you do. An unfamiliar word is
+  far more likely to be somebody's name, a place, or a product than a mistake,
+  and a name rewritten into a different word is worse than the typo was.
+
+Copy each id back exactly. Set changed to false, and return the title unchanged,
+whenever there is nothing genuinely wrong with it - most titles are fine.`;
+
+/**
+ * Cleaned-up versions of titles already on the list.
+ *
+ * A separate call rather than part of extraction, because these are tasks that
+ * exist: some were typed by hand and never went near the model, and the rest
+ * were written before the extractor was asked to write them properly. One call
+ * for the whole batch - the cost of a page of text, once, on a button.
+ *
+ * It only ever proposes. Nothing is written here; see the route.
+ */
+export async function tidyTitles(tasks) {
+  if (!tasks.length) return [];
+
+  const listed = tasks.map((t) => `${t.id}: ${t.title}`).join('\n');
+  const response = await anthropic().messages.parse({
+    model: config.model,
+    max_tokens: 4000,
+    system: TIDY_PROMPT,
+    messages: [{ role: 'user', content: `Tidy these ${tasks.length} titles:\n\n${listed}` }],
+    output_config: { format: zodOutputFormat(TidySchema, 'tidied_titles') },
+  });
+
+  const usage = response.usage || {};
+  recordUsage({
+    model: config.model,
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cache_read: usage.cache_read_input_tokens,
+    cache_write: usage.cache_creation_input_tokens,
+    messages: tasks.length,
+    tasks: 0,
+  });
+
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  return (response.parsed_output?.titles ?? [])
+    .map((row) => {
+      const original = byId.get(row.id);
+      const title = String(row.title || '').trim().slice(0, 200);
+      // A rewrite that comes back identical, or empty, is not a proposal.
+      if (!original || !title || title === original.title) return null;
+      return { id: row.id, from: original.title, to: title };
+    })
+    .filter(Boolean);
+}

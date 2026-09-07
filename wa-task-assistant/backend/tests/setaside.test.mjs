@@ -152,10 +152,42 @@ run("a person's name is never lowercased", () => {
   assert.match(unshout('CHECK VESU RRTM ROUTE'), /Vesu/);
 });
 
-run('a title written normally is left completely alone', () => {
-  for (const t of ['Pay Arrohan TDS', 'call ajay at idmc', 'Submit Bhavya mediclaim documents']) {
+run('a title typed all in lower case is lifted', () => {
+  /*
+   * The other half of the same problem, and the one that was missed: a shout is
+   * a title with no lower case, and a title typed in a hurry has no upper case.
+   * Both read badly on a list; neither was written deliberately.
+   */
+  assert.equal(unshout('legal notice send to odisha vacation'),
+    'Legal notice send to odisha vacation');
+  assert.equal(unshout('call jayesh chelaramani for documents'),
+    'Call jayesh chelaramani for documents');
+});
+
+run('acronyms are restored on the way up as well as down', () => {
+  assert.equal(unshout('pay bnf tds today'), 'Pay BNF TDS today');
+  assert.equal(unshout('check gst and tds'), 'Check GST and TDS');
+});
+
+run('only the first word is raised, so a name is never invented', () => {
+  // "odisha" stays lower case here on purpose. A rule cannot tell a place from
+  // an ordinary word, and capitalising every word would turn a sentence into a
+  // headline. Names are the extractor's job, and the tidy-up's.
+  assert.match(unshout('send the invoice to the vendor'), /^Send the invoice to the vendor$/);
+});
+
+run('a title already cased deliberately is left completely alone', () => {
+  // Any capital in it means somebody chose the case. Only the two extremes -
+  // all caps, no caps - are touched.
+  for (const t of ['Pay Arrohan TDS', 'Submit Bhavya mediclaim documents', 'Check with Meera re GST']) {
     assert.equal(unshout(t), t);
   }
+  /*
+   * And what used to be left alone here is now lifted - the first word and the
+   * acronym, and nothing else. "ajay" stays lower case because no rule knows it
+   * is a name; that is exactly the gap the tidy-up pass exists to fill.
+   */
+  assert.equal(unshout('call ajay at idmc'), 'Call ajay at IDMC');
 });
 
 run('one word is not a sentence', () => {

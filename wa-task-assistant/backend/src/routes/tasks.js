@@ -10,6 +10,7 @@ import {
 } from '../task-lifecycle.js';
 import { EVENT, recordEvent, eventsForTask } from '../task-events.js';
 import { duplicateGroups } from '../task-matching.js';
+import { tidyTitles } from '../extractor.js';
 import { subtaskProgressFor, subtasksFor } from '../subtasks.js';
 import { blockedMap, blockersOf, blockedBy, unblockedBy } from '../dependencies.js';
 import { attachmentCounts, attachmentsFor } from '../attachments.js';
@@ -255,6 +256,50 @@ tasksRouter.patch('/:id', (req, res) => {
     // leaving the effect of finishing this one invisible.
     unblocked,
   });
+});
+
+/* ---------------- tidying up the titles already on the list ---------------- */
+
+/**
+ * What a tidy-up would change, without changing anything.
+ *
+ * Costs one API call, so it is a button rather than something that happens on
+ * its own, and it only ever proposes: the rewrites come back for a look before
+ * any of them are applied. A title is the thing read back for weeks, and a
+ * model quietly rewriting one into something the person does not recognise is
+ * worse than the typo it fixed.
+ */
+tasksRouter.post('/tidy/preview', async (req, res) => {
+  const open = listTasks({ status: 'pending', limit: 200, includeSetAside: true })
+    .map((t) => ({ id: t.id, title: t.title }));
+  if (!open.length) return res.json({ proposals: [], considered: 0 });
+
+  try {
+    res.json({ proposals: await tidyTitles(open), considered: open.length });
+  } catch (err) {
+    res.status(503).json({ error: 'Could not reach Claude to tidy the titles.' });
+  }
+});
+
+/** Apply the ones that were accepted, and only those. */
+tasksRouter.post('/tidy/apply', (req, res) => {
+  const wanted = Array.isArray(req.body?.titles) ? req.body.titles : [];
+  const applied = [];
+
+  for (const row of wanted.slice(0, 200)) {
+    const id = Number(row?.id);
+    const title = String(row?.title || '').trim().slice(0, 200);
+    if (!Number.isInteger(id) || !title) continue;
+
+    const before = getTask(id);
+    if (!before || before.title === title) continue;
+    updateTask(id, { title });
+    // The old wording is kept, because a rename you cannot see is a rename you
+    // cannot undo.
+    recordEvent(id, EVENT.edited, `title tidied — was "${before.title.slice(0, 90)}"`);
+    applied.push(id);
+  }
+  res.json({ applied });
 });
 
 /* ---------------- tasks the extractor was unsure about ---------------- */
