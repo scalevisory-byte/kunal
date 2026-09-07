@@ -268,6 +268,33 @@ only path in the whole app that writes to anybody but you.
 You can also set *Given to* by hand, in the new-task form or in the task drawer. Clearing
 the box takes the task back, which is the same thing as never having delegated it.
 
+## One job, one task
+
+The same work can reach the list from two directions at once — you type *"Pay BNF TDS today
+last date"* into a chat on the 7th, and the monthly rule for the 7th fires the same day.
+Both would be created, and each copy carries its own reminder ladder, so one job gets
+chased twice a day by two rows neither of which is more real than the other.
+
+Both creation paths now check first, by the same rule: same words, and deadlines within a
+week of each other. A week is not a tolerance — it is the gap between one occurrence of a
+recurring job and the next. September's TDS is never mistaken for August's (a month
+apart), while a salary run entered on Saturday and mentioned again on Sunday is correctly
+one job.
+
+Two things about that check had been wrong:
+
+- **The monthly rules never checked at all.** The month's claim stopped a rule firing
+  twice, but said nothing about the same job arriving from a chat.
+- **The matcher gave up once two copies existed.** It refused to answer when a title tied
+  against two open tasks — right for *"which task does this sentence mean?"*, exactly wrong
+  for *"is this a copy?"*, where a tie means it is certainly a copy of one of them. So the
+  third mention made a third row, and the list grew without limit. Measured: one copy was
+  caught, two were not, and never would be again.
+
+Copies already on the list are shown on the dashboard with the oldest offered as the one
+to keep. Nothing merges on its own — a word count is a good enough signal to ask about and
+a poor one to act on — and what you put away is archived, not deleted.
+
 ## When Claude is not sure
 
 The extractor reports how confident it was, and a task it calls **low** is created but not
@@ -338,6 +365,8 @@ set. `/healthz` is always open.
 | GET | `/api/tasks/pending/confirmation` | Extractions Claude was unsure about |
 | POST | `/api/tasks/:id/confirm` | "Yes, that is a task" — it enters the ladder |
 | POST | `/api/tasks/:id/reject` | "No" — archived, not deleted |
+| GET | `/api/tasks/duplicates/open` | Open tasks that are copies of each other |
+| POST | `/api/tasks/duplicates/merge` | Keep one, archive the rest |
 | GET | `/api/delegation?status=open\|all` | Work received and work allotted, with who is on each side |
 | GET | `/api/delegation/counts` | Just the two open counts, for the sidebar |
 | POST | `/api/delegation/tasks/:id/assign` | Give a task to somebody; an empty name takes it back |

@@ -23,6 +23,7 @@ import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
 import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
+import Duplicates from './components/Duplicates.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
 import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
@@ -631,6 +632,13 @@ export default function App() {
                       const found = tasks.find((t) => t.id === taskId);
                       if (found) setOpenTask(found);
                     }}
+                  />
+
+                  {/* Shows itself only when there is something to merge. */}
+                  <Duplicates
+                    onOpen={setOpenTask}
+                    onChanged={() => refresh({ quiet: true })}
+                    onError={(err) => setError(err.message)}
                   />
 
                   <NeedsConfirmation

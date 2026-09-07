@@ -140,8 +140,10 @@ async function flushBuffer() {
     for (const task of tasks) {
       try {
         // The same job mentioned again is the same job. Creating a second copy
-        // would double every reminder it goes on to produce.
-        const existing = findDuplicateTask(task.title);
+        // would double every reminder it goes on to produce. Scoped to the
+        // deadline, so a monthly job coming round again is not mistaken for a
+        // repeat of the one still open from last month.
+        const existing = findDuplicateTask(task.title, { dueDate: task.due_date });
         if (existing) {
           log.info(`Skipped duplicate task: "${task.title}" matches open task ${existing.id}`);
           continue;

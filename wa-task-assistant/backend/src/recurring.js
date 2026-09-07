@@ -1,4 +1,5 @@
 import { db, createTask, getTask } from './db.js';
+import { findDuplicateTask } from './task-matching.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { today, numberOrNull } from './dates.js';
@@ -152,6 +153,27 @@ export function materialiseDue({ now = new Date() } = {}) {
         .prepare(`INSERT OR IGNORE INTO recurring_runs (rule_id, month) VALUES (?, ?)`)
         .run(rule.id, month);
       if (claim.changes !== 1) continue;   // this month is already done
+
+      /*
+       * The month's claim stops this rule firing twice, but says nothing about
+       * the same job arriving another way. "Pay BNF TDS today last date" typed
+       * into a chat on the 7th becomes a task, and then the rule for the 7th
+       * made a second one - two rows, two ladders, two reminders for one job.
+       *
+       * Scoped to this occurrence's own day, so an unfinished August TDS never
+       * suppresses September's: that is a different obligation with the same
+       * words. The claim is kept either way, because this month *is* handled -
+       * the task exists, it just came from somewhere else.
+       */
+      const already = findDuplicateTask(rule.title, { dueDate: dueDay });
+      if (already) {
+        db.prepare(`UPDATE recurring_runs SET task_id = ? WHERE rule_id = ? AND month = ?`)
+          .run(already.id, rule.id, month);
+        log.info(
+          `Monthly deadline "${rule.title}" for ${dueDay} already exists as task ${already.id}.`
+        );
+        continue;
+      }
 
       try {
         const [h, m] = String(rule.due_time || '18:00').split(':').map(Number);

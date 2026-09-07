@@ -9,6 +9,7 @@ import {
   planTask, completeTask, rescheduleTask, syncNextReminder, taskSchedule,
 } from '../task-lifecycle.js';
 import { EVENT, recordEvent, eventsForTask } from '../task-events.js';
+import { duplicateGroups } from '../task-matching.js';
 import { subtaskProgressFor, subtasksFor } from '../subtasks.js';
 import { blockedMap, blockersOf, blockedBy, unblockedBy } from '../dependencies.js';
 import { attachmentCounts, attachmentsFor } from '../attachments.js';
@@ -94,6 +95,52 @@ tasksRouter.get('/pending/confirmation', (req, res) => {
     .filter((t) => t.needs_confirmation)
     .map((task) => ({ ...task, ...taskSchedule(task) }));
   res.json({ tasks });
+});
+
+/* ---------------- copies of the same job ---------------- */
+
+/**
+ * Open tasks that are copies of each other.
+ *
+ * Read-only, and it decides nothing: the merging below happens only when
+ * somebody presses the button, because two rows that look alike to a word
+ * count are not always the same job.
+ */
+tasksRouter.get('/duplicates/open', (req, res) => {
+  const settings = getSettings();
+  const dress = (t) => ({ ...t, ...taskSchedule(t, settings) });
+  res.json({
+    groups: duplicateGroups().map((g) => ({ keep: dress(g.keep), drop: g.drop.map(dress) })),
+  });
+});
+
+/**
+ * Keep one, put the rest away.
+ *
+ * Archived, never deleted: a copy still holds whatever was done to it, and the
+ * whole point of the archive is that a wrong call here can be looked at later.
+ * Completing them first retires the reminder ladders that were the reason the
+ * duplicate mattered at all.
+ */
+tasksRouter.post('/duplicates/merge', (req, res) => {
+  const keep = getTask(Number(req.body?.keep));
+  if (!keep) return res.status(404).json({ error: 'not found' });
+
+  const ids = (Array.isArray(req.body?.drop) ? req.body.drop : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id !== keep.id);
+
+  const merged = [];
+  for (const id of ids) {
+    const task = getTask(id);
+    if (!task || task.archived_at) continue;
+    completeTask(id);
+    updateTask(id, { archived_at: new Date().toISOString() });
+    recordEvent(id, EVENT.archived, `duplicate of task ${keep.id}`);
+    recordEvent(keep.id, EVENT.edited, `merged duplicate task ${id}`);
+    merged.push(id);
+  }
+  res.json({ keep: keep.id, merged });
 });
 
 tasksRouter.get('/:id', (req, res) => {

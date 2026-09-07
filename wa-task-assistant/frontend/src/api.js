@@ -78,6 +78,12 @@ export const api = {
 
   attention: () => request('/attention'),
 
+  // Copies of the same job already on the list. Reading is free; merging only
+  // happens on a press, because two rows that look alike are not always one job.
+  duplicates: () => request('/tasks/duplicates/open'),
+  mergeDuplicates: (keep, drop) =>
+    request('/tasks/duplicates/merge', { method: 'POST', body: JSON.stringify({ keep, drop }) }),
+
   // Work with somebody else's name on it. `nudge` is the only call in the whole
   // client that sends a WhatsApp message to anybody but the user, and it exists
   // solely so a person can press a button.
