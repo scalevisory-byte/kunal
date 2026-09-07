@@ -40,6 +40,49 @@ const run = (name, fn) => {
 const task = (title, extra = {}) =>
   DB.createTask({ title, status: 'open', source: 'manual', ...extra });
 
+console.log('\nthe day and the moment agree');
+
+run('a deadline given as a moment gets the day it falls on', () => {
+  // 12:30 UTC is 18:00 in Kolkata, so the task belongs to that same day there.
+  const t = DB.createTask({
+    title: 'Only a moment', status: 'open', source: 'manual',
+    due_at: '2026-10-05T12:30:00.000Z',
+  });
+  assert.equal(t.due_date, '2026-10-05');
+});
+
+run('a moment late in the UTC evening belongs to the next day here', () => {
+  // 20:00 UTC on the 5th is 01:30 on the 6th in Kolkata. The list groups by the
+  // day, so getting this wrong files the task under the wrong heading.
+  const t = DB.createTask({
+    title: 'Late instant', status: 'open', source: 'manual',
+    due_at: '2026-10-05T20:00:00.000Z',
+  });
+  assert.equal(t.due_date, '2026-10-06');
+});
+
+run('a day the caller gave is never overwritten', () => {
+  const t = DB.createTask({
+    title: 'Both given', status: 'open', source: 'manual',
+    due_date: '2026-10-09', due_at: '2026-10-09T12:30:00.000Z',
+  });
+  assert.equal(t.due_date, '2026-10-09');
+});
+
+run('moving the moment moves the day with it', () => {
+  const t = DB.createTask({ title: 'Move me', status: 'open', source: 'manual', due_date: '2026-10-01' });
+  const moved = DB.updateTask(t.id, { due_at: '2026-11-20T12:30:00.000Z' });
+  assert.equal(moved.due_date, '2026-11-20', 'the row no longer sits under October');
+});
+
+run('clearing the moment clears the day', () => {
+  const t = DB.createTask({
+    title: 'Clear me', status: 'open', source: 'manual', due_at: '2026-10-05T12:30:00.000Z',
+  });
+  const cleared = DB.updateTask(t.id, { due_at: null });
+  assert.equal(cleared.due_date, null);
+});
+
 console.log('\nchecklists');
 
 run('items keep the order they were added, and count as progress', () => {

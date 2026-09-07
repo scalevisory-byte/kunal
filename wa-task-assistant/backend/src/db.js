@@ -362,6 +362,25 @@ const TASK_SELECT = `
   FROM tasks t
   LEFT JOIN messages m ON m.id = t.message_id`;
 
+/**
+ * The calendar day an exact deadline falls on, read in the user's timezone.
+ *
+ * `due_at` is the deadline and `due_date` is the day it belongs to, and the two
+ * have to agree: the list groups and labels rows by the day, while the calendar
+ * places them by the moment. A task given only a `due_at` was landing on a day
+ * in the calendar while its own row read "No date". The dashboard sends both,
+ * so this only ever mattered to a direct API call - which is exactly the caller
+ * that should not have to know the rule.
+ */
+function dayOfInstant(iso, tz = config.timezone) {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(at);
+}
+
 export function createTask(input) {
   const row = {
     title: String(input.title || '').trim(),
@@ -372,8 +391,9 @@ export function createTask(input) {
     message_id: input.message_id ?? null,
     source: input.source || 'manual',
     origin: ORIGINS.has(input.origin) ? input.origin : (input.message_id ? 'ai' : 'manual'),
-    due_date: input.due_date || null,
     due_at: input.due_at || input.remind_at || null,
+    // Derived when a moment was given without a day, so the two never disagree.
+    due_date: input.due_date || dayOfInstant(input.due_at || input.remind_at),
     original_due_at: input.due_at || input.remind_at || null,
     notes: input.notes ?? null,
     waiting_for: input.waiting_for ?? null,
@@ -427,6 +447,10 @@ const UPDATABLE = [
 ];
 
 export function updateTask(id, patch) {
+  // Moving the moment moves the day with it, unless the caller set one itself.
+  if ('due_at' in patch && !('due_date' in patch)) {
+    patch = { ...patch, due_date: dayOfInstant(patch.due_at) };
+  }
   const current = getTask(id);
   if (!current) return null;
 

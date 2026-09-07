@@ -22,12 +22,59 @@ import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
 import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
+import CalendarPage from './components/CalendarPage.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
 const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false };
+
+/**
+ * What each page is, and which of the dashboard's parts belong on it.
+ *
+ * The dashboard is the overview: it keeps the greeting, the figures, the quick
+ * actions and the summary rail. Every other section is one focused list. They
+ * used to render the whole dashboard with a filter applied, which made eight
+ * sidebar items look like eight copies of the same page.
+ */
+const PAGES = {
+  dashboard: { overview: true },
+  myday: {
+    title: 'My Day',
+    lede: 'What needs doing today, most pressing first.',
+    focus: true,
+  },
+  all: {
+    title: 'All Tasks',
+    lede: 'Everything you have, grouped by when it is due.',
+    tabs: true,
+    toolbar: true,
+  },
+  attention: {
+    title: 'Needs Attention',
+    lede: 'Asked about the maximum number of times and still not done — the app has stopped chasing these.',
+  },
+  chat: {
+    title: 'By Chat',
+    lede: 'The same tasks, one section per WhatsApp chat.',
+    toolbar: true,
+  },
+  ai: {
+    title: 'AI Tasks',
+    lede: 'Tasks Claude pulled out of your chats, rather than ones you typed.',
+    toolbar: true,
+  },
+  done: {
+    title: 'Completed',
+    lede: 'Finished work, most recently closed first.',
+  },
+  calendar: {
+    title: 'Calendar',
+    lede: 'Your month, and what falls on each day.',
+    calendar: true,
+  },
+};
 
 const remember = (key, value) => {
   try {
@@ -221,6 +268,10 @@ export default function App() {
    * The sidebar sets the same state everything else does; it is navigation over
    * one board, not a second application.
    */
+  // Which page is showing. An unknown section falls back to the overview
+  // rather than rendering a headingless blank.
+  const page = PAGES[section] || PAGES.dashboard;
+
   const goto = (key) => {
     setSection(key);
     setSelectedDate(null);
@@ -318,9 +369,12 @@ export default function App() {
           )}
 
           {authOpen && (
-            <div className="banner error" role="alert">
-              This dashboard has no password. Anyone with the link can read and change your tasks.
-              Set <code>DASHBOARD_PASSWORD</code> in the hosting provider&rsquo;s variables and redeploy.
+            <div className="banner error prose" role="alert">
+              <span>
+                This dashboard has no password. Anyone with the link can read and change your
+                tasks. Set <code>DASHBOARD_PASSWORD</code> in the hosting provider&rsquo;s
+                variables and redeploy.
+              </span>
             </div>
           )}
 
@@ -381,15 +435,37 @@ export default function App() {
             </section>
           ) : (
             <>
-              <div className="page-head">
-                <div>
-                  <h2>{greeting()} <span className="wave">👋</span></h2>
-                  <p>Here&rsquo;s your task overview for today.</p>
+              {/* The dashboard is the overview. Every other section is one
+                  focused list, so it gets its own heading and only the controls
+                  that mean something there. */}
+              {page.overview ? (
+                <div className="page-head">
+                  <div>
+                    <h2>{greeting()} <span className="wave">👋</span></h2>
+                    <p>Here&rsquo;s your task overview for today.</p>
+                  </div>
+                  <button className="btn primary lg" onClick={() => setComposing((v) => !v)}>
+                    <span aria-hidden="true">+</span> New Task
+                  </button>
                 </div>
-                <button className="btn primary lg" onClick={() => setComposing((v) => !v)}>
-                  <span aria-hidden="true">+</span> New Task
-                </button>
-              </div>
+              ) : (
+                <div className="page-head">
+                  <div>
+                    <h2>{page.title}</h2>
+                    <p>{page.lede}</p>
+                  </div>
+                  <div className="page-head-right">
+                    {!page.calendar && (
+                      <span className="page-count">
+                        {visible.length} {visible.length === 1 ? 'task' : 'tasks'}
+                      </span>
+                    )}
+                    <button className="btn primary" onClick={() => setComposing((v) => !v)}>
+                      <span aria-hidden="true">+</span> New Task
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {!connected && (
                 <div className="banner warn" role="status">
@@ -398,37 +474,41 @@ export default function App() {
                 </div>
               )}
 
-              <NeedsConfirmation
-                tasks={unsure}
-                onOpen={setOpenTask}
-                onConfirm={async (task) => {
-                  try {
-                    await api.confirmTask(task.id);
-                    loadUnsure();
-                    refresh({ quiet: true });
-                  } catch (err) { setError(err.message); }
-                }}
-                onReject={async (task) => {
-                  try {
-                    await api.rejectTask(task.id);
-                    loadUnsure();
-                    refresh({ quiet: true });
-                  } catch (err) { setError(err.message); }
-                }}
-              />
+              {page.overview && (
+                <>
+                  <NeedsConfirmation
+                    tasks={unsure}
+                    onOpen={setOpenTask}
+                    onConfirm={async (task) => {
+                      try {
+                        await api.confirmTask(task.id);
+                        loadUnsure();
+                        refresh({ quiet: true });
+                      } catch (err) { setError(err.message); }
+                    }}
+                    onReject={async (task) => {
+                      try {
+                        await api.rejectTask(task.id);
+                        loadUnsure();
+                        refresh({ quiet: true });
+                      } catch (err) { setError(err.message); }
+                    }}
+                  />
 
-              <StatBoard
-                counts={summary.counts}
-                view={view}
-                onPick={(v) => { setView(v); setSelectedDate(null); }}
-              />
+                  <StatBoard
+                    counts={summary.counts}
+                    view={view}
+                    onPick={(v) => { setView(v); setSelectedDate(null); }}
+                  />
 
-              <QuickActions
-                counts={summary.counts}
-                onAction={quickAction}
-                active={activeQuick}
-                onNewTask={() => setComposing(true)}
-              />
+                  <QuickActions
+                    counts={summary.counts}
+                    onAction={quickAction}
+                    active={activeQuick}
+                    onNewTask={() => setComposing(true)}
+                  />
+                </>
+              )}
 
               {composing && (
                 <AddTaskForm
@@ -437,97 +517,121 @@ export default function App() {
                 />
               )}
 
-              <div className="workspace">
-                <main className="work">
-                  {view !== 'done' && <FocusToday tasks={tasks} onOpen={setOpenTask} onToggle={onToggle} />}
+              {page.calendar ? (
+                <CalendarPage
+                  tasks={tasks}
+                  onOpen={setOpenTask}
+                  onToggle={onToggle}
+                  onStatus={(task, next) => onEdit(task, { status: next })}
+                  onQuickDate={onQuickDate}
+                  onDelete={onDelete}
+                />
+              ) : (
+                <div className={`workspace ${page.overview ? '' : 'solo'}`}>
+                  <main className="work">
+                    {(page.overview || page.focus) && view !== 'done' && (
+                      <FocusToday tasks={tasks} onOpen={setOpenTask} onToggle={onToggle} />
+                    )}
 
-                  <div className="work-head">
-                    <nav className="segment tabs" role="tablist" aria-label="View">
-                      {[
-                        { key: 'myday', label: 'My Day' },
-                        { key: 'open', label: 'Open' },
-                        { key: 'all', label: 'All' },
-                      ].map((v) => (
-                        <button
-                          key={v.key}
-                          role="tab"
-                          aria-selected={view === v.key}
-                          className={view === v.key ? 'active' : ''}
-                          onClick={() => { setView(v.key); setSelectedDate(null); }}
-                        >
-                          {v.label}
-                        </button>
-                      ))}
-                    </nav>
+                    {(page.overview || page.tabs || page.toolbar) && (
+                      <div className="work-head">
+                        {(page.overview || page.tabs) ? (
+                          <nav className="segment tabs" role="tablist" aria-label="View">
+                            {[
+                              { key: 'myday', label: 'My Day' },
+                              { key: 'open', label: 'Open' },
+                              { key: 'all', label: 'All' },
+                            ].map((v) => (
+                              <button
+                                key={v.key}
+                                role="tab"
+                                aria-selected={view === v.key}
+                                className={view === v.key ? 'active' : ''}
+                                onClick={() => { setView(v.key); setSelectedDate(null); }}
+                              >
+                                {v.label}
+                              </button>
+                            ))}
+                          </nav>
+                        ) : <span />}
 
-                    <Toolbar
+                        {(page.overview || page.toolbar) && (
+                          <Toolbar
+                            groupBy={groupBy}
+                            onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
+                            filters={filters}
+                            onFilters={setFilters}
+                            chats={chats}
+                            onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {(selectedDate || query) && (
+                      <div className="scope">
+                        {selectedDate && (
+                          <span className="scope-chip">
+                            Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
+                              day: 'numeric', month: 'long', timeZone: 'UTC',
+                            })}
+                            <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
+                          </span>
+                        )}
+                        {query && (
+                          <span className="scope-chip">
+                            “{query}”
+                            <button onClick={() => setQuery('')} aria-label="Clear search">✕</button>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <TaskList
+                      tasks={visible}
+                      loading={loading}
+                      error={error && !tasks.length ? error : ''}
                       groupBy={groupBy}
-                      onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
-                      filters={filters}
-                      onFilters={setFilters}
-                      chats={chats}
-                      onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
+                      view={view}
+                      query={query}
+                      onRetry={() => refresh()}
+                      onToggle={onToggle}
+                      onOpen={setOpenTask}
+                      onStatus={(task, next) => onEdit(task, { status: next })}
+                      onQuickDate={onQuickDate}
+                      onDelete={onDelete}
                     />
-                  </div>
+                  </main>
 
-                  {(selectedDate || query) && (
-                    <div className="scope">
-                      {selectedDate && (
-                        <span className="scope-chip">
-                          Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
-                            day: 'numeric', month: 'long', timeZone: 'UTC',
-                          })}
-                          <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
-                        </span>
-                      )}
-                      {query && (
-                        <span className="scope-chip">
-                          “{query}”
-                          <button onClick={() => setQuery('')} aria-label="Clear search">✕</button>
-                        </span>
-                      )}
+                  {/* The rail belongs to the overview. On a focused list its
+                      "today at a glance" figures are about a different scope
+                      than the list beside them, which is just noise. */}
+                  {page.overview && (
+                    <div ref={railRef} className="rail-wrap">
+                      <SideRail
+                        tasks={tasks}
+                        summary={summary}
+                        activity={recent}
+                        chats={chats}
+                        status={status}
+                        selectedDate={selectedDate}
+                        onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
+                        onUpcoming={showUpcoming}
+                        onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
+                        onViewAi={() => goto('ai')}
+                        attentionWidget={
+                          <AttentionWidget
+                            tasks={tasks}
+                            onDone={(task) => onEdit(task, { status: 'done' })}
+                            onSnooze={onSnoozeTask}
+                            onOpen={setOpenTask}
+                          />
+                        }
+                      />
                     </div>
                   )}
-
-                  <TaskList
-                    tasks={visible}
-                    loading={loading}
-                    error={error && !tasks.length ? error : ''}
-                    groupBy={groupBy}
-                    view={view}
-                    query={query}
-                    onRetry={() => refresh()}
-                    onToggle={onToggle}
-                    onOpen={setOpenTask}
-                    onStatus={(task, next) => onEdit(task, { status: next })}
-                    onQuickDate={onQuickDate}
-                    onDelete={onDelete}
-                  />
-                </main>
-
-                <div ref={railRef} className="rail-wrap">
-                  <SideRail
-                    tasks={tasks}
-                    summary={summary}
-                    activity={recent}
-                    chats={chats}
-                    status={status}
-                    selectedDate={selectedDate}
-                    onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
-                    onUpcoming={showUpcoming}
-                    onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
-                    onViewAi={() => goto('ai')}
-                    attentionWidget={
-                      <AttentionWidget
-                        tasks={tasks}
-                        onDone={(task) => onEdit(task, { status: 'done' })}
-                        onSnooze={onSnoozeTask}
-                        onOpen={setOpenTask}
-                      />
-                    }
-                  />
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>

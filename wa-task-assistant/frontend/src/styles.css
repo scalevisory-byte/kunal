@@ -982,6 +982,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .banner.error { background: var(--danger-wash); color: var(--danger); }
 .banner.warn { background: var(--warn-wash); color: var(--warn); }
 .banner .link { color: inherit; }
+/* A banner that is all sentence: space-between would push a <code> in the
+   middle of it out to its own column, which is how it was reading on a phone. */
+.banner.prose { display: block; line-height: 1.55; }
+.banner.prose code { font-size: .82em; }
 
 .settings-page .status { margin-bottom: 20px; }
 
@@ -1697,4 +1701,85 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 @media (max-width: 760px) {
   .confirm-panel li, .template-list li { flex-direction: column; align-items: stretch; }
   .confirm-actions, .template-actions { justify-content: flex-start; }
+}
+
+
+/* ---------- one page per section ---------- */
+
+/* A focused list has no rail beside it, so it uses the full width. */
+.workspace.solo { grid-template-columns: minmax(0, 1fr); }
+
+.page-head-right { display: flex; align-items: center; gap: 14px; }
+.page-count {
+  font-family: "IBM Plex Mono", monospace; font-size: .74rem;
+  color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* ---------- the calendar page ---------- */
+
+.cal-page { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+
+.cal-sheet {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px 18px;
+}
+.cal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-bottom: 14px;
+}
+.cal-head strong { font-size: .92rem; font-weight: 600; }
+.cal-head-right { display: flex; align-items: center; gap: 8px; }
+.cal-head .icon-btn { font-size: 1.15rem; line-height: 1; padding: 2px 8px; }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow {
+  text-align: center; padding-bottom: 6px;
+  font-family: "IBM Plex Mono", monospace; font-size: .64rem;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.cal-cell {
+  /* Centred, so a date sits under its own weekday heading rather than a few
+     pixels off it, and the count reads as belonging to the number above it. */
+  position: relative; aspect-ratio: 1 / 1; min-height: 46px;
+  border: 1px solid transparent; border-radius: 7px; background: none;
+  cursor: pointer; padding: 6px 4px; font: inherit; color: var(--text);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 4px;
+  transition: background .15s, border-color .15s;
+}
+.cal-cell.empty { cursor: default; }
+.cal-cell:hover:not(.empty) { background: var(--raised); }
+.cal-num { font-size: .8rem; font-variant-numeric: tabular-nums; }
+.cal-cell.today .cal-num { font-weight: 700; color: var(--brand); }
+.cal-cell.picked { border-color: var(--brand); background: var(--brand-wash, var(--raised)); }
+.cal-count {
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--brand); color: #fff;
+  font-size: .62rem; line-height: 16px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cal-cell.has-late .cal-count { background: var(--danger, #a3231b); }
+
+.cal-day { min-width: 0; }
+.cal-day header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.cal-day h3 { margin: 0; font-size: .95rem; font-weight: 600; }
+.cal-day header span { font-size: .76rem; color: var(--muted); }
+.cal-empty, .cal-undated { font-size: .82rem; color: var(--muted); line-height: 1.55; }
+.cal-undated { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+@media (max-width: 1080px) {
+  .cal-page { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .page-head-right { width: 100%; justify-content: space-between; }
+  /* aspect-ratio plus a min-height gives the cell a minimum WIDTH too, and
+     seven of those did not fit a 390px screen - the Sunday column fell off the
+     edge. Let the columns divide the width they have. */
+  .cal-grid { gap: 2px; }
+  .cal-cell { aspect-ratio: auto; min-height: 42px; padding: 5px 2px; }
+  .cal-dow { font-size: .58rem; letter-spacing: .04em; }
+  .cal-num { font-size: .76rem; }
 }
