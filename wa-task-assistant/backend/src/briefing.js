@@ -73,7 +73,10 @@ const line = (task, index, withDate = false) => {
       ? `   ⏰ Due: ${dayOf(task.due)} · ${clockOf(task.due)}`
       : `   ⏰ Due: ${clockOf(task.due)}`
     : '   ⏰ No fixed time';
-  return `${index}. ${MARK[task.priority] || '🟡'} ${task.title}\n${when}`;
+  // The stage sits on the same line as the deadline: it is the other half of
+  // "what is this", and a third line per task turns the briefing into a wall.
+  const stage = task.stage ? ` · 📍 ${task.stage}` : '';
+  return `${index}. ${MARK[task.priority] || '🟡'} ${task.title}\n${when}${stage}`;
 };
 
 /**

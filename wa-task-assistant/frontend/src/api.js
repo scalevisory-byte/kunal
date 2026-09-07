@@ -132,6 +132,11 @@ export const api = {
     request(`/tasks/${taskId}/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteSubtask: (taskId, id) => request(`/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' }),
 
+  updates: (taskId) => request(`/tasks/${taskId}/updates`),
+  addUpdate: (taskId, body) =>
+    request(`/tasks/${taskId}/updates`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteUpdate: (taskId, id) => request(`/tasks/${taskId}/updates/${id}`, { method: 'DELETE' }),
+
   dependencies: (taskId) => request(`/tasks/${taskId}/dependencies`),
   addDependency: (taskId, dependsOnId) =>
     request(`/tasks/${taskId}/dependencies`, {

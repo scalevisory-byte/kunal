@@ -49,7 +49,11 @@ function taskLine(task, position) {
 
   // reminder_count is the number of digests *before* this one.
   const nags = task.reminder_count >= 2 ? `asked ${task.reminder_count + 1}x` : '';
-  const trailer = [detail, nags].filter(Boolean).join(' — ');
+  // Where the work has got to, in his own words. On a phone at 8:30 in the
+  // morning "waiting for the CA" is the difference between a list he can act
+  // on and a list he has to open the dashboard to understand.
+  const stage = task.stage ? `📍 ${task.stage}` : '';
+  const trailer = [stage, detail, nags].filter(Boolean).join(' — ');
   if (trailer) lines.push(`   ${trailer}`);
 
   return lines.join('\n');

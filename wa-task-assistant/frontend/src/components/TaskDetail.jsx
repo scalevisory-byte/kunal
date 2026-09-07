@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import Checklist from './Checklist.jsx';
+import TaskProgress from './TaskProgress.jsx';
 import Dependencies from './Dependencies.jsx';
 import Attachments from './Attachments.jsx';
 import { api } from '../api.js';
@@ -162,7 +163,8 @@ function FollowUpLadder({ task }) {
 }
 
 export default function TaskDetail({
-  task, tasks, groups = [], onClose, onEdit, onDelete, onNotATask, onError, onChanged,
+  task, tasks, groups = [], focusProgress = false,
+  onClose, onEdit, onDelete, onNotATask, onError, onChanged,
 }) {
   const [showMessage, setShowMessage] = useState(false);
 
@@ -245,6 +247,18 @@ export default function TaskDetail({
               <p className="field-note">Waiting is not done — reminders and follow-ups keep running.</p>
             </div>
           )}
+
+          {/* Above the checklist: a checklist is the plan, progress is what
+              actually happened, and the second is what you open a task to
+              find out. */}
+          <TaskProgress
+            task={task}
+            initial={task.updates}
+            stages={task.stages}
+            autoFocus={focusProgress}
+            onError={onError}
+            onChanged={onChanged}
+          />
 
           <Checklist
             task={task}

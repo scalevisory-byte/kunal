@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import {
-  arrivedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
+  agoLabel, arrivedLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
 } from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
@@ -13,7 +13,9 @@ const stamp = (iso) =>
     : null;
 
 /** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({ task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove, onManageGroups }) {
+function RowMenu({
+  task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove, onManageGroups, onAddUpdate,
+}) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
 
@@ -59,6 +61,11 @@ function RowMenu({ task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotA
           <button role="menuitem" onClick={run(() => onQuickDate(task, 1))}>
             <Icon name="calendar" size={15} /> Due tomorrow
           </button>
+          {!isDone(task) && (
+            <button role="menuitem" onClick={run(() => onAddUpdate(task))}>
+              <Icon name="chat" size={15} /> {task.update_count ? 'Add an update' : 'What is happening?'}
+            </button>
+          )}
           <button role="menuitem" onClick={run(() => onOpen(task))}>
             <Icon name="clipboard" size={15} /> Details
           </button>
@@ -116,7 +123,7 @@ function RowMenu({ task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotA
 
 export default function TaskItem({
   task, groups = [], onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
-  onMove, onManageGroups,
+  onMove, onManageGroups, onAddUpdate,
   // One optional control, for a page where a task needs an action the board
   // does not have - the Nudge button on work given to somebody else. It sits
   // in the row rather than beside it, so the row stays one row.
@@ -151,6 +158,30 @@ export default function TaskItem({
         <button type="button" className="t-title" onClick={() => onOpen(task)}>
           {task.title}
         </button>
+
+        {/*
+          * Where the work has got to, and what was last said about it.
+          *
+          * Both on the row rather than in the drawer, because the question
+          * "what is pending and what stage is it at" is asked of the list, not
+          * of one task — opening twenty tasks to answer it is the same as not
+          * having written any of it down. The stage is a chip because it is a
+          * state; the update is quoted because they are somebody's words. It
+          * is one line and it truncates: the drawer holds the whole stream.
+          */}
+        {!done && (task.stage || task.latest_update) && (
+          <span className="t-progress">
+            {task.stage && <span className="stage-chip small">{task.stage}</span>}
+            {task.latest_update?.body && (
+              <span className="t-update" title={task.latest_update.body}>
+                {task.latest_update.body}
+              </span>
+            )}
+            {task.latest_update && (
+              <span className="t-update-when">{agoLabel(task.latest_update.created_at)}</span>
+            )}
+          </span>
+        )}
 
         <span className="t-line">
           {task.blocked_by?.length > 0 && !done && (
@@ -281,6 +312,7 @@ export default function TaskItem({
         onNotATask={onNotATask}
         onMove={onMove}
         onManageGroups={onManageGroups}
+        onAddUpdate={onAddUpdate}
       />
     </li>
   );

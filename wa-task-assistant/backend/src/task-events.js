@@ -46,6 +46,8 @@ export const EVENT = {
   unassigned: 'taken back',
   nudgeSent: 'follow-up sent',
   filed: 'filed',
+  stageChanged: 'stage changed',
+  progressNoted: 'progress noted',
 };
 
 export function recordEvent(taskId, kind, detail = null, meta = null) {

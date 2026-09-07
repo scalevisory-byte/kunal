@@ -87,6 +87,23 @@ db.exec(`
   -- A checklist inside one task. Ticking every box does NOT finish the parent:
   -- completing a task cancels its whole reminder ladder, and that is too
   -- consequential to happen as a side effect of ticking a box.
+  -- What is actually happening on a task, in his own words.
+  --
+  -- status says whether work is owed; stage says how far along it is; this
+  -- says what was last said about it. They are three different questions and
+  -- one field cannot answer all three - "in progress since Tuesday" tells you
+  -- nothing about whether the CA has replied.
+  --
+  -- Append-only in use: correcting an update means writing the next one, the
+  -- same way the deadline log keeps every move rather than the last.
+  CREATE TABLE IF NOT EXISTS task_updates (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    body       TEXT NOT NULL,
+    stage      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS subtasks (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id      INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -216,6 +233,7 @@ for (const [name, ddl] of [
   ['needs_confirmation', 'ALTER TABLE tasks ADD COLUMN needs_confirmation INTEGER NOT NULL DEFAULT 0'],
   // Which business this belongs to. Nullable: a task need not have one.
   ['group_id', 'ALTER TABLE tasks ADD COLUMN group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL'],
+  ['stage', 'ALTER TABLE tasks ADD COLUMN stage TEXT'],
   /*
    * Who is meant to do this. NULL means the user - the overwhelming majority of
    * tasks, and the shape every existing row already has, so no back-fill and no
@@ -587,6 +605,7 @@ export function listTasks({ status, limit = 500, includeSetAside = false, order 
 // Created after the migration above, since it names a column that database may
 // only just have been given.
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_group ON tasks(group_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_updates_task ON task_updates(task_id, id DESC)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`);
 
@@ -695,7 +714,7 @@ const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
   'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence', 'group_id',
-  'assigned_to', 'assigned_to_wid', 'requested_by',
+  'assigned_to', 'assigned_to_wid', 'requested_by', 'stage',
 ];
 
 export function updateTask(id, patch) {

@@ -13,6 +13,7 @@ import { getGroup } from '../groups.js';
 import { duplicateGroups } from '../task-matching.js';
 import { tidyTitles } from '../extractor.js';
 import { subtaskProgressFor, subtasksFor } from '../subtasks.js';
+import { addUpdate, deleteUpdate, knownStages, latestUpdateFor, updateCountFor, updatesFor } from '../progress.js';
 import { blockedMap, blockersOf, blockedBy, unblockedBy } from '../dependencies.js';
 import { attachmentCounts, attachmentsFor } from '../attachments.js';
 
@@ -41,6 +42,10 @@ tasksRouter.get('/', (req, res) => {
   const blocked = blockedMap(ids);
   const files = attachmentCounts(ids);
   const nextReminders = nextRemindersFor(ids);
+  // The last thing said about each task, so the row can show it without the
+  // drawer being opened - which is the whole point of writing it down.
+  const latest = latestUpdateFor(ids);
+  const updateCounts = updateCountFor(ids);
 
   const tasks = rows.map((task) => ({
     ...task,
@@ -48,8 +53,10 @@ tasksRouter.get('/', (req, res) => {
     subtask_progress: progress.get(task.id) || null,
     blocked_by: blocked.get(task.id) || [],
     attachment_count: files.get(task.id) || 0,
+    latest_update: latest.get(task.id) || null,
+    update_count: updateCounts.get(task.id) || 0,
   }));
-  res.json({ tasks, stats: taskStats() });
+  res.json({ tasks, stats: taskStats(), stages: knownStages() });
 });
 
 tasksRouter.post('/', (req, res) => {
@@ -167,6 +174,8 @@ tasksRouter.get('/:id', (req, res) => {
     ...taskSchedule(task),
     events: eventsForTask(task.id),
     subtasks: subtasksFor(task.id),
+    updates: updatesFor(task.id),
+    stages: knownStages(),
     blockers: blockersOf(task.id),
     blocking: blockedBy(task.id),
     attachments: attachmentsFor(task.id),

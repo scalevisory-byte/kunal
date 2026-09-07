@@ -23,6 +23,7 @@ import {
   listRules, getRule, createRule, updateRule, deleteRule, upcoming, materialiseDue,
 } from '../recurring.js';
 import { EVENT, recordEvent } from '../task-events.js';
+import { addUpdate, deleteUpdate, knownStages, updatesFor } from '../progress.js';
 import { planTask, taskSchedule } from '../task-lifecycle.js';
 
 /* ---------------- checklists ---------------- */
@@ -68,6 +69,47 @@ subtaskRouter.delete('/:id/subtasks/:subtaskId', requireTask, (req, res) => {
 subtaskRouter.post('/:id/subtasks/reorder', requireTask, (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
   res.json({ subtasks: reorderSubtasks(req.task.id, ids) });
+});
+
+/* ---------------- progress ---------------- */
+
+/**
+ * What is happening on a task, written down as it happens.
+ *
+ * A stream rather than a field, so "waiting for the CA" and "CA replied, needs
+ * one more signature" are two facts a week apart rather than one overwriting
+ * the other. The stage rides along optionally: most updates are news, and news
+ * does not always move the work forward.
+ */
+subtaskRouter.get('/:id/updates', requireTask, (req, res) => {
+  res.json({ updates: updatesFor(req.task.id), stages: knownStages() });
+});
+
+subtaskRouter.post('/:id/updates', requireTask, (req, res) => {
+  try {
+    const before = req.task.stage || null;
+    const update = addUpdate(req.task.id, req.body || {});
+    // Recorded so a task that quietly changed stage can say when and to what.
+    // The words themselves live in the stream; the event is that it moved.
+    if (update.stage !== null && update.stage !== before) {
+      recordEvent(req.task.id, EVENT.stageChanged, update.stage || 'no stage');
+    } else {
+      recordEvent(req.task.id, EVENT.progressNoted);
+    }
+    res.status(201).json({
+      update,
+      updates: updatesFor(req.task.id),
+      task: getTask(req.task.id),
+      stages: knownStages(),
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+subtaskRouter.delete('/:id/updates/:updateId', requireTask, (req, res) => {
+  if (!deleteUpdate(Number(req.params.updateId))) return res.status(404).json({ error: 'not found' });
+  res.json({ updates: updatesFor(req.task.id) });
 });
 
 /* ---------------- dependencies ---------------- */

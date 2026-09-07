@@ -118,6 +118,29 @@ const words = (text) =>
  * same thing twice. A description only earns its line when it carries something
  * the title does not.
  */
+/**
+ * How long ago, in the fewest words that still mean something.
+ *
+ * A progress note is read as "when was this last touched", so the useful part
+ * is the distance, not the timestamp: "3 days ago" answers it and "4 Sep,
+ * 6:12 PM" makes you do the subtraction yourself.
+ */
+export const agoLabel = (value) => {
+  if (!value) return null;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const mins = Math.round((Date.now() - at.getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  return at.toLocaleDateString([], { day: 'numeric', month: 'short' });
+};
+
 export function addsNothing(title, description) {
   if (!description) return true;
   const inTitle = words(title);

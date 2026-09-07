@@ -733,7 +733,15 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .task {
   display: flex;
   gap: 13px;
-  align-items: center;
+  /*
+   * Aligned to the first line, not to the middle.
+   *
+   * A row is one line until it carries a progress note, and centring put the
+   * checkbox and the deadline halfway down the taller ones — so in a mixed
+   * list neither column lined up with anything. Pinned to the top they read as
+   * columns again, and the note hangs below the title where it belongs.
+   */
+  align-items: flex-start;
   padding: 7px 12px;
   margin: 0 -12px;
   border-radius: var(--r-sm);
@@ -782,6 +790,72 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .t-chat { max-width: 130px; }
 .warn-text { color: var(--warn); }
+
+/*
+ * Where the work has got to, under the title.
+ *
+ * A second line, but only on rows that have one — which is the difference
+ * between this and the three-line row it replaced. A task with nothing written
+ * on it is still exactly one line, so a list of forty is still a list of forty
+ * lines; the ones being worked on say so, and the rest stay quiet.
+ *
+ * `order` rather than a DOM move so the stage and the note follow the title for
+ * anything reading the markup, and sit under it on screen.
+ */
+.t-main { flex-wrap: wrap; }
+.t-progress {
+  /* width rather than flex-basis: the row turns into a column on a phone, and
+     a basis of 100% there is a height, which let the note run off the screen
+     instead of eliding. */
+  flex: none; width: 100%; order: 2;
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0; margin-top: 2px;
+  font-size: .74rem; color: var(--muted);
+}
+.t-update {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-style: italic;
+}
+.t-update-when { flex: none; opacity: .75; font-size: .7rem; white-space: nowrap; }
+
+/* Everything beside the title sits on the title's line, whatever the row's
+   height: the checkbox and the ⋮ are boxes, the rest is text on a baseline. */
+.task > input[type=checkbox] { margin-top: 4px; }
+.task > .due, .task > .t-line { padding-top: 1px; }
+.task > .row-dismiss, .task > .row-menu > .row-menu-btn { margin-top: -3px; }
+@media (max-width: 760px) {
+  /* Stacked, there is no first line to align to. */
+  .task > .due, .task > .t-line { padding-top: 0; }
+  /*
+   * On a phone the note gets its own line.
+   *
+   * Beside the stage and the time it was down to two characters and an
+   * ellipsis, which is worse than not showing it — the note is the part
+   * that says what is happening, and the other two are labels on it.
+   */
+  .t-progress { flex-wrap: wrap; row-gap: 2px; }
+  /* chip and time share the first line, the note takes the second. */
+  .t-update { flex: 1 0 100%; order: 1; }
+}
+
+/*
+ * The stage: a state, so a chip rather than a sentence.
+ *
+ * Deliberately uncoloured. Status already spends colour on open / late /
+ * waiting, and the stages are his own words — there is no fixed set of them to
+ * assign meanings to, and a green "sent to CA" would be inventing one.
+ */
+.stage-chip {
+  flex: none; max-width: 160px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 1px 8px; border-radius: 999px;
+  border: 1px solid var(--line-2); background: var(--raised);
+  color: var(--text-2);
+  font-size: .69rem; font-weight: 600; letter-spacing: .01em;
+}
+.stage-chip.small { font-size: .66rem; padding: 0 7px; }
+.stage-chip.dim { opacity: .45; }
 .t-title {
   flex: 1; min-width: 0;
   background: none; border: 0; padding: 0; margin: 0;
@@ -908,6 +982,53 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .menu button.here { color: var(--text); cursor: default; }
 .menu button.here:hover { background: none; }
 .menu .menu-tick { margin-left: auto; color: var(--accent, var(--group)); }
+
+/* ---------- progress on a task ---------- */
+
+.progress-panel .count-note, .progress-panel .stage-chip { margin-left: 9px; }
+/* The field label is set in caps; the stage inside it is his own words and
+   keeps the case he typed. */
+.progress-panel label .stage-chip { text-transform: none; letter-spacing: .01em; }
+.prog-add { display: flex; flex-direction: column; gap: 8px; }
+.prog-add textarea { resize: vertical; }
+.prog-stage { display: flex; align-items: center; gap: 10px; }
+.prog-stage input { flex: 1; min-width: 0; }
+.prog-stage-btn {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem;
+}
+.prog-actions { display: flex; justify-content: flex-end; }
+
+/*
+ * The stream, newest first.
+ *
+ * A rule down the left rather than a card each: they are one account read in
+ * order, not eight separate things, and eight boxes inside the drawer's box is
+ * the nesting the rest of the app was taken apart to avoid.
+ */
+.prog-log {
+  list-style: none; margin: 12px 0 0; padding: 0 0 0 13px;
+  border-left: 2px solid var(--line);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.prog-log li { position: relative; }
+.prog-log li::before {
+  content: ""; position: absolute; left: -18px; top: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--line-2);
+}
+.prog-log li:first-child::before { background: var(--brand); }
+.prog-head { display: flex; align-items: center; gap: 8px; }
+.prog-when { font-size: .72rem; color: var(--muted); }
+.prog-head .icon-btn { margin-left: auto; opacity: 0; transition: opacity .16s; }
+.prog-log li:hover .icon-btn, .prog-log li:focus-within .icon-btn { opacity: 1; }
+@media (hover: none) { .prog-head .icon-btn { opacity: 1; } }
+.prog-body {
+  margin: 3px 0 0; font-size: .82rem; line-height: 1.5; color: var(--text-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.prog-body.muted { color: var(--muted); font-style: italic; }
 
 /* ---------- side rail ---------- */
 

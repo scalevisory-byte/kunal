@@ -132,6 +132,10 @@ export default function App() {
   const chooseTheme = (next) => setThemeState(setTheme(next));
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [openTask, setOpenTask] = useState(null);
+  // The task the drawer was opened on to write an update, so the box is ready
+  // to type into rather than needing to be found. Held as an id rather than a
+  // flag so it cannot leak onto the next task opened some other way.
+  const [focusProgress, setFocusProgress] = useState(null);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   const [composing, setComposing] = useState(false);
@@ -988,6 +992,7 @@ export default function App() {
                       groups={groups}
                       onMove={onMove}
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                     />
                   </main>
 
@@ -1037,7 +1042,8 @@ export default function App() {
           task={openTask}
           tasks={tasks}
           groups={groups}
-          onClose={() => setOpenTask(null)}
+          focusProgress={focusProgress === openTask.id}
+          onClose={() => { setOpenTask(null); setFocusProgress(null); }}
           onEdit={onEdit}
           onDelete={onDelete}
           onNotATask={onNotATask}
