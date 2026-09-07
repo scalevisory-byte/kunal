@@ -37,10 +37,19 @@ const run = (name, fn) => {
 const task = (title, extra = {}) =>
   DB.createTask({ title, status: 'open', source: 'manual', ...extra });
 
+/*
+ * The same day the engine means.
+ *
+ * This used toISOString, which is UTC, while everything under test resolves
+ * "today" in TIMEZONE. Between midnight and half past five in the morning IST
+ * the two disagree about the date, so a rule was being created for the 7th and
+ * asked to fire on the 8th — and the suite failed every night for six hours
+ * for a reason that had nothing to do with duplicates.
+ */
 const day = (offset = 0) => {
   const at = new Date();
   at.setDate(at.getDate() + offset);
-  return at.toISOString().slice(0, 10);
+  return at.toLocaleDateString('en-CA', { timeZone: process.env.TIMEZONE || 'Asia/Kolkata' });
 };
 
 console.log('\na second copy is caught however many there already are');
