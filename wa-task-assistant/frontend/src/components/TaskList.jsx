@@ -3,6 +3,26 @@ import TaskItem from './TaskItem.jsx';
 import Icon from './Icon.jsx';
 import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
 
+/*
+ * Within a day, earliest first.
+ *
+ * The list arrives ordered by priority, which is right across the whole board
+ * and wrong inside one day: a medium task at 11:30 was appearing under a high
+ * one at 6pm, so "Today" did not read in the order the day actually happens.
+ * Priority still decides between two things due at the same moment, and a task
+ * with no time on it sits after the ones that have one - it is owed that day,
+ * not at a point in it.
+ */
+function byClock(a, b) {
+  const at = a.due_at || null;
+  const bt = b.due_at || null;
+  if (at && bt && at !== bt) return at < bt ? -1 : 1;
+  if (at && !bt) return -1;
+  if (!at && bt) return 1;
+  const rank = (t) => (t.priority === 'high' ? 0 : t.priority === 'medium' ? 1 : 2);
+  return rank(a) - rank(b) || b.id - a.id;
+}
+
 /** Sections by day: what is late, what is today, what is next. */
 function byDate(open) {
   const today = todayIso();
@@ -22,7 +42,7 @@ function byDate(open) {
     },
     { key: 'later', label: 'Later', tone: 'plain', icon: 'calendar', match: (t) => t.due_date > weekEnd },
     { key: 'undated', label: 'No date', tone: 'plain', icon: 'circle', match: (t) => !t.due_date },
-  ].map((c) => ({ ...c, items: open.filter(c.match) }));
+  ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
 }
 
 /** Sections by conversation, for working through one person or group at a time. */

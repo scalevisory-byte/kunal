@@ -144,14 +144,14 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
   const [status, setStatus] = useState(null);
-  // How the board is split into columns. Remembered per browser.
-  const [groupBy, setGroupBy] = useState(() => {
-    try {
-      return localStorage.getItem('wa-tasks-group') || 'date';
-    } catch {
-      return 'date'; // private window, or site data blocked
-    }
-  });
+  /*
+   * How the board is split into sections. Not remembered between visits: a
+   * grouping chosen once for one page used to follow you to every other one,
+   * including the dashboard, and there was nothing on screen saying why the
+   * overview had turned into a list of chats. Each section sets its own on
+   * arrival; the toolbar overrides it while you are there.
+   */
+  const [groupBy, setGroupBy] = useState('date');
   const [error, setError] = useState('');
   // Asked once, unauthenticated: the app should be able to tell you it is
   // unprotected rather than leaving you to test it from an incognito window.
@@ -407,11 +407,28 @@ export default function App() {
     setSelectedDate(null);
     setQuery('');
     setFilters(EMPTY_FILTERS);
+
+    /*
+     * Grouping belongs to the page, not to the app.
+     *
+     * It used to be one sticky setting: opening "By Chat" once left the
+     * dashboard grouped by chat for good, so the overview showed "ZYNTAJOBS 7
+     * tasks / MEERA 3 tasks" instead of Today and Overdue, with nothing saying
+     * why. Each section now sets what it is - by chat on the By Chat page, one
+     * flat list on Recent, by date everywhere else - and the toolbar still
+     * overrides it for as long as you stay there.
+     *
+     * It has to be decided here, above the returns below: the dashboard leaves
+     * this function on its own line, so anything after it never ran for the one
+     * page that most needed resetting.
+     */
+    setGroupBy(key === 'chat' ? 'chat' : key === 'recent' ? 'none' : 'date');
+
     if (key === 'myday') return setView('myday');
     if (key === 'done') return setView('done');
     if (key === 'all' || key === 'dashboard') return setView(key === 'dashboard' ? 'open' : 'all');
-    if (key === 'chat') { setGroupBy('chat'); return setView('open'); }
-    if (key === 'recent') { setGroupBy('none'); return setView('all'); }
+    if (key === 'chat') return setView('open');
+    if (key === 'recent') return setView('all');
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
     if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }
@@ -889,7 +906,7 @@ export default function App() {
                         {(page.overview || page.toolbar) && (
                           <Toolbar
                             groupBy={groupBy}
-                            onGroupBy={(g) => { setGroupBy(g); remember('wa-tasks-group', g); }}
+                            onGroupBy={setGroupBy}
                             filters={filters}
                             onFilters={setFilters}
                             chats={chats}
