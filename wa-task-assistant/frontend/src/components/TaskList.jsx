@@ -81,7 +81,21 @@ export default function TaskList({
   tasks, loading, error, groupBy, view, query,
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete,
 }) {
+  /*
+   * Grouped by chat, the sections start shut.
+   *
+   * One busy chat can hold a dozen tasks, and expanded they push every other
+   * chat off the screen - which defeats the point of grouping by chat at all.
+   * Shut, the page is the list of chats and how much each is carrying, and you
+   * open the one you mean. Grouped by date they stay open: those sections are
+   * the day, and a closed "Today" is just a heading.
+   *
+   * A section the user has opened or shut themselves is remembered for as long
+   * as the page is; only the starting state differs.
+   */
   const [collapsed, setCollapsed] = useState({});
+  const [touched, setTouched] = useState({});
+  const shutByDefault = groupBy === 'chat' && view !== 'myday';
   if (error) {
     return (
       <div className="empty error-state">
@@ -132,13 +146,16 @@ export default function TaskList({
   return (
     <div className="sections">
       {sections.map((section) => {
-        const shut = collapsed[section.key];
+        const shut = touched[section.key] ? collapsed[section.key] : shutByDefault;
         return (
           <section className={`section tone-${section.tone || 'plain'}`} key={section.key}>
             <button
               className="section-head"
               aria-expanded={!shut}
-              onClick={() => setCollapsed((c) => ({ ...c, [section.key]: !c[section.key] }))}
+              onClick={() => {
+                setTouched((t) => ({ ...t, [section.key]: true }));
+                setCollapsed((c) => ({ ...c, [section.key]: !shut }));
+              }}
             >
               <Icon name={section.icon || 'circle'} size={17} className="section-icon" />
               <h3>{section.label}</h3>
