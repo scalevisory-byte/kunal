@@ -390,7 +390,10 @@ export default function App() {
       if (filters.priority.length && !filters.priority.includes(task.priority)) return false;
       if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
       if (filters.chat && taskChat(task) !== filters.chat) return false;
-      if (filters.group && task.group_id !== filters.group) return false;
+      /* 'none' is a real answer, not the absence of one: it is how the board's
+         "not in any business yet" line shows you which tasks it means. */
+      if (filters.group === 'none' && task.group_id) return false;
+      if (filters.group && filters.group !== 'none' && task.group_id !== filters.group) return false;
       /*
        * "Due" is only the first hour after a deadline, so a task due at 6pm was
        * plain "open" all day and never reached this page - at nine in the
@@ -644,6 +647,11 @@ export default function App() {
                 onOpen={setOpenTask}
                 onToggle={onToggle}
                 onPickGroup={(id) => setSection(`group:${id}`)}
+                onShowUnfiled={() => {
+                  setSection('all');
+                  setView('open');
+                  setFilters({ ...EMPTY_FILTERS, group: 'none' });
+                }}
                 onChanged={() => { refresh({ quiet: true }); api.groups().then((d) => setGroups(d.groups)).catch(() => {}); }}
                 onError={(err) => setError(err.message)}
               />

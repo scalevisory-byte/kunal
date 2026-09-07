@@ -2614,6 +2614,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   font-size: .68rem; font-weight: 600;
 }
 
+/* Work with no business yet: a line, not a column that takes over the page. */
+.board-unfiled {
+  margin: 14px 2px 0;
+  font-size: .82rem;
+  color: var(--muted);
+}
+.board-unfiled .link { font-size: inherit; }
+
 /* Adding, from where you are looking. */
 .board-add {
   display: flex; align-items: center; gap: 8px;

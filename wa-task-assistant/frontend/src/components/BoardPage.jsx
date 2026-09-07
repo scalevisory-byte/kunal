@@ -17,8 +17,6 @@ import { dueLabel, isDone, isOverdue } from '../lib/task.js';
  * row is one fewer row on the screen. Clicking one opens the same drawer as
  * anywhere else, which is where the detail lives.
  */
-const OTHER = { id: null, name: 'No business', colour: null };
-
 /**
  * One line, one task, filed where you typed it.
  *
@@ -133,15 +131,27 @@ function NewBusiness({ onAdded, onError }) {
   );
 }
 
-export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup, onChanged, onError }) {
+export default function BoardPage({
+  tasks, groups, onOpen, onToggle, onPickGroup, onShowUnfiled, onChanged, onError,
+}) {
   const open = tasks.filter((t) => !isDone(t));
 
-  // Ordered as the sidebar orders them, with the unfiled at the end — it is
-  // where work lands when nothing matched, not a business of its own.
-  const columns = [...groups, OTHER].map((g) => ({
+  /*
+   * Businesses only.
+   *
+   * There was a "No business" column here, and on a real board it was the
+   * page: fifty-one unfiled tasks beside businesses holding three or four, so
+   * the thing you came to compare was pushed off the side by the thing you
+   * did not. What belongs here is what was put here — moved in from the list,
+   * or typed into a column. The unfiled are every other view's job, and the
+   * line under the board says how many there are rather than hiding them.
+   */
+  const unfiled = open.filter((t) => !t.group_id).length;
+
+  const columns = groups.map((g) => ({
     ...g,
     items: open
-      .filter((t) => (g.id === null ? !t.group_id : t.group_id === g.id))
+      .filter((t) => t.group_id === g.id)
       .sort((a, b) => {
         // Dated work first, soonest at the top; undated below it, newest first.
         const ad = a.due_date || '';
@@ -152,7 +162,6 @@ export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup
         return String(b.created_at || '').localeCompare(String(a.created_at || ''));
       }),
   }))
-    .filter((c) => c.items.length || c.id !== null)
     /*
      * Businesses with nothing open drop to the end.
      *
@@ -176,20 +185,17 @@ export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup
   }
 
   return (
-    <div className="board" role="list">
+    <>
+      <div className="board" role="list">
       {columns.map((col) => {
         const late = col.items.filter(isOverdue).length;
         return (
-          <section className="board-col" role="listitem" key={col.id ?? 'none'}>
+          <section className="board-col" role="listitem" key={col.id}>
             <header className="board-head">
               <span className={`board-dot c-${col.colour || 'slate'}`} aria-hidden="true" />
-              {col.id ? (
-                <button className="board-name" onClick={() => onPickGroup(col.id)}>
-                  {col.name}
-                </button>
-              ) : (
-                <span className="board-name plain">{col.name}</span>
-              )}
+              <button className="board-name" onClick={() => onPickGroup(col.id)}>
+                {col.name}
+              </button>
               <span className="board-count">{col.items.length}</span>
             </header>
 
@@ -235,6 +241,17 @@ export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup
       })}
 
       <NewBusiness onAdded={onChanged} onError={onError} />
-    </div>
+      </div>
+
+      {/* Not a column, but not silently dropped either: fifty tasks in no
+          business is worth knowing, once, in a line. */}
+      {unfiled > 0 && (
+        <p className="board-unfiled">
+          {unfiled} {unfiled === 1 ? 'task is' : 'tasks are'} not in any business yet.{' '}
+          <button className="link" onClick={onShowUnfiled}>See them</button>
+          {' '}— move one in from its ⋮ menu, or add it to a column here.
+        </p>
+      )}
+    </>
   );
 }
