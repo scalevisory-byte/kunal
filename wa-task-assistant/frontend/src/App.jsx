@@ -389,9 +389,14 @@ export default function App() {
   const page = groupId
     ? {
         title: activeGroup?.name || 'Group',
-        lede: activeGroup
-          ? 'Everything for this business, whichever chat it arrived in.'
-          : 'This group no longer exists.',
+        lede: !activeGroup
+          ? 'This group no longer exists.'
+          : activeGroup.separate
+            // The page a set-aside group is reached from is the only place its
+            // work appears, so it should say that rather than leave you
+            // wondering why none of it is on the dashboard.
+            ? 'Kept out of the main list — this is where it lives. Not counted in the figures, and never chased: no reminders, no digest, no briefing.'
+            : 'Everything for this business, whichever chat it arrived in.',
         tabs: true,
         toolbar: true,
       }
