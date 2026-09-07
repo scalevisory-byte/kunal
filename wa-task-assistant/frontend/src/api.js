@@ -178,6 +178,11 @@ export const api = {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
 
+  recurring: () => request('/recurring'),
+  createRule: (body) => request('/recurring', { method: 'POST', body: JSON.stringify(body) }),
+  updateRule: (id, body) => request(`/recurring/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteRule: (id) => request(`/recurring/${id}`, { method: 'DELETE' }),
+
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),
 

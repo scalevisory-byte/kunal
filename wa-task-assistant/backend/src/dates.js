@@ -73,3 +73,23 @@ export function daysUntil(dueDate, tz = config.timezone) {
   if (Number.isNaN(to)) return null;
   return Math.round((to - from) / 86400000);
 }
+
+
+/**
+ * A number, or null.
+ *
+ * `Number.isFinite(Number(x))` looks like the right guard and is not:
+ * `Number(null)` is 0, `Number('')` is 0, `Number([])` is 0, and
+ * `Number(false)` is 0. Every one of those was arriving as a real id.
+ *
+ * Where the value is a foreign key that made it a live bug - a task created
+ * with `group_id: null` was stored as group 0, which no row has, so the insert
+ * failed with a foreign key error and the task was lost. The extractor passes
+ * exactly that for any task that matches no business.
+ */
+export function numberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}

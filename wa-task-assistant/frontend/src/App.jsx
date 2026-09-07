@@ -26,6 +26,8 @@ import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
 import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
+import Recurring from './components/Recurring.jsx';
+import DueSoonBanner from './components/DueSoonBanner.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -71,6 +73,11 @@ const PAGES = {
   done: {
     title: 'Completed',
     lede: 'Finished work, most recently closed first.',
+  },
+  monthly: {
+    title: 'Monthly deadlines',
+    lede: 'The dates that never move — TDS, GST, GSTR-3B. Each becomes a task before its date.',
+    settings: true,
   },
   calendar: {
     title: 'Calendar',
@@ -492,6 +499,23 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
             </section>
+          ) : section === 'monthly' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Monthly deadlines</h2>
+                  <p>
+                    The dates that never move. Each becomes an ordinary task before its date,
+                    with the usual reminder and follow-up.
+                  </p>
+                </div>
+              </div>
+              <Recurring
+                groups={groups}
+                onChanged={() => refresh({ quiet: true })}
+                onError={(err) => setError(err.message)}
+              />
+            </section>
           ) : section === 'templates' ? (
             <section className="settings-page">
               <div className="page-head">
@@ -560,6 +584,13 @@ export default function App() {
 
               {page.overview && (
                 <>
+                  <DueSoonBanner
+                    onOpenTask={(taskId) => {
+                      const found = tasks.find((t) => t.id === taskId);
+                      if (found) setOpenTask(found);
+                    }}
+                  />
+
                   <NeedsConfirmation
                     tasks={unsure}
                     onOpen={setOpenTask}

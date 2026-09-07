@@ -19,6 +19,9 @@ import {
   listGroups, getGroup, createGroup, updateGroup, deleteGroup, reorderGroups,
   groupCounts, applyGroupToExisting, COLOURS,
 } from '../groups.js';
+import {
+  listRules, getRule, createRule, updateRule, deleteRule, upcoming, materialiseDue,
+} from '../recurring.js';
 import { EVENT, recordEvent } from '../task-events.js';
 import { planTask, taskSchedule } from '../task-lifecycle.js';
 
@@ -276,4 +279,42 @@ groupRouter.post('/:id/apply', (req, res) => {
     recordEvent(id, EVENT.edited, `grouped under ${result.group.name}`);
   }
   res.json({ moved: result.moved, group: result.group });
+});
+
+
+/* ---------------- monthly deadlines ---------------- */
+
+export const recurringRouter = Router();
+
+/** The rules, and the next occurrence of each with its task if one exists. */
+recurringRouter.get('/', (req, res) => {
+  res.json({ rules: listRules(), upcoming: upcoming() });
+});
+
+recurringRouter.post('/', (req, res) => {
+  try {
+    const rule = createRule(req.body || {});
+    // Create this month's task straight away if it is already within the lead
+    // time, rather than leaving the first one to next month.
+    const created = materialiseDue();
+    res.status(201).json({ rule, rules: listRules(), upcoming: upcoming(), created: created.length });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+recurringRouter.patch('/:id', (req, res) => {
+  try {
+    const rule = updateRule(Number(req.params.id), req.body || {});
+    if (!rule) return res.status(404).json({ error: 'not found' });
+    res.json({ rule, rules: listRules(), upcoming: upcoming() });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/** Removing a rule stops future months. Tasks it already made are left alone. */
+recurringRouter.delete('/:id', (req, res) => {
+  if (!deleteRule(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.json({ rules: listRules(), upcoming: upcoming() });
 });

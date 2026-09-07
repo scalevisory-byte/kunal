@@ -28,6 +28,7 @@ const NAV = [
       // The reminder and follow-up engine is the heart of this thing; it was
       // buried at the top of Settings, under the connection panel.
       { key: 'reminders', label: 'Reminders', icon: 'bell' },
+      { key: 'monthly', label: 'Monthly deadlines', icon: 'calendar' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
       { key: 'groups', label: 'Manage groups', icon: 'settings' },
     ],

@@ -1,7 +1,7 @@
 import { db } from './db.js';
 import { config } from './config.js';
 import { isoAtLocal } from './quickparse.js';
-import { today } from './dates.js';
+import { today, numberOrNull } from './dates.js';
 
 /**
  * A shape of work that recurs - "Monthly GST filing", "New candidate
@@ -49,9 +49,9 @@ export function createTemplate(input) {
       title.slice(0, 300),
       input.description ? String(input.description).slice(0, 1000) : null,
       PRIORITIES.has(input.priority) ? input.priority : 'medium',
-      Number.isFinite(Number(input.reminder_offset)) ? Number(input.reminder_offset) : null,
-      Number.isFinite(Number(input.follow_up_offset)) ? Number(input.follow_up_offset) : null,
-      Number.isFinite(Number(input.due_in_days)) ? Number(input.due_in_days) : null,
+      numberOrNull(input.reminder_offset),
+      numberOrNull(input.follow_up_offset),
+      numberOrNull(input.due_in_days),
       /^\d{2}:\d{2}$/.test(input.due_time || '') ? input.due_time : null,
       JSON.stringify(Array.isArray(input.subtasks) ? input.subtasks.map((t) => String(t).slice(0, 200)) : [])
     );
@@ -72,9 +72,9 @@ export function updateTemplate(id, patch) {
     String(merged.title || '').trim().slice(0, 300) || current.title,
     merged.description ? String(merged.description).slice(0, 1000) : null,
     PRIORITIES.has(merged.priority) ? merged.priority : 'medium',
-    Number.isFinite(Number(merged.reminder_offset)) ? Number(merged.reminder_offset) : null,
-    Number.isFinite(Number(merged.follow_up_offset)) ? Number(merged.follow_up_offset) : null,
-    Number.isFinite(Number(merged.due_in_days)) ? Number(merged.due_in_days) : null,
+    numberOrNull(merged.reminder_offset),
+    numberOrNull(merged.follow_up_offset),
+    numberOrNull(merged.due_in_days),
     /^\d{2}:\d{2}$/.test(merged.due_time || '') ? merged.due_time : null,
     JSON.stringify(Array.isArray(merged.subtasks) ? merged.subtasks.map((t) => String(t).slice(0, 200)) : []),
     id

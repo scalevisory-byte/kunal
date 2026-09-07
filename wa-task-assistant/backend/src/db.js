@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { config } from './config.js';
 import { log } from './logger.js';
+import { numberOrNull } from './dates.js';
 
 export const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
@@ -433,7 +434,7 @@ export function createTask(input) {
     status: STATUSES.has(input.status) ? input.status : 'open',
     ai_confidence: CONFIDENCE.has(input.ai_confidence) ? input.ai_confidence : null,
     needs_confirmation: input.needs_confirmation ? 1 : 0,
-    group_id: Number.isFinite(Number(input.group_id)) ? Number(input.group_id) : null,
+    group_id: numberOrNull(input.group_id),
     assigned_to: input.assigned_to ? String(input.assigned_to).trim().slice(0, 80) : null,
     assigned_to_wid: input.assigned_to_wid || null,
     assigned_at: input.assigned_to ? new Date().toISOString() : null,

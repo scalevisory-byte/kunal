@@ -1962,3 +1962,52 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .engine-title { white-space: normal; overflow: visible; }
   .engine-meta { flex-wrap: wrap; white-space: normal; }
 }
+
+/* ---------- monthly deadlines ---------- */
+
+/* A statutory date is worth interrupting for, which a row in a list is not. */
+.due-soon { margin-bottom: 18px; display: flex; flex-direction: column; gap: 8px; }
+.due-soon-row {
+  display: flex; align-items: center; gap: 13px;
+  padding: 12px 15px; border-radius: 9px;
+  background: var(--warn-wash); border: 1px solid color-mix(in srgb, var(--warn) 28%, transparent);
+  color: var(--warn);
+}
+.due-soon-mark { display: inline-flex; flex: none; }
+.due-soon-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.due-soon-what strong { font-size: .87rem; font-weight: 600; }
+.due-soon-what span { font-size: .76rem; opacity: .85; }
+.due-soon-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.due-soon .icon-btn { color: inherit; font-size: .95rem; line-height: 1; }
+
+.recur-soon {
+  list-style: none; margin: 0 0 14px; padding: 11px 13px;
+  background: var(--raised); border-radius: 8px; border: 1px solid var(--line);
+}
+.recur-soon li {
+  display: flex; align-items: baseline; gap: 11px;
+  padding: 3px 0; font-size: .8rem;
+}
+.recur-when {
+  flex: none; min-width: 84px; font-weight: 600; color: var(--muted);
+}
+.recur-when.near { color: var(--warn); }
+.recur-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recur-date, .recur-made {
+  flex: none; font-size: .72rem; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+}
+.recur-made { color: var(--ok, var(--brand)); font-family: inherit; }
+
+.recur-day {
+  flex: none; width: 38px; text-align: center;
+  font-family: "IBM Plex Mono", monospace; font-size: .78rem; font-weight: 600;
+  color: var(--brand);
+}
+.group-list li.off { opacity: .55; }
+
+@media (max-width: 760px) {
+  .due-soon-row { flex-wrap: wrap; }
+  .due-soon-actions { width: 100%; justify-content: flex-start; }
+  .recur-soon li { flex-wrap: wrap; }
+}

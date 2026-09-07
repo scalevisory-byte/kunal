@@ -139,6 +139,36 @@ run('a task already filed is never moved by a later group', () => {
   assert.equal(DB.getTask(t.id).group_id, sunshine.id, 'a choice already made stands');
 });
 
+console.log('\na task that matches no business');
+
+run('an unmatched task is created ungrouped, not refused', () => {
+  /*
+   * routeTask returns null when nothing matches, and createTask used to run
+   * that through `Number.isFinite(Number(null))` - which is true, because
+   * Number(null) is 0. The task was stored as group 0, no such row exists, and
+   * the insert died with a foreign key error. Every AI task that matched no
+   * business was being lost.
+   */
+  const id = G.routeTask({ title: 'Call Ravi about the flat' });
+  assert.equal(id, null, 'nothing matched');
+
+  const t = DB.createTask({
+    title: 'Call Ravi about the flat', status: 'open', source: 'whatsapp', origin: 'ai',
+    group_id: id,
+  });
+  assert.ok(t.id, 'the task exists');
+  assert.equal(t.group_id, null, 'and is simply ungrouped');
+});
+
+run('the empty values that mean "no group" all mean no group', () => {
+  for (const empty of [null, undefined, '', false]) {
+    const t = DB.createTask({
+      title: `Empty group ${String(empty)}`, status: 'open', source: 'manual', group_id: empty,
+    });
+    assert.equal(t.group_id, null, `group_id: ${String(empty)}`);
+  }
+});
+
 console.log('\nremoving a group');
 
 run('deleting a group leaves its tasks alone', () => {

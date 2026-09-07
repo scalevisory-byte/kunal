@@ -14,7 +14,7 @@ import {
 } from './routes/followups.js';
 import { historyRouter } from './routes/history.js';
 import {
-  subtaskRouter, attachmentRouter, templateRouter, groupRouter,
+  subtaskRouter, attachmentRouter, templateRouter, groupRouter, recurringRouter,
 } from './routes/extras.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -79,6 +79,7 @@ export function createServer() {
   app.use('/api/attachments', requireAuth, attachmentRouter);
   app.use('/api/templates', requireAuth, templateRouter);
   app.use('/api/groups', requireAuth, groupRouter);
+  app.use('/api/recurring', requireAuth, recurringRouter);
   app.use('/api/attention', requireAuth, attentionRouter);
   app.use('/api/history', requireAuth, historyRouter);
   app.use('/api/briefing', requireAuth, briefingRouter);

@@ -23,6 +23,7 @@ import {
 } from './task-lifecycle.js';
 import { EVENT, recordEvent } from './task-events.js';
 import { openBlockers } from './dependencies.js';
+import { materialiseDue } from './recurring.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
@@ -207,6 +208,19 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     log.error('Weekly summary:', err?.message || err);
     return { sent: false };
   });
+  /*
+   * Monthly deadlines become real tasks before anything else runs, so a task
+   * created today is scheduled by the very same tick rather than waiting for
+   * the next one. Creating one is claimed per month, so this is safe to call
+   * as often as the engine ticks.
+   */
+  let recurring = [];
+  try {
+    recurring = materialiseDue({ now });
+  } catch (err) {
+    log.error('Monthly deadlines:', err?.message || err);
+  }
+
   const nowIso = now.toISOString();
   const missedBefore = new Date(now.getTime() - settings.missedAfterHours * 3600_000).toISOString();
 
@@ -277,7 +291,10 @@ export async function runReminderEngine({ now = new Date() } = {}) {
   if (sent || missed || planned) {
     log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
-  return { sent, missed, planned, briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent) };
+  return {
+    sent, missed, planned, recurring: recurring.length,
+    briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent),
+  };
 }
 
 function updateTaskCount(taskId, count) {
