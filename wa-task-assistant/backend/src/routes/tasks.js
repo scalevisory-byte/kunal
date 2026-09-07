@@ -3,7 +3,7 @@ import { createTask, getTask, listTasks, updateTask, deleteTask, taskStats } fro
 import { normalizeDueDate, normalizeInstant } from '../dates.js';
 import {
   remindersForTask, snoozeReminder, acknowledgeReminder, cancelReminder, getReminder,
-  scheduleCustomReminder, getSettings, nextRemindersFor,
+  scheduleCustomReminder, getSettings, nextRemindersFor, cancelRemindersForTask,
 } from '../scheduling.js';
 import {
   planTask, completeTask, rescheduleTask, syncNextReminder, taskSchedule,
@@ -276,12 +276,27 @@ tasksRouter.post('/:id/confirm', (req, res) => {
  * got wrong is worth being able to look back at, and archiving already removes
  * it from every active view.
  */
+/**
+ * "This is not a task."
+ *
+ * Reachable from any task, not only the ones the extractor asked about. An
+ * ambient reader produces a lot of near-misses — a sales pitch, a price
+ * enquiry, somebody's small talk — and the list is only worth reading if
+ * throwing one out is as quick as ticking one off.
+ *
+ * Archived rather than deleted, so what the extractor got wrong stays visible
+ * in Work History. The reminders go first: without that this would take the
+ * task off the list and carry on chasing it, which was true of every archived
+ * task until now.
+ */
 tasksRouter.post('/:id/reject', (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
+
+  cancelRemindersForTask(task.id);
   updateTask(task.id, { archived_at: new Date().toISOString(), needs_confirmation: 0 });
-  recordEvent(task.id, EVENT.archived, 'rejected — not a real task');
-  res.json({ ok: true });
+  recordEvent(task.id, EVENT.archived, 'not a task');
+  res.json({ ok: true, id: task.id, title: task.title });
 });
 
 /* ---------------- acting on a fired reminder ---------------- */

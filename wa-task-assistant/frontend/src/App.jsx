@@ -250,6 +250,14 @@ export default function App() {
     setOpenTask(null);
     return act(() => api.deleteTask(task.id));
   };
+  /*
+   * "This was never a task." Archived, not deleted: what the extractor got
+   * wrong stays in Work History, and its reminders stop with it.
+   */
+  const onNotATask = (task) => {
+    setOpenTask(null);
+    return act(() => api.rejectTask(task.id));
+  };
   const onEdit = (task, patch) => {
     // Keep the open panel showing what was just changed, without a round trip.
     setOpenTask((current) => (current?.id === task.id ? { ...current, ...patch } : current));
@@ -699,6 +707,7 @@ export default function App() {
                   onStatus={(task, next) => onEdit(task, { status: next })}
                   onQuickDate={onQuickDate}
                   onDelete={onDelete}
+                  onNotATask={onNotATask}
                 />
               ) : (
                 <div className={`workspace ${page.overview ? '' : 'solo'}`}>
@@ -796,6 +805,7 @@ export default function App() {
                       onStatus={(task, next) => onEdit(task, { status: next })}
                       onQuickDate={onQuickDate}
                       onDelete={onDelete}
+                      onNotATask={onNotATask}
                     />
                   </main>
 
@@ -848,6 +858,7 @@ export default function App() {
           onClose={() => setOpenTask(null)}
           onEdit={onEdit}
           onDelete={onDelete}
+          onNotATask={onNotATask}
           onError={(err) => setError(err.message)}
           onChanged={() => refresh({ quiet: true })}
         />

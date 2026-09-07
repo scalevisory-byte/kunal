@@ -79,7 +79,7 @@ const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 
 export default function TaskList({
   tasks, loading, error, groupBy, view, query,
-  onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete,
+  onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
 }) {
   /*
    * Grouped by chat, the sections start shut.
@@ -142,6 +142,7 @@ export default function TaskList({
                 onStatus={onStatus}
                 onQuickDate={onQuickDate}
                 onDelete={onDelete}
+                onNotATask={onNotATask}
               />
             ))}
           </ul>
@@ -201,6 +202,7 @@ export default function TaskList({
                     onStatus={onStatus}
                     onQuickDate={onQuickDate}
                     onDelete={onDelete}
+                    onNotATask={onNotATask}
                   />
                 ))}
               </ul>

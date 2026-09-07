@@ -311,6 +311,13 @@ the point — inventing confidence is what produces wrong reminders.
 Rejecting one archives it rather than deleting it: what the extractor got wrong is worth
 being able to look back at.
 
+**"Not a task" is on every task**, not only the ones it asked about — in the row's ⋮ menu
+and in the task drawer. An ambient reader produces a lot of near-misses, and the list is
+only worth reading if throwing one out is as quick as ticking one off. It archives with
+that reason recorded, and it stops the reminders: until this, archiving took a task off
+the list and carried on chasing it, because the digest, the exact-time reminder and the
+follow-up ladder all selected on status alone and none of them looked at `archived_at`.
+
 ## Blocked chats
 
 In `ai` mode, chats you block are dropped before anything is stored or sent to the API —

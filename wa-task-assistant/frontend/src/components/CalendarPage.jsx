@@ -18,7 +18,9 @@ const dayOf = (task) => {
  * Every figure comes from the loaded tasks - a day shows the work actually on
  * it, and a day with nothing says so rather than displaying a zero.
  */
-export default function CalendarPage({ tasks, onOpen, onToggle, onStatus, onQuickDate, onDelete }) {
+export default function CalendarPage({
+  tasks, onOpen, onToggle, onStatus, onQuickDate, onDelete, onNotATask,
+}) {
   const today = isoOf(new Date());
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -151,6 +153,7 @@ export default function CalendarPage({ tasks, onOpen, onToggle, onStatus, onQuic
                 onStatus={onStatus}
                 onQuickDate={onQuickDate}
                 onDelete={onDelete}
+                onNotATask={onNotATask}
               />
             ))}
           </ul>

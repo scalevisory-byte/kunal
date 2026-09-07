@@ -162,7 +162,7 @@ function FollowUpLadder({ task }) {
 }
 
 export default function TaskDetail({
-  task, tasks, groups = [], onClose, onEdit, onDelete, onError, onChanged,
+  task, tasks, groups = [], onClose, onEdit, onDelete, onNotATask, onError, onChanged,
 }) {
   const [showMessage, setShowMessage] = useState(false);
 
@@ -441,6 +441,13 @@ export default function TaskDetail({
           ) : (
             <button className="btn ghost" onClick={() => onEdit(task, { status: 'open' })}>
               Reopen
+            </button>
+          )}
+          {/* Different from Archive: this says the extractor was wrong, and
+              that reason is what Work History keeps. */}
+          {onNotATask && (
+            <button className="link" onClick={() => onNotATask(task)}>
+              Not a task
             </button>
           )}
           <button className="link danger" onClick={() => onDelete(task)}>

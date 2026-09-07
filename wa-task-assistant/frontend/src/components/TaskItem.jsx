@@ -11,7 +11,7 @@ const stamp = (iso) =>
     : null;
 
 /** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
+function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onNotATask }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
 
@@ -60,6 +60,18 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
           <button role="menuitem" onClick={run(() => onOpen(task))}>
             <Icon name="clipboard" size={15} /> Details
           </button>
+          {/*
+            * Distinct from Delete, and from Done. An ambient reader produces a
+            * lot of near-misses — a sales pitch, a price enquiry, small talk —
+            * and the list is only worth reading if throwing one out is as quick
+            * as ticking one off. It keeps the row in Work History, because what
+            * the extractor got wrong is worth being able to look back at.
+            */}
+          {onNotATask && (
+            <button role="menuitem" onClick={run(() => onNotATask(task))}>
+              <Icon name="circle" size={15} /> Not a task
+            </button>
+          )}
           <button className="danger" role="menuitem" onClick={run(() => onDelete(task))}>
             <Icon name="trash" size={15} /> Delete
           </button>
@@ -70,7 +82,7 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
 }
 
 export default function TaskItem({
-  task, onToggle, onOpen, onStatus, onQuickDate, onDelete,
+  task, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
   // One optional control, for a page where a task needs an action the board
   // does not have - the Nudge button on work given to somebody else. It sits
   // in the row rather than beside it, so the row stays one row.
@@ -187,6 +199,7 @@ export default function TaskItem({
         onStatus={onStatus}
         onQuickDate={onQuickDate}
         onDelete={onDelete}
+        onNotATask={onNotATask}
       />
     </li>
   );

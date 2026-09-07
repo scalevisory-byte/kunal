@@ -611,6 +611,7 @@ export function pendingReminders(today) {
     .prepare(
       `SELECT * FROM tasks
        WHERE ${OPEN_STATUSES} AND needs_confirmation = 0
+         AND archived_at IS NULL
          AND ${NOT_SET_ASIDE_BARE}
          AND (due_date IS NULL OR due_date <= ?)
        ORDER BY
@@ -674,7 +675,8 @@ export function dueExactReminders(nowIso) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE ${OPEN_STATUSES} AND remind_at_sent = 0 AND ${NOT_SET_ASIDE_BARE}
+       WHERE ${OPEN_STATUSES} AND remind_at_sent = 0 AND archived_at IS NULL
+         AND ${NOT_SET_ASIDE_BARE}
          AND remind_at IS NOT NULL AND remind_at <= ?
        ORDER BY remind_at ASC`
     )

@@ -265,7 +265,8 @@ export function taskHistory(task) {
 export const tasksWithDeadlines = () =>
   db.prepare(
     `SELECT * FROM tasks
-     WHERE status != 'done' AND (due_at IS NOT NULL OR due_date IS NOT NULL)
+     WHERE status != 'done' AND archived_at IS NULL
+       AND (due_at IS NOT NULL OR due_date IS NOT NULL)
        AND ${NOT_SET_ASIDE_BARE}`
   ).all();
 
