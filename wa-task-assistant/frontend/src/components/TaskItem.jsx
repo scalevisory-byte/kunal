@@ -69,7 +69,13 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete }) {
   );
 }
 
-export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate, onDelete }) {
+export default function TaskItem({
+  task, onToggle, onOpen, onStatus, onQuickDate, onDelete,
+  // One optional control, for a page where a task needs an action the board
+  // does not have - the Nudge button on work given to somebody else. It sits
+  // in the row rather than beside it, so the row stays one row.
+  extra = null,
+}) {
   const done = isDone(task);
   const due = dueLabel(task.due_date);
   const chat = taskChat(task);
@@ -172,6 +178,8 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
       </div>
 
       <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No date'}</span>
+
+      {extra}
 
       <RowMenu
         task={task}

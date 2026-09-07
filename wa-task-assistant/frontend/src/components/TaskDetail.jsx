@@ -297,6 +297,32 @@ export default function TaskDetail({
             </div>
           </div>
 
+          {/*
+            * Who is doing it.
+            *
+            * Editable because the extractor only fills this in when it is sure,
+            * and because work changes hands. Clearing the box takes the task
+            * back, which is the same thing as never having delegated it - one
+            * control for both directions rather than an "unassign" button.
+            */}
+          <div className="field">
+            <label htmlFor="d-assign">Given to</label>
+            <input
+              id="d-assign"
+              type="text"
+              placeholder="Nobody — this one is yours"
+              defaultValue={task.assigned_to || ''}
+              key={`assign-${task.id}-${task.assigned_to || ''}`}
+              onBlur={(e) => {
+                const name = e.target.value.trim();
+                if (name === (task.assigned_to || '')) return;
+                api.assign(task.id, name, task.assigned_to_wid)
+                  .then(() => onChanged())
+                  .catch(onError);
+              }}
+            />
+          </div>
+
           <div className="field-row">
             <div className="field">
               <label htmlFor="d-due">Due date</label>
@@ -347,6 +373,21 @@ export default function TaskDetail({
               <dt>Source</dt>
               <dd>{task.origin === 'ai' ? '🤖 AI-created' : '✋ Added by hand'}</dd>
             </div>
+            {task.requested_by && (
+              <div>
+                <dt>Asked by</dt>
+                <dd>📥 {task.requested_by}</dd>
+              </div>
+            )}
+            {task.assigned_to && (
+              <div>
+                <dt>Given to</dt>
+                <dd>
+                  📤 {task.assigned_to}
+                  {task.assigned_at && ` · ${dateTimeLabel(task.assigned_at)}`}
+                </dd>
+              </div>
+            )}
             {chat && (
               <div>
                 <dt>WhatsApp chat</dt>

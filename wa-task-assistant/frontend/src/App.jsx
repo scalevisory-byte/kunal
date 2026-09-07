@@ -28,6 +28,7 @@ import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
 import Recurring from './components/Recurring.jsx';
 import DueSoonBanner from './components/DueSoonBanner.jsx';
+import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -73,6 +74,16 @@ const PAGES = {
   done: {
     title: 'Completed',
     lede: 'Finished work, most recently closed first.',
+  },
+  received: {
+    title: 'Task received',
+    lede: 'Work other people have asked you for, grouped by who asked.',
+    delegation: 'received',
+  },
+  allotted: {
+    title: 'Task allotted',
+    lede: 'Work you have given to somebody else. Still yours to chase — the app reminds you, not them.',
+    delegation: 'allotted',
   },
   monthly: {
     title: 'Monthly deadlines',
@@ -131,6 +142,8 @@ export default function App() {
   // these until a person says they are real.
   const [unsure, setUnsure] = useState([]);
   const [groups, setGroups] = useState([]);
+  // The two badges beside Task received / Task allotted.
+  const [delegation, setDelegation] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
@@ -197,6 +210,11 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadGroups(); }, [loadGroups, tasks]);
+
+  // Refreshed with the board, so finishing a delegated task drops the badge.
+  useEffect(() => {
+    api.delegationCounts().then(setDelegation).catch(() => {});
+  }, [tasks]);
 
   useEffect(() => {
     setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
@@ -385,6 +403,7 @@ export default function App() {
         section={section}
         onSection={goto}
         connected={connected}
+        delegation={delegation}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />
@@ -526,6 +545,24 @@ export default function App() {
               </div>
               <Templates
                 onUsed={() => { refresh({ quiet: true }); goto('dashboard'); }}
+                onError={(err) => setError(err.message)}
+              />
+            </section>
+          ) : page.delegation ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>{page.title}</h2>
+                  <p>{page.lede}</p>
+                </div>
+              </div>
+              <Delegation
+                side={page.delegation}
+                onOpenTask={(id) => {
+                  const found = tasks.find((t) => t.id === id);
+                  if (found) setOpenTask(found);
+                }}
+                onChanged={() => refresh({ quiet: true })}
                 onError={(err) => setError(err.message)}
               />
             </section>

@@ -27,6 +27,12 @@ const PATHS = {
   trash: 'M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10.5 11v5M13.5 11v5',
   circle: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z',
   filter: 'M3.5 5.5h17l-6.5 7.5v5.5l-4 2v-7.5L3.5 5.5Z',
+  // Work arriving: a tray with an arrow coming down into it.
+  inbox: 'M4 13h4l1.5 3h5L16 13h4M4 13 6.5 5h11L20 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5Z',
+  // Work going out: an arrow leaving the tray.
+  outbox: 'M4 14h4l1.5 3h5l1.5-3h4v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4Zm8-2V3m0 0L8.5 6.5M12 3l3.5 3.5',
+  // A person, for the name a delegated task carries.
+  person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8.5a7 7 0 0 1 14 0',
 };
 
 export default function Icon({ name, size = 18, className = '', strokeWidth = 1.6 }) {

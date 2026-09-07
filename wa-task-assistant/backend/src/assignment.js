@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { config } from './config.js';
 
 /**
  * Work given to somebody else.
@@ -15,6 +16,24 @@ import { db } from './db.js';
  */
 
 export const isDelegated = (task) => Boolean(task?.assigned_to);
+export const wasRequested = (task) => Boolean(task?.requested_by);
+
+/*
+ * Three kinds of task, told apart by two columns rather than by guesswork:
+ *
+ *   allotted  - he gave it to somebody. `assigned_to` names them.
+ *   received  - somebody asked him for it. `requested_by` names them.
+ *   own       - neither; a note he made himself.
+ *
+ * A task can be both: a request that came in and was then passed on. It shows
+ * in both lists, which is correct - he is answerable for it and somebody else
+ * is doing it.
+ */
+export function directionOf(task) {
+  if (task?.assigned_to) return 'allotted';
+  if (task?.requested_by) return 'received';
+  return 'own';
+}
 
 /** Everyone the user has given work to, with what is still outstanding. */
 export function delegates() {
@@ -23,13 +42,46 @@ export function delegates() {
       `SELECT assigned_to AS name,
               MAX(assigned_to_wid) AS wid,
               SUM(CASE WHEN status != 'done' THEN 1 ELSE 0 END) AS open,
-              COUNT(*) AS total
+              COUNT(*) AS total,
+              MAX(assigned_at) AS last_at
        FROM tasks
        WHERE assigned_to IS NOT NULL AND archived_at IS NULL
        GROUP BY assigned_to
        ORDER BY open DESC, assigned_to`
     )
     .all();
+}
+
+/** Everyone who has given the user work, with what is still outstanding. */
+export function requesters() {
+  return db
+    .prepare(
+      `SELECT requested_by AS name,
+              MAX(requested_by_wid) AS wid,
+              SUM(CASE WHEN status != 'done' THEN 1 ELSE 0 END) AS open,
+              COUNT(*) AS total,
+              MAX(created_at) AS last_at
+       FROM tasks
+       WHERE requested_by IS NOT NULL AND archived_at IS NULL
+       GROUP BY requested_by
+       ORDER BY open DESC, requested_by`
+    )
+    .all();
+}
+
+/**
+ * The two counts the sidebar shows. Open only: a delegation everybody has
+ * finished with is history, not something to badge.
+ */
+export function delegationCounts() {
+  const one = (column) =>
+    db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM tasks
+         WHERE ${column} IS NOT NULL AND status != 'done' AND archived_at IS NULL`
+      )
+      .get().n;
+  return { allotted: one('assigned_to'), received: one('requested_by') };
 }
 
 /**
@@ -92,8 +144,21 @@ export const tasksFor = (name) =>
 export function followUpText(task) {
   const who = task.assigned_to || 'there';
   const lines = [`${who}, a quick update on *${task.title}* please.`];
-  if (task.due_at || task.due_date) {
-    lines.push('', `_It was due ${task.due_at ? new Date(task.due_at).toISOString().slice(0, 16).replace('T', ' ') : task.due_date}._`);
+
+  const iso = task.due_at || task.due_date;
+  if (iso) {
+    const at = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+    if (!Number.isNaN(at.getTime())) {
+      const when = new Intl.DateTimeFormat('en-IN', {
+        timeZone: config.timezone,
+        day: 'numeric',
+        month: 'short',
+        ...(task.due_at ? { hour: 'numeric', minute: '2-digit' } : {}),
+      }).format(at);
+      // Past or future, said correctly. "It was due next Thursday" reads as a
+      // reproach for something that has not happened yet.
+      lines.push('', at.getTime() < Date.now() ? `_It was due ${when}._` : `_It is due ${when}._`);
+    }
   }
   return lines.join('\n');
 }

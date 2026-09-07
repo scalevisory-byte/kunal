@@ -45,6 +45,13 @@ const ExtractionSchema = z.object({
             '(e.g. "10 baje" -> "10:00", "5pm" -> "17:00"). Empty string if no time is given.'
         ),
       priority: z.enum(['high', 'medium', 'low']),
+      assigned_to: z
+        .string()
+        .describe(
+          'The person who is meant to DO this, when the task is one he is giving ' +
+            'to somebody else. Their name as it appears in the chat. Empty string ' +
+            'when the task is his own to do - which is most of them.'
+        ),
       group: z
         .string()
         .describe(
@@ -95,6 +102,23 @@ Rules:
   or when you are extracting it only because it might matter. A "low" task is held
   back for him to confirm rather than being chased, so marking one honestly costs
   nothing - inventing confidence you do not have is what causes wrong reminders.
+- assigned_to: who has to do the work.
+
+  Each message says who wrote it. That is the whole signal:
+
+  * Somebody else wrote it, asking him for something - "invoice bhej dijiye",
+    "kal tak documents chahiye". The work is HIS. Leave assigned_to empty.
+  * HE wrote it, telling somebody else to do something - "Rahul, GST documents
+    kal 5 baje tak bhej dena", "invoice check karke bata dena". The work is
+    THEIRS: put their name in assigned_to. In a one-to-one chat that is the
+    person he is writing to; in a group it is only whoever he actually names.
+  * HE wrote it as a note to himself - "kal BNF salary karni hai", anything in
+    his own "message yourself" chat. The work is HIS. Leave assigned_to empty.
+
+  When you cannot tell who is meant to do it, leave assigned_to empty and set
+  confidence "low". A task filed against the wrong person is worse than one
+  filed against nobody: he will chase somebody who was never asked.
+
 - source_index must be the index of the message the task came from.
 
 Some messages arrive with a PHOTO attached; the picture follows the message it belongs
@@ -123,8 +147,13 @@ function renderBatch(messages) {
   return messages
     .map((m, i) => {
       const where = m.is_group ? `group "${m.chat_name}"` : `chat with ${m.chat_name}`;
+      // Direction is what separates work he has been given from work he is
+      // giving out, so it is stated rather than left to be inferred.
+      const who = m.from_me
+        ? `HE WROTE THIS, to ${m.chat_name || 'someone'}`
+        : `${m.contact_name || m.contact_number || 'unknown'} wrote this to him`;
       return [
-        `[${i}] from: ${m.contact_name || m.contact_number || 'unknown'} (${where})`,
+        `[${i}] ${who} (${where})`,
         `    sent: ${m.sent_at}`,
         // Says so explicitly, so a caption-less photo does not look like an
         // empty message the model should ignore.
@@ -241,8 +270,24 @@ export async function extractTasks(messages) {
         due_date: dueDate,
         due_at: remindAt,
         priority: task.priority,
-        // The model's own report, kept as such. A task it was unsure about is
-        // created but held back for confirmation rather than being chased.
+
+        /*
+         * Who the work is between.
+         *
+         * Direction is decided here, from who sent the message, not from what
+         * the message says - somebody can write "main kar dunga" in a request
+         * and it is still a request. Only a message he wrote can hand work out;
+         * only a message somebody else wrote can be work he was given.
+         */
+        assigned_to: source?.from_me && task.assigned_to?.trim()
+          ? task.assigned_to.trim().slice(0, 80)
+          : null,
+        assigned_to_wid: source?.from_me && task.assigned_to?.trim() ? source.chat_id : null,
+        requested_by:
+          source && !source.from_me
+            ? (source.contact_name || source.contact_number || source.chat_name || null)
+            : null,
+        requested_by_wid: source && !source.from_me ? source.chat_id : null,
         // Keyword rules decide first; this is only consulted for what they
         // do not catch. See groups.js.
         group_id: routeTask(
@@ -250,6 +295,8 @@ export async function extractTasks(messages) {
           task.group,
           groups
         ),
+        // The model's own report, kept as such. A task it was unsure about is
+        // created but held back for confirmation rather than being chased.
         ai_confidence: task.confidence || null,
         needs_confirmation: task.confidence === 'low' ? 1 : 0,
         status: 'open',

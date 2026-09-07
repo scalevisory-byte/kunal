@@ -41,7 +41,7 @@ tasksRouter.get('/', (req, res) => {
 tasksRouter.post('/', (req, res) => {
   const {
     title, description, notes, contact, chat_name, due_date, due_at, priority, remind_at,
-    reminder_offset, follow_up_offset,
+    reminder_offset, follow_up_offset, assigned_to, assigned_to_wid, requested_by,
   } = req.body || {};
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: 'title is required' });
@@ -61,8 +61,15 @@ tasksRouter.post('/', (req, res) => {
       source: 'manual',
       origin: 'manual',
       status: 'open',
+      // A task typed by hand can be somebody else's from the start, and can
+      // record who asked for it - the same two columns the extractor fills, so
+      // a hand-written delegation is indistinguishable from a captured one.
+      assigned_to,
+      assigned_to_wid,
+      requested_by,
     });
     recordEvent(task.id, EVENT.created, 'added by hand');
+    if (task.assigned_to) recordEvent(task.id, EVENT.assigned, task.assigned_to);
     if (task.due_at || task.due_date) {
       recordEvent(task.id, EVENT.deadlineSet, task.due_at || task.due_date);
     }

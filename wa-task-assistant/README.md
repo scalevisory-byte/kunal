@@ -241,6 +241,33 @@ A template holds the title, the usual priority, when it is normally due and the 
 that goes with it. Using one builds an ordinary task, so the ladder, the history and the
 briefing each see a task and nothing new. Templates live in Settings.
 
+## Work with other people
+
+Two sidebar sections, mirroring each other:
+
+**Task received** — work somebody has asked you for. When a request arrives in a chat, the
+task records who sent it, and the page groups by that person, so you can see that four of
+today's six came from the same place. It is your work: it behaves like any other task.
+
+**Task allotted** — work you have given out. Writing *"Rahul, GST documents kal 5 baje tak
+bhej dena"* in a chat files the task against Rahul.
+
+Which way round it goes is decided by **who sent the message, never by what it says**.
+*"kar dena"* reads the same whether you wrote it or received it, so a name Claude puts on a
+task is honoured only when the message came from you. A request that arrives from Rahul is
+work you owe Rahul, whatever the wording. When it cannot tell, it says so and the task
+waits in *"Is this a task?"* — filing work against the wrong person means chasing somebody
+who was never asked.
+
+**A delegated task is still yours to chase.** The ladder runs exactly as before, and every
+reminder comes **to you** — it just says whose desk it is sitting on. The app never
+messages the other person on its own. `Nudge`, on the row, composes a message, shows it to
+you in full, lets you edit it, and sends it when you press the button; that button is the
+only path in the whole app that writes to anybody but you.
+
+You can also set *Given to* by hand, in the new-task form or in the task drawer. Clearing
+the box takes the task back, which is the same thing as never having delegated it.
+
 ## When Claude is not sure
 
 The extractor reports how confident it was, and a task it calls **low** is created but not
@@ -311,6 +338,11 @@ set. `/healthz` is always open.
 | GET | `/api/tasks/pending/confirmation` | Extractions Claude was unsure about |
 | POST | `/api/tasks/:id/confirm` | "Yes, that is a task" — it enters the ladder |
 | POST | `/api/tasks/:id/reject` | "No" — archived, not deleted |
+| GET | `/api/delegation?status=open\|all` | Work received and work allotted, with who is on each side |
+| GET | `/api/delegation/counts` | Just the two open counts, for the sidebar |
+| POST | `/api/delegation/tasks/:id/assign` | Give a task to somebody; an empty name takes it back |
+| GET | `/api/delegation/tasks/:id/nudge` | The follow-up message that would be sent, and whether it can be |
+| POST | `/api/delegation/tasks/:id/nudge` | Send it. The only route in the app that writes to anybody but you |
 
 `/api/auth-state` is deliberately outside the gate: the dashboard has to be able to ask
 "am I actually protected?" before it holds a token. It reveals only whether a password is

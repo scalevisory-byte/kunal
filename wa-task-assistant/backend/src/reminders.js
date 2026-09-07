@@ -356,7 +356,14 @@ async function deliver(task, reminder, settings) {
   const blockedNote = blockers.length
     ? `Waiting on: ${blockers.map((b) => b.title).join(', ')}.`
     : null;
-  const body = [base, blockedNote].filter(Boolean).join(' ') || null;
+  /*
+   * A delegated task is still the user's to chase, so the reminder still comes
+   * to him - it just says whose desk it is sitting on. Nothing here messages
+   * that person: sending to an assignee happens only from the dashboard, on a
+   * press. See routes/delegation.js.
+   */
+  const withWhom = task.assigned_to ? `With ${task.assigned_to}.` : null;
+  const body = [base, withWhom, blockedNote].filter(Boolean).join(' ') || null;
 
   addNotification({
     kind: reminder.kind === 'follow_up' ? 'follow_up' : 'reminder',
@@ -382,6 +389,7 @@ async function deliver(task, reminder, settings) {
       heading,
       '',
       `*${task.title}*`,
+      task.assigned_to ? `Given to: ${task.assigned_to}` : null,
       dueLabel ? `Deadline: ${dueLabel}` : null,
       reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
       blockedNote ? `⛔ ${blockedNote}` : null,

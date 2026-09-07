@@ -42,6 +42,9 @@ export const EVENT = {
   reopened: 'reopened',
   archived: 'archived',
   noteAdded: 'note added',
+  assigned: 'assigned',
+  unassigned: 'taken back',
+  nudgeSent: 'follow-up sent',
 };
 
 export function recordEvent(taskId, kind, detail = null, meta = null) {

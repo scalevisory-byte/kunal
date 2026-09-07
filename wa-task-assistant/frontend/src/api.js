@@ -78,6 +78,21 @@ export const api = {
 
   attention: () => request('/attention'),
 
+  // Work with somebody else's name on it. `nudge` is the only call in the whole
+  // client that sends a WhatsApp message to anybody but the user, and it exists
+  // solely so a person can press a button.
+  delegation: (status = 'open') => request(`/delegation?status=${status}`),
+  delegationCounts: () => request('/delegation/counts'),
+  assign: (taskId, name, wid = null) =>
+    request(`/delegation/tasks/${taskId}/assign`, {
+      method: 'POST', body: JSON.stringify({ name, wid }),
+    }),
+  nudgePreview: (taskId) => request(`/delegation/tasks/${taskId}/nudge`),
+  sendNudge: (taskId, text) =>
+    request(`/delegation/tasks/${taskId}/nudge`, {
+      method: 'POST', body: JSON.stringify({ text }),
+    }),
+
   history: (params = {}) => {
     const query = Object.entries(params)
       .filter(([, v]) => v !== undefined && v !== '')

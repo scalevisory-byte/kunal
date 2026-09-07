@@ -227,6 +227,17 @@ for (const [name, ddl] of [
   ['assigned_to', 'ALTER TABLE tasks ADD COLUMN assigned_to TEXT'],
   ['assigned_to_wid', 'ALTER TABLE tasks ADD COLUMN assigned_to_wid TEXT'],
   ['assigned_at', 'ALTER TABLE tasks ADD COLUMN assigned_at TEXT'],
+
+  /*
+   * The other direction: who asked him for this.
+   *
+   * Stored rather than derived from the source message, because the message is
+   * the thing that can go away - pruned, or never kept at all in manual mode -
+   * and the task still has to be able to say who it came from. NULL is a note
+   * he made himself, which is what every row written before this says.
+   */
+  ['requested_by', 'ALTER TABLE tasks ADD COLUMN requested_by TEXT'],
+  ['requested_by_wid', 'ALTER TABLE tasks ADD COLUMN requested_by_wid TEXT'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -375,12 +386,12 @@ const insertTaskStmt = db.prepare(`
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
      ai_confidence, needs_confirmation, group_id,
-     assigned_to, assigned_to_wid, assigned_at)
+     assigned_to, assigned_to_wid, assigned_at, requested_by, requested_by_wid)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
      @ai_confidence, @needs_confirmation, @group_id,
-     @assigned_to, @assigned_to_wid, @assigned_at)
+     @assigned_to, @assigned_to_wid, @assigned_at, @requested_by, @requested_by_wid)
 `);
 
 /**
@@ -438,6 +449,8 @@ export function createTask(input) {
     assigned_to: input.assigned_to ? String(input.assigned_to).trim().slice(0, 80) : null,
     assigned_to_wid: input.assigned_to_wid || null,
     assigned_at: input.assigned_to ? new Date().toISOString() : null,
+    requested_by: input.requested_by ? String(input.requested_by).trim().slice(0, 80) : null,
+    requested_by_wid: input.requested_by_wid || null,
   };
   if (!row.title) throw new Error('title is required');
   const info = insertTaskStmt.run(row);
@@ -480,6 +493,7 @@ export function listTasks({ status, limit = 500 } = {}) {
 // only just have been given.
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_group ON tasks(group_id)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to)`);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`);
 
 /*
  * Group names are unique regardless of case. SQLite's UNIQUE is case-sensitive,
@@ -493,7 +507,7 @@ const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
   'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence', 'group_id',
-  'assigned_to', 'assigned_to_wid',
+  'assigned_to', 'assigned_to_wid', 'requested_by',
 ];
 
 export function updateTask(id, patch) {

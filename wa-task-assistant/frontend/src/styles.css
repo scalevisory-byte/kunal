@@ -2096,3 +2096,39 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* Group tags stay quiet: a dot of identity, not a block of colour. */
 .group-tag { font-weight: 600; }
+
+/* ---------- task received / task allotted ---------- */
+
+/*
+ * The rows are the app's own task rows, unchanged. What this adds is a person's
+ * name as the section heading, and - on tasks he has given out - one button per
+ * row to write to them. Nothing else about a task reads differently here.
+ */
+/* The Nudge button lives inside the row, between the date and the ⋮ menu. */
+.btn.nudge { flex: none; gap: 6px; padding: 4px 10px; min-height: 26px; font-size: .76rem; }
+.btn.nudge .icon { opacity: .7; }
+.task .btn.nudge { opacity: 0; transition: opacity .15s; }
+.task:hover .btn.nudge, .task:focus-within .btn.nudge { opacity: 1; }
+/* On a touch screen there is no hover to reveal it. */
+@media (hover: none) { .task .btn.nudge { opacity: 1; } }
+
+/*
+ * A person's name is the heading here, so it is a name rather than the small
+ * uppercase label the date sections use. Scoped to this page: the same element
+ * on the board still reads "OVERDUE", "TODAY".
+ */
+.deleg .section-head h3 {
+  font-family: Archivo, sans-serif; font-weight: 700;
+  font-size: .92rem; letter-spacing: -.01em; text-transform: none;
+  color: var(--text);
+}
+.deleg .section-head .section-icon { color: var(--muted); }
+.deleg .section-note { font-size: .76rem; color: var(--muted); }
+
+.check-inline {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .84rem; color: var(--text-2); cursor: pointer;
+}
+.check-inline input { width: auto; margin: 0; }
+
+.banner.ok { border-color: var(--ok); background: var(--ok-wash); color: var(--text); }

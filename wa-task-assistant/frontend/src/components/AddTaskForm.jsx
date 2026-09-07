@@ -23,6 +23,7 @@ export default function AddTaskForm({ onAdd, onClose }) {
   const [detail, setDetail] = useState(false);
   const [form, setForm] = useState({
     notes: '', date: '', time: '18:00', reminder: '', followUp: '', priority: 'medium',
+    assignedTo: '',
   });
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -39,9 +40,15 @@ export default function AddTaskForm({ onAdd, onClose }) {
       priority: form.priority,
       reminder_offset: form.reminder === '' ? undefined : Number(form.reminder),
       follow_up_offset: form.followUp === '' ? undefined : Number(form.followUp),
+      // A task can be somebody else's from the moment it is written. No chat id
+      // to go with it, so the nudge button will say it has nowhere to send.
+      assigned_to: form.assignedTo.trim() || null,
     });
     setTitle('');
-    setForm({ notes: '', date: '', time: '18:00', reminder: '', followUp: '', priority: 'medium' });
+    setForm({
+      notes: '', date: '', time: '18:00', reminder: '', followUp: '', priority: 'medium',
+      assignedTo: '',
+    });
     setDetail(false);
   };
 
@@ -76,6 +83,19 @@ export default function AddTaskForm({ onAdd, onClose }) {
             <label htmlFor="a-notes">Notes</label>
             <textarea id="a-notes" rows={2} value={form.notes} onChange={set('notes')}
               placeholder="Anything worth remembering about this one" />
+          </div>
+
+          <div className="field">
+            <label htmlFor="a-assign">Give it to</label>
+            <input
+              id="a-assign"
+              value={form.assignedTo}
+              onChange={set('assignedTo')}
+              placeholder="Leave empty to keep it yourself"
+            />
+            <p className="field-note">
+              It still reminds you, not them. Chasing them is a button on the task.
+            </p>
           </div>
 
           <fieldset className="field-group">

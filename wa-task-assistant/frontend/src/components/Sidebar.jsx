@@ -23,6 +23,18 @@ const NAV = [
     ],
   },
   {
+    /*
+     * Work with somebody else's name on it, both ways round. It is its own
+     * group because "who owes this" is a different question from "when is it
+     * due", and answering it by filtering the main list meant never asking it.
+     */
+    label: 'People',
+    items: [
+      { key: 'received', label: 'Task received', icon: 'inbox', count: 'received' },
+      { key: 'allotted', label: 'Task allotted', icon: 'outbox', count: 'allotted' },
+    ],
+  },
+  {
     label: 'Automation',
     items: [
       // The reminder and follow-up engine is the heart of this thing; it was
@@ -44,7 +56,9 @@ const NAV = [
 ];
 
 /** The application's spine: where you are, and the one fact that matters below. */
-export default function Sidebar({ section, onSection, connected, open, onClose, groups = [] }) {
+export default function Sidebar({
+  section, onSection, connected, open, onClose, groups = [], delegation = null,
+}) {
   return (
     <>
       <div className={`scrim ${open ? 'on' : ''}`} onClick={onClose} role="presentation" />
@@ -91,7 +105,12 @@ export default function Sidebar({ section, onSection, connected, open, onClose, 
                   onClick={() => { onSection(item.key); onClose(); }}
                 >
                   <Icon name={item.icon} size={17} />
-                  {item.label}
+                  <span className="side-item-name">{item.label}</span>
+                  {/* Only what is still outstanding is worth a badge; a count
+                      of finished delegations is history, not a nudge. */}
+                  {item.count && delegation?.[item.count] > 0 && (
+                    <span className="side-count">{delegation[item.count]}</span>
+                  )}
                 </button>
               ))}
             </div>
