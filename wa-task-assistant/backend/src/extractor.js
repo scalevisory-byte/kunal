@@ -131,6 +131,18 @@ Rules:
   * Somebody else wrote it, asking him for something - "invoice bhej dijiye",
     "kal tak documents chahiye". The work is HIS. Leave assigned_to empty.
 
+  * Somebody else wrote it in a group, asking SOMEBODY ELSE - "please advise
+    for payment @abdul bhai kiski tkt he?", "@Meera send the ledger". He is in
+    the group but he is not the one being asked, and this is not his work.
+    DO NOT EXTRACT IT AT ALL - not as his task, not as a delegated one. He did
+    not hand it out and nobody asked him for it; putting it on his list means
+    he is chased for somebody else's job.
+
+    Read who is being addressed, not who would normally do it: an @mention, a
+    name at the start, or a reply aimed at one person. If the message names
+    nobody, or names him as well, it is a request to the group and he is part
+    of that group - treat it as his.
+
   * He wrote it in his own notes-to-self chat - "kal BNF salary karni hai",
     "pay arroohan tds today last day". A note to himself. The work is HIS.
     Leave assigned_to empty.
@@ -190,8 +202,15 @@ function renderBatch(messages) {
         : m.from_me
           ? `HE WROTE THIS, to ${m.is_group ? `the team in "${m.chat_name}"` : m.chat_name || 'someone'}`
           : `${m.contact_name || m.contact_number || 'unknown'} wrote this to him`;
+      // Only stated when it is known and it matters: an incoming group message
+      // that names somebody, where that somebody is not him.
+      const aimed =
+        !m.from_me && m.is_group && m.mentions_someone && !m.mentions_me
+          ? '\n    addressed to somebody else in the group, not to him'
+          : '';
+
       return [
-        `[${i}] ${who} (${where})`,
+        `[${i}] ${who} (${where})${aimed}`,
         `    sent: ${m.sent_at}`,
         // Says so explicitly, so a caption-less photo does not look like an
         // empty message the model should ignore.

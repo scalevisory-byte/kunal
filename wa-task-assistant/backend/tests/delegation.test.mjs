@@ -334,6 +334,42 @@ run('an instruction into a team group is work handed to that team', () => {
   assert.equal(out.tasks[0].assigned_to_wid, '9199@c.us', 'a nudge goes to the group');
 });
 
+run('a group message aimed at somebody else says so in the prompt', () => {
+  /*
+   * "please advise for payment @abdul bhai kiski tkt he?" — written by the
+   * accounts team, in a group, to Abdul. It became a task on the user's own
+   * list, so he was being chased for Abdul's job. The @mention is the one part
+   * of "who is this for" that does not have to be inferred: WhatsApp hands over
+   * the ids, so it is stated as a fact rather than left to the wording, which
+   * reads the same whoever it is addressed to.
+   */
+  const out = extract(answer(), [message({
+    from_me: 0, is_group: 1, chat_name: 'Booknfly Accounts',
+    mentions_someone: 1, mentions_me: 0,
+    body: 'please advise for payment @abdul bhai kiski tkt he ?',
+  })]);
+  assert.match(out.prompt, /addressed to somebody else in the group, not to him/);
+});
+
+run('a group message that mentions him is not marked as somebody else\'s', () => {
+  const out = extract(answer(), [message({
+    from_me: 0, is_group: 1, mentions_someone: 1, mentions_me: 1,
+  })]);
+  assert.ok(!/addressed to somebody else/.test(out.prompt));
+});
+
+run('a message naming nobody is a request to the group, so it is his', () => {
+  const out = extract(answer(), [message({ from_me: 0, is_group: 1, mentions_someone: 0 })]);
+  assert.ok(!/addressed to somebody else/.test(out.prompt));
+  assert.equal(out.tasks[0].requested_by, 'Rahul');
+});
+
+run('a one-to-one message is never marked as aimed elsewhere', () => {
+  // Only a group can hold a conversation he is merely present for.
+  const out = extract(answer(), [message({ from_me: 0, is_group: 0, mentions_someone: 1 })]);
+  assert.ok(!/addressed to somebody else/.test(out.prompt));
+});
+
 run('an unnamed sender falls back to their number, never to nothing', () => {
   const out = extract(answer(), [message({ from_me: 0, contact_name: null })]);
   assert.equal(out.tasks[0].requested_by, '9199');

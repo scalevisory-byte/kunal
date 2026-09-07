@@ -551,11 +551,28 @@ export async function handleMessage(message) {
      * has to reach the extractor, which uses it to tell a note he made himself
      * from an instruction he gave somebody. Both are messages he wrote.
      */
+    /*
+     * Who a group message is aimed at.
+     *
+     * An @mention is the one part of "who is this for" that does not need
+     * reading: WhatsApp hands over the ids. In a company group somebody asking
+     * "@abdul bhai kiski tkt he?" is asking Abdul, and a task for it on the
+     * user's list means he gets chased for Abdul's job. Stated as a fact so the
+     * extractor is not left inferring it from the wording, which reads the same
+     * whoever it is addressed to.
+     */
+    let mentions = [];
+    try {
+      mentions = (message.mentionedIds || []).map((w) => String(w?._serialized ?? w));
+    } catch { /* older library shapes, or a message with no mentions */ }
+
     buffer.push({
       ...row,
       id,
       image,
       is_self: Boolean(state.me) && row.chat_id === state.me ? 1 : 0,
+      mentions_someone: mentions.length ? 1 : 0,
+      mentions_me: state.me && mentions.includes(state.me) ? 1 : 0,
     });
     state.bufferedCount = buffer.length;
     scheduleFlush();
