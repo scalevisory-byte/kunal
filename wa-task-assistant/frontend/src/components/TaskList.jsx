@@ -50,7 +50,23 @@ function byDate(open) {
       match: (t) => t.due_date > tomorrow && t.due_date <= weekEnd,
     },
     { key: 'later', label: 'Later', tone: 'plain', icon: 'calendar', match: (t) => t.due_date > weekEnd },
-    { key: 'undated', label: 'No date', tone: 'plain', icon: 'circle', match: (t) => !t.due_date },
+    {
+      key: 'undated',
+      label: 'No date',
+      tone: 'plain',
+      icon: 'circle',
+      /*
+       * Said here because this is where it is asked.
+       *
+       * "No date" was read as a missing timestamp rather than as a deadline
+       * nobody has set — and the consequence is not obvious from the words: a
+       * task with no deadline has nothing for the ladder to count from, so it
+       * is never chased. It still reaches the twice-daily WhatsApp list, which
+       * is why this says what it does and not "these are ignored".
+       */
+      note: 'No deadline set, so the reminder ladder has nothing to count from — these are not chased. They still appear in the twice-daily WhatsApp list. Give one from the ⋮ menu.',
+      match: (t) => !t.due_date,
+    },
   ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
 }
 
