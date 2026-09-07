@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { config } from '../config.js';
 import {
-  listMessages, savePushSubscription, deletePushSubscription, taskStats,
+  listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
 import { state, flushNow } from '../whatsapp.js';
@@ -135,7 +135,7 @@ systemRouter.get('/usage', (req, res) => {
 });
 
 systemRouter.get('/messages', (req, res) => {
-  res.json({ messages: listMessages({ limit: req.query.limit }) });
+  res.json({ messages: listMessagesWithOutcome({ limit: req.query.limit }) });
 });
 
 /** Process whatever is buffered right now instead of waiting for the quiet window. */

@@ -9,6 +9,7 @@ import StatBoard from './components/StatBoard.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
 import CaptureSettings from './components/CaptureSettings.jsx';
 import TidyTitles from './components/TidyTitles.jsx';
+import MessagesRead from './components/MessagesRead.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
@@ -714,6 +715,7 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
+              <MessagesRead mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>
           ) : (
             <>

@@ -78,6 +78,10 @@ export const api = {
 
   attention: () => request('/attention'),
 
+  // What the app has actually read, and what each message produced. The only
+  // thing that separates "it never arrived" from "nothing was made of it".
+  messagesRead: (limit = 60) => request(`/messages?limit=${limit}`),
+
   // Costs one API call, so it is asked for rather than automatic, and it only
   // ever proposes — applying is a second, explicit call.
   tidyPreview: () => request('/tasks/tidy/preview', { method: 'POST', body: JSON.stringify({}) }),

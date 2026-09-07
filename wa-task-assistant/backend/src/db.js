@@ -377,6 +377,50 @@ export function markMessagesProcessed(ids) {
   db.transaction((list) => list.forEach((id) => stmt.run(id)))(ids);
 }
 
+/**
+ * The messages the app has actually read, newest first, and what each produced.
+ *
+ * "Why did this one not become a task?" has two very different answers - it
+ * never arrived, or it arrived and nothing was made of it - and from outside
+ * they look identical. This is the one place that tells them apart, so it
+ * carries the task's title where there is one and says nothing where there is
+ * not, rather than leaving it to be inferred.
+ */
+export function listMessagesWithOutcome({ limit = 60 } = {}) {
+  const messages = db
+    .prepare(
+      `SELECT id, chat_name, contact_name, contact_number, body,
+              is_group, from_me, sent_at, processed
+       FROM messages
+       ORDER BY sent_at DESC, id DESC
+       LIMIT ?`
+    )
+    .all(Math.min(Number(limit) || 60, 200));
+
+  if (!messages.length) return messages;
+
+  // A message can produce more than one task, so the tasks are attached in a
+  // second pass rather than joined — a join would repeat the message once per
+  // task and read as if the same thing had arrived twice.
+  const holes = messages.map(() => '?').join(',');
+  const tasks = db
+    .prepare(
+      `SELECT id, message_id, title, assigned_to, status, archived_at
+       FROM tasks
+       WHERE message_id IN (${holes})
+       ORDER BY id`
+    )
+    .all(...messages.map((m) => m.id));
+
+  const byMessage = new Map();
+  for (const task of tasks) {
+    if (!byMessage.has(task.message_id)) byMessage.set(task.message_id, []);
+    byMessage.get(task.message_id).push(task);
+  }
+
+  return messages.map((message) => ({ ...message, tasks: byMessage.get(message.id) || [] }));
+}
+
 export function listMessages({ limit = 100 } = {}) {
   return db
     .prepare(`SELECT * FROM messages ORDER BY id DESC LIMIT ?`)
