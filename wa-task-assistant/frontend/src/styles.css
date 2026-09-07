@@ -2185,3 +2185,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .tidy-pair s { color: var(--muted); text-decoration-color: var(--line-2); }
 .tidy-pair b { font-weight: 600; display: flex; align-items: center; gap: 5px; }
 .tidy-pair b .icon { color: var(--ok); flex: none; }
+
+/* The two figures that say why automatic delegation is or is not working. */
+.deleg-counts {
+  margin: 0 0 14px; padding: 9px 12px;
+  background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: .78rem; color: var(--muted); line-height: 1.5;
+}
+.deleg-counts b { color: var(--text); font-variant-numeric: tabular-nums; }

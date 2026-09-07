@@ -354,6 +354,23 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
         </span>
       </div>
 
+      {/*
+        * Always, not only on an empty page.
+        *
+        * It was shown only when there was nothing here, so the moment one task
+        * appeared - a manual one - the figure that explains the automatic ones
+        * disappeared with it. Which is exactly when it is needed: the page is
+        * no longer empty and the pipeline is still not working.
+        */}
+      {side === 'allotted' && wa && (
+        <p className="deleg-counts">
+          Read from your own messages: <b>{wa.ownSeenEver ?? 0}</b>
+          {typeof wa.ownSeen === 'number' && wa.ownSeen !== wa.ownSeenEver && ` (${wa.ownSeen} since this server started)`}
+          {' · '}handed to somebody by Claude: <b>{wa.delegatedEver ?? 0}</b>
+          {!wa.ownSeenEver && ' — nothing you have written has been read at all, which is a connection problem rather than a wording one.'}
+        </p>
+      )}
+
       {sent && (
         <p className="banner ok" role="status">
           Sent to {sent}. <button className="link" onClick={() => setSent(null)}>Dismiss</button>
