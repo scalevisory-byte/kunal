@@ -2617,8 +2617,78 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   font-size: .68rem; font-weight: 600;
 }
 
-/* The two ways to read this page, above both of them. */
-.board-switch { align-self: flex-start; margin-bottom: 16px; }
+/*
+ * How to show the businesses: two icons and, when there is something folded,
+ * a third to fold the rest.
+ *
+ * Icons rather than labelled buttons because this is a preference you set once
+ * and then look past — a row of words for it would take the same height as a
+ * business.
+ */
+.board-views {
+  display: inline-flex; align-items: center; gap: 2px;
+  margin-bottom: 14px;
+  padding: 2px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.board-views button {
+  display: grid; place-items: center;
+  width: 30px; height: 28px;
+  border: 0; background: none; border-radius: 4px;
+  color: var(--muted); cursor: pointer;
+  transition: background .16s, color .16s;
+}
+.board-views button:hover { background: var(--card); color: var(--text-2); }
+.board-views button.on { background: var(--card); color: var(--brand); box-shadow: var(--shadow-sm); }
+
+/* ---------- vertical: one business at a time ---------- */
+
+/*
+ * Folded down to a name and a number, with one open.
+ *
+ * Everything a column shows is here too — the same rows, the same add-a-task —
+ * so switching layout never costs a feature. What changes is that four of the
+ * five businesses are a single line each, and the one being worked on has the
+ * whole width.
+ */
+.board-stack { display: flex; flex-direction: column; gap: 8px; }
+.board-row {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.board-row.open { border-color: var(--line-2); }
+.board-row-head {
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; text-align: left;
+  border: 0; background: none; cursor: pointer;
+  font: inherit;
+  padding: 13px 15px;
+  transition: background .16s;
+}
+.board-row-head:hover { background: var(--raised); }
+.board-chevron { flex: none; color: var(--muted); transition: transform .18s; }
+.board-chevron.shut { transform: rotate(-90deg); }
+.board-row-name {
+  flex: 1; min-width: 0;
+  font-size: .92rem; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.board-row-late {
+  flex: none; font-size: .74rem; font-weight: 600; color: var(--danger);
+}
+.board-row-body { padding: 0 15px 13px; }
+.board-row-body .board-list { margin-top: 0; }
+.board-row-body .board-list li:first-child { border-top: 0; }
+.board-row-only { margin-top: 10px; font-size: .78rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .board-chevron { transition: none; }
+}
 
 /* Work with no business yet: a line, not a column that takes over the page. */
 .board-unfiled {

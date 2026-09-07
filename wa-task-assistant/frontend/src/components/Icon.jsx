@@ -8,6 +8,8 @@ const PATHS = {
   list: 'M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01',
   /* Three columns: the businesses read side by side rather than one at a time. */
   board: 'M4 4h5v16H4zm5.5 0h5v11h-5zm5.5 0h5v16h-5z',
+  /* Two chevrons folding towards a line: close everything. */
+  collapse: 'M12 3v6m0 0 3-3m-3 3L9 6M12 21v-6m0 0 3 3m-3-3-3 3M3 12h18',
   chat: 'M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.3-.6L3 21l1.7-5.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z',
   robot: 'M12 3v3m-5 0h10a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm2 6h.01M15 12h.01M9 16h6',
   calendar: 'M7 3v3m10-3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z',

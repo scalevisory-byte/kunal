@@ -1,22 +1,47 @@
-
 import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { api } from '../api.js';
 import { dueLabel, isDone, isOverdue } from '../lib/task.js';
 
 /**
- * Every business side by side, one column each.
+ * The businesses, laid out two ways.
  *
- * The sidebar already lets you pick one group and read its list, which answers
- * "what is outstanding for Book N Fly". It cannot answer "how do the five of
- * them compare" — for that you were opening each in turn and holding the last
- * one in your head. Columns answer it by being read across.
+ * Horizontal is for comparing — five side by side, read across in one glance.
+ * Vertical is for working: one open at a time, everything else folded down to
+ * a name and a number, so the business you are actually on has the screen.
  *
- * Deliberately thinner than the main list: a title, and when it is due. A
- * column is a quantity you take in at a glance, and every extra field on the
- * row is one fewer row on the screen. Clicking one opens the same drawer as
- * anywhere else, which is where the detail lives.
+ * Both draw the same column and the same rows; only the layout differs. That
+ * is the whole point of the pair — nothing gains or loses a feature by
+ * switching, so the choice is about how you want to look, never about what you
+ * can do.
  */
+const VIEW_STORE = 'wa.board.view';
+const OPEN_STORE = 'wa.board.open';
+
+const readView = () => {
+  try {
+    return localStorage.getItem(VIEW_STORE) === 'vertical' ? 'vertical' : 'horizontal';
+  } catch {
+    return 'horizontal';
+  }
+};
+
+const readOpen = () => {
+  try {
+    const raw = Number(localStorage.getItem(OPEN_STORE));
+    return Number.isFinite(raw) && raw > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+};
+
+const remember = (key, value) => {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, String(value));
+  } catch { /* private window */ }
+};
+
 /**
  * One line, one task, filed where you typed it.
  *
@@ -131,9 +156,49 @@ function NewBusiness({ onAdded, onError }) {
   );
 }
 
+/** The tasks inside one business — identical in both layouts. */
+function Tasks({ items, onOpen, onToggle }) {
+  if (!items.length) return <p className="board-empty">Nothing open.</p>;
+
+  return (
+    <ul className="board-list">
+      {items.map((task) => {
+        const due = dueLabel(task.due_date);
+        return (
+          <li key={task.id} className={isOverdue(task) ? 'late' : ''}>
+            <input
+              type="checkbox"
+              checked={false}
+              onChange={() => onToggle(task)}
+              aria-label={`Mark done: ${task.title}`}
+            />
+            <button className="board-task" onClick={() => onOpen(task)}>
+              <span className="board-title">{task.title}</span>
+              {(due || task.stage) && (
+                <span className="board-meta">
+                  {/* dueLabel carries its own tone, so late reads late here
+                      exactly as it does in the main list. */}
+                  {due && <span className={due.tone ? `${due.tone}-text` : ''}>{due.text}</span>}
+                  {task.stage && <span className="board-stage">{task.stage}</span>}
+                </span>
+              )}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export default function BoardPage({
   tasks, groups, onOpen, onToggle, onPickGroup, onShowUnfiled, onChanged, onError,
 }) {
+  const [view, setView] = useState(readView);
+  // Which business is open in the vertical view. One id, not a set — that IS
+  // the accordion: opening the next one closes the last by definition rather
+  // than by remembering to.
+  const [openId, setOpenId] = useState(readOpen);
+
   const open = tasks.filter((t) => !isDone(t));
 
   /*
@@ -161,16 +226,66 @@ export default function BoardPage({
         if (!ad && bd) return 1;
         return String(b.created_at || '').localeCompare(String(a.created_at || ''));
       }),
-  }))
-    /*
-     * Businesses with nothing open drop to the end.
-     *
-     * The order otherwise follows the sidebar, which is the order he set. But a
-     * phone shows one column at a time, so an empty one first meant swiping
-     * past "Nothing open" to reach any actual work. Relative order is kept
-     * within each half, so the comparison you came to make is unchanged.
-     */
-    .sort((a, b) => (a.items.length ? 0 : 1) - (b.items.length ? 0 : 1));
+  }));
+
+  /*
+   * Horizontal drops the empty businesses to the end; vertical leaves the
+   * order alone.
+   *
+   * Side by side, an empty column first meant swiping past "Nothing open" on a
+   * phone to reach any work. Folded down to one line each, an empty business
+   * costs nothing and is worth seeing where you put it — the order you set is
+   * more use than the tidying.
+   */
+  const shown = view === 'horizontal'
+    ? [...columns].sort((a, b) => (a.items.length ? 0 : 1) - (b.items.length ? 0 : 1))
+    : columns;
+
+  const pickView = (next) => { setView(next); remember(VIEW_STORE, next); };
+  const pickOpen = (id) => {
+    const next = openId === id ? null : id;
+    setOpenId(next);
+    remember(OPEN_STORE, next);
+  };
+
+
+  const controls = (
+    <div className="board-views" role="group" aria-label="How to show the businesses">
+      <button
+        type="button"
+        className={view === 'horizontal' ? 'on' : ''}
+        aria-pressed={view === 'horizontal'}
+        title="Horizontal"
+        aria-label="Horizontal view"
+        onClick={() => pickView('horizontal')}
+      >
+        <Icon name="board" size={16} />
+      </button>
+      <button
+        type="button"
+        className={view === 'vertical' ? 'on' : ''}
+        aria-pressed={view === 'vertical'}
+        title="Vertical"
+        aria-label="Vertical view"
+        onClick={() => pickView('vertical')}
+      >
+        <Icon name="list" size={16} />
+      </button>
+      {/* Only where it does something: horizontal has nothing folded, and a
+          button that does nothing when pressed is worse than one that is not
+          there. */}
+      {view === 'vertical' && openId !== null && (
+        <button
+          type="button"
+          title="Collapse all"
+          aria-label="Collapse all"
+          onClick={() => pickOpen(null)}
+        >
+          <Icon name="collapse" size={16} />
+        </button>
+      )}
+    </div>
+  );
 
   if (!groups.length) {
     return (
@@ -184,74 +299,87 @@ export default function BoardPage({
     );
   }
 
+  const footer = unfiled > 0 && (
+    <p className="board-unfiled">
+      {unfiled} {unfiled === 1 ? 'task is' : 'tasks are'} not in any business yet.{' '}
+      <button className="link" onClick={onShowUnfiled}>See them</button>
+      {' '}— move one in from its ⋮ menu, or add it to a column here.
+    </p>
+  );
+
+  if (view === 'vertical') {
+    return (
+      <>
+        {controls}
+        <div className="board-stack">
+          {shown.map((col) => {
+            const isOpen = openId === col.id;
+            const late = col.items.filter(isOverdue).length;
+            return (
+              <section className={`board-row ${isOpen ? 'open' : ''}`} key={col.id}>
+                <button
+                  type="button"
+                  className="board-row-head"
+                  aria-expanded={isOpen}
+                  onClick={() => pickOpen(col.id)}
+                >
+                  <Icon name="chevronDown" size={15} className={`board-chevron ${isOpen ? '' : 'shut'}`} />
+                  <span className={`board-dot c-${col.colour || 'slate'}`} aria-hidden="true" />
+                  <span className="board-row-name">{col.name}</span>
+                  {late > 0 && <span className="board-row-late">{late} late</span>}
+                  <span className="board-count">{col.items.length}</span>
+                </button>
+
+                {isOpen && (
+                  <div className="board-row-body">
+                    {col.separate && <p className="board-note">Kept out of the main list</p>}
+                    <Tasks items={col.items} onOpen={onOpen} onToggle={onToggle} />
+                    <AddTask groupId={col.id} onAdded={onChanged} onError={onError} />
+                    <button className="link board-row-only" onClick={() => onPickGroup(col.id)}>
+                      Open {col.name} on its own
+                    </button>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+          <NewBusiness onAdded={onChanged} onError={onError} />
+        </div>
+        {footer}
+      </>
+    );
+  }
+
   return (
     <>
+      {controls}
       <div className="board" role="list">
-      {columns.map((col) => {
-        const late = col.items.filter(isOverdue).length;
-        return (
-          <section className="board-col" role="listitem" key={col.id}>
-            <header className="board-head">
-              <span className={`board-dot c-${col.colour || 'slate'}`} aria-hidden="true" />
-              <button className="board-name" onClick={() => onPickGroup(col.id)}>
-                {col.name}
-              </button>
-              <span className="board-count">{col.items.length}</span>
-            </header>
+        {shown.map((col) => {
+          const late = col.items.filter(isOverdue).length;
+          return (
+            <section className="board-col" role="listitem" key={col.id}>
+              <header className="board-head">
+                <span className={`board-dot c-${col.colour || 'slate'}`} aria-hidden="true" />
+                <button className="board-name" onClick={() => onPickGroup(col.id)}>
+                  {col.name}
+                </button>
+                <span className="board-count">{col.items.length}</span>
+              </header>
 
-            {/* Only when there is something wrong: a column of zeros is a column
-                of noise, and "0 late" is not news. */}
-            {late > 0 && <p className="board-late">{late} past its deadline</p>}
-            {col.separate && <p className="board-note">Kept out of the main list</p>}
+              {/* Only when there is something wrong: a column of zeros is a
+                  column of noise, and "0 late" is not news. */}
+              {late > 0 && <p className="board-late">{late} past its deadline</p>}
+              {col.separate && <p className="board-note">Kept out of the main list</p>}
 
-            {col.items.length === 0 ? (
-              <p className="board-empty">Nothing open.</p>
-            ) : (
-              <ul className="board-list">
-                {col.items.map((task) => {
-                  const due = dueLabel(task.due_date);
-                  return (
-                  <li key={task.id} className={isOverdue(task) ? 'late' : ''}>
-                    <input
-                      type="checkbox"
-                      checked={false}
-                      onChange={() => onToggle(task)}
-                      aria-label={`Mark done: ${task.title}`}
-                    />
-                    <button className="board-task" onClick={() => onOpen(task)}>
-                      <span className="board-title">{task.title}</span>
-                      {(due || task.stage) && (
-                        <span className="board-meta">
-                          {/* dueLabel carries its own tone, so late reads late
-                              here exactly as it does in the main list. */}
-                          {due && <span className={due.tone ? `${due.tone}-text` : ''}>{due.text}</span>}
-                          {task.stage && <span className="board-stage">{task.stage}</span>}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                  );
-                })}
-              </ul>
-            )}
+              <Tasks items={col.items} onOpen={onOpen} onToggle={onToggle} />
+              <AddTask groupId={col.id} onAdded={onChanged} onError={onError} />
+            </section>
+          );
+        })}
 
-            <AddTask groupId={col.id} onAdded={onChanged} onError={onError} />
-          </section>
-        );
-      })}
-
-      <NewBusiness onAdded={onChanged} onError={onError} />
+        <NewBusiness onAdded={onChanged} onError={onError} />
       </div>
-
-      {/* Not a column, but not silently dropped either: fifty tasks in no
-          business is worth knowing, once, in a line. */}
-      {unfiled > 0 && (
-        <p className="board-unfiled">
-          {unfiled} {unfiled === 1 ? 'task is' : 'tasks are'} not in any business yet.{' '}
-          <button className="link" onClick={onShowUnfiled}>See them</button>
-          {' '}— move one in from its ⋮ menu, or add it to a column here.
-        </p>
-      )}
+      {footer}
     </>
   );
 }
