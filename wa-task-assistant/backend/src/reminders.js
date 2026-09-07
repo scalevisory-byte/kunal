@@ -22,6 +22,7 @@ import {
   activeRemindersForTask,
 } from './task-lifecycle.js';
 import { EVENT, recordEvent } from './task-events.js';
+import { openBlockers } from './dependencies.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
@@ -302,7 +303,7 @@ async function deliver(task, reminder, settings) {
       })
     : null;
 
-  const body =
+  const base =
     reminder.kind === 'follow_up'
       ? `Still not done — was due ${dueLabel}. Follow-up ${reminder.round} of ${settings.followUpMax}.`
       : reminder.kind === 'due'
@@ -310,6 +311,18 @@ async function deliver(task, reminder, settings) {
         : dueLabel
           ? `Due ${dueLabel}.`
           : null;
+
+  /*
+   * A blocked task is still reminded about - going quiet on a deadline is how
+   * things get forgotten. What changes is that the reminder says what is in the
+   * way, so it is a usable nudge rather than a nag about something that cannot
+   * be started.
+   */
+  const blockers = openBlockers(task.id);
+  const blockedNote = blockers.length
+    ? `Waiting on: ${blockers.map((b) => b.title).join(', ')}.`
+    : null;
+  const body = [base, blockedNote].filter(Boolean).join(' ') || null;
 
   addNotification({
     kind: reminder.kind === 'follow_up' ? 'follow_up' : 'reminder',
@@ -337,6 +350,7 @@ async function deliver(task, reminder, settings) {
       `*${task.title}*`,
       dueLabel ? `Deadline: ${dueLabel}` : null,
       reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
+      blockedNote ? `⛔ ${blockedNote}` : null,
       '',
       `Reply *done ${task.id}* to close it, *snooze ${task.id} 2 hours*,`,
       'or open WA Tasks to reschedule.',

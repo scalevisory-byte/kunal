@@ -80,6 +80,9 @@ try {
   const { startReminderJobs } = await import('./reminders.js');
   const { reportBoot } = await import('./diagnostics.js');
   await import('./scheduling.js');
+  // Bytes left on the volume by a crash between the write and the insert.
+  const { pruneOrphanFiles } = await import('./attachments.js');
+  pruneOrphanFiles();
 
   reportBoot(log);
   handler = createServer();

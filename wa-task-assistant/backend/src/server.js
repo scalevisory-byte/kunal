@@ -13,6 +13,9 @@ import {
   attentionRouter, notificationsRouter, settingsRouter, briefingRouter,
 } from './routes/followups.js';
 import { historyRouter } from './routes/history.js';
+import {
+  subtaskRouter, attachmentRouter, templateRouter,
+} from './routes/extras.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -68,7 +71,13 @@ export function createServer() {
   // an attacker could read every task anyway, so it leaks nothing new.
   app.get('/api/auth-state', (req, res) => res.json({ required: authEnabled }));
 
+  // Checklists, dependencies and attachments hang off a task, so they share
+  // its path. Mounted before the task router so /tasks/:id/subtasks is not
+  // swallowed by /tasks/:id.
+  app.use('/api/tasks', requireAuth, subtaskRouter);
   app.use('/api/tasks', requireAuth, tasksRouter);
+  app.use('/api/attachments', requireAuth, attachmentRouter);
+  app.use('/api/templates', requireAuth, templateRouter);
   app.use('/api/attention', requireAuth, attentionRouter);
   app.use('/api/history', requireAuth, historyRouter);
   app.use('/api/briefing', requireAuth, briefingRouter);

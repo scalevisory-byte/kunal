@@ -85,6 +85,14 @@ export function planTask(task, { reset = false, reminderOffset, followUpOffset }
     return { planned: 0 };
   }
 
+  // A task the extractor was unsure about is not chased until a human says it
+  // is real. Being reminded about something that was never a task is worse than
+  // not being reminded, because it teaches you to ignore the reminders.
+  if (task.needs_confirmation) {
+    cancelRemindersForTask(task.id);
+    return { planned: 0, reason: 'awaiting confirmation' };
+  }
+
   const due = dueMoment(task, settings);
   if (!due) return { planned: 0, reason: 'no deadline' };
 

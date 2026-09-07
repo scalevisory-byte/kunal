@@ -20,6 +20,8 @@ import AttentionWidget from './components/AttentionWidget.jsx';
 import WorkHistory from './components/WorkHistory.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
+import Templates from './components/Templates.jsx';
+import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
@@ -68,6 +70,9 @@ export default function App() {
   // Asked once, unauthenticated: the app should be able to tell you it is
   // unprotected rather than leaving you to test it from an incognito window.
   const [authOpen, setAuthOpen] = useState(false);
+  // Extractions the model itself said it was unsure about. Nothing chases
+  // these until a person says they are real.
+  const [unsure, setUnsure] = useState([]);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
@@ -122,6 +127,12 @@ export default function App() {
   useEffect(() => {
     api.authState().then((s) => setAuthOpen(!s.required)).catch(() => {});
   }, []);
+
+  const loadUnsure = useCallback(() => {
+    api.needsConfirmation().then((d) => setUnsure(d.tasks)).catch(() => {});
+  }, []);
+
+  useEffect(() => { loadUnsure(); }, [loadUnsure, tasks]);
 
   useEffect(() => {
     setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
@@ -361,6 +372,10 @@ export default function App() {
                 </div>
               </div>
               <SchedulingSettings onError={(err) => setError(err.message)} />
+              <Templates
+                onUsed={() => refresh({ quiet: true })}
+                onError={(err) => setError(err.message)}
+              />
               <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>
@@ -382,6 +397,25 @@ export default function App() {
                   <button className="link" onClick={() => goto('settings')}>Open settings</button>
                 </div>
               )}
+
+              <NeedsConfirmation
+                tasks={unsure}
+                onOpen={setOpenTask}
+                onConfirm={async (task) => {
+                  try {
+                    await api.confirmTask(task.id);
+                    loadUnsure();
+                    refresh({ quiet: true });
+                  } catch (err) { setError(err.message); }
+                }}
+                onReject={async (task) => {
+                  try {
+                    await api.rejectTask(task.id);
+                    loadUnsure();
+                    refresh({ quiet: true });
+                  } catch (err) { setError(err.message); }
+                }}
+              />
 
               <StatBoard
                 counts={summary.counts}
@@ -509,6 +543,7 @@ export default function App() {
       {openTask && (
         <TaskDetail
           task={openTask}
+          tasks={tasks}
           onClose={() => setOpenTask(null)}
           onEdit={onEdit}
           onDelete={onDelete}

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
+import Checklist from './Checklist.jsx';
+import Dependencies from './Dependencies.jsx';
+import Attachments from './Attachments.jsx';
 import { api } from '../api.js';
 import { REMINDER_OFFSETS, TASK_STATE, clock as fmtClock, dueLabel } from '../lib/schedule.js';
 import {
@@ -158,7 +161,9 @@ function FollowUpLadder({ task }) {
   );
 }
 
-export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, onChanged }) {
+export default function TaskDetail({
+  task, tasks, onClose, onEdit, onDelete, onError, onChanged,
+}) {
   const [showMessage, setShowMessage] = useState(false);
 
   // Escape closes the panel, as it does in every other tool.
@@ -240,6 +245,17 @@ export default function TaskDetail({ task, onClose, onEdit, onDelete, onError, o
               <p className="field-note">Waiting is not done — reminders and follow-ups keep running.</p>
             </div>
           )}
+
+          <Checklist
+            task={task}
+            initial={task.subtasks}
+            onError={onError}
+            onChanged={onChanged}
+          />
+
+          <Dependencies task={task} tasks={tasks} initial={task} onError={onError} />
+
+          <Attachments task={task} initial={task.attachments} onError={onError} />
 
           <div className="field">
             <label htmlFor="d-notes">Notes</label>

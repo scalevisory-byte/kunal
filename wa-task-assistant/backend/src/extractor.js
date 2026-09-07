@@ -44,6 +44,12 @@ const ExtractionSchema = z.object({
             '(e.g. "10 baje" -> "10:00", "5pm" -> "17:00"). Empty string if no time is given.'
         ),
       priority: z.enum(['high', 'medium', 'low']),
+      confidence: z
+        .enum(['high', 'medium', 'low'])
+        .describe(
+          'How sure you are this is genuinely a task he must do. "low" when the ' +
+            'message is ambiguous, conversational, or might not be aimed at him.'
+        ),
     })
   ),
 });
@@ -77,6 +83,11 @@ Rules:
   mentioned - do not invent one just because there is a date.
 - priority: "high" for money, legal/statutory deadlines, travel about to happen, or an
   explicitly urgent ask; "low" for vague or nice-to-have; "medium" otherwise.
+- confidence: your own honest judgement of whether this really is a task for him.
+  Use "low" when the message is ambiguous, when it might be aimed at somebody else,
+  or when you are extracting it only because it might matter. A "low" task is held
+  back for him to confirm rather than being chased, so marking one honestly costs
+  nothing - inventing confidence you do not have is what causes wrong reminders.
 - source_index must be the index of the message the task came from.
 - If nothing in the batch is actionable, return an empty tasks array. That is a normal,
   expected outcome - do not invent tasks to fill the list.
@@ -170,6 +181,10 @@ export async function extractTasks(messages) {
         due_date: dueDate,
         due_at: remindAt,
         priority: task.priority,
+        // The model's own report, kept as such. A task it was unsure about is
+        // created but held back for confirmation rather than being chased.
+        ai_confidence: task.confidence || null,
+        needs_confirmation: task.confidence === 'low' ? 1 : 0,
         status: 'open',
       };
     })

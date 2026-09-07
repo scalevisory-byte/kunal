@@ -94,6 +94,84 @@ export const api = {
   readAllNotifications: () => request('/notifications/read-all', { method: 'POST', body: JSON.stringify({}) }),
   dismissNotification: (id) => request(`/notifications/${id}`, { method: 'DELETE' }),
 
+  subtasks: (taskId) => request(`/tasks/${taskId}/subtasks`),
+  addSubtask: (taskId, title) =>
+    request(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
+  updateSubtask: (taskId, id, patch) =>
+    request(`/tasks/${taskId}/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteSubtask: (taskId, id) => request(`/tasks/${taskId}/subtasks/${id}`, { method: 'DELETE' }),
+
+  dependencies: (taskId) => request(`/tasks/${taskId}/dependencies`),
+  addDependency: (taskId, dependsOnId) =>
+    request(`/tasks/${taskId}/dependencies`, {
+      method: 'POST', body: JSON.stringify({ depends_on_id: dependsOnId }),
+    }),
+  removeDependency: (taskId, blockerId) =>
+    request(`/tasks/${taskId}/dependencies/${blockerId}`, { method: 'DELETE' }),
+
+  templates: () => request('/templates'),
+  createTemplate: (body) => request('/templates', { method: 'POST', body: JSON.stringify(body) }),
+  updateTemplate: (id, body) =>
+    request(`/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteTemplate: (id) => request(`/templates/${id}`, { method: 'DELETE' }),
+  useTemplate: (id, overrides = {}) =>
+    request(`/templates/${id}/use`, { method: 'POST', body: JSON.stringify(overrides) }),
+
+  needsConfirmation: () => request('/tasks/pending/confirmation'),
+  confirmTask: (id) => request(`/tasks/${id}/confirm`, { method: 'POST', body: JSON.stringify({}) }),
+  rejectTask: (id) => request(`/tasks/${id}/reject`, { method: 'POST', body: JSON.stringify({}) }),
+
+  attachments: (taskId) => request(`/tasks/${taskId}/attachments`),
+  deleteAttachment: (id) => request(`/attachments/${id}`, { method: 'DELETE' }),
+
+  /**
+   * The bytes go up as the raw body - one file per request needs no multipart
+   * boundary and no extra dependency on either side. Name and type ride along
+   * as query parameters.
+   */
+  async uploadAttachment(taskId, file) {
+    const token = getToken();
+    const query = `filename=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type || '')}`;
+    let response;
+    try {
+      response = await fetch(`/api/tasks/${taskId}/attachments?${query}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: file,
+      });
+    } catch {
+      throw new Error('Could not reach the server. It may be restarting — try again in a moment.');
+    }
+    if (response.status === 401) throw new UnauthorizedError();
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.error || `Upload failed (${response.status})`);
+    }
+    return response.json();
+  },
+
+  /** Opens a stored file. Fetched with the token, then handed to the browser. */
+  async openAttachment(attachment) {
+    const token = getToken();
+    const response = await fetch(`/api/attachments/${attachment.id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (response.status === 401) throw new UnauthorizedError();
+    if (!response.ok) throw new Error(`Could not open that file (${response.status})`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = attachment.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
   briefing: () => request('/briefing'),
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
   weeklySummary: () => request('/briefing/weekly'),

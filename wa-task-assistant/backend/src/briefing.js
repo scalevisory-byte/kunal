@@ -34,7 +34,8 @@ const dayOf = (iso) =>
 export function collectToday(now = new Date()) {
   const settings = getSettings();
   const today = localDay(now);
-  const open = listTasks({ status: 'pending', limit: 500 });
+  // Unconfirmed extractions are not part of the day's work yet.
+  const open = listTasks({ status: 'pending', limit: 500 }).filter((t) => !t.needs_confirmation);
 
   const overdue = [];
   const dueToday = [];
@@ -210,7 +211,7 @@ export function collectWeek(now = new Date()) {
     .all(since)
     .map((task) => ({ ...task, on_time: onTimeLabel(task) }));
 
-  const open = listTasks({ status: 'pending', limit: 500 });
+  const open = listTasks({ status: 'pending', limit: 500 }).filter((t) => !t.needs_confirmation);
   const overdue = open.filter((t) => taskState(t, now, settings) === 'overdue');
 
   // Which chats the week's work actually came from, busiest first.

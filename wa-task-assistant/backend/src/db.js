@@ -82,9 +82,65 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  -- A checklist inside one task. Ticking every box does NOT finish the parent:
+  -- completing a task cancels its whole reminder ladder, and that is too
+  -- consequential to happen as a side effect of ticking a box.
+  CREATE TABLE IF NOT EXISTS subtasks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id      INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    title        TEXT NOT NULL,
+    done         INTEGER NOT NULL DEFAULT 0,
+    position     INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+  );
+
+  -- "This cannot start until that is finished." One row per edge; the primary
+  -- key makes the same dependency twice impossible, and cycles are refused in
+  -- code before the row is written.
+  CREATE TABLE IF NOT EXISTS task_dependencies (
+    task_id       INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    depends_on_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (task_id, depends_on_id)
+  );
+
+  -- A shape of work that recurs: the title, the usual priority, the offsets,
+  -- and the checklist that goes with it.
+  CREATE TABLE IF NOT EXISTS task_templates (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    name              TEXT NOT NULL UNIQUE,
+    title             TEXT NOT NULL,
+    description       TEXT,
+    priority          TEXT NOT NULL DEFAULT 'medium',
+    reminder_offset   INTEGER,
+    follow_up_offset  INTEGER,
+    due_in_days       INTEGER,
+    due_time          TEXT,
+    subtasks          TEXT NOT NULL DEFAULT '[]',
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    used_count        INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Files kept beside a task. The bytes live on disk under DATA_DIR, not in
+  -- here: a database that has to be read into memory is the wrong place for a
+  -- 5 MB scan, and the volume is bounded (see attachments.js).
+  CREATE TABLE IF NOT EXISTS attachments (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id      INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    filename     TEXT NOT NULL,
+    mime         TEXT NOT NULL,
+    bytes        INTEGER NOT NULL,
+    stored_name  TEXT NOT NULL UNIQUE,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_usage_day ON api_usage(day);
   CREATE INDEX IF NOT EXISTS idx_messages_processed ON messages(processed);
   CREATE INDEX IF NOT EXISTS idx_tasks_status_due   ON tasks(status, due_date);
+  CREATE INDEX IF NOT EXISTS idx_subtasks_task      ON subtasks(task_id, position);
+  CREATE INDEX IF NOT EXISTS idx_dep_blocker        ON task_dependencies(depends_on_id);
+  CREATE INDEX IF NOT EXISTS idx_attach_task        ON attachments(task_id);
 `);
 
 // Databases created before reminders repeated have `reminder_sent` instead.
@@ -137,6 +193,12 @@ for (const [name, ddl] of [
   ['remind_at', 'ALTER TABLE tasks ADD COLUMN remind_at TEXT'],
   ['remind_at_sent', 'ALTER TABLE tasks ADD COLUMN remind_at_sent INTEGER NOT NULL DEFAULT 0'],
   ['digest_pos', 'ALTER TABLE tasks ADD COLUMN digest_pos INTEGER'],
+  // The extractor's own report of how sure it was. Not a measurement - the
+  // model says it, and the app labels it that way wherever it is shown.
+  ['ai_confidence', 'ALTER TABLE tasks ADD COLUMN ai_confidence TEXT'],
+  // A task the extractor was unsure about waits to be confirmed. Until then it
+  // is not chased: reminders, follow-ups and the briefing all skip it.
+  ['needs_confirmation', 'ALTER TABLE tasks ADD COLUMN needs_confirmation INTEGER NOT NULL DEFAULT 0'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -278,14 +340,17 @@ const STATUSES = new Set(['open', 'in_progress', 'waiting', 'done']);
 const OPEN_STATUSES = "status != 'done'";
 
 const ORIGINS = new Set(['ai', 'manual']);
+export const CONFIDENCE = new Set(['high', 'medium', 'low']);
 
 const insertTaskStmt = db.prepare(`
   INSERT INTO tasks
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
-     due_date, due_at, original_due_at, waiting_for, remind_at, priority, status)
+     due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
+     ai_confidence, needs_confirmation)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
-     @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status)
+     @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
+     @ai_confidence, @needs_confirmation)
 `);
 
 /**
@@ -315,6 +380,8 @@ export function createTask(input) {
     remind_at: input.remind_at || null,
     priority: PRIORITIES.has(input.priority) ? input.priority : 'medium',
     status: STATUSES.has(input.status) ? input.status : 'open',
+    ai_confidence: CONFIDENCE.has(input.ai_confidence) ? input.ai_confidence : null,
+    needs_confirmation: input.needs_confirmation ? 1 : 0,
   };
   if (!row.title) throw new Error('title is required');
   const info = insertTaskStmt.run(row);
@@ -356,7 +423,7 @@ export function listTasks({ status, limit = 500 } = {}) {
 const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
-  'waiting_for', 'archived_at',
+  'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence',
 ];
 
 export function updateTask(id, patch) {
@@ -409,7 +476,8 @@ export function pendingReminders(today) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE ${OPEN_STATUSES} AND (due_date IS NULL OR due_date <= ?)
+       WHERE ${OPEN_STATUSES} AND needs_confirmation = 0
+         AND (due_date IS NULL OR due_date <= ?)
        ORDER BY
          due_date IS NULL,
          due_date ASC,

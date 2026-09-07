@@ -109,7 +109,27 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
           </div>
         )}
 
+        {/* Blocked is stated plainly: the reminder still fires, so the row has
+            to say why it may not be startable. */}
+        {task.blocked_by?.length > 0 && !done && (
+          <div className="t-blocked">
+            <Icon name="alert" size={12} />
+            Waiting on {task.blocked_by.map((b) => b.title).join(', ')}
+          </div>
+        )}
+
         <div className="t-meta">
+          {task.subtask_progress?.total > 0 && (
+            <span className="m-item">
+              <Icon name="check" size={13} />
+              {task.subtask_progress.done}/{task.subtask_progress.total}
+            </span>
+          )}
+          {task.attachment_count > 0 && (
+            <span className="m-item">
+              <Icon name="clipboard" size={13} /> {task.attachment_count}
+            </span>
+          )}
           {chat && (
             <span className="m-item" title={chat}>
               <Icon name="chat" size={13} /> {chat}
