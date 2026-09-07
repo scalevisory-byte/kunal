@@ -13,7 +13,7 @@ const stamp = (iso) =>
     : null;
 
 /** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onNotATask }) {
+function RowMenu({ task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove, onManageGroups }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
 
@@ -65,6 +65,49 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onNotATask }) 
           <button className="danger" role="menuitem" onClick={run(() => onDelete(task))}>
             <Icon name="trash" size={15} /> Delete
           </button>
+
+          {/*
+            * Filing a task under the business it belongs to.
+            *
+            * It was already possible, but only by opening the task and finding
+            * a dropdown in the drawer - which is two steps too many for the one
+            * thing you do while reading down a list of mixed work. The groups
+            * are listed flat rather than behind a submenu: there are as many of
+            * them as there are businesses, and a submenu is another hover to
+            * get wrong on a phone.
+            */}
+          {groups.length > 0 ? (
+            <>
+              <div className="menu-head">Move to</div>
+              <div className="menu-scroll">
+                {groups.map((g) => {
+                  const here = task.group_id === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      role="menuitemradio"
+                      aria-checked={here}
+                      className={here ? 'here' : ''}
+                      onClick={run(() => !here && onMove(task, g.id))}
+                    >
+                      <span className={`menu-dot c-${g.colour || 'teal'}`} />
+                      {g.name}
+                      {here && <Icon name="check" size={14} className="menu-tick" />}
+                    </button>
+                  );
+                })}
+                {task.group_id ? (
+                  <button role="menuitem" onClick={run(() => onMove(task, null))}>
+                    <span className="menu-dot none" /> No group
+                  </button>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <button role="menuitem" onClick={run(onManageGroups)}>
+              <Icon name="inbox" size={15} /> Make a group to file this in
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -72,7 +115,8 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onNotATask }) 
 }
 
 export default function TaskItem({
-  task, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
+  task, groups = [], onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
+  onMove, onManageGroups,
   // One optional control, for a page where a task needs an action the board
   // does not have - the Nudge button on work given to somebody else. It sits
   // in the row rather than beside it, so the row stays one row.
@@ -229,11 +273,14 @@ export default function TaskItem({
 
       <RowMenu
         task={task}
+        groups={groups}
         onOpen={onOpen}
         onStatus={onStatus}
         onQuickDate={onQuickDate}
         onDelete={onDelete}
         onNotATask={onNotATask}
+        onMove={onMove}
+        onManageGroups={onManageGroups}
       />
     </li>
   );

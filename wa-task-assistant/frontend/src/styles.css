@@ -882,6 +882,33 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .menu button.danger:hover { color: var(--danger); }
 .menu button.danger:hover .icon { color: var(--danger); }
 
+/*
+ * Filing a task under a business, from the row.
+ *
+ * A heading and a rule, so the groups read as a different kind of thing from
+ * the actions above them — those do something to the task, these say where it
+ * lives. The list scrolls past six or so rather than growing a menu taller
+ * than the window; the one it is already in stays visible and ticked, so the
+ * menu also answers "where is this filed?" without being opened twice.
+ */
+.menu-head {
+  margin: 5px 0 2px;
+  padding: 6px 9px 4px;
+  border-top: 1px solid var(--line);
+  font-size: .68rem; font-weight: 650; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.menu-scroll { max-height: 208px; overflow-y: auto; }
+.menu-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: var(--group, var(--muted));
+  margin: 0 3px;
+}
+.menu-dot.none { background: none; border: 1px dashed var(--line-2); }
+.menu button.here { color: var(--text); cursor: default; }
+.menu button.here:hover { background: none; }
+.menu .menu-tick { margin-left: auto; color: var(--accent, var(--group)); }
+
 /* ---------- side rail ---------- */
 
 .rail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }

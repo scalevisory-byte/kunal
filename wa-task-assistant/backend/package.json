@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node tests/lifecycle.test.mjs && node tests/history.test.mjs && node tests/briefing.test.mjs && node tests/auth.test.mjs && node tests/migration.test.mjs && node tests/extras.test.mjs && node tests/images.test.mjs && node tests/groups.test.mjs && node tests/runaway.test.mjs && node tests/recurring.test.mjs && node tests/voice.test.mjs && node tests/delegation.test.mjs && node tests/focus.test.mjs && node tests/duplicates.test.mjs && node tests/setaside.test.mjs && node tests/nottask.test.mjs && node tests/chatname.test.mjs && node tests/search.test.mjs && node tests/theme.test.mjs && node tests/catchup.test.mjs && node tests/ready.test.mjs && node tests/ordering.test.mjs && node tests/groupid.test.mjs && node tests/messagelog.test.mjs"
+    "test": "node tests/lifecycle.test.mjs && node tests/history.test.mjs && node tests/briefing.test.mjs && node tests/auth.test.mjs && node tests/migration.test.mjs && node tests/extras.test.mjs && node tests/images.test.mjs && node tests/groups.test.mjs && node tests/runaway.test.mjs && node tests/recurring.test.mjs && node tests/voice.test.mjs && node tests/delegation.test.mjs && node tests/focus.test.mjs && node tests/duplicates.test.mjs && node tests/setaside.test.mjs && node tests/nottask.test.mjs && node tests/chatname.test.mjs && node tests/search.test.mjs && node tests/theme.test.mjs && node tests/catchup.test.mjs && node tests/ready.test.mjs && node tests/ordering.test.mjs && node tests/groupid.test.mjs && node tests/messagelog.test.mjs && node tests/filing.test.mjs"
   },
   "engines": {
     "node": ">=20"

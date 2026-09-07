@@ -282,11 +282,37 @@ export default function App() {
     setUndo({ id: task.id, title: task.title });
   };
 
-  const undoRemove = async () => {
+  /*
+   * Filing a task under the business it belongs to.
+   *
+   * The same undo the ✕ has, for the same reason: it is one click in a list of
+   * names, so picking the one above the one you meant is the mistake that will
+   * actually happen, and it is silent - the task simply leaves the view you
+   * were looking at.
+   */
+  const onMove = async (task, groupId) => {
+    const from = task.group_id ?? null;
+    const to = groupId ?? null;
+    if (from === to) return;
+    await onEdit(task, { group_id: to });
+    setUndo({
+      kind: 'moved',
+      id: task.id,
+      title: task.title,
+      from,
+      toName: to ? groups.find((g) => g.id === to)?.name || null : null,
+    });
+  };
+
+  const undoLast = async () => {
     if (!undo) return;
-    const id = undo.id;
+    const last = undo;
     setUndo(null);
-    await act(() => api.restoreTask(id));
+    await act(() =>
+      last.kind === 'moved'
+        ? api.updateTask(last.id, { group_id: last.from })
+        : api.restoreTask(last.id)
+    );
   };
   const onEdit = (task, patch) => {
     // Keep the open panel showing what was just changed, without a round trip.
@@ -859,9 +885,15 @@ export default function App() {
                     {undo && (
                       <p className="banner ok undo-bar" role="status">
                         <span>
-                          Took <b>{undo.title}</b> off the list.
+                          {undo.kind === 'moved' ? (
+                            undo.toName
+                              ? <>Moved <b>{undo.title}</b> to <b>{undo.toName}</b>.</>
+                              : <>Took <b>{undo.title}</b> out of its group.</>
+                          ) : (
+                            <>Took <b>{undo.title}</b> off the list.</>
+                          )}
                         </span>
-                        <button className="link" onClick={undoRemove}>Undo</button>
+                        <button className="link" onClick={undoLast}>Undo</button>
                         <button className="link" onClick={() => setUndo(null)}>Dismiss</button>
                       </p>
                     )}
@@ -953,6 +985,9 @@ export default function App() {
                       onQuickDate={onQuickDate}
                       onDelete={onDelete}
                       onNotATask={onNotATask}
+                      groups={groups}
+                      onMove={onMove}
+                      onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     />
                   </main>
 

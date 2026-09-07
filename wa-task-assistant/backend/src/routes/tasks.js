@@ -9,6 +9,7 @@ import {
   planTask, completeTask, rescheduleTask, syncNextReminder, taskSchedule,
 } from '../task-lifecycle.js';
 import { EVENT, recordEvent, eventsForTask } from '../task-events.js';
+import { getGroup } from '../groups.js';
 import { duplicateGroups } from '../task-matching.js';
 import { tidyTitles } from '../extractor.js';
 import { subtaskProgressFor, subtasksFor } from '../subtasks.js';
@@ -213,8 +214,27 @@ tasksRouter.patch('/:id', (req, res) => {
   if ('remind_at' in patch) patch.remind_at = normalizeInstant(patch.remind_at);
 
   const before = getTask(Number(req.params.id));
+
+  /*
+   * Filing a task under a business.
+   *
+   * Checked here rather than left to the foreign key, because the key's
+   * failure is a bare 500 and the caller cannot tell a missing group from a
+   * broken server. A group deleted while its menu was open is the ordinary way
+   * to reach this.
+   */
+  if ('group_id' in patch && patch.group_id !== null && patch.group_id !== '') {
+    if (!getGroup(Number(patch.group_id))) {
+      return res.status(400).json({ error: 'that group no longer exists' });
+    }
+  }
+
   const task = updateTask(Number(req.params.id), patch);
   if (!task) return res.status(404).json({ error: 'not found' });
+
+  if ('group_id' in patch && (task.group_id ?? null) !== (before?.group_id ?? null)) {
+    recordEvent(task.id, EVENT.filed, task.group_name || 'no group');
+  }
 
   // Every change worth looking back at is recorded before anything is rescheduled.
   if (patch.status && before && patch.status !== before.status) {
