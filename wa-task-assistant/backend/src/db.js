@@ -524,6 +524,39 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to)`);
 db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`);
 
 /*
+ * Tasks made before the column existed still know where they came from.
+ *
+ * `is_group` was added late, so every task already on the list has 0 - and a
+ * group task with 0 shows only the group, never who in it wrote the message.
+ * The message it came from has the answer, and tasks keep that link, so the
+ * backfill is a join rather than a guess. Runs once: after it, there is nothing
+ * left with a message that disagrees.
+ */
+{
+  const fixed = db
+    .prepare(
+      `UPDATE tasks SET is_group = 1
+       WHERE is_group = 0
+         AND message_id IN (SELECT id FROM messages WHERE is_group = 1)`
+    )
+    .run().changes;
+
+  // The sender's name, for the same reason: without it there is nothing to put
+  // beside the group.
+  const named = db
+    .prepare(
+      `UPDATE tasks SET contact = (SELECT contact_name FROM messages WHERE id = tasks.message_id)
+       WHERE (contact IS NULL OR contact = '')
+         AND message_id IN (SELECT id FROM messages WHERE contact_name IS NOT NULL)`
+    )
+    .run().changes;
+
+  if (fixed || named) {
+    log.info(`Backfilled from stored messages: ${fixed} task(s) marked as from a group, ${named} given a sender.`);
+  }
+}
+
+/*
  * Group names are unique regardless of case. SQLite's UNIQUE is case-sensitive,
  * so "BNF" and "bnf" were two different groups - and since both would match the
  * same keyword, routing saw a tie and filed the task under neither. An index

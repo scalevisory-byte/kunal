@@ -112,14 +112,47 @@ const looksLikeWid = (value) => /^\d[\d\s+-]*(@[a-z.]+)?$/i.test(String(value ||
  * and fullwidth forms back to plain ones and leaves everything else exactly as
  * it is — accents stay accents, and Gujarati, Hindi and emoji are untouched.
  */
+/*
+ * Letters from other alphabets that are drawn to look like Latin ones.
+ *
+ * A group named with Cherokee characters - Ꮷ Ꭺ Ꮶ Ꮪ Ꮋ - reads as "DAKSH" to
+ * anybody looking at it and as a row of boxes in a font that has no Cherokee.
+ * NFKC does not touch these, and correctly so: they are a real alphabet, not a
+ * decorative form of ours.
+ *
+ * Which is why the map below is only applied to a name that is *mixed* with
+ * plain ASCII. "ᏧᏔK$Ⱨ_$IᏈᎻ" has "K$_$I" in it and is plainly a Latin name in
+ * fancy dress; a name written wholly in Cherokee, Greek or Cyrillic is somebody
+ * actually writing in that alphabet, and is left completely alone.
+ */
+const LOOKALIKE = {
+  'Ꭺ': 'A', 'Ᏸ': 'B', 'Ꮯ': 'C', 'Ꭰ': 'D', 'Ꮛ': 'E', 'Ꮐ': 'G', 'Ꮋ': 'H',
+  'Ꭲ': 'T', 'Ꮷ': 'D', 'Ꮶ': 'K', 'Ꮮ': 'L', 'Ꮇ': 'M', 'Ꮑ': 'N', 'Ꮎ': 'O',
+  'Ꮲ': 'P', 'Ꮢ': 'R', 'Ꮪ': 'S', 'Ꮙ': 'V', 'Ꮤ': 'W', 'Ꭼ': 'Z', 'Ꮖ': 'P',
+  'Ᏻ': 'G', 'Ᏼ': 'B', 'Ꭴ': 'O', 'Ꮂ': 'H', 'Ꮈ': 'L', 'Ꮌ': 'M', 'Ꮕ': 'N',
+  'Ⱨ': 'H', 'Ⱪ': 'K', 'Ⱡ': 'L', 'Ᏹ': 'Y', 'Ꭶ': 'G', 'Ꮸ': 'C',
+};
+const LOOKALIKE_RE = new RegExp(`[${Object.keys(LOOKALIKE).join('')}]`, 'g');
+
 export const readableName = (text) => {
   const value = String(text ?? '').trim();
   if (!value) return value;
+
+  let out = value;
   try {
-    return value.normalize('NFKC');
-  } catch {
-    return value;
+    // Mathematical alphabets, circled and fullwidth letters: compatibility
+    // forms of our own alphabet, so composing them is lossless.
+    out = out.normalize('NFKC');
+  } catch { /* an engine without full Unicode support */ }
+
+  // Only a name that already contains plain letters or digits is treated as
+  // Latin in disguise. Everything else is somebody's own script.
+  if (/[A-Za-z0-9]/.test(out) && LOOKALIKE_RE.test(out)) {
+    LOOKALIKE_RE.lastIndex = 0;
+    out = out.replace(LOOKALIKE_RE, (c) => LOOKALIKE[c]);
   }
+  LOOKALIKE_RE.lastIndex = 0;
+  return out;
 };
 
 export const taskChat = (task) => {
