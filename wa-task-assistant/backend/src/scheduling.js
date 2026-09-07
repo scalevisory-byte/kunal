@@ -1,4 +1,4 @@
-import { db, ensureColumns } from './db.js';
+import { db, ensureColumns, NOT_SET_ASIDE_BARE } from './db.js';
 import { log } from './logger.js';
 
 /**
@@ -521,6 +521,7 @@ export function engineOverview({ upcoming = 50, recent = 50 } = {}) {
                 follow_up_count, assigned_to
          FROM tasks
          WHERE needs_attention = 1 AND status != 'done' AND archived_at IS NULL
+           AND ${NOT_SET_ASIDE_BARE}
          ORDER BY due_at IS NULL, due_at ASC`
       )
       .all(),

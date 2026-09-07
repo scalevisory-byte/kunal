@@ -303,9 +303,35 @@ run('an incoming request records who asked and from where', () => {
 });
 
 run('a note he made himself belongs to nobody', () => {
-  const out = extract(answer(), [message({ from_me: 1 })]);
-  assert.equal(out.tasks[0].assigned_to, null);
-  assert.equal(out.tasks[0].requested_by, null);
+  /*
+   * The case that made "Task allotted" empty on the live dashboard. His notes
+   * chat and a team group are both messages he wrote; only one of them is him
+   * handing work over, and the wording does not distinguish them.
+   */
+  const out = extract(answer({ assigned_to: 'Scale Visory' }), [
+    message({ from_me: 1, is_self: 1, chat_name: 'Scale Visory' }),
+  ]);
+  assert.equal(out.tasks[0].assigned_to, null, 'a note to himself is his own work');
+  assert.equal(out.tasks[0].requested_by, null, 'and nobody asked him for it');
+});
+
+run('the prompt tells the model which of the three it is looking at', () => {
+  const notes = extract(answer(), [message({ from_me: 1, is_self: 1 })]);
+  assert.match(notes.prompt, /notes-to-self/);
+
+  const group = extract(answer(), [
+    message({ from_me: 1, is_group: 1, chat_name: 'Booknfly Accounts' }),
+  ]);
+  assert.match(group.prompt, /the team in "Booknfly Accounts"/);
+});
+
+run('an instruction into a team group is work handed to that team', () => {
+  const out = extract(answer({ assigned_to: 'Booknfly Accounts' }), [
+    message({ from_me: 1, is_group: 1, chat_name: 'Booknfly Accounts',
+      body: 'Need all tds entry till aug 26' }),
+  ]);
+  assert.equal(out.tasks[0].assigned_to, 'Booknfly Accounts');
+  assert.equal(out.tasks[0].assigned_to_wid, '9199@c.us', 'a nudge goes to the group');
 });
 
 run('an unnamed sender falls back to their number, never to nothing', () => {

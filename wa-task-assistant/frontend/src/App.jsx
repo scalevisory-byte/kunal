@@ -86,6 +86,12 @@ const PAGES = {
     lede: 'Work you have given to somebody else. Still yours to chase — the app reminds you, not them.',
     delegation: 'allotted',
   },
+  recent: {
+    title: 'Recent',
+    lede: 'Everything newest first — what has just come in, whether or not it is due.',
+    recent: true,
+    toolbar: true,
+  },
   monthly: {
     title: 'Monthly deadlines',
     lede: 'The dates that never move — TDS, GST, GSTR-3B. Each becomes a task before its date.',
@@ -280,6 +286,14 @@ export default function App() {
   const visible = useMemo(() => {
     const today = todayIso();
     return tasks.filter((task) => {
+      /*
+       * Work in a set-aside group is fetched with everything else - a group's
+       * own page needs it - but it is not the day's work, so it appears there
+       * and nowhere else. Asking for that group by name is the only way to see
+       * it, which is exactly what "kept out of the main list" means.
+       */
+      if (task.group_separate && filters.group !== task.group_id) return false;
+
       if (view === 'open' && isDone(task)) return false;
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
       if (view === 'overdue' && !isOverdue(task)) return false;
@@ -341,6 +355,7 @@ export default function App() {
     if (key === 'done') return setView('done');
     if (key === 'all' || key === 'dashboard') return setView(key === 'dashboard' ? 'open' : 'all');
     if (key === 'chat') { setGroupBy('chat'); return setView('open'); }
+    if (key === 'recent') { setGroupBy('none'); return setView('all'); }
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
     if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }

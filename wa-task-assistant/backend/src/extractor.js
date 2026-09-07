@@ -26,7 +26,13 @@ const ExtractionSchema = z.object({
       source_index: z
         .number()
         .describe('Index of the message in the numbered list this task came from.'),
-      title: z.string().describe('Short imperative summary, max ~80 characters.'),
+      title: z
+        .string()
+        .describe(
+          'Short imperative summary, max ~80 characters. Sentence case with ' +
+            'misspellings fixed, whatever case the message was typed in; ' +
+            'acronyms and proper names kept as they are.'
+        ),
       description: z
         .string()
         .describe(
@@ -86,6 +92,21 @@ Do NOT extract:
 
 Rules:
 - title: short and imperative, e.g. "Send GST invoice to Rakesh".
+
+  Write it properly, whatever state the message was in. These are typed fast on
+  a phone, often shouting and usually misspelt - "ADV IDMC AUDIT QUERY REVIW",
+  "complete sunhine audit tommorow" - and the title is what he reads back on a
+  list for weeks, so it should read like something a person wrote on purpose:
+
+  * Sentence case. Not ALL CAPS, however the message was typed.
+  * Fix obvious misspellings: REVIW -> review, sunhine -> Sunshine,
+    tommorow -> tomorrow, arroohan -> Arrohan, recieved -> received.
+  * Keep acronyms and codes exactly as they are - GST, TDS, TCS, GSTR-3B, IDMC,
+    BNF, RRTM, PAN, NOC, JV, HR. Capitalise names of people and companies.
+  * Correct the spelling, never the meaning. If a word might be a name, a place
+    or a product you do not recognise, leave it alone - a wrong "correction" to
+    somebody's name is worse than a typo, because he will not recognise the task
+    as his own.
 - description: leave it an EMPTY STRING unless it adds something the title does not.
   "Process BNF salary" needs no description saying "BNF salary payment needs to be done";
   that is the same sentence twice and it clutters the list.
@@ -104,20 +125,32 @@ Rules:
   nothing - inventing confidence you do not have is what causes wrong reminders.
 - assigned_to: who has to do the work.
 
-  Each message says who wrote it. That is the whole signal:
+  Each message says who wrote it and where. That is the whole signal - never
+  the wording, which reads the same either way.
 
   * Somebody else wrote it, asking him for something - "invoice bhej dijiye",
     "kal tak documents chahiye". The work is HIS. Leave assigned_to empty.
-  * HE wrote it, telling somebody else to do something - "Rahul, GST documents
-    kal 5 baje tak bhej dena", "invoice check karke bata dena". The work is
-    THEIRS: put their name in assigned_to. In a one-to-one chat that is the
-    person he is writing to; in a group it is only whoever he actually names.
-  * HE wrote it as a note to himself - "kal BNF salary karni hai", anything in
-    his own "message yourself" chat. The work is HIS. Leave assigned_to empty.
 
-  When you cannot tell who is meant to do it, leave assigned_to empty and set
-  confidence "low". A task filed against the wrong person is worse than one
-  filed against nobody: he will chase somebody who was never asked.
+  * He wrote it in his own notes-to-self chat - "kal BNF salary karni hai",
+    "pay arroohan tds today last day". A note to himself. The work is HIS.
+    Leave assigned_to empty.
+
+  * He wrote it to one person - "Rahul, GST documents kal 5 baje tak bhej
+    dena". The work is THEIRS: assigned_to is that person.
+
+  * He wrote it into a work group - "Need all tds entry till aug 26", "Send me
+    data, current year". These groups are how he runs his teams, so an
+    instruction he types into one is work he is handing to that team, not work
+    he is taking on. If he names somebody ("@Meera - send me data"), that
+    person is assigned_to. If he names nobody, assigned_to is the group's own
+    name, exactly as given.
+
+  A question he is asking rather than work he is handing out - "Ledger pan ek
+  ma karu ke agal rakhu?" - is not a task at all; do not extract it.
+
+  When you genuinely cannot tell, leave assigned_to empty and set confidence
+  "low". A task filed against the wrong person is worse than one filed against
+  nobody: he will chase somebody who was never asked.
 
 - source_index must be the index of the message the task came from.
 
@@ -143,15 +176,20 @@ all, and the thing to do is usually visible only in the picture.
   expected outcome - do not invent tasks to fill the list.
 `;
 
+/** A message that could be handing work to somebody: his, and not to himself. */
+const canDelegate = (source) => Boolean(source?.from_me) && !source?.is_self;
+
 function renderBatch(messages) {
   return messages
     .map((m, i) => {
       const where = m.is_group ? `group "${m.chat_name}"` : `chat with ${m.chat_name}`;
       // Direction is what separates work he has been given from work he is
       // giving out, so it is stated rather than left to be inferred.
-      const who = m.from_me
-        ? `HE WROTE THIS, to ${m.chat_name || 'someone'}`
-        : `${m.contact_name || m.contact_number || 'unknown'} wrote this to him`;
+      const who = m.is_self
+        ? 'HE WROTE THIS in his own notes-to-self chat'
+        : m.from_me
+          ? `HE WROTE THIS, to ${m.is_group ? `the team in "${m.chat_name}"` : m.chat_name || 'someone'}`
+          : `${m.contact_name || m.contact_number || 'unknown'} wrote this to him`;
       return [
         `[${i}] ${who} (${where})`,
         `    sent: ${m.sent_at}`,
@@ -279,12 +317,20 @@ export async function extractTasks(messages) {
          * and it is still a request. Only a message he wrote can hand work out;
          * only a message somebody else wrote can be work he was given.
          */
-        assigned_to: source?.from_me && task.assigned_to?.trim()
+        /*
+         * Only a message he wrote can hand work out, and never one written in
+         * his own notes chat - a note to himself is his own work however it is
+         * phrased. The wid is the chat the instruction was given in, which for
+         * a group is the group: that is where a nudge belongs, since that is
+         * where the work was handed over in front of everybody.
+         */
+        assigned_to: canDelegate(source) && task.assigned_to?.trim()
           ? task.assigned_to.trim().slice(0, 80)
           : null,
-        assigned_to_wid: source?.from_me && task.assigned_to?.trim() ? source.chat_id : null,
+        assigned_to_wid:
+          canDelegate(source) && task.assigned_to?.trim() ? source.chat_id : null,
         requested_by:
-          source && !source.from_me
+          source && !source.from_me && !source.is_self
             ? (source.contact_name || source.contact_number || source.chat_name || null)
             : null,
         requested_by_wid: source && !source.from_me ? source.chat_id : null,

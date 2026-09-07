@@ -25,7 +25,8 @@ const parseKeywords = (raw) => {
   }
 };
 
-const shape = (row) => (row ? { ...row, keywords: parseKeywords(row.keywords) } : null);
+const shape = (row) =>
+  row ? { ...row, keywords: parseKeywords(row.keywords), separate: Boolean(row.separate) } : null;
 
 export const listGroups = () =>
   db.prepare(`SELECT * FROM task_groups ORDER BY position, name`).all().map(shape);
@@ -64,12 +65,16 @@ export function createGroup(input) {
 
   const next = db.prepare(`SELECT COALESCE(MAX(position), 0) + 1 AS n FROM task_groups`).get().n;
   const info = db
-    .prepare(`INSERT INTO task_groups (name, colour, keywords, position) VALUES (?, ?, ?, ?)`)
+    .prepare(
+      `INSERT INTO task_groups (name, colour, keywords, position, separate)
+       VALUES (?, ?, ?, ?, ?)`
+    )
     .run(
       name,
       COLOURS.includes(input.colour) ? input.colour : COLOURS[(next - 1) % COLOURS.length],
       JSON.stringify(normaliseKeywords(input.keywords, name)),
-      next
+      next,
+      input.separate ? 1 : 0
     );
   return getGroup(info.lastInsertRowid);
 }
@@ -95,7 +100,9 @@ export function updateGroup(id, patch) {
   const clash = groupByName(name);
   if (clash && clash.id !== current.id) throw new Error(`a group called "${clash.name}" already exists`);
 
-  db.prepare(`UPDATE task_groups SET name = ?, colour = ?, keywords = ? WHERE id = ?`).run(
+  db.prepare(
+    `UPDATE task_groups SET name = ?, colour = ?, keywords = ?, separate = ? WHERE id = ?`
+  ).run(
     name,
     COLOURS.includes(patch.colour) ? patch.colour : current.colour,
     JSON.stringify(
@@ -103,6 +110,9 @@ export function updateGroup(id, patch) {
         ? normaliseKeywords(current.keywords, name)
         : normaliseKeywords(patch.keywords, name)
     ),
+    // Turning this on takes the group's work out of the main list at once, and
+    // turning it off puts it back. Nothing is moved or rewritten either way.
+    (patch.separate === undefined ? current.separate : patch.separate) ? 1 : 0,
     id
   );
   return getGroup(id);

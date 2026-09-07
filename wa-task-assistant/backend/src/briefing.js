@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { log } from './logger.js';
-import { listTasks, db } from './db.js';
+import { listTasks, db, NOT_SET_ASIDE_BARE } from './db.js';
 import { dueMoment, taskState, onTimeLabel } from './task-lifecycle.js';
 import {
   getSettings, localParts, claimBriefing, recordBriefingSent, recordBriefingFailed, briefingFor,
@@ -206,6 +206,7 @@ export function collectWeek(now = new Date()) {
     .prepare(
       `SELECT * FROM tasks
        WHERE status = 'done' AND completed_at IS NOT NULL AND completed_at >= ?
+         AND ${NOT_SET_ASIDE_BARE}
        ORDER BY completed_at DESC`
     )
     .all(since)

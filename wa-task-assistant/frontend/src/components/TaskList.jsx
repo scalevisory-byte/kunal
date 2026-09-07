@@ -121,6 +121,34 @@ export default function TaskList({
   let sections;
   if (view === 'myday') sections = myDay(open, done);
   else if (groupBy === 'chat') sections = byChat(open);
+  /*
+   * Recent asks a different question from every other view: not what is most
+   * pressing, but what has just arrived. Grouping it by deadline would answer
+   * the old question again, so it is one list in the order things came in.
+   */
+  else if (groupBy === 'none') {
+    const arrived = [...tasks].sort((a, b) =>
+      String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    return (
+      <div className="sections">
+        <section className="section tone-plain">
+          <ul className="task-list">
+            {arrived.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={onToggle}
+                onOpen={onOpen}
+                onStatus={onStatus}
+                onQuickDate={onQuickDate}
+                onDelete={onDelete}
+              />
+            ))}
+          </ul>
+        </section>
+      </div>
+    );
+  }
   else sections = byDate(open);
 
   sections = sections.filter((s) => s.items.length);

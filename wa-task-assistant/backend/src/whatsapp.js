@@ -546,7 +546,17 @@ export async function handleMessage(message) {
     );
     // The picture rides on the buffered copy only. The stored row stays text:
     // the database is not where megabytes of photo belong.
-    buffer.push({ ...row, id, image });
+    /*
+     * Whether this is his own "message yourself" chat. Not a column - it only
+     * has to reach the extractor, which uses it to tell a note he made himself
+     * from an instruction he gave somebody. Both are messages he wrote.
+     */
+    buffer.push({
+      ...row,
+      id,
+      image,
+      is_self: Boolean(state.me) && row.chat_id === state.me ? 1 : 0,
+    });
     state.bufferedCount = buffer.length;
     scheduleFlush();
   } catch (err) {

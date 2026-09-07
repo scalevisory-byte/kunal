@@ -1,4 +1,4 @@
-import { db, getTask, updateTask } from './db.js';
+import { db, getTask, updateTask, NOT_SET_ASIDE_BARE } from './db.js';
 import { log } from './logger.js';
 import { config } from './config.js';
 import {
@@ -255,11 +255,18 @@ export function taskHistory(task) {
   };
 }
 
-/** Open tasks with a deadline, for the engine to walk. */
+/**
+ * Open tasks with a deadline, for the engine to walk.
+ *
+ * Work in a set-aside group is skipped here, which is what makes "not a task"
+ * mean something: no ladder is built for it, so it is never chased, never in a
+ * digest and never a follow-up. It is a record, not an obligation.
+ */
 export const tasksWithDeadlines = () =>
   db.prepare(
     `SELECT * FROM tasks
-     WHERE status != 'done' AND (due_at IS NOT NULL OR due_date IS NOT NULL)`
+     WHERE status != 'done' AND (due_at IS NOT NULL OR due_date IS NOT NULL)
+       AND ${NOT_SET_ASIDE_BARE}`
   ).all();
 
 export { activeRemindersForTask };

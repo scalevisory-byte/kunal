@@ -21,7 +21,18 @@ tasksRouter.get('/', (req, res) => {
   const raw = req.query.status;
   const status = raw === 'all' ? undefined : raw === 'open' ? 'pending' : raw;
   const settings = getSettings();
-  const rows = listTasks({ status, limit: req.query.limit });
+  /*
+   * Set-aside work is fetched but flagged, not withheld: the dashboard makes
+   * one request and slices it client-side, so a group's own page needs the rows
+   * in hand. `stats` below already leaves them out, and so does every query the
+   * reminder engine runs — this is the one place they travel.
+   */
+  const rows = listTasks({
+    status,
+    limit: req.query.limit,
+    includeSetAside: true,
+    order: req.query.order === 'recent' ? 'recent' : undefined,
+  });
   // One query each for the whole page rather than three per row.
   const ids = rows.map((t) => t.id);
   const progress = subtaskProgressFor(ids);

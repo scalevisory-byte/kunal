@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { config } from './config.js';
+import { unshout } from './titlecase.js';
 import { log } from './logger.js';
 import { numberOrNull } from './dates.js';
 
@@ -400,7 +401,7 @@ const insertTaskStmt = db.prepare(`
  */
 const TASK_SELECT = `
   SELECT t.*, m.body AS source_message, m.sent_at AS source_message_at,
-         g.name AS group_name, g.colour AS group_colour
+         g.name AS group_name, g.colour AS group_colour, g.separate AS group_separate
   FROM tasks t
   LEFT JOIN messages m ON m.id = t.message_id
   LEFT JOIN task_groups g ON g.id = t.group_id`;
@@ -426,7 +427,10 @@ function dayOfInstant(iso, tz = config.timezone) {
 
 export function createTask(input) {
   const row = {
-    title: String(input.title || '').trim(),
+    // A shouted title is put into readable case here rather than at each caller,
+    // so the hand-typed form, a quickparse and a monthly rule all get it. See
+    // titlecase.js for why only the case is touched and not the spelling.
+    title: unshout(input.title),
     description: input.description ?? null,
     contact: input.contact ?? null,
     chat_name: input.chat_name ?? null,
@@ -466,7 +470,12 @@ export function getTask(id) {
  * everything unfinished - which is what the dashboard's Open tab means now
  * that a task can sit in progress.
  */
-export function listTasks({ status, limit = 500 } = {}) {
+/**
+ * `includeSetAside` is what a group's own page passes: everywhere else the
+ * question being asked is "what do I owe", and work deliberately set aside is
+ * not an answer to it.
+ */
+export function listTasks({ status, limit = 500, includeSetAside = false, order } = {}) {
   let where = '';
   const params = [];
   if (status === 'pending') {
@@ -477,13 +486,20 @@ export function listTasks({ status, limit = 500 } = {}) {
   } else {
     where = 'WHERE t.archived_at IS NULL';
   }
-  const sql = `${TASK_SELECT}
-       ${where}
-       ORDER BY
-         CASE t.status WHEN 'in_progress' THEN 0 WHEN 'open' THEN 1 ELSE 2 END,
+  if (!includeSetAside) where += ` AND ${NOT_SET_ASIDE}`;
+
+  // "Recent" is the one view that asks a different question: not what is most
+  // pressing, but what has just arrived.
+  const sort = order === 'recent'
+    ? 't.created_at DESC, t.id DESC'
+    : `CASE t.status WHEN 'in_progress' THEN 0 WHEN 'open' THEN 1 ELSE 2 END,
          t.due_date IS NULL, t.due_date ASC,
          CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
-         t.id DESC
+         t.id DESC`;
+
+  const sql = `${TASK_SELECT}
+       ${where}
+       ORDER BY ${sort}
        LIMIT ?`;
   params.push(Math.min(Number(limit) || 500, 1000));
   return db.prepare(sql).all(...params);
@@ -502,6 +518,36 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`)
  * rather than a column type, so a database that already has the table gets it.
  */
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_group_name ON task_groups(name COLLATE NOCASE)`);
+
+/*
+ * A group that is kept out of the main list.
+ *
+ * Some work arrives in bulk and is not the day's work: vacancies coming into a
+ * recruitment desk, dozens a week, each a real thing to act on but none of it
+ * belonging beside "Pay TDS today". Mixed in, they bury everything else; thrown
+ * away, they are lost. So they are captured, grouped and set aside — its own
+ * section in the sidebar, and out of every view that answers "what do I owe
+ * today". 0 for every group that already exists, so nothing moves on upgrade.
+ */
+ensureColumns('task_groups', [
+  ['separate', 'ALTER TABLE task_groups ADD COLUMN separate INTEGER NOT NULL DEFAULT 0'],
+]);
+
+/**
+ * Tasks in a set-aside group, as a SQL fragment.
+ *
+ * Written as NOT IN rather than a join so it can be dropped into any existing
+ * query without changing its shape. An empty set is the common case and costs
+ * nothing: SQLite folds `NOT IN (SELECT ... WHERE separate = 1)` away.
+ */
+const notSetAside = (alias = 't.') =>
+  `(${alias}group_id IS NULL OR ${alias}group_id NOT IN` +
+  ` (SELECT id FROM task_groups WHERE separate = 1))`;
+const NOT_SET_ASIDE = notSetAside('t.');
+/** The same condition for a query that does not alias the table. */
+export const NOT_SET_ASIDE_BARE = notSetAside('');
+export const setAsideGroupIds = () =>
+  db.prepare(`SELECT id FROM task_groups WHERE separate = 1`).all().map((r) => r.id);
 
 const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
@@ -565,6 +611,7 @@ export function pendingReminders(today) {
     .prepare(
       `SELECT * FROM tasks
        WHERE ${OPEN_STATUSES} AND needs_confirmation = 0
+         AND ${NOT_SET_ASIDE_BARE}
          AND (due_date IS NULL OR due_date <= ?)
        ORDER BY
          due_date IS NULL,
@@ -597,7 +644,7 @@ export function taskStats() {
          COALESCE(SUM(status = 'waiting'), 0)                          AS waiting,
          COALESCE(SUM(status = 'done'), 0)                            AS done,
          COALESCE(SUM(status != 'done' AND priority = 'high'), 0)     AS high_open
-       FROM tasks WHERE archived_at IS NULL`
+       FROM tasks WHERE archived_at IS NULL AND ${NOT_SET_ASIDE_BARE}`
     )
     .get();
 }
@@ -627,7 +674,7 @@ export function dueExactReminders(nowIso) {
   return db
     .prepare(
       `SELECT * FROM tasks
-       WHERE ${OPEN_STATUSES} AND remind_at_sent = 0
+       WHERE ${OPEN_STATUSES} AND remind_at_sent = 0 AND ${NOT_SET_ASIDE_BARE}
          AND remind_at IS NOT NULL AND remind_at <= ?
        ORDER BY remind_at ASC`
     )

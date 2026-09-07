@@ -16,6 +16,7 @@ const NAV = [
   {
     label: 'Organise',
     items: [
+      { key: 'recent', label: 'Recent', icon: 'clock' },
       { key: 'chat', label: 'By Chat', icon: 'chat' },
       { key: 'ai', label: 'AI Tasks', icon: 'robot' },
       { key: 'done', label: 'Completed', icon: 'check' },

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import { api } from '../api.js';
 
-const blank = { name: '', colour: '', keywords: '' };
+const blank = { name: '', colour: '', keywords: '', separate: false };
 
 /**
  * One group per business.
@@ -41,6 +41,7 @@ export default function Groups({ onChanged, onError }) {
         name: form.name,
         colour: form.colour || undefined,
         keywords: form.keywords,
+        separate: form.separate,
       };
       if (editing) await api.updateGroup(editing, body);
       else {
@@ -69,6 +70,7 @@ export default function Groups({ onChanged, onError }) {
     setForm({
       name: group.name,
       colour: group.colour,
+      separate: Boolean(group.separate),
       // The name is always a keyword; showing it back would invite deleting it.
       keywords: group.keywords.filter((k) => k !== group.name.toLowerCase()).join(', '),
     });
@@ -115,6 +117,7 @@ export default function Groups({ onChanged, onError }) {
                 <strong>{g.name}</strong>
                 <span className="group-meta">
                   {g.counts.open} open · {g.counts.total} in total
+                  {g.separate && ' · kept out of the main list'}
                   {g.keywords.length > 1 && ` · matches ${g.keywords.slice(0, 6).join(', ')}`}
                 </span>
               </div>
@@ -166,6 +169,29 @@ export default function Groups({ onChanged, onError }) {
                 />
               ))}
             </div>
+          </div>
+
+          {/*
+            * Some work arrives in bulk and is not the day's work — vacancies
+            * landing on a recruitment desk, dozens a week. Mixed into the list
+            * they bury everything else; thrown away they are lost. This keeps
+            * them, in their own section, and out of the way.
+            */}
+          <div className="field">
+            <label className="check-inline">
+              <input
+                type="checkbox"
+                checked={form.separate}
+                onChange={(e) => setForm((f) => ({ ...f, separate: e.target.checked }))}
+              />
+              <span>Keep this group out of the main list</span>
+            </label>
+            <p className="field-note">
+              Its work is still captured and still has its own section in the sidebar, but it
+              stays out of the dashboard, Focus today and Needs attention — and it is never
+              chased: no reminders, no digest, no daily briefing. For things worth keeping a
+              record of that are not the day&rsquo;s work.
+            </p>
           </div>
 
           <div className="template-form-foot">
