@@ -6,6 +6,7 @@ import { log } from './logger.js';
 import { today, todayLong, normalizeDueDate } from './dates.js';
 import { isoAtLocal } from './quickparse.js';
 import { recordUsage } from './db.js';
+import { listGroups, routeTask } from './groups.js';
 
 let client = null;
 
@@ -44,6 +45,12 @@ const ExtractionSchema = z.object({
             '(e.g. "10 baje" -> "10:00", "5pm" -> "17:00"). Empty string if no time is given.'
         ),
       priority: z.enum(['high', 'medium', 'low']),
+      group: z
+        .string()
+        .describe(
+          'Which of the named businesses this task belongs to, copied exactly from ' +
+            'the list given. Empty string when it belongs to none of them or you cannot tell.'
+        ),
       confidence: z
         .enum(['high', 'medium', 'low'])
         .describe(
@@ -135,15 +142,27 @@ function renderBatch(messages) {
 export async function extractTasks(messages) {
   if (!messages.length) return [];
 
+  const groups = listGroups();
+  const groupNames = groups.map((g) => g.name);
+
   const withImages = messages.filter((m) => m.image?.data);
 
   const intro = [
     `Current date: ${todayLong()} (${today()}), timezone ${config.timezone}.`,
     '',
     `Here are ${messages.length} incoming WhatsApp message(s). Extract the actionable tasks.`,
+    groupNames.length
+      ? [
+          '',
+          'He runs these businesses. Put each task under the one it belongs to, copying the',
+          'name exactly. Use an empty string when a task belongs to none of them or you',
+          'cannot tell - a task in the wrong company\'s list is worse than one in no list.',
+          groupNames.map((n) => `- ${n}`).join('\n'),
+        ].join('\n')
+      : '',
     '',
     renderBatch(messages),
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   /*
    * Text first, then each picture introduced by its own index. The API takes
@@ -224,6 +243,13 @@ export async function extractTasks(messages) {
         priority: task.priority,
         // The model's own report, kept as such. A task it was unsure about is
         // created but held back for confirmation rather than being chased.
+        // Keyword rules decide first; this is only consulted for what they
+        // do not catch. See groups.js.
+        group_id: routeTask(
+          { title, description: task.description, chat_name: task.chat_name || source?.chat_name, contact: task.contact },
+          task.group,
+          groups
+        ),
         ai_confidence: task.confidence || null,
         needs_confirmation: task.confidence === 'low' ? 1 : 0,
         status: 'open',

@@ -15,6 +15,10 @@ import {
 import {
   attachmentsFor, addAttachment, readAttachment, deleteAttachment, storageState,
 } from '../attachments.js';
+import {
+  listGroups, getGroup, createGroup, updateGroup, deleteGroup, reorderGroups,
+  groupCounts, applyGroupToExisting, COLOURS,
+} from '../groups.js';
 import { EVENT, recordEvent } from '../task-events.js';
 import { planTask, taskSchedule } from '../task-lifecycle.js';
 
@@ -215,4 +219,61 @@ templateRouter.post('/:id/use', (req, res) => {
     ...taskSchedule(fresh),
     subtasks: subtasksFor(task.id),
   });
+});
+
+
+/* ---------------- groups ---------------- */
+
+export const groupRouter = Router();
+
+groupRouter.get('/', (req, res) => {
+  const counts = groupCounts();
+  res.json({
+    groups: listGroups().map((g) => ({ ...g, counts: counts.get(g.id) || { open: 0, total: 0 } })),
+    colours: COLOURS,
+  });
+});
+
+groupRouter.post('/', (req, res) => {
+  try {
+    res.status(201).json({ group: createGroup(req.body || {}) });
+  } catch (err) {
+    const conflict = /UNIQUE/i.test(err.message);
+    res.status(400).json({ error: conflict ? 'a group with that name already exists' : err.message });
+  }
+});
+
+groupRouter.patch('/:id', (req, res) => {
+  try {
+    const group = updateGroup(Number(req.params.id), req.body || {});
+    if (!group) return res.status(404).json({ error: 'not found' });
+    res.json({ group });
+  } catch (err) {
+    const conflict = /UNIQUE/i.test(err.message);
+    res.status(400).json({ error: conflict ? 'a group with that name already exists' : err.message });
+  }
+});
+
+/** Deleting a group leaves its tasks alone; they simply stop being grouped. */
+groupRouter.delete('/:id', (req, res) => {
+  if (!deleteGroup(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.json({ groups: listGroups() });
+});
+
+groupRouter.post('/reorder', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  res.json({ groups: reorderGroups(ids) });
+});
+
+/**
+ * Apply the keyword rules to work that already exists, so making a group after
+ * the fact does not mean re-filing everything by hand.
+ */
+groupRouter.post('/:id/apply', (req, res) => {
+  const result = applyGroupToExisting(Number(req.params.id));
+  if (!result.group) return res.status(404).json({ error: 'not found' });
+  for (const id of result.ids) {
+    recordEvent(id, EVENT.edited, `grouped under ${result.group.name}`);
+  }
+  res.json({ moved: result.moved, group: result.group });
 });

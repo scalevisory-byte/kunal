@@ -24,12 +24,13 @@ import SchedulingSettings from './components/SchedulingSettings.jsx';
 import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import CalendarPage from './components/CalendarPage.jsx';
+import Groups from './components/Groups.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
-const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false };
+const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null };
 
 /**
  * What each page is, and which of the dashboard's parts belong on it.
@@ -121,6 +122,7 @@ export default function App() {
   // Extractions the model itself said it was unsure about. Nothing chases
   // these until a person says they are real.
   const [unsure, setUnsure] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
@@ -181,6 +183,12 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadUnsure(); }, [loadUnsure, tasks]);
+
+  const loadGroups = useCallback(() => {
+    api.groups().then((d) => setGroups(d.groups)).catch(() => {});
+  }, []);
+
+  useEffect(() => { loadGroups(); }, [loadGroups, tasks]);
 
   useEffect(() => {
     setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
@@ -255,6 +263,7 @@ export default function App() {
       if (filters.priority.length && !filters.priority.includes(task.priority)) return false;
       if (filters.origin.length && !filters.origin.includes(task.origin)) return false;
       if (filters.chat && taskChat(task) !== filters.chat) return false;
+      if (filters.group && task.group_id !== filters.group) return false;
       if (filters.attention && !(['due', 'overdue'].includes(task.state) || task.needs_attention)) return false;
       if (selectedDate && task.due_date !== selectedDate) return false;
 
@@ -271,7 +280,19 @@ export default function App() {
    */
   // Which page is showing. An unknown section falls back to the overview
   // rather than rendering a headingless blank.
-  const page = PAGES[section] || PAGES.dashboard;
+  const groupId = section.startsWith('group:') ? Number(section.slice(6)) : null;
+  const activeGroup = groupId ? groups.find((g) => g.id === groupId) : null;
+
+  const page = groupId
+    ? {
+        title: activeGroup?.name || 'Group',
+        lede: activeGroup
+          ? 'Everything for this business, whichever chat it arrived in.'
+          : 'This group no longer exists.',
+        tabs: true,
+        toolbar: true,
+      }
+    : PAGES[section] || PAGES.dashboard;
 
   const goto = (key) => {
     setSection(key);
@@ -286,6 +307,10 @@ export default function App() {
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
     if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }
     if (key === 'history') return undefined;
+    if (key.startsWith('group:')) {
+      setView('open');
+      return setFilters({ ...EMPTY_FILTERS, group: Number(key.slice(6)) });
+    }
     return undefined;
   };
 
@@ -337,6 +362,7 @@ export default function App() {
   return (
     <div className="shell">
       <Sidebar
+        groups={groups}
         section={section}
         onSection={goto}
         connected={connected}
@@ -430,6 +456,22 @@ export default function App() {
                 </div>
               </div>
               <SchedulingSettings onError={(err) => setError(err.message)} />
+            </section>
+          ) : section === 'groups' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Groups</h2>
+                  <p>
+                    One per business. A task that mentions it goes there on its own, and each
+                    group gets its own item in the sidebar.
+                  </p>
+                </div>
+              </div>
+              <Groups
+                onChanged={() => { loadGroups(); refresh({ quiet: true }); }}
+                onError={(err) => setError(err.message)}
+              />
             </section>
           ) : section === 'templates' ? (
             <section className="settings-page">
@@ -671,6 +713,7 @@ export default function App() {
         <TaskDetail
           task={openTask}
           tasks={tasks}
+          groups={groups}
           onClose={() => setOpenTask(null)}
           onEdit={onEdit}
           onDelete={onDelete}

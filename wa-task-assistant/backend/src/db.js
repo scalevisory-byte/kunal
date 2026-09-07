@@ -140,7 +140,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tasks_status_due   ON tasks(status, due_date);
   CREATE INDEX IF NOT EXISTS idx_subtasks_task      ON subtasks(task_id, position);
   CREATE INDEX IF NOT EXISTS idx_dep_blocker        ON task_dependencies(depends_on_id);
+  -- One per business. Tasks for the same company arrive from several different
+  -- chats and some are typed by hand, so which company a task belongs to cannot
+  -- be read off the chat it came from - it is its own thing.
+  CREATE TABLE IF NOT EXISTS task_groups (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    colour     TEXT NOT NULL DEFAULT 'teal',
+    keywords   TEXT NOT NULL DEFAULT '[]',
+    position   INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_attach_task        ON attachments(task_id);
+
 `);
 
 // Databases created before reminders repeated have `reminder_sent` instead.
@@ -199,6 +212,8 @@ for (const [name, ddl] of [
   // A task the extractor was unsure about waits to be confirmed. Until then it
   // is not chased: reminders, follow-ups and the briefing all skip it.
   ['needs_confirmation', 'ALTER TABLE tasks ADD COLUMN needs_confirmation INTEGER NOT NULL DEFAULT 0'],
+  // Which business this belongs to. Nullable: a task need not have one.
+  ['group_id', 'ALTER TABLE tasks ADD COLUMN group_id INTEGER REFERENCES task_groups(id) ON DELETE SET NULL'],
 ]) {
   if (!taskColumns.has(name)) {
     db.exec(ddl);
@@ -346,11 +361,11 @@ const insertTaskStmt = db.prepare(`
   INSERT INTO tasks
     (title, description, notes, contact, chat_name, chat_id, message_id, source, origin,
      due_date, due_at, original_due_at, waiting_for, remind_at, priority, status,
-     ai_confidence, needs_confirmation)
+     ai_confidence, needs_confirmation, group_id)
   VALUES
     (@title, @description, @notes, @contact, @chat_name, @chat_id, @message_id, @source, @origin,
      @due_date, @due_at, @original_due_at, @waiting_for, @remind_at, @priority, @status,
-     @ai_confidence, @needs_confirmation)
+     @ai_confidence, @needs_confirmation, @group_id)
 `);
 
 /**
@@ -358,9 +373,11 @@ const insertTaskStmt = db.prepare(`
  * join is a single row by id, so no other chat content can reach the client.
  */
 const TASK_SELECT = `
-  SELECT t.*, m.body AS source_message, m.sent_at AS source_message_at
+  SELECT t.*, m.body AS source_message, m.sent_at AS source_message_at,
+         g.name AS group_name, g.colour AS group_colour
   FROM tasks t
-  LEFT JOIN messages m ON m.id = t.message_id`;
+  LEFT JOIN messages m ON m.id = t.message_id
+  LEFT JOIN task_groups g ON g.id = t.group_id`;
 
 /**
  * The calendar day an exact deadline falls on, read in the user's timezone.
@@ -402,6 +419,7 @@ export function createTask(input) {
     status: STATUSES.has(input.status) ? input.status : 'open',
     ai_confidence: CONFIDENCE.has(input.ai_confidence) ? input.ai_confidence : null,
     needs_confirmation: input.needs_confirmation ? 1 : 0,
+    group_id: Number.isFinite(Number(input.group_id)) ? Number(input.group_id) : null,
   };
   if (!row.title) throw new Error('title is required');
   const info = insertTaskStmt.run(row);
@@ -440,10 +458,22 @@ export function listTasks({ status, limit = 500 } = {}) {
   return db.prepare(sql).all(...params);
 }
 
+// Created after the migration above, since it names a column that database may
+// only just have been given.
+db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_group ON tasks(group_id)`);
+
+/*
+ * Group names are unique regardless of case. SQLite's UNIQUE is case-sensitive,
+ * so "BNF" and "bnf" were two different groups - and since both would match the
+ * same keyword, routing saw a tie and filed the task under neither. An index
+ * rather than a column type, so a database that already has the table gets it.
+ */
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_group_name ON task_groups(name COLLATE NOCASE)`);
+
 const UPDATABLE = [
   'title', 'description', 'notes', 'contact', 'chat_name', 'due_date', 'due_at',
   'priority', 'status', 'remind_at', 'follow_up_count', 'needs_attention',
-  'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence',
+  'waiting_for', 'archived_at', 'needs_confirmation', 'ai_confidence', 'group_id',
 ];
 
 export function updateTask(id, patch) {

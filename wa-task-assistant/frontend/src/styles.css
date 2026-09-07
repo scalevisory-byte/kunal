@@ -1823,3 +1823,73 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .t-chat { display: inline-flex; max-width: 120px; }
   .task { padding: 9px 12px; }
 }
+
+
+/* ---------- groups, one per business ---------- */
+
+/* One palette, used by the sidebar dot, the row tag and the swatches, so a
+   business reads the same colour everywhere it appears. */
+.c-teal   { --group: #0f766e; }
+.c-blue   { --group: #1d4ed8; }
+.c-violet { --group: #6d28d9; }
+.c-amber  { --group: #b45309; }
+.c-rose   { --group: #be123c; }
+.c-green  { --group: #15803d; }
+.c-slate  { --group: #475569; }
+
+@media (prefers-color-scheme: dark) {
+  .c-teal   { --group: #2dd4bf; }
+  .c-blue   { --group: #93b4fd; }
+  .c-violet { --group: #c4b5fd; }
+  .c-amber  { --group: #fcd34d; }
+  .c-rose   { --group: #fda4af; }
+  .c-green  { --group: #86efac; }
+  .c-slate  { --group: #cbd5e1; }
+}
+
+.group-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--group, var(--line-2)); flex: none;
+}
+
+.group-tag {
+  flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 1px 7px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--group, var(--line-2)) 35%, transparent);
+  color: var(--group, var(--muted));
+  font-size: .68rem; font-weight: 600; letter-spacing: .01em;
+}
+
+.side-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.side-count {
+  flex: none; font-family: "IBM Plex Mono", monospace; font-size: .68rem;
+  color: var(--muted); font-variant-numeric: tabular-nums;
+}
+
+.group-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.group-list li {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
+.group-list li:last-child { border-bottom: 0; }
+.group-what { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 170px; }
+.group-what strong { font-size: .86rem; font-weight: 600; }
+.group-meta { font-size: .74rem; color: var(--muted); }
+.group-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+.colour-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.colour-swatch {
+  width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+  background: var(--group); border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--line);
+}
+.colour-swatch.picked { border-color: var(--card); box-shadow: 0 0 0 2px var(--group); }
+
+.ok-text { color: var(--ok, var(--brand)); }
+
+@media (max-width: 1080px) { .group-tag { display: none; } }
+@media (max-width: 760px) {
+  .group-tag { display: inline-block; }
+  .group-list li { flex-direction: column; align-items: stretch; }
+  .group-actions { justify-content: flex-start; }
+}

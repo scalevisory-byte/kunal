@@ -125,6 +125,12 @@ export default function TaskItem({ task, onToggle, onOpen, onStatus, onQuickDate
             </span>
           )}
 
+          {task.group_name && (
+            <span className={`group-tag c-${task.group_colour || 'teal'}`} title={task.group_name}>
+              {task.group_name}
+            </span>
+          )}
+
           {chat && (
             <span className="m-item t-chat" title={chat}>
               <Icon name="chat" size={12} /> {chat}

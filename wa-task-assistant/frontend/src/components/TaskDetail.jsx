@@ -162,7 +162,7 @@ function FollowUpLadder({ task }) {
 }
 
 export default function TaskDetail({
-  task, tasks, onClose, onEdit, onDelete, onError, onChanged,
+  task, tasks, groups = [], onClose, onEdit, onDelete, onError, onChanged,
 }) {
   const [showMessage, setShowMessage] = useState(false);
 
@@ -256,6 +256,20 @@ export default function TaskDetail({
           <Dependencies task={task} tasks={tasks} initial={task} onError={onError} />
 
           <Attachments task={task} initial={task.attachments} onError={onError} />
+
+          {groups.length > 0 && (
+            <div className="field">
+              <label htmlFor="d-group">Business</label>
+              <select
+                id="d-group"
+                value={task.group_id ?? ''}
+                onChange={(e) => onEdit(task, { group_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">No group</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
+          )}
 
           <div className="field">
             <label htmlFor="d-notes">Notes</label>

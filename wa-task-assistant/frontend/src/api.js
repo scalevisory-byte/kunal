@@ -109,6 +109,12 @@ export const api = {
   removeDependency: (taskId, blockerId) =>
     request(`/tasks/${taskId}/dependencies/${blockerId}`, { method: 'DELETE' }),
 
+  groups: () => request('/groups'),
+  createGroup: (body) => request('/groups', { method: 'POST', body: JSON.stringify(body) }),
+  updateGroup: (id, body) => request(`/groups/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteGroup: (id) => request(`/groups/${id}`, { method: 'DELETE' }),
+  applyGroup: (id) => request(`/groups/${id}/apply`, { method: 'POST', body: JSON.stringify({}) }),
+
   templates: () => request('/templates'),
   createTemplate: (body) => request('/templates', { method: 'POST', body: JSON.stringify(body) }),
   updateTemplate: (id, body) =>

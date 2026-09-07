@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import Icon from './Icon.jsx';
 
 /** Grouped so the list reads as three short lists rather than one long one. */
@@ -28,10 +29,12 @@ const NAV = [
       // buried at the top of Settings, under the connection panel.
       { key: 'reminders', label: 'Reminders', icon: 'bell' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
+      { key: 'groups', label: 'Manage groups', icon: 'settings' },
     ],
   },
   {
     label: 'System',
+    afterBusinesses: true,
     items: [
       { key: 'usage', label: 'AI Usage', icon: 'clipboard' },
       { key: 'settings', label: 'Settings', icon: 'settings' },
@@ -40,7 +43,7 @@ const NAV = [
 ];
 
 /** The application's spine: where you are, and the one fact that matters below. */
-export default function Sidebar({ section, onSection, connected, open, onClose }) {
+export default function Sidebar({ section, onSection, connected, open, onClose, groups = [] }) {
   return (
     <>
       <div className={`scrim ${open ? 'on' : ''}`} onClick={onClose} role="presentation" />
@@ -55,7 +58,29 @@ export default function Sidebar({ section, onSection, connected, open, onClose }
 
         <nav className="side-nav">
           {NAV.map((group) => (
-            <div className="side-group" key={group.label}>
+            <Fragment key={group.label}>
+              {/* The businesses sit with the work, above the housekeeping. */}
+              {group.afterBusinesses && groups.length > 0 && (
+                <div className="side-group">
+                  <p className="side-group-label">Businesses</p>
+                  {groups.map((g) => {
+                    const key = `group:${g.id}`;
+                    return (
+                      <button
+                        key={key}
+                        className={`side-item ${section === key ? 'on' : ''}`}
+                        aria-current={section === key ? 'page' : undefined}
+                        onClick={() => { onSection(key); onClose(); }}
+                      >
+                        <span className={`group-dot c-${g.colour}`} aria-hidden="true" />
+                        <span className="side-item-name">{g.name}</span>
+                        {g.counts?.open > 0 && <span className="side-count">{g.counts.open}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            <div className="side-group">
               <p className="side-group-label">{group.label}</p>
               {group.items.map((item) => (
                 <button
@@ -69,6 +94,7 @@ export default function Sidebar({ section, onSection, connected, open, onClose }
                 </button>
               ))}
             </div>
+            </Fragment>
           ))}
         </nav>
 
