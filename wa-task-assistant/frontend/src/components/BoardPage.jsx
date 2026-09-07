@@ -1,4 +1,7 @@
 
+import { useState } from 'react';
+import Icon from './Icon.jsx';
+import { api } from '../api.js';
 import { dueLabel, isDone, isOverdue } from '../lib/task.js';
 
 /**
@@ -16,7 +19,121 @@ import { dueLabel, isDone, isOverdue } from '../lib/task.js';
  */
 const OTHER = { id: null, name: 'No business', colour: null };
 
-export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup }) {
+/**
+ * One line, one task, filed where you typed it.
+ *
+ * Adding a task and then moving it into the business you were already looking
+ * at is two steps for one intention. A title is all it asks for — everything
+ * else is in the drawer, and most of it is a guess at this point anyway.
+ */
+function AddTask({ groupId, onAdded, onError }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const add = async (event) => {
+    event.preventDefault();
+    const clean = title.trim();
+    if (!clean) return;
+    setBusy(true);
+    try {
+      await api.createTask({ title: clean, group_id: groupId ?? null });
+      setTitle('');
+      onAdded();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" className="board-add" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={14} /> Add a task
+      </button>
+    );
+  }
+
+  return (
+    <form className="board-add-form" onSubmit={add}>
+      <input
+        value={title}
+        autoFocus
+        placeholder="What needs doing?"
+        aria-label="New task title"
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && (setOpen(false), setTitle(''))}
+      />
+      <div className="board-add-foot">
+        <button type="submit" className="btn small" disabled={busy || !title.trim()}>Add</button>
+        <button type="button" className="link" onClick={() => { setOpen(false); setTitle(''); }}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** A business made from the board, without going to Manage groups for a name. */
+function NewBusiness({ onAdded, onError }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const add = async (event) => {
+    event.preventDefault();
+    const clean = name.trim();
+    if (!clean) return;
+    setBusy(true);
+    try {
+      const { group } = await api.createGroup({ name: clean });
+      // The same catch-up a group made in Settings gets: work already on the
+      // list that matches its name moves in, rather than only future tasks.
+      await api.applyGroup(group.id);
+      setName('');
+      setOpen(false);
+      onAdded();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="board-col board-new">
+      {open ? (
+        <form className="board-add-form" onSubmit={add}>
+          <input
+            value={name}
+            autoFocus
+            placeholder="Business name"
+            aria-label="New business name"
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && (setOpen(false), setName(''))}
+          />
+          <p className="board-note">
+            Tasks that mention it move in on their own. Add other words it goes by
+            in <b>Manage groups</b>.
+          </p>
+          <div className="board-add-foot">
+            <button type="submit" className="btn small" disabled={busy || !name.trim()}>Create</button>
+            <button type="button" className="link" onClick={() => { setOpen(false); setName(''); }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className="board-add big" onClick={() => setOpen(true)}>
+          <Icon name="plus" size={15} /> New business
+        </button>
+      )}
+    </section>
+  );
+}
+
+export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup, onChanged, onError }) {
   const open = tasks.filter((t) => !isDone(t));
 
   // Ordered as the sidebar orders them, with the unfiled at the end — it is
@@ -48,12 +165,12 @@ export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup
 
   if (!groups.length) {
     return (
-      <div className="empty">
-        <strong>No businesses yet.</strong>
-        <p>
-          Make one in <b>Manage groups</b> and every task that mentions it lands in its
-          own column here.
-        </p>
+      <div className="board">
+        <div className="empty board-col">
+          <strong>No businesses yet.</strong>
+          <p>Make one and every task that mentions it lands in its own column here.</p>
+        </div>
+        <NewBusiness onAdded={onChanged} onError={onError} />
       </div>
     );
   }
@@ -111,9 +228,13 @@ export default function BoardPage({ tasks, groups, onOpen, onToggle, onPickGroup
                 })}
               </ul>
             )}
+
+            <AddTask groupId={col.id} onAdded={onChanged} onError={onError} />
           </section>
         );
       })}
+
+      <NewBusiness onAdded={onChanged} onError={onError} />
     </div>
   );
 }

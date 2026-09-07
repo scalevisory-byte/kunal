@@ -63,10 +63,19 @@ tasksRouter.post('/', (req, res) => {
   const {
     title, description, notes, contact, chat_name, due_date, due_at, priority, remind_at,
     reminder_offset, follow_up_offset, assigned_to, assigned_to_wid, requested_by,
-    is_group,
+    is_group, group_id,
   } = req.body || {};
   if (!title || !String(title).trim()) {
     return res.status(400).json({ error: 'title is required' });
+  }
+  // Checked here rather than left to the foreign key, whose message is
+  // "FOREIGN KEY constraint failed" — a true sentence about the database and
+  // no help at all to the person who just typed a task into a group somebody
+  // deleted while the board was open.
+  if (group_id !== undefined && group_id !== null && group_id !== '') {
+    if (!getGroup(Number(group_id))) {
+      return res.status(400).json({ error: 'that group no longer exists' });
+    }
   }
   try {
     const task = createTask({
@@ -91,6 +100,16 @@ tasksRouter.post('/', (req, res) => {
       requested_by,
       // So a task entered against a group chat still shows who wrote it.
       is_group,
+      /*
+       * The business it belongs to, when the caller already knows.
+       *
+       * createTask has always accepted this and the column has always been
+       * there; the route simply never passed it on, so a task added from
+       * inside a business landed unfiled and had to be moved into the place it
+       * was just created in. Keyword routing does not run here — that is the
+       * extractor's job, and a caller naming a group has already decided.
+       */
+      group_id,
     });
     recordEvent(task.id, EVENT.created, 'added by hand');
     if (task.assigned_to) recordEvent(task.id, EVENT.assigned, task.assigned_to);

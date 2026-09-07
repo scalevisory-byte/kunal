@@ -644,6 +644,8 @@ export default function App() {
                 onOpen={setOpenTask}
                 onToggle={onToggle}
                 onPickGroup={(id) => setSection(`group:${id}`)}
+                onChanged={() => { refresh({ quiet: true }); api.groups().then((d) => setGroups(d.groups)).catch(() => {}); }}
+                onError={(err) => setError(err.message)}
               />
             </section>
           ) : section === 'groups' ? (

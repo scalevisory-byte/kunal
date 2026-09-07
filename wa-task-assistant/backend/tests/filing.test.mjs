@@ -135,6 +135,31 @@ await run('the group counts follow the move', async () => {
   assert.equal(G.groupCounts().get(bnf.id).open, before + 1);
 });
 
+await run('a task created inside a business starts there, not unfiled', async () => {
+  // The route accepted every other column and silently dropped this one, so a
+  // task added from inside a business landed outside it and had to be moved
+  // into the place it was just created in.
+  const res = await call('POST', '/api/tasks', { title: 'Refund the Nagpur booking', group_id: bnf.id });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.group_id, bnf.id);
+  assert.equal(res.body.group_name, 'Book N Fly');
+});
+
+await run('naming no business still creates a task, unfiled', async () => {
+  const res = await call('POST', '/api/tasks', { title: 'Something general' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.group_id, null);
+});
+
+await run('a group that does not exist is refused in words, and leaves no task', async () => {
+  const before = DB.listTasks({ status: 'all', limit: 500, includeSetAside: true }).length;
+  const res = await call('POST', '/api/tasks', { title: 'Into nowhere', group_id: 999999 });
+  assert.equal(res.status, 400);
+  // Not "FOREIGN KEY constraint failed", which is true and useless.
+  assert.match(res.body.error, /no longer exists/);
+  assert.equal(DB.listTasks({ status: 'all', limit: 500, includeSetAside: true }).length, before);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });
