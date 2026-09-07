@@ -217,6 +217,46 @@ how people actually speak. Editing the time on the dashboard re-arms the reminde
 `POST /api/reminders/run` runs the digest on demand; `POST /api/reminders/exact` fires any
 exact-time reminders that are due.
 
+## Inside a task
+
+**Checklists.** Steps within one task, with progress on the row. Ticking every box
+deliberately does *not* finish the task: completing one cancels its whole reminder ladder
+and writes a completion into the permanent record, which is too much to happen as a side
+effect of ticking a box. The panel says so and leaves finishing as the explicit act.
+
+**Dependencies.** "This cannot start until that is finished." A blocked task still keeps
+its deadline and its reminders — going quiet on a deadline is how things get forgotten —
+but the reminder names what is in the way, and so does the row. Finishing a blocker
+reports exactly what it freed: only tasks with nothing else waiting. A cycle is refused
+when you try to create it, because nothing inside one could ever be started.
+
+**Files.** Invoices, scans, quotations. Bounded twice — 10 MB per file, 200 MB in total —
+with the space left shown rather than discovered when an upload fails. The bytes live on
+the volume outside the database; an uploaded filename is display text only, since the file
+is stored under a random name of the app's own. Orphans left by a crash between the write
+and the insert are cleared at boot.
+
+**Templates.** Work you set up the same way each month — a GST filing, an onboarding.
+A template holds the title, the usual priority, when it is normally due and the checklist
+that goes with it. Using one builds an ordinary task, so the ladder, the history and the
+briefing each see a task and nothing new. Templates live in Settings.
+
+## When Claude is not sure
+
+The extractor reports how confident it was, and a task it calls **low** is created but not
+chased: no reminder, no follow-up, and absent from the morning briefing. It waits in
+**"Is this a task?"** on the dashboard for a yes or no, with the original message shown.
+
+Being reminded about something that was never a task is worse than not being reminded,
+because it teaches you to ignore the reminders.
+
+That figure is the model's own report, not a measurement the app made, and it is worded
+that way everywhere it appears. Saying "not sure" costs the model nothing here, which is
+the point — inventing confidence is what produces wrong reminders.
+
+Rejecting one archives it rather than deleting it: what the extractor got wrong is worth
+being able to look back at.
+
 ## Blocked chats
 
 In `ai` mode, chats you block are dropped before anything is stored or sent to the API —
@@ -259,6 +299,18 @@ set. `/healthz` is always open.
 | GET | `/api/scheduling-settings` | Reminder, briefing and follow-up settings |
 | PATCH | `/api/scheduling-settings` | Change them |
 | GET | `/api/auth-state` | **Unauthenticated.** Whether a password is required at all |
+| GET/POST | `/api/tasks/:id/subtasks` | A task's checklist |
+| PATCH/DELETE | `/api/tasks/:id/subtasks/:subtaskId` | Tick, rename or remove an item |
+| GET/POST | `/api/tasks/:id/dependencies` | What a task waits on |
+| DELETE | `/api/tasks/:id/dependencies/:blockerId` | Stop waiting on one |
+| GET/POST | `/api/tasks/:id/attachments` | Files on a task; POST sends the raw bytes |
+| GET/DELETE | `/api/attachments/:id` | Fetch or remove one file |
+| GET/POST | `/api/templates` | Templates |
+| PATCH/DELETE | `/api/templates/:id` | Edit or remove one |
+| POST | `/api/templates/:id/use` | Build a task from it |
+| GET | `/api/tasks/pending/confirmation` | Extractions Claude was unsure about |
+| POST | `/api/tasks/:id/confirm` | "Yes, that is a task" — it enters the ladder |
+| POST | `/api/tasks/:id/reject` | "No" — archived, not deleted |
 
 `/api/auth-state` is deliberately outside the gate: the dashboard has to be able to ask
 "am I actually protected?" before it holds a token. It reveals only whether a password is
