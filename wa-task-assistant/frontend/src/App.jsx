@@ -618,7 +618,7 @@ export default function App() {
                       being logged in, and saying "not connected" for both sends
                       you looking for a QR code that is not there. */}
                   {status?.whatsapp?.status === 'authenticated'
-                    ? 'WhatsApp is logged in and still syncing your chats. New messages will be read once it finishes.'
+                    ? 'WhatsApp is logged in and still syncing your chats. Until it finishes, new messages may not be picked up.'
                     : 'WhatsApp is not connected, so no new tasks are arriving.'}
                   <button className="link" onClick={() => goto('settings')}>Open settings</button>
                 </div>
@@ -687,7 +687,12 @@ export default function App() {
                 <div className={`workspace ${page.overview ? '' : 'solo'}`}>
                   <main className="work">
                     {(page.overview || page.focus) && view !== 'done' && (
-                      <FocusToday tasks={tasks} onOpen={setOpenTask} onToggle={onToggle} />
+                      <FocusToday
+                        tasks={tasks}
+                        onOpen={setOpenTask}
+                        onToggle={onToggle}
+                        onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
+                      />
                     )}
 
                     {(page.overview || page.tabs || page.toolbar) && (

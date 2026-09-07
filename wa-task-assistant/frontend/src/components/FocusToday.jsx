@@ -3,43 +3,59 @@ import { dueLabel, isOverdue, taskChat, todayIso } from '../lib/task.js';
 
 const PRIORITY = { high: 'High priority', medium: 'Medium priority', low: 'Low priority' };
 
-/**
- * The three things most worth doing now, in the order they earn attention:
- * late first, then urgent, then today's work, then what is already underway.
- * Ranked from the real list - if nothing qualifies, the strip says so.
+/*
+ * Everything owed today, plus whatever is already late.
+ *
+ * This used to be "the three things most worth doing now" - a fixed slice of
+ * three. With eleven things due today it showed three of them and said "3 tasks
+ * need your attention", which is not a summary, it is a wrong number: the other
+ * eight were due today too and simply vanished from a strip called Focus today.
+ *
+ * So the rule is now the plain one. Late and due-today are the work; all of it
+ * is shown. Undated high-priority work and anything in progress are filler,
+ * used only to keep the strip from being empty on a quiet day - they are not
+ * due today, so they never take a place from something that is.
  */
-export function focusTasks(tasks, limit = 3) {
+const FILLER_TO = 3;
+const SHOW_MAX = 12;
+
+export function focusTasks(tasks, { max = SHOW_MAX } = {}) {
   const today = todayIso();
-  /*
-   * Late first, then what is actually due today, then urgent work with no date,
-   * then what is underway. High priority used to outrank a deadline, so an
-   * undated "high" pushed today's 6pm deadline out of a strip called Focus
-   * today. Within today's work, priority still decides the order.
-   */
-  const rank = (t) => {
-    if (isOverdue(t)) return 0;
-    if (t.due_date === today) return t.priority === 'high' ? 1 : 2;
-    if (t.priority === 'high') return 3;
-    if (t.status === 'in_progress') return 4;
-    return 9;
+  const live = tasks.filter((t) => t.status !== 'done');
+  const byPriority = (a, b) => {
+    const rank = (t) => (t.priority === 'high' ? 0 : t.priority === 'medium' ? 1 : 2);
+    return rank(a) - rank(b) || (a.due_at || a.due_date || '').localeCompare(b.due_at || b.due_date || '');
   };
-  return tasks
-    .filter((t) => t.status !== 'done' && rank(t) < 9)
-    .sort((a, b) => rank(a) - rank(b) || (a.due_date || '9999').localeCompare(b.due_date || '9999'))
-    .slice(0, limit);
+
+  const late = live.filter(isOverdue).sort(byPriority);
+  const today_ = live.filter((t) => !isOverdue(t) && t.due_date === today).sort(byPriority);
+  const owed = [...late, ...today_];
+
+  // Only when barely anything is owed does anything else earn a place.
+  const filler = owed.length >= FILLER_TO
+    ? []
+    : live
+        .filter((t) => !owed.includes(t) && (t.priority === 'high' || t.status === 'in_progress'))
+        .sort(byPriority)
+        .slice(0, FILLER_TO - owed.length);
+
+  const all = [...owed, ...filler];
+  // The count is what is owed, whether or not every row fits on the strip.
+  return { tasks: all.slice(0, max), total: all.length, owed: owed.length };
 }
 
-export default function FocusToday({ tasks, onOpen, onToggle }) {
-  const focus = focusTasks(tasks);
+export default function FocusToday({ tasks, onOpen, onToggle, onShowAll }) {
+  const { tasks: focus, total, owed } = focusTasks(tasks);
+  const hidden = total - focus.length;
 
   return (
     <section className="focus" aria-label="Focus today">
       <header className="focus-head">
         <h3>Focus today</h3>
         <span>
-          {focus.length === 0
+          {total === 0
             ? 'Nothing needs attention'
-            : `${focus.length} ${focus.length === 1 ? 'task needs' : 'tasks need'} your attention`}
+            : `${total} ${total === 1 ? 'task needs' : 'tasks need'} your attention`}
         </span>
       </header>
 
@@ -70,6 +86,14 @@ export default function FocusToday({ tasks, onOpen, onToggle }) {
             );
           })}
         </ul>
+      )}
+
+      {/* Nothing is dropped silently: a strip too long to show says how much of
+          it is not on screen, and takes you to the rest. */}
+      {hidden > 0 && (
+        <button className="link focus-more" onClick={onShowAll}>
+          {hidden} more due today
+        </button>
       )}
     </section>
   );

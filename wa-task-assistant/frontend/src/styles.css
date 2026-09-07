@@ -664,6 +664,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .focus-empty .icon { color: var(--ok); }
 
 .focus-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.focus-more { margin-top: 8px; font-size: .78rem; }
 .focus-list li { display: flex; align-items: center; gap: 11px; }
 .focus-tick {
   width: 15px; height: 15px; flex: none;
