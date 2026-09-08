@@ -130,6 +130,14 @@ export default function QuickAdd({
     }
   };
 
+  /*
+   * The compact line above the list starts as one row and grows the moment you
+   * type. Hiding the day chips there entirely was a mistake: it left "More
+   * details" as the only thing to press, so anyone who wanted a deadline was
+   * sent into the long form the fast path exists to avoid.
+   */
+  const showWhen = !compact || Boolean(text.trim()) || Boolean(when);
+
   return (
     <section className={`quickadd ${compact ? 'compact' : ''}`}>
       <form className="qa-row" onSubmit={add}>
@@ -149,7 +157,9 @@ export default function QuickAdd({
       </form>
 
       <div className="qa-when">
-        {WHENS.map((w) => (
+        {/* The days appear as soon as there is something to date. "More
+            details" stays put, so the row never becomes an empty rule. */}
+        {showWhen && WHENS.map((w) => (
           <button
             key={w.key}
             type="button"
@@ -160,16 +170,18 @@ export default function QuickAdd({
             {w.label}
           </button>
         ))}
-        <button
-          type="button"
-          className={`chip ${when === 'custom' ? 'on' : ''}`}
-          aria-pressed={when === 'custom'}
-          onClick={() => pick('custom')}
-        >
-          Custom
-        </button>
+        {showWhen && (
+          <button
+            type="button"
+            className={`chip ${when === 'custom' ? 'on' : ''}`}
+            aria-pressed={when === 'custom'}
+            onClick={() => pick('custom')}
+          >
+            Custom
+          </button>
+        )}
 
-        {when === 'custom' && (
+        {showWhen && when === 'custom' && (
           <span className="qa-custom">
             <input
               type="date"
@@ -204,7 +216,7 @@ export default function QuickAdd({
         </p>
       )}
 
-      {!when && !added && (
+      {!when && !added && !compact && (
         <p className="qa-hint">
           Type a day if you like — “kal 5 baje”, “friday”, “today 6 pm”. Enter adds it.
         </p>

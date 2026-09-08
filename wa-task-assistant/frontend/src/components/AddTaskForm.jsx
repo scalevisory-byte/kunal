@@ -18,7 +18,7 @@ const localIso = (date, time) => (date ? new Date(`${date}T${time || '18:00'}`).
  * deadline, reminder and follow-up are one click away rather than six fields
  * in the way of writing a title.
  */
-export default function AddTaskForm({ onAdd, onClose, initialTitle = '', groupId = null }) {
+export default function AddTaskForm({ onAdd, onClose, onBack, initialTitle = '', groupId = null }) {
   // What was already typed into Quick Add before "More details" was pressed:
   // going deeper should never cost you the sentence you had written.
   const [title, setTitle] = useState(initialTitle);
@@ -61,11 +61,27 @@ export default function AddTaskForm({ onAdd, onClose, initialTitle = '', groupId
 
   return (
     <form className="add-form" onSubmit={submit}>
+      {/*
+        * Said out loud, because the two boxes are otherwise twins: this one
+        * and the quick line above the list both start with a title and an Add
+        * button, and landing here by accident looked exactly like the fast
+        * path having failed to appear.
+        */}
+      <header className="add-head">
+        <h3>Full task</h3>
+        <span>Notes, who it is for, exact reminder and follow-up</span>
+        {onBack && (
+          <button type="button" className="link" onClick={onBack}>
+            ← Quick add
+          </button>
+        )}
+      </header>
+
       <div className="add-row">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="What needs doing?"
+          placeholder="Task title"
           aria-label="Task"
           autoFocus
         />

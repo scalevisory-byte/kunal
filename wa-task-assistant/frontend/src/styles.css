@@ -3250,6 +3250,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 
 
+/* The full form says which of the two boxes it is. */
+.add-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 11px; padding-bottom: 9px;
+  border-bottom: 1px solid var(--line);
+}
+.add-head h3 {
+  margin: 0; font-family: Archivo, sans-serif; font-weight: 700;
+  font-size: .95rem; letter-spacing: -.01em;
+}
+.add-head span { flex: 1; min-width: 0; font-size: .74rem; color: var(--muted); }
+
 /* ---------- quick add ---------- */
 
 /*
@@ -3303,13 +3315,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * hiding the whole row took that with it.
  */
 .quickadd.compact { padding: 7px 11px; margin-bottom: 10px; }
-.quickadd.compact .qa-hint,
-.quickadd.compact .qa-when .chip,
-.quickadd.compact .qa-custom { display: none; }
-.quickadd.compact .qa-when {
-  margin-top: 2px; padding-top: 0; border-top: 0; justify-content: flex-end;
-}
-.quickadd.compact .qa-said { margin-top: 4px; }
+.quickadd.compact .qa-said { margin-top: 5px; }
+/* Idle it is one row; typing opens the days underneath it. */
+.quickadd.compact .qa-when { margin-top: 7px; padding-top: 7px; }
 
 /* Where a task came from, said rather than implied. */
 .m-item.origin { gap: 4px; }

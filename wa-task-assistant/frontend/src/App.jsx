@@ -1025,6 +1025,8 @@ export default function App() {
                 <AddTaskForm
                   initialTitle={seedTitle}
                   groupId={groupId}
+                  // Straight back to the fast path, keeping whatever was typed.
+                  onBack={() => { setComposing(false); setQuick(true); }}
                   onAdd={(task) => { onAdd(task); setComposing(false); setSeedTitle(''); }}
                   onClose={() => { setComposing(false); setSeedTitle(''); }}
                 />
