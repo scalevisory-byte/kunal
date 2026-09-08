@@ -479,8 +479,21 @@ export async function maybeSaveNote(message, chat, chatId) {
       chat_name: chatId === state.me ? 'Saved by you' : chat?.name || null,
     });
     log.info(`Saved a note from WhatsApp: ${note.title || note.body.slice(0, 40)}`);
+    /*
+     * The confirmation goes to his own chat, never to the one he typed in.
+     *
+     * "note: call Meera Monday" typed inside Meera's chat is a perfectly
+     * normal thing to do - and it used to reply "📝 Saved as a note" into
+     * Meera's chat, showing a contact the workings of an app she has nothing
+     * to do with. Nothing this app does automatically should put a message in
+     * somebody else's chat; the note is still saved either way.
+     */
     try {
-      await sendMessage(chatId, `📝 Saved as a note. It is in WA Tasks under Notes — nothing will chase you about it.`);
+      const where = chatId === reminderChatId() ? '' : ` (from ${chat?.name || 'a chat'})`;
+      await sendMessage(
+        reminderChatId(),
+        `📝 Saved as a note${where}. It is in WA Tasks under Notes — nothing will chase you about it.`
+      );
     } catch (err) {
       log.warn('Could not confirm the note:', err?.message || err);
     }
