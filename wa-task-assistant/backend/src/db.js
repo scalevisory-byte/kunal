@@ -687,8 +687,41 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_requested ON tasks(requested_by)`)
     )
     .run().changes;
 
-  if (fixed || named) {
-    log.info(`Backfilled from stored messages: ${fixed} task(s) marked as from a group, ${named} given a sender.`);
+  /*
+   * And the group's own name, which is the half that was still missing.
+   *
+   * The repair above gave these rows their sender back but left `chat_name` as
+   * the model's guess, which was usually that same sender - so the row had one
+   * name twice and printed it once, and the group the work came from was
+   * nowhere on it. The message is the authority on which chat it arrived in, so
+   * every task from a group takes its name from there.
+   *
+   * Only where the two disagree, and only for group messages: a one-to-one
+   * chat's name is already the person, and a task typed by hand has no message
+   * to read.
+   */
+  const placed = db
+    .prepare(
+      `UPDATE tasks
+       SET chat_name = (SELECT chat_name FROM messages WHERE id = tasks.message_id)
+       WHERE message_id IN (
+               SELECT id FROM messages
+               WHERE is_group = 1 AND chat_name IS NOT NULL AND chat_name != ''
+                 -- A message whose own chat lookup failed holds WhatsApp's raw
+                 -- id as the name. That is not a group name, and putting it on
+                 -- a row would be worse than the wrong one already there.
+                 AND chat_name NOT LIKE '%@g.us' AND chat_name NOT LIKE '%@c.us'
+             )
+         AND (chat_name IS NULL
+              OR chat_name != (SELECT chat_name FROM messages WHERE id = tasks.message_id))`
+    )
+    .run().changes;
+
+  if (fixed || named || placed) {
+    log.info(
+      `Backfilled from stored messages: ${fixed} task(s) marked as from a group, ` +
+      `${named} given a sender, ${placed} given the group they came from.`
+    );
   }
 }
 

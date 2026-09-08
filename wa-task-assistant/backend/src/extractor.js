@@ -329,7 +329,18 @@ export async function extractTasks(messages) {
         contact: source?.is_group
           ? source.contact_name || source.contact_number || task.contact?.trim() || null
           : task.contact?.trim() || source?.contact_name || source?.contact_number || null,
-        chat_name: task.chat_name?.trim() || source?.chat_name || null,
+        /*
+         * Where it came from. The message knows this outright - it is the chat
+         * it arrived in - so nothing the model says can improve on it.
+         *
+         * Taking the model's answer first is what lost the group names: asked
+         * which chat a message came from, it answers with the person who wrote
+         * it often enough, and "Preeti Khandelwal" then stood where "Vikas
+         * Travel | Pinetree accounting services" belonged - the same text as
+         * the sender, so the row printed one name instead of both. Kept only as
+         * a fallback for the case where the model points at no message at all.
+         */
+        chat_name: source?.chat_name || task.chat_name?.trim() || null,
         chat_id: source?.chat_id ?? null,
         is_group: source?.is_group ? 1 : 0,
         message_id: source?.id ?? null,
@@ -367,7 +378,14 @@ export async function extractTasks(messages) {
         // Keyword rules decide first; this is only consulted for what they
         // do not catch. See groups.js.
         group_id: routeTask(
-          { title, description: task.description, chat_name: task.chat_name || source?.chat_name, contact: task.contact },
+          {
+            title,
+            description: task.description,
+            // The real chat, for the same reason: a business is matched on
+            // where the work came from, and the model's guess is not that.
+            chat_name: source?.chat_name || task.chat_name,
+            contact: task.contact,
+          },
           task.group,
           groups
         ),

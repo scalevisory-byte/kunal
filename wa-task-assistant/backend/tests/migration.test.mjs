@@ -56,7 +56,14 @@ async function loadCurrentCodeAgainst(dir) {
       await runReminderEngine();
       const tasks = dbm.listTasks({ status: 'all', limit: 50 });
       const reminders = dbm.db.prepare('SELECT COUNT(*) n FROM reminders').get().n;
-      process.stdout.write(JSON.stringify({ tasks: tasks.map((t) => t.title), reminders }));
+      process.stdout.write(JSON.stringify({
+        tasks: tasks.map((t) => t.title),
+        // The whole row for the cases that are about what a task says it came
+        // from, rather than about the table still being readable.
+        rows: tasks.map(({ title, chat_name, contact, is_group }) =>
+          ({ title, chat_name, contact, is_group })),
+        reminders,
+      }));
     };
     run().then(() => process.exit(0)).catch((e) => { process.stderr.write(e.message); process.exit(1); });
   `;
@@ -157,6 +164,87 @@ await run('the notifications table from the follow-up design still accepts rows'
   `);
   const result = await loadCurrentCodeAgainst(dir);
   assert.deepEqual(result.tasks, ['Old task']);
+});
+
+console.log('\nwhat a stored task says it came from');
+
+await run('a task whose chat name is really the sender is given its group back', async () => {
+  /*
+   * The shape on the deployed service. The extractor used to take the model's
+   * answer to "which chat?" ahead of the message's own, and the model answers
+   * with the person who wrote it - so the task had "Preeti Khandelwal" as both
+   * the sender and the chat, the row printed the one name, and the group the
+   * work came from was nowhere on it.
+   *
+   * The message is still there and still knows, so the repair is a join.
+   */
+  const dir = seed(`
+    ${OLD_TASKS}
+    CREATE TABLE messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      wa_message_id TEXT UNIQUE,
+      chat_id TEXT NOT NULL,
+      chat_name TEXT,
+      contact_name TEXT,
+      contact_number TEXT,
+      body TEXT NOT NULL,
+      is_group INTEGER NOT NULL DEFAULT 0,
+      from_me INTEGER NOT NULL DEFAULT 0,
+      sent_at TEXT NOT NULL,
+      processed INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO messages (id, chat_id, chat_name, contact_name, body, is_group, sent_at)
+    VALUES (1, 'g-vikas@g.us', 'Vikas Travel | Pinetree accounting services',
+            'Preeti Khandelwal', 'check the formalities', 1, '2026-09-08T00:00:00Z');
+
+    INSERT INTO tasks (title, chat_name, contact, chat_id, message_id, status, source)
+    VALUES ('Check with your China contact about rep office formalities',
+            'Preeti Khandelwal', 'Preeti Khandelwal', 'g-vikas@g.us', 1, 'open', 'whatsapp');
+  `);
+
+  const { rows } = await loadCurrentCodeAgainst(dir);
+  const task = rows.find((t) => t.title.startsWith('Check with your China'));
+
+  assert.equal(task.chat_name, 'Vikas Travel | Pinetree accounting services',
+    'the group it came from');
+  assert.equal(task.contact, 'Preeti Khandelwal', 'and the person who wrote it');
+  assert.equal(task.is_group, 1);
+  assert.notEqual(task.chat_name, task.contact,
+    'two different facts, so the row can print both');
+});
+
+await run('a one-to-one task is left exactly as it is', async () => {
+  const dir = seed(`
+    ${OLD_TASKS}
+    CREATE TABLE messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      wa_message_id TEXT UNIQUE,
+      chat_id TEXT NOT NULL,
+      chat_name TEXT,
+      contact_name TEXT,
+      contact_number TEXT,
+      body TEXT NOT NULL,
+      is_group INTEGER NOT NULL DEFAULT 0,
+      from_me INTEGER NOT NULL DEFAULT 0,
+      sent_at TEXT NOT NULL,
+      processed INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT INTO messages (id, chat_id, chat_name, contact_name, body, is_group, sent_at)
+    VALUES (1, '9198@c.us', 'Meera Jariwala', 'Meera Jariwala', 'bhej dena', 0, '2026-09-08T00:00:00Z');
+
+    INSERT INTO tasks (title, chat_name, contact, chat_id, message_id, status, source)
+    VALUES ('Send the list', 'Ajay at IDMC', 'Ajay at IDMC', '9198@c.us', 1, 'open', 'whatsapp');
+  `);
+
+  const { rows } = await loadCurrentCodeAgainst(dir);
+  const task = rows.find((t) => t.title === 'Send the list');
+  // In a private chat the model may have named somebody the message only
+  // mentions, and that is more useful than the chat's own name. Only groups
+  // are repaired.
+  assert.equal(task.chat_name, 'Ajay at IDMC');
+  assert.equal(task.is_group, 0);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

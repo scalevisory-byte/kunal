@@ -432,6 +432,46 @@ run('an unnamed sender falls back to their number, never to nothing', () => {
   assert.equal(out.tasks[0].requested_by, '9199');
 });
 
+console.log('\nwhich chat a task came from');
+
+/*
+ * The group name is not a judgement call - the message arrived in a chat, and
+ * that chat has a name. These cases exist because the model was answering
+ * "which chat?" with the person who wrote the message, and that answer was
+ * winning over the fact.
+ */
+
+run("the group's own name is kept, whatever the model calls the chat", () => {
+  const out = extract(
+    answer({ chat_name: 'Preeti Khandelwal' }),
+    [message({
+      from_me: 0, is_group: 1,
+      chat_name: 'Vikas Travel | Pinetree accounting services',
+      contact_name: 'Preeti Khandelwal',
+    })]
+  );
+  assert.equal(out.tasks[0].chat_name, 'Vikas Travel | Pinetree accounting services');
+  assert.equal(out.tasks[0].contact, 'Preeti Khandelwal', 'and the sender stays the sender');
+  assert.equal(out.tasks[0].is_group, 1);
+});
+
+run('the sender and the group are two different things on the row', () => {
+  const out = extract(
+    answer({ chat_name: 'BNF - GROWTH TEAM', contact: 'BNF - GROWTH TEAM' }),
+    [message({ from_me: 0, is_group: 1, chat_name: 'BNF - GROWTH TEAM', contact_name: 'Hasmukh' })]
+  );
+  assert.equal(out.tasks[0].chat_name, 'BNF - GROWTH TEAM');
+  assert.equal(out.tasks[0].contact, 'Hasmukh');
+  assert.notEqual(out.tasks[0].chat_name, out.tasks[0].contact,
+    'the same text twice is what collapsed the row to one name');
+});
+
+run('a one-to-one chat still carries the person it is with', () => {
+  const out = extract(answer({ chat_name: 'somewhere else' }),
+    [message({ from_me: 0, is_group: 0, chat_name: 'Meera Jariwala' })]);
+  assert.equal(out.tasks[0].chat_name, 'Meera Jariwala');
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 for (const d of extractDirs) fs.rmSync(d, { recursive: true, force: true });
 fs.rmSync(dir, { recursive: true, force: true });
