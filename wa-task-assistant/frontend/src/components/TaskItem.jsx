@@ -106,11 +106,90 @@ function AssignButton({ task, people = [], onAssign }) {
   );
 }
 
+/**
+ * Which folder it belongs in, chosen on the row.
+ *
+ * The twin of the staff button, for the same reason: filing is what you do
+ * while reading down a list of mixed work, and a decision behind a menu is one
+ * that does not get made. The same control says where a task is filed and
+ * moves it.
+ */
+function GroupButton({ task, groups = [], onMove, onManageGroups }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const put = (id) => { setOpen(false); onMove(task, id); };
+
+  return (
+    <div className="assign" ref={wrap}>
+      <button
+        type="button"
+        className={`assign-btn folder ${task.group_id ? 'on' : ''}`}
+        aria-expanded={open}
+        title={task.group_name ? `In ${task.group_name} — press to move it` : 'Put this in a folder'}
+        aria-label={task.group_name ? `In ${task.group_name}` : `File ${task.title}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {task.group_id
+          ? <span className={`group-dot c-${task.group_colour || 'teal'}`} aria-hidden="true" />
+          : <Icon name="inbox" size={13} />}
+        <span>{task.group_name || 'Folder'}</span>
+      </button>
+
+      {open && (
+        <div className="menu assign-menu" role="menu">
+          <div className="menu-head">Move to</div>
+          {groups.length > 0 ? (
+            <>
+              <div className="menu-scroll">
+                {groups.map((g) => {
+                  const here = task.group_id === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      role="menuitemradio"
+                      aria-checked={here}
+                      className={here ? 'here' : ''}
+                      onClick={() => !here && put(g.id)}
+                    >
+                      <span className={`menu-dot c-${g.colour || 'teal'}`} />
+                      {g.name}
+                      {here && <Icon name="check" size={14} className="menu-tick" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {task.group_id ? (
+                <button role="menuitem" onClick={() => put(null)}>
+                  <span className="menu-dot none" /> Out of the folder
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <button role="menuitem" onClick={() => { setOpen(false); onManageGroups(); }}>
+              <Icon name="inbox" size={15} /> Make a folder to file this in
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({
-  task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove,
-  onManageGroups, onAddUpdate,
-}) {
+function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
 
@@ -168,48 +247,6 @@ function RowMenu({
             <Icon name="trash" size={15} /> Delete
           </button>
 
-          {/*
-            * Filing a task under the business it belongs to.
-            *
-            * It was already possible, but only by opening the task and finding
-            * a dropdown in the drawer - which is two steps too many for the one
-            * thing you do while reading down a list of mixed work. The groups
-            * are listed flat rather than behind a submenu: there are as many of
-            * them as there are businesses, and a submenu is another hover to
-            * get wrong on a phone.
-            */}
-          {groups.length > 0 ? (
-            <>
-              <div className="menu-head">Move to</div>
-              <div className="menu-scroll">
-                {groups.map((g) => {
-                  const here = task.group_id === g.id;
-                  return (
-                    <button
-                      key={g.id}
-                      role="menuitemradio"
-                      aria-checked={here}
-                      className={here ? 'here' : ''}
-                      onClick={run(() => !here && onMove(task, g.id))}
-                    >
-                      <span className={`menu-dot c-${g.colour || 'teal'}`} />
-                      {g.name}
-                      {here && <Icon name="check" size={14} className="menu-tick" />}
-                    </button>
-                  );
-                })}
-                {task.group_id ? (
-                  <button role="menuitem" onClick={run(() => onMove(task, null))}>
-                    <span className="menu-dot none" /> No group
-                  </button>
-                ) : null}
-              </div>
-            </>
-          ) : (
-            <button role="menuitem" onClick={run(onManageGroups)}>
-              <Icon name="inbox" size={15} /> Make a group to file this in
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -311,11 +348,6 @@ export default function TaskItem({
             </span>
           )}
 
-          {task.group_name && (
-            <span className={`group-tag c-${task.group_colour || 'teal'}`} title={task.group_name}>
-              {task.group_name}
-            </span>
-          )}
 
           {source && (
             <span className="m-item t-chat" title={source.label}>
@@ -425,18 +457,23 @@ export default function TaskItem({
         </button>
       )}
 
+      {onMove && (
+        <GroupButton
+          task={task}
+          groups={groups}
+          onMove={onMove}
+          onManageGroups={onManageGroups}
+        />
+      )}
+
       {onAssign && <AssignButton task={task} people={people} onAssign={onAssign} />}
 
       <RowMenu
         task={task}
-        groups={groups}
         onOpen={onOpen}
         onStatus={onStatus}
         onQuickDate={onQuickDate}
         onDelete={onDelete}
-        onNotATask={onNotATask}
-        onMove={onMove}
-        onManageGroups={onManageGroups}
         onAddUpdate={onAddUpdate}
       />
     </li>

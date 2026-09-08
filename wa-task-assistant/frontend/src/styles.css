@@ -3379,6 +3379,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   border-color: color-mix(in srgb, var(--brand) 35%, transparent);
   background: var(--brand-wash, var(--raised)); color: var(--brand);
 }
+/* The folder takes its own colour from the group it names, so the row reads
+   as the businesses do everywhere else. */
+.assign-btn.folder.on {
+  border-color: color-mix(in srgb, var(--group, var(--brand)) 35%, transparent);
+  background: color-mix(in srgb, var(--group, var(--brand)) 10%, transparent);
+  color: var(--group, var(--brand));
+}
+.assign-btn .group-dot { width: 7px; height: 7px; flex: none; }
 /* The picker hangs off the button, not off the row's right edge. */
 .assign-menu { right: 0; left: auto; min-width: 190px; }
 
