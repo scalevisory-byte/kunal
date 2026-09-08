@@ -2700,22 +2700,25 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   font-family: "IBM Plex Mono", monospace; font-size: .74rem;
   color: var(--muted); font-variant-numeric: tabular-nums;
 }
-.board-late { margin: 5px 0 0; font-size: .74rem; color: var(--danger); font-weight: 600; }
-.board-note { margin: 5px 0 0; font-size: .72rem; color: var(--muted); }
-.board-empty { margin: 12px 0 2px; font-size: .8rem; color: var(--muted); }
+.board-late { margin: 4px 0 0; font-size: .73rem; color: var(--danger); font-weight: 600; }
+.board-note { margin: 4px 0 0; font-size: .72rem; color: var(--muted); }
+.board-empty { margin: 8px 0 2px; font-size: .78rem; color: var(--muted); }
 
 .board-list {
-  list-style: none; margin: 11px 0 0; padding: 0;
+  list-style: none; margin: 8px 0 0; padding: 0;
   display: flex; flex-direction: column;
 }
 .board-list li {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 9px 0;
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 6px 0;
   border-top: 1px solid var(--line);
 }
 .board-list input[type=checkbox] {
   appearance: none;
-  width: 16px; height: 16px; margin: 2px 0 0; flex: none;
+  /* The global input rule carries min-height: 36px for touch targets, which a
+     16px box inherits - and that, not the padding, was making every row on
+     this page half an inch tall. */
+  width: 16px; height: 16px; min-height: 0; padding: 0; margin: 1px 0 0; flex: none;
   border: 1.5px solid var(--line-2); border-radius: var(--r-sm);
   background: var(--card); cursor: pointer;
   transition: border-color .16s;
@@ -2778,7 +2781,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * five businesses are a single line each, and the one being worked on has the
  * whole width.
  */
-.board-stack { display: flex; flex-direction: column; gap: 8px; }
+.board-stack { display: flex; flex-direction: column; gap: 5px; }
 .board-row {
   background: var(--card);
   border: 1px solid var(--line);
@@ -2792,7 +2795,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   width: 100%; text-align: left;
   border: 0; background: none; cursor: pointer;
   font: inherit;
-  padding: 13px 15px;
+  padding: 9px 13px;
   transition: background .16s;
 }
 .board-row-head:hover { background: var(--raised); }
@@ -2800,16 +2803,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .board-chevron.shut { transform: rotate(-90deg); }
 .board-row-name {
   flex: 1; min-width: 0;
-  font-size: .92rem; font-weight: 600; color: var(--text);
+  font-size: .86rem; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .board-row-late {
   flex: none; font-size: .74rem; font-weight: 600; color: var(--danger);
 }
-.board-row-body { padding: 0 15px 13px; }
+.board-row-body { padding: 0 13px 10px; }
 .board-row-body .board-list { margin-top: 0; }
 .board-row-body .board-list li:first-child { border-top: 0; }
-.board-row-only { margin-top: 10px; font-size: .78rem; }
+.board-row-only { margin-top: 7px; font-size: .76rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .board-chevron { transition: none; }
@@ -2826,7 +2829,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Adding, from where you are looking. */
 .board-add {
   display: flex; align-items: center; gap: 8px;
-  width: 100%; margin-top: 10px; padding: 8px 6px;
+  width: 100%; margin-top: 6px; padding: 5px 6px;
   border: 0; background: none; border-radius: var(--r-sm);
   font: inherit; font-size: .82rem; font-weight: 500; color: var(--muted);
   cursor: pointer; text-align: left;
@@ -2836,9 +2839,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .board-add:hover { background: var(--raised); color: var(--brand); }
 .board-add:hover .icon { color: var(--brand); }
 .board-add.big { margin: 0; padding: 12px 10px; font-size: .88rem; font-weight: 600; }
-.board-new { border-style: dashed; box-shadow: none; background: none; padding: 10px; }
+.board-new { border-style: dashed; box-shadow: none; background: none; padding: 6px; }
+/*
+ * Stacked, the column's flex-basis is a height.
+ *
+ * .board-col is 300px wide in the side-by-side board; dropped into a column
+ * stack that same basis became 300px TALL, so "New business" was a button
+ * inside an empty box the size of five businesses.
+ */
+.board-stack > .board-new { flex: none; }
+.board-stack > .board-new .board-add.big { padding: 9px 10px; }
 
-.board-add-form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.board-add-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .board-add-form input { width: 100%; }
 .board-add-foot { display: flex; align-items: center; gap: 12px; }
 

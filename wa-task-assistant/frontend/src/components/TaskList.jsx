@@ -228,23 +228,27 @@ export default function TaskList({
   onMove, onManageGroups, onAddUpdate, onAssign, onOpenGroup,
 }) {
   /*
-   * Grouped by chat, the sections start shut.
+   * Grouped by chat or by folder, the sections start shut.
    *
-   * One busy chat can hold a dozen tasks, and expanded they push every other
-   * chat off the screen - which defeats the point of grouping by chat at all.
-   * Shut, the page is the list of chats and how much each is carrying, and you
-   * open the one you mean. Grouped by date they stay open: those sections are
-   * the day, and a closed "Today" is just a heading.
-   *
-   * A section the user has opened or shut themselves is remembered for as long
-   * as the page is; only the starting state differs.
+   * One busy chat holds a dozen tasks and one business holds a hundred;
+   * expanded, the first section pushes every other off the screen, which
+   * defeats the point of grouping at all. A section the user has opened or
+   * shut themselves is remembered for as long as the page is; only the
+   * starting state differs.
    */
   const [collapsed, setCollapsed] = useState({});
   const [touched, setTouched] = useState({});
-  // Grouped by chat the sections start shut; by folder they do not - there are
-  // five businesses, not fifty chats, and a folder closed is a business you
-  // cannot see the state of.
-  const shutByDefault = groupBy === 'chat' && view !== 'myday';
+  /*
+   * By chat and by folder, the sections start shut.
+   *
+   * Open, "by folder" was the same list of tasks with headings dropped into
+   * it - the folders were there but you had to scroll past a hundred rows to
+   * see the second one. Shut, the page is the folders and what each is
+   * carrying, and you open the one you mean; the tasks are one press away and
+   * a section you open yourself stays open. Grouped by date they stay open:
+   * those sections are the day, and a closed "Today" is just a heading.
+   */
+  const shutByDefault = ['chat', 'folder'].includes(groupBy) && view !== 'myday';
   if (error) {
     return (
       <div className="empty error-state">
