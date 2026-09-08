@@ -2033,7 +2033,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* ---------- the calendar page ---------- */
 
-.cal-page { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+/*
+ * The month takes the room, and the day sits beside it.
+ *
+ * Half the page each meant cells 74px wide, and a day's work in them was
+ * "Send BN…" three times over - which is the count it replaced, only slower to
+ * read. The grid needs the width; the day column needs enough for a task row.
+ */
+.cal-page { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 
 .cal-sheet {
   background: var(--card); border: 1px solid var(--line);
@@ -2053,28 +2060,48 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   font-family: "IBM Plex Mono", monospace; font-size: .64rem;
   letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
 }
+/*
+ * A day is a box with what is on it inside, not a square with a number.
+ *
+ * The count told you a day was busy and nothing about what with, so the month
+ * had to be clicked through one day at a time to be read at all. Three lines
+ * fit; the rest says how many more.
+ */
 .cal-cell {
-  /* Centred, so a date sits under its own weekday heading rather than a few
-     pixels off it, and the count reads as belonging to the number above it. */
-  position: relative; aspect-ratio: 1 / 1; min-height: 46px;
-  border: 1px solid transparent; border-radius: 7px; background: none;
-  cursor: pointer; padding: 6px 4px; font: inherit; color: var(--text);
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-  gap: 4px;
+  position: relative; min-height: 92px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--card);
+  cursor: pointer; padding: 5px 5px 6px; font: inherit; color: var(--text);
+  display: flex; flex-direction: column; align-items: stretch; gap: 3px;
+  overflow: hidden;
   transition: background .15s, border-color .15s;
 }
-.cal-cell.empty { cursor: default; }
-.cal-cell:hover:not(.empty) { background: var(--raised); }
-.cal-num { font-size: .8rem; font-variant-numeric: tabular-nums; }
-.cal-cell.today .cal-num { font-weight: 700; color: var(--brand); }
-.cal-cell.picked { border-color: var(--brand); background: var(--brand-wash, var(--raised)); }
-.cal-count {
-  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
-  background: var(--brand); color: #fff;
-  font-size: .62rem; line-height: 16px; text-align: center;
-  font-variant-numeric: tabular-nums;
+.cal-cell.empty { cursor: default; background: none; border-color: transparent; }
+.cal-cell:hover:not(.empty) { border-color: var(--line-2); }
+.cal-num {
+  font-size: .74rem; font-variant-numeric: tabular-nums; color: var(--muted);
+  padding: 0 2px;
 }
-.cal-cell.has-late .cal-count { background: var(--danger, #a3231b); }
+.cal-cell.today .cal-num {
+  font-weight: 700; color: var(--accent-ink, #fff);
+  background: var(--accent); border-radius: 999px;
+  width: 20px; height: 20px; line-height: 20px; text-align: center; padding: 0;
+}
+.cal-cell.picked { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+
+.cal-chips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cal-chip {
+  display: block; width: 100%; text-align: left;
+  border: 0; border-radius: 4px; cursor: pointer;
+  padding: 2px 5px; font: inherit; font-size: .68rem; line-height: 1.35;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--brand-wash, var(--raised)); color: var(--brand);
+}
+.cal-chip:hover { filter: brightness(.97); }
+/* A day already gone with work still open is the one thing worth colouring. */
+.cal-chip.k-task.is-late { background: var(--danger-wash, #fdecea); color: var(--danger, #a3231b); }
+.cal-chip.k-done { background: var(--raised); color: var(--muted); text-decoration: line-through; }
+.cal-chip.k-note { background: var(--warn-wash); color: var(--warn); }
+.cal-more { font-size: .64rem; color: var(--muted); padding: 0 5px; }
 
 .cal-day { min-width: 0; }
 /* The day column is half the page, not all of it, so a task row wraps here the
@@ -2472,7 +2499,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* Selected day in the calendar: navy panel, not a colour wash. */
 .cal-cell.picked { border-color: var(--brand); background: var(--brand-wash); }
-.cal-cell.today .cal-num { color: var(--accent); font-weight: 700; }
+/* Today wears the accent as a disc, so the ink on it has to be the light one -
+   orange on orange was an empty circle where the date should be. */
+.cal-cell.today .cal-num {
+  color: var(--accent-ink); background: var(--accent); font-weight: 700;
+}
 .cal-count { background: var(--brand); }
 .cal-cell.has-late .cal-count { background: var(--danger); }
 
@@ -3340,4 +3371,79 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .qa-mark { display: none; }
   .qa-days { flex: 1; }
   .qa-days .chip { flex: 1; justify-content: center; }
+}
+
+
+/* ---------- putting something on a day ---------- */
+
+/*
+ * The calendar's own add box. Two kinds, because they are two different
+ * things: a task is owed on the day and the engine chases it; a note is
+ * remembered on the day, once, and never chased.
+ */
+.cal-add {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 9px 11px; margin-bottom: 14px;
+}
+.cal-add-kind { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.cal-add-kind button {
+  border: 0; background: none; cursor: pointer; font: inherit;
+  font-size: .74rem; padding: 5px 11px; color: var(--muted); min-height: 30px;
+}
+.cal-add-kind button.on { background: var(--brand); color: var(--brand-ink, #fff); }
+.cal-add > input[type="text"], .cal-add > input:not([type]) {
+  flex: 1; min-width: 120px;
+  border: 0; background: none; outline: none; font: inherit; font-size: .87rem;
+  color: var(--text); padding: 5px 0;
+}
+.cal-add input[type="time"] {
+  flex: none; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--bg); color: var(--text);
+  font-size: .78rem; padding: 4px 7px; min-height: 30px;
+}
+.cal-add-said {
+  flex: 1 0 100%; margin: 2px 0 0;
+  display: flex; align-items: center; gap: 6px;
+  font-size: .76rem; color: var(--ok, var(--brand));
+}
+
+.cal-notes { margin-top: 16px; }
+.cal-notes h4 {
+  margin: 0 0 7px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .64rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.cal-notes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.cal-notes button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  border: 0; background: none; cursor: pointer; font: inherit; text-align: left;
+  color: var(--text); padding: 6px 7px; border-radius: var(--r); min-height: 34px;
+}
+.cal-notes button:hover { background: var(--raised); }
+.cal-notes span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; }
+.cal-note-at { flex: none; font-size: .72rem; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+
+@media (max-width: 1080px) {
+  .cal-page { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  /*
+   * Dots, not names. Seven columns across a phone leave 47px a day, and a
+   * title in that is "Boa…" three times over - which says less than a dot and
+   * takes four times the room. The day you tap still lists all of it.
+   */
+  .cal-cell { min-height: 56px; }
+  .cal-chips { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+  .cal-chip {
+    width: 5px; height: 5px; padding: 0; border-radius: 999px;
+    font-size: 0; line-height: 0; overflow: hidden; text-indent: -999px;
+    background: var(--brand);
+  }
+  .cal-chip.k-task.is-late { background: var(--danger, #a3231b); }
+  .cal-chip.k-done { background: var(--line-2); }
+  .cal-chip.k-note { background: var(--warn); }
+  .cal-more { display: none; }
+  .cal-add > input[type="text"], .cal-add > input:not([type]) { flex: 1 0 100%; }
 }

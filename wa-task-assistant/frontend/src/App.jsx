@@ -393,10 +393,19 @@ export default function App() {
    * here costs nothing next to a request per character.
    */
   const [allNotes, setAllNotes] = useState([]);
-  useEffect(() => {
-    if (!searching || allNotes.length) return;
+  const loadNotes = useCallback(() => {
     api.notes().then((d) => setAllNotes(d.notes)).catch(() => {});
-  }, [searching, allNotes.length]);
+  }, []);
+  /*
+   * Loaded when a search starts, and for the calendar, which shows the notes
+   * that carry a reminder alongside the work due that day.
+   */
+  useEffect(() => {
+    // `section` rather than the page object, which is worked out further down
+    // - reading it here would be reaching for a const before it exists.
+    if ((!searching && section !== 'calendar') || allNotes.length) return;
+    loadNotes();
+  }, [searching, section, allNotes.length, loadNotes]);
 
   const noteHits = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -1035,6 +1044,10 @@ export default function App() {
               {page.calendar ? (
                 <CalendarPage
                   tasks={tasks}
+                  notes={allNotes}
+                  onChanged={() => { refresh({ quiet: true }); loadNotes(); }}
+                  onOpenNote={(note) => { setNoteToOpen(note.id); setSection('notes'); }}
+                  onError={(err) => setError(err.message)}
                   onOpen={setOpenTask}
                   onToggle={onToggle}
                   onStatus={(task, next) => onEdit(task, { status: next })}
