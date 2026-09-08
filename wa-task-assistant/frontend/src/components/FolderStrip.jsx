@@ -1,5 +1,11 @@
+import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { isDone } from '../lib/task.js';
+
+const remember = (value) => {
+  try { localStorage.setItem('wa-folder-view', value); }
+  catch { /* private window, or site data blocked */ }
+};
 
 /**
  * The businesses as a row of small tiles, above the list.
@@ -15,8 +21,17 @@ import { isDone } from '../lib/task.js';
  * the tiles and the sections agree. A set-aside folder is the one exception:
  * its work is deliberately off the board, so it reports the count the server
  * keeps and opens its own page rather than filtering a list it is not in.
+ *
+ * Two shapes, remembered: one scrolling row, which costs a line and hides
+ * nothing important, or a grid, where every folder is a card of its own and
+ * the whole set is visible at once without scrolling sideways. The row is the
+ * default because the list below it is the point of the page.
  */
 export default function FolderStrip({ groups = [], tasks = [], active, onPick, onOpenGroup, onManage }) {
+  const [shape, setShape] = useState(() => {
+    try { return localStorage.getItem('wa-folder-view') === 'grid' ? 'grid' : 'row'; }
+    catch { return 'row'; }
+  });
   if (!groups.length) return null;
 
   const open = tasks.filter((t) => !isDone(t) && !t.group_separate);
@@ -38,8 +53,14 @@ export default function FolderStrip({ groups = [], tasks = [], active, onPick, o
   ];
   if (loose) tiles.push(tile('none', 'No folder', loose, { icon: 'inbox', on: active === 'none' }));
 
+  const flip = () => {
+    const next = shape === 'grid' ? 'row' : 'grid';
+    setShape(next);
+    remember(next);
+  };
+
   return (
-    <div className="folder-strip" role="group" aria-label="Folders">
+    <div className={`folder-strip ${shape}`} role="group" aria-label="Folders">
       <div className="folder-scroll">
         {tiles.map((t) => (
           <button
@@ -62,11 +83,22 @@ export default function FolderStrip({ groups = [], tasks = [], active, onPick, o
           </button>
         ))}
       </div>
-      {onManage && (
-        <button className="folder-tile add" onClick={onManage} title="Add or edit folders">
-          <Icon name="plus" size={14} />
+      <div className="folder-tools">
+        {onManage && (
+          <button className="folder-tile add" onClick={onManage} title="Add or edit folders">
+            <Icon name="plus" size={14} />
+          </button>
+        )}
+        <button
+          className="folder-tile add"
+          onClick={flip}
+          aria-pressed={shape === 'grid'}
+          title={shape === 'grid' ? 'Show folders as one row' : 'Show folders as a grid'}
+        >
+          <Icon name={shape === 'grid' ? 'list' : 'board'} size={14} />
+          <span className="sr-only">{shape === 'grid' ? 'Row view' : 'Grid view'}</span>
         </button>
-      )}
+      </div>
     </div>
   );
 }

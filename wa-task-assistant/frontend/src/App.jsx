@@ -143,16 +143,6 @@ export default function App() {
   const [query, setQuery] = useState('');
   const searching = query.trim().length > 0;
   /*
-   * List or grid, remembered.
-   *
-   * It is a reading preference, not a property of the work, so it survives a
-   * reload the way the theme does and nothing on the server hears about it.
-   */
-  const [layout, setLayout] = useState(() => {
-    try { return localStorage.getItem('wa-layout') === 'grid' ? 'grid' : 'list'; }
-    catch { return 'list'; }
-  });
-  /*
    * Held in state only so the icons and the segmented control re-render when it
    * changes; the theme itself lives on the root element and in localStorage,
    * applied before the first render — see lib/theme.js.
@@ -1167,8 +1157,6 @@ export default function App() {
                           <Toolbar
                             groupBy={groupBy}
                             onGroupBy={setGroupBy}
-                            layout={layout}
-                            onLayout={(next) => { setLayout(next); remember('wa-layout', next); }}
                             filters={filters}
                             onFilters={setFilters}
                             chats={chats}
@@ -1245,7 +1233,6 @@ export default function App() {
                       groupBy={searching ? 'none' : (page.groupBy || groupBy)}
                       view={view}
                       query={query}
-                      layout={layout}
                       onRetry={() => refresh()}
                       onToggle={onToggle}
                       onOpen={setOpenTask}

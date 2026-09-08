@@ -188,6 +188,16 @@ export default function QuickAdd({
         </button>
       </form>
 
+      {/*
+        * Compact, the second line waits until you are actually writing.
+        *
+        * A permanent white panel with a box, an Add and a "More details" under
+        * it sat in the middle of the board looking like a second New Task
+        * button, and read as one - the fast line is meant to cost a line, not
+        * a panel. Typing (or picking a day) brings it back, which is the only
+        * moment it says anything.
+        */}
+      {(!compact || showWhen) && (
       <div className="qa-when">
         {showWhen && when === 'custom' && (
           <span className="qa-custom">
@@ -215,6 +225,7 @@ export default function QuickAdd({
           </button>
         )}
       </div>
+      )}
 
       {/* What it made of the sentence, in the words it used. Shown rather than
           left to be discovered on the row, because a deadline read out of

@@ -8,7 +8,7 @@ const SOURCES = [
 ];
 
 /** Search, grouping, and a filter popover that stays out of the way until asked. */
-export default function Toolbar({ groupBy, onGroupBy, layout, onLayout, filters, onFilters, chats, onClearAll }) {
+export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats, onClearAll }) {
   const [open, setOpen] = useState(false);
   const popover = useRef(null);
 
@@ -59,34 +59,6 @@ export default function Toolbar({ groupBy, onGroupBy, layout, onLayout, filters,
             </button>
           ))}
         </div>
-
-        {/*
-          * List or grid, and nothing else in between.
-          *
-          * The list is for reading down a day in order; the grid is for
-          * seeing a lot of short tasks at once, which is what a board of
-          * loose jobs actually is. The same rows, the same buttons - only
-          * how many fit on a screen changes.
-          */}
-        {onLayout && (
-          <div className="segment small icons" role="group" aria-label="Layout">
-            {[
-              { key: 'list', icon: 'list', label: 'List' },
-              { key: 'grid', icon: 'board', label: 'Grid' },
-            ].map((l) => (
-              <button
-                key={l.key}
-                className={layout === l.key ? 'active' : ''}
-                aria-pressed={layout === l.key}
-                title={`${l.label} view`}
-                onClick={() => onLayout(l.key)}
-              >
-                <Icon name={l.icon} size={16} />
-                <span className="sr-only">{l.label} view</span>
-              </button>
-            ))}
-          </div>
-        )}
 
         <button
           className={`btn ghost with-icon ${active ? 'on' : ''}`}

@@ -3719,41 +3719,32 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .folder-tile.on .folder-count { background: var(--card); color: var(--accent); }
 .folder-tile.add { padding: 6px 9px; color: var(--muted); }
-
-/* Icon-only segment: the list/grid switch. */
-.segment.small.icons button { padding: 5px 9px; display: inline-flex; align-items: center; }
+.folder-tools { display: flex; gap: 6px; flex: 0 0 auto; align-items: flex-start; }
 
 /*
- * Grid: the same rows, laid out as cards.
+ * The same folders as a grid.
  *
- * Nothing is dropped and nothing is added - the title, the meta beneath it,
- * the deadline and both buttons are all still there. What changes is that
- * twelve short tasks fit on a screen instead of five, which is the whole
- * point of asking for a grid.
+ * A row is compact and keeps the list high on the page; a grid shows the whole
+ * set at once, which is what you want when you are deciding where something
+ * goes rather than filtering what is already there. Same tiles, same counts,
+ * same press - only the wrapping changes, so nothing has to be learnt twice.
  */
-.task-list.grid {
+.folder-strip.grid { align-items: flex-start; }
+.folder-strip.grid .folder-scroll {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
-  gap: 10px;
-  padding-top: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+  overflow: visible;
+  flex: 1;
 }
-.task-list.grid .task {
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  margin: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md, 8px);
-  background: var(--card);
+.folder-strip.grid .folder-tile {
+  justify-content: flex-start;
+  border-radius: var(--r-sm, 6px);
+  padding: 10px 12px;
 }
-.task-list.grid .task + .task { box-shadow: none; }
-.task-list.grid .task:hover { box-shadow: var(--shadow-sm); }
-.task-list.grid .t-main { flex: 1 1 calc(100% - 36px); }
-.task-list.grid .t-title { white-space: normal; }
-.task-list.grid .t-line { white-space: normal; flex-wrap: wrap; }
-.task-list.grid > .task > .due { order: 2; flex: 1 0 100%; margin: 0; text-align: left; }
-.task-list.grid > .task > .assign { order: 3; }
-.task-list.grid > .task > .row-dismiss { order: 4; margin-left: auto; }
-.task-list.grid > .task > .row-menu { order: 5; }
-/* On a card the controls are the card's, so they do not wait for a hover. */
-.task-list.grid .task .row-menu-btn, .task-list.grid .task .row-dismiss { opacity: 1; }
+.folder-strip.grid .folder-tile { white-space: normal; text-align: left; }
+.folder-strip.grid .folder-name { flex: 1; max-width: none; overflow: visible; }
+@media (max-width: 520px) {
+  .folder-strip.grid .folder-scroll { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
+}
+

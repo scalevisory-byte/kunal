@@ -223,7 +223,7 @@ function myDay(open, done) {
 const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 
 export default function TaskList({
-  tasks, loading, error, groupBy, view, query, layout = 'list', groups = [], people = [],
+  tasks, loading, error, groupBy, view, query, groups = [], people = [],
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
   onMove, onManageGroups, onAddUpdate, onAssign, onOpenGroup,
 }) {
@@ -283,7 +283,7 @@ export default function TaskList({
     return (
       <div className="sections">
         <section className="section tone-plain">
-          <ul className={`task-list ${layout === 'grid' ? 'grid' : ''}`}>
+          <ul className="task-list">
             {arrived.map((task) => (
               <TaskItem
                 key={task.id}
@@ -369,7 +369,7 @@ export default function TaskList({
               </p>
             )}
             {!shut && (
-              <ul className={`task-list ${layout === 'grid' ? 'grid' : ''}`}>
+              <ul className="task-list">
                 {section.items.map((task) => (
                   <TaskItem
                     key={task.id}
