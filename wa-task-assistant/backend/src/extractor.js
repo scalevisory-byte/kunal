@@ -7,6 +7,7 @@ import { today, todayLong, normalizeDueDate } from './dates.js';
 import { isoAtLocal } from './quickparse.js';
 import { recordUsage } from './db.js';
 import { listGroups, routeTask } from './groups.js';
+import { isRawId } from './wid.js';
 
 let client = null;
 
@@ -365,11 +366,22 @@ export async function extractTasks(messages) {
          * a group is the group: that is where a nudge belongs, since that is
          * where the work was handed over in front of everybody.
          */
-        assigned_to: canDelegate(source) && task.assigned_to?.trim()
+        /*
+         * Never an id, whatever the model read.
+         *
+         * The batch it is given carries the chat name, and when that name was
+         * a lid the model dutifully answered with it - so a task was "given
+         * to" 202383321759941:33, which names nobody and put a number on the
+         * staff button. The lid is stopped at the source now; this refuses it
+         * a second time, because a wrong assignee is worse than none.
+         */
+        assigned_to: canDelegate(source) && task.assigned_to?.trim() && !isRawId(task.assigned_to)
           ? task.assigned_to.trim().slice(0, 80)
           : null,
         assigned_to_wid:
-          canDelegate(source) && task.assigned_to?.trim() ? source.chat_id : null,
+          canDelegate(source) && task.assigned_to?.trim() && !isRawId(task.assigned_to)
+            ? source.chat_id
+            : null,
         requested_by:
           source && !source.from_me && !source.is_self
             ? (source.contact_name || source.contact_number || source.chat_name || null)

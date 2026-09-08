@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import {
-  addedLabel, agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, taskSource, timeLabel,
+  addedLabel, agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, looksLikeWid, taskSource,
+  timeLabel,
 } from '../lib/task.js';
 
 const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' };
@@ -22,6 +23,16 @@ const stamp = (iso) =>
  * is the button - the same control shows who has it and changes who has it.
  */
 function AssignButton({ task, people = [], onAssign }) {
+  /*
+   * A number is not a person, so it is not shown as one.
+   *
+   * The extractor once read a chat's linked-identity id back as the person a
+   * task had been given to, and the button then said "206218677239001" — which
+   * tells you nothing and cannot be nudged. Cleared at the source and in the
+   * database now; this is the last guard, so a row can never claim work is
+   * with somebody it cannot name.
+   */
+  const held = task.assigned_to && !looksLikeWid(task.assigned_to) ? task.assigned_to : null;
   const [open, setOpen] = useState(false);
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
@@ -50,28 +61,28 @@ function AssignButton({ task, people = [], onAssign }) {
     <div className="assign" ref={wrap}>
       <button
         type="button"
-        className={`assign-btn ${task.assigned_to ? 'on' : ''}`}
+        className={`assign-btn ${held ? 'on' : ''}`}
         aria-expanded={open}
-        title={task.assigned_to ? `With ${task.assigned_to} — press to change` : 'Give this to somebody'}
-        aria-label={task.assigned_to ? `With ${task.assigned_to}` : `Give ${task.title} to somebody`}
+        title={held ? `With ${held} — press to change` : 'Give this to somebody'}
+        aria-label={held ? `With ${held}` : `Give ${task.title} to somebody`}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="person" size={13} />
-        <span>{task.assigned_to || 'Staff'}</span>
+        <span>{held || 'Staff'}</span>
       </button>
 
       {open && (
         <div className="menu assign-menu" role="menu">
           <div className="menu-head">Give it to</div>
-          {task.assigned_to && (
+          {held && (
             <button role="menuitem" className="here" onClick={() => give('')}>
-              <Icon name="person" size={15} /> {task.assigned_to}
+              <Icon name="person" size={15} /> {held}
               <span className="menu-note">take it back</span>
             </button>
           )}
           <div className="menu-scroll">
             {people
-              .filter((p) => p.name && p.name !== task.assigned_to)
+              .filter((p) => p.name && p.name !== held)
               .slice(0, 10)
               .map((p) => (
                 <button key={p.name} role="menuitem" onClick={() => give(p.name, p.wid)}>

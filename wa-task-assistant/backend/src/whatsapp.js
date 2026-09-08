@@ -3,6 +3,7 @@ import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config } from './config.js';
 import { log } from './logger.js';
+import { phoneFromWid } from './wid.js';
 import {
   insertMessage, markMessagesProcessed, noteMessageMerged, createTask,
   listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
@@ -788,11 +789,21 @@ export async function handleMessage(message) {
     } catch (err) {
       noteEvent('contact lookup failed', err?.message || err);
     }
+    /*
+     * A name, a number, or nothing - never a lid.
+     *
+     * The last fallback used to be the raw author id, which for a sender whose
+     * number WhatsApp does not share reads "202383321759941:33". That is not a
+     * person; it went onto the row where a name belonged and, once Claude read
+     * it back out of the batch, onto a task as the person it had been given to.
+     * `phoneFromWid` returns something only for a real `@c.us` wid, so a lid
+     * that will not resolve now leaves this null and the row shows the chat.
+     */
     const contactName =
       contact?.pushname || contact?.name || contact?.verifiedName || contact?.number
       // In a group the sender is on the message itself, so a failed contact
       // lookup does not have to mean an anonymous row.
-      || (isGroup && message.author ? String(message.author).split('@')[0] : null)
+      || (isGroup && message.author ? phoneFromWid(message.author) : null)
       || null;
 
     // Blocked chats are dropped before anything is stored or sent to the API.

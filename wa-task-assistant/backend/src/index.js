@@ -109,6 +109,21 @@ try {
     log.warn('Could not name the groups from stored messages:', err?.message || err);
   }
 
+  /*
+   * And take the WhatsApp ids off the rows that are wearing them as names.
+   * Cheap - it reads only the rows that have a value at all - and it has to
+   * run here rather than on `ready`, since nothing about it needs WhatsApp.
+   */
+  try {
+    const { scrubStoredIds } = await import('./wid.js');
+    const { db } = await import('./db.js');
+    const cleared = scrubStoredIds(db);
+    const total = Object.values(cleared).reduce((a, b) => a + b, 0);
+    if (total) log.info(`Cleared ${total} WhatsApp ids standing in for names`, cleared);
+  } catch (err) {
+    log.warn('Could not clear stored WhatsApp ids:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

@@ -169,7 +169,16 @@ export function addsNothing(title, description) {
  * "which chat was this?" is the question people ask of a task they do not
  * recognise, and a blank is no answer.
  */
-const looksLikeWid = (value) => /^\d[\d\s+-]*(@[a-z.]+)?$/i.test(String(value || '').trim());
+/*
+ * A WhatsApp id wearing a name's clothes.
+ *
+ * The device suffix is the part that used to get through: "202383321759941:33"
+ * is a linked identity and a device number, it identifies nobody a person can
+ * recognise, and with no colon in the pattern it sailed onto the row as if it
+ * were a name. Anything ending in an @domain is an id too.
+ */
+export const looksLikeWid = (value) =>
+  /^\d[\d\s+-]*(:\d+)?(@[a-z.]+)?$/i.test(String(value || '').trim());
 
 /*
  * WhatsApp group names written in stylised letters, made readable.
@@ -273,8 +282,14 @@ export function matchesQuery(task, query) {
  * actually written, and fall back to the raw digits for anything unexpected.
  */
 export function formatWaNumber(wid) {
-  const digits = String(wid || '').split('@')[0].replace(/\D/g, '');
-  if (!digits) return null;
+  const text = String(wid || '');
+  /*
+   * A lid is not a number and must not be dressed as one: "+202383321759941"
+   * looks dialable and is not. Nor is any run longer than E.164 allows.
+   */
+  if (/@lid$/i.test(text)) return null;
+  const digits = text.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (!digits || digits.length > 15) return null;
   if (digits.length === 12 && digits.startsWith('91')) {
     return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
   }

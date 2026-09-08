@@ -67,10 +67,25 @@ await run('and the chat is the group, not the person who sent it', async () => {
   assert.ok(!/^Bhavesh/.test(last().chat_name), `chat_name is ${last().chat_name}`);
 });
 
-await run('the sender is taken from the message itself', async () => {
+await run('the sender is taken from the message itself, as a number', async () => {
   // In a group the author is on the message, so a failed contact lookup does
-  // not have to leave an anonymous row.
-  assert.equal(last().contact_name, '919199');
+  // not have to leave an anonymous row - but what goes on the row is the
+  // number, formatted, not the raw wid.
+  await WA.handleMessage(broken({ author: '919909993565@c.us', body: 'tds entry karo' }));
+  assert.equal(last().contact_name, '+919909993565');
+});
+
+await run('a linked identity is not a sender - it names nobody', async () => {
+  /*
+   * WhatsApp addresses a sender whose number is not shared as a "@lid", often
+   * with a device suffix. Split at the @ it reads "202383321759941:33", which
+   * went onto rows where a name belonged and was then read back by the
+   * extractor as the person a task had been given to. There is no name to be
+   * had here, and blank is the honest answer: the row shows the group.
+   */
+  await WA.handleMessage(broken({ author: '202383321759941:33@lid', body: 'sdv add karo' }));
+  assert.equal(last().contact_name, null);
+  assert.equal(last().chat_id, 'g-sena@g.us');
 });
 
 await run('a one-to-one message is not mistaken for a group', async () => {
