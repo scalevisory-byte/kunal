@@ -134,6 +134,37 @@ function byChat(open) {
 }
 
 /**
+ * One section per folder, and one for everything not in a folder yet.
+ *
+ * The businesses are the shape the work actually has - "what is outstanding
+ * for Book N Fly" is a question the date view cannot answer at all - and the
+ * unfiled sit at the end rather than being hidden, because that pile is the
+ * one worth clearing.
+ */
+function byFolder(open, groups) {
+  const sections = groups.map((g) => ({
+    key: `g${g.id}`,
+    label: g.name,
+    tone: 'info',
+    dot: g.colour || 'teal',
+    items: open.filter((t) => t.group_id === g.id),
+  })).filter((s) => s.items.length);
+
+  const loose = open.filter((t) => !t.group_id);
+  if (loose.length) {
+    sections.push({
+      key: 'nofolder',
+      label: 'Not in a folder',
+      tone: 'plain',
+      icon: 'inbox',
+      items: loose,
+      note: 'Put one away with the folder button on its row.',
+    });
+  }
+  return sections;
+}
+
+/**
  * My day is the answer to "what now": late work first, then what is already
  * underway, then what is urgent or due today, and finally what was finished.
  */
@@ -191,6 +222,9 @@ export default function TaskList({
    */
   const [collapsed, setCollapsed] = useState({});
   const [touched, setTouched] = useState({});
+  // Grouped by chat the sections start shut; by folder they do not - there are
+  // five businesses, not fifty chats, and a folder closed is a business you
+  // cannot see the state of.
   const shutByDefault = groupBy === 'chat' && view !== 'myday';
   if (error) {
     return (
@@ -218,6 +252,7 @@ export default function TaskList({
   if (view === 'myday') sections = myDay(open, done);
   else if (groupBy === 'reason') sections = byReason(open);
   else if (groupBy === 'chat') sections = byChat(open);
+  else if (groupBy === 'folder') sections = byFolder(open, groups);
   /*
    * Recent asks a different question from every other view: not what is most
    * pressing, but what has just arrived. Grouping it by deadline would answer

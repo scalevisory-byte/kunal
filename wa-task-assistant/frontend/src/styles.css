@@ -800,15 +800,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-/* One row, one line: the title takes the space left over and elides, the meta
-   sits beside it and never wraps. Ten tasks used to be a screenful. */
+/*
+ * The title on its own line, everything about it underneath.
+ *
+ * They shared a line, so a long chat name and a long title competed for the
+ * same width and both elided - and the eye had to pick the title out of a row
+ * of grey it was sitting inside. Two lines: what it is, then where it came
+ * from and when. The list is taller and reads faster, which is the trade a
+ * list of forty is worth making.
+ */
 .t-main {
   flex: 1; min-width: 0;
-  display: flex; align-items: baseline; gap: 14px;
+  display: flex; align-items: baseline; gap: 3px 14px;
 }
+.t-title { flex: 1 1 100%; }
 .t-line {
-  /* Shrinks before the title does, and elides rather than pushing the row. */
-  flex: 0 1 auto; min-width: 0; margin-right: auto;
+  flex: none; width: 100%; order: 1;
   display: inline-flex; align-items: center; gap: 12px;
   overflow: hidden;
   font-size: .74rem; color: var(--muted); white-space: nowrap;
@@ -834,7 +841,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
      instead of eliding. */
   flex: none; width: 100%; order: 2;
   display: flex; align-items: center; gap: 8px;
-  min-width: 0; margin-top: 2px;
+  min-width: 0; margin-top: 3px;
   font-size: .74rem; color: var(--muted);
 }
 .t-update {
@@ -1461,6 +1468,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   /* Reaching a hover-only control is impossible here, so they sit under the row. */
   .t-tools { width: 100%; margin-top: 7px; }
   .task { flex-wrap: wrap; }
+  /*
+   * The title block takes the whole first line here.
+   *
+   * Sharing it with the deadline and the two buttons left about sixty pixels
+   * for the title, which then wrapped one word per line with the meta beneath
+   * it broken into single characters. On a phone there is room for one thing
+   * across: the task. Everything about it follows underneath.
+   */
+  .t-main { flex: 1 0 100%; }
+  .task > .due { order: 2; margin-top: 5px; }
+  .task > .assign { order: 3; margin-top: 5px; }
+  .task > .row-dismiss, .task > .row-menu { order: 4; margin-top: 5px; }
 }
 
 @media (max-width: 420px) {

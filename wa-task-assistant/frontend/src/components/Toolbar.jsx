@@ -39,7 +39,17 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
     <div className="toolbar">
       <div className="toolbar-right" ref={popover}>
         <div className="segment small">
-          {[{ key: 'date', label: 'By date' }, { key: 'chat', label: 'By chat' }].map((g) => (
+          {/*
+            * Three ways to read the same list: when it is due, which business
+            * it is for, and which chat it came from. "By folder" is the one
+            * the date view cannot answer at all - "what is outstanding for
+            * Book N Fly" - and it is where most of the filing pays off.
+            */}
+          {[
+            { key: 'date', label: 'By date' },
+            { key: 'folder', label: 'By folder' },
+            { key: 'chat', label: 'By chat' },
+          ].map((g) => (
             <button
               key={g.key}
               className={groupBy === g.key ? 'active' : ''}
