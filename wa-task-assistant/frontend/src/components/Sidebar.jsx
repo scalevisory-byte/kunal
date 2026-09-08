@@ -21,6 +21,10 @@ const NAV = [
       { key: 'ai', label: 'AI Tasks', icon: 'robot' },
       { key: 'done', label: 'Completed', icon: 'check' },
       { key: 'history', label: 'Work History', icon: 'clipboard' },
+      /* Tidying up, not the day's work: it has a page rather than a block on
+         the dashboard, where a run of twenty near-identical jobs buried the
+         task list the page exists to show. */
+      { key: 'duplicates', label: 'Duplicates', icon: 'archive' },
     ],
   },
   {

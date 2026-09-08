@@ -792,6 +792,25 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
             </section>
+          ) : section === 'duplicates' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Duplicates</h2>
+                  <p>
+                    The same job written down more than once — usually because it was asked for
+                    in two chats. Each copy carries its own reminders, so the job gets chased
+                    once per copy.
+                  </p>
+                </div>
+              </div>
+              <Duplicates
+                onOpen={setOpenTask}
+                onChanged={() => refresh({ quiet: true })}
+                onError={(err) => setError(err.message)}
+                standalone
+              />
+            </section>
           ) : section === 'templates' ? (
             <section className="settings-page">
               <div className="page-head">
@@ -1255,22 +1274,6 @@ export default function App() {
                       }}
                     />
 
-                    {/*
-                      * Below the list, not above it.
-                      *
-                      * Merging duplicates is tidying up, and tidying up is not
-                      * the day's work — sitting above Focus today it pushed the
-                      * task list, the one thing this page exists to show, off
-                      * the bottom of the screen whenever there were copies to
-                      * fix. Renders nothing when there is nothing to merge.
-                      */}
-                    {(page.overview || page.focus) && view !== 'done' && !searching && (
-                      <Duplicates
-                        onOpen={setOpenTask}
-                        onChanged={() => refresh({ quiet: true })}
-                        onError={(err) => setError(err.message)}
-                      />
-                    )}
                   </main>
 
                   {/* The rail belongs to the overview. On a focused list its

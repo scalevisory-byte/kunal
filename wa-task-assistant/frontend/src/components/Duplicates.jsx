@@ -16,7 +16,7 @@ import { api } from '../api.js';
  * this shows what it found, keeps the oldest of each set by default, and waits.
  * The ones put away are archived, not deleted.
  */
-export default function Duplicates({ onError, onChanged, onOpen }) {
+export default function Duplicates({ onError, onChanged, onOpen, standalone = false }) {
   const [groups, setGroups] = useState([]);
   const [busy, setBusy] = useState(null);
   const [done, setDone] = useState(0);
@@ -32,9 +32,19 @@ export default function Duplicates({ onError, onChanged, onOpen }) {
   useEffect(() => { load(); }, [load]);
 
   if (!groups.length) {
-    return done > 0 ? (
-      <div className="banner ok" role="status">
-        {done} duplicate{done === 1 ? '' : 's'} archived. Nothing else looks like a copy.
+    if (done > 0) {
+      return (
+        <div className="banner ok" role="status">
+          {done} duplicate{done === 1 ? '' : 's'} archived. Nothing else looks like a copy.
+        </div>
+      );
+    }
+    /* On its own page, silence would be a blank screen: say the thing the page
+       exists to report. Inside another page it still renders nothing. */
+    return standalone ? (
+      <div className="empty">
+        <strong>Nothing looks like a copy.</strong>
+        <p>Every open task reads as its own job.</p>
       </div>
     ) : null;
   }
@@ -57,8 +67,11 @@ export default function Duplicates({ onError, onChanged, onOpen }) {
 
   return (
     <section className="confirm-panel">
+      {/* On its own page the heading above already says all this; here the
+          panel only needs to report the count and what pressing Keep does. */}
       <header>
-        <h3><Icon name="alert" size={17} /> The same job, listed more than once</h3>
+        {!standalone && <h3><Icon name="alert" size={17} /> The same job, listed more than once</h3>}
+        {standalone && <h3>What looks like a copy</h3>}
         <span>
           {total} extra {total === 1 ? 'copy' : 'copies'} across {groups.length}{' '}
           {groups.length === 1 ? 'job' : 'jobs'}
@@ -66,8 +79,10 @@ export default function Duplicates({ onError, onChanged, onOpen }) {
       </header>
 
       <p className="confirm-lede">
-        Each copy carries its own reminders, so the job gets chased once per copy. Keeping
-        one archives the rest — they stay in Work History and can be restored.
+        {standalone
+          ? 'Keeping one archives the rest — they stay in Work History and can be restored.'
+          : 'Each copy carries its own reminders, so the job gets chased once per copy. Keeping '
+            + 'one archives the rest — they stay in Work History and can be restored.'}
       </p>
 
       <ul>
