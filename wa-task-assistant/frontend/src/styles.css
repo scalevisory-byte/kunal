@@ -437,16 +437,17 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   margin-bottom: 10px;
 }
 /*
  * Compact metrics, not feature cards.
  *
- * These support the dashboard; they are not what it is for. Held to roughly
- * eighty pixels so the figures stay readable and the work — Focus today and
- * the list — starts higher up the screen.
+ * These support the dashboard; they are not what it is for. Held to about
+ * sixty pixels — one line each of label, figure and context, and no padding
+ * beyond what keeps them apart — so five of them cost less height than four
+ * did, and the work (Focus today, the list) starts higher up the screen.
  */
 .kpi {
   display: flex;
@@ -457,7 +458,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow-sm);
-  padding: 9px 13px 10px;
+  padding: 6px 10px 7px;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -468,8 +469,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi-label {
-  font-size: .655rem; font-weight: 600;
-  letter-spacing: .11em; text-transform: uppercase;
+  font-size: .62rem; font-weight: 600; line-height: 1.2;
+  letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted);
 }
 .kpi-icon { color: var(--line-2); flex: none; transition: color .18s; }
@@ -484,11 +485,17 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
    * were carrying its loudest type.
    */
   font-family: Archivo, sans-serif;
-  font-weight: 700; font-size: 1.45rem; line-height: 1.1;
+  font-weight: 700; font-size: 1.15rem; line-height: 1.05;
   letter-spacing: -.035em; font-variant-numeric: tabular-nums;
-  margin-top: 1px;
+  margin-top: 0;
 }
-.kpi-note { font-size: .71rem; color: var(--muted); line-height: 1.35; }
+/* One line, always: a note that wraps makes one card taller than its
+   neighbours, and a row of cards at different heights reads as a mistake. */
+.kpi-note {
+  font-size: .66rem; color: var(--muted); line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kpi-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Colour marks the state, and only in the one place it has to. */
 .kpi.t-warn .kpi-icon { color: var(--warn); }
@@ -1374,6 +1381,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* Small phones: the header actions were squeezing the title onto two lines. */
 /* The sidebar is the first thing to go; the board needs the width more. */
+/*
+ * Five stay in one row all the way down to the phone, where they become a
+ * scroller. Wrapping them to 3 + 2 was worse than narrow cards: it doubled the
+ * height of the strip, which is the one thing these were shrunk to avoid, and
+ * the notes ellipsis rather than wrap so a narrow card still reads.
+ */
 @media (max-width: 1180px) {
   .sidebar {
     position: fixed; left: 0; top: 0;
@@ -1429,11 +1442,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     scroll-snap-type: x proximity;
   }
   .kpis .kpi {
-    flex: 0 0 46%;
+    flex: 0 0 44%;
     scroll-snap-align: start;
-    padding: 9px 12px 10px;
+    padding: 8px 11px 9px;
   }
-  .kpi-num { font-size: 1.3rem; }
+  .kpi-num { font-size: 1.2rem; }
   /* The shortcuts scroll on one line too, rather than wrapping to two. */
   .quick {
     flex-wrap: nowrap;
@@ -1452,8 +1465,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 @media (max-width: 420px) {
   .brand h1 { font-size: 1.12rem; }
-  .kpi { padding: 12px 13px 13px; }
-  .kpi-num { font-size: 1.55rem; }
+  .kpi { padding: 9px 12px 10px; }
+  .kpi-num { font-size: 1.35rem; }
   .btn { padding: 7px 11px; font-size: .8rem; }
   /* Too narrow for the number; the badge and its status dot still identify it. */
   .account { max-width: none; padding: 3px; border: 0; }

@@ -1,8 +1,13 @@
 import Icon from './Icon.jsx';
 
 /**
- * The four figures that decide what to do next. Each is a view, and each
- * carries one line of context so the number means something on its own.
+ * The figures that decide what to do next. Each one is a view: pressing it
+ * filters the list below to exactly what it counts, and pressing it again
+ * clears that.
+ *
+ * Five now, because "what came in today" is a question the dashboard could not
+ * answer - the intake is a different thing from what is due, and on a day when
+ * thirty messages become tasks that is the number worth seeing.
  */
 export default function StatBoard({ counts, view, onPick }) {
   const cells = [
@@ -37,6 +42,16 @@ export default function StatBoard({ counts, view, onPick }) {
       label: 'Done',
       value: counts.done,
       note: `${counts.completedToday} completed today`,
+    },
+    {
+      key: 'added_today',
+      tone: 'info',
+      icon: 'inbox',
+      label: 'Added today',
+      value: counts.addedToday,
+      note: counts.addedToday === 0
+        ? 'Nothing new yet'
+        : `${counts.aiCreatedToday} from WhatsApp`,
     },
   ];
 

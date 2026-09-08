@@ -7,9 +7,11 @@ export function parseStamp(value) {
   return Number.isNaN(at.getTime()) ? null : at;
 }
 
-const onDay = (stamp, iso) => {
+// The same local calendar todayIso() reads, for the same reason: a stamp and
+// the day it is compared against must be read on one clock.
+export const onDay = (stamp, iso) => {
   const at = parseStamp(stamp);
-  return at ? at.toISOString().slice(0, 10) === iso : false;
+  return at ? at.toLocaleDateString('en-CA') === iso : false;
 };
 
 export const greeting = () => {
@@ -54,6 +56,9 @@ export function summarise(tasks) {
       completedToday: completedToday.length,
       highOpen: open.filter((t) => t.priority === 'high').length,
       aiCreatedToday: createdToday.filter((t) => t.origin === 'ai').length,
+      // What arrived today, however it arrived - the day's intake, which is a
+      // different question from what is due today.
+      addedToday: createdToday.length,
       total: tasks.length,
     },
     progress,

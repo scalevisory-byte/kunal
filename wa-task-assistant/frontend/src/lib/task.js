@@ -1,8 +1,18 @@
 const dayMs = 86400000;
 
-export const todayIso = () => new Date().toISOString().slice(0, 10);
+/*
+ * Today, on the calendar the person is actually looking at.
+ *
+ * These used to be `toISOString()`, which is UTC. In India that is five and a
+ * half hours behind, so between midnight and half past five in the morning the
+ * app thought it was still yesterday: a task added at 5:22 am said "Added
+ * Today" on its row - that label reads the local clock - while every figure and
+ * every "due today" list counted it under the day before. Deadlines are stored
+ * as local calendar dates, so this is the clock they have to be read against.
+ */
+export const todayIso = () => new Date().toLocaleDateString('en-CA');
 export const isoDay = (offset = 0) =>
-  new Date(Date.now() + offset * dayMs).toISOString().slice(0, 10);
+  new Date(Date.now() + offset * dayMs).toLocaleDateString('en-CA');
 
 export const STATUSES = [
   { key: 'open', label: 'Open' },

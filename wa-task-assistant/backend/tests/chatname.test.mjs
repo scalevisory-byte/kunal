@@ -9,9 +9,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const src = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
-const { taskChat, taskSource, readableName, addedLabel } = new Function(
+const { taskChat, taskSource, readableName, addedLabel, todayIso, isoDay } = new Function(
   src.replace(/^import.*$/gm, '').replace(/export /g, '') +
-  '; return { taskChat, taskSource, readableName, addedLabel };'
+  '; return { taskChat, taskSource, readableName, addedLabel, todayIso, isoDay };'
 )();
 
 let pass = 0, fail = 0;
@@ -139,6 +139,38 @@ run("SQLite's own format is read here too", () => {
 run('nothing to show rather than a guess', () => {
   assert.equal(addedLabel(null), null);
   assert.equal(addedLabel('not a date'), null);
+});
+
+console.log('\ntoday, on the clock the person is reading');
+
+/*
+ * These were `toISOString()`, which is UTC. In India that is five and a half
+ * hours behind, so from midnight to half past five in the morning the app
+ * thought it was still yesterday: a task added at 5:22 am carried "Added Today"
+ * on its row - that label reads the local clock - while every figure and every
+ * "due today" list counted it under the day before.
+ */
+run('today is the local calendar day, not the UTC one', () => {
+  assert.equal(todayIso(), new Date().toLocaleDateString('en-CA'));
+  assert.match(todayIso(), /^\d{4}-\d{2}-\d{2}$/);
+});
+
+run('tomorrow and a week out are counted on the same clock', () => {
+  assert.equal(isoDay(1), new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA'));
+  assert.equal(isoDay(7), new Date(Date.now() + 7 * 86_400_000).toLocaleDateString('en-CA'));
+  assert.equal(isoDay(0), todayIso());
+});
+
+run('a task added early this morning is today by both readings', () => {
+  // The 5:22 am case: the row says "Added Today", so the day the figures count
+  // it under has to be today as well.
+  const early = new Date();
+  early.setHours(5, 22, 0, 0);
+  if (early > new Date()) early.setDate(early.getDate() - 1); // before 5:22 am, use yesterday's
+  const sameDay = early.toLocaleDateString('en-CA') === todayIso();
+  const label = addedLabel(early.toISOString());
+  assert.equal(sameDay, label.startsWith('Added Today'),
+    `the label and the day must agree: ${label}`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

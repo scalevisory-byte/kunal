@@ -38,7 +38,7 @@ import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
-import { activity, chatCounts, greeting, summarise } from './lib/derive.js';
+import { activity, chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
 const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null };
@@ -422,6 +422,9 @@ export default function App() {
       if (view === 'overdue' && !isOverdue(task)) return false;
       if (view === 'done' && !isDone(task)) return false;
       if (view === 'myday' && isDone(task)) return false;
+      // What came in today, whatever state it is in: the figure counts every
+      // task created today, so the list it opens has to as well.
+      if (view === 'added_today' && !onDay(task.created_at, today)) return false;
 
       if (filters.status.length && !filters.status.includes(task.status)) return false;
       if (filters.priority.length && !filters.priority.includes(task.priority)) return false;

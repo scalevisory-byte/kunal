@@ -22,6 +22,7 @@ import { getSettings } from './scheduling.js';
 import { transcribe, transcriptionEnabled } from './transcribe.js';
 import { isoAtLocal } from './quickparse.js';
 import { createNote } from './notes.js';
+import { repairGroupNames, looksLikeId } from './group-names.js';
 
 const { Client, LocalAuth } = pkg;
 
@@ -293,6 +294,35 @@ export async function handleCommand(message, chatId) {
   return true;
 }
 
+
+
+/**
+ * A group's name, asked of WhatsApp by its id.
+ *
+ * `getChat()` on a message is the usual route and the one that fails; the id is
+ * on every message regardless, and `getChatById` takes exactly that. Cached for
+ * the life of the process because a group's name is asked for once per message
+ * otherwise, and it does not change between two of them.
+ */
+const groupNames = new Map();
+
+export async function groupNameFor(chatId) {
+  if (!chatId || !String(chatId).endsWith('@g.us')) return null;
+  if (groupNames.has(chatId)) return groupNames.get(chatId);
+  if (!client || state.status !== 'ready') return null;
+
+  let name = null;
+  try {
+    const chat = await client.getChatById(chatId);
+    name = looksLikeId(chat?.name) ? null : chat.name;
+  } catch (err) {
+    noteEvent('group name lookup failed', err?.message || err);
+  }
+  // Cached either way: a group that cannot be read now will not read differently
+  // in thirty seconds, and the boot repair asks again on the next start.
+  groupNames.set(chatId, name);
+  return name;
+}
 
 /**
  * "note: ..." — saving something to remember, on purpose.
@@ -659,13 +689,24 @@ export async function handleMessage(message) {
       return drop('blocked');
     }
 
+    /*
+     * A second try at the group's name, by id.
+     *
+     * When getChat() fails the row used to keep the id in place of a name, and
+     * the id is not something the dashboard can show - so the task fell back to
+     * the sender and the group vanished from the row entirely. The id is enough
+     * to ask with, and the answer is cached, so this costs one lookup per group
+     * and only where the first route already failed.
+     */
+    const groupName = !chat?.name && isGroup ? await groupNameFor(chatId) : null;
+
     const row = {
       wa_message_id: message.id?._serialized ?? null,
       chat_id: chatId,
-      // With no lookup there is no group name to be had; the id is at least
-      // honest about which group, and better than the sender's name pretending
-      // to be one.
-      chat_name: chat?.name || (isGroup ? chatId : contactName || chatId) || 'unknown',
+      // With no name to be had at all the id still goes in: it is honest about
+      // which group, and better than the sender's name pretending to be one.
+      // The boot repair fills these in once WhatsApp will answer.
+      chat_name: chat?.name || groupName || (isGroup ? chatId : contactName || chatId) || 'unknown',
       contact_name: contactName,
       contact_number: contact?.number ?? null,
       // A caption-less photo still needs something readable in the message list.
@@ -925,6 +966,14 @@ export function startWhatsApp() {
     log.info(`WhatsApp ready as ${state.me}`);
 
     runCatchUpOnce();
+
+    /*
+     * Name the groups whose names were never stored. Only WhatsApp has them,
+     * and only now is it in a position to answer; a failure here must not touch
+     * the session, so it runs on its own and reports rather than throwing.
+     */
+    repairGroupNames(groupNameFor)
+      .catch((err) => log.warn('Naming groups:', err?.message || err));
   });
 
   client.on('disconnected', (reason) => {
