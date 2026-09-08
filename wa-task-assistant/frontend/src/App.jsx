@@ -396,17 +396,28 @@ export default function App() {
     }
   };
 
-  const overdueCount = useMemo(() => tasks.filter(isOverdue).length, [tasks]);
+  /*
+   * The day's work: everything except the set-aside groups.
+   *
+   * Those are fetched with the rest because a group's own page needs them, but
+   * they are not the day - Vacancies alone is a hundred and ten open rows, and
+   * counted into "192 pending" it drowned the twenty-five things actually owed.
+   * So every figure, the focus list, the calendar and the rail read this, and
+   * only that group's own page, the Businesses page and search read them all.
+   */
+  const dayTasks = useMemo(() => tasks.filter((t) => !t.group_separate), [tasks]);
+
+  const overdueCount = useMemo(() => dayTasks.filter(isOverdue).length, [dayTasks]);
 
   // Chats that actually have tasks, most first - the filter offers only these.
   const chats = useMemo(() => {
     const counts = new Map();
-    for (const task of tasks) {
+    for (const task of dayTasks) {
       const name = taskChat(task);
       if (name) counts.set(name, (counts.get(name) || 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [tasks]);
+  }, [dayTasks]);
 
   /*
    * The notes the search box matches.
@@ -512,8 +523,8 @@ export default function App() {
     });
   }, [tasks, view, filters, query, selectedDate, searching]);
 
-  const summary = useMemo(() => summarise(tasks), [tasks]);
-  const recent = useMemo(() => activity(tasks), [tasks]);
+  const summary = useMemo(() => summarise(dayTasks), [dayTasks]);
+  const recent = useMemo(() => activity(dayTasks), [dayTasks]);
 
   /**
    * The sidebar sets the same state everything else does; it is navigation over
@@ -1110,7 +1121,7 @@ export default function App() {
 
               {page.calendar ? (
                 <CalendarPage
-                  tasks={tasks}
+                  tasks={dayTasks}
                   notes={allNotes}
                   onChanged={() => { refresh({ quiet: true }); loadNotes(); }}
                   onOpenNote={(note) => { setNoteToOpen(note.id); setSection('notes'); }}
@@ -1143,7 +1154,7 @@ export default function App() {
 
                     {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <FocusToday
-                        tasks={tasks}
+                        tasks={dayTasks}
                         onOpen={setOpenTask}
                         onToggle={onToggle}
                         onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
@@ -1218,10 +1229,9 @@ export default function App() {
                     {(page.overview || page.tabs || page.toolbar) && !searching && !groupId && (
                       <FolderStrip
                         groups={groups}
-                        tasks={tasks}
+                        tasks={dayTasks}
                         active={filters.group}
                         onPick={(id) => setFilters((f) => ({ ...f, group: f.group === id ? null : id }))}
-                        onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                         onManage={() => setSection('groups')}
                       />
                     )}
@@ -1282,7 +1292,7 @@ export default function App() {
                   {page.overview && !searching && (
                     <div ref={railRef} className="rail-wrap">
                       <SideRail
-                        tasks={tasks}
+                        tasks={dayTasks}
                         summary={summary}
                         activity={recent}
                         chats={chats}
@@ -1294,7 +1304,7 @@ export default function App() {
                         onViewAi={() => goto('ai')}
                         attentionWidget={
                           <AttentionWidget
-                            tasks={tasks}
+                            tasks={dayTasks}
                             onDone={(task) => onEdit(task, { status: 'done' })}
                             onSnooze={onSnoozeTask}
                             onOpen={setOpenTask}

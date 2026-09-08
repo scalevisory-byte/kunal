@@ -2227,6 +2227,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   flex: none; font-family: "IBM Plex Mono", monospace; font-size: .68rem;
   color: var(--nav-muted); font-variant-numeric: tabular-nums;
 }
+/* Set aside: the number belongs to that folder, not to the day's work, and it
+   is drawn to say so rather than to be added up with the rest. */
+.side-count.aside { opacity: .55; font-style: italic; }
 
 .group-list { list-style: none; margin: 0 0 12px; padding: 0; }
 .group-list li {

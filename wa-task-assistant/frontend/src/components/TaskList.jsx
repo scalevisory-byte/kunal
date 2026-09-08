@@ -142,29 +142,27 @@ function byChat(open) {
  * one worth clearing.
  */
 function byFolder(open, groups) {
-  const sections = groups.map((g) => {
+  /*
+   * Set-aside folders have no section here.
+   *
+   * Their work is deliberately not on the board, so a heading saying
+   * "Vacancies · 110 tasks" above an empty section was counting it back in -
+   * which is the one thing setting a folder aside is for. It is reached from
+   * the sidebar and the Businesses page instead.
+   */
+  const sections = groups.filter((g) => !g.separate).map((g) => {
     const items = open.filter((t) => t.group_id === g.id);
-    /*
-     * A set-aside folder's work is deliberately not on the board, so there is
-     * nothing here to list - but the folder itself belongs in a list of
-     * folders. It shows its own count and the way in.
-     */
-    const aside = Boolean(g.separate);
     return {
       key: `g${g.id}`,
       label: g.name,
       tone: 'info',
       dot: g.colour || 'teal',
-      items: aside ? [] : items,
-      total: aside ? (g.counts?.open || 0) : items.length,
+      items,
+      total: items.length,
       keep: true,
       groupId: g.id,
-      note: aside
-        ? 'Kept out of the main list.'
-        : items.length ? undefined : 'Nothing open in here.',
-      // Set aside, the heading already says why there is nothing here; all the
-      // line needs to carry is the way in.
-      empty: aside || items.length ? undefined : 'Move work in with the folder button on any row.',
+      note: items.length ? undefined : 'Nothing open in here.',
+      empty: items.length ? undefined : 'Move work in with the folder button on any row.',
     };
   });
 

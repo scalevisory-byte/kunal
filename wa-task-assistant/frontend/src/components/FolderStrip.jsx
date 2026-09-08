@@ -18,21 +18,22 @@ const remember = (value) => {
  * exactly when you want to file something.
  *
  * Counts are of open work, taken from the same tasks the board is showing, so
- * the tiles and the sections agree. A set-aside folder is the one exception:
- * its work is deliberately off the board, so it reports the count the server
- * keeps and opens its own page rather than filtering a list it is not in.
+ * the tiles and the sections agree. A set-aside folder has no tile at all: its
+ * work is deliberately not the day's, and a tile carrying a hundred and ten
+ * made the row read as if it were. It is reached from the sidebar and from the
+ * Businesses page, which is what "kept out of the main list" means.
  *
  * Two shapes, remembered: one scrolling row, which costs a line and hides
  * nothing important, or a grid, where every folder is a card of its own and
  * the whole set is visible at once without scrolling sideways. The row is the
  * default because the list below it is the point of the page.
  */
-export default function FolderStrip({ groups = [], tasks = [], active, onPick, onOpenGroup, onManage }) {
+export default function FolderStrip({ groups = [], tasks = [], active, onPick, onManage }) {
   const [shape, setShape] = useState(() => {
     try { return localStorage.getItem('wa-folder-view') === 'grid' ? 'grid' : 'row'; }
     catch { return 'row'; }
   });
-  if (!groups.length) return null;
+  if (!groups.some((g) => !g.separate)) return null;
 
   const open = tasks.filter((t) => !isDone(t) && !t.group_separate);
   const loose = open.filter((t) => !t.group_id).length;
@@ -44,10 +45,10 @@ export default function FolderStrip({ groups = [], tasks = [], active, onPick, o
   const tile = (key, label, count, extra = {}) => ({ key, label, count, ...extra });
   const tiles = [
     tile('all', 'All', open.length, { icon: 'list', on: !active }),
-    ...groups.map((g) => tile(
+    ...groups.filter((g) => !g.separate).map((g) => tile(
       `g${g.id}`,
       g.name,
-      g.separate ? (g.counts?.open || 0) : (held.get(g.id) || 0),
+      held.get(g.id) || 0,
       { dot: g.colour || 'teal', on: active === g.id, group: g },
     )),
   ];
@@ -65,12 +66,11 @@ export default function FolderStrip({ groups = [], tasks = [], active, onPick, o
         {tiles.map((t) => (
           <button
             key={t.key}
-            className={`folder-tile ${t.on ? 'on' : ''} ${t.group?.separate ? 'aside' : ''}`}
+            className={`folder-tile ${t.on ? 'on' : ''}`}
             aria-pressed={t.on}
-            title={t.group?.separate ? `${t.label} — kept out of the main list` : t.label}
+            title={t.label}
             onClick={() => {
-              if (t.group?.separate) onOpenGroup?.(t.group.id);
-              else if (t.key === 'all') onPick(null);
+              if (t.key === 'all') onPick(null);
               else if (t.key === 'none') onPick('none');
               else onPick(t.group.id);
             }}

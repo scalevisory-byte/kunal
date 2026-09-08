@@ -100,7 +100,7 @@ const writeOpen = (set) => {
  * you cannot see is the one thing collapsing must not cost.
  */
 function NavGroup({ label, items, section, open, onToggle, onPick }) {
-  const total = items.reduce((sum, item) => sum + (item.badge || 0), 0);
+  const total = items.reduce((sum, item) => sum + (item.aside ? 0 : item.badge || 0), 0);
   const here = items.some((item) => item.key === section);
   const shown = open ? items : items.filter((item) => item.key === section);
 
@@ -129,7 +129,9 @@ function NavGroup({ label, items, section, open, onToggle, onPick }) {
             ? <span className={`group-dot c-${item.dot}`} aria-hidden="true" />
             : <Icon name={item.icon} size={17} />}
           <span className="side-item-name">{item.label}</span>
-          {item.badge > 0 && <span className="side-count">{item.badge}</span>}
+          {item.badge > 0 && (
+            <span className={`side-count ${item.aside ? 'aside' : ''}`}>{item.badge}</span>
+          )}
         </button>
       ))}
     </div>
@@ -165,6 +167,13 @@ export default function Sidebar({
           label: g.name,
           dot: g.colour,
           badge: g.counts?.open || 0,
+          /*
+           * A set-aside folder's count is about that folder, not about the
+           * day, so it is not added into the heading's total. Vacancies alone
+           * put 110 on "Businesses" and made the whole section read as work
+           * owed - which is the opposite of setting it aside.
+           */
+          aside: Boolean(g.separate),
         })),
       }]
     : [];
