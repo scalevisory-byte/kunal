@@ -36,6 +36,7 @@ import EnginePage from './components/EnginePage.jsx';
 import Recurring from './components/Recurring.jsx';
 import DueSoonBanner from './components/DueSoonBanner.jsx';
 import NotesPage from './components/NotesPage.jsx';
+import LeadsPage from './components/LeadsPage.jsx';
 import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
@@ -107,6 +108,11 @@ const PAGES = {
     title: 'Monthly deadlines',
     lede: 'The dates that never move — TDS, GST, GSTR-3B. Each becomes a task before its date.',
     settings: true,
+  },
+  leads: {
+    title: 'Leads',
+    lede: 'People who might buy something, and where each of them has got to. The app reminds you to speak to them — it never messages them itself.',
+    leads: true,
   },
   notes: {
     title: 'Notes',
@@ -785,6 +791,16 @@ export default function App() {
                 onChanged={() => refresh({ quiet: true })}
                 onError={(err) => setError(err.message)}
               />
+            </section>
+          ) : page.leads ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>{page.title}</h2>
+                  <p>{page.lede}</p>
+                </div>
+              </div>
+              <LeadsPage groups={groups} onError={(err) => setError(err.message)} />
             </section>
           ) : page.notes ? (
             <section className="settings-page">

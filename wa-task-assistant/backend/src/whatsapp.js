@@ -6,7 +6,7 @@ import { log } from './logger.js';
 import {
   insertMessage, markMessagesProcessed, noteMessageMerged, createTask,
   listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
-  getMeta, setMeta,
+  getMeta, setMeta, db,
 } from './db.js';
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
@@ -22,6 +22,7 @@ import { getSettings } from './scheduling.js';
 import { transcribe, transcriptionEnabled } from './transcribe.js';
 import { isoAtLocal } from './quickparse.js';
 import { createNote } from './notes.js';
+import { createLead, leadByWid } from './leads.js';
 import { repairGroupNames, looksLikeId } from './group-names.js';
 
 const { Client, LocalAuth } = pkg;
@@ -295,6 +296,86 @@ export async function handleCommand(message, chatId) {
 }
 
 
+
+
+/**
+ * The ad card WhatsApp shows above a click-to-WhatsApp message.
+ *
+ * The library has no field for it - I looked - so this reads the raw object
+ * WhatsApp Web itself holds, defensively: if the shape is not what we guessed,
+ * it returns nothing and the text rule below still catches the lead. Whatever
+ * it does find is kept on the lead as where it came from, so a real ad message
+ * tells us what is actually in there rather than us assuming.
+ */
+function adInfoFrom(message) {
+  const raw = message?.rawData || message?._data || null;
+  if (!raw || typeof raw !== 'object') return null;
+
+  const candidates = [
+    raw.externalAdReply, raw.matchedText, raw.ctwaContext,
+    raw.contextInfo?.externalAdReply, raw.quotedMsg?.externalAdReply,
+  ].filter((v) => v && typeof v === 'object');
+
+  for (const found of candidates) {
+    const title = found.title || found.headline || found.sourceUrl || found.body;
+    if (title) return { title: String(title).slice(0, 160), id: found.sourceId || null };
+  }
+  return null;
+}
+
+/**
+ * Somebody new, asking about something.
+ *
+ * Two signals, and neither of them files anything: a captured lead is held
+ * until it is confirmed, because a courier asking for an address is not a lead
+ * and a pipeline full of those is worth less than an empty one.
+ *
+ *  - the words a click-to-WhatsApp ad opens with, which are the words set in
+ *    the ad, so they are the one reliable signal available without the
+ *    official API;
+ *  - a first-ever message from a number with no history, which is off by
+ *    default because it catches everybody, not only buyers.
+ */
+async function maybeLead(row, message, settings) {
+  if (!settings.leadCapture) return null;
+  if (row.from_me || row.is_group) return null;
+  if (!row.chat_id || row.chat_id === state.me) return null;
+
+  // Already on the board: a second message is not a second person.
+  if (leadByWid(row.chat_id)) return null;
+
+  const text = String(row.body || '').toLowerCase();
+  const phrases = Array.isArray(settings.leadPhrases) ? settings.leadPhrases : [];
+  const matched = phrases.find((phrase) => phrase && text.includes(String(phrase).toLowerCase()));
+
+  const ad = adInfoFrom(message);
+  const firstEver = db
+    .prepare(`SELECT COUNT(*) AS n FROM messages WHERE chat_id = ?`)
+    .get(row.chat_id).n <= 1;
+
+  const isLead = Boolean(ad) || Boolean(matched) || (settings.leadFromUnknown && firstEver);
+  if (!isLead) return null;
+
+  try {
+    const lead = createLead({
+      name: row.contact_name || row.contact_number || row.chat_name || 'Unknown',
+      phone: row.contact_number || null,
+      wid: row.chat_id,
+      // An ad card, or the ad's own opening words, both say Facebook; anything
+      // else caught here is simply somebody who wrote in.
+      source: ad || matched ? 'facebook' : 'whatsapp',
+      source_ref: ad?.title || (matched ? `matched “${matched}”` : 'first message from this number'),
+      chat_name: row.chat_name || null,
+      message_id: row.id,
+      needs_confirmation: 1,
+    });
+    log.info(`Held a possible lead: ${lead.name} (${lead.source_ref}).`);
+    return lead;
+  } catch (err) {
+    log.warn('Could not record a possible lead:', err?.message || err);
+    return null;
+  }
+}
 
 /**
  * A group's name, asked of WhatsApp by its id.
@@ -718,6 +799,18 @@ export async function handleMessage(message) {
 
     const id = insertMessage(row);
     if (!id) return drop('duplicate'); // already seen this message id
+
+    /*
+     * Somebody arriving from an ad is a lead, not a task, and the two are
+     * different enough that neither should be filed as the other. Its own
+     * try/catch: a lead that cannot be recorded must never cost us the
+     * message, which is still going on to be read as work.
+     */
+    try {
+      await maybeLead({ ...row, id }, message, getSettings());
+    } catch (err) {
+      log.warn('Lead check failed:', err?.message || err);
+    }
 
     state.lastMessageAt = new Date().toISOString();
     noteSeen(row.sent_at);

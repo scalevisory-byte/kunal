@@ -238,6 +238,16 @@ export const api = {
   noteToTask: (id, body) =>
     request(`/notes/${id}/task`, { method: 'POST', body: JSON.stringify(body) }),
 
+  /* ---- leads: people who might buy something ---- */
+  leads: () => request('/leads'),
+  lead: (id) => request(`/leads/${id}`),
+  createLead: (body) => request('/leads', { method: 'POST', body: JSON.stringify(body) }),
+  updateLead: (id, body) => request(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  leadContacted: (id, body) =>
+    request(`/leads/${id}/contacted`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  confirmLead: (id) => request(`/leads/${id}/confirm`, { method: 'POST' }),
+  deleteLead: (id) => request(`/leads/${id}`, { method: 'DELETE' }),
+
   groupNames: () => request('/group-names'),
   repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
 

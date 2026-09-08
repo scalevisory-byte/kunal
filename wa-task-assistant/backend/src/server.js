@@ -18,6 +18,7 @@ import {
   subtaskRouter, attachmentRouter, templateRouter, groupRouter, recurringRouter,
 } from './routes/extras.js';
 import { notesRouter } from './routes/notes.js';
+import { leadsRouter } from './routes/leads.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(here, '../public');
@@ -83,6 +84,7 @@ export function createServer() {
   app.use('/api/groups', requireAuth, groupRouter);
   app.use('/api/recurring', requireAuth, recurringRouter);
   app.use('/api/notes', requireAuth, notesRouter);
+  app.use('/api/leads', requireAuth, leadsRouter);
   app.use('/api/delegation', requireAuth, delegationRouter);
   app.use('/api/attention', requireAuth, attentionRouter);
   app.use('/api/history', requireAuth, historyRouter);

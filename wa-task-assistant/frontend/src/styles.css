@@ -3447,3 +3447,113 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .cal-more { display: none; }
   .cal-add > input[type="text"], .cal-add > input:not([type]) { flex: 1 0 100%; }
 }
+
+
+/* ---------- leads ---------- */
+
+/*
+ * A pipeline, read left to right. It is the delegation board's shape because
+ * it is the same question - where has this got to, and who is waiting on whom -
+ * but the cards carry the one thing a lead is actually about: when to speak to
+ * them next, and whether that day has gone.
+ */
+.leads-page { display: block; }
+
+.lead-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+.lead-figs { font-size: .84rem; color: var(--muted); }
+.lead-figs b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.lead-add {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 10px 12px; margin-bottom: 14px;
+}
+.lead-add input, .lead-add select {
+  flex: 1; min-width: 120px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg);
+  color: var(--text); font: inherit; font-size: .84rem; padding: 6px 9px; min-height: 34px;
+}
+
+.lead-board {
+  display: grid; grid-template-columns: repeat(6, minmax(190px, 1fr));
+  gap: 10px; align-items: start;
+  overflow-x: auto; padding-bottom: 6px;
+}
+.lead-col {
+  background: var(--raised); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 9px; min-width: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.lead-col > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lead-col h3 {
+  margin: 0; font-family: "IBM Plex Mono", monospace;
+  font-size: .63rem; letter-spacing: .11em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.lead-col > header span { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Closed columns are the record, not the work: quieter than the live ones. */
+.lead-col.s-won, .lead-col.s-lost { opacity: .8; }
+.lead-empty { margin: 0; font-size: .72rem; color: var(--muted); line-height: 1.45; }
+
+.lead-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r); overflow: hidden;
+}
+.lead-card.late { border-left: 3px solid var(--danger, #a3231b); }
+.lead-open {
+  display: block; width: 100%; text-align: left; border: 0; background: none;
+  cursor: pointer; font: inherit; color: inherit; padding: 9px 10px 7px;
+}
+.lead-open strong { display: block; font-size: .87rem; font-weight: 600; overflow-wrap: anywhere; }
+.lead-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.lead-chip {
+  font-size: .66rem; padding: 1px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--group, var(--brand)) 12%, transparent);
+  color: var(--group, var(--brand));
+}
+.lead-value { font-size: .66rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.lead-num { font-size: .66rem; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
+.lead-when { display: block; margin-top: 6px; font-size: .7rem; color: var(--muted); }
+
+.lead-tools {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 0 8px 8px;
+}
+.lead-tools select {
+  font-size: .7rem; padding: 2px 5px; min-height: 26px;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text);
+}
+.lead-tools .tool { text-decoration: none; }
+
+.lead-next { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* Held captures, above the board: nothing reaches it without being read. */
+.lead-held {
+  background: var(--warn-wash); border: 1px solid color-mix(in srgb, var(--warn) 28%, transparent);
+  border-radius: var(--r-lg); padding: 12px 14px; margin-bottom: 14px;
+}
+.lead-held h3 {
+  margin: 0 0 9px; font-size: .84rem; font-weight: 700; color: var(--warn);
+  display: flex; align-items: baseline; gap: 8px;
+}
+.lead-held h3 span { font-size: .72rem; font-weight: 500; opacity: .85; }
+.lead-held-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 7px 0; flex-wrap: wrap;
+}
+.lead-held-row + .lead-held-row { border-top: 1px solid color-mix(in srgb, var(--warn) 20%, transparent); }
+.lead-held-row strong { display: block; font-size: .85rem; }
+.lead-held-row span { font-size: .74rem; color: var(--text-2); overflow-wrap: anywhere; }
+.lead-held-act { display: flex; align-items: center; gap: 10px; flex: none; }
+
+@media (max-width: 1080px) {
+  .lead-board { grid-template-columns: repeat(6, minmax(180px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .lead-board { display: flex; flex-direction: column; overflow: visible; }
+  .lead-col { flex-direction: column; }
+  .lead-add input, .lead-add select { flex: 1 0 100%; }
+}

@@ -25,6 +25,7 @@ import { EVENT, recordEvent } from './task-events.js';
 import { openBlockers } from './dependencies.js';
 import { materialiseDue, ruleForTask } from './recurring.js';
 import { dueNoteReminders, claimNoteReminder } from './notes.js';
+import { dueLeadReminders, claimLeadReminder } from './leads.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
@@ -295,6 +296,9 @@ export async function runReminderEngine({ now = new Date() } = {}) {
   // A note can carry one reminder, and it rides this same pass rather than a
   // second engine: same claim, same notification centre, same channels.
   const notes = await deliverNoteReminders(nowIso, settings);
+  // And the leads whose next contact has come round. Same pass, same claim,
+  // and - as everywhere here - it tells him, never them.
+  const leads = await deliverLeadReminders(nowIso, settings);
 
   const planned = planOpenTasks(settings, now);
 
@@ -302,7 +306,7 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     log.info(`Reminder engine: ${sent} sent, ${missed} missed, ${planned} newly scheduled`);
   }
   return {
-    sent, missed, planned, recurring: recurring.length, notes,
+    sent, missed, planned, recurring: recurring.length, notes, leads,
     briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent),
   };
 }
@@ -473,6 +477,51 @@ async function deliverNoteReminders(nowIso, settings) {
         await sendMessage(reminderChatId(), text);
       } catch (err) {
         log.error('Note reminder WhatsApp send failed:', err?.message || err);
+      }
+    }
+    sent += 1;
+  }
+  return sent;
+}
+
+/**
+ * "Speak to Mehta Sir today."
+ *
+ * A lead gets one nudge at the moment its next contact falls due, and no
+ * ladder behind it: being chased three times about one phone call is how you
+ * stop reading the notifications. Nothing is sent to the lead - the message
+ * names them so he can open the chat and write it himself.
+ */
+async function deliverLeadReminders(nowIso, settings) {
+  let sent = 0;
+  for (const row of dueLeadReminders(nowIso)) {
+    const lead = claimLeadReminder(row.id);
+    if (!lead) continue;
+
+    const where = [lead.group_name, lead.phone].filter(Boolean).join(' · ');
+    const body = [where || null, lead.note ? lead.note.split('\n')[0].slice(0, 120) : null]
+      .filter(Boolean).join(' — ') || null;
+
+    addNotification({ kind: 'lead', title: `Follow up — ${lead.name}`, body });
+    if (settings.notifyBrowser) {
+      await sendPush({ title: `Follow up: ${lead.name}`, body: body || '', url: '/' });
+    }
+    /*
+     * To his own chat, like every other message this app sends. The lead's own
+     * number is on the card for him to open; nothing here writes to it.
+     */
+    if (settings.notifyWhatsApp && state.status === 'ready') {
+      const text = [
+        '📇 *LEAD FOLLOW-UP*', '',
+        `*${lead.name}*`,
+        where || null,
+        lead.phone ? `Number: ${lead.phone}` : null,
+        '', 'Open WA Tasks to update the stage.',
+      ].filter((line) => line !== null).join('\n');
+      try {
+        await sendMessage(reminderChatId(), text);
+      } catch (err) {
+        log.error('Lead reminder WhatsApp send failed:', err?.message || err);
       }
     }
     sent += 1;

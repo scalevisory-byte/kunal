@@ -125,6 +125,23 @@ const DEFAULTS = {
   // Claude reads photos as well as text. Off by default: a picture costs
   // roughly a page of tokens, and most photos in a personal chat are forwards.
   readImages: false,            // in the configured timezone
+
+  /*
+   * Catching leads out of the chats.
+   *
+   * `leadCapture` is the ad case: a message whose opening words match one of
+   * `leadPhrases` is almost certainly somebody arriving from a click-to-
+   * WhatsApp ad, because those words are the ones set in the ad itself. On by
+   * default, because a captured lead is held for confirmation and never files
+   * itself.
+   *
+   * `leadFromUnknown` is the wider net: any first-ever message from a number
+   * with no history. Off by default - a courier asking for an address would
+   * land in it, and a pipeline full of those is worth less than an empty one.
+   */
+  leadCapture: true,
+  leadFromUnknown: false,
+  leadPhrases: ['i saw your ad', 'saw this ad', 'facebook ad', 'interested in', 'enquiry', 'quotation chahiye'],
 };
 
 export function getSettings() {

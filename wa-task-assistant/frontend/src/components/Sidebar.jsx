@@ -31,6 +31,7 @@ const NAV = [
      */
     label: 'People',
     items: [
+      { key: 'leads', label: 'Leads', icon: 'flag' },
       { key: 'received', label: 'Task received', icon: 'inbox', count: 'received' },
       { key: 'allotted', label: 'Task allotted', icon: 'outbox', count: 'allotted' },
     ],
