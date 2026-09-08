@@ -286,6 +286,17 @@ export default function App() {
     api.delegationCounts().then(setDelegation).catch(() => {});
   }, [tasks]);
 
+  /*
+   * Leads, for the sidebar's badge. Only the two numbers that mean somebody is
+   * waiting - captures nobody has read, and next contacts already gone by -
+   * because a badge that counts every lead would never go away, and a badge
+   * that never goes away is wallpaper.
+   */
+  const [leadCounts, setLeadCounts] = useState({ badge: 0, held: 0, overdue: 0, open: 0 });
+  useEffect(() => {
+    api.leadCounts().then(setLeadCounts).catch(() => {});
+  }, [tasks, section]);
+
   useEffect(() => {
     setOpenTask((current) => (current ? tasks.find((t) => t.id === current.id) || null : null));
   }, [tasks]);
@@ -580,6 +591,8 @@ export default function App() {
       setView('open');
       return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] });
     }
+    // A section rather than a slice of the board, so it navigates.
+    if (key === 'leads') return goto('leads');
     return undefined;
   };
 
@@ -619,6 +632,7 @@ export default function App() {
         onSection={goto}
         connected={connected}
         delegation={delegation}
+        leads={leadCounts}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />
@@ -1044,7 +1058,7 @@ export default function App() {
                   />
 
                   <QuickActions
-                    counts={summary.counts}
+                    counts={{ ...summary.counts, leads: leadCounts.badge }}
                     onAction={quickAction}
                     active={activeQuick}
                   />

@@ -161,6 +161,36 @@ run('the same number cannot open two cards', () => {
   assert.equal(again.id, first.id, 'a second message updates the person, it does not clone them');
 });
 
+console.log('\nthe badge that says somebody is waiting');
+
+run('it counts what is unread and what is late, and nothing else', () => {
+  const dir2 = L.leadAttention();
+  const held = L.heldLeads().length;
+  const late = L.listLeads().filter((l) =>
+    !l.closed && l.next_action_at && new Date(l.next_action_at) <= new Date()).length;
+
+  assert.equal(dir2.held, held);
+  assert.equal(dir2.overdue, late);
+  assert.equal(dir2.badge, held + late, 'the badge is the two of them');
+  /*
+   * Deliberately not the whole pipeline: a badge that counts every lead never
+   * goes away, and a badge that never goes away is wallpaper.
+   */
+  assert.ok(dir2.badge <= dir2.open + held, 'it is a subset, not the total');
+});
+
+run('a lead that is closed or in the future is not on the badge', () => {
+  const before = L.leadAttention().badge;
+  const future = L.createLead({ name: 'Later On', next_action_at: soon(600) });
+  assert.equal(L.leadAttention().badge, before, 'a future contact is not waiting');
+
+  L.updateLead(future.id, { next_action_at: soon(-5) });
+  assert.equal(L.leadAttention().badge, before + 1, 'once it is past, it is');
+
+  L.updateLead(future.id, { stage: 'lost' });
+  assert.equal(L.leadAttention().badge, before, 'and closing it clears it again');
+});
+
 console.log('\nwhat WhatsApp Business already knows');
 
 run('the labels he filed the chat under are kept', () => {

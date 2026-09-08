@@ -18,6 +18,9 @@ export default function QuickActions({ counts, onAction, active }) {
     { key: 'chat', label: 'By Chat', icon: 'chat' },
     { key: 'ai', label: 'AI Tasks', icon: 'robot' },
     { key: 'done', label: 'Completed', icon: 'check', count: counts.done },
+    /* On the dashboard because it is a place people go looking for, and it was
+       otherwise only reachable through a sidebar group that starts shut. */
+    { key: 'leads', label: 'Leads', icon: 'person', count: counts.leads },
   ];
 
   return (

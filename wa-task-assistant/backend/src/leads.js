@@ -176,6 +176,28 @@ export function soonestFirst(a, b) {
   return String(b.updated_at || '').localeCompare(String(a.updated_at || ''));
 }
 
+/**
+ * The two numbers worth a badge: what is waiting to be read, and who has been
+ * left too long. Everything else is a figure on the page itself - a badge that
+ * counts every lead you have would be permanent, and a permanent badge is
+ * wallpaper.
+ */
+export function leadAttention(now = new Date()) {
+  const nowIso = now.toISOString();
+  const held = db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE needs_confirmation = 1`).get().n;
+  const overdue = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM leads
+       WHERE needs_confirmation = 0 AND stage NOT IN ('won', 'lost')
+         AND next_action_at IS NOT NULL AND next_action_at <= ?`
+    )
+    .get(nowIso).n;
+  const open = db
+    .prepare(`SELECT COUNT(*) AS n FROM leads WHERE needs_confirmation = 0 AND stage NOT IN ('won','lost')`)
+    .get().n;
+  return { held, overdue, open, badge: held + overdue };
+}
+
 /** How many sit in each stage, for the board's own headings. */
 export function stageCounts() {
   const counts = Object.fromEntries(STAGES.map((s) => [s.key, 0]));

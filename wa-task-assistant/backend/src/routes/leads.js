@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   STAGES, SOURCES, listLeads, heldLeads, getLead, createLead, updateLead, confirmLead,
-  deleteLead, markContacted, leadEvents, stageCounts,
+  deleteLead, markContacted, leadEvents, stageCounts, leadAttention,
 } from '../leads.js';
 import { getGroup } from '../groups.js';
 import { normalizeInstant } from '../dates.js';
@@ -23,6 +23,9 @@ leadsRouter.get('/', (req, res) => {
     sources: SOURCES,
   });
 });
+
+/** Cheap enough to poll beside the delegation counts. Declared before '/:id'. */
+leadsRouter.get('/counts', (req, res) => res.json(leadAttention()));
 
 leadsRouter.get('/:id', (req, res) => {
   const lead = getLead(Number(req.params.id));

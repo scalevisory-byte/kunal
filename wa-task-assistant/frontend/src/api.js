@@ -240,6 +240,8 @@ export const api = {
 
   /* ---- leads: people who might buy something ---- */
   leads: () => request('/leads'),
+  // What is waiting to be read, and who has been left too long.
+  leadCounts: () => request('/leads/counts'),
   lead: (id) => request(`/leads/${id}`),
   createLead: (body) => request('/leads', { method: 'POST', body: JSON.stringify(body) }),
   updateLead: (id, body) => request(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

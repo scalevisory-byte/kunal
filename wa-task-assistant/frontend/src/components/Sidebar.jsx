@@ -31,7 +31,7 @@ const NAV = [
      */
     label: 'People',
     items: [
-      { key: 'leads', label: 'Leads', icon: 'flag' },
+      { key: 'leads', label: 'Leads', icon: 'flag', count: 'leads' },
       { key: 'received', label: 'Task received', icon: 'inbox', count: 'received' },
       { key: 'allotted', label: 'Task allotted', icon: 'outbox', count: 'allotted' },
     ],
@@ -134,7 +134,7 @@ function NavGroup({ label, items, section, open, onToggle, onPick }) {
 
 /** The application's spine: where you are, and the one fact that matters below. */
 export default function Sidebar({
-  section, onSection, connected, open, onClose, groups = [], delegation = null,
+  section, onSection, connected, open, onClose, groups = [], delegation = null, leads = null,
 }) {
   const [openGroups, setOpenGroups] = useState(readOpen);
 
@@ -172,9 +172,14 @@ export default function Sidebar({
       label: group.label,
       items: group.items.map((item) => ({
         ...item,
-        // Only what is still outstanding is worth a badge; a count of finished
-        // delegations is history, not a nudge.
-        badge: item.count ? (delegation?.[item.count] || 0) : 0,
+        /*
+         * Only what is still outstanding is worth a badge; a count of finished
+         * delegations is history, not a nudge. Leads count the same way: what
+         * is waiting to be read, plus who has been left too long.
+         */
+        badge: item.count === 'leads'
+          ? (leads?.badge || 0)
+          : item.count ? (delegation?.[item.count] || 0) : 0,
       })),
     });
   }
