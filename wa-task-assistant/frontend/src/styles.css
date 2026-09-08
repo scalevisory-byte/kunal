@@ -3357,8 +3357,30 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Idle it is one row; typing opens the days underneath it. */
 .quickadd.compact .qa-when { margin-top: 7px; padding-top: 7px; }
 
-/* Whose job it is, on the row - the question the list is read with. */
-.m-item.given { color: var(--brand); gap: 4px; }
+/*
+ * Whose job it is, on the row and always visible.
+ *
+ * The same control says who has it and changes who has it, so there is one
+ * place to look and one place to press. Quiet while nobody's name is on it -
+ * most tasks are his - and in the accent once one is.
+ */
+.assign { position: relative; flex: none; }
+.assign-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+  color: var(--muted); cursor: pointer; font: inherit;
+  font-size: .7rem; padding: 3px 9px 3px 7px; min-height: 26px;
+  max-width: 130px;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.assign-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assign-btn:hover { border-color: var(--line-2); color: var(--text); }
+.assign-btn.on {
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  background: var(--brand-wash, var(--raised)); color: var(--brand);
+}
+/* The picker hangs off the button, not off the row's right edge. */
+.assign-menu { right: 0; left: auto; min-width: 190px; }
 
 /* Naming somebody from inside the row menu. */
 .menu-name { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }

@@ -12,14 +12,17 @@ const stamp = (iso) =>
     ? new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     : null;
 
-/** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({
-  task, groups, people = [], onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove,
-  onManageGroups, onAddUpdate, onAssign,
-}) {
+/**
+ * Whose job it is, chosen on the row.
+ *
+ * It was inside the ⋮ menu, which is right for the things you do occasionally
+ * and wrong for this: going down a list deciding what is yours and what is
+ * somebody else's is the reading, not an aside from it, and a decision behind
+ * a menu is one that does not get made. So the name is out in the open, and it
+ * is the button - the same control shows who has it and changes who has it.
+ */
+function AssignButton({ task, people = [], onAssign }) {
   const [open, setOpen] = useState(false);
-  // The name box, opened from inside the menu rather than as a second popover:
-  // giving a task to somebody is one decision, so it is one control.
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const wrap = useRef(null);
@@ -36,14 +39,94 @@ function RowMenu({
     };
   }, [open]);
 
-  const run = (fn) => () => { setOpen(false); setNaming(false); fn(); };
-
   const give = (who, wid = null) => {
     setOpen(false);
     setNaming(false);
     setName('');
     onAssign(task, who, wid);
   };
+
+  return (
+    <div className="assign" ref={wrap}>
+      <button
+        type="button"
+        className={`assign-btn ${task.assigned_to ? 'on' : ''}`}
+        aria-expanded={open}
+        title={task.assigned_to ? `With ${task.assigned_to} — press to change` : 'Give this to somebody'}
+        aria-label={task.assigned_to ? `With ${task.assigned_to}` : `Give ${task.title} to somebody`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="person" size={13} />
+        <span>{task.assigned_to || 'Staff'}</span>
+      </button>
+
+      {open && (
+        <div className="menu assign-menu" role="menu">
+          <div className="menu-head">Give it to</div>
+          {task.assigned_to && (
+            <button role="menuitem" className="here" onClick={() => give('')}>
+              <Icon name="person" size={15} /> {task.assigned_to}
+              <span className="menu-note">take it back</span>
+            </button>
+          )}
+          <div className="menu-scroll">
+            {people
+              .filter((p) => p.name && p.name !== task.assigned_to)
+              .slice(0, 10)
+              .map((p) => (
+                <button key={p.name} role="menuitem" onClick={() => give(p.name, p.wid)}>
+                  <Icon name="person" size={15} /> {p.name}
+                  {p.open > 0 && <span className="menu-note">{p.open}</span>}
+                </button>
+              ))}
+          </div>
+          {naming ? (
+            <form
+              className="menu-name"
+              onSubmit={(e) => { e.preventDefault(); if (name.trim()) give(name.trim()); }}
+            >
+              <input
+                value={name}
+                autoFocus
+                placeholder="Name"
+                aria-label="Give this task to"
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && setNaming(false)}
+              />
+              <button type="submit" className="btn small" disabled={!name.trim()}>Give</button>
+            </form>
+          ) : (
+            <button role="menuitem" onClick={() => setNaming(true)}>
+              <Icon name="plus" size={15} /> Somebody else…
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Everything you can do to a task without opening it, behind one control. */
+function RowMenu({
+  task, groups, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onMove,
+  onManageGroups, onAddUpdate,
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const run = (fn) => () => { setOpen(false); fn(); };
 
   return (
     <div className="row-menu" ref={wrap}>
@@ -95,58 +178,6 @@ function RowMenu({
             * them as there are businesses, and a submenu is another hover to
             * get wrong on a phone.
             */}
-          {/*
-            * Whose job this is.
-            *
-            * The names are the ones already used, so the second task for Meera
-            * is one press - and typing is there for the first. Handing a task
-            * over changes nothing about how it is chased: the app still
-            * reminds him, and the person hears from it only when he presses
-            * send on their chat.
-            */}
-          {onAssign && (
-            <>
-              <div className="menu-head">Give it to</div>
-              {task.assigned_to && (
-                <button role="menuitem" className="here" onClick={() => give('')}>
-                  <Icon name="person" size={15} /> {task.assigned_to}
-                  <span className="menu-note">take it back</span>
-                </button>
-              )}
-              <div className="menu-scroll">
-                {people
-                  .filter((p) => p.name && p.name !== task.assigned_to)
-                  .slice(0, 8)
-                  .map((p) => (
-                    <button key={p.name} role="menuitem" onClick={() => give(p.name, p.wid)}>
-                      <Icon name="person" size={15} /> {p.name}
-                      {p.open > 0 && <span className="menu-note">{p.open}</span>}
-                    </button>
-                  ))}
-              </div>
-              {naming ? (
-                <form
-                  className="menu-name"
-                  onSubmit={(e) => { e.preventDefault(); if (name.trim()) give(name.trim()); }}
-                >
-                  <input
-                    value={name}
-                    autoFocus
-                    placeholder="Name"
-                    aria-label="Give this task to"
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Escape' && setNaming(false)}
-                  />
-                  <button type="submit" className="btn small" disabled={!name.trim()}>Give</button>
-                </form>
-              ) : (
-                <button role="menuitem" onClick={() => setNaming(true)}>
-                  <Icon name="plus" size={15} /> Somebody else…
-                </button>
-              )}
-            </>
-          )}
-
           {groups.length > 0 ? (
             <>
               <div className="menu-head">Move to</div>
@@ -318,20 +349,6 @@ export default function TaskItem({
             * and the hand-written ones looked like they were missing something.
             * Two words, one each, and the pair is legible at a glance.
             */}
-          {/*
-            * Whose job it is, on the row.
-            *
-            * It was only in the drawer and on the Task allotted page, so
-            * reading down the list there was nothing to say a task was
-            * somebody else's - and the question the list is read with is
-            * exactly "is this mine?".
-            */}
-          {task.assigned_to && (
-            <span className="m-item given" title={`Given to ${task.assigned_to}`}>
-              <Icon name="outbox" size={12} /> {task.assigned_to}
-            </span>
-          )}
-
           <span
             className={`m-item origin ${task.origin === 'ai' ? 'by-ai' : 'by-hand'}`}
             title={task.origin === 'ai' ? 'Claude read this out of a chat' : 'You typed this in'}
@@ -408,11 +425,11 @@ export default function TaskItem({
         </button>
       )}
 
+      {onAssign && <AssignButton task={task} people={people} onAssign={onAssign} />}
+
       <RowMenu
         task={task}
         groups={groups}
-        people={people}
-        onAssign={onAssign}
         onOpen={onOpen}
         onStatus={onStatus}
         onQuickDate={onQuickDate}
