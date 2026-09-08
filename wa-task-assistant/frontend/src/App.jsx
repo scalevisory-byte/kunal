@@ -3,6 +3,7 @@ import { api, getToken, setToken, UnauthorizedError, LockedOutError } from './ap
 import { enablePush, pushAlreadyEnabled, pushSupported } from './push.js';
 import TaskList from './components/TaskList.jsx';
 import AddTaskForm from './components/AddTaskForm.jsx';
+import QuickAdd from './components/QuickAdd.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
 import StatBoard from './components/StatBoard.jsx';
@@ -157,7 +158,21 @@ export default function App() {
   const [noteToOpen, setNoteToOpen] = useState(null);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
+  /*
+   * Writing a task down, in two depths.
+   *
+   * `quick` is the one line and a day, which is what nearly every task
+   * actually needs. `composing` is the full form - notes, assignment, exact
+   * reminder and follow-up - reached from "More details" and unchanged. The
+   * New Task button opens the first; nothing has been taken away from the
+   * second.
+   */
+  const [quick, setQuick] = useState(false);
+  // Bumped every time the phone's + is pressed, so the box takes the focus
+  // again even when it was already open.
+  const [quickFocus, setQuickFocus] = useState(0);
   const [composing, setComposing] = useState(false);
+  const [seedTitle, setSeedTitle] = useState('');
   const railRef = useRef(null);
   // Which sidebar section is showing. 'settings' swaps the workspace for setup.
   const [section, setSection] = useState('dashboard');
@@ -582,7 +597,7 @@ export default function App() {
           onQuery={setQuery}
           onRefresh={() => refresh()}
           loading={loading}
-          onNewTask={() => setComposing((v) => !v)}
+          onNewTask={() => { setQuick((v) => !v); setComposing(false); }}
           onEnablePush={onEnablePush}
           pushSupported={pushSupported()}
           pushOn={pushOn}
@@ -912,7 +927,7 @@ export default function App() {
                     <h2>{greeting()} <span className="wave">👋</span></h2>
                     <p>Here&rsquo;s your task overview for today.</p>
                   </div>
-                  <button className="btn primary lg" onClick={() => setComposing((v) => !v)}>
+                  <button className="btn primary lg" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
                     <span aria-hidden="true">+</span> New Task
                   </button>
                 </div>
@@ -928,7 +943,7 @@ export default function App() {
                         {visible.length} {visible.length === 1 ? 'task' : 'tasks'}
                       </span>
                     )}
-                    <button className="btn primary" onClick={() => setComposing((v) => !v)}>
+                    <button className="btn primary" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
                       <span aria-hidden="true">+</span> New Task
                     </button>
                   </div>
@@ -994,10 +1009,24 @@ export default function App() {
                 </>
               )}
 
+              {quick && !composing && (
+                <QuickAdd
+                  autoFocus
+                  focusSignal={quickFocus}
+                  groupId={groupId}
+                  groupName={activeGroup?.name || null}
+                  onAdded={() => refresh({ quiet: true })}
+                  onMore={(typed) => { setSeedTitle(typed); setQuick(false); setComposing(true); }}
+                  onError={(err) => setError(err.message)}
+                />
+              )}
+
               {composing && (
                 <AddTaskForm
-                  onAdd={(task) => { onAdd(task); setComposing(false); }}
-                  onClose={() => setComposing(false)}
+                  initialTitle={seedTitle}
+                  groupId={groupId}
+                  onAdd={(task) => { onAdd(task); setComposing(false); setSeedTitle(''); }}
+                  onClose={() => { setComposing(false); setSeedTitle(''); }}
                 />
               )}
 
@@ -1095,6 +1124,23 @@ export default function App() {
                       </div>
                     )}
 
+                    {/*
+                      * The fastest road of all: a line above the list, always
+                      * there, no button to press first. Compact on purpose -
+                      * the day chips are already on the panel above when that
+                      * is open, and here the point is Enter.
+                      */}
+                    {!searching && !page.calendar && view !== 'done' && !quick && (
+                      <QuickAdd
+                        compact
+                        groupId={groupId}
+                        groupName={activeGroup?.name || null}
+                        onAdded={() => refresh({ quiet: true })}
+                        onMore={(typed) => { setSeedTitle(typed); setComposing(true); }}
+                        onError={(err) => setError(err.message)}
+                      />
+                    )}
+
                     <TaskList
                       tasks={visible}
                       loading={loading}
@@ -1177,7 +1223,15 @@ export default function App() {
         <MobileNav
           view={view}
           onView={(v) => { setSection('dashboard'); setView(v); setSelectedDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          onNewTask={() => { setComposing(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onNewTask={() => {
+            // The phone's + is the fastest road of all: the box opens focused,
+            // the keyboard comes up with it, and the full form is still one
+            // press away under "More details".
+            setQuick(true);
+            setComposing(false);
+            setQuickFocus((n) => n + 1);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         />
       </div>

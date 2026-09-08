@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { createTask, getTask, listTasks, updateTask, deleteTask, taskStats } from '../db.js';
-import { normalizeDueDate, normalizeInstant } from '../dates.js';
+import { normalizeDueDate, normalizeInstant, today } from '../dates.js';
+import { parseQuickTask, isoAtLocal } from '../quickparse.js';
+import { config } from '../config.js';
 import {
   remindersForTask, snoozeReminder, acknowledgeReminder, cancelReminder, getReminder,
   scheduleCustomReminder, getSettings, nextRemindersFor, cancelRemindersForTask,
@@ -127,6 +129,124 @@ tasksRouter.post('/', (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+/**
+ * One line in, one task out.
+ *
+ * The fast path for the ordinary case: a title, maybe "kal 5 baje", and
+ * nothing else to fill in. It creates exactly the same kind of task the full
+ * form does - same table, same deadline, same ladder, same history - so
+ * nothing downstream can tell the two apart. What it saves is the six fields
+ * you did not need this time.
+ *
+ * The parsing is quickparse, which already reads his own words for the manual
+ * capture mode. Nothing is invented: a reminder or a follow-up offset is set
+ * only where the words are actually there, and otherwise the saved defaults
+ * apply, exactly as they do for a task typed into the form.
+ */
+tasksRouter.post('/quick', (req, res) => {
+  const { text, when, due_date: pickedDate, due_at: pickedAt, group_id } = req.body || {};
+  const raw = String(text || '').trim();
+  if (!raw) return res.status(400).json({ error: 'type what needs doing' });
+
+  if (group_id !== undefined && group_id !== null && group_id !== '') {
+    if (!getGroup(Number(group_id))) {
+      return res.status(400).json({ error: 'that group no longer exists' });
+    }
+  }
+
+  const parsed = parseQuickTask(raw) || { title: raw.slice(0, 200), priority: 'medium' };
+
+  /*
+   * A button beats the words.
+   *
+   * Pressing Today after typing "kal" is a correction, not a contradiction to
+   * puzzle over: whichever was chosen last is what the person means, and the
+   * button is chosen after the typing.
+   */
+  let dueDate = parsed.due_date ?? null;
+  let dueAt = parsed.remind_at ?? null;
+
+  if (when === 'today' || when === 'tomorrow') {
+    const day = localDayOffset(when === 'today' ? 0 : 1);
+    // A time that was typed is kept and moved onto the chosen day; without one
+    // the deadline is the day itself, and the default hour applies as usual.
+    dueAt = dueAt ? moveToDay(dueAt, day) : null;
+    dueDate = day;
+  } else if (when === 'none') {
+    dueDate = null;
+    dueAt = null;
+  } else if (when === 'custom') {
+    dueDate = normalizeDueDate(pickedDate) ?? dueDate;
+    dueAt = normalizeInstant(pickedAt) ?? (pickedDate ? null : dueAt);
+  }
+
+  try {
+    const task = createTask({
+      title: parsed.title,
+      description: parsed.description || null,
+      due_date: dueDate,
+      due_at: dueAt,
+      priority: parsed.priority,
+      group_id: group_id || null,
+      source: 'manual',
+      origin: 'manual',
+      status: 'open',
+    });
+
+    recordEvent(task.id, EVENT.created, 'quick add');
+    if (task.due_at || task.due_date) {
+      recordEvent(task.id, EVENT.deadlineSet, task.due_at || task.due_date);
+    }
+    planTask(task, {
+      reminderOffset: parsed.reminder_offset ?? undefined,
+      followUpOffset: parsed.follow_up_offset ?? undefined,
+    });
+
+    const fresh = getTask(task.id);
+    res.status(201).json({
+      ...fresh,
+      ...taskSchedule(fresh),
+      /*
+       * What it made of the sentence, so the person can see it rather than
+       * discover it later. Everything read out of the words is named here;
+       * anything not named came from the settings.
+       */
+      understood: {
+        title: fresh.title,
+        due_date: fresh.due_date,
+        due_at: fresh.due_at,
+        priority: parsed.priority,
+        reminder_offset: parsed.reminder_offset ?? null,
+        follow_up_offset: parsed.follow_up_offset ?? null,
+        from_words: Boolean(parsed.due_date || parsed.remind_at
+          || parsed.reminder_offset || parsed.follow_up_offset),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/** A day on the user's calendar, offset from today. */
+function localDayOffset(days) {
+  const iso = today(config.timezone);
+  const at = new Date(`${iso}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() + days);
+  return at.toISOString().slice(0, 10);
+}
+
+/** The same clock time, on another day, read in the user's zone. */
+function moveToDay(iso, day) {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: config.timezone, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(at).map((p) => [p.type, p.value])
+  );
+  return isoAtLocal(day, Number(parts.hour), Number(parts.minute), config.timezone);
+}
 
 /**
  * Everything the extractor was unsure about. Declared before '/:id' - Express

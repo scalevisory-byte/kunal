@@ -283,6 +283,8 @@ export const api = {
     request('/scheduling-settings', { method: 'PATCH', body: JSON.stringify(body) }),
   listTasks: (status) => request(`/tasks?status=${encodeURIComponent(status)}`),
   createTask: (task) => request('/tasks', { method: 'POST', body: JSON.stringify(task) }),
+  // One line in, one task out - the same task the full form makes.
+  quickAdd: (body) => request('/tasks/quick', { method: 'POST', body: JSON.stringify(body) }),
   updateTask: (id, patch) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
   runReminders: () => request('/reminders/run', { method: 'POST' }),

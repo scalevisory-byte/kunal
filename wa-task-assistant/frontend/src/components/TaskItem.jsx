@@ -245,8 +245,21 @@ export default function TaskItem({
               <Icon name="inbox" size={12} /> {added}
             </span>
           )}
-          <span className="m-item" title={task.origin === 'ai' ? 'Created by Claude' : 'Added by hand'}>
+          {/*
+            * Where the task came from, in a word.
+            *
+            * This was the icon alone, on the reasoning that a robot needs no
+            * caption. It does: a small grey figure said nothing at all about a
+            * task somebody typed, so only the AI ones read as having a source
+            * and the hand-written ones looked like they were missing something.
+            * Two words, one each, and the pair is legible at a glance.
+            */}
+          <span
+            className={`m-item origin ${task.origin === 'ai' ? 'by-ai' : 'by-hand'}`}
+            title={task.origin === 'ai' ? 'Claude read this out of a chat' : 'You typed this in'}
+          >
             <Icon name={task.origin === 'ai' ? 'robot' : 'person'} size={12} />
+            {task.origin === 'ai' ? 'AI' : 'By hand'}
           </span>
 
           {task.due_at && !done && (

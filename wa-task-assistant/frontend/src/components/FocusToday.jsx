@@ -87,7 +87,7 @@ export default function FocusToday({ tasks, onOpen, onToggle, onShowAll }) {
                   <small>
                     {task.group_name ? `${task.group_name} · ` : ''}
                     {PRIORITY[task.priority]}
-                    {source ? ` · ${source.label}` : ''} · {task.origin === 'ai' ? 'AI' : 'Manual'}
+                    {source ? ` · ${source.label}` : ''} · {task.origin === 'ai' ? 'AI' : 'By hand'}
                   </small>
                 </button>
                 <span className="focus-when">

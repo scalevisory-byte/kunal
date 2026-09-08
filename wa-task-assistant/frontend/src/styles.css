@@ -3248,3 +3248,75 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 @media (max-width: 340px) {
   .notes-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* ---------- quick add ---------- */
+
+/*
+ * The fast road to a task: a line, a day, Enter.
+ *
+ * It sits where the full form used to open, and looks like one input rather
+ * than a form, because that is the whole claim it makes - most tasks are a
+ * sentence and a day, and the six fields behind "More details" are still there
+ * for the ones that are not.
+ */
+.quickadd {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 11px 13px 10px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.qa-row { display: flex; align-items: center; gap: 9px; }
+.qa-mark { color: var(--muted); flex: none; }
+.qa-row input {
+  flex: 1; min-width: 0;
+  border: 0; background: none; outline: none;
+  font: inherit; font-size: .95rem; color: var(--text);
+  padding: 5px 0;
+}
+.qa-row input::placeholder { color: var(--muted); }
+
+.qa-when {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-top: 9px; padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.qa-gap { flex: 1; }
+.qa-custom { display: inline-flex; gap: 6px; }
+.qa-custom input {
+  font-size: .78rem; padding: 3px 7px; min-height: 28px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg);
+  color: var(--text);
+}
+.qa-said {
+  margin: 9px 0 0; display: flex; align-items: center; gap: 6px;
+  font-size: .78rem; color: var(--ok, var(--brand));
+}
+.qa-hint { margin: 8px 0 0; font-size: .74rem; color: var(--muted); }
+
+/*
+ * Above the list it is one line: the day chips are on the panel above when
+ * that is open, and here the point is Enter. "More details" stays, because a
+ * line you have started typing must always be able to become a full task -
+ * hiding the whole row took that with it.
+ */
+.quickadd.compact { padding: 7px 11px; margin-bottom: 10px; }
+.quickadd.compact .qa-hint,
+.quickadd.compact .qa-when .chip,
+.quickadd.compact .qa-custom { display: none; }
+.quickadd.compact .qa-when {
+  margin-top: 2px; padding-top: 0; border-top: 0; justify-content: flex-end;
+}
+.quickadd.compact .qa-said { margin-top: 4px; }
+
+/* Where a task came from, said rather than implied. */
+.m-item.origin { gap: 4px; }
+.m-item.by-ai { color: var(--info, var(--muted)); }
+
+@media (max-width: 760px) {
+  .qa-when { gap: 5px; }
+  .qa-custom { width: 100%; }
+  .qa-custom input { flex: 1; }
+}

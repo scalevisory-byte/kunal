@@ -18,9 +18,13 @@ const localIso = (date, time) => (date ? new Date(`${date}T${time || '18:00'}`).
  * deadline, reminder and follow-up are one click away rather than six fields
  * in the way of writing a title.
  */
-export default function AddTaskForm({ onAdd, onClose }) {
-  const [title, setTitle] = useState('');
-  const [detail, setDetail] = useState(false);
+export default function AddTaskForm({ onAdd, onClose, initialTitle = '', groupId = null }) {
+  // What was already typed into Quick Add before "More details" was pressed:
+  // going deeper should never cost you the sentence you had written.
+  const [title, setTitle] = useState(initialTitle);
+  // Opened from a line already typed into Quick Add, the details are exactly
+  // what was being asked for, so they start open.
+  const [detail, setDetail] = useState(Boolean(initialTitle));
   const [form, setForm] = useState({
     notes: '', date: '', time: '18:00', reminder: '', followUp: '', priority: 'medium',
     assignedTo: '',
@@ -34,6 +38,8 @@ export default function AddTaskForm({ onAdd, onClose }) {
 
     onAdd({
       title: clean,
+      // A task written on a business's own page belongs to it from the start.
+      group_id: groupId || undefined,
       notes: form.notes.trim() || null,
       due_date: form.date || null,
       due_at: localIso(form.date, form.time),
@@ -51,6 +57,7 @@ export default function AddTaskForm({ onAdd, onClose }) {
     });
     setDetail(false);
   };
+
 
   return (
     <form className="add-form" onSubmit={submit}>

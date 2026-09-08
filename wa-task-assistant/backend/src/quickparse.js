@@ -22,6 +22,64 @@ const DAY_NAMES = {
 
 const HIGH_WORDS = /\b(urgent|asap|turant|jaldi|important|critical)\b/i;
 
+/*
+ * How long, in minutes: "1 hour", "30 min", "2 ghante", "2 din".
+ *
+ * Its own expression rather than nl-commands' parseDuration because this one
+ * has to say *where* in the string it matched, so the phrase can be taken out
+ * of the title. The units are the same list.
+ */
+const HOW_LONG = /(\d{1,3})\s*(minutes?|mins?|m|hours?|hrs?|hr|h|ghante?|ghanta|din|days?|d)\b/i;
+
+const minutesOf = (n, unit) => {
+  const u = unit.toLowerCase();
+  if (/^(h|hr|hour|ghant)/.test(u)) return n * 60;
+  if (/^(d|din|day)/.test(u)) return n * 60 * 24;
+  return n;
+};
+
+/**
+ * "1 hour pehle remind karna" and "2 ghante baad follow-up".
+ *
+ * Only where the words are actually there: a reminder or a follow-up the user
+ * did not ask for is the settings' business, not this parser's, and guessing
+ * one from a bare deadline would quietly override what they configured.
+ *
+ * Returns the offsets in minutes and the phrases that produced them, so the
+ * caller can strip them out and leave a clean title.
+ */
+export function findOffsets(text) {
+  const found = { reminderOffset: null, followUpOffset: null, matches: [] };
+
+  // A reminder: a length followed by "before", or "remind ... before" around it.
+  const before = new RegExp(
+    `${HOW_LONG.source}\\s*(?:pehle|pahle|phle|before|prior)\\b[^,;.]*`, 'i'
+  ).exec(text);
+  if (before) {
+    found.reminderOffset = minutesOf(Number(before[1]), before[2]);
+    found.matches.push(before[0]);
+  }
+
+  /*
+   * A follow-up. Both orders, because both get written: "2 ghante baad
+   * follow-up" puts the length first, "follow up after 2 hours" puts it last.
+   */
+  const followFirst = new RegExp(
+    `\\bfollow[\\s-]?up\\b\\s*(?:after|baad|ke baad|me[in]?)?\\s*${HOW_LONG.source}`, 'i'
+  ).exec(text);
+  const followLast = new RegExp(
+    `${HOW_LONG.source}\\s*(?:baad|ke baad|later|after)\\b[^,;.]*?\\bfollow[\\s-]?up\\b`, 'i'
+  ).exec(text);
+  const follow = followFirst || followLast;
+  if (follow) {
+    const [, n, unit] = follow;
+    found.followUpOffset = minutesOf(Number(n), unit);
+    found.matches.push(follow[0]);
+  }
+
+  return found;
+}
+
 /**
  * Find a clock time: "10 baje", "at 5pm", "5:30 PM", "17:00".
  * Returns { hour, minute, match } or null.
@@ -149,10 +207,37 @@ export function parseQuickTask(raw, { trigger = '' } = {}) {
     text = text.replace(re, '').trim();
   }
 
+  /*
+   * Tidying the ends: punctuation left behind by a phrase that was lifted out,
+   * and the trailing "karna hai" that says nothing. Only that one construction
+   * - "bhejne hain" names the actual job and stays.
+   */
+  const tidy = (v) =>
+    v
+      .replace(/[\s,;:-]+$/, '')
+      .replace(/^[\s,;:-]+/, '')
+      .replace(/\s+kar(?:na|ni|ne)\s+(?:hai|hain|he|h)\.?$/i, '')
+      .trim();
+
   // A leading or trailing "!" is the quickest way to flag something as urgent.
   let priority = 'medium';
   if (/(^!|!$)/.test(text) || HIGH_WORDS.test(text)) priority = 'high';
   text = text.replace(/^!+\s*/, '').replace(/\s*!+$/, '').trim();
+
+  /*
+   * The reminder and follow-up phrases go first, and are taken out of the text
+   * before anything else reads it. "1 hour pehle" holds a number and a unit,
+   * and left in place the time pass reads it as a clock time - so "kal 5 baje,
+   * 1 hour pehle remind karna" became a task due at one o'clock.
+   */
+  const offsets = findOffsets(text);
+  for (const phrase of offsets.matches) {
+    text = text
+      .replace(phrase, ' ')
+      .replace(/\s*[,;]\s*(?=[,;]|$)/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
 
   const time = findTime(text);
   if (time) {
@@ -190,10 +275,20 @@ export function parseQuickTask(raw, { trigger = '' } = {}) {
     title = title.slice(0, 117).trimEnd() + '…';
   }
 
+  title = tidy(title);
   if (!title) return null;
 
   const dueDate = found ? found.date : time ? today() : null;
   const remindAt = time && dueDate ? isoAtLocal(dueDate, time.hour, time.minute, config.timezone) : null;
 
-  return { title, description, due_date: dueDate, remind_at: remindAt, priority };
+  return {
+    title,
+    description,
+    due_date: dueDate,
+    remind_at: remindAt,
+    priority,
+    // Null unless the words were actually there, so the saved defaults apply.
+    reminder_offset: offsets.reminderOffset,
+    follow_up_offset: offsets.followUpOffset,
+  };
 }
