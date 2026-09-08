@@ -3656,3 +3656,104 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   cursor: pointer;
 }
 .linky:hover { text-decoration: underline; }
+
+/*
+ * The businesses as small tiles, above the list.
+ *
+ * Google Tasks puts its lists across the top and that is the right instinct:
+ * a folder you can see is a folder you file into. These filter in place -
+ * pressing one narrows the board, pressing it again gives it back - so
+ * "just Book N Fly" costs a click and no page change. It scrolls sideways
+ * rather than wrapping into three rows on a phone.
+ */
+.folder-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.folder-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+}
+.folder-scroll::-webkit-scrollbar { height: 4px; }
+.folder-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+.folder-tile {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text-2);
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.folder-tile:hover { border-color: var(--line-2); }
+.folder-tile.on {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--text);
+}
+/* Set aside: it opens its own page rather than filtering, so it reads as a
+   way out rather than as another filter. */
+.folder-tile.aside { border-style: dashed; }
+.folder-name { max-width: 13ch; overflow: hidden; text-overflow: ellipsis; }
+.folder-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 700;
+  text-align: center;
+}
+.folder-tile.on .folder-count { background: var(--card); color: var(--accent); }
+.folder-tile.add { padding: 6px 9px; color: var(--muted); }
+
+/* Icon-only segment: the list/grid switch. */
+.segment.small.icons button { padding: 5px 9px; display: inline-flex; align-items: center; }
+
+/*
+ * Grid: the same rows, laid out as cards.
+ *
+ * Nothing is dropped and nothing is added - the title, the meta beneath it,
+ * the deadline and both buttons are all still there. What changes is that
+ * twelve short tasks fit on a screen instead of five, which is the whole
+ * point of asking for a grid.
+ */
+.task-list.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 10px;
+  padding-top: 4px;
+}
+.task-list.grid .task {
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 8px);
+  background: var(--card);
+}
+.task-list.grid .task + .task { box-shadow: none; }
+.task-list.grid .task:hover { box-shadow: var(--shadow-sm); }
+.task-list.grid .t-main { flex: 1 1 calc(100% - 36px); }
+.task-list.grid .t-title { white-space: normal; }
+.task-list.grid .t-line { white-space: normal; flex-wrap: wrap; }
+.task-list.grid > .task > .due { order: 2; flex: 1 0 100%; margin: 0; text-align: left; }
+.task-list.grid > .task > .assign { order: 3; }
+.task-list.grid > .task > .row-dismiss { order: 4; margin-left: auto; }
+.task-list.grid > .task > .row-menu { order: 5; }
+/* On a card the controls are the card's, so they do not wait for a hover. */
+.task-list.grid .task .row-menu-btn, .task-list.grid .task .row-dismiss { opacity: 1; }

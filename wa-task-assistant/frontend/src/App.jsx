@@ -13,6 +13,7 @@ import TidyTitles from './components/TidyTitles.jsx';
 import MessagesRead from './components/MessagesRead.jsx';
 import GroupNames from './components/GroupNames.jsx';
 import Toolbar from './components/Toolbar.jsx';
+import FolderStrip from './components/FolderStrip.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
 import QuickActions from './components/QuickActions.jsx';
@@ -141,6 +142,16 @@ export default function App() {
   const [view, setView] = useState('open');
   const [query, setQuery] = useState('');
   const searching = query.trim().length > 0;
+  /*
+   * List or grid, remembered.
+   *
+   * It is a reading preference, not a property of the work, so it survives a
+   * reload the way the theme does and nothing on the server hears about it.
+   */
+  const [layout, setLayout] = useState(() => {
+    try { return localStorage.getItem('wa-layout') === 'grid' ? 'grid' : 'list'; }
+    catch { return 'list'; }
+  });
   /*
    * Held in state only so the icons and the segmented control re-render when it
    * changes; the theme itself lives on the root element and in localStorage,
@@ -1156,6 +1167,8 @@ export default function App() {
                           <Toolbar
                             groupBy={groupBy}
                             onGroupBy={setGroupBy}
+                            layout={layout}
+                            onLayout={(next) => { setLayout(next); remember('wa-layout', next); }}
                             filters={filters}
                             onFilters={setFilters}
                             chats={chats}
@@ -1187,6 +1200,26 @@ export default function App() {
                     )}
 
                     {/*
+                      * The businesses, small, above the list.
+                      *
+                      * The sidebar leaves the board to show one; this filters
+                      * in place, which is the thing you actually do while
+                      * reading a mixed list. Hidden while searching, where the
+                      * search is the scope, and on the folder pages, which are
+                      * already one folder.
+                      */}
+                    {(page.overview || page.tabs || page.toolbar) && !searching && !groupId && (
+                      <FolderStrip
+                        groups={groups}
+                        tasks={tasks}
+                        active={filters.group}
+                        onPick={(id) => setFilters((f) => ({ ...f, group: f.group === id ? null : id }))}
+                        onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        onManage={() => setSection('groups')}
+                      />
+                    )}
+
+                    {/*
                       * The fastest road of all: a line above the list, always
                       * there, no button to press first. Compact on purpose -
                       * the day chips are already on the panel above when that
@@ -1212,6 +1245,7 @@ export default function App() {
                       groupBy={searching ? 'none' : (page.groupBy || groupBy)}
                       view={view}
                       query={query}
+                      layout={layout}
                       onRetry={() => refresh()}
                       onToggle={onToggle}
                       onOpen={setOpenTask}
