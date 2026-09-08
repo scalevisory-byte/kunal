@@ -93,6 +93,22 @@ try {
     log.warn('Could not set up the Vacancies group:', err?.message || err);
   }
 
+  /*
+   * Group names, as far as the database alone can settle them.
+   *
+   * The rest needs WhatsApp and happens when the session is ready, which can be
+   * minutes away or never on a bad sync - and a row that has been wrong for a
+   * week should not wait on that when another message from the same chat has
+   * the name on it already.
+   */
+  try {
+    const { linkChatIds, repairFromStored } = await import('./group-names.js');
+    linkChatIds();
+    repairFromStored();
+  } catch (err) {
+    log.warn('Could not name the groups from stored messages:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

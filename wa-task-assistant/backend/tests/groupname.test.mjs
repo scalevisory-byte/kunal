@@ -152,6 +152,55 @@ await run('one unreachable group does not stop the others', async () => {
   assert.equal(taskNamed('From the unreachable one').chat_name, null, 'left as it was');
 });
 
+console.log('\nwhat can be settled without asking at all');
+
+await run('one message that got the name through names the whole chat', async () => {
+  /*
+   * The same chat is not read the same way twice: getChat() fails on one
+   * message and works on the next. One row holding the real name is as good an
+   * answer as WhatsApp would give, and it needs no session - which matters,
+   * because the session spends its first minutes unable to answer anything.
+   */
+  const chat = '120363000666@g.us';
+  message({ chat_id: chat, chat_name: chat, contact_name: 'Krishna' });
+  message({ chat_id: chat, chat_name: chat, contact_name: 'HR' });
+  message({ chat_id: chat, chat_name: 'BOOKNFLY TEAM', contact_name: 'HR' });
+  task({ title: 'From the half-read chat', chat_name: 'Krishna', contact: 'Krishna', chat_id: chat });
+
+  const result = GN.repairFromStored();
+  assert.ok(result.named >= 1);
+  assert.equal(taskNamed('From the half-read chat').chat_name, 'BOOKNFLY TEAM');
+  assert.equal(taskNamed('From the half-read chat').is_group, 1);
+});
+
+await run('an id stored more often than the name still loses to it', () => {
+  const chat = '120363000777@g.us';
+  for (let i = 0; i < 5; i += 1) message({ chat_id: chat, chat_name: chat });
+  message({ chat_id: chat, chat_name: 'ACCT - SENA GLOBAL DMC' });
+  task({ title: 'Outvoted', chat_name: null, chat_id: chat });
+
+  GN.repairFromStored();
+  assert.equal(taskNamed('Outvoted').chat_name, 'ACCT - SENA GLOBAL DMC');
+});
+
+await run('a task with no chat id of its own is linked through its message', () => {
+  // Early versions did not put the chat id on the task, so a repair that works
+  // chat by chat could not see them at all.
+  const chat = '120363000888@g.us';
+  const info = DB.db
+    .prepare(`INSERT INTO messages (chat_id, chat_name, contact_name, body, is_group, sent_at)
+              VALUES (?, ?, ?, 'x', 1, '2026-09-08T00:00:00Z')`)
+    .run(chat, 'BNF - GROWTH TEAM', 'Hasmukh');
+  DB.db
+    .prepare(`INSERT INTO tasks (title, chat_name, contact, message_id, status, source, origin)
+              VALUES ('No chat id', 'Hasmukh', 'Hasmukh', ?, 'open', 'whatsapp', 'ai')`)
+    .run(info.lastInsertRowid);
+
+  assert.equal(GN.linkChatIds() >= 1, true);
+  GN.repairFromStored();
+  assert.equal(taskNamed('No chat id').chat_name, 'BNF - GROWTH TEAM');
+});
+
 console.log('\nwhat is left alone');
 
 await run('a one-to-one chat is never touched', async () => {

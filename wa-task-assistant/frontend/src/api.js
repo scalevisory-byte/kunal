@@ -238,6 +238,9 @@ export const api = {
   noteToTask: (id, body) =>
     request(`/notes/${id}/task`, { method: 'POST', body: JSON.stringify(body) }),
 
+  groupNames: () => request('/group-names'),
+  repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
+
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),
 

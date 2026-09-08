@@ -68,6 +68,75 @@ export function needsName(chatId) {
 }
 
 /**
+ * The name this group is already stored under somewhere else.
+ *
+ * A chat is not always read the same way twice: `getChat()` fails on one
+ * message and works on the next, so the same group can have twenty rows holding
+ * its id and one holding "BNF - GROWTH TEAM". That one row is as good an answer
+ * as WhatsApp would give, and it needs no browser, no session and no waiting
+ * for a sync to finish - which matters because the session spends its first
+ * minutes unable to answer anything.
+ *
+ * The most-used real name wins, so one row stored under something odd cannot
+ * outvote the name the group has carried all along.
+ */
+export function nameFromSiblings(chatId) {
+  const rows = db
+    .prepare(
+      `SELECT chat_name, COUNT(*) AS n FROM messages
+       WHERE chat_id = ? AND chat_name IS NOT NULL AND chat_name != ''
+       GROUP BY chat_name ORDER BY n DESC`
+    )
+    .all(chatId);
+  const best = rows.find((row) => !looksLikeId(row.chat_name));
+  return best?.chat_name ?? null;
+}
+
+/**
+ * Repairs every group name that can be settled from what is already stored.
+ *
+ * No WhatsApp, so it runs at boot whatever the session is doing. It cannot
+ * invent a name that was never read even once - that is what asking WhatsApp is
+ * for - but where one message got through with the name on it, every task from
+ * that chat gets it.
+ */
+export function repairFromStored({ limit = 300 } = {}) {
+  let named = 0;
+  let tasks = 0;
+  for (const chatId of groupChatIds({ limit })) {
+    if (!needsName(chatId)) continue;
+    const name = nameFromSiblings(chatId);
+    if (!name) continue;
+    const done = applyGroupName(chatId, name);
+    if (done.messages || done.tasks) {
+      named += 1;
+      tasks += done.tasks;
+    }
+  }
+  if (named) log.info(`Named ${named} group(s) from messages already stored: ${tasks} task(s) updated.`);
+  return { named, tasks };
+}
+
+/**
+ * Tasks that came from a group but carry no chat id of their own.
+ *
+ * Early versions did not put the chat id on the task, so a repair that works
+ * chat by chat cannot see them at all. The message they came from has it, and
+ * tasks keep that link, so this is one join rather than a special case
+ * everywhere else.
+ */
+export function linkChatIds() {
+  return db
+    .prepare(
+      `UPDATE tasks
+       SET chat_id = (SELECT chat_id FROM messages WHERE id = tasks.message_id)
+       WHERE chat_id IS NULL
+         AND message_id IN (SELECT id FROM messages WHERE chat_id IS NOT NULL)`
+    )
+    .run().changes;
+}
+
+/**
  * Writes one group's name onto everything stored against it.
  *
  * Messages keep whatever real name they already have - a name that was read
@@ -109,6 +178,10 @@ export function applyGroupName(chatId, name) {
  * that is already open, and then nothing until something new arrives unnamed.
  */
 export async function repairGroupNames(lookup, { limit = 300 } = {}) {
+  // Both cheap, and both reduce what has to be asked for over the browser.
+  linkChatIds();
+  repairFromStored({ limit });
+
   let asked = 0;
   let named = 0;
   let messages = 0;

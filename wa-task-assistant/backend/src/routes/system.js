@@ -4,7 +4,8 @@ import {
   listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
-import { state, flushNow } from '../whatsapp.js';
+import { state, flushNow, groupNameFor } from '../whatsapp.js';
+import { repairGroupNames, groupChatIds, needsName, nameFromSiblings } from '../group-names.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
@@ -74,6 +75,45 @@ systemRouter.get('/status', (req, res) => {
  * tell a missing or wrong ANTHROPIC_API_KEY apart from chats that simply have
  * nothing actionable in them.
  */
+/**
+ * What the app knows about the groups it has seen, and what it cannot name.
+ *
+ * Here because "the group name is missing" is answered three different ways -
+ * the name was never stored, it was stored as an id, or the task never carried
+ * the chat - and from the outside they look identical. This says which.
+ */
+systemRouter.get('/group-names', (req, res) => {
+  const chats = groupChatIds().map((chatId) => ({
+    chat_id: chatId,
+    stored_name: nameFromSiblings(chatId),
+    needs_name: needsName(chatId),
+  }));
+  res.json({
+    groups: chats.length,
+    unnamed: chats.filter((c) => c.needs_name && !c.stored_name).length,
+    fixable_now: chats.filter((c) => c.needs_name && c.stored_name).length,
+    // Only ids and names of the user's own groups - no message content.
+    chats: chats.slice(0, 100),
+    whatsapp: state.status,
+  });
+});
+
+/**
+ * Ask WhatsApp for the names it has and write them in, on demand.
+ *
+ * The same repair the session runs when it becomes ready, reachable from the
+ * dashboard so it does not have to wait for a restart - and so it can report a
+ * number rather than leaving the question open.
+ */
+systemRouter.post('/group-names/repair', async (req, res) => {
+  try {
+    const result = await repairGroupNames(groupNameFor);
+    res.json({ ...result, whatsapp: state.status });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || 'could not read the group names' });
+  }
+});
+
 systemRouter.post('/selftest', async (req, res) => {
   if (config.extractionMode !== 'ai') {
     return res.json({ ok: false, error: 'Extraction mode is manual, so no AI is used.' });
