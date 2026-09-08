@@ -2,6 +2,7 @@ import { useState } from 'react';
 import TaskItem from './TaskItem.jsx';
 import Icon from './Icon.jsx';
 import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
+import { parseStamp } from '../lib/derive.js';
 
 /*
  * Within a day, earliest first.
@@ -182,6 +183,72 @@ function byFolder(open, groups) {
 }
 
 /**
+ * Finished work, one section per day it was closed on.
+ *
+ * "What did I actually get done today?" is the question this page is opened
+ * with, and a single list of everything ever finished cannot answer it - by
+ * the second week the day you want is a hundred rows down. Today and Yesterday
+ * are named, because that is how they are asked for; older days carry their
+ * date. A task finished with no completion time recorded gets its own section
+ * rather than being dated with a guess.
+ */
+function byCompleted(done) {
+  const today = todayIso();
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-CA');
+
+  const days = new Map();
+  const undated = [];
+  for (const task of done) {
+    /*
+     * `parseStamp`, not `new Date`.
+     *
+     * SQLite writes "YYYY-MM-DD HH:MM:SS" in UTC with no marker, and Date
+     * reads a string like that as LOCAL time - five and a half hours out
+     * here. The sections would then file a task finished after 6pm UTC under
+     * the previous day while the day filter, which parses it correctly, put
+     * it under the right one: the heading and the chip disagreeing about the
+     * same task.
+     */
+    const at = parseStamp(task.completed_at);
+    const day = at ? at.toLocaleDateString('en-CA') : null;
+    if (!day) { undated.push(task); continue; }
+    if (!days.has(day)) days.set(day, []);
+    days.get(day).push(task);
+  }
+
+  const label = (iso) => {
+    if (iso === today) return 'Today';
+    if (iso === yesterday) return 'Yesterday';
+    return new Date(`${iso}T00:00:00`).toLocaleDateString([], {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    });
+  };
+
+  const sections = [...days.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([iso, items]) => ({
+      key: `d${iso}`,
+      label: label(iso),
+      tone: 'ok',
+      icon: 'check',
+      items: items.sort((a, b) =>
+        (parseStamp(b.completed_at)?.getTime() || 0) - (parseStamp(a.completed_at)?.getTime() || 0)),
+    }));
+
+  if (undated.length) {
+    sections.push({
+      key: 'nodate',
+      label: 'No date recorded',
+      tone: 'plain',
+      icon: 'check',
+      items: undated,
+      note: 'Finished before the app started keeping the time.',
+    });
+  }
+  return sections;
+}
+
+/**
  * My day is the answer to "what now": late work first, then what is already
  * underway, then what is urgent or due today, and finally what was finished.
  */
@@ -270,7 +337,13 @@ export default function TaskList({
   const done = tasks.filter(isDone);
 
   let sections;
-  if (view === 'myday') sections = myDay(open, done);
+  /*
+   * Completed is its own shape: it groups by the day work was closed, not by
+   * when it was due. Everything on this page is already done, so the trailing
+   * "Completed" section below would be the whole page repeated.
+   */
+  if (view === 'done') sections = byCompleted(done);
+  else if (view === 'myday') sections = myDay(open, done);
   else if (groupBy === 'reason') sections = byReason(open);
   else if (groupBy === 'chat') sections = byChat(open);
   else if (groupBy === 'folder') sections = byFolder(open, groups);
@@ -314,7 +387,7 @@ export default function TaskList({
   // A folder with nothing in it is still a folder: the by-folder view is
   // meant to be the list of them, so those sections stay and say so.
   sections = sections.filter((s) => s.items.length || s.keep);
-  if (view !== 'myday' && done.length) {
+  if (view !== 'myday' && view !== 'done' && done.length) {
     sections.push({ key: 'done', label: 'Completed', tone: 'ok', icon: 'check', items: done });
   }
 

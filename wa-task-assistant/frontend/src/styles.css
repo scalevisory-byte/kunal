@@ -3829,3 +3829,38 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .folder-strip.grid .folder-scroll { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
 }
 
+
+/*
+ * Which day of finished work is on screen.
+ *
+ * Sits where the folder tiles sit on the other pages, and never with them: the
+ * two are both answers to "what am I looking at", and two answers is none.
+ */
+.donebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+.donebar-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.donebar-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.donebar-pick input {
+  padding: 4px 8px;
+  min-height: 30px;
+  font-size: .78rem;
+  border-radius: 999px;
+}
+.donebar-count {
+  margin-left: auto;
+  font-size: .78rem;
+  color: var(--muted);
+}
+@media (max-width: 560px) {
+  .donebar-count { margin-left: 0; flex: 1 0 100%; }
+}

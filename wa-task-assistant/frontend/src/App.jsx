@@ -13,6 +13,7 @@ import TidyTitles from './components/TidyTitles.jsx';
 import MessagesRead from './components/MessagesRead.jsx';
 import GroupNames from './components/GroupNames.jsx';
 import Toolbar from './components/Toolbar.jsx';
+import CompletedBar from './components/CompletedBar.jsx';
 import FolderStrip from './components/FolderStrip.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
@@ -87,7 +88,8 @@ const PAGES = {
   },
   done: {
     title: 'Completed',
-    lede: 'Finished work, most recently closed first.',
+    lede: 'Finished work, newest first, grouped by the day it was closed.',
+    completed: true,
   },
   received: {
     title: 'Task received',
@@ -168,6 +170,14 @@ export default function App() {
    * the second task for Meera should not need her name typed again.
    */
   const [people, setPeople] = useState([]);
+  /*
+   * Which day of finished work is on screen.
+   *
+   * null is everything. Separate from `selectedDate`, which is about
+   * deadlines: "finished on the 8th" and "due on the 8th" are different
+   * questions and sharing one piece of state made each answer the other.
+   */
+  const [doneDay, setDoneDay] = useState(null);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   /*
@@ -492,6 +502,8 @@ export default function App() {
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
       if (view === 'overdue' && !isOverdue(task)) return false;
       if (view === 'done' && !isDone(task)) return false;
+      // Completed, narrowed to one day it was actually closed on.
+      if (view === 'done' && doneDay && !onDay(task.completed_at, doneDay)) return false;
       if (view === 'myday' && isDone(task)) return false;
       // What came in today, whatever state it is in: the figure counts every
       // task created today, so the list it opens has to as well.
@@ -521,7 +533,7 @@ export default function App() {
 
       return matchesQuery(task, query);
     });
-  }, [tasks, view, filters, query, selectedDate, searching]);
+  }, [tasks, view, filters, query, selectedDate, searching, doneDay]);
 
   const summary = useMemo(() => summarise(dayTasks), [dayTasks]);
   const recent = useMemo(() => activity(dayTasks), [dayTasks]);
@@ -554,6 +566,7 @@ export default function App() {
   const goto = (key) => {
     setSection(key);
     setSelectedDate(null);
+    setDoneDay(null);
     setQuery('');
     setFilters(EMPTY_FILTERS);
 
@@ -1234,6 +1247,21 @@ export default function App() {
                           </span>
                         )}
                       </div>
+                    )}
+
+                    {/*
+                      * Completed asks a different question of the same list:
+                      * not what is owed but what got closed, and closed WHEN.
+                      * So this page gets the day control instead of the folder
+                      * strip - the two never appear together, because they
+                      * would be two answers to "what am I looking at".
+                      */}
+                    {page.completed && !searching && (
+                      <CompletedBar
+                        day={doneDay}
+                        onDay={setDoneDay}
+                        count={visible.filter(isDone).length}
+                      />
                     )}
 
                     {/*
