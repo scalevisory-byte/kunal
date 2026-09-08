@@ -173,9 +173,9 @@ function myDay(open, done) {
 const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 
 export default function TaskList({
-  tasks, loading, error, groupBy, view, query, groups = [],
+  tasks, loading, error, groupBy, view, query, groups = [], people = [],
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
-  onMove, onManageGroups, onAddUpdate,
+  onMove, onManageGroups, onAddUpdate, onAssign,
 }) {
   /*
    * Grouped by chat, the sections start shut.
@@ -244,6 +244,8 @@ export default function TaskList({
                 onMove={onMove}
                 onManageGroups={onManageGroups}
                 onAddUpdate={onAddUpdate}
+                people={people}
+                onAssign={onAssign}
               />
             ))}
           </ul>
@@ -316,6 +318,8 @@ export default function TaskList({
                     onMove={onMove}
                     onManageGroups={onManageGroups}
                     onAddUpdate={onAddUpdate}
+                    people={people}
+                    onAssign={onAssign}
                   />
                 ))}
               </ul>

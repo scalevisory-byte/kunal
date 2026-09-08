@@ -162,6 +162,11 @@ export default function App() {
    * the note is opened so closing it does not bring it straight back.
    */
   const [noteToOpen, setNoteToOpen] = useState(null);
+  /*
+   * Who work has been given to before. Named once and then it is a press:
+   * the second task for Meera should not need her name typed again.
+   */
+  const [people, setPeople] = useState([]);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   /*
@@ -399,6 +404,18 @@ export default function App() {
    * here costs nothing next to a request per character.
    */
   const [allNotes, setAllNotes] = useState([]);
+  const loadPeople = useCallback(() => {
+    api.delegation('all').then((d) => setPeople(d.people?.allotted || [])).catch(() => {});
+  }, []);
+
+  /*
+   * Refreshed with the tasks, because a task changing hands is what changes
+   * who is on this list. Declared with its effect rather than beside the
+   * groups' one - reaching for it up there would be reading a const before it
+   * exists.
+   */
+  useEffect(() => { loadPeople(); }, [loadPeople, tasks]);
+
   const loadNotes = useCallback(() => {
     api.notes().then((d) => setAllNotes(d.notes)).catch(() => {});
   }, []);
@@ -1192,6 +1209,14 @@ export default function App() {
                       onMove={onMove}
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                      people={people}
+                      onAssign={async (task, name, wid) => {
+                        try {
+                          await api.assign(task.id, name, wid);
+                          refresh({ quiet: true });
+                          loadPeople();
+                        } catch (err) { setError(err.message); }
+                      }}
                     />
 
                     {/*

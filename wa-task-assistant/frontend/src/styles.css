@@ -3357,6 +3357,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Idle it is one row; typing opens the days underneath it. */
 .quickadd.compact .qa-when { margin-top: 7px; padding-top: 7px; }
 
+/* Whose job it is, on the row - the question the list is read with. */
+.m-item.given { color: var(--brand); gap: 4px; }
+
+/* Naming somebody from inside the row menu. */
+.menu-name { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
+.menu-name input {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--bg);
+  color: var(--text); font: inherit; font-size: .8rem; padding: 4px 8px; min-height: 30px;
+}
+.menu-note { margin-left: auto; font-size: .68rem; color: var(--muted); }
+
 /* Where a task came from, said rather than implied. */
 .m-item.origin { gap: 4px; }
 .m-item.by-ai { color: var(--info, var(--muted)); }
