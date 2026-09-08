@@ -1222,6 +1222,7 @@ export default function App() {
                       groups={groups}
                       onMove={onMove}
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                       people={people}
                       onAssign={async (task, name, wid) => {

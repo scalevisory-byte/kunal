@@ -142,25 +142,44 @@ function byChat(open) {
  * one worth clearing.
  */
 function byFolder(open, groups) {
-  const sections = groups.map((g) => ({
-    key: `g${g.id}`,
-    label: g.name,
-    tone: 'info',
-    dot: g.colour || 'teal',
-    items: open.filter((t) => t.group_id === g.id),
-  })).filter((s) => s.items.length);
+  const sections = groups.map((g) => {
+    const items = open.filter((t) => t.group_id === g.id);
+    /*
+     * A set-aside folder's work is deliberately not on the board, so there is
+     * nothing here to list - but the folder itself belongs in a list of
+     * folders. It shows its own count and the way in.
+     */
+    const aside = Boolean(g.separate);
+    return {
+      key: `g${g.id}`,
+      label: g.name,
+      tone: 'info',
+      dot: g.colour || 'teal',
+      items: aside ? [] : items,
+      total: aside ? (g.counts?.open || 0) : items.length,
+      keep: true,
+      groupId: g.id,
+      note: aside
+        ? 'Kept out of the main list.'
+        : items.length ? undefined : 'Nothing open in here.',
+      // Set aside, the heading already says why there is nothing here; all the
+      // line needs to carry is the way in.
+      empty: aside || items.length ? undefined : 'Move work in with the folder button on any row.',
+    };
+  });
 
   const loose = open.filter((t) => !t.group_id);
-  if (loose.length) {
-    sections.push({
-      key: 'nofolder',
-      label: 'Not in a folder',
-      tone: 'plain',
-      icon: 'inbox',
-      items: loose,
-      note: 'Put one away with the folder button on its row.',
-    });
-  }
+  sections.push({
+    key: 'nofolder',
+    label: 'Not in a folder',
+    tone: 'plain',
+    icon: 'inbox',
+    items: loose,
+    total: loose.length,
+    keep: true,
+    note: loose.length ? 'Put one away with the folder button on its row.' : undefined,
+    empty: 'Everything is filed.',
+  });
   return sections;
 }
 
@@ -206,7 +225,7 @@ const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 export default function TaskList({
   tasks, loading, error, groupBy, view, query, groups = [], people = [],
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
-  onMove, onManageGroups, onAddUpdate, onAssign,
+  onMove, onManageGroups, onAddUpdate, onAssign, onOpenGroup,
 }) {
   /*
    * Grouped by chat, the sections start shut.
@@ -290,7 +309,9 @@ export default function TaskList({
   }
   else sections = byDate(open);
 
-  sections = sections.filter((s) => s.items.length);
+  // A folder with nothing in it is still a folder: the by-folder view is
+  // meant to be the list of them, so those sections stay and say so.
+  sections = sections.filter((s) => s.items.length || s.keep);
   if (view !== 'myday' && done.length) {
     sections.push({ key: 'done', label: 'Completed', tone: 'ok', icon: 'check', items: done });
   }
@@ -331,12 +352,22 @@ export default function TaskList({
                 ? <span className={`board-dot c-${section.dot}`} aria-hidden="true" />
                 : <Icon name={section.icon || 'circle'} size={17} className="section-icon" />}
               <h3>{section.label}</h3>
-              <span className="section-count">{count(section.items.length)}</span>
+              <span className="section-count">{count(section.total ?? section.items.length)}</span>
               {/* What this section means, where the heading alone is not enough
                   to act on — "Stopped asking" says nothing about what to do. */}
               {section.note && <span className="section-note">{section.note}</span>}
               <Icon name="chevronDown" size={17} className={`section-chevron ${shut ? '' : 'up'}`} />
             </button>
+            {!shut && !section.items.length && (section.empty || section.groupId) && (
+              <p className="section-empty">
+                {section.empty}
+                {section.groupId && onOpenGroup && (
+                  <button className="linky" onClick={() => onOpenGroup(section.groupId)}>
+                    Open {section.label}
+                  </button>
+                )}
+              </p>
+            )}
             {!shut && (
               <ul className="task-list">
                 {section.items.map((task) => (

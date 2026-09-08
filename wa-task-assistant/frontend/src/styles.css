@@ -3628,3 +3628,31 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .lead-col { flex-direction: column; }
   .lead-add input, .lead-add select { flex: 1 0 100%; }
 }
+
+/*
+ * An empty folder still gets a line.
+ *
+ * The by-folder view is meant to be the list of businesses, so a folder with
+ * nothing open in it says so rather than disappearing - a folder you cannot
+ * see is a folder you cannot file into.
+ */
+.section-empty {
+  margin: 0;
+  padding: 6px 20px 14px 47px;
+  font-size: .82rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.linky {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.linky:hover { text-decoration: underline; }
