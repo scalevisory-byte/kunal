@@ -504,6 +504,63 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .kpi.t-info .kpi-icon { color: var(--info); }
 .kpi.t-danger .kpi-num { color: var(--danger); }
 
+/*
+ * The dashboard's own strip: figures, not cards.
+ *
+ * Scoped to `.flat` because AI Usage and Work History still use these classes
+ * as real cards, where the figures are the page rather than a header on it.
+ * Here the hairlines do the separating, hover marks what is pressable and a
+ * rule under the picked one marks what is on - no border, no shadow, no icon.
+ */
+.kpis.flat {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.kpis.flat .kpi {
+  flex: 1;
+  display: flex;
+  /* The card version is a column; this one is a row that wraps, so the figure
+     and its label share a line and the note takes the one below. */
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  padding: 3px 12px 7px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.kpis.flat .kpi:first-child { border-left: 0; padding-left: 2px; }
+.kpis.flat .kpi:hover { background: var(--raised); box-shadow: none; }
+.kpis.flat .kpi.picked {
+  background: none;
+  box-shadow: inset 0 -2px 0 var(--brand);
+}
+.kpis.flat .kpi.picked .kpi-label { color: var(--text); }
+.kpis.flat .kpi-num {
+  font-size: 1.02rem;
+  line-height: 1.2;
+  color: var(--text);
+}
+.kpis.flat .kpi-label {
+  font-size: .72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-2);
+}
+.kpis.flat .kpi-note {
+  flex: 1 0 100%;
+  font-size: .64rem;
+  line-height: 1.3;
+}
+/* One colour, in the one place it has to be: work that is late. */
+.kpis.flat .kpi.t-danger .kpi-num { color: var(--danger); }
+
 /* ---------- quick actions ---------- */
 
 /*
@@ -1455,6 +1512,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     scroll-snap-align: start;
     padding: 8px 11px 9px;
   }
+  /* On a phone the strip scrolls too, but the cells size to their own
+     figures rather than to a share of the screen - five short numbers fit
+     across where two cards did. */
+  .kpis.flat .kpi { flex: 0 0 auto; padding: 3px 14px 7px; }
+  .kpis.flat .kpi:first-child { padding-left: 0; }
+  .kpis.flat .kpi-num { font-size: 1.05rem; }
   .kpi-num { font-size: 1.2rem; }
   /* The shortcuts scroll on one line too, rather than wrapping to two. */
   .quick {
