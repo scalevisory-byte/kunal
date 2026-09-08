@@ -67,6 +67,9 @@ function Build({ build }) {
   );
 }
 
+/** Bytes as whole megabytes - the unit every figure here is read in. */
+const mb = (bytes) => `${Math.round((bytes || 0) / 1024 / 1024)} MB`;
+
 function Diagnostics({ d }) {
   if (!d) return null;
 
@@ -98,6 +101,21 @@ function Diagnostics({ d }) {
     ],
   ];
 
+  /*
+   * Room left where the data lives.
+   *
+   * The one figure that has actually taken this service down: the volume
+   * filled, SQLite could not write, and the process died before it bound a
+   * port - with nothing anywhere saying why. A sync writes hundreds of
+   * megabytes here, so it is worth watching rather than assuming.
+   */
+  if (d.storage) {
+    rows.push([
+      'Space left',
+      `${mb(d.storage.availableBytes)} free of ${mb(d.storage.totalBytes)} · ${d.storage.usedPct}% used`,
+    ]);
+  }
+
   const memoryTight =
     d.container?.limitMb && d.container.usedMb > d.container.limitMb * 0.85;
 
@@ -122,6 +140,14 @@ function Diagnostics({ d }) {
           No volume is mounted at <code>{d.dataDir}</code>. Every restart wipes the linked
           session, so the QR keeps coming back. In Railway: attach a volume at{' '}
           <code>{d.dataDir}</code> and set <code>DATA_DIR={d.dataDir}</code>.
+        </p>
+      )}
+      {d.storage?.low && (
+        <p className="hint error-text">
+          Only {mb(d.storage.availableBytes)} left where the data lives. A WhatsApp sync
+          writes hundreds of megabytes here, and a full volume is what stopped this service
+          booting before — SQLite cannot write, so it dies before it can say so. Raise the
+          volume size, or clear old attachments.
         </p>
       )}
       {memoryTight && (

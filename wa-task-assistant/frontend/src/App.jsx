@@ -1049,6 +1049,25 @@ export default function App() {
                 </div>
               )}
 
+              {/*
+                * Running out of room, said where it will be seen.
+                *
+                * This is the failure that has actually happened: the volume
+                * filled, SQLite could not write, and the process died before
+                * it bound a port - so the app could not report its own
+                * outage. The warning has to arrive while there is still room
+                * to act, which means on the page he already has open, not in
+                * a diagnostics block he opens after it breaks.
+                */}
+              {status?.diagnostics?.storage?.low && (
+                <div className="banner error" role="alert">
+                  Only {Math.round(status.diagnostics.storage.availableBytes / 1024 / 1024)} MB
+                  left where the data lives. A WhatsApp sync writes hundreds of megabytes
+                  here, and a full disk stops tasks being saved at all.
+                  <button className="link" onClick={() => goto('settings')}>See storage</button>
+                </div>
+              )}
+
               {/* Results are the page while a search is on: the greeting, the
                   figures, the quick actions and Focus today all pushed the
                   matches below the fold, which is why typing appeared to do

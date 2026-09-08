@@ -505,21 +505,21 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .kpi.t-danger .kpi-num { color: var(--danger); }
 
 /*
- * The dashboard's own strip: figures, not cards.
+ * The dashboard's own row: five small boxes, one colour each.
  *
- * Scoped to `.flat` because AI Usage and Work History still use these classes
- * as real cards, where the figures are the page rather than a header on it.
- * Here the hairlines do the separating, hover marks what is pressable and a
- * rule under the picked one marks what is on - no border, no shadow, no icon.
+ * Scoped to `.tint` because AI Usage and Work History still use these classes
+ * as white cards, where the figures are the page rather than a header on it.
+ * Here the tint replaces the border, the shadow and the icon all at once - the
+ * row is read by colour first, which is how you find "overdue" without reading
+ * anything. Two lines: the figure with its label, the context beneath.
  */
-.kpis.flat {
-  display: flex;
-  gap: 0;
+.kpis.tint {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 7px;
   margin-bottom: 12px;
-  border-bottom: 1px solid var(--line);
 }
-.kpis.flat .kpi {
-  flex: 1;
+.kpis.tint .kpi {
   display: flex;
   /* The card version is a column; this one is a row that wraps, so the figure
      and its label share a line and the note takes the one below. */
@@ -527,39 +527,42 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0 6px;
-  padding: 3px 12px 7px;
+  padding: 6px 10px 7px;
   border: 0;
-  border-left: 1px solid var(--line);
-  border-radius: 0;
-  background: none;
+  border-radius: var(--r-sm);
   box-shadow: none;
+  background: var(--tone-wash);
+  color: var(--tone);
 }
-.kpis.flat .kpi:first-child { border-left: 0; padding-left: 2px; }
-.kpis.flat .kpi:hover { background: var(--raised); box-shadow: none; }
-.kpis.flat .kpi.picked {
-  background: none;
-  box-shadow: inset 0 -2px 0 var(--brand);
-}
-.kpis.flat .kpi.picked .kpi-label { color: var(--text); }
-.kpis.flat .kpi-num {
-  font-size: 1.02rem;
+.kpis.tint .kpi:hover { box-shadow: inset 0 0 0 1px var(--tone); }
+/* Picked is the same ring, drawn properly - it is a state, not a hover. */
+.kpis.tint .kpi.picked { box-shadow: inset 0 0 0 1.5px var(--tone); }
+.kpis.tint .kpi-num {
+  font-size: 1.08rem;
   line-height: 1.2;
-  color: var(--text);
+  color: var(--tone);
 }
-.kpis.flat .kpi-label {
-  font-size: .72rem;
-  font-weight: 500;
+.kpis.tint .kpi-label {
+  font-size: .7rem;
+  font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--text-2);
+  color: var(--tone);
 }
-.kpis.flat .kpi-note {
+.kpis.tint .kpi-note {
   flex: 1 0 100%;
-  font-size: .64rem;
+  font-size: .63rem;
   line-height: 1.3;
+  color: var(--tone);
+  opacity: .78;
 }
-/* One colour, in the one place it has to be: work that is late. */
-.kpis.flat .kpi.t-danger .kpi-num { color: var(--danger); }
+
+/* One tone per state, set once and read by everything above. */
+.kpis.tint .kpi.t-info   { --tone: var(--info);   --tone-wash: var(--info-wash); }
+.kpis.tint .kpi.t-warn   { --tone: var(--warn);   --tone-wash: var(--warn-wash); }
+.kpis.tint .kpi.t-danger { --tone: var(--danger); --tone-wash: var(--danger-wash); }
+.kpis.tint .kpi.t-ok     { --tone: var(--ok);     --tone-wash: var(--ok-wash); }
+.kpis.tint .kpi.t-brand  { --tone: var(--brand);  --tone-wash: var(--brand-wash); }
 
 /* ---------- quick actions ---------- */
 
@@ -1512,12 +1515,10 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     scroll-snap-align: start;
     padding: 8px 11px 9px;
   }
-  /* On a phone the strip scrolls too, but the cells size to their own
-     figures rather than to a share of the screen - five short numbers fit
-     across where two cards did. */
-  .kpis.flat .kpi { flex: 0 0 auto; padding: 3px 14px 7px; }
-  .kpis.flat .kpi:first-child { padding-left: 0; }
-  .kpis.flat .kpi-num { font-size: 1.05rem; }
+  /* On a phone the boxes scroll too, sized to their own figures rather than
+     to a share of the screen, so three fit across where two cards did. */
+  .kpis.tint { display: flex; grid-template-columns: none; }
+  .kpis.tint .kpi { flex: 0 0 auto; padding: 6px 12px 7px; }
   .kpi-num { font-size: 1.2rem; }
   /* The shortcuts scroll on one line too, rather than wrapping to two. */
   .quick {

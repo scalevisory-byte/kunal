@@ -7,11 +7,12 @@
  * answer - the intake is a different thing from what is due, and on a day when
  * thirty messages become tasks that is the number worth seeing.
  *
- * A strip, not five cards. They were boxes with borders, shadows and an icon
- * each, which is a lot of furniture for a number - and the furniture, not the
- * numbers, was what you saw first. Now it is figures separated by hairlines:
- * the same five facts, the same press, forty pixels instead of seventy, and
- * the work starts that much higher up the page.
+ * Five small tinted boxes. They used to be white cards with borders, shadows
+ * and an icon each - a lot of furniture for a number, and the furniture was
+ * what you saw first. The tint does the work the border and the icon were
+ * doing, in less room: each state has its own colour, so the row is read by
+ * colour before it is read by word, and overdue is findable without looking.
+ * Two lines each, 46px, against 78 for the cards.
  */
 export default function StatBoard({ counts, view, onPick }) {
   const cells = [
@@ -45,7 +46,7 @@ export default function StatBoard({ counts, view, onPick }) {
     },
     {
       key: 'added_today',
-      tone: 'info',
+      tone: 'brand',
       label: 'Added today',
       value: counts.addedToday,
       note: counts.addedToday === 0
@@ -55,7 +56,7 @@ export default function StatBoard({ counts, view, onPick }) {
   ];
 
   return (
-    <section className="kpis flat" aria-label="Task summary">
+    <section className="kpis tint" aria-label="Task summary">
       {cells.map((cell) => (
         <button
           key={cell.key}
