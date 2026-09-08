@@ -20,10 +20,18 @@ import { isoDay } from '../lib/task.js';
  * invented: what it understood is shown after the task is made, and anything
  * it did not read comes from the saved defaults.
  */
+/*
+ * The deadline, next to the Add button rather than under it.
+ *
+ * Three, because those are the three answers: today, tomorrow, or a date you
+ * pick. Nothing chosen means no deadline, which is the ordinary case and needs
+ * no button of its own - and a day written into the sentence ("kal 5 baje")
+ * still counts, so these are for when it was easier not to type it.
+ */
 const WHENS = [
   { key: 'today', label: 'Today' },
   { key: 'tomorrow', label: 'Tomorrow' },
-  { key: 'none', label: 'No date' },
+  { key: 'custom', label: 'Date' },
 ];
 
 /** "Tomorrow · 5:00 pm", from whatever the task ended up with. */
@@ -88,6 +96,7 @@ export default function QuickAdd({
     try {
       const task = await api.quickAdd({
         text: clean,
+        // "Date" pressed but nothing picked yet is not an instruction.
         when: when === 'custom' && !custom.date ? null : when,
         due_date: custom.date || undefined,
         due_at: custom.date ? new Date(`${custom.date}T${custom.time || '18:00'}`).toISOString() : undefined,
@@ -151,41 +160,41 @@ export default function QuickAdd({
           placeholder={groupName ? `Add a task to ${groupName}…` : 'What needs to be done?'}
           aria-label="What needs to be done?"
         />
+
+        {/*
+          * The deadline sits between the box and Add, in the order the decision
+          * is made: what, then when, then done. Under the row it was a second
+          * thought after the button, and on the line above the list it was not
+          * there at all.
+          */}
+        {showWhen && (
+          <span className="qa-days" role="group" aria-label="Deadline">
+            {WHENS.map((w) => (
+              <button
+                key={w.key}
+                type="button"
+                className={`chip ${when === w.key ? 'on' : ''}`}
+                aria-pressed={when === w.key}
+                onClick={() => pick(w.key)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </span>
+        )}
+
         <button type="submit" className="btn primary small" disabled={busy || !text.trim()}>
           {busy ? 'Adding…' : 'Add'}
         </button>
       </form>
 
       <div className="qa-when">
-        {/* The days appear as soon as there is something to date. "More
-            details" stays put, so the row never becomes an empty rule. */}
-        {showWhen && WHENS.map((w) => (
-          <button
-            key={w.key}
-            type="button"
-            className={`chip ${when === w.key ? 'on' : ''}`}
-            aria-pressed={when === w.key}
-            onClick={() => pick(w.key)}
-          >
-            {w.label}
-          </button>
-        ))}
-        {showWhen && (
-          <button
-            type="button"
-            className={`chip ${when === 'custom' ? 'on' : ''}`}
-            aria-pressed={when === 'custom'}
-            onClick={() => pick('custom')}
-          >
-            Custom
-          </button>
-        )}
-
         {showWhen && when === 'custom' && (
           <span className="qa-custom">
             <input
               type="date"
               value={custom.date}
+              autoFocus
               aria-label="Deadline date"
               onChange={(e) => setCustom((c) => ({ ...c, date: e.target.value }))}
             />

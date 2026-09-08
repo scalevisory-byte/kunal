@@ -3280,7 +3280,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   margin-bottom: 14px;
   box-shadow: var(--shadow-sm);
 }
-.qa-row { display: flex; align-items: center; gap: 9px; }
+.qa-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .qa-mark { color: var(--muted); flex: none; }
 .qa-row input {
   flex: 1; min-width: 0;
@@ -3290,11 +3290,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .qa-row input::placeholder { color: var(--muted); }
 
+/* The three days, between the box and the button. Small and quiet until one
+   is chosen, so the row still reads as one input rather than a toolbar. */
+.qa-days { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.qa-days .chip { padding: 3px 9px; font-size: .74rem; min-height: 27px; }
+
 .qa-when {
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
   margin-top: 9px; padding-top: 9px;
   border-top: 1px solid var(--line);
 }
+/* With nothing in it the rule above would be a line across an empty row. */
+.qa-when:empty { display: none; }
 .qa-gap { flex: 1; }
 .qa-custom { display: inline-flex; gap: 6px; }
 .qa-custom input {
@@ -3327,4 +3334,10 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .qa-when { gap: 5px; }
   .qa-custom { width: 100%; }
   .qa-custom input { flex: 1; }
+  /* The box takes the width; the days and the button share the line under it,
+     in the same order. The + would otherwise sit alone on a line of its own. */
+  .qa-row input { flex: 1 0 100%; }
+  .qa-mark { display: none; }
+  .qa-days { flex: 1; }
+  .qa-days .chip { flex: 1; justify-content: center; }
 }
