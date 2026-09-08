@@ -756,6 +756,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .task {
   display: flex;
   gap: 13px;
+  /* The row itself opens the task, so it says so. */
+  cursor: pointer;
   /*
    * Aligned to the first line, not to the middle.
    *

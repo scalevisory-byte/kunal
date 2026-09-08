@@ -273,8 +273,30 @@ export default function TaskItem({
    */
   const added = addedLabel(task.created_at);
 
+  /*
+   * The whole row opens the task, not just its title.
+   *
+   * The title was the only thing that opened the drawer, so a press on the
+   * deadline, the meta line or the empty half of the row did nothing at all -
+   * and the row is what you are aiming at. Every control in it keeps its own
+   * job: the checkbox, the folder and staff buttons, the menu and the dismiss
+   * all stop here. The title button stays a button, because it is what the
+   * keyboard tabs to; this is a second way in for a mouse and a thumb, not a
+   * replacement for it.
+   */
+  const openFromRow = (event) => {
+    // The containers too, not only their controls: an open menu has padding
+    // between its buttons, and a press there must not open the drawer behind
+    // it.
+    if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu')) return;
+    onOpen(task);
+  };
+
   return (
-    <li className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}>
+    <li
+      className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}
+      onClick={openFromRow}
+    >
       <input
         type="checkbox"
         checked={done}
