@@ -161,6 +161,37 @@ run('the same number cannot open two cards', () => {
   assert.equal(again.id, first.id, 'a second message updates the person, it does not clone them');
 });
 
+console.log('\nwhat WhatsApp Business already knows');
+
+run('the labels he filed the chat under are kept', () => {
+  const lead = L.createLead({
+    name: 'Harshadbhai', wid: '919879017579@c.us', source: 'facebook',
+    labels: ['Arth Debt Recovery', 'AI handoff'],
+  });
+  assert.deepEqual(L.getLead(lead.id).labels, ['Arth Debt Recovery', 'AI handoff']);
+});
+
+run('a lead with no labels reads as an empty list, not as broken', () => {
+  const lead = L.createLead({ name: 'No Labels' });
+  assert.deepEqual(L.getLead(lead.id).labels, []);
+});
+
+run('the ad phrase that actually arrives is the one it looks for', () => {
+  /*
+   * Read off his real chats rather than guessed: Meta's click-to-WhatsApp ads
+   * put "Hello! Can I get more info on this?" in the customer's mouth, and
+   * every one of his ad leads opens with it. None of the phrases I invented
+   * first would have matched a single one.
+   */
+  const sched = fs.readFileSync(new URL('../src/scheduling.js', import.meta.url), 'utf8');
+  assert.match(sched, /'can i get more info on this'/);
+
+  const wa = fs.readFileSync(new URL('../src/whatsapp.js', import.meta.url), 'utf8');
+  const block = wa.slice(wa.indexOf('async function maybeLead'));
+  assert.match(block.slice(0, 1400), /text\.includes\(String\(phrase\)\.toLowerCase\(\)\)/,
+    'matched against the message, lower-cased both sides');
+});
+
 console.log('\nwhat this app will not do');
 
 run('nothing in the lead code sends anything to a lead', () => {

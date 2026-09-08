@@ -70,6 +70,12 @@ db.exec(`
     needs_confirmation INTEGER NOT NULL DEFAULT 0,
     message_id   INTEGER REFERENCES messages(id) ON DELETE SET NULL,
     chat_name    TEXT,
+    /*
+     * The labels the chat carries in WhatsApp Business - "Arth Debt Recovery",
+     * "AI handoff". They are his own filing, already done, in the place he
+     * does it; reading them beats asking him to say the same thing twice.
+     */
+    labels       TEXT NOT NULL DEFAULT '[]',
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
     closed_at    TEXT
@@ -120,8 +126,24 @@ const SELECT = `
   LEFT JOIN messages m ON m.id = l.message_id
 `;
 
+const parseLabels = (raw) => {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean).slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+};
+
 const shape = (row) =>
-  row ? { ...row, needs_confirmation: Boolean(row.needs_confirmation), closed: CLOSED.has(row.stage) } : null;
+  row
+    ? {
+        ...row,
+        labels: parseLabels(row.labels),
+        needs_confirmation: Boolean(row.needs_confirmation),
+        closed: CLOSED.has(row.stage),
+      }
+    : null;
 
 export const getLead = (id) => shape(db.prepare(`${SELECT} WHERE l.id = ?`).get(id));
 
@@ -179,9 +201,9 @@ export function createLead(input = {}) {
   const info = db
     .prepare(
       `INSERT INTO leads (name, phone, wid, group_id, source, source_ref, stage, value, note,
-                          next_action_at, needs_confirmation, message_id, chat_name)
+                          next_action_at, needs_confirmation, message_id, chat_name, labels)
        VALUES (@name, @phone, @wid, @group_id, @source, @source_ref, @stage, @value, @note,
-               @next_action_at, @needs_confirmation, @message_id, @chat_name)`
+               @next_action_at, @needs_confirmation, @message_id, @chat_name, @labels)`
     )
     .run({
       name,
@@ -197,6 +219,7 @@ export function createLead(input = {}) {
       needs_confirmation: input.needs_confirmation ? 1 : 0,
       message_id: numberOrNull(input.message_id),
       chat_name: input.chat_name ? clean(input.chat_name, 120) : null,
+      labels: JSON.stringify(Array.isArray(input.labels) ? input.labels.map(String).slice(0, 8) : []),
     });
 
   const lead = getLead(info.lastInsertRowid);

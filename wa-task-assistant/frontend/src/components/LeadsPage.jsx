@@ -61,6 +61,23 @@ function Card({ lead, stages, onMove, onContacted, onOpen }) {
           {lead.value ? <span className="lead-value">₹{Number(lead.value).toLocaleString('en-IN')}</span> : null}
           {lead.phone && <span className="lead-num">{formatWaNumber(lead.phone) || lead.phone}</span>}
         </span>
+
+        {/* His own filing, from WhatsApp Business. Shown rather than restated:
+            a chat marked "AI handoff" there is one the AI has stopped
+            answering, which is exactly when he needs to see it. */}
+        {lead.labels?.length > 0 && (
+          <span className="lead-labels">
+            {/* The label that named the business is already the chip above it;
+                printing it twice says nothing the second time. */}
+            {lead.labels
+              .filter((label) => label.toLowerCase() !== String(lead.group_name || '').toLowerCase())
+              .map((label) => (
+                <span key={label} className={`lead-label ${/handoff|manual/i.test(label) ? 'hot' : ''}`}>
+                  {label}
+                </span>
+              ))}
+          </span>
+        )}
         <span className={`lead-when ${isOverdue(lead) ? 'danger-text' : ''}`}>
           {lead.next_action_at
             ? `${isOverdue(lead) ? 'Overdue — ' : 'Next: '}${whenLabel(lead.next_action_at)}`
@@ -382,6 +399,9 @@ function LeadSheet({ lead, groups, stages, onClose, onSaved, onError }) {
               <div><dt>Source</dt><dd>{lead.source}</dd></div>
               {lead.source_ref && <div><dt>How it was spotted</dt><dd>{lead.source_ref}</dd></div>}
               {lead.chat_name && <div><dt>Chat</dt><dd>{lead.chat_name}</dd></div>}
+              {lead.labels?.length > 0 && (
+                <div><dt>WhatsApp labels</dt><dd>{lead.labels.join(', ')}</dd></div>
+              )}
               <div><dt>First seen</dt><dd>{agoLabel(lead.created_at)}</dd></div>
             </dl>
             {lead.first_message && (

@@ -23,6 +23,7 @@ import { transcribe, transcriptionEnabled } from './transcribe.js';
 import { isoAtLocal } from './quickparse.js';
 import { createNote } from './notes.js';
 import { createLead, leadByWid } from './leads.js';
+import { listGroups } from './groups.js';
 import { repairGroupNames, looksLikeId } from './group-names.js';
 
 const { Client, LocalAuth } = pkg;
@@ -298,6 +299,28 @@ export async function handleCommand(message, chatId) {
 
 
 
+
+/**
+ * The labels a chat carries in WhatsApp Business.
+ *
+ * He already files these by hand in the Business app - "Arth Debt Recovery",
+ * "AI handoff" - and that filing is worth more than anything this app could
+ * infer, because a person did it on purpose. Read only for a chat that has
+ * just produced a possible lead, so this is a handful of lookups a day, not
+ * one per message.
+ */
+async function labelsFor(chatId) {
+  if (!client || state.status !== 'ready' || !chatId) return [];
+  try {
+    const labels = await client.getChatLabels(chatId);
+    return (labels || []).map((l) => l?.name).filter(Boolean).slice(0, 8);
+  } catch (err) {
+    // Labels are a WhatsApp Business feature; a personal account has none, and
+    // that is not a failure worth reporting.
+    return [];
+  }
+}
+
 /**
  * The ad card WhatsApp shows above a click-to-WhatsApp message.
  *
@@ -356,11 +379,25 @@ async function maybeLead(row, message, settings) {
   const isLead = Boolean(ad) || Boolean(matched) || (settings.leadFromUnknown && firstEver);
   if (!isLead) return null;
 
+  /*
+   * His own filing, carried over. A chat already labelled "Arth Debt Recovery"
+   * belongs to that business, and saying so here saves him choosing it again
+   * on a card he has not read yet.
+   */
+  const labels = await labelsFor(row.chat_id);
+  const business = labels.length
+    ? listGroups().find((g) =>
+        labels.some((label) => label.toLowerCase().includes(g.name.toLowerCase())
+          || g.name.toLowerCase().includes(label.toLowerCase())))
+    : null;
+
   try {
     const lead = createLead({
       name: row.contact_name || row.contact_number || row.chat_name || 'Unknown',
       phone: row.contact_number || null,
       wid: row.chat_id,
+      group_id: business?.id ?? null,
+      labels,
       // An ad card, or the ad's own opening words, both say Facebook; anything
       // else caught here is simply somebody who wrote in.
       source: ad || matched ? 'facebook' : 'whatsapp',

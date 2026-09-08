@@ -141,7 +141,23 @@ const DEFAULTS = {
    */
   leadCapture: true,
   leadFromUnknown: false,
-  leadPhrases: ['i saw your ad', 'saw this ad', 'facebook ad', 'interested in', 'enquiry', 'quotation chahiye'],
+  /*
+   * The first line is the one that matters: "Hello! Can I get more info on
+   * this?" is the text Meta's click-to-WhatsApp ads put in the customer's
+   * mouth, and it is what actually arrives on his ads - read off the real
+   * chats rather than guessed at. The rest are the ways people write in
+   * themselves.
+   */
+  leadPhrases: [
+    'can i get more info on this',
+    'more info on this',
+    'i saw your ad',
+    'saw this ad',
+    'facebook ad',
+    'interested in',
+    'enquiry',
+    'quotation chahiye',
+  ],
 };
 
 export function getSettings() {

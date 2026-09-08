@@ -3518,6 +3518,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .lead-num { font-size: .66rem; color: var(--muted); font-family: "IBM Plex Mono", monospace; }
 .lead-when { display: block; margin-top: 6px; font-size: .7rem; color: var(--muted); }
 
+/* The labels he already put on the chat in WhatsApp Business. */
+.lead-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.lead-label {
+  font-size: .62rem; padding: 1px 6px; border-radius: 3px;
+  background: var(--raised); color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+/* A chat the AI has handed back is one he has to answer himself. */
+.lead-label.hot { background: var(--warn-wash); color: var(--warn); }
+
 .lead-tools {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   padding: 0 8px 8px;
