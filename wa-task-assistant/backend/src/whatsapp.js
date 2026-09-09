@@ -79,6 +79,10 @@ export const state = {
   me: null,
   // The linked account's own WhatsApp display name, used to address the user.
   meName: null,
+  // When the QR was accepted. The sync that follows can take minutes on a busy
+  // account, and knowing how long it has been running is the difference
+  // between "be patient" and "something is wrong".
+  authenticatedAt: null,
   lastMessageAt: null,
   lastExtractionAt: null,
   bufferedCount: 0,
@@ -722,18 +726,57 @@ async function transcribeVoice(message) {
  */
 let caughtUp = false;
 
-function promoteToReady() {
+function promoteToReady(reason = 'messages are arriving, so the connection is up') {
   if (state.status === 'ready' || !client) return;
   const me = client.info?.wid?._serialized ?? null;
-  if (!me) return; // not far enough along to know who we are
+  /*
+   * Knowing who we are is what makes a reminder deliverable, and it normally
+   * comes from client.info - which the library fills in on the same 'ready'
+   * that may never arrive. A configured REMINDER_TO is the other way to know
+   * where to send, and it is enough on its own: `reminderChatId()` prefers it
+   * anyway. Without either, stay put rather than come up unable to answer.
+   */
+  if (!me && !config.reminderTo) return;
 
   state.status = 'ready';
   state.me = me;
   state.meName = client.info?.pushname || state.meName;
   state.qrDataUrl = null;
-  noteEvent('ready', 'messages are arriving, so the connection is up');
-  log.info(`WhatsApp treated as ready as ${state.me}: messages are being delivered.`);
+  noteEvent('ready', reason);
+  log.info(`WhatsApp treated as ready${state.me ? ` as ${state.me}` : ''}: ${reason}.`);
   runCatchUpOnce();
+}
+
+/**
+ * Ask the connection whether it is up, rather than waiting to be told.
+ *
+ * `promoteToReady` only runs when a message arrives, which is no help on a
+ * quiet account - and the whole failure mode here is that the library's own
+ * 'ready' never comes. It sat "still syncing" for three hours while the socket
+ * was perfectly live, and every sending path stayed shut behind that status:
+ * the digest, the briefing, the follow-ups, the nudge.
+ *
+ * `getState()` asks the page directly and answers CONNECTED when the socket is
+ * up, whatever events did or did not fire. Checked once a minute while we are
+ * waiting, and it stops the moment we are ready or the connection drops.
+ */
+let readyWatch = null;
+
+function watchForReady() {
+  if (readyWatch) return;
+  readyWatch = setInterval(async () => {
+    if (!client || state.status === 'ready' || state.status === 'disconnected') {
+      clearInterval(readyWatch);
+      readyWatch = null;
+      return;
+    }
+    try {
+      const wa = await client.getState();
+      if (wa === 'CONNECTED') promoteToReady('the connection reports itself CONNECTED');
+    } catch { /* the page is still coming up; ask again next minute */ }
+  }, 60_000);
+  // Node should not be held open by this alone.
+  readyWatch.unref?.();
 }
 
 export async function handleMessage(message) {
@@ -1099,9 +1142,11 @@ export function startWhatsApp() {
 
   client.on('authenticated', () => {
     state.status = 'authenticated';
+    state.authenticatedAt = new Date().toISOString();
     noteEvent('authenticated');
     state.qrDataUrl = null;
     log.info('WhatsApp authenticated.');
+    watchForReady();
   });
 
   client.on('auth_failure', (msg) => {

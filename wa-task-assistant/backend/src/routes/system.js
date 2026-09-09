@@ -23,6 +23,9 @@ systemRouter.get('/status', (req, res) => {
     whatsapp: {
       mode: state.mode,
       status: state.status,
+      // How long the sync has been running, so the dashboard can tell "be
+      // patient" from "this has been three hours and something is wrong".
+      authenticatedAt: state.authenticatedAt,
       me: state.me,
       meName: state.meName,
       qrDataUrl: state.qrDataUrl,

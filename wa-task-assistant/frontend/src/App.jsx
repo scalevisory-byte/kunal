@@ -128,6 +128,31 @@ const PAGES = {
   },
 };
 
+/**
+ * What "still syncing" means once it has gone on too long.
+ *
+ * The first minutes are normal - a busy account takes a while and sits at 99%
+ * for most of it. Past a quarter of an hour it is not normal, and saying
+ * "still syncing" in the same flat words for three hours told him nothing and
+ * was, in his case, not even true: tasks were arriving the whole time. So the
+ * message carries how long it has been, and past the threshold says what that
+ * probably means and what to do about it.
+ */
+function syncingFor(since) {
+  const at = since ? new Date(since) : null;
+  const mins = at && !Number.isNaN(at.getTime())
+    ? Math.floor((Date.now() - at.getTime()) / 60000)
+    : null;
+
+  if (mins === null || mins < 15) {
+    return 'WhatsApp is logged in and syncing your chats. This takes a few minutes on a busy account.';
+  }
+  const spent = mins < 90 ? `${mins} minutes` : `${Math.floor(mins / 60)} hours`;
+  return `WhatsApp has been syncing for ${spent}, which is longer than it should take. `
+    + 'Tasks may still be arriving normally — check whether new ones are appearing. '
+    + 'If they are not, restart the service in Railway; the login is saved and will not need scanning again.';
+}
+
 const remember = (key, value) => {
   try {
     localStorage.setItem(key, value);
@@ -1055,7 +1080,7 @@ export default function App() {
                       being logged in, and saying "not connected" for both sends
                       you looking for a QR code that is not there. */}
                   {status?.whatsapp?.status === 'authenticated'
-                    ? 'WhatsApp is logged in and still syncing your chats. Until it finishes, new messages may not be picked up.'
+                    ? syncingFor(status.whatsapp.authenticatedAt)
                     : 'WhatsApp is not connected, so no new tasks are arriving.'}
                   <button className="link" onClick={() => goto('settings')}>Open settings</button>
                 </div>
