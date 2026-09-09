@@ -13,7 +13,7 @@ import TidyTitles from './components/TidyTitles.jsx';
 import MessagesRead from './components/MessagesRead.jsx';
 import GroupNames from './components/GroupNames.jsx';
 import Toolbar from './components/Toolbar.jsx';
-import CompletedBar from './components/CompletedBar.jsx';
+import DayBar from './components/DayBar.jsx';
 import FolderStrip from './components/FolderStrip.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
@@ -1291,16 +1291,11 @@ export default function App() {
 
                     {/* The search term is the heading now, so the chip that
                         repeated it is only shown for a date. */}
-                    {(selectedDate || (query && !searching)) && (
+                    {query && !searching && (
                       <div className="scope">
-                        {selectedDate && (
-                          <span className="scope-chip">
-                            Due {new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString([], {
-                              day: 'numeric', month: 'long', timeZone: 'UTC',
-                            })}
-                            <button onClick={() => setSelectedDate(null)} aria-label="Clear date">✕</button>
-                          </span>
-                        )}
+                        {/* The day bar above the list already says which day
+                            it is showing, and says it where the change is
+                            made. Only a search needs its own chip now. */}
                         {query && (
                           <span className="scope-chip">
                             “{query}”
@@ -1326,10 +1321,32 @@ export default function App() {
                       * nothing to pick a day with.
                       */}
                     {view === 'done' && !searching && (
-                      <CompletedBar
+                      <DayBar
+                        mode="done"
                         day={doneDay}
                         onDay={setDoneDay}
                         count={visible.filter(isDone).length}
+                      />
+                    )}
+
+                    {/*
+                      * The same control, asking about deadlines.
+                      *
+                      * "What is due today" was reachable only through the
+                      * calendar in the rail - which is a month, on a page that
+                      * is a list, and not there at all on a phone. It is the
+                      * question the list is most often opened with, so it is a
+                      * press: Today, Tomorrow, or a date.
+                      *
+                      * It drives the same `selectedDate` the calendar sets, so
+                      * the two agree and neither has to know about the other.
+                      */}
+                    {view !== 'done' && (page.overview || page.tabs || page.toolbar)
+                      && !searching && (
+                      <DayBar
+                        day={selectedDate}
+                        onDay={(iso) => { setSelectedDate(iso); if (iso) setView('all'); }}
+                        count={visible.length}
                       />
                     )}
 

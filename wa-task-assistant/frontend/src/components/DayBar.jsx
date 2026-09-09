@@ -2,27 +2,30 @@ import Icon from './Icon.jsx';
 import { isoDay, todayIso } from '../lib/task.js';
 
 /**
- * Which day's finished work to show.
+ * Which day of work to show, on a list that is already about days.
  *
- * "What did I actually close today?" is the question this page gets asked, and
- * a single list of everything ever finished cannot answer it - by the second
- * week the day you want is a hundred rows down. Today and yesterday are the
- * two asked for most, so they are one press each; any other day is the picker.
+ * Two questions, one control. On the task lists it means "what is due then" -
+ * All, Today, Tomorrow, or a date. On Completed it means "what did I close
+ * then" - All, Today, Yesterday, or a date. Same shape, same press, and the
+ * word that differs is the one that is genuinely different: nothing is ever
+ * due yesterday and nothing is ever completed tomorrow.
  *
  * The count is of what is on screen, so the number and the list always agree.
  */
-export default function CompletedBar({ day, onDay: pick, count }) {
+export default function DayBar({ mode = 'due', day, onDay: pick, count }) {
+  const done = mode === 'done';
   const today = todayIso();
-  const yesterday = isoDay(-1);
+  // Completed work looks backwards; a deadline looks forwards.
+  const other = isoDay(done ? -1 : 1);
 
   const chips = [
     { key: null, label: 'All' },
     { key: today, label: 'Today' },
-    { key: yesterday, label: 'Yesterday' },
+    { key: other, label: done ? 'Yesterday' : 'Tomorrow' },
   ];
   // A day chosen in the picker that is neither of the two shortcuts gets its
   // own chip, so the page always shows which day it is answering for.
-  const other = day && day !== today && day !== yesterday ? day : null;
+  const picked = day && day !== today && day !== other ? day : null;
 
   const pretty = (iso) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
@@ -40,9 +43,9 @@ export default function CompletedBar({ day, onDay: pick, count }) {
             {c.label}
           </button>
         ))}
-        {other && (
+        {picked && (
           <button className="chip on" aria-pressed="true" onClick={() => pick(null)}>
-            {pretty(other)} <span aria-hidden="true">✕</span>
+            {pretty(picked)} <span aria-hidden="true">✕</span>
           </button>
         )}
       </div>
@@ -53,14 +56,23 @@ export default function CompletedBar({ day, onDay: pick, count }) {
         <input
           type="date"
           value={day || ''}
-          max={today}
+          /* A deadline can be any day; work can only have been finished by now. */
+          max={done ? today : undefined}
           onChange={(e) => pick(e.target.value || null)}
         />
       </label>
 
+      {/*
+        * With no day chosen it is just the count: calling all of them "due"
+        * would be untrue, since plenty have no deadline at all.
+        */}
       <span className="donebar-count">
         {count} {count === 1 ? 'task' : 'tasks'}
-        {day ? ` finished ${day === today ? 'today' : day === yesterday ? 'yesterday' : `on ${pretty(day)}`}` : ' finished'}
+        {day && ` ${done ? 'finished' : 'due'} ${
+          day === today ? 'today'
+            : day === other ? (done ? 'yesterday' : 'tomorrow')
+              : `on ${pretty(day)}`
+        }`}
       </span>
     </div>
   );
