@@ -426,6 +426,34 @@ export function noteMessageMerged(messageId, taskId) {
   db.prepare(`UPDATE messages SET merged_into = ? WHERE id = ?`).run(taskId, messageId);
 }
 
+/**
+ * Messages that arrived but were never sent for extraction.
+ *
+ * `processed` is set only when a batch comes back from the extractor, so a row
+ * still at 0 is one the pipeline took in and never got round to. That used to
+ * mean an API failure and nothing else; it also covered a whole morning of
+ * traffic that the batch scheduler kept deferring and never sent. The rows
+ * were stored the moment they arrived, so nothing was lost - it just needs
+ * running through again.
+ *
+ * Oldest first, so a re-run reads a conversation in the order it happened.
+ */
+export function unprocessedMessages({ limit = 200 } = {}) {
+  return db
+    .prepare(
+      `SELECT * FROM messages
+       WHERE processed = 0 AND merged_into IS NULL
+       ORDER BY sent_at ASC, id ASC
+       LIMIT ?`
+    )
+    .all(Math.min(Number(limit) || 200, 500));
+}
+
+/** How many are waiting, for a page that offers to run them. */
+export function unprocessedCount() {
+  return db.prepare(`SELECT COUNT(*) AS n FROM messages WHERE processed = 0 AND merged_into IS NULL`).get().n;
+}
+
 export function markMessagesProcessed(ids) {
   if (!ids.length) return;
   const stmt = db.prepare(`UPDATE messages SET processed = 1 WHERE id = ?`);

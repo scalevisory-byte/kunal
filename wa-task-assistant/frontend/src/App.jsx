@@ -202,6 +202,9 @@ export default function App() {
    * questions and sharing one piece of state made each answer the other.
    */
   const [doneDay, setDoneDay] = useState(null);
+  // While stored messages are being put through the extractor, so the button
+  // cannot be pressed twice into the same run.
+  const [rerunning, setRerunning] = useState(false);
   // A day picked in the calendar narrows the board to that date.
   const [selectedDate, setSelectedDate] = useState(null);
   /*
@@ -1083,6 +1086,40 @@ export default function App() {
                     ? syncingFor(status.whatsapp.authenticatedAt)
                     : 'WhatsApp is not connected, so no new tasks are arriving.'}
                   <button className="link" onClick={() => goto('settings')}>Open settings</button>
+                </div>
+              )}
+
+              {/*
+                * Messages that came in and were never read for tasks.
+                *
+                * Normally zero. A number here is the answer to the question
+                * that gets asked as "task add hi nahi hue" - the messages
+                * arrived and are on disk, they were simply never put through
+                * the extractor. So it says how many, and offers to run them,
+                * rather than leaving the day looking empty for no stated
+                * reason.
+                */}
+              {status?.whatsapp?.waitingToExtract > 0 && (
+                <div className="banner warn" role="status">
+                  {status.whatsapp.waitingToExtract} WhatsApp message
+                  {status.whatsapp.waitingToExtract === 1 ? '' : 's'} arrived but
+                  {status.whatsapp.waitingToExtract === 1 ? ' was' : ' were'} never read for
+                  tasks. Nothing is lost — they are saved and can be run now.
+                  <button
+                    className="link"
+                    disabled={rerunning}
+                    onClick={async () => {
+                      setRerunning(true);
+                      try {
+                        const out = await api.rerunExtraction();
+                        await refresh({ quiet: true });
+                        if (!out.ran) setError('Nothing was waiting after all.');
+                      } catch (err) { setError(err.message); }
+                      finally { setRerunning(false); }
+                    }}
+                  >
+                    {rerunning ? 'Reading…' : 'Read them now'}
+                  </button>
                 </div>
               )}
 

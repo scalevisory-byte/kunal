@@ -305,6 +305,8 @@ export const api = {
     request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),
   unblockChat: (id) => request(`/blocked-chats/${id}`, { method: 'DELETE' }),
   flushExtraction: () => request('/extract/flush', { method: 'POST' }),
+  pendingExtraction: () => request('/extract/pending'),
+  rerunExtraction: () => request('/extract/rerun', { method: 'POST', body: JSON.stringify({}) }),
   pushPublicKey: () => request('/push/public-key'),
   subscribePush: (subscription) =>
     request('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),

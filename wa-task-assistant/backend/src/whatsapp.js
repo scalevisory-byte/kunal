@@ -6,6 +6,7 @@ import { log } from './logger.js';
 import { phoneFromWid } from './wid.js';
 import {
   insertMessage, markMessagesProcessed, noteMessageMerged, createTask,
+  unprocessedMessages, unprocessedCount,
   listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
   getMeta, setMeta, db,
 } from './db.js';
@@ -138,12 +139,59 @@ export function getClient() {
   return client;
 }
 
+/*
+ * When the buffer goes out: a quiet window, but with a ceiling on it.
+ *
+ * The quiet window on its own is a debounce with no maximum. Every arriving
+ * message cleared the timer and set another fifteen seconds, so on an account
+ * where messages keep landing less than fifteen seconds apart - two hundred
+ * chats through a working morning - the deadline was pushed back indefinitely
+ * and the batch was never sent. A morning of traffic produced one task.
+ *
+ * So the wait is now measured from the first message in the batch as well.
+ * Whichever comes first sends it: fifteen seconds of quiet, ninety seconds
+ * since it started filling, or forty messages. The first is what makes a
+ * conversation arrive as one thought; the other two are what stop that
+ * courtesy becoming a refusal.
+ */
+let bufferStartedAt = null;
+
 function scheduleFlush() {
   if (flushTimer) clearTimeout(flushTimer);
+  if (!bufferStartedAt) bufferStartedAt = Date.now();
+
+  /*
+   * While a flush is in flight, wait a whole window regardless.
+   *
+   * `flushBuffer` bounces straight back here when it finds itself already
+   * running, so a zero delay - which the ceiling produces the moment it is
+   * passed - would be an immediate call, an immediate bounce, and a loop that
+   * spins the process until the request in flight returns.
+   */
+  if (flushing) {
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flushBuffer().catch((err) => log.error('flushBuffer:', err?.message || err));
+    }, config.batchQuietMs);
+    return;
+  }
+
+  // A full batch does not wait at all - it is already as much as one request
+  // should carry.
+  if (buffer.length >= config.batchMaxMessages) {
+    flushTimer = null;
+    flushBuffer().catch((err) => log.error('flushBuffer:', err?.message || err));
+    return;
+  }
+
+  const waitedFor = Date.now() - bufferStartedAt;
+  const untilCeiling = Math.max(0, config.batchMaxWaitMs - waitedFor);
+  const delay = Math.min(config.batchQuietMs, untilCeiling);
+
   flushTimer = setTimeout(() => {
     flushTimer = null;
     flushBuffer().catch((err) => log.error('flushBuffer:', err?.message || err));
-  }, config.batchQuietMs);
+  }, delay);
 }
 
 /**
@@ -158,9 +206,27 @@ async function flushBuffer() {
   const batch = buffer;
   buffer = [];
   state.bufferedCount = 0;
+  // The next batch starts its own clock, not this one's.
+  bufferStartedAt = null;
   if (!batch.length) return;
 
   flushing = true;
+  try {
+    await processBatch(batch);
+  } finally {
+    flushing = false;
+  }
+}
+
+/**
+ * One batch of messages through the extractor, and whatever it returns stored.
+ *
+ * Split out from the buffer so the same path can be re-run over messages that
+ * were taken in but never sent - which is what a whole morning of them turned
+ * out to be. Same extraction, same duplicate check, same events: a recovered
+ * message must produce exactly the task a live one would have.
+ */
+async function processBatch(batch) {
   try {
     const tasks = await extractTasks(batch);
 
@@ -231,9 +297,39 @@ async function flushBuffer() {
       error: err?.message || String(err),
     };
     noteEvent('extraction failed', err?.message || err);
+  }
+}
+
+/**
+ * Run stored messages that were never extracted.
+ *
+ * Every message is written to the database the moment it arrives, before any
+ * of the pipeline runs - so a batch the scheduler kept deferring, or one lost
+ * to an API failure, is still on disk in full. This reads those rows back and
+ * puts them through exactly the path a live batch takes. In sensible chunks,
+ * so one press cannot turn into one enormous request.
+ *
+ * Nothing is invented and nothing is double-counted: a message that produces a
+ * task it already produced is caught by the same duplicate check as any other.
+ */
+export async function reprocessStored({ limit = 200 } = {}) {
+  if (flushing) return { ran: 0, batches: 0, skipped: 'a batch is already running' };
+  const rows = unprocessedMessages({ limit });
+  if (!rows.length) return { ran: 0, batches: 0 };
+
+  flushing = true;
+  let batches = 0;
+  try {
+    for (let i = 0; i < rows.length; i += config.batchMaxMessages) {
+      await processBatch(rows.slice(i, i + config.batchMaxMessages));
+      batches += 1;
+    }
   } finally {
     flushing = false;
   }
+  noteEvent('re-ran stored messages', `${rows.length} message(s) in ${batches} batch(es)`);
+  log.info(`Re-ran ${rows.length} stored message(s) that were never extracted, in ${batches} batch(es).`);
+  return { ran: rows.length, batches };
 }
 
 /**

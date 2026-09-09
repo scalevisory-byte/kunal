@@ -85,6 +85,20 @@ export const config = {
   // How often to check for tasks with a specific reminder time.
   exactReminderCron: process.env.EXACT_REMINDER_CRON || '*/5 * * * *',
   batchQuietMs: num(process.env.BATCH_QUIET_SECONDS, 15) * 1000,
+  /*
+   * A ceiling on the wait, and on the batch.
+   *
+   * The quiet window alone is a debounce with no maximum: every arriving
+   * message pushed the deadline back another fifteen seconds, so on a busy
+   * account - two hundred chats, messages seconds apart all through the
+   * working day - it could be reset indefinitely and the batch never sent.
+   * Which is exactly what happened: a morning of traffic and one task.
+   *
+   * So the batch also goes when it has waited long enough, or grown large
+   * enough, whichever comes first.
+   */
+  batchMaxWaitMs: num(process.env.BATCH_MAX_WAIT_SECONDS, 90) * 1000,
+  batchMaxMessages: num(process.env.BATCH_MAX_MESSAGES, 40),
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
 
   vapid: {

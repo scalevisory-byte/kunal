@@ -4,7 +4,7 @@ import {
   listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
-import { state, flushNow, groupNameFor } from '../whatsapp.js';
+import { state, flushNow, groupNameFor, reprocessStored } from '../whatsapp.js';
 import { repairGroupNames, groupChatIds, needsName, nameFromSiblings } from '../group-names.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { transcriptionState } from '../transcribe.js';
@@ -12,7 +12,7 @@ import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
-import { usageByDay, usageTotals } from '../db.js';
+import { usageByDay, usageTotals, unprocessedCount } from '../db.js';
 import { PRICES, PRICES_UPDATED, costOf } from '../pricing.js';
 
 export const systemRouter = Router();
@@ -26,6 +26,12 @@ systemRouter.get('/status', (req, res) => {
       // How long the sync has been running, so the dashboard can tell "be
       // patient" from "this has been three hours and something is wrong".
       authenticatedAt: state.authenticatedAt,
+      /*
+       * Messages taken in but never put through the extractor. Normally zero.
+       * A number here is the answer to "why did nothing become a task?" - and
+       * it is recoverable, because the messages themselves are on disk.
+       */
+      waitingToExtract: unprocessedCount(),
       me: state.me,
       meName: state.meName,
       qrDataUrl: state.qrDataUrl,
@@ -186,6 +192,26 @@ systemRouter.post('/extract/flush', async (req, res, next) => {
   try {
     await flushNow();
     res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Messages that were taken in but never extracted, and a way to run them.
+ *
+ * Every message is stored the moment it arrives, before any of the pipeline
+ * runs, so a batch that was never sent - an API failure, or a scheduler that
+ * kept deferring it - is still on disk in full. This says how many are
+ * waiting; the POST puts them through the same path a live batch takes.
+ */
+systemRouter.get('/extract/pending', (req, res) => {
+  res.json({ waiting: unprocessedCount() });
+});
+
+systemRouter.post('/extract/rerun', async (req, res, next) => {
+  try {
+    res.json(await reprocessStored({ limit: Number(req.body?.limit) || 200 }));
   } catch (err) {
     next(err);
   }
