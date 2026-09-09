@@ -21,6 +21,17 @@ function anthropic() {
   return client;
 }
 
+/**
+ * Stand in for the Anthropic client, for tests only.
+ *
+ * The behaviour worth testing here is what this file does with a reply it did
+ * not like - cut off, or unreadable - and the only honest way to produce one
+ * is to hand it one. Nothing in production calls this.
+ */
+export function setClientForTests(stub) {
+  client = stub;
+}
+
 const ExtractionSchema = z.object({
   tasks: z.array(
     z.object({
@@ -269,15 +280,26 @@ export async function extractTasks(messages) {
   }
 
   let parsed;
+  let truncated = false;
   try {
     const response = await anthropic().messages.parse({
       model: config.model,
-      max_tokens: 8000,
+      /*
+       * Room for the answer, because running out of it loses tasks silently.
+       *
+       * A batch of forty messages can carry a lot of work, and a reply cut off
+       * at the ceiling comes back as a half-written object: it fails the schema,
+       * `parsed_output` is null, and the old code read that as "no tasks here"
+       * and marked every message read. 16k is the SDK's own guidance for a
+       * non-streaming call, and a ceiling costs nothing unless it is used.
+       */
+      max_tokens: 16000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content }],
       output_config: { format: zodOutputFormat(ExtractionSchema, 'extracted_tasks') },
     });
     parsed = response.parsed_output;
+    truncated = response.stop_reason === 'max_tokens';
     const usage = response.usage || {};
     // Recorded per call, so spend is measured rather than guessed at later.
     recordUsage({
@@ -298,7 +320,43 @@ export async function extractTasks(messages) {
     throw err;
   }
 
-  if (!parsed?.tasks?.length) return [];
+  /*
+   * A cut-off answer is split and asked again, not accepted.
+   *
+   * `stop_reason: 'max_tokens'` means the reply ran out of room, so whatever
+   * tasks were still to come were never written. Half the batch is half the
+   * work to describe, so it fits - and each half goes through this same path,
+   * so a very dense batch narrows until it does. Reported as "there is more
+   * task, couldn't read properly", which is exactly what a truncated answer
+   * looks like from the outside.
+   */
+  if (truncated && messages.length > 1) {
+    const half = Math.ceil(messages.length / 2);
+    log.warn(
+      `Claude's answer was cut off on ${messages.length} messages; splitting into ${half} + ${messages.length - half}.`
+    );
+    const first = await extractTasks(messages.slice(0, half));
+    const second = await extractTasks(messages.slice(half));
+    return [...first, ...second];
+  }
+
+  /*
+   * No parsed answer is a failure, not an empty one.
+   *
+   * `parsed_output` is null when the reply did not validate - truncated, or
+   * malformed. Returning [] here would mark every message in the batch read
+   * and move on, which loses them for good. Throwing leaves them unprocessed,
+   * which is what the re-run is for.
+   */
+  if (!parsed) {
+    throw new Error(
+      truncated
+        ? 'Claude ran out of room to answer and the reply could not be read'
+        : 'Claude returned an answer that did not match the expected shape'
+    );
+  }
+
+  if (!parsed.tasks?.length) return [];
 
   return parsed.tasks
     .map((task) => {

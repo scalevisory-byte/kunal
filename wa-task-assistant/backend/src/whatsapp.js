@@ -312,10 +312,10 @@ async function processBatch(batch) {
  * Nothing is invented and nothing is double-counted: a message that produces a
  * task it already produced is caught by the same duplicate check as any other.
  */
-export async function reprocessStored({ limit = 200 } = {}) {
+export async function reprocessStored({ limit = 500 } = {}) {
   if (flushing) return { ran: 0, batches: 0, skipped: 'a batch is already running' };
   const rows = unprocessedMessages({ limit });
-  if (!rows.length) return { ran: 0, batches: 0 };
+  if (!rows.length) return { ran: 0, batches: 0, remaining: 0 };
 
   flushing = true;
   let batches = 0;
@@ -327,9 +327,15 @@ export async function reprocessStored({ limit = 200 } = {}) {
   } finally {
     flushing = false;
   }
-  noteEvent('re-ran stored messages', `${rows.length} message(s) in ${batches} batch(es)`);
-  log.info(`Re-ran ${rows.length} stored message(s) that were never extracted, in ${batches} batch(es).`);
-  return { ran: rows.length, batches };
+  /*
+   * What is still waiting after this run: a failed extraction leaves its
+   * messages where they were, and a backlog larger than the limit needs
+   * another press. Either way the number is the honest one to show.
+   */
+  const remaining = unprocessedCount();
+  noteEvent('re-ran stored messages', `${rows.length} message(s) in ${batches} batch(es), ${remaining} still waiting`);
+  log.info(`Re-ran ${rows.length} stored message(s) that were never extracted, in ${batches} batch(es). ${remaining} still waiting.`);
+  return { ran: rows.length, batches, remaining };
 }
 
 /**
