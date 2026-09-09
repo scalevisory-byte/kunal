@@ -89,7 +89,6 @@ const PAGES = {
   done: {
     title: 'Completed',
     lede: 'Finished work, newest first, grouped by the day it was closed.',
-    completed: true,
   },
   received: {
     title: 'Task received',
@@ -1252,11 +1251,19 @@ export default function App() {
                     {/*
                       * Completed asks a different question of the same list:
                       * not what is owed but what got closed, and closed WHEN.
-                      * So this page gets the day control instead of the folder
-                      * strip - the two never appear together, because they
-                      * would be two answers to "what am I looking at".
+                      * So it gets the day control instead of the folder strip -
+                      * the two never appear together, because they would be two
+                      * answers to "what am I looking at".
+                      *
+                      * Keyed on the VIEW, not the page. "Completed" is reached
+                      * three ways - the sidebar, the Done figure and the jump
+                      * link - and only the first of them is its own page. Gated
+                      * on the page, the day chips were missing from the two
+                      * routes actually used, which is exactly how it was
+                      * reported: the sections were grouped by day but there was
+                      * nothing to pick a day with.
                       */}
-                    {page.completed && !searching && (
+                    {view === 'done' && !searching && (
                       <CompletedBar
                         day={doneDay}
                         onDay={setDoneDay}
@@ -1273,7 +1280,8 @@ export default function App() {
                       * search is the scope, and on the folder pages, which are
                       * already one folder.
                       */}
-                    {(page.overview || page.tabs || page.toolbar) && !searching && !groupId && (
+                    {(page.overview || page.tabs || page.toolbar) && !searching && !groupId
+                      && view !== 'done' && (
                       <FolderStrip
                         groups={groups}
                         tasks={dayTasks}
