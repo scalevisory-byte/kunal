@@ -4098,3 +4098,55 @@ button.due:hover { background: var(--raised); }
 /* A source in the digest is meant to be opened, not copied out by hand. */
 .digest-link { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
 .digest-link:hover { color: var(--accent); }
+
+/*
+ * The law digest, as something to read.
+ *
+ * It arrives as a WhatsApp message and was shown as one - monospace, asterisks,
+ * a bare URL in the middle of every sentence. Here the label steps aside, the
+ * finding gets reading type and a measure, and the source becomes a link at the
+ * end of the line. The exact message stays available underneath, because that
+ * is what actually went out.
+ */
+.digest { padding: 14px 16px 4px; }
+.digest-title {
+  margin: 0 0 12px; font-size: .95rem; font-weight: 600; letter-spacing: -.01em;
+}
+.digest-row {
+  display: grid; grid-template-columns: 168px 1fr; gap: 16px;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.digest-row:first-of-type { border-top: 0; }
+.digest-label {
+  font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted); padding-top: 2px;
+}
+.digest-text { font-size: .9rem; line-height: 1.65; color: var(--text); max-width: 66ch; }
+.digest-row.quiet .digest-text { color: var(--muted); font-style: italic; }
+.digest-row.action {
+  background: var(--warn-wash, var(--raised)); border-radius: 6px;
+  margin: 6px -8px 0; padding: 10px 8px; border-top: 0;
+}
+.digest-row.action .digest-label { color: var(--warn, var(--accent)); font-weight: 600; }
+.digest-source {
+  display: inline-block; margin-left: 8px; white-space: nowrap;
+  font-size: .78rem; color: var(--brand); text-decoration: none;
+  border-bottom: 1px solid var(--line-2);
+}
+.digest-source:hover { color: var(--accent); border-bottom-color: currentColor; }
+.digest-loose { margin: 6px 0; font-size: .9rem; line-height: 1.6; color: var(--text-2); }
+.digest-raw { margin: 10px 0 0; border-top: 1px solid var(--line); }
+.digest-raw > summary {
+  padding: 9px 0; cursor: pointer; color: var(--muted); font-size: .76rem;
+  list-style: none; user-select: none;
+}
+.digest-raw > summary::-webkit-details-marker { display: none; }
+.digest-raw > summary::before { content: "▸ "; }
+.digest-raw[open] > summary::before { content: "▾ "; }
+.digest-raw pre { padding: 0 0 12px; max-height: 320px; }
+.digest.compact { padding: 6px 0 0; }
+.digest.compact .digest-title { font-size: .85rem; }
+@media (max-width: 760px) {
+  .digest-row { grid-template-columns: 1fr; gap: 2px; }
+  .digest-row.action { margin: 6px 0 0; }
+}

@@ -917,7 +917,13 @@ export async function handleMessage(message) {
      * come from the contact or from a group lookup, neither of which has
      * happened yet. That is what the second check, below, is for.
      */
-    if (isBlockedChat({ chatName: message._data?.notifyName, chatId: fallbackChatId })) {
+    const inGroup = String(fallbackChatId || '').endsWith('@g.us');
+    if (isBlockedChat({
+      // In a group `notifyName` is whoever is writing, not the group - and a
+      // block is about the chat. There, only the id can be tested this early.
+      chatName: inGroup ? null : message._data?.notifyName,
+      chatId: fallbackChatId,
+    })) {
       state.blockedCount += 1;
       return drop('blocked');
     }
@@ -1027,10 +1033,31 @@ export async function handleMessage(message) {
      */
     const groupName = !chat?.name && isGroup ? await groupNameFor(chatId) : null;
 
-    const blockAgainst = [chat?.name, groupName, contactName].filter(Boolean);
+    /*
+     * A block is about a CHAT, and only ever the chat it names.
+     *
+     * In a group the sender's name and number are on the message too, and
+     * testing those would make blocking a person follow him into every group he
+     * writes in - "Hardik Mehta" blocked in his own chat would silence him in
+     * Book N Fly Team as well, and that group's work is real work. Losing a
+     * task is far worse than reading a few messages too many, so in a group
+     * only the group's own name and id are tested.
+     *
+     * In a one-to-one chat the person IS the chat, so the contact's name and
+     * number are exactly what the row is filed under and are tested there. That
+     * is the case that leaked: the chat lookup fails, only the contact has the
+     * name, and the message was kept under a name that was on the list.
+     */
+    const blockAgainst = isGroup
+      ? [chat?.name, groupName]
+      : [chat?.name, contactName];
+    const blockNumber = isGroup ? null : contact?.number;
+
     if (
-      blockAgainst.some((name) => isBlockedChat({ chatName: name, chatId, contactNumber: contact?.number }))
-      || isBlockedChat({ chatId, contactNumber: contact?.number })
+      blockAgainst
+        .filter(Boolean)
+        .some((name) => isBlockedChat({ chatName: name, chatId, contactNumber: blockNumber }))
+      || isBlockedChat({ chatId, contactNumber: blockNumber })
     ) {
       state.blockedCount += 1;
       return drop('blocked');

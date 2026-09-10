@@ -371,7 +371,10 @@ ending instead, so the same person matches with or without a country code, and a
 shorter than 6 digits is refused rather than silently blocking half your contacts.
 
 **Blocking a group blocks the whole group** - nothing anybody writes in it is read, whoever
-they are. A group is matched by its name, and where `getChat()` fails the name is fetched by
+they are - and nothing else. A block matches the *chat*, not a person: in a group only the
+group's own name and id are tested, so somebody from a blocked group still reaches you in
+their own chat and in other groups. In a one-to-one chat the person is the chat, so their
+name and number are tested there. A group is matched by its name, and where `getChat()` fails the name is fetched by
 id first, so the check tests the same name the row would have been stored under.
 
 The box **searches every chat the app has seen** as you type - tap a result to block it.

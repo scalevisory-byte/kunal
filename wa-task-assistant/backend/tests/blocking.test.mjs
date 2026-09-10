@@ -101,6 +101,104 @@ describe('a whole group', () => {
   });
 });
 
+describe('what a block must NOT touch', () => {
+  /*
+   * The rule: a block is about a CHAT, not about a person.
+   *
+   * Blocking a chat whose name happens to be a person's must not follow that
+   * person into every group he writes in - the work in those groups is real
+   * work, and losing it is far worse than reading a few messages too many.
+   */
+  it('does not silence somebody inside an unrelated group', async () => {
+    blockChat('Hardik Mehta');
+
+    const m = message({
+      from: '120363999@g.us',
+      body: 'Indra devi ka ticket book karna hai',
+      chat: { id: { _serialized: '120363999@g.us' }, name: 'Book N Fly Team', isGroup: true },
+      // The blocked NAME is the sender here, and the chat is not blocked.
+      contact: { pushname: 'Hardik Mehta', number: '919444444444' },
+    });
+    m.author = '919444444444@c.us';
+    await WA.handleMessage(m);
+
+    assert.equal(stored().length, 1, "a group's work is not blocked by who wrote it");
+    assert.equal(stored()[0].chat_name, 'Book N Fly Team');
+  });
+
+  it('does not silence somebody by number inside an unrelated group', async () => {
+    blockChat('919444444444');
+
+    const m = message({
+      from: '120363999@g.us',
+      body: 'GST return file karni hai',
+      chat: { id: { _serialized: '120363999@g.us' }, name: 'Book N Fly Team', isGroup: true },
+      contact: { pushname: 'Hardik Mehta', number: '919444444444' },
+    });
+    m.author = '919444444444@c.us';
+    await WA.handleMessage(m);
+
+    assert.equal(stored().length, 1, 'the blocked number is the sender, not the chat');
+  });
+
+  it('still blocks that person in their own one-to-one chat', async () => {
+    blockChat('Hardik Mehta');
+    await WA.handleMessage(message({
+      chat: { id: { _serialized: '919444444444@c.us' }, name: 'Hardik Mehta', isGroup: false },
+      contact: { pushname: 'Hardik Mehta', number: '919444444444' },
+      from: '919444444444@c.us',
+    }));
+    assert.equal(stored().length, 0, 'there the person IS the chat');
+  });
+
+  it('lets a member of a blocked group message him personally', async () => {
+    /*
+     * Asked for in exactly these words: block the group, and if somebody from
+     * that group writes to him privately - or in another group - it must still
+     * come. The group is what was blocked, not the people in it.
+     */
+    WA.setGroupNameForTests('120363111@g.us', 'LeDroit India 36');
+    blockChat('LeDroit India');
+
+    // The same person, now in his own chat.
+    await WA.handleMessage(message({
+      chat: { id: { _serialized: '919333333333@c.us' }, name: 'Ramesh', isGroup: false },
+      contact: { pushname: 'Ramesh', number: '919333333333' },
+      from: '919333333333@c.us',
+      body: 'sir ITR ka document bhej diya hai',
+    }));
+
+    // And in a different group.
+    const other = message({
+      from: '120363222@g.us',
+      body: 'GST return kal file karni hai',
+      chat: { id: { _serialized: '120363222@g.us' }, name: 'Scale Visory Team', isGroup: true },
+      contact: { pushname: 'Ramesh', number: '919333333333' },
+    });
+    other.author = '919333333333@c.us';
+    await WA.handleMessage(other);
+
+    assert.deepEqual(
+      stored().map((r) => r.chat_name).sort(),
+      ['Ramesh', 'Scale Visory Team'],
+      'blocking a group blocks the group, not its members'
+    );
+  });
+
+  it('leaves every other chat alone when one is blocked', async () => {
+    blockChat('CYBER CHATHAN');
+    for (const [chat, number] of [['Meera Jariwala', '919222222222'], ['Rakesh BNF', '919555555555']]) {
+      await WA.handleMessage(message({
+        chat: 'fails',
+        contact: { pushname: chat, number },
+        from: `${number}@c.us`,
+        body: 'kal tak bhej dena',
+      }));
+    }
+    assert.equal(stored().length, 2, 'blocking one chat is blocking one chat');
+  });
+});
+
 describe('a chat on the blocked list', () => {
   it('is dropped when WhatsApp names it', async () => {
     blockChat('CYBER CHATHAN');

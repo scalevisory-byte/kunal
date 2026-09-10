@@ -156,7 +156,7 @@ function Panel({ onError }) {
         * message answers without inventing a single finding to demonstrate it.
         */}
       {text
-        ? <pre><Linked text={text} /></pre>
+        ? <Digest text={text} />
         : (
           <>
             <p className="dim">
@@ -208,7 +208,7 @@ function Panel({ onError }) {
               <strong>{d.day}</strong>
               {d.sent_at ? ' · sent' : ' · not sent'}
               {d.error ? ` · ${d.error}` : ''}
-              <pre><Linked text={d.text} /></pre>
+              <Digest text={d.text} compact />
             </div>
           ))}
         </details>
@@ -239,6 +239,120 @@ function status(state, today) {
   const now = new Date();
   const passed = now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
   return passed ? 'Due — building shortly' : `Runs at ${state.settings.time}`;
+}
+
+/**
+ * The digest, laid out to be read.
+ *
+ * What arrives is a WhatsApp message: asterisks for bold, a bare URL at the end
+ * of each line, everything in one block. That is right for WhatsApp and wrong
+ * for a page - on screen it was a wall of monospace with the actual finding
+ * buried between the markup and a hundred-character link.
+ *
+ * So it is parsed back into what it always was: a heading, five labelled lines,
+ * and one action. The label is set apart, the finding is set in reading type,
+ * and the source becomes a link at the end of the line rather than fifty
+ * characters of URL in the middle of the sentence. The exact message is still
+ * one click away, because that is what was actually sent.
+ */
+function Digest({ text, compact = false }) {
+  const { title, sections, loose } = parseDigest(text);
+
+  return (
+    <div className={`digest ${compact ? 'compact' : ''}`}>
+      {title && <h4 className="digest-title">{title}</h4>}
+
+      {sections.map((s, i) => (
+        <div key={i} className={`digest-row ${s.tone}`}>
+          <span className="digest-label">{s.label}</span>
+          <span className="digest-text">
+            {s.body}
+            {s.links.map((href, n) => (
+              <a
+                key={n}
+                className="digest-source"
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {sourceName(href)} ↗
+              </a>
+            ))}
+          </span>
+        </div>
+      ))}
+
+      {/* Anything the shape did not account for is shown as it came, never dropped. */}
+      {loose.map((line, i) => (
+        <p key={i} className="digest-loose"><Linked text={line} /></p>
+      ))}
+
+      <details className="digest-raw">
+        <summary>The message as it was sent</summary>
+        <pre><Linked text={text} /></pre>
+      </details>
+    </div>
+  );
+}
+
+/**
+ * WhatsApp text back into parts.
+ *
+ * `*Label:* finding https://…` is the whole grammar. A line that does not fit
+ * it is kept as it is rather than forced into a shape it does not have - the
+ * "nothing was published today" message is one line and no labels at all.
+ */
+export function parseDigest(text) {
+  const lines = String(text ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  let title = null;
+  const sections = [];
+  const loose = [];
+
+  for (const line of lines) {
+    // The heading: bold, no label colon inside the asterisks.
+    const head = /^[^\w*]*\*([^*]+)\*[^\w]*$/.exec(line);
+    if (head && !title && !head[1].includes(':')) {
+      title = head[1].trim();
+      continue;
+    }
+
+    const row = /^([^*]*)\*([^*]+?):\*\s*(.*)$/.exec(line);
+    if (row) {
+      const mark = row[1].trim();
+      const label = row[2].trim();
+      let body = row[3].trim();
+      const links = [];
+      body = body.replace(/https?:\/\/[^\s<>"')\]]+/g, (url) => {
+        links.push(url);
+        return '';
+      }).replace(/\s{2,}/g, ' ').trim();
+
+      sections.push({
+        label,
+        body,
+        links,
+        // "koi naya update nahi" is a real answer and should read as the quiet
+        // one; the line telling him to act on something should not.
+        tone: /^\s*(koi naya update nahi|aaj kuch nahi)\.?$/i.test(body)
+          ? 'quiet'
+          : mark.includes('⚠') ? 'action' : '',
+      });
+      continue;
+    }
+
+    loose.push(line);
+  }
+
+  return { title, sections, loose };
+}
+
+/** "taxguru.in" rather than a hundred characters of path. */
+function sourceName(href) {
+  try {
+    return new URL(href).hostname.replace(/^www\./, '');
+  } catch {
+    return 'source';
+  }
 }
 
 /**
