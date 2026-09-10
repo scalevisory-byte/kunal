@@ -247,6 +247,30 @@ send are all proved against stubs (`backend/tests/lawdigest.test.mjs`). What *ha
 run end to end is the failure path: with the feeds unreachable the app reports exactly
 which ones failed and sends nothing.
 
+### Legal & court updates
+
+The second module, and separate on purpose: judgments, orders, Acts and amendments rather
+than the compliance calendar. Supreme Court, High Courts, NCLT/NCLAT, ITAT/CESTAT/GSTAT, the
+other forums, and legislation — 33 categories in 11 groups, none of them shared with the tax
+module. **Automation → Legal & court**; the tax page is now **Automation → Tax & compliance**.
+
+Each judgment records the court, the case name and number, the date, the bench, the parties,
+the Act and section, the issue, what the court decided, the principle, the practical
+implication, and how it sits in the line of cases before it (new precedent, reaffirmed,
+overruled, referred to a larger bench, interim, final, or a legislative change).
+
+The digest reads by forum and closes on what moved rather than on deadlines — a judgment has
+no filing date to chase. Its own switch (09:00 by default), its own claim key, its own table.
+
+**The rule that matters most here:** a case number, a bench, a section or a holding the report
+did not state comes back empty. A confidently wrong citation is worse than no citation, and
+this is the module where somebody might repeat it to a client. `ruling_type` is validated
+against the list, and the source link always comes from the article rather than the model.
+
+Sources: `LEGAL_FEEDS`, same `Name|url` shape as `LAW_FEEDS`. The court sites (sci.gov.in,
+nclat.nic.in, cestat.gov.in, egazette.gov.in …) count as official sources; a report about a
+judgment is secondary, and the row says which.
+
 ### Reminders at a specific time
 
 A task can also carry `remind_at` — a single reminder at a stated moment, separate from

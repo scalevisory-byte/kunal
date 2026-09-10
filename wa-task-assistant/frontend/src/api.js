@@ -274,6 +274,22 @@ export const api = {
     request(`/law-digest/updates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   lawUpdateMessage: (id, channel = 'whatsapp') =>
     request(`/law-digest/updates/${id}/message?channel=${channel}`),
+
+  /* Legal & court updates: the same shapes, its own endpoints and its own list. */
+  legalDigest: () => request('/legal'),
+  previewLegal: () => request('/legal/preview', { method: 'POST' }),
+  runLegal: () => request('/legal/run', { method: 'POST' }),
+  legalUpdates: (filters = {}) => {
+    const query = Object.entries(filters)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request(`/legal/updates${query ? `?${query}` : ''}`);
+  },
+  markLegalUpdate: (id, patch) =>
+    request(`/legal/updates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  legalUpdateMessage: (id, channel = 'whatsapp') =>
+    request(`/legal/updates/${id}/message?channel=${channel}`),
   /* Fetches the feeds and pays for a summary, so it is only ever a button. */
   previewLawDigest: () => request('/law-digest/preview', { method: 'POST' }),
   runLawDigest: () => request('/law-digest/run', { method: 'POST' }),

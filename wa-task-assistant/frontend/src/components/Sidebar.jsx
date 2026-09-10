@@ -45,7 +45,13 @@ const NAV = [
     items: [
       { key: 'reminders', label: 'Reminders & follow-ups', icon: 'bell' },
       { key: 'monthly', label: 'Monthly deadlines', icon: 'calendar' },
-      { key: 'law', label: 'Law updates', icon: 'clipboard' },
+      /*
+       * Two lists, named for what they are. "Law updates" was one thing when
+       * there was one; with judgments beside circulars the reader has to be
+       * told which door leads where before they open it.
+       */
+      { key: 'law', label: 'Tax & compliance', icon: 'clipboard' },
+      { key: 'legal', label: 'Legal & court', icon: 'flag' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
       { key: 'groups', label: 'Manage groups', icon: 'settings' },
     ],

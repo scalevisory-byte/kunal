@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 
+/* Offered before the first fetch answers; the server's list is authoritative. */
+const RULING_TYPES = [
+  'new precedent', 'precedent reaffirmed', 'position changed / overruled',
+  'referred to larger bench', 'interim order', 'final judgment',
+  'amendment / legislative change',
+];
+
 /**
  * The updates behind the digest, as a list you can work through.
  *
@@ -37,7 +44,28 @@ const dayText = (iso) => {
     : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 };
 
-export default function LawUpdates({ onError }) {
+/**
+ * The two modules differ in three places and are otherwise the same list, so
+ * they are the same component: which endpoints to call, what a row's meta line
+ * says, and which recorded facts an open row shows.
+ */
+const MODULES = {
+  tax: {
+    list: (f) => api.lawUpdates(f),
+    mark: (id, patch) => api.markLawUpdate(id, patch),
+    message: (id, channel) => api.lawUpdateMessage(id, channel),
+    empty: 'Press Fetch now above to read the feeds — the updates it finds are listed here.',
+  },
+  legal: {
+    list: (f) => api.legalUpdates(f),
+    mark: (id, patch) => api.markLegalUpdate(id, patch),
+    message: (id, channel) => api.legalUpdateMessage(id, channel),
+    empty: 'Press Fetch judgments above — what it finds is listed here.',
+  },
+};
+
+export default function LawUpdates({ onError, module: mod = 'tax' }) {
+  const endpoints = MODULES[mod] || MODULES.tax;
   const [filters, setFilters] = useState({ when: 'week' });
   const [query, setQuery] = useState('');
   const [data, setData] = useState(null);
@@ -58,13 +86,13 @@ export default function LawUpdates({ onError }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setData(await api.lawUpdates({ ...filters, q: query || undefined }));
+      setData(await endpoints.list({ ...filters, q: query || undefined }));
     } catch (err) {
       onError?.(err);
     } finally {
       setLoading(false);
     }
-  }, [filters, query, onError]);
+  }, [filters, query, onError, endpoints]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -149,13 +177,22 @@ export default function LawUpdates({ onError }) {
             <option value="secondary">Secondary only</option>
           </select>
 
-          <select value={filters.docType || ''} onChange={(e) => set({ docType: e.target.value || null })}>
-            <option value="">Any kind</option>
-            <option value="notification">Notifications</option>
-            <option value="circular">Circulars</option>
-            <option value="order">Orders</option>
-            <option value="judgment">Case law</option>
-          </select>
+          {mod === 'legal' ? (
+            <select value={filters.rulingType || ''} onChange={(e) => set({ rulingType: e.target.value || null })}>
+              <option value="">Any ruling</option>
+              {(data?.rulingTypes || RULING_TYPES).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          ) : (
+            <select value={filters.docType || ''} onChange={(e) => set({ docType: e.target.value || null })}>
+              <option value="">Any kind</option>
+              <option value="notification">Notifications</option>
+              <option value="circular">Circulars</option>
+              <option value="order">Orders</option>
+              <option value="judgment">Case law</option>
+            </select>
+          )}
 
           <select value={filters.status || ''} onChange={(e) => set({ status: e.target.value || null })}>
             <option value="">New &amp; reviewed</option>
@@ -172,13 +209,15 @@ export default function LawUpdates({ onError }) {
             ★ Important
           </button>
 
-          <button
-            type="button"
-            className={`chip ${filters.deadlines ? 'on' : ''}`}
-            onClick={() => set({ deadlines: filters.deadlines ? null : true })}
-          >
-            📅 Deadlines
-          </button>
+          {mod === 'tax' && (
+            <button
+              type="button"
+              className={`chip ${filters.deadlines ? 'on' : ''}`}
+              onClick={() => set({ deadlines: filters.deadlines ? null : true })}
+            >
+              📅 Deadlines
+            </button>
+          )}
 
           {active > 0 && (
             <button
@@ -200,7 +239,7 @@ export default function LawUpdates({ onError }) {
           <p>
             {counts.all
               ? 'No update matches these filters. Clear them, or widen the date range.'
-              : 'Press Fetch now above to read the feeds — the updates it finds are listed here.'}
+              : endpoints.empty}
           </p>
         </div>
       ) : (
@@ -209,6 +248,7 @@ export default function LawUpdates({ onError }) {
             <UpdateRow
               key={u.id}
               update={u}
+              endpoints={endpoints}
               open={openId === u.id}
               onToggle={() => setOpenId(openId === u.id ? null : u.id)}
               onChanged={load}
@@ -226,14 +266,28 @@ export default function LawUpdates({ onError }) {
 }
 
 /** One update: a line to scan, and everything recorded about it underneath. */
-function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
+function UpdateRow({ update: u, endpoints, open, onToggle, onChanged, onError }) {
+  const legal = u.module === 'legal';
+  /*
+   * An Act is not a judgment, and the labels have to know it.
+   *
+   * The legal module carries legislation as well as case law - a notified
+   * amendment has an authority and a date, not a bench and a holding - and
+   * "What the court decided" over the text of a rule is exactly the sort of
+   * small wrongness that makes a reader distrust the rest of the page.
+   */
+  const statute = legal
+    && (u.group_key === 'legislation' || u.ruling_type === 'amendment / legislative change');
+  const words = statute
+    ? { court: 'Authority', date: 'Notified on', decision: 'What it provides', principle: 'Effect' }
+    : { court: 'Court / authority', date: 'Judgment / order date', decision: 'What the court decided', principle: 'Key legal principle' };
   const [message, setMessage] = useState(null);
   const [copied, setCopied] = useState('');
   const priority = PRIORITY[u.priority] || PRIORITY.general;
 
   const mark = async (patch) => {
     try {
-      await api.markLawUpdate(u.id, patch);
+      await endpoints.mark(u.id, patch);
       onChanged();
     } catch (err) {
       onError?.(err);
@@ -242,7 +296,7 @@ function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
 
   const generate = async (channel) => {
     try {
-      const out = await api.lawUpdateMessage(u.id, channel);
+      const out = await endpoints.message(u.id, channel);
       setMessage({ channel, text: out.text });
       setCopied('');
     } catch (err) {
@@ -270,15 +324,17 @@ function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
         <span className="lu-main">
           <span className="lu-title">
             {u.important ? <span className="lu-star" aria-label="Important">★</span> : null}
-            {u.title}
+            {legal && u.case_name ? u.case_name : u.title}
           </span>
           <span className="lu-meta">
-            <span className="lu-cat">{u.category}</span>
+            <span className="lu-cat">{legal ? (u.court || u.category) : u.category}</span>
+            {legal && u.case_number && <span className="lu-doc">{u.case_number}</span>}
+            {legal && u.ruling_type && <span className="lu-ruling">{u.ruling_type}</span>}
             <span className={`lu-src ${u.source_kind}`}>
               {u.source_kind === 'official' ? 'Official source' : 'Secondary source'}
               {u.source_authority ? ` · ${u.source_authority}` : ''}
             </span>
-            {u.doc_number && <span className="lu-doc">{u.doc_number}</span>}
+            {!legal && u.doc_number && <span className="lu-doc">{u.doc_number}</span>}
             <span className="lu-day">{dayText(u.day)}</span>
             {u.status === 'reviewed' && <span className="lu-state">Reviewed</span>}
             {u.status === 'archived' && <span className="lu-state">Archived</span>}
@@ -297,6 +353,19 @@ function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
           {u.summary && <p className="lu-summary">{u.summary}</p>}
 
           <dl className="lu-facts">
+            {legal && <Fact label={words.court} value={u.court} />}
+            {legal && <Fact label="Case" value={u.case_name} />}
+            {legal && <Fact label="Case number" value={u.case_number} />}
+            {legal && <Fact label={words.date} value={u.judgment_date && dayText(u.judgment_date)} />}
+            {legal && <Fact label="Bench" value={u.bench} />}
+            {legal && <Fact label="Parties" value={[u.petitioner, u.respondent].filter(Boolean).join(' v ')} />}
+            {legal && <Fact label="Area of law" value={u.legal_area} />}
+            {legal && <Fact label="Relevant Act / section" value={u.act_section} />}
+            {legal && <Fact label="Key issue" value={u.key_issue} />}
+            {legal && <Fact label={words.decision} value={u.decision} />}
+            {legal && <Fact label={words.principle} value={u.principle} />}
+            {legal && <Fact label="Practical implication" value={u.implication} />}
+            {legal && <Fact label="Ruling" value={u.ruling_type} />}
             <Fact label="What changed" value={u.what_changed} />
             <Fact label="Previous position" value={u.previous_position} />
             <Fact label="New position" value={u.new_position} />
@@ -309,7 +378,9 @@ function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
                 ? `${dayText(u.deadline)}${u.deadline_confirmed ? '' : ' — not confirmed by the source'}`
                 : null}
             />
-            <Fact label="Document" value={[u.doc_type, u.doc_number].filter(Boolean).join(' · ')} />
+            {!legal && (
+              <Fact label="Document" value={[u.doc_type, u.doc_number].filter(Boolean).join(' · ')} />
+            )}
           </dl>
 
           {u.ai_explanation && (
@@ -326,7 +397,7 @@ function UpdateRow({ update: u, open, onToggle, onChanged, onError }) {
           <div className="lu-actions">
             {u.source_url && (
               <a className="btn ghost" href={u.source_url} target="_blank" rel="noopener noreferrer">
-                Open source ↗
+                {statute ? 'Open notification ↗' : legal ? 'View judgment ↗' : 'Open source ↗'}
               </a>
             )}
             <button type="button" className="btn ghost"

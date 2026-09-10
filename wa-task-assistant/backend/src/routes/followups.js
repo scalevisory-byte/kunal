@@ -16,8 +16,13 @@ import {
   maybeSendLawDigest, buildDigest, digestFor, recentDigests, feeds, digestKey, messageShape,
 } from '../law-digest.js';
 import {
-  CATEGORY_GROUPS, listUpdates, getUpdate, markUpdate, updateCounts, groupCounts, clientMessage,
+  CATEGORY_GROUPS, LEGAL_GROUPS, RULING_TYPES,
+  listUpdates, getUpdate, markUpdate, updateCounts, groupCounts, clientMessage,
 } from '../law-updates.js';
+import {
+  maybeSendLegalDigest, buildLegalDigest, legalDigestFor, recentLegalDigests,
+  legalFeeds, legalKey, legalShape,
+} from '../law-legal.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
@@ -244,4 +249,99 @@ settingsRouter.get('/', (req, res) => {
 
 settingsRouter.patch('/', (req, res) => {
   res.json({ settings: saveSettings(req.body || {}), timezone: config.timezone });
+});
+
+/* ---------------- legal & court updates ---------------- */
+
+/**
+ * The second module, deliberately its own router.
+ *
+ * It mirrors the tax one rather than sharing its routes: the two lists have
+ * different categories, different filters and different digests, and a single
+ * endpoint with a `module` switch would have made every future change to one of
+ * them a change to both.
+ */
+export const legalRouter = Router();
+
+const legalGroups = () => LEGAL_GROUPS.map((g) => ({
+  ...g,
+  count: groupCounts('legal')[g.key] || 0,
+}));
+
+legalRouter.get('/', (req, res) => {
+  const day = localDay();
+  res.json({
+    day,
+    today: legalDigestFor(day),
+    recent: recentLegalDigests(7),
+    sent: briefingFor(legalKey()),
+    sources: legalFeeds().map((f) => f.name),
+    counts: updateCounts('legal'),
+    groups: legalGroups(),
+    rulingTypes: RULING_TYPES,
+    shape: legalShape(),
+    settings: {
+      on: getSettings().legalDigest,
+      time: getSettings().legalDigestTime,
+    },
+  });
+});
+
+legalRouter.get('/updates', (req, res) => {
+  const q = req.query;
+  const { updates, total } = listUpdates({
+    module: 'legal',
+    group: q.group || null,
+    category: q.category || null,
+    priority: q.priority || null,
+    source: q.source || null,
+    status: q.status || null,
+    important: q.important === '1' || q.important === 'true',
+    docType: q.docType || null,
+    court: q.court || null,
+    legalArea: q.legalArea || null,
+    rulingType: q.rulingType || null,
+    when: q.when || null,
+    from: q.from || null,
+    to: q.to || null,
+    q: q.q || null,
+    limit: q.limit,
+    offset: q.offset,
+  });
+  res.json({ updates, total, counts: updateCounts('legal'), groups: legalGroups() });
+});
+
+legalRouter.patch('/updates/:id', (req, res) => {
+  const updated = markUpdate(req.params.id, {
+    status: req.body?.status,
+    important: req.body?.important,
+    reviewedBy: req.body?.reviewedBy,
+  });
+  if (!updated) return res.status(404).json({ error: 'not found' });
+  res.json({ update: updated });
+});
+
+legalRouter.get('/updates/:id/message', (req, res) => {
+  const update = getUpdate(req.params.id);
+  if (!update) return res.status(404).json({ error: 'not found' });
+  const channel = req.query.channel === 'email' ? 'email' : 'whatsapp';
+  res.json({ channel, text: clientMessage(update, channel) });
+});
+
+/** Fetch and read the courts now, without sending. */
+legalRouter.post('/preview', async (req, res) => {
+  try {
+    res.json(await buildLegalDigest());
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+/** Build it and send it to the linked account's own chat, now. */
+legalRouter.post('/run', async (req, res, next) => {
+  try {
+    res.json(await maybeSendLegalDigest({ force: true }));
+  } catch (err) {
+    next(err);
+  }
 });

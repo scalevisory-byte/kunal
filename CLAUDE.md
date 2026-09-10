@@ -100,6 +100,16 @@ The engine chases **Dinesh about his own tasks**. There is no notion of chasing 
 - **Day boundaries are the user's, not the server's**: SQLite `date('now','localtime')` reads the machine (UTC on Railway) while rows are stored under the Indian date, so every "today" count between midnight and 05:30 IST answered for yesterday. Now computed in `TIMEZONE`.
 - `law_updates` carries a **`module`** column ('tax' | 'legal') so the Legal & Court module is an addition rather than a rewrite. `backend/tests/lawupdates.test.mjs` (20 cases).
 
+### Legal & Court Updates — the second module
+- **Deliberately separate from the tax module.** A circular tells a client what to do by a date; a judgment tells the firm where an argument now stands. Own categories (33 in 11 groups: Supreme Court, High Courts, NCLT/NCLAT, ITAT/CESTAT/GSTAT, other forums, corporate & insolvency, commercial & civil, labour, IPR/data/constitutional, legislation, landmark), own feeds (`LEGAL_FEEDS`; LiveLaw, Bar & Bench, SCC Online, TaxGuru judiciary), own digest (`legal_digests`), own claim key (`legal:<day>`), own switch (`legalDigest`, 09:00) and its own sidebar page — **Automation → Legal & court**, beside **Tax & compliance**.
+- **Shared underneath**: one `law_updates` table (the `module` column), one review workflow, one search, one component. "Mark reviewed" is the same act whichever list it happens in; duplicating 400 lines of UI to say so would have been the mistake.
+- Legal-only columns: court, case_name, case_number, judgment_date, legal_area, bench, petitioner, respondent, act_section, key_issue, decision, principle, implication, **ruling_type** (new precedent / reaffirmed / overruled / larger bench / interim / final / amendment). A tax row leaves them null.
+- The digest reads **by forum** and closes on **what moved** (overruled, larger bench, new precedent) rather than on deadlines — a judgment has no filing date to chase.
+- **A statute is not a judgment**: for legislation the labels read Authority / Notified on / What it provides, not Court / Judgment date / What the court decided.
+- **Never invent a citation.** The prompt's hardest rule: a case number, bench, section or holding the report did not state comes back empty. `ruling_type` is validated against the list, so a value the model made up is dropped. Source link comes from the article, never from the model.
+- **Fixed a real dedupe bug found here**: `source_url` was UNIQUE, so a round-up article reporting two judgments silently lost the second. Identity is now the case/document number, with the URL as fallback; the old unique index is dropped at boot.
+- `backend/tests/legal.test.mjs` (13 cases) — the wall between modules, the legal fields, the empty-field rule, the digest shape, one-per-day, and that its spend is measured as `legal_digest`.
+
 ### Cost control (after the bill hit ₹175/day)
 - The finding: **593 calls in one day, ~3.2k input tokens each, 2-3 WhatsApp lines per call.** 99% of the bill is input tokens, and ~90% of every call was the same preamble — the ~1,900-token system prompt plus 71 business names — re-sent. Not the messages.
 - **Prompt caching**: the preamble is now one `system` block with `cache_control: {type:'ephemeral'}`; the business list moved into it (stable), the date and messages stay in the user turn (volatile). Cached reads cost 0.1×.

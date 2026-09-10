@@ -125,12 +125,114 @@ export const CATEGORY_GROUPS = [
 
 export const CATEGORIES = CATEGORY_GROUPS.flatMap((g) => g.categories);
 
+/*
+ * The legal module's own categories - courts, areas of law, legislation.
+ *
+ * A separate list on purpose. A GST circular and an ITAT ruling on a GST
+ * question are different kinds of thing to a firm: one is a compliance step,
+ * the other is an argument. Sharing a category list would force one of them to
+ * be filed as the other, which is why the two modules never see each other's.
+ */
+export const LEGAL_GROUPS = [
+  {
+    key: 'apex',
+    label: 'Supreme Court',
+    categories: ['Supreme Court Judgments'],
+  },
+  {
+    key: 'high_court',
+    label: 'High Courts',
+    categories: ['High Court Judgments'],
+  },
+  {
+    key: 'corporate_tribunal',
+    label: 'NCLT / NCLAT',
+    categories: ['NCLT Judgments & Orders', 'NCLAT Judgments & Orders'],
+  },
+  {
+    key: 'tax_tribunal',
+    label: 'ITAT / CESTAT / GSTAT',
+    categories: ['ITAT Judgments', 'CESTAT Judgments', 'GSTAT / GST Appellate Tribunal Updates'],
+  },
+  {
+    key: 'other_forums',
+    label: 'Other forums',
+    categories: [
+      'District Court / Lower Court Updates', 'Consumer Court / NCDRC Updates',
+      'Labour Court / Industrial Tribunal Updates',
+    ],
+  },
+  {
+    key: 'corporate_law',
+    label: 'Corporate & insolvency',
+    categories: [
+      'Insolvency & Bankruptcy (IBC)', 'Companies Law / Corporate Litigation',
+      'Competition Law', 'Banking & Finance Law', 'FEMA / Foreign Exchange',
+    ],
+  },
+  {
+    key: 'commercial_law',
+    label: 'Commercial & civil',
+    categories: [
+      'Contract Law', 'Commercial Law', 'Civil Law', 'Property Law', 'Arbitration',
+    ],
+  },
+  {
+    key: 'employment_law',
+    label: 'Labour & employment',
+    categories: ['Labour & Employment Law'],
+  },
+  {
+    key: 'rights_law',
+    label: 'IPR, data & constitutional',
+    categories: [
+      'Intellectual Property Rights (IPR)', 'Data Protection / Cyber Law',
+      'Constitutional Law', 'Criminal Law',
+    ],
+  },
+  {
+    key: 'legislation',
+    label: 'Legislation',
+    categories: [
+      'New Acts', 'Acts & Amendments', 'Rules & Regulations', 'Ordinances',
+      'Important Legal Notifications',
+    ],
+  },
+  {
+    key: 'landmark',
+    label: 'Landmark & developments',
+    categories: ['Landmark Judgments', 'Important Legal Precedents', 'Legal News & Developments'],
+  },
+];
+
+export const LEGAL_CATEGORIES = LEGAL_GROUPS.flatMap((g) => g.categories);
+
+const LEGAL_GROUP_OF = new Map(
+  LEGAL_GROUPS.flatMap((g) => g.categories.map((c) => [c.toLowerCase(), g.key]))
+);
+
+/** How a judgment is placed in the line of cases before it. */
+export const RULING_TYPES = [
+  'new precedent',
+  'precedent reaffirmed',
+  'position changed / overruled',
+  'referred to larger bench',
+  'interim order',
+  'final judgment',
+  'amendment / legislative change',
+];
+
+export const groupsFor = (mod) => (mod === 'legal' ? LEGAL_GROUPS : CATEGORY_GROUPS);
+export const categoriesFor = (mod) => (mod === 'legal' ? LEGAL_CATEGORIES : CATEGORIES);
+
 const GROUP_OF = new Map(
   CATEGORY_GROUPS.flatMap((g) => g.categories.map((c) => [c.toLowerCase(), g.key]))
 );
 
 /** The group a category belongs to, or 'general' for one that does not fit. */
-export const groupFor = (category) => GROUP_OF.get(String(category || '').toLowerCase()) || 'general';
+export const groupFor = (category, mod = 'tax') => (mod === 'legal'
+  ? LEGAL_GROUP_OF.get(String(category || '').toLowerCase()) || 'landmark'
+  : GROUP_OF.get(String(category || '').toLowerCase()) || 'general');
 
 /* ---------------- sources ---------------- */
 
@@ -165,6 +267,15 @@ const OFFICIAL = [
   ['egazette.gov.in', 'Gazette of India'],
   ['egazette.nic.in', 'Gazette of India'],
   ['pib.gov.in', 'Press Information Bureau'],
+  // Courts and tribunals, for the legal module.
+  ['nclt.gov.in', 'NCLT'],
+  ['nclat.nic.in', 'NCLAT'],
+  ['cestat.gov.in', 'CESTAT'],
+  ['ncdrc.nic.in', 'NCDRC'],
+  ['ecourts.gov.in', 'eCourts'],
+  ['indiacode.nic.in', 'India Code'],
+  ['legislative.gov.in', 'Legislative Department'],
+  ['lawmin.gov.in', 'Ministry of Law & Justice'],
 ];
 
 /** `{ kind, authority }` for a link: official when the domain says so. */
@@ -239,16 +350,53 @@ db.exec(`
   -- Two rows for the same notification are the same row. The URL is the strong
   -- key; the fingerprint catches the same circular arriving from two feeds
   -- under two headlines.
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_law_upd_url ON law_updates(source_url)
-    WHERE source_url IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_law_upd_url ON law_updates(source_url);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_law_upd_fp  ON law_updates(fingerprint);
   CREATE INDEX IF NOT EXISTS idx_law_upd_day   ON law_updates(module, day DESC);
   CREATE INDEX IF NOT EXISTS idx_law_upd_group ON law_updates(module, group_key, day DESC);
 `);
 
+/*
+ * The URL index was UNIQUE and is not any more.
+ *
+ * A round-up article reporting two judgments is two updates, and the old index
+ * refused the second silently. `CREATE INDEX IF NOT EXISTS` will not replace an
+ * index that is already there under the same name, so the old one is dropped
+ * first; SQLite rebuilds the non-unique one above on the next boot.
+ */
+try {
+  const existing = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_law_upd_url'`)
+    .get();
+  if (existing?.sql && /UNIQUE/i.test(existing.sql)) {
+    db.exec(`DROP INDEX idx_law_upd_url; CREATE INDEX idx_law_upd_url ON law_updates(source_url);`);
+  }
+} catch { /* a database that has never had the index at all */ }
+
 ensureColumns('law_updates', [
   ['ai_explanation', 'ALTER TABLE law_updates ADD COLUMN ai_explanation TEXT'],
   ["module", "ALTER TABLE law_updates ADD COLUMN module TEXT NOT NULL DEFAULT 'tax'"],
+  /*
+   * What a judgment has that a circular does not.
+   *
+   * Columns rather than a second table, because everything around them -
+   * searching, reviewing, archiving, composing a digest - is the same work
+   * twice otherwise. A tax row leaves them null and never reads them.
+   */
+  ['court', 'ALTER TABLE law_updates ADD COLUMN court TEXT'],
+  ['case_name', 'ALTER TABLE law_updates ADD COLUMN case_name TEXT'],
+  ['case_number', 'ALTER TABLE law_updates ADD COLUMN case_number TEXT'],
+  ['judgment_date', 'ALTER TABLE law_updates ADD COLUMN judgment_date TEXT'],
+  ['legal_area', 'ALTER TABLE law_updates ADD COLUMN legal_area TEXT'],
+  ['bench', 'ALTER TABLE law_updates ADD COLUMN bench TEXT'],
+  ['petitioner', 'ALTER TABLE law_updates ADD COLUMN petitioner TEXT'],
+  ['respondent', 'ALTER TABLE law_updates ADD COLUMN respondent TEXT'],
+  ['act_section', 'ALTER TABLE law_updates ADD COLUMN act_section TEXT'],
+  ['key_issue', 'ALTER TABLE law_updates ADD COLUMN key_issue TEXT'],
+  ['decision', 'ALTER TABLE law_updates ADD COLUMN decision TEXT'],
+  ['principle', 'ALTER TABLE law_updates ADD COLUMN principle TEXT'],
+  ['implication', 'ALTER TABLE law_updates ADD COLUMN implication TEXT'],
+  ['ruling_type', 'ALTER TABLE law_updates ADD COLUMN ruling_type TEXT'],
 ]);
 
 /* ---------------- writing ---------------- */
@@ -263,11 +411,27 @@ const norm = (value) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g,
  * title do the job: enough to match a re-write, short enough not to be defeated
  * by a trailing date.
  */
-export function fingerprintOf({ doc_number, title, source_url }) {
+export function fingerprintOf({ doc_number, case_number, title, source_url }) {
+  // A case number is to a judgment what a circular number is to a circular:
+  // the thing itself, however many sites write it up.
+  const caseNo = norm(case_number);
+  if (caseNo) return `case:${caseNo}`;
   const doc = norm(doc_number);
   if (doc) return `doc:${doc}`;
+  /*
+   * With no number to go on, the article is the identity - the same page read
+   * twice is the same update, whatever headline the second read gave it.
+   *
+   * This used to be a unique index on the URL as well, which quietly asserted
+   * that one article can only report one development. A round-up naming two
+   * judgments, each with its own case number, lost the second one without a
+   * word. The numbers above now decide identity and the URL is only the
+   * fallback, so both are kept.
+   */
+  const url = String(source_url || '').trim();
+  if (url) return `url:${url}`;
   const words = norm(title).split(' ').filter(Boolean).slice(0, 8).join(' ');
-  return words ? `title:${words}` : `url:${String(source_url || Math.random())}`;
+  return words ? `title:${words}` : `none:${Math.random()}`;
 }
 
 const clean = (value, max = 2000) => {
@@ -285,14 +449,18 @@ const PRIORITIES = new Set(['critical', 'important', 'general']);
  * that happened, which is the whole reason a fingerprint exists.
  */
 export function saveUpdate(row) {
+  const mod = row.module === 'legal' ? 'legal' : 'tax';
   const source = classifySource(row.source_url, row.source_name);
-  const category = CATEGORIES.includes(row.category) ? row.category : 'Daily Tax News';
+  const known = categoriesFor(mod);
+  const category = known.includes(row.category)
+    ? row.category
+    : (mod === 'legal' ? 'Legal News & Developments' : 'Daily Tax News');
   const record = {
-    module: row.module === 'legal' ? 'legal' : 'tax',
+    module: mod,
     day: row.day,
     published_at: clean(row.published_at, 40),
     category,
-    group_key: groupFor(category),
+    group_key: groupFor(category, mod),
     title: clean(row.title, 400) || 'Untitled update',
     summary: clean(row.summary),
     what_changed: clean(row.what_changed),
@@ -314,6 +482,22 @@ export function saveUpdate(row) {
     priority: PRIORITIES.has(row.priority) ? row.priority : 'general',
     fingerprint: fingerprintOf(row),
     model: clean(row.model, 60),
+
+    // Legal-only. A tax row leaves every one of these null.
+    court: clean(row.court, 160),
+    case_name: clean(row.case_name, 300),
+    case_number: clean(row.case_number, 160),
+    judgment_date: clean(row.judgment_date, 40),
+    legal_area: clean(row.legal_area, 120),
+    bench: clean(row.bench, 300),
+    petitioner: clean(row.petitioner, 300),
+    respondent: clean(row.respondent, 300),
+    act_section: clean(row.act_section, 300),
+    key_issue: clean(row.key_issue),
+    decision: clean(row.decision),
+    principle: clean(row.principle),
+    implication: clean(row.implication),
+    ruling_type: RULING_TYPES.includes(row.ruling_type) ? row.ruling_type : null,
   };
 
   const info = db
@@ -323,22 +507,27 @@ export function saveUpdate(row) {
          previous_position, new_position, applies_to, action_required,
          effective_date, deadline, deadline_confirmed, doc_type, doc_number,
          source_name, source_authority, source_kind, source_url,
-         ai_explanation, priority, fingerprint, model
+         ai_explanation, priority, fingerprint, model,
+         court, case_name, case_number, judgment_date, legal_area, bench,
+         petitioner, respondent, act_section, key_issue, decision, principle,
+         implication, ruling_type
        ) VALUES (
          @module, @day, @published_at, @category, @group_key, @title, @summary, @what_changed,
          @previous_position, @new_position, @applies_to, @action_required,
          @effective_date, @deadline, @deadline_confirmed, @doc_type, @doc_number,
          @source_name, @source_authority, @source_kind, @source_url,
-         @ai_explanation, @priority, @fingerprint, @model
+         @ai_explanation, @priority, @fingerprint, @model,
+         @court, @case_name, @case_number, @judgment_date, @legal_area, @bench,
+         @petitioner, @respondent, @act_section, @key_issue, @decision, @principle,
+         @implication, @ruling_type
        )`
     )
     .run(record);
 
   if (info.changes === 1) return { id: info.lastInsertRowid, created: true };
 
-  const existing = db
-    .prepare(`SELECT id FROM law_updates WHERE fingerprint = ? OR source_url = ?`)
-    .get(record.fingerprint, record.source_url);
+  const existing = db.prepare(`SELECT id FROM law_updates WHERE fingerprint = ?`)
+    .get(record.fingerprint);
   return { id: existing?.id ?? null, created: false };
 }
 
@@ -356,6 +545,7 @@ export function saveUpdate(row) {
 export function listUpdates({
   module: mod = 'tax', group = null, category = null, priority = null, source = null,
   status = null, important = null, docType = null, deadlinesOnly = false,
+  court = null, legalArea = null, rulingType = null,
   when = null, from = null, to = null, q = null, limit = 100, offset = 0,
 } = {}) {
   const where = ['module = @module'];
@@ -366,6 +556,9 @@ export function listUpdates({
   if (priority) { where.push('priority = @priority'); args.priority = priority; }
   if (source) { where.push('source_kind = @source'); args.source = source; }
   if (docType) { where.push('doc_type = @docType'); args.docType = docType; }
+  if (court) { where.push('court LIKE @court'); args.court = `%${court}%`; }
+  if (legalArea) { where.push('legal_area = @legalArea'); args.legalArea = legalArea; }
+  if (rulingType) { where.push('ruling_type = @rulingType'); args.rulingType = rulingType; }
   if (deadlinesOnly) where.push('deadline IS NOT NULL');
   if (important) where.push('important = 1');
 
@@ -396,6 +589,8 @@ export function listUpdates({
       title LIKE @q OR summary LIKE @q OR what_changed LIKE @q OR doc_number LIKE @q
       OR category LIKE @q OR source_authority LIKE @q OR action_required LIKE @q
       OR ai_explanation LIKE @q OR new_position LIKE @q
+      OR case_name LIKE @q OR case_number LIKE @q OR court LIKE @q OR bench LIKE @q
+      OR act_section LIKE @q OR key_issue LIKE @q OR decision LIKE @q OR principle LIKE @q
     )`);
     args.q = `%${String(q).trim()}%`;
   }
@@ -514,6 +709,7 @@ const dateText = (value) => {
  */
 export function clientMessage(update, channel = 'whatsapp') {
   if (!update) return null;
+  if (update.module === 'legal') return legalMessage(update, channel);
   const deadline = update.deadline
     ? `${dateText(update.deadline)}${update.deadline_confirmed ? '' : ' (to be confirmed)'}`
     : null;
@@ -559,6 +755,65 @@ export function clientMessage(update, channel = 'whatsapp') {
   return lines.filter((l) => l !== undefined).join('\n');
 }
 
+/**
+ * The same, for a judgment.
+ *
+ * A circular tells somebody what to do; a judgment tells them where they now
+ * stand, which is a different message. It names the case and the court because
+ * a professional's first question is which court said it, and it carries the
+ * link to the order itself wherever there is one - a holding restated at second
+ * hand is not a holding.
+ */
+function legalMessage(update, channel = 'whatsapp') {
+  const heading = update.case_name || update.title;
+  const where = [update.court, update.case_number].filter(Boolean).join(' · ');
+
+  if (channel === 'email') {
+    const lines = [
+      `Subject: ${update.court || 'Court'} — ${heading}`,
+      '',
+      'Dear Sir / Madam,',
+      '',
+      update.summary || update.title,
+    ];
+    if (where) lines.push('', `Case: ${where}`);
+    if (update.judgment_date) lines.push('', `Date of judgment / order: ${dateText(update.judgment_date)}`);
+    if (update.act_section) lines.push('', `Relevant law: ${update.act_section}`);
+    if (update.key_issue) lines.push('', `Issue: ${update.key_issue}`);
+    if (update.decision) lines.push('', `What the court decided: ${update.decision}`);
+    if (update.principle) lines.push('', `Principle: ${update.principle}`);
+    if (update.implication) lines.push('', `Practical impact: ${update.implication}`);
+    lines.push(
+      '',
+      update.source_url
+        ? `Source (${update.source_authority || 'source'}): ${update.source_url}`
+        : `Source: ${update.source_authority || 'not recorded'}`,
+      '',
+      'This is a note on a judgment of general interest, not advice on any particular matter.',
+      'Please let us know if you would like us to look at how it applies to you.',
+      '',
+      'Regards,',
+      'Scale Visory'
+    );
+    return lines.join('\n');
+  }
+
+  const lines = [`⚖️ *${heading}*`, ''];
+  if (where) lines.push(`*Court:* ${where}`);
+  if (update.judgment_date) lines.push(`*Date:* ${dateText(update.judgment_date)}`);
+  if (update.act_section) lines.push(`*Law:* ${update.act_section}`);
+  lines.push('');
+  if (update.key_issue) lines.push(`*Sawal:* ${update.key_issue}`);
+  if (update.decision) lines.push(`*Court ne kya kaha:* ${update.decision}`);
+  if (update.principle) lines.push(`*Usool:* ${update.principle}`);
+  if (update.implication) lines.push(`*Asar:* ${update.implication}`);
+  if (update.source_url) {
+    lines.push('', `Source (${update.source_authority || 'source'}): ${update.source_url}`);
+  }
+  lines.push('', '_Ye ek aam jaankari hai, kisi ek maamle par salah nahi._', '— Scale Visory');
+  return lines.join('\n');
+}
+
 /* ---------------- the digest, built from the rows ---------------- */
 
 /** The sections the WhatsApp digest is written in, in the order it reads. */
@@ -570,10 +825,21 @@ export const DIGEST_SECTIONS = [
   { key: 'case_law', label: 'Case law' },
 ];
 
+/** The legal digest reads in its own order, by forum rather than by tax head. */
+export const LEGAL_DIGEST_SECTIONS = [
+  { key: 'apex', label: '⚖️ Supreme Court' },
+  { key: 'high_court', label: '⚖️ High Courts' },
+  { key: 'corporate_tribunal', label: '🏢 NCLT / NCLAT' },
+  { key: 'tax_tribunal', label: '📊 ITAT / CESTAT / GSTAT' },
+  { key: 'legislation', label: '📜 Legislation' },
+];
+
 const MAX_PER_SECTION = 3;
 
 const short = (update) => {
-  const text = update.summary || update.what_changed || update.title;
+  const text = update.module === 'legal'
+    ? [update.case_name, update.decision || update.summary].filter(Boolean).join(' — ')
+    : update.summary || update.what_changed || update.title;
   const trimmed = String(text).replace(/\s+/g, ' ').trim();
   return trimmed.length > 170 ? `${trimmed.slice(0, 167)}…` : trimmed;
 };
@@ -587,6 +853,8 @@ const short = (update) => {
  * instead of taking their turn by category.
  */
 export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' }) {
+  const legal = mod === 'legal';
+  const sections = legal ? LEGAL_DIGEST_SECTIONS : DIGEST_SECTIONS;
   const { updates } = listUpdates({ module: mod, from: day, to: day, limit: 60 });
   if (!updates.length) return { text: nothingNew, count: 0, ids: [] };
 
@@ -595,7 +863,7 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
 
   const urgent = updates.filter((u) => u.priority === 'critical');
   if (urgent.length) {
-    lines.push('🔴 *Urgent*');
+    lines.push(legal ? '🔴 *Landmark / urgent*' : '🔴 *Urgent*');
     for (const u of urgent.slice(0, MAX_PER_SECTION)) {
       used.add(u.id);
       lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
@@ -603,7 +871,7 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
     lines.push('');
   }
 
-  for (const section of DIGEST_SECTIONS) {
+  for (const section of sections) {
     const all = updates.filter((u) => u.group_key === section.key);
     const mine = all.filter((u) => !used.has(u.id));
     if (!mine.length) {
@@ -623,6 +891,29 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
     lines.push(`*${section.label}:*`);
     for (const u of listed) lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
     if (mine.length > listed.length) lines.push(`  _…aur ${mine.length - listed.length} update._`);
+  }
+
+  if (legal) {
+    /*
+     * A judgment has no deadline to close on. What matters instead is whether
+     * the ground moved - a position overruled or a matter sent to a larger
+     * bench is the line a professional needs to have seen today.
+     */
+    const moved = updates.filter((u) =>
+      ['position changed / overruled', 'referred to larger bench', 'new precedent'].includes(u.ruling_type));
+    if (moved.length) {
+      lines.push('', '⚠️ *Important developments*');
+      for (const u of moved.slice(0, 4)) {
+        lines.push(`• ${u.ruling_type} — ${u.case_name || u.title}`);
+      }
+    }
+
+    const worth = updates.find((u) => u.implication && u.priority !== 'general');
+    lines.push(
+      '',
+      `📣 *Client ko batane layak:* ${worth ? worth.implication : 'aaj kuch nahi'}`
+    );
+    return { text: lines.join('\n'), count: updates.length, ids: updates.map((u) => u.id) };
   }
 
   // Deadlines are the part somebody has to act on, so they close the message

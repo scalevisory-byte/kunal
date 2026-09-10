@@ -73,6 +73,18 @@ describe('the same notification twice', () => {
     assert.equal(U.listUpdates({}).total, 1);
   });
 
+  it('keeps both developments when one article reports two', () => {
+    /*
+     * A round-up naming two judgments is two updates. This used to be refused
+     * by a unique index on the URL - one article, one row - and the second one
+     * disappeared without a word.
+     */
+    const page = 'https://livelaw.in/weekly-round-up.html';
+    U.saveUpdate(base({ module: 'legal', title: 'First case', case_number: 'CA 1/2026', source_url: page }));
+    U.saveUpdate(base({ module: 'legal', title: 'Second case', case_number: 'CA 2/2026', source_url: page }));
+    assert.equal(U.listUpdates({ module: 'legal' }).total, 2);
+  });
+
   it('keeps two genuinely different updates apart', () => {
     U.saveUpdate(base({ doc_number: 'Notification 17/2026' }));
     U.saveUpdate(base({

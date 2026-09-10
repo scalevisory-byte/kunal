@@ -29,6 +29,7 @@ import WorkHistory from './components/WorkHistory.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
 import LawDigest from './components/LawDigest.jsx';
+import LegalUpdates from './components/LegalUpdates.jsx';
 import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import Duplicates from './components/Duplicates.jsx';
@@ -113,8 +114,13 @@ const PAGES = {
     settings: true,
   },
   law: {
-    title: 'Law updates',
-    lede: 'GST, Income Tax, PF/ESI/PT, ROC and case law — read every morning and sent to your own WhatsApp.',
+    title: 'Tax & compliance updates',
+    lede: 'GST, Income Tax, PF/ESI/PT, ROC and the case law that changes how something is filed.',
+    settings: true,
+  },
+  legal: {
+    title: 'Legal & court updates',
+    lede: 'Judgments, orders, Acts and amendments — the courts rather than the compliance calendar.',
     settings: true,
   },
   leads: {
@@ -901,11 +907,26 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
             </section>
+          ) : section === 'legal' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Legal &amp; court updates</h2>
+                  <p>
+                    Judgments, orders, new Acts and amendments — Supreme Court, High Courts,
+                    NCLT/NCLAT and the tribunals. Kept apart from the tax digest on purpose:
+                    a circular tells a client what to do by a date, a judgment tells you
+                    where an argument now stands.
+                  </p>
+                </div>
+              </div>
+              <LegalUpdates onError={(err) => setError(err.message)} />
+            </section>
           ) : section === 'law' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>
-                  <h2>Law updates</h2>
+                  <h2>Tax &amp; compliance updates</h2>
                   <p>
                     Tax and compliance: GST, Income Tax / TDS, MCA / ROC, PF-ESI-PT and the
                     case law that matters, read off the feeds each morning. The digest is

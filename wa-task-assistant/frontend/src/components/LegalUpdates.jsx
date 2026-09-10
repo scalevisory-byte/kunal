@@ -2,9 +2,21 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Row, Toggle } from './SchedulingSettings.jsx';
 import LawUpdates from './LawUpdates.jsx';
+/*
+ * The digest renderer is shared. The two messages have the same grammar -
+ * a heading, labelled sections, bullets, a closing line - so a second copy
+ * would only drift away from the first.
+ */
+import { Digest } from './LawDigest.jsx';
 
 /**
- * The morning law digest, on its own page.
+ * Legal & court updates: judgments, orders, Acts and amendments.
+ *
+ * A separate page from the tax digest, and separate on purpose. A circular
+ * tells a client what to do by a date; a judgment tells a firm where its
+ * arguments now stand. Same shell, its own categories, its own morning.
+ *
+ * (Was the morning law digest's page.)
  *
  * It began at the bottom of the reminder settings, under the engine, the
  * briefing and the weekly review - and was not found. That was the right
@@ -16,7 +28,7 @@ import LawUpdates from './LawUpdates.jsx';
  * The switch and the time live here too. One control in one place - having them
  * in Settings as well would be two answers to "is this on".
  */
-export default function LawDigest({ onError }) {
+export default function LegalUpdates({ onError }) {
   const [settings, setSettings] = useState(null);
   const [timezone, setTimezone] = useState('');
 
@@ -48,21 +60,21 @@ export default function LawDigest({ onError }) {
   return (
     <section className="settings">
       <Row
-        label="Law update on WhatsApp"
-        note="Yesterday's notifications, circulars and rulings in one message to your own chat, grouped by area with the deadlines at the end. Costs about ₹1–2 a day in AI, whether or not anything was published."
+        label="Legal digest on WhatsApp"
+        note="The day's judgments, orders and amendments in one message to your own chat, grouped by court. Costs about ₹1–2 a day in AI, whether or not anything was reported."
       >
-        <Toggle on={settings.lawDigest} label="Daily law digest"
-          onChange={(v) => save({ lawDigest: v })} />
+        <Toggle on={settings.legalDigest} label="Daily legal digest"
+          onChange={(v) => save({ legalDigest: v })} />
       </Row>
 
       <Row
         label="Digest time"
-        note={settings.lawDigest
+        note={settings.legalDigest
           ? `Sent at this time, ${timezone}.`
           : 'Switched off — nothing arrives on its own. The buttons below still work.'}
       >
-        <input type="time" value={settings.lawDigestTime} disabled={!settings.lawDigest}
-          onChange={(e) => save({ lawDigestTime: e.target.value })} />
+        <input type="time" value={settings.legalDigestTime} disabled={!settings.legalDigest}
+          onChange={(e) => save({ legalDigestTime: e.target.value })} />
       </Row>
 
       <Panel onError={onError} />
@@ -72,7 +84,7 @@ export default function LawDigest({ onError }) {
         * built from. Same page on purpose - they are two views of one morning's
         * reading, and splitting them would mean checking two places.
         */}
-      <LawUpdates onError={onError} />
+      <LawUpdates onError={onError} module="legal" />
     </section>
   );
 }
@@ -93,7 +105,7 @@ function Panel({ onError }) {
 
   const load = useCallback(async () => {
     try {
-      setState(await api.lawDigest());
+      setState(await api.legalDigest());
     } catch (err) {
       onError(err);
     }
@@ -106,13 +118,13 @@ function Panel({ onError }) {
     setResult('');
     try {
       if (what === 'preview') {
-        const out = await api.previewLawDigest();
+        const out = await api.previewLegal();
         setFresh(out.text);
         setResult(out.items
           ? `Read ${out.items} article${out.items === 1 ? '' : 's'} from the feeds.`
-          : 'The feeds answered — nothing new was published.');
+          : 'The sources answered — nothing new was reported.');
       } else {
-        const out = await api.runLawDigest();
+        const out = await api.runLegal();
         setFresh(out.text || null);
         setResult(out.sent
           ? 'Sent to your own WhatsApp chat.'
@@ -137,7 +149,7 @@ function Panel({ onError }) {
   return (
     <div className="briefing-preview">
       <div className="briefing-preview-head">
-        <strong>Today's digest</strong>
+        <strong>Today's legal digest</strong>
         <span>{status(state, today)}</span>
       </div>
 
@@ -189,7 +201,7 @@ function Panel({ onError }) {
       <div className="briefing-preview-foot">
         <button type="button" className="btn ghost" disabled={Boolean(busy)}
           onClick={() => run('preview')}>
-          {busy === 'preview' ? 'Reading the feeds…' : 'Fetch now'}
+          {busy === 'preview' ? 'Reading the courts…' : 'Fetch judgments'}
         </button>
         <button type="button" className="btn ghost" disabled={Boolean(busy)}
           onClick={() => run('send')}>
@@ -210,7 +222,7 @@ function Panel({ onError }) {
         */}
       {past.length > 0 && (
         <details className="digest-past">
-          <summary>Earlier digests ({past.length})</summary>
+          <summary>Earlier legal digests ({past.length})</summary>
           {past.map((d) => (
             <div key={d.day}>
               <strong>{d.day}</strong>
@@ -247,154 +259,4 @@ function status(state, today) {
   const now = new Date();
   const passed = now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
   return passed ? 'Due — building shortly' : `Runs at ${state.settings.time}`;
-}
-
-/**
- * The digest, laid out to be read.
- *
- * What arrives is a WhatsApp message: asterisks for bold, a bare URL at the end
- * of each line, everything in one block. That is right for WhatsApp and wrong
- * for a page - on screen it was a wall of monospace with the actual finding
- * buried between the markup and a hundred-character link.
- *
- * So it is parsed back into what it always was: a heading, five labelled lines,
- * and one action. The label is set apart, the finding is set in reading type,
- * and the source becomes a link at the end of the line rather than fifty
- * characters of URL in the middle of the sentence. The exact message is still
- * one click away, because that is what was actually sent.
- */
-export function Digest({ text, compact = false }) {
-  const { title, sections, loose } = parseDigest(text);
-
-  return (
-    <div className={`digest ${compact ? 'compact' : ''}`}>
-      {title && <h4 className="digest-title">{title}</h4>}
-
-      {sections.map((s, i) => (
-        <div key={i} className={`digest-row ${s.tone}`}>
-          <span className="digest-label">{s.label}</span>
-          <span className="digest-text">
-            {s.body && <Line text={s.body} />}
-            {s.bullets.length > 0 && (
-              <ul className="digest-bullets">
-                {s.bullets.map((b, n) => <li key={n}><Line text={b} /></li>)}
-              </ul>
-            )}
-          </span>
-        </div>
-      ))}
-
-      {/* Anything the shape did not account for is shown as it came, never dropped. */}
-      {loose.map((line, i) => (
-        <p key={i} className="digest-loose"><Linked text={line} /></p>
-      ))}
-
-      <details className="digest-raw">
-        <summary>The message as it was sent</summary>
-        <pre><Linked text={text} /></pre>
-      </details>
-    </div>
-  );
-}
-
-/**
- * WhatsApp text back into parts.
- *
- * `*Label:* finding https://…` is the whole grammar. A line that does not fit
- * it is kept as it is rather than forced into a shape it does not have - the
- * "nothing was published today" message is one line and no labels at all.
- */
-export function parseDigest(text) {
-  const lines = String(text ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
-  let title = null;
-  const sections = [];
-  const loose = [];
-
-  /*
-   * The message has three shapes of line and they have to stay in order:
-   * `*Label:* text` for a one-liner, `*Label:*` followed by `• …` bullets for a
-   * section with several, and a block heading like `🔴 *Urgent*` that owns the
-   * bullets under it. A bullet always belongs to whatever was declared last -
-   * losing that was what dropped the urgent items to the bottom of the page in
-   * the order they were never written in.
-   */
-  let current = null;
-
-  const open = (label, tone = '', body = '') => {
-    current = { label, body, bullets: [], tone };
-    sections.push(current);
-  };
-
-  for (const line of lines) {
-    const bullet = /^[•\-]\s*(.+)$/.exec(line);
-    if (bullet && current) {
-      current.bullets.push(bullet[1].trim());
-      continue;
-    }
-
-    const row = /^([^*]*)\*([^*]+?):\*\s*(.*)$/.exec(line);
-    if (row) {
-      const mark = row[1].trim();
-      const body = row[3].trim();
-      open(
-        row[2].trim(),
-        /^\s*(koi naya update nahi|aaj kuch nahi)\.?$/i.test(body)
-          ? 'quiet'
-          : mark.includes('⚠') ? 'action' : '',
-        body
-      );
-      continue;
-    }
-
-    // A heading: bold, no label colon inside the asterisks. The first one is
-    // the title of the message; a later one opens a block of bullets.
-    const head = /^([^\w*]*)\*([^*]+)\*[^\w]*$/.exec(line);
-    if (head && !head[2].includes(':')) {
-      const mark = head[1].trim();
-      const label = head[2].trim();
-      if (!title) title = label;
-      else open(label, mark.includes('🔴') ? 'action' : '');
-      continue;
-    }
-
-    loose.push(line);
-    current = null;
-  }
-
-  return { title, sections, loose };
-}
-
-/** "taxguru.in" rather than a hundred characters of path. */
-function sourceName(href) {
-  try {
-    return new URL(href).hostname.replace(/^www\./, '');
-  } catch {
-    return 'source';
-  }
-}
-
-/**
- * The digest, with its sources reachable.
- *
- * Every line ends in the article it came from, and until now those were plain
- * characters in a monospace block - the whole point of a digest is that you can
- * go and read the one line that matters, and that meant copying a URL by hand.
- *
- * Built as elements rather than injected as HTML: this text is written by a
- * model summarising somebody else's feed, and none of it is ever trusted as
- * markup. Only http and https become links, and each opens in its own tab with
- * no handle back to this page.
- */
-const Line = ({ text }) => <Linked text={text} />;
-
-function Linked({ text }) {
-  const parts = String(text ?? '').split(/(https?:\/\/[^\s<>"')\]]+)/g);
-  return parts.map((part, index) =>
-    /^https?:\/\//.test(part)
-      ? (
-        <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="digest-link">
-          {part}
-        </a>
-      )
-      : part);
 }

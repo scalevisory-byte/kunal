@@ -28,6 +28,7 @@ import { dueNoteReminders, claimNoteReminder } from './notes.js';
 import { dueLeadReminders, claimLeadReminder } from './leads.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 import { maybeSendLawDigest } from './law-digest.js';
+import { maybeSendLegalDigest } from './law-legal.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -226,6 +227,11 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     log.error('Law digest:', err?.message || err);
     return { sent: false };
   });
+  /* The legal digest, same tick, same claim machinery, its own key. */
+  const legalDigest = await maybeSendLegalDigest({ now }).catch((err) => {
+    log.error('Legal digest:', err?.message || err);
+    return { sent: false };
+  });
   /*
    * Monthly deadlines become real tasks before anything else runs, so a task
    * created today is scheduled by the very same tick rather than waiting for
@@ -320,6 +326,7 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     sent, missed, planned, recurring: recurring.length, notes, leads,
     briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent),
     lawDigest: Boolean(lawDigest?.sent),
+    legalDigest: Boolean(legalDigest?.sent),
   };
 }
 

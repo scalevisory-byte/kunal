@@ -143,6 +143,13 @@ const DEFAULTS = {
    */
   lawDigest: false,
   lawDigestTime: '08:00',           // in the configured timezone
+  /*
+   * The legal digest: judgments, orders, Acts. Its own switch and its own hour,
+   * because it is a different reading habit - the tax digest is read before the
+   * day starts, this one is read when there is a minute for it.
+   */
+  legalDigest: false,
+  legalDigestTime: '09:00',
   // Claude reads photos as well as text. Off by default: a picture costs
   // roughly a page of tokens, and most photos in a personal chat are forwards.
   readImages: false,            // in the configured timezone
