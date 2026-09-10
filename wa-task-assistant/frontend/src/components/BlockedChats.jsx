@@ -81,6 +81,8 @@ export default function BlockedChats({ mode, onError }) {
         <div className="block-body">
           <p className="hint">
             Chats listed here are never read and never stored. Part of a name is enough.
+            Blocking a <b>group</b> blocks the whole group — nothing anybody writes in it
+            is read.
           </p>
 
           <form
@@ -126,7 +128,11 @@ export default function BlockedChats({ mode, onError }) {
                 {matches.map((c) => (
                   <li key={c.chat_id}>
                     <button className="chip ghost" onClick={() => add(c.chat_name)}>
-                      {c.chat_name} <span className="chip-count">{c.messages}</span>
+                      {c.chat_name}
+                      {/* Which of these is a group matters here more than anywhere
+                          else: blocking one silences every person in it. */}
+                      {Boolean(c.is_group) && <span className="chip-tag">group</span>}
+                      <span className="chip-count">{c.messages}</span>
                     </button>
                   </li>
                 ))}

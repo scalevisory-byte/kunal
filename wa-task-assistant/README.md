@@ -370,6 +370,10 @@ Names match loosely, so `Mummy` also catches `Mummy ❤️ Home`. Numbers match 
 ending instead, so the same person matches with or without a country code, and a pattern
 shorter than 6 digits is refused rather than silently blocking half your contacts.
 
+**Blocking a group blocks the whole group** - nothing anybody writes in it is read, whoever
+they are. A group is matched by its name, and where `getChat()` fails the name is fetched by
+id first, so the check tests the same name the row would have been stored under.
+
 The box **searches every chat the app has seen** as you type - tap a result to block it.
 It used to list only the eight most recent chats, which is no help when the one you want
 is a group you stopped reading weeks ago. Typing a name that matches nothing still blocks

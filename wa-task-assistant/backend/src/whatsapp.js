@@ -531,6 +531,14 @@ async function maybeLead(row, message, settings) {
  */
 const groupNames = new Map();
 
+/**
+ * Test hook: seeds the group-name cache, so a suite can exercise the path where
+ * WhatsApp answers for a group whose own chat lookup failed.
+ */
+export function setGroupNameForTests(chatId, name) {
+  groupNames.set(chatId, name);
+}
+
 export async function groupNameFor(chatId) {
   if (!chatId || !String(chatId).endsWith('@g.us')) return null;
   if (groupNames.has(chatId)) return groupNames.get(chatId);
@@ -1003,15 +1011,6 @@ export async function handleMessage(message) {
      * sender's, and the id at the right end - because a blocklist that only
      * matches when WhatsApp is feeling co-operative is not a blocklist.
      */
-    const blockAgainst = [chat?.name, contactName].filter(Boolean);
-    if (
-      blockAgainst.some((name) => isBlockedChat({ chatName: name, chatId, contactNumber: contact?.number }))
-      || isBlockedChat({ chatId, contactNumber: contact?.number })
-    ) {
-      state.blockedCount += 1;
-      return drop('blocked');
-    }
-
     /*
      * A second try at the group's name, by id.
      *
@@ -1020,8 +1019,22 @@ export async function handleMessage(message) {
      * the sender and the group vanished from the row entirely. The id is enough
      * to ask with, and the answer is cached, so this costs one lookup per group
      * and only where the first route already failed.
+     *
+     * It has to happen before the block check, not after. Blocking a group is
+     * blocking a name, and this is where the name comes from when the chat
+     * lookup failed - asked afterwards, a blocked group was being stored under
+     * exactly the name it had been blocked by.
      */
     const groupName = !chat?.name && isGroup ? await groupNameFor(chatId) : null;
+
+    const blockAgainst = [chat?.name, groupName, contactName].filter(Boolean);
+    if (
+      blockAgainst.some((name) => isBlockedChat({ chatName: name, chatId, contactNumber: contact?.number }))
+      || isBlockedChat({ chatId, contactNumber: contact?.number })
+    ) {
+      state.blockedCount += 1;
+      return drop('blocked');
+    }
 
     const row = {
       wa_message_id: message.id?._serialized ?? null,

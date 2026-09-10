@@ -61,6 +61,46 @@ beforeEach(() => {
   WA.state.blockedCount = 0;
 });
 
+describe('a whole group', () => {
+  const groupMessage = (extra = {}) => {
+    const m = message({
+      from: '120363111@g.us',
+      body: 'Forwarded: 10 tips for interviews',
+      ...extra,
+    });
+    m.author = '919333333333@c.us';
+    return m;
+  };
+
+  it('is dropped whoever in it is writing', async () => {
+    blockChat('LeDroit India');
+    const chat = { id: { _serialized: '120363111@g.us' }, name: 'LeDroit India 36', isGroup: true };
+
+    // Three different people, one blocked group.
+    for (const who of ['Ramesh', 'Priya', 'Kiran']) {
+      await WA.handleMessage(groupMessage({ chat, contact: { pushname: who, number: '9193333333' } }));
+    }
+    assert.equal(stored().length, 0, 'nobody in a blocked group gets through');
+    assert.equal(WA.state.blockedCount, 3);
+  });
+
+  it('is dropped when the group name is only known from the id', async () => {
+    /*
+     * The gap this found. When getChat() fails on a group, the row still gets
+     * its name - the app asks WhatsApp for it by id, and caches the answer -
+     * but that lookup happened AFTER the block check, so a group blocked by
+     * name was stored under exactly the name it was blocked by.
+     */
+    WA.setGroupNameForTests('120363111@g.us', 'LeDroit India 36');
+    blockChat('LeDroit India');
+    await WA.handleMessage(groupMessage({
+      chat: 'fails',
+      contact: { pushname: 'Ramesh', number: '9193333333' },
+    }));
+    assert.deepEqual(stored(), [], 'the name it would be filed under is the name it was blocked by');
+  });
+});
+
 describe('a chat on the blocked list', () => {
   it('is dropped when WhatsApp names it', async () => {
     blockChat('CYBER CHATHAN');
