@@ -76,6 +76,18 @@ async function loadCurrentCodeAgainst(dir) {
   return JSON.parse(out.slice(out.indexOf('{')));
 }
 
+/*
+ * A deadline that is still ahead, whenever this suite is run.
+ *
+ * It used to be the literal '2026-09-10', which was days away when it was
+ * written and is today as this is read: the ladder builds one rung before the
+ * deadline, one at it and one after, so a deadline that has already gone by
+ * leaves a single rung and three cases fail for the calendar rather than for
+ * the migration they are about. The date has to move with the clock.
+ */
+const AHEAD = new Date(Date.now() + 5 * 86400000)
+  .toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
 /** The tasks table as the earliest deployed versions had it. */
 const OLD_TASKS = `
   CREATE TABLE tasks (
@@ -94,7 +106,7 @@ const OLD_TASKS = `
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     completed_at TEXT
   );
-  INSERT INTO tasks (title, due_date, status, source) VALUES ('Old task', '2026-09-10', 'open', 'manual');
+  INSERT INTO tasks (title, due_date, status, source) VALUES ('Old task', '${AHEAD}', 'open', 'manual');
 `;
 
 console.log('\nupgrading a database that already exists');

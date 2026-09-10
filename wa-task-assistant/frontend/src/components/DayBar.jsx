@@ -12,7 +12,10 @@ import { isoDay, todayIso } from '../lib/task.js';
  *
  * The count is of what is on screen, so the number and the list always agree.
  */
-export default function DayBar({ mode = 'due', day, onDay: pick, count }) {
+export default function DayBar({
+  mode = 'due', day, onDay: pick, count,
+  arrived = 0, hidden = 0, onArrived, arrivedOn = false,
+}) {
   const done = mode === 'done';
   const today = todayIso();
   // Completed work looks backwards; a deadline looks forwards.
@@ -49,6 +52,31 @@ export default function DayBar({ mode = 'due', day, onDay: pick, count }) {
           </button>
         )}
       </div>
+
+      {/*
+        * What came in today, and whether this list is showing it.
+        *
+        * Tasks read out of WhatsApp arrive without a deadline - the message
+        * says what to do, not when - so on the Today filter they are the one
+        * thing that cannot appear. This is the way back to them: it says how
+        * many arrived, says plainly when some of them are not in the list
+        * below, and opens exactly those.
+        */}
+      {!done && arrived > 0 && onArrived && (
+        <button
+          type="button"
+          className={`chip arrived ${hidden ? 'flag' : ''} ${arrivedOn ? 'on' : ''}`}
+          aria-pressed={arrivedOn}
+          onClick={onArrived}
+          title={hidden
+            ? `${hidden} of today's ${arrived} new ${arrived === 1 ? 'task is' : 'tasks are'} not in this list — most arrive with no deadline`
+            : "Everything that came in today"}
+        >
+          {hidden > 0
+            ? `${hidden} new not shown`
+            : `Arrived today ${arrived}`}
+        </button>
+      )}
 
       <label className="donebar-pick">
         <Icon name="calendar" size={15} />

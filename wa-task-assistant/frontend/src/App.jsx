@@ -575,6 +575,45 @@ export default function App() {
     });
   }, [tasks, view, filters, query, selectedDate, searching, doneDay]);
 
+  /*
+   * What came in today, and how much of it this page is hiding.
+   *
+   * A task extracted from WhatsApp almost never carries a deadline - nobody
+   * writes "PF filing, due Thursday", they write "PF filing to be done". So on
+   * the Today filter, where the day is actually spent, the work that arrived
+   * an hour ago is the one thing that cannot appear: it is not due today, it
+   * is not due at all. Three new tasks read as none, and the honest answer
+   * ("no deadline, press All") is one nobody should have to be told twice.
+   *
+   * So the day bar says it: how many arrived today, and how many of those are
+   * not in the list underneath. Pressing it opens exactly those.
+   */
+  const arrivedToday = useMemo(
+    () => dayTasks.filter((t) => onDay(t.created_at, todayIso())),
+    [dayTasks]
+  );
+
+  const hiddenArrivals = useMemo(() => {
+    /*
+     * Only a day filter earns the flag. A folder page or a chat filter is a
+     * scope you chose and are looking at - saying "6 new not shown" there
+     * would be true and useless. A deadline filter is the one that hides work
+     * you never asked it to hide, which is the whole reason for this.
+     */
+    if (searching || !selectedDate || !arrivedToday.length) return 0;
+    const shown = new Set(visible.map((t) => t.id));
+    return arrivedToday.filter((t) => !shown.has(t.id)).length;
+  }, [arrivedToday, visible, searching, selectedDate]);
+
+  /** The arrivals, on their own, newest first - nothing else filtered in. */
+  const showArrivals = () => {
+    setSelectedDate(null);
+    setFilters(EMPTY_FILTERS);
+    setQuery('');
+    setGroupBy('none');
+    setView('added_today');
+  };
+
   const summary = useMemo(() => summarise(dayTasks), [dayTasks]);
   const recent = useMemo(() => activity(dayTasks), [dayTasks]);
 
@@ -1360,6 +1399,10 @@ export default function App() {
                         day={selectedDate}
                         onDay={(iso) => { setSelectedDate(iso); if (iso) setView('all'); }}
                         count={visible.length}
+                        arrived={arrivedToday.length}
+                        hidden={hiddenArrivals}
+                        arrivedOn={view === 'added_today'}
+                        onArrived={() => (view === 'added_today' ? setView('all') : showArrivals())}
                       />
                     )}
 

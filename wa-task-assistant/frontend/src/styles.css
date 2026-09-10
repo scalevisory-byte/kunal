@@ -3953,3 +3953,26 @@ button.due:hover { background: var(--raised); }
 @media (max-width: 760px) {
   .due-menu { left: 0; right: auto; }
 }
+
+/*
+ * "3 new not shown" - the way back to work that arrived today.
+ *
+ * Quiet while the list is showing everything (it is only a count then), and
+ * marked in the accent the moment a day filter is hiding new work, because
+ * that is the case where the page is silently incomplete. It is a chip beside
+ * the day chips rather than a banner above them: the same row asks the
+ * question, so the answer belongs in it.
+ */
+.chip.arrived { color: var(--muted); }
+.chip.arrived:hover { border-color: var(--brand); color: var(--brand); }
+.chip.arrived.flag {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-wash, var(--raised));
+  font-weight: 500;
+}
+.chip.arrived.flag::before {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+}
