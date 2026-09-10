@@ -304,6 +304,9 @@ export const api = {
   blockChat: (pattern) =>
     request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),
   unblockChat: (id) => request(`/blocked-chats/${id}`, { method: 'DELETE' }),
+  dueNow: () => request('/attention/due-now'),
+  answerDueNow: (id, body) =>
+    request(`/attention/due-now/${id}`, { method: 'POST', body: JSON.stringify(body) }),
   flushExtraction: () => request('/extract/flush', { method: 'POST' }),
   pendingExtraction: () => request('/extract/pending'),
   rerunExtraction: () => request('/extract/rerun', { method: 'POST', body: JSON.stringify({}) }),

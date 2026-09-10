@@ -37,6 +37,7 @@ import Groups from './components/Groups.jsx';
 import EnginePage from './components/EnginePage.jsx';
 import Recurring from './components/Recurring.jsx';
 import DueSoonBanner from './components/DueSoonBanner.jsx';
+import DueNowPopup from './components/DueNowPopup.jsx';
 import NotesPage from './components/NotesPage.jsx';
 import LeadsPage from './components/LeadsPage.jsx';
 import Delegation from './components/Delegation.jsx';
@@ -1510,6 +1511,23 @@ export default function App() {
           onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         />
       </div>
+
+      {/*
+        * A deadline arriving interrupts wherever you are, not only on the
+        * dashboard - the point of it is that you were looking at something
+        * else. It is a dialog, so it sits with the other dialogs.
+        */}
+      <DueNowPopup
+        refreshedAt={tasks}
+        onOpenTask={(id) => {
+          const found = tasks.find((t) => t.id === id);
+          if (found) setOpenTask(found);
+        }}
+        onDone={async (id) => {
+          const found = tasks.find((t) => t.id === id);
+          if (found) await onEdit(found, { status: 'done' });
+        }}
+      />
 
       {openTask && (
         <TaskDetail
