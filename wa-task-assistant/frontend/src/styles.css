@@ -699,7 +699,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .section-head.static:hover { border-color: var(--line); }
 
 .usage-list { list-style: none; margin: 0; padding: 0; }
-.usage-list li {
+/* Direct children only: an opened chat nests its own list of messages inside a
+   row, and the row's column template must not reach into it. */
+.usage-list > li {
   display: grid;
   grid-template-columns: 64px minmax(60px, 1fr) 118px 62px 72px 74px;
   align-items: center; gap: 14px;
@@ -707,7 +709,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   border-bottom: 1px solid var(--line);
   font-size: .82rem;
 }
-.usage-list li:last-child { border-bottom: 0; }
+.usage-list > li:last-child { border-bottom: 0; }
 .u-day { color: var(--text-2); font-weight: 600; }
 .u-bar { height: 5px; background: var(--raised); border-radius: 999px; overflow: hidden; }
 .u-bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
@@ -4045,7 +4047,7 @@ button.due:hover { background: var(--raised); }
   font-size: .8rem; line-height: 1.6; max-width: 74ch;
 }
 /* A chat name needs room a date does not, and there is no cost column here. */
-.usage-list.chats li { grid-template-columns: minmax(0, 200px) minmax(60px, 1fr) 78px 78px; }
+.usage-list.chats > li { grid-template-columns: minmax(0, 200px) minmax(60px, 1fr) 78px 78px; }
 .usage-list.chats .u-tokens { text-align: right; }
 .usage-list.chats .u-day.wide {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -4054,4 +4056,42 @@ button.due:hover { background: var(--raised); }
 @media (max-width: 760px) {
   .usage-kinds li { grid-template-columns: 1fr auto; row-gap: 2px; }
   .usage-kinds .k-note { grid-column: 1 / -1; }
+}
+
+/* A chat opened up: what it actually said, and the way to stop reading it. */
+.usage-list.chats .as-link {
+  background: none; border: 0; padding: 0; min-height: 0;
+  font: inherit; font-weight: 600; color: var(--text-2);
+  text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.usage-list.chats .as-link:hover { color: var(--brand); }
+.usage-list.chats .as-link::before { content: "▸ "; color: var(--muted); }
+.usage-list.chats > li.open .as-link::before { content: "▾ "; }
+.usage-list.chats > li.chat-open {
+  display: block; padding: 4px 0 14px 16px; border-bottom: 1px solid var(--line);
+}
+.quiet-msgs { list-style: none; margin: 0 0 10px; padding: 0; }
+.quiet-msgs li {
+  display: grid; grid-template-columns: 130px 118px 1fr; gap: 10px;
+  padding: 5px 0; font-size: .78rem; align-items: baseline;
+}
+.qm-who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qm-when { color: var(--muted); font-size: .72rem; }
+.qm-body { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-open-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chat-open-foot small { color: var(--muted); font-size: .74rem; }
+.quiet-senders { list-style: none; margin: 0; padding: 0; }
+.quiet-senders li {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .8rem;
+}
+.quiet-senders .q-in { color: var(--muted); font-size: .74rem; }
+.quiet-senders .q-count {
+  margin-left: auto; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .quiet-msgs li { grid-template-columns: 1fr auto; }
+  .qm-body { grid-column: 1 / -1; white-space: normal; }
 }

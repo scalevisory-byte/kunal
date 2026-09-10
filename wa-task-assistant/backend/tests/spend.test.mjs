@@ -133,6 +133,51 @@ describe('who spent it', () => {
   });
 });
 
+describe('the messages that produced nothing', () => {
+  it('names them, and who sent them', async () => {
+    const { messagesWithoutTasks, quietSenders } = await import('../src/db.js');
+    const row = (waId, chat, who, body) => ({
+      wa_message_id: waId, chat_id: `${chat}@x`, chat_name: chat,
+      contact_name: who, contact_number: null, body,
+      is_group: 1, from_me: 0, sent_at: '2026-09-10 09:00:00',
+    });
+    insertMessage(row('q1', 'Society', 'Anita', 'Good morning'));
+    insertMessage(row('q2', 'Society', 'Anita', 'Forwarded: health tips'));
+    const kept = insertMessage(row('q3', 'Society', 'Secretary', 'AGM Sunday - minutes bhejna hai'));
+    db.prepare(
+      `INSERT INTO tasks (title, message_id, status, priority, source)
+       VALUES ('Send AGM minutes', ?, 'open', 'medium', 'whatsapp')`
+    ).run(kept);
+
+    const quiet = messagesWithoutTasks({ chat: 'Society' });
+    assert.equal(quiet.length, 2, 'only the two that left no mark');
+    assert.ok(quiet.every((m) => m.body !== 'AGM Sunday - minutes bhejna hai'));
+
+    const senders = quietSenders(30).filter((q) => q.chat === 'Society');
+    assert.equal(senders[0].sender, 'Anita');
+    assert.equal(senders[0].messages, 2);
+    assert.ok(!senders.some((q) => q.sender === 'Secretary'), 'the one that produced a task is not listed');
+  });
+
+  it('leaves out a message that was merged into a task that already existed', async () => {
+    const { messagesWithoutTasks, noteMessageMerged } = await import('../src/db.js');
+    const id = insertMessage({
+      wa_message_id: 'dup', chat_id: 'c@x', chat_name: 'Dup', contact_name: 'A',
+      contact_number: null, body: 'wahi kaam phir se', is_group: 0, from_me: 0,
+      sent_at: '2026-09-10 09:00:00',
+    });
+    const task = db.prepare(
+      `INSERT INTO tasks (title, status, priority, source) VALUES ('x', 'open', 'medium', 'whatsapp')`
+    ).run().lastInsertRowid;
+    noteMessageMerged(id, task);
+
+    assert.equal(
+      messagesWithoutTasks({ chat: 'Dup' }).length, 0,
+      'it did produce something - it recognised work already on the list'
+    );
+  });
+});
+
 describe('which chats the volume comes from', () => {
   it('counts messages read and the tasks they produced, busiest first', () => {
     const row = (waId, chat, group) => ({

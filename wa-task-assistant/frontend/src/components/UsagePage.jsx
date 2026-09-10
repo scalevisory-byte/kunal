@@ -55,7 +55,10 @@ export default function UsagePage({ onError }) {
   }
   if (!data) return null;
 
-  const { today, month, total, days, prices, usdInr, byKind = [], chats = [], caching } = data;
+  const {
+    today, month, total, days, prices, usdInr,
+    byKind = [], chats = [], quiet = [], caching,
+  } = data;
   const nothingYet = total.calls === 0;
 
   /*
@@ -166,21 +169,37 @@ export default function UsagePage({ onError }) {
                 Settings and it stops being read at all.
               </p>
               <ul className="usage-list chats">
-                {chats.slice(0, 12).map((c) => {
-                  const share = chats[0].messages
-                    ? Math.round((c.messages / chats[0].messages) * 100) : 0;
-                  return (
-                    <li key={`${c.chat}-${c.is_group}`}>
-                      <span className="u-day wide">{c.chat || 'Unknown chat'}</span>
-                      <span className="u-bar"><span style={{ width: `${Math.max(share, 2)}%` }} /></span>
-                      <span className="u-tokens">{c.messages} msg</span>
-                      <span className={`u-tasks ${c.tasks ? '' : 'none'}`}>
-                        {c.tasks} {c.tasks === 1 ? 'task' : 'tasks'}
-                      </span>
-                    </li>
-                  );
-                })}
+                {chats.slice(0, 12).map((c) => (
+                  <ChatRow
+                    key={`${c.chat}-${c.is_group}`}
+                    chat={c}
+                    widest={chats[0].messages}
+                    onError={onError}
+                  />
+                ))}
               </ul>
+
+              {quiet.length > 0 && (
+                <>
+                  <header className="section-head static second">
+                    <h3>Who is sending them</h3>
+                    <span className="section-count">messages that made no task</span>
+                  </header>
+                  <ul className="quiet-senders">
+                    {quiet.slice(0, 10).map((q) => (
+                      <li key={`${q.chat}-${q.sender}`}>
+                        <b>{q.sender}</b>
+                        {/* `q.is_group && …` printed a bare 0 for one-to-one chats:
+                            0 is falsy but React renders it. The question is
+                            whether the chat adds anything the sender's name
+                            does not, which is what this asks instead. */}
+                        {q.chat && q.chat !== q.sender && <span className="q-in">in {q.chat}</span>}
+                        <span className="q-count">{q.messages}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </section>
@@ -235,3 +254,92 @@ export default function UsagePage({ onError }) {
     </div>
   );
 }
+
+/**
+ * One chat, and what it actually said.
+ *
+ * A "0 tasks" figure is an accusation, and a figure is a poor thing to act on
+ * alone: the same row can mean a group forwarding good-mornings all day, or a
+ * client asking for real work in a way the extractor keeps missing. Those want
+ * opposite decisions, so the messages open underneath it - and blocking is
+ * offered where you have just read them, not on another page.
+ */
+function ChatRow({ chat, widest, onError }) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState(null);
+  const [blocked, setBlocked] = useState('');
+  const share = widest ? Math.round((chat.messages / widest) * 100) : 0;
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !messages) {
+      try {
+        const out = await api.quietMessages(chat.chat);
+        setMessages(out.messages);
+      } catch (err) {
+        onError(err);
+      }
+    }
+  };
+
+  const block = async () => {
+    try {
+      await api.blockChat(chat.chat);
+      setBlocked('Blocked — messages from this chat are no longer read or stored.');
+    } catch (err) {
+      setBlocked(err?.message ? `Not blocked — ${err.message}` : 'Not blocked.');
+    }
+  };
+
+  return (
+    <>
+      <li className={open ? 'open' : ''}>
+        <button type="button" className="u-day wide as-link" onClick={toggle} aria-expanded={open}>
+          {chat.chat || 'Unknown chat'}
+        </button>
+        <span className="u-bar"><span style={{ width: `${Math.max(share, 2)}%` }} /></span>
+        <span className="u-tokens">{chat.messages} msg</span>
+        <span className={`u-tasks ${chat.tasks ? '' : 'none'}`}>
+          {chat.tasks} {chat.tasks === 1 ? 'task' : 'tasks'}
+        </span>
+      </li>
+
+      {open && (
+        <li className="chat-open">
+          {messages === null
+            ? <small>Loading…</small>
+            : messages.length === 0
+              ? <small>Every message from this chat produced a task.</small>
+              : (
+                <ul className="quiet-msgs">
+                  {messages.map((m) => (
+                    <li key={m.id}>
+                      <span className="qm-who">{m.from_me ? 'You' : (m.contact_name || m.contact_number || 'Unknown')}</span>
+                      <span className="qm-when">{when(m.sent_at)}</span>
+                      <span className="qm-body">{m.body}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          <div className="chat-open-foot">
+            <button type="button" className="btn ghost" onClick={block} disabled={Boolean(blocked)}>
+              Block this chat
+            </button>
+            <small>
+              {blocked || 'Blocked chats are dropped before anything is stored or sent to the AI.'}
+            </small>
+          </div>
+        </li>
+      )}
+    </>
+  );
+}
+
+/** A stored stamp is UTC without a marker; read it as one, not as local time. */
+const when = (stamp) => {
+  const date = new Date(`${String(stamp).replace(' ', 'T')}${/[Zz+]/.test(stamp) ? '' : 'Z'}`);
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+};

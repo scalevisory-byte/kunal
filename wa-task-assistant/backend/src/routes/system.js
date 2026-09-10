@@ -14,6 +14,7 @@ import { diagnostics } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
 import {
   usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat,
+  messagesWithoutTasks, quietSenders,
 } from '../db.js';
 import { PRICES, PRICES_UPDATED, CACHE_MINIMUM, costOf } from '../pricing.js';
 
@@ -186,6 +187,8 @@ systemRouter.get('/usage', (req, res) => {
     /* Where it went, and what it was spent on. */
     byKind: usageByKind(req.query.days).map((row) => ({ ...row, ...costOf(row) })),
     chats: messageVolumeByChat(req.query.days),
+    /* Who is sending the messages that cost money and produce nothing. */
+    quiet: quietSenders(req.query.days),
 
     /*
      * Whether the repeated instructions are actually being cached.
@@ -205,6 +208,22 @@ systemRouter.get('/usage', (req, res) => {
       // the minimum, and it caches what this model will not.
       suggestion: (totals.cache_read || 0) > 0 ? null : 'claude-sonnet-5',
     },
+  });
+});
+
+/**
+ * The messages behind a figure, so it can be checked rather than believed.
+ *
+ * A chat is only worth blocking once you have read what is actually in it -
+ * a group that produced no tasks might be forwards all day, or might be the
+ * one place a client asks for things in a way the extractor keeps missing.
+ * Those need opposite decisions, and only the messages tell them apart.
+ */
+systemRouter.get('/usage/quiet-messages', (req, res) => {
+  const chat = typeof req.query.chat === 'string' && req.query.chat ? req.query.chat : null;
+  res.json({
+    chat,
+    messages: messagesWithoutTasks({ chat, days: req.query.days, limit: req.query.limit }),
   });
 });
 

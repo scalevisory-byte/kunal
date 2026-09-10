@@ -305,6 +305,9 @@ export const api = {
   updateTask: (id, patch) => request(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
   runReminders: () => request('/reminders/run', { method: 'POST' }),
+  /* The messages a chat produced nothing from - what a "0 tasks" row is made of. */
+  quietMessages: (chat, days = 30) =>
+    request(`/usage/quiet-messages?days=${days}${chat ? `&chat=${encodeURIComponent(chat)}` : ''}`),
   blockedChats: () => request('/blocked-chats'),
   blockChat: (pattern) =>
     request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),

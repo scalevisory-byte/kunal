@@ -454,8 +454,14 @@ Three things address it:
 
 **AI Usage → Where it goes** breaks the spend into reading chats, tidying titles and the law
 digest, states the tokens and messages per call, and lists the busiest chats with the tasks
-each produced. A chat at the top with no tasks beside it is cost with nothing to show for
-it - block it and it stops being read at all.
+each produced. A chat at the top with no tasks beside it is cost with nothing to show for it.
+
+Open one of those rows and it shows **the messages themselves** - who sent each one, when,
+and what it said - with a **Block this chat** button underneath. A figure is a poor thing to
+act on alone: the same "0 tasks" row can be a group forwarding good-mornings all day, or a
+client asking for real work in a way the extractor keeps missing, and only the messages tell
+those apart. Below the list, **Who is sending them** names the people behind the messages
+that produced nothing, since in a group of forty it is usually three.
 
 ## Deploying to Railway
 

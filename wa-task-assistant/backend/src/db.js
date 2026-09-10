@@ -446,6 +446,65 @@ export function messageVolumeByChat(days = 30, limit = 40) {
     .all(`-${Math.min(Number(days) || 30, 365)} days`, Math.min(Number(limit) || 40, 200));
 }
 
+/**
+ * The messages that were read and produced nothing, most recent first.
+ *
+ * "Which ones are these?" is the next question after seeing that a chat cost
+ * four hundred messages and gave back two tasks, and it is a fair one: a chat
+ * is only worth blocking once you have seen what is in it. Nothing was
+ * produced means no task and no merge into an existing one - the message was
+ * paid for and left no mark.
+ *
+ * `chat` narrows it to one chat. Bodies are trimmed here rather than in the
+ * page, so a forwarded essay cannot make this response enormous.
+ */
+export function messagesWithoutTasks({ chat = null, days = 30, limit = 10 } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT m.id, m.chat_name, m.contact_name, m.contact_number, m.is_group,
+              m.from_me, m.sent_at, substr(m.body, 1, 160) AS body
+       FROM messages m
+       LEFT JOIN tasks t ON t.message_id = m.id
+       WHERE t.id IS NULL
+         AND m.merged_into IS NULL
+         AND m.created_at >= datetime('now', ?)
+         AND (? IS NULL OR m.chat_name = ?)
+       ORDER BY m.sent_at DESC, m.id DESC
+       LIMIT ?`
+    )
+    .all(
+      `-${Math.min(Number(days) || 30, 365)} days`,
+      chat, chat,
+      Math.min(Number(limit) || 10, 50)
+    );
+  return rows;
+}
+
+/**
+ * Who sent the messages that produced nothing, in the chats that produced the
+ * most of them. One row per person per chat: in a group of forty, three people
+ * usually account for most of the traffic, and naming them is more useful than
+ * naming the group.
+ */
+export function quietSenders(days = 30, limit = 20) {
+  return db
+    .prepare(
+      `SELECT m.chat_name AS chat,
+              COALESCE(NULLIF(m.contact_name, ''), m.contact_number, 'Unknown') AS sender,
+              m.is_group AS is_group,
+              COUNT(*) AS messages,
+              MAX(m.sent_at) AS last_at
+       FROM messages m
+       LEFT JOIN tasks t ON t.message_id = m.id
+       WHERE t.id IS NULL AND m.merged_into IS NULL
+         AND m.created_at >= datetime('now', ?)
+       GROUP BY m.chat_name, sender, m.is_group
+       ORDER BY messages DESC
+       LIMIT ?`
+    )
+    .all(`-${Math.min(Number(days) || 30, 365)} days`, Math.min(Number(limit) || 20, 100));
+}
+
 /* ---------------- meta ---------------- */
 
 export function getMeta(key) {
