@@ -3864,3 +3864,35 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 @media (max-width: 560px) {
   .donebar-count { margin-left: 0; flex: 1 0 100%; }
 }
+
+/*
+ * Writing a note where the thought happened.
+ *
+ * A full-width line under the title rather than a field squeezed between the
+ * buttons - a sentence needs room, and the row it belongs to should still be
+ * readable above it while it is being written.
+ */
+.assign-btn.note.on { border-color: var(--brand); color: var(--brand); background: var(--brand-wash); }
+/* The row wraps only while a note is being written on it. */
+.task.noting { flex-wrap: wrap; }
+.rownote {
+  flex: 1 0 100%;
+  order: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-left: 30px;
+}
+.rownote input {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: .86rem;
+}
+.rownote .link { flex: none; font-size: .8rem; }
+@media (max-width: 560px) {
+  .rownote { padding-left: 0; }
+  .rownote .link { display: none; }
+}

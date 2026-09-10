@@ -1407,7 +1407,19 @@ export default function App() {
                       onMove={onMove}
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                      /*
+                        * Two ways in, one handler. With a sentence, it is the
+                        * row's own note box and it saves straight away; without
+                        * one, it is the ⋮ menu asking for the drawer, where the
+                        * whole stream of updates lives.
+                        */
+                      onAddUpdate={async (task, text) => {
+                        if (!text) { setFocusProgress(task.id); setOpenTask(task); return; }
+                        try {
+                          await api.addUpdate(task.id, { body: text });
+                          refresh({ quiet: true });
+                        } catch (err) { setError(err.message); }
+                      }}
                       people={people}
                       onAssign={async (task, name, wid) => {
                         try {

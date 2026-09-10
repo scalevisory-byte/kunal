@@ -264,6 +264,75 @@ function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate })
   );
 }
 
+/**
+ * Writing down what is happening, from the row.
+ *
+ * The place a thought about a task arrives is while reading the list - "spoke
+ * to Meera, waiting on the invoice" - and until now that meant opening the
+ * drawer, finding the box, typing, closing it. Four steps for one sentence, so
+ * the sentence mostly did not get written, and a week later nobody could say
+ * what had happened to a task.
+ *
+ * So the row takes it. One press opens a line under the title, Enter saves it,
+ * Escape abandons it, and the note appears on the row where it was written -
+ * the same update the drawer keeps, in the same place, just reachable from
+ * where the thought occurred.
+ */
+function NoteButton({ task, open, onOpen }) {
+  return (
+    <button
+      className={`assign-btn note ${task.update_count ? 'on' : ''}`}
+      aria-expanded={open}
+      title={task.update_count ? `${task.update_count} written down — add another` : 'Write down what is happening'}
+      aria-label={`Add a note to ${task.title}`}
+      onClick={() => onOpen(!open)}
+    >
+      <Icon name="chat" size={13} />
+      <span>{task.update_count || 'Note'}</span>
+    </button>
+  );
+}
+
+/** The line the note is typed on, under the row it belongs to. */
+function NoteBox({ task, onAddUpdate, onClose }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const box = useRef(null);
+
+  useEffect(() => { box.current?.focus(); }, []);
+
+  const save = async (event) => {
+    event?.preventDefault?.();
+    const clean = text.trim();
+    if (!clean || busy) return;
+    setBusy(true);
+    try {
+      await onAddUpdate(task, clean);
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="rownote" onSubmit={save}>
+      <input
+        ref={box}
+        value={text}
+        placeholder="What is happening?"
+        aria-label={`Note on ${task.title}`}
+        maxLength={1000}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
+      />
+      <button type="submit" className="btn small" disabled={busy || !text.trim()}>
+        {busy ? 'Saving…' : 'Save'}
+      </button>
+      <button type="button" className="link" onClick={onClose}>Cancel</button>
+    </form>
+  );
+}
+
 export default function TaskItem({
   task, groups = [], people = [], onAssign, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
   onMove, onManageGroups, onAddUpdate,
@@ -283,6 +352,12 @@ export default function TaskItem({
    * still matters; it lives with the message, in the drawer.
    */
   const added = addedLabel(task.created_at);
+  /*
+   * Held here rather than inside the button, because the note takes a whole
+   * line and the row has to be told to wrap for it - which is a property of
+   * the row, not of the button that opened it.
+   */
+  const [noting, setNoting] = useState(false);
 
   /*
    * The whole row opens the task, not just its title.
@@ -299,13 +374,13 @@ export default function TaskItem({
     // The containers too, not only their controls: an open menu has padding
     // between its buttons, and a press there must not open the drawer behind
     // it.
-    if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu')) return;
+    if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu, .rownote')) return;
     onOpen(task);
   };
 
   return (
     <li
-      className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''}`}
+      className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''} ${noting ? 'noting' : ''}`}
       onClick={openFromRow}
     >
       <input
@@ -490,6 +565,10 @@ export default function TaskItem({
         </button>
       )}
 
+      {onAddUpdate && !done && (
+        <NoteButton task={task} open={noting} onOpen={setNoting} />
+      )}
+
       {onMove && (
         <GroupButton
           task={task}
@@ -509,6 +588,10 @@ export default function TaskItem({
         onDelete={onDelete}
         onAddUpdate={onAddUpdate}
       />
+
+      {noting && (
+        <NoteBox task={task} onAddUpdate={onAddUpdate} onClose={() => setNoting(false)} />
+      )}
     </li>
   );
 }
