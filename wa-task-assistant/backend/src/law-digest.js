@@ -278,6 +278,7 @@ export async function summarise(items, { now = new Date() } = {}) {
 
   const usage = response.usage || {};
   recordUsage({
+    kind: 'law_digest',
     model: config.model,
     input_tokens: usage.input_tokens,
     output_tokens: usage.output_tokens,

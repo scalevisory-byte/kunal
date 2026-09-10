@@ -87,6 +87,15 @@ The engine chases **Dinesh about his own tasks**. There is no notion of chasing 
 - The text is kept in `law_digests`, because once the message has gone it is the only copy — so a digest built while WhatsApp was down is readable in the dashboard and is not paid for twice.
 - **Never verified against the live feeds**: taxguru.in is unreachable from this environment and there is no API key. Feeds and model are stubbed in `backend/tests/lawdigest.test.mjs` (14 cases). The *failure* path has been run end to end for real — all five feeds 403, the app reports exactly which and sends nothing.
 
+### Cost control (after the bill hit ₹175/day)
+- The finding: **593 calls in one day, ~3.2k input tokens each, 2-3 WhatsApp lines per call.** 99% of the bill is input tokens, and ~90% of every call was the same preamble — the ~1,900-token system prompt plus 71 business names — re-sent. Not the messages.
+- **Prompt caching**: the preamble is now one `system` block with `cache_control: {type:'ephemeral'}`; the business list moved into it (stable), the date and messages stay in the user turn (volatile). Cached reads cost 0.1×.
+- **Batching**: quiet window 15s → 30s, ceiling 90s → **240s**. Four minutes, not five, because a cache entry lives 5 minutes from the last call that touched it and a cache *write* costs 1.25× — the ceiling must sit inside the TTL it depends on.
+- **The model matters more than its price.** Minimum cacheable prefix is not monotonic: `claude-sonnet-5` caches from 1024 tokens, `claude-haiku-4-5` only from **4096**, silently. Production runs haiku, so nothing caches until `ANTHROPIC_MODEL` changes. The page says so, measured from `cache_read_input_tokens` rather than assumed.
+- `api_usage` gained a **`kind`** column (extract / tidy / law_digest) and `costOf` now prices `cache_read` (0.1×) and `cache_write` (1.25×) — leaving them out would have shown a fall in spend that never happened.
+- **AI Usage → Where it goes**: per-kind spend, tokens-and-messages per call, and the busiest chats with the tasks each produced (a chat with 420 messages and 2 tasks is the row to block). Per-chat rupees are deliberately *not* shown — a batch mixes chats, so no honest figure exists.
+- `backend/tests/spend.test.mjs` (8 cases) covers the cache marker, that nothing volatile precedes it, the cache pricing and the per-kind split.
+
 ### AI spend tracking
 - Every extractor call writes a row to **`api_usage`** (day, model, input/output tokens, cache tokens, messages, tasks) using the token counts the API itself reports. `GET /api/usage` groups those by day and prices them from `pricing.js` — a small table of Anthropic's published list rates, `claude-sonnet-4-6` at $3/M in and $15/M out, with the date the table was checked.
 - The dashboard's **AI Usage** section shows today, this month, all-time and total tokens, plus a daily breakdown. It states plainly that this is an **estimate** from measured tokens at list prices, and that the real bill is in the Anthropic Console, which the app cannot read. Rupees are shown at the rate in `USD_INR` (default 88) with the rate printed next to the figure, so it is never mistaken for a live conversion.

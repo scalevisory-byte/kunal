@@ -12,8 +12,10 @@ import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
-import { usageByDay, usageTotals, unprocessedCount } from '../db.js';
-import { PRICES, PRICES_UPDATED, costOf } from '../pricing.js';
+import {
+  usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat,
+} from '../db.js';
+import { PRICES, PRICES_UPDATED, CACHE_MINIMUM, costOf } from '../pricing.js';
 
 export const systemRouter = Router();
 
@@ -180,6 +182,29 @@ systemRouter.get('/usage', (req, res) => {
       tasks: withCost.filter((d) => d.day >= monthStart).reduce((n, d) => n + d.tasks, 0),
     },
     total: { ...totals, ...costOf({ ...totals, model: config.model }) },
+
+    /* Where it went, and what it was spent on. */
+    byKind: usageByKind(req.query.days).map((row) => ({ ...row, ...costOf(row) })),
+    chats: messageVolumeByChat(req.query.days),
+
+    /*
+     * Whether the repeated instructions are actually being cached.
+     *
+     * Measured, not assumed: the request asks for caching every time, but a
+     * model only caches a prefix above its own minimum and says nothing when it
+     * declines. So this reports what the API reported back - if `read` is zero
+     * after a day of calls, caching is not happening, and the minimum below is
+     * almost always why.
+     */
+    caching: {
+      minimum: CACHE_MINIMUM[config.model] ?? null,
+      read: totals.cache_read || 0,
+      written: totals.cache_write || 0,
+      working: (totals.cache_read || 0) > 0,
+      // The one worth switching to when it is not: same family, a quarter of
+      // the minimum, and it caches what this model will not.
+      suggestion: (totals.cache_read || 0) > 0 ? null : 'claude-sonnet-5',
+    },
   });
 });
 

@@ -429,6 +429,34 @@ set. `/healthz` is always open.
 "am I actually protected?" before it holds a token. It reveals only whether a password is
 set, never what it is — and if the answer is no, every task was readable anyway.
 
+## What it costs, and why
+
+Every extraction call carries the same preamble - about two thousand tokens of instructions
+plus the list of businesses - before it carries a single line of WhatsApp. With a batch
+going out every ninety seconds that was six hundred calls a day, roughly nine tokens in ten
+a re-run of the previous call, and about ₹175 a day.
+
+Three things address it:
+
+- **The preamble is cached.** It sits in one `system` block marked `cache_control:
+  {type: 'ephemeral'}`, with the date and the messages after it in the user turn so nothing
+  volatile can invalidate the prefix. A cached read costs a tenth of a fresh input token.
+- **Fewer, fuller calls.** The quiet window is 30s and the ceiling 240s (`BATCH_QUIET_SECONDS`,
+  `BATCH_MAX_WAIT_SECONDS`). Four minutes, not five, because a cache entry lives five minutes
+  from the last call that touched it - calls four minutes apart keep it warm, calls five
+  minutes apart miss every time, and a cache *write* costs 25% **more** than a plain call.
+- **The model has to be one that will cache.** The minimum cacheable prefix is not monotonic
+  across generations: `claude-sonnet-5` caches from 1024 tokens, `claude-haiku-4-5` only from
+  **4096** - and says nothing when it declines, it just never reports a cache read. On a
+  ~3000-token preamble Haiku is the cheaper model per token and the more expensive one to
+  run. **AI Usage** reports whether caching is actually happening, measured from what the API
+  returned, and names the switch when it is not.
+
+**AI Usage → Where it goes** breaks the spend into reading chats, tidying titles and the law
+digest, states the tokens and messages per call, and lists the busiest chats with the tasks
+each produced. A chat at the top with no tasks beside it is cost with nothing to show for
+it - block it and it stops being read at all.
+
 ## Deploying to Railway
 
 The service must run 24/7 and keep its session file. WhatsApp multi-device means the linked

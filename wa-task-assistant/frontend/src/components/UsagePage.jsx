@@ -18,6 +18,13 @@ const rupees = (usd, rate) => {
 };
 const tokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
+/** What each spender is, in the words of the person paying for it. */
+const KIND = {
+  extract: { label: 'Reading chats', note: 'Turning WhatsApp messages into tasks' },
+  tidy: { label: 'Tidy up titles', note: 'Only when you press the button' },
+  law_digest: { label: 'Law digest', note: 'One run each morning' },
+};
+
 const dayLabel = (iso) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
@@ -48,8 +55,24 @@ export default function UsagePage({ onError }) {
   }
   if (!data) return null;
 
-  const { today, month, total, days, prices, usdInr } = data;
+  const { today, month, total, days, prices, usdInr, byKind = [], chats = [], caching } = data;
   const nothingYet = total.calls === 0;
+
+  /*
+   * What a single call carries.
+   *
+   * The figure that explains the bill. Every call sends the same instructions
+   * and the same business list before it sends a word of WhatsApp, so a day of
+   * six hundred small calls is mostly the same three thousand tokens six
+   * hundred times over. Tokens-per-call next to messages-per-call is that
+   * sentence as two numbers.
+   */
+  const perCall = total.calls
+    ? {
+      tokens: Math.round((total.input_tokens + total.cache_read) / total.calls),
+      messages: (total.messages / total.calls).toFixed(1),
+    }
+    : null;
 
   return (
     <div className="usage">
@@ -92,6 +115,77 @@ export default function UsagePage({ onError }) {
         </p>
       </div>
 
+      {!nothingYet && (
+        <section className="usage-where">
+          <header className="section-head static">
+            <h3>Where it goes</h3>
+            <span className="section-count">last 30 days</span>
+          </header>
+
+          <ul className="usage-kinds">
+            {byKind.map((k) => (
+              <li key={`${k.kind}-${k.model}`}>
+                <span className="k-name">{KIND[k.kind]?.label || k.kind}</span>
+                <span className="k-note">{KIND[k.kind]?.note || ''}</span>
+                <span className="k-calls">{k.calls} {k.calls === 1 ? 'run' : 'runs'}</span>
+                <span className="k-tokens">{tokens(k.input_tokens + k.cache_read)}</span>
+                <span className="k-cost">{rupees(k.usd, usdInr)}</span>
+              </li>
+            ))}
+          </ul>
+
+          {perCall && (
+            <p className="usage-explain">
+              Each run carries <b>{tokens(perCall.tokens)} tokens</b> and reads{' '}
+              <b>{perCall.messages} messages</b> on average. Most of that is the same
+              instructions and business list sent again every time — which is why the
+              number of runs matters more than the number of messages.
+              {caching && (caching.working
+                ? <> They are now cached: <b>{tokens(caching.read)}</b> tokens have been
+                  served from cache at a tenth of the price.</>
+                : <> They are <b>not</b> being cached
+                  {caching.minimum
+                    ? <>: <code>{data.model}</code> only caches a prompt of{' '}
+                      {caching.minimum.toLocaleString()} tokens or more, and this one is
+                      shorter</>
+                    : ''}
+                  .{caching.suggestion && <> Setting <code>ANTHROPIC_MODEL</code> to{' '}
+                    <code>{caching.suggestion}</code> would cache it.</>}</>)}
+            </p>
+          )}
+
+          {chats.length > 0 && (
+            <>
+              <header className="section-head static second">
+                <h3>Busiest chats</h3>
+                <span className="section-count">messages read</span>
+              </header>
+              <p className="usage-explain">
+                Every message read is a message paid for. A chat near the top with no
+                tasks beside it is cost with nothing to show for it — block it in
+                Settings and it stops being read at all.
+              </p>
+              <ul className="usage-list chats">
+                {chats.slice(0, 12).map((c) => {
+                  const share = chats[0].messages
+                    ? Math.round((c.messages / chats[0].messages) * 100) : 0;
+                  return (
+                    <li key={`${c.chat}-${c.is_group}`}>
+                      <span className="u-day wide">{c.chat || 'Unknown chat'}</span>
+                      <span className="u-bar"><span style={{ width: `${Math.max(share, 2)}%` }} /></span>
+                      <span className="u-tokens">{c.messages} msg</span>
+                      <span className={`u-tasks ${c.tasks ? '' : 'none'}`}>
+                        {c.tasks} {c.tasks === 1 ? 'task' : 'tasks'}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
+
       <section className="usage-days">
         <header className="section-head static">
           <h3>Daily</h3>
@@ -115,7 +209,18 @@ export default function UsagePage({ onError }) {
                 <li key={`${d.day}-${d.model}`}>
                   <span className="u-day">{dayLabel(d.day)}</span>
                   <span className="u-bar"><span style={{ width: `${Math.max(share, 2)}%` }} /></span>
-                  <span className="u-tokens">{tokens(d.input_tokens + d.output_tokens)}</span>
+                  {/*
+                    * Runs and messages, not just tasks.
+                    *
+                    * Without them the list invited a question it could not
+                    * answer: a day with more tasks costing less than a day with
+                    * fewer. The bill follows what was READ - the runs, each
+                    * carrying the same preamble, and the messages inside them -
+                    * and tasks are what came out the other end. Showing only
+                    * the output made the cost look arbitrary.
+                    */}
+                  <span className="u-runs">{d.calls} runs · {d.messages} msg</span>
+                  <span className="u-tokens">{tokens(d.input_tokens + d.cache_read + d.output_tokens)}</span>
                   <span className="u-tasks">{d.tasks} {d.tasks === 1 ? 'task' : 'tasks'}</span>
                   <span className="u-cost">
                     {rupees(d.usd, usdInr)}

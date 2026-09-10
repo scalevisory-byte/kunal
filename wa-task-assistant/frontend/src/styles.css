@@ -701,7 +701,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .usage-list { list-style: none; margin: 0; padding: 0; }
 .usage-list li {
   display: grid;
-  grid-template-columns: 64px minmax(60px, 1fr) 68px 78px 72px;
+  grid-template-columns: 64px minmax(60px, 1fr) 118px 62px 72px 74px;
   align-items: center; gap: 14px;
   padding: 10px 2px;
   border-bottom: 1px solid var(--line);
@@ -711,7 +711,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 .u-day { color: var(--text-2); font-weight: 600; }
 .u-bar { height: 5px; background: var(--raised); border-radius: 999px; overflow: hidden; }
 .u-bar span { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
-.u-tokens, .u-tasks { color: var(--muted); font-variant-numeric: tabular-nums; }
+.u-tokens, .u-tasks, .u-runs { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* What was read, next to what came out of it - the two halves of the bill. */
+.u-runs { font-size: .74rem; }
 .u-cost {
   text-align: right; font-weight: 600;
   font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
@@ -4014,3 +4016,42 @@ button.due:hover { background: var(--raised); }
   font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
 }
 .digest-shape pre { color: var(--muted); }
+
+/*
+ * Where the money goes.
+ *
+ * Two lists under one heading: what the app spent it on, and which chats
+ * produced the volume. The second is not a currency figure and is not dressed
+ * as one - a batch mixes several chats, so no honest rupee number exists per
+ * chat. What it can say is which chats cost the most to read and gave back the
+ * least, which is the decision this page exists to inform.
+ */
+.usage-where { margin-top: 22px; }
+.usage-kinds { list-style: none; margin: 0 0 12px; padding: 0; }
+.usage-kinds li {
+  display: grid;
+  grid-template-columns: 150px 1fr 70px 70px 80px;
+  align-items: baseline; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+  font-size: .82rem;
+}
+.usage-kinds .k-name { font-weight: 600; }
+.usage-kinds .k-note { color: var(--muted); font-size: .76rem; }
+.usage-kinds .k-calls,
+.usage-kinds .k-tokens { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .76rem; text-align: right; }
+.usage-kinds .k-cost { text-align: right; font-weight: 600; }
+.usage-explain {
+  margin: 0 0 14px; color: var(--text-2);
+  font-size: .8rem; line-height: 1.6; max-width: 74ch;
+}
+/* A chat name needs room a date does not, and there is no cost column here. */
+.usage-list.chats li { grid-template-columns: minmax(0, 200px) minmax(60px, 1fr) 78px 78px; }
+.usage-list.chats .u-tokens { text-align: right; }
+.usage-list.chats .u-day.wide {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.usage-list.chats .u-tasks.none { color: var(--danger); }
+@media (max-width: 760px) {
+  .usage-kinds li { grid-template-columns: 1fr auto; row-gap: 2px; }
+  .usage-kinds .k-note { grid-column: 1 / -1; }
+}

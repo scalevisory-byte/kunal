@@ -240,24 +240,50 @@ function renderBatch(messages) {
 export async function extractTasks(messages) {
   if (!messages.length) return [];
 
+  const withImages = messages.filter((m) => m.image?.data);
+
+  /*
+   * Everything that does not change from one call to the next, in one block,
+   * marked for caching.
+   *
+   * This is where the money was going. The instructions are two thousand tokens
+   * and the business list several hundred more, and both were sent again on
+   * every single call - six hundred calls a day, each carrying the same three
+   * thousand tokens of preamble around two or three lines of actual WhatsApp.
+   * Roughly nine tokens in ten were a re-run of the previous call.
+   *
+   * A cached read costs a tenth of an ordinary input token, so the preamble
+   * becomes almost free while the entry is warm - and with a batch going out
+   * every minute or two it stays warm all day. The business list sits inside
+   * the cached block deliberately: it changes when a business is added, which
+   * costs one write, not on every call.
+   *
+   * Nothing volatile may appear before this point. The date and the messages
+   * come after it, in the user turn, for exactly that reason.
+   */
   const groups = listGroups();
   const groupNames = groups.map((g) => g.name);
-
-  const withImages = messages.filter((m) => m.image?.data);
+  const system = [
+    {
+      type: 'text',
+      text: groupNames.length
+        ? [
+            SYSTEM_PROMPT,
+            '',
+            'He runs these businesses. Put each task under the one it belongs to, copying the',
+            'name exactly. Use an empty string when a task belongs to none of them or you',
+            'cannot tell - a task in the wrong company\'s list is worse than one in no list.',
+            groupNames.map((n) => `- ${n}`).join('\n'),
+          ].join('\n')
+        : SYSTEM_PROMPT,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
 
   const intro = [
     `Current date: ${todayLong()} (${today()}), timezone ${config.timezone}.`,
     '',
     `Here are ${messages.length} incoming WhatsApp message(s). Extract the actionable tasks.`,
-    groupNames.length
-      ? [
-          '',
-          'He runs these businesses. Put each task under the one it belongs to, copying the',
-          'name exactly. Use an empty string when a task belongs to none of them or you',
-          'cannot tell - a task in the wrong company\'s list is worse than one in no list.',
-          groupNames.map((n) => `- ${n}`).join('\n'),
-        ].join('\n')
-      : '',
     '',
     renderBatch(messages),
   ].filter(Boolean).join('\n');
@@ -294,7 +320,7 @@ export async function extractTasks(messages) {
        * non-streaming call, and a ceiling costs nothing unless it is used.
        */
       max_tokens: 16000,
-      system: SYSTEM_PROMPT,
+      system,
       messages: [{ role: 'user', content }],
       output_config: { format: zodOutputFormat(ExtractionSchema, 'extracted_tasks') },
     });
@@ -303,6 +329,7 @@ export async function extractTasks(messages) {
     const usage = response.usage || {};
     // Recorded per call, so spend is measured rather than guessed at later.
     recordUsage({
+      kind: 'extract',
       model: config.model,
       input_tokens: usage.input_tokens,
       output_tokens: usage.output_tokens,
@@ -539,6 +566,7 @@ export async function tidyTitles(tasks) {
 
   const usage = response.usage || {};
   recordUsage({
+    kind: 'tidy',
     model: config.model,
     input_tokens: usage.input_tokens,
     output_tokens: usage.output_tokens,

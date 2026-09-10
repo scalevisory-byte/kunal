@@ -322,16 +322,29 @@ if (!taskColumns.has('due_at')) {
 log.info(`SQLite ready at ${config.dbPath}`);
 
 /* ---------------- api usage ---------------- */
+/*
+ * Which part of the app spent the money.
+ *
+ * Every row used to be an extraction, so there was nothing to say. There are
+ * three spenders now - reading chats, tidying titles, and the morning law
+ * digest - and "the bill is too high" cannot be answered without knowing which.
+ * Rows written before this default to the one they all were.
+ */
+ensureColumns('api_usage', [
+  ['kind', "ALTER TABLE api_usage ADD COLUMN kind TEXT NOT NULL DEFAULT 'extract'"],
+]);
+
 
 const insertUsageStmt = db.prepare(`
-  INSERT INTO api_usage (day, model, input_tokens, output_tokens, cache_read, cache_write, messages, tasks)
-  VALUES (@day, @model, @input_tokens, @output_tokens, @cache_read, @cache_write, @messages, @tasks)
+  INSERT INTO api_usage (day, kind, model, input_tokens, output_tokens, cache_read, cache_write, messages, tasks)
+  VALUES (@day, @kind, @model, @input_tokens, @output_tokens, @cache_read, @cache_write, @messages, @tasks)
 `);
 
 /** One row per call to the extractor, with the token counts the API reported. */
 export function recordUsage(row) {
   insertUsageStmt.run({
     day: new Date().toISOString().slice(0, 10),
+    kind: row.kind || 'extract',
     model: row.model || 'unknown',
     input_tokens: row.input_tokens || 0,
     output_tokens: row.output_tokens || 0,
@@ -377,6 +390,60 @@ export function usageTotals() {
        FROM api_usage`
     )
     .get();
+}
+
+/**
+ * What each part of the app spent, over the last `days` days.
+ *
+ * The answer to "where is the money going" starts here: reading chats, tidying
+ * titles and the law digest are three very different bills, and only one of
+ * them runs by itself all day.
+ */
+export function usageByKind(days = 30) {
+  return db
+    .prepare(
+      `SELECT COALESCE(kind, 'extract') AS kind, model,
+              SUM(input_tokens)  AS input_tokens,
+              SUM(output_tokens) AS output_tokens,
+              SUM(cache_read)    AS cache_read,
+              SUM(cache_write)   AS cache_write,
+              SUM(messages)      AS messages,
+              SUM(tasks)         AS tasks,
+              COUNT(*)           AS calls
+       FROM api_usage
+       WHERE day >= date('now', ?)
+       GROUP BY kind, model
+       ORDER BY input_tokens DESC`
+    )
+    .all(`-${Math.min(Number(days) || 30, 365)} days`);
+}
+
+/**
+ * Which chats the read messages came from, busiest first.
+ *
+ * Not a currency figure and deliberately not dressed as one: the app cannot
+ * attribute a call's tokens to one chat, because a batch mixes several. What it
+ * can say is which chats produce the volume - and since every message read is a
+ * message paid for, and every task is one that came out of that volume, a chat
+ * with four hundred messages and no tasks is the bill with nothing to show for
+ * it. That is the row worth blocking.
+ */
+export function messageVolumeByChat(days = 30, limit = 40) {
+  return db
+    .prepare(
+      `SELECT m.chat_name AS chat,
+              m.is_group  AS is_group,
+              COUNT(*)    AS messages,
+              SUM(CASE WHEN t.id IS NOT NULL THEN 1 ELSE 0 END) AS tasks,
+              MAX(m.sent_at) AS last_at
+       FROM messages m
+       LEFT JOIN tasks t ON t.message_id = m.id
+       WHERE m.created_at >= datetime('now', ?)
+       GROUP BY m.chat_name, m.is_group
+       ORDER BY messages DESC
+       LIMIT ?`
+    )
+    .all(`-${Math.min(Number(days) || 30, 365)} days`, Math.min(Number(limit) || 40, 200));
 }
 
 /* ---------------- meta ---------------- */
@@ -787,6 +854,7 @@ ensureColumns('task_groups', [
 ensureColumns('messages', [
   ['merged_into', 'ALTER TABLE messages ADD COLUMN merged_into INTEGER'],
 ]);
+
 
 /**
  * Tasks in a set-aside group, as a SQL fragment.

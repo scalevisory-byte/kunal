@@ -84,7 +84,16 @@ export const config = {
   reminderCronEvening: process.env.REMINDER_CRON_EVENING || '0 18 * * *',
   // How often to check for tasks with a specific reminder time.
   exactReminderCron: process.env.EXACT_REMINDER_CRON || '*/5 * * * *',
-  batchQuietMs: num(process.env.BATCH_QUIET_SECONDS, 15) * 1000,
+  /*
+   * How long a quiet chat waits before its messages are read.
+   *
+   * Thirty seconds rather than fifteen, because every call carries the same
+   * three thousand tokens of instructions whatever it is asked to read: two
+   * messages in one call cost half what the same two cost in two calls. The
+   * price of waiting is that a task appears half a minute later, which nothing
+   * here depends on - the reminders it drives are hours or days away.
+   */
+  batchQuietMs: num(process.env.BATCH_QUIET_SECONDS, 30) * 1000,
   /*
    * A ceiling on the wait, and on the batch.
    *
@@ -96,8 +105,22 @@ export const config = {
    *
    * So the batch also goes when it has waited long enough, or grown large
    * enough, whichever comes first.
+   *
+   * Four minutes, raised from ninety seconds for the reason above: on a busy
+   * day the ceiling is what decides how many calls there are, and six hundred
+   * calls a day was six hundred copies of the same preamble. The same traffic
+   * in four-minute batches is a third of the calls and very close to the same
+   * tasks - what changes is that a message read at 11:00 becomes a task by
+   * 11:04 rather than 11:01.
+   *
+   * Four rather than five on purpose. A cached prompt lives five minutes from
+   * the start of the call that last touched it, so calls spaced four minutes
+   * apart keep the cache warm and pay a tenth for the preamble, while calls
+   * spaced five apart would miss it every time - and a cache write costs a
+   * quarter MORE than a plain call. The ceiling has to sit inside the window
+   * it depends on.
    */
-  batchMaxWaitMs: num(process.env.BATCH_MAX_WAIT_SECONDS, 90) * 1000,
+  batchMaxWaitMs: num(process.env.BATCH_MAX_WAIT_SECONDS, 240) * 1000,
   batchMaxMessages: num(process.env.BATCH_MAX_MESSAGES, 40),
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
 
