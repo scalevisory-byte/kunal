@@ -124,6 +124,18 @@ try {
     log.warn('Could not clear stored WhatsApp ids:', err?.message || err);
   }
 
+  /*
+   * The deadline messages, on for an install that predates them. Runs once and
+   * records that it has, so turning them off afterwards is respected.
+   */
+  try {
+    const { enableDeadlineMessagesOnce } = await import('./scheduling.js');
+    const { changed } = enableDeadlineMessagesOnce();
+    if (changed) log.info('WhatsApp deadline reminders turned on (an hour before, and at the deadline).');
+  } catch (err) {
+    log.warn('Could not turn on the deadline reminders:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

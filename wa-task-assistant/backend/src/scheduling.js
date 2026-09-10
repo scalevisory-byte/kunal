@@ -113,7 +113,20 @@ const DEFAULTS = {
   // Every WhatsApp message this app sends goes to the linked account's own
   // chat. There is no path that messages a contact, and these switches only
   // decide whether the user hears from themselves.
-  notifyWhatsApp: false,            // per-reminder messages before the deadline
+  /*
+   * On, and asked for: without it a deadline arriving produced nothing on the
+   * phone. The twice-daily digest is a list you go and read; this is the app
+   * speaking at the moment the deadline is reached, which is the whole point
+   * of having given it one. Both messages - an hour before, and at the
+   * deadline - go to the linked account's own chat and nowhere else.
+   */
+  notifyWhatsApp: true,             // per-reminder messages before the deadline
+  /*
+   * Off, deliberately. These are the ones that fire 30 minutes, 2 hours and 16
+   * hours AFTER a missed deadline, and three of them per late task is how a
+   * useful reminder becomes something you mute. Turn it on in Settings if the
+   * chasing is wanted.
+   */
   whatsappFollowUps: false,         // per-reminder messages after it
   dailyBriefing: false,             // one morning message listing the day
   briefingTime: '09:00',            // in the configured timezone
@@ -175,6 +188,38 @@ export function getSettings() {
   } catch {
     return { ...DEFAULTS };
   }
+}
+
+/**
+ * Turn the deadline messages on once, for an install that predates them.
+ *
+ * A saved settings blob wins over DEFAULTS - which is right, it is the user's
+ * own choice - but it means an existing install would keep the old `false`
+ * forever and never see the change. So this flips it once and writes a marker
+ * saying it has. Turn it off in Settings afterwards and it stays off: the
+ * marker stops this ever running a second time.
+ */
+export function enableDeadlineMessagesOnce() {
+  const done = db.prepare(`SELECT value FROM meta WHERE key = 'whatsapp_due_default_on'`).get();
+  if (done) return { changed: false };
+
+  const row = db.prepare(`SELECT value FROM meta WHERE key = 'scheduling_settings'`).get();
+  let changed = false;
+  if (row) {
+    try {
+      const saved = JSON.parse(row.value);
+      if (saved.notifyWhatsApp === false) {
+        saveSettings({ notifyWhatsApp: true });
+        changed = true;
+      }
+    } catch { /* unreadable settings; the defaults already say true */ }
+  }
+
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('whatsapp_due_default_on', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(new Date().toISOString());
+  return { changed };
 }
 
 export function saveSettings(patch) {
