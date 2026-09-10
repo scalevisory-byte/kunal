@@ -54,7 +54,12 @@ export default function LawDigest({ onError }) {
           onChange={(v) => save({ lawDigest: v })} />
       </Row>
 
-      <Row label="Digest time" note={`Sent at this time, ${timezone}.`}>
+      <Row
+        label="Digest time"
+        note={settings.lawDigest
+          ? `Sent at this time, ${timezone}.`
+          : 'Switched off — nothing arrives on its own. The buttons below still work.'}
+      >
         <input type="time" value={settings.lawDigestTime} disabled={!settings.lawDigest}
           onChange={(e) => save({ lawDigestTime: e.target.value })} />
       </Row>
@@ -148,19 +153,35 @@ function Panel({ onError }) {
         </p>
       )}
 
+      {/*
+        * With nothing built, the shape of the message rather than an empty box.
+        *
+        * "How does anything get in here?" was a fair question of a panel that
+        * showed a sentence and two buttons. This is the five headings the model
+        * is asked to fill, with every line deliberately blank: it says what the
+        * message answers without inventing a single finding to demonstrate it.
+        */}
       {text
         ? <pre>{text}</pre>
         : (
-          <p className="dim">
-            Nothing built today. “Fetch now” reads the feeds and writes the digest
-            without sending it.
-          </p>
+          <>
+            <p className="dim">
+              Nothing has been built today. <strong>Fetch now</strong> reads the five
+              feeds and writes today's digest here without sending it — it takes
+              a few seconds. <strong>Send now</strong> does the same and puts it in
+              your own WhatsApp chat.
+            </p>
+            <div className="digest-shape">
+              <small>The lines it fills in</small>
+              <pre>{state.shape}</pre>
+            </div>
+          </>
         )}
 
       <div className="briefing-preview-foot">
         <button type="button" className="btn ghost" disabled={Boolean(busy)}
           onClick={() => run('preview')}>
-          {busy === 'preview' ? 'Fetching…' : 'Fetch now'}
+          {busy === 'preview' ? 'Reading the feeds…' : 'Fetch now'}
         </button>
         <button type="button" className="btn ghost" disabled={Boolean(busy)}
           onClick={() => run('send')}>

@@ -118,6 +118,20 @@ describe('reading the feeds', () => {
   });
 });
 
+describe('the shape shown before anything is built', () => {
+  it('is the headings the model is asked for, with nothing filled in', () => {
+    const shape = law.messageShape(NOW);
+    for (const heading of ['GST', 'Income Tax / TDS', 'PF / ESI / PT / Labour', 'ROC / MCA', 'Case law', 'Client ko batao']) {
+      assert.ok(shape.includes(`*${heading}:*`), `${heading} is offered`);
+    }
+    // Nothing invented: every line ends at the ellipsis, so the page cannot
+    // show a finding that no feed reported.
+    for (const line of shape.split('\n').filter((l) => l.includes(':*'))) {
+      assert.match(line, /:\*\s…$/, `"${line}" is left blank`);
+    }
+  });
+});
+
 describe('when nothing can be read', () => {
   it('fails rather than saying there is no news', async () => {
     await assert.rejects(

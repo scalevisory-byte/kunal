@@ -13,7 +13,7 @@ import {
 } from '../briefing.js';
 import { briefingFor, recentBriefings, engineOverview } from '../scheduling.js';
 import {
-  maybeSendLawDigest, buildDigest, digestFor, recentDigests, feeds, digestKey,
+  maybeSendLawDigest, buildDigest, digestFor, recentDigests, feeds, digestKey, messageShape,
 } from '../law-digest.js';
 
 /**
@@ -140,6 +140,9 @@ lawDigestRouter.get('/', (req, res) => {
     recent: recentDigests(7),
     sent: briefingFor(digestKey()),
     sources: feeds().map((f) => f.name),
+    // The empty lines the model is asked to fill, so the page can show what a
+    // digest looks like before one has been paid for.
+    shape: messageShape(),
     settings: {
       on: getSettings().lawDigest,
       time: getSettings().lawDigestTime,

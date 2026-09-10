@@ -209,15 +209,46 @@ Rules:
   "koi naya update nahi" likho - guess mat karo.
 - Koi intro, koi disclaimer, koi extra text nahi.`;
 
-const template = (now) => `📋 *Law Update – ${dateLabel(now)}*
+/*
+ * The five headings, written once.
+ *
+ * They are both what the model is told to produce and what the dashboard shows
+ * when no digest has been built yet - so a reader can see the shape of the
+ * message before paying for one. Two copies of this list would drift, and the
+ * page would then promise a line the prompt never asks for.
+ */
+const SECTIONS = [
+  { label: 'GST', ask: '<1 line, ya "koi naya update nahi">' },
+  { label: 'Income Tax / TDS', ask: '<1 line, ya "koi naya update nahi">' },
+  { label: 'PF / ESI / PT / Labour', ask: '<1 line, ya "koi naya update nahi">' },
+  { label: 'ROC / MCA', ask: '<1 line, ya "koi naya update nahi">' },
+  {
+    label: 'Case law',
+    ask: '<1 line agar koi important HC/SC/ITAT ruling hai, warna ye line hata do>',
+  },
+];
 
-*GST:* <1 line, ya "koi naya update nahi">
-*Income Tax / TDS:* <1 line, ya "koi naya update nahi">
-*PF / ESI / PT / Labour:* <1 line, ya "koi naya update nahi">
-*ROC / MCA:* <1 line, ya "koi naya update nahi">
-*Case law:* <1 line agar koi important HC/SC/ITAT ruling hai, warna ye line hata do>
+const heading = (now) => `📋 *Law Update – ${dateLabel(now)}*`;
+
+const template = (now) => `${heading(now)}
+
+${SECTIONS.map((s) => `*${s.label}:* ${s.ask}`).join('\n')}
 
 ⚠️ *Client ko batao:* <agar koi action ya due date hai to 1 line, warna "aaj kuch nahi">`;
+
+/**
+ * The shape of the message, with the lines left blank.
+ *
+ * Shown where a digest would be if one had been built. It is not an example
+ * digest and carries no invented findings - every line is empty on purpose,
+ * because the only honest thing to show before the feeds have been read is
+ * which questions get answered.
+ */
+export const messageShape = (now = new Date()) => `${heading(now)}
+
+${SECTIONS.map((s) => `*${s.label}:* …`).join('\n')}
+
+⚠️ *Client ko batao:* …`;
 
 export const NOTHING_NEW = (now = new Date()) =>
   `📋 *Law Update – ${dateLabel(now)}*\n\nAaj koi naya notification / circular nahi aaya. ✅`;
