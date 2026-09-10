@@ -118,6 +118,21 @@ describe('reading the feeds', () => {
   });
 });
 
+describe('turning it on once', () => {
+  it('is switched on for an install that predates it, and only once', () => {
+    S.saveSettings({ lawDigest: false });
+    db.prepare(`DELETE FROM meta WHERE key = 'law_digest_default_on'`).run();
+
+    assert.equal(S.enableLawDigestOnce().changed, true);
+    assert.equal(S.getSettings().lawDigest, true);
+
+    // Switched off by hand afterwards, and it stays off.
+    S.saveSettings({ lawDigest: false });
+    assert.equal(S.enableLawDigestOnce().changed, false);
+    assert.equal(S.getSettings().lawDigest, false, 'the marker stops it running twice');
+  });
+});
+
 describe('the shape shown before anything is built', () => {
   it('is the headings the model is asked for, with nothing filled in', () => {
     const shape = law.messageShape(NOW);
@@ -236,6 +251,51 @@ describe('sending it', () => {
     assert.equal(out.reason, 'whatsapp not connected');
     assert.match(law.digestFor(out.day).text, /kuch naya/, 'readable in the dashboard');
     assert.equal(law.digestFor(out.day).sent_at, null);
+  });
+
+  it('does not pay for a second summary when a send is retried', async () => {
+    let summaries = 0;
+    law.setClientForTests({
+      messages: {
+        create: async () => {
+          summaries += 1;
+          return {
+            content: [{ type: 'text', text: '📋 *Law Update*\n\n*GST:* kuch naya.' }],
+            usage: { input_tokens: 900, output_tokens: 120 },
+            stop_reason: 'end_turn',
+          };
+        },
+      },
+    });
+    const fetchImpl = answering(feedXml('GST notification'));
+    S.saveSettings({ lawDigest: true, lawDigestTime: '08:00' });
+
+    // WhatsApp is down, so the claim's three attempts all come back here.
+    const first = await law.maybeSendLawDigest({ now: NOW, fetchImpl });
+    const second = await law.maybeSendLawDigest({ now: NOW, fetchImpl });
+    const third = await law.maybeSendLawDigest({ now: NOW, fetchImpl });
+
+    assert.equal(first.sent, false);
+    assert.equal(first.reason, 'whatsapp not connected');
+    assert.equal(second.reason, 'whatsapp not connected');
+    assert.equal(third.reason, 'whatsapp not connected');
+    assert.equal(summaries, 1, 'one morning, one summary, however many send attempts');
+    assert.equal(db.prepare('SELECT COUNT(*) n FROM api_usage').get().n, 1);
+  });
+
+  it('sends the stored digest once the link comes back', async () => {
+    const sent = ready();
+    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* kuch naya.'));
+    law.saveDigest(law.digestKey(NOW).slice(4), {
+      text: '📋 *Law Update*\n\n*GST:* kal ka bana hua.', items: 3, sources: [],
+    });
+
+    const out = await law.maybeSendLawDigest({
+      now: NOW, force: true, fetchImpl: refusing, // the feeds are not touched
+    });
+
+    assert.equal(out.sent, true);
+    assert.match(sent[0].text, /kal ka bana hua/, 'the digest already built');
   });
 
   it('claims its own key, so it cannot collide with the daily briefing', () => {

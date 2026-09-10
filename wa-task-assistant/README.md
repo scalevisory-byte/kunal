@@ -211,7 +211,9 @@ One WhatsApp message each morning for the Scale Visory side of the desk: GST, In
 TDS, PF-ESI-PT, ROC / MCA and any case law worth knowing, in five Hinglish lines, with a
 "Client ko batao" line when something has a date on it. Off by default — it is the one
 scheduled thing here that costs money every day whether or not anything was published, so
-it is switched on deliberately, on its own page: **Automation → Law updates**.
+it was switched on deliberately, once, on first boot after this shipped — the same
+one-time nudge the deadline messages use, with a marker so switching it off afterwards
+is respected. Its page is **Automation → Law updates**.
 
 It reads five TaxGuru category feeds (Income Tax, GST, Company Law, Corporate/Labour,
 Finance) over the last 26 hours, drops anything two categories both carry, and asks Claude
@@ -225,6 +227,9 @@ Three things are deliberate:
 - **"Koi naya update nahi" is only ever said when the feeds actually answered.** If none of
   them could be read the digest fails, loudly, and Settings says which ones and why. A
   green tick on a morning when the network was down is worse than no message at all.
+- **A digest built today is never built twice.** The claim allows three attempts, so a
+  failed send comes back twice more; the stored text is reused, so those are retries of
+  the send rather than three paid summaries of one morning's news.
 - **One per day is a claim in the database** — the same `briefings` claim the daily
   briefing uses, under a `law:` key. A restart, a retry, a second worker or a *Send now*
   all find the day taken. A failed attempt retries at most three times.

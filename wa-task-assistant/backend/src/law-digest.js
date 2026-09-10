@@ -353,14 +353,28 @@ export async function maybeSendLawDigest({ now = new Date(), force = false, fetc
   const claim = force ? { day: key } : claimBriefing(key);
   if (!claim) return { sent: false, reason: 'claimed elsewhere' };
 
-  let digest;
-  try {
-    digest = await buildDigest({ now, fetchImpl });
-  } catch (err) {
-    if (!force) recordBriefingFailed(key, err?.message || err);
-    markDigestFailed(day, err?.message || err);
-    log.error('Law digest build failed:', err?.message || err);
-    return { sent: false, reason: 'could not be built', error: String(err?.message || err) };
+  /*
+   * A digest already built today is not built again.
+   *
+   * The claim allows three attempts, so a send that fails - WhatsApp down, most
+   * likely - comes back here twice more. Rebuilding each time means three paid
+   * summaries of the same morning's news for one message. The stored text is
+   * the same text, so the retries are retries of the *send*.
+   */
+  const stored = digestFor(day);
+  let digest = stored?.text
+    ? { day, text: stored.text, items: stored.items, reused: true }
+    : null;
+
+  if (!digest) {
+    try {
+      digest = await buildDigest({ now, fetchImpl });
+    } catch (err) {
+      if (!force) recordBriefingFailed(key, err?.message || err);
+      markDigestFailed(day, err?.message || err);
+      log.error('Law digest build failed:', err?.message || err);
+      return { sent: false, reason: 'could not be built', error: String(err?.message || err) };
+    }
   }
 
   if (state.status !== 'ready') {

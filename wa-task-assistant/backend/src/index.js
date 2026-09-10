@@ -136,6 +136,15 @@ try {
     log.warn('Could not turn on the deadline reminders:', err?.message || err);
   }
 
+  /* The morning law digest, likewise: asked for, switched on once, respected. */
+  try {
+    const { enableLawDigestOnce } = await import('./scheduling.js');
+    const { changed } = enableLawDigestOnce();
+    if (changed) log.info('Daily law digest turned on (08:00, to your own chat).');
+  } catch (err) {
+    log.warn('Could not turn on the law digest:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

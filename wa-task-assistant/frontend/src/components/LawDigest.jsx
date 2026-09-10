@@ -130,13 +130,7 @@ function Panel({ onError }) {
     <div className="briefing-preview">
       <div className="briefing-preview-head">
         <strong>Today's digest</strong>
-        <span>
-          {today?.sent_at
-            ? `Sent ${new Date(`${today.sent_at}Z`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : today
-              ? 'Built, not sent yet'
-              : 'Not built yet today'}
-        </span>
+        <span>{status(state, today)}</span>
       </div>
 
       {/*
@@ -166,10 +160,16 @@ function Panel({ onError }) {
         : (
           <>
             <p className="dim">
-              Nothing has been built today. <strong>Fetch now</strong> reads the five
-              feeds and writes today's digest here without sending it — it takes
-              a few seconds. <strong>Send now</strong> does the same and puts it in
-              your own WhatsApp chat.
+              {state.settings.on
+                ? <>This builds itself each morning at {state.settings.time} — you do
+                  not have to press anything. The buttons are for seeing it sooner:{' '}
+                  <strong>Fetch now</strong> reads the five feeds and writes today's
+                  digest here without sending it, and <strong>Send now</strong> puts
+                  it in your own WhatsApp chat.</>
+                : <>It is switched off, so nothing is read on its own.{' '}
+                  <strong>Fetch now</strong> reads the five feeds and writes today's
+                  digest here without sending it; <strong>Send now</strong> puts it in
+                  your own WhatsApp chat.</>}
             </p>
             <div className="digest-shape">
               <small>The lines it fills in</small>
@@ -215,4 +215,28 @@ function Panel({ onError }) {
       )}
     </div>
   );
+}
+
+/**
+ * What the panel says about today, in the top right.
+ *
+ * "Not built yet today" was true and unhelpful on a page whose whole question
+ * was whether anything happens without being asked. When it is switched on and
+ * the hour has passed, the honest answer is that it is about to run - the
+ * engine ticks every few minutes - and when the hour has not come yet, that is
+ * what it says instead.
+ */
+function status(state, today) {
+  if (today?.sent_at) {
+    const at = new Date(`${today.sent_at}Z`)
+      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `Sent ${at}`;
+  }
+  if (today) return 'Built, not sent yet';
+  if (!state.settings.on) return 'Switched off';
+
+  const [h, m] = String(state.settings.time || '08:00').split(':').map(Number);
+  const now = new Date();
+  const passed = now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
+  return passed ? 'Due — building shortly' : `Runs at ${state.settings.time}`;
 }

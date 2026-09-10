@@ -230,6 +230,35 @@ export function enableDeadlineMessagesOnce() {
   return { changed };
 }
 
+/**
+ * Turn the morning law digest on once, on an install that predates it.
+ *
+ * Same shape as the deadline messages above, and for the same reason: a saved
+ * settings blob wins over DEFAULTS, so a default flipped in code would never
+ * reach an install that already has one. It was asked for explicitly - "fetch
+ * auto hona chahiye" - and a marker stops it ever running twice, so switching
+ * it off in the app afterwards stays off.
+ *
+ * It costs money every day, which is exactly why this is a one-time nudge with
+ * a visible switch rather than a default nobody chose.
+ */
+export function enableLawDigestOnce() {
+  const done = db.prepare(`SELECT value FROM meta WHERE key = 'law_digest_default_on'`).get();
+  if (done) return { changed: false };
+
+  let changed = false;
+  if (getSettings().lawDigest !== true) {
+    saveSettings({ lawDigest: true });
+    changed = true;
+  }
+
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('law_digest_default_on', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(new Date().toISOString());
+  return { changed };
+}
+
 export function saveSettings(patch) {
   const next = { ...getSettings() };
   for (const [key, value] of Object.entries(patch || {})) {
