@@ -7,7 +7,6 @@ import {
   markAllNotificationsRead, dismissNotification,
 } from '../scheduling.js';
 import { taskSchedule, taskState, dueMoment } from '../task-lifecycle.js';
-import { dueNow, setTaskNotice } from '../due-notices.js';
 import {
   buildBriefing, maybeSendBriefing, localDay,
   buildWeeklySummary, maybeSendWeekly, localWeek,
@@ -32,27 +31,6 @@ attentionRouter.get('/engine', (req, res) => {
     settings,
     timezone: config.timezone,
   });
-});
-
-/**
- * Deadlines that have arrived and not yet been answered, for the popup.
- *
- * The whole judgement is here rather than in the browser so every device
- * agrees, and so a refresh, a reopen or a second tab cannot bring back a
- * notice that has already been dealt with.
- */
-attentionRouter.get('/due-now', (req, res) => {
-  res.json({ due: dueNow({ limit: Number(req.query.limit) || 5 }) });
-});
-
-attentionRouter.post('/due-now/:id', (req, res) => {
-  const action = req.body?.action === 'later' ? 'later' : 'seen';
-  const dueKey = String(req.body?.due_key || '');
-  if (!dueKey) return res.status(400).json({ error: 'which deadline this is about' });
-
-  const notice = setTaskNotice(Number(req.params.id), dueKey, action, req.body?.minutes);
-  if (!notice) return res.status(404).json({ error: 'not found' });
-  return res.json({ notice, due: dueNow() });
 });
 
 attentionRouter.get('/', (req, res) => {
