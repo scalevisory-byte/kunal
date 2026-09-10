@@ -204,9 +204,17 @@ systemRouter.get('/usage', (req, res) => {
       read: totals.cache_read || 0,
       written: totals.cache_write || 0,
       working: (totals.cache_read || 0) > 0,
-      // The one worth switching to when it is not: same family, a quarter of
-      // the minimum, and it caches what this model will not.
-      suggestion: (totals.cache_read || 0) > 0 ? null : 'claude-sonnet-5',
+      /*
+       * No model is suggested here, deliberately.
+       *
+       * The obvious move looks like a model with a lower cache minimum, and it
+       * was suggested for a while - wrongly. Switching model changes the price
+       * of every token too: claude-sonnet-5 is twice the input rate and ten
+       * times the output rate of haiku, and a cache WRITE costs a quarter more
+       * than a plain call. Worked through on this workload it comes out level
+       * or worse unless nine calls in ten hit a warm cache. What is true is
+       * only the fact below; a saving would have to be measured, not promised.
+       */
     },
   });
 });

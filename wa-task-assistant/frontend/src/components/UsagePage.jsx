@@ -152,8 +152,15 @@ export default function UsagePage({ onError }) {
                       {caching.minimum.toLocaleString()} tokens or more, and this one is
                       shorter</>
                     : ''}
-                  .{caching.suggestion && <> Setting <code>ANTHROPIC_MODEL</code> to{' '}
-                    <code>{caching.suggestion}</code> would cache it.</>}</>)}
+                  {/*
+                    * No model is recommended here. A model that caches shorter
+                    * prompts also prices every token differently, and on this
+                    * workload the two cancel out unless nearly every call hits
+                    * a warm cache. Stating the fact is honest; promising a
+                    * saving from it was not.
+                    */}
+                  . Fewer runs is what brings this down, which is what the
+                  batching window is for.</>)}
             </p>
           )}
 
