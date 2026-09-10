@@ -420,7 +420,17 @@ export default function App() {
     setOpenTask((current) => (current?.id === task.id ? { ...current, ...patch } : current));
     return act(() => api.updateTask(task.id, patch));
   };
-  const onQuickDate = (task, offset) => onEdit(task, { due_date: isoDay(offset) });
+  /*
+   * A deadline set from the row: a day offset, an exact date, or none at all.
+   *
+   * Clearing sends both halves. `due_at` is the deadline the reminder engine
+   * actually counts from, so emptying only `due_date` left a task reading "No
+   * deadline" on the row while still being chased on the old one.
+   */
+  const onQuickDate = (task, when) =>
+    onEdit(task, when === null
+      ? { due_date: '', due_at: '' }
+      : { due_date: typeof when === 'number' ? isoDay(when) : when });
   /** Pushing a deadline back restarts the reminder and follow-up cycle. */
   const onSnoozeTask = (task, minutes) =>
     act(() => api.rescheduleTask(task.id, {

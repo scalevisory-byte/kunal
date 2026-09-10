@@ -1543,7 +1543,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    * across: the task. Everything about it follows underneath.
    */
   .t-main { flex: 1 0 100%; }
-  .task > .due { order: 2; margin-top: 5px; }
+  .task > .due, .task > .due-wrap { order: 2; margin-top: 5px; }
   .task > .assign { order: 3; margin-top: 5px; }
   .task > .row-dismiss, .task > .row-menu { order: 4; margin-top: 5px; }
 }
@@ -3908,3 +3908,48 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .menu-new input { width: 100%; min-height: 32px; padding: 5px 9px; font-size: .84rem; }
 .menu-new .btn { align-self: flex-start; }
 .menu-new .menu-note { margin: 0; }
+
+/*
+ * The deadline is now the control that changes it.
+ *
+ * It keeps the type it always had - the row should read exactly as before at
+ * rest - and gains only what marks it pressable: a hover ground and, once
+ * open, a menu hung under it.
+ */
+.due-wrap { position: relative; flex: none; display: inline-flex; }
+button.due {
+  border: 0;
+  background: none;
+  font-family: inherit;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background .15s;
+}
+button.due:hover { background: var(--raised); }
+.due-menu { right: 0; left: auto; min-width: 190px; }
+.menu-date {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.menu-date input {
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 3px 7px;
+  font-size: .82rem;
+}
+
+/*
+ * On a phone the deadline sits at the left of its own line, so a menu hung
+ * from its right edge falls off the screen. Anchored left there instead.
+ * After the base rule, because that is what decides which one wins.
+ */
+@media (max-width: 760px) {
+  .due-menu { left: 0; right: auto; }
+}

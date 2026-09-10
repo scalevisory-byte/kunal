@@ -349,8 +349,10 @@ export default function TaskDetail({
               <div className="quick-dates">
                 <button className="link" onClick={() => onEdit(task, { due_date: isoDay(0) })}>today</button>
                 <button className="link" onClick={() => onEdit(task, { due_date: isoDay(1) })}>tomorrow</button>
+                {/* Clearing sends both halves: the engine counts from due_at,
+                    so emptying only the date left it still being chased. */}
                 {task.due_date && (
-                  <button className="link" onClick={() => onEdit(task, { due_date: '' })}>clear</button>
+                  <button className="link" onClick={() => onEdit(task, { due_date: '', due_at: '' })}>clear</button>
                 )}
               </div>
             </div>

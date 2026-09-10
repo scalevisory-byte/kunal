@@ -258,6 +258,77 @@ function GroupButton({ task, groups = [], onMove, onManageGroups, onNewGroup }) 
   );
 }
 
+/**
+ * The deadline, and changing it, in the same place.
+ *
+ * The row already prints "No deadline" or "Sep 28" - and that word is where
+ * you look when you want to change it, so that is what opens the menu. A
+ * hundred and thirteen tasks with no deadline is not a filing problem, it is
+ * that giving one meant opening the drawer or hunting the ⋮ menu for the two
+ * offsets it offered.
+ *
+ * Today and Tomorrow cover most of it; the picker covers the rest; and "No
+ * deadline" takes one back off, which nothing on the row could do before.
+ */
+function DueButton({ task, due, onQuickDate }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const set = (when) => { setOpen(false); onQuickDate(task, when); };
+
+  return (
+    <span className="due-wrap" ref={wrap}>
+      <button
+        type="button"
+        className={`due ${due?.tone || 'none'}`}
+        aria-expanded={open}
+        title={due ? 'Change the deadline' : 'Give this a deadline'}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {due ? due.text : 'No deadline'}
+      </button>
+
+      {open && (
+        <div className="menu due-menu" role="menu">
+          <div className="menu-head">Due</div>
+          <button role="menuitem" onClick={() => set(0)}>
+            <Icon name="sun" size={15} /> Today
+          </button>
+          <button role="menuitem" onClick={() => set(1)}>
+            <Icon name="calendar" size={15} /> Tomorrow
+          </button>
+          <label className="menu-date">
+            <Icon name="calendar" size={15} />
+            <span className="sr-only">Pick a date</span>
+            <input
+              type="date"
+              value={task.due_date || ''}
+              onChange={(e) => e.target.value && set(e.target.value)}
+            />
+          </label>
+          {task.due_date && (
+            <button role="menuitem" onClick={() => set(null)}>
+              <span className="menu-dot none" /> No deadline
+            </button>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 /** Everything you can do to a task without opening it, behind one control. */
 function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate }) {
   const [open, setOpen] = useState(false);
@@ -433,7 +504,7 @@ export default function TaskItem({
     // The containers too, not only their controls: an open menu has padding
     // between its buttons, and a press there must not open the drawer behind
     // it.
-    if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu, .rownote')) return;
+    if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu, .rownote, .due-wrap')) return;
     onOpen(task);
   };
 
@@ -596,7 +667,9 @@ export default function TaskItem({
           times on one row read as a contradiction. */}
       {/* The deadline column, and it says so when there is none — "No date"
           beside an "Added …" stamp read as the task having no dates at all. */}
-      <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No deadline'}</span>
+      {onQuickDate
+        ? <DueButton task={task} due={due} onQuickDate={onQuickDate} />
+        : <span className={`due ${due?.tone || 'none'}`}>{due ? due.text : 'No deadline'}</span>}
 
       {extra}
 
