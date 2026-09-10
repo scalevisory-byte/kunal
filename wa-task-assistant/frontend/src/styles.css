@@ -3896,3 +3896,15 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .rownote { padding-left: 0; }
   .rownote .link { display: none; }
 }
+
+/* Making a folder from inside the menu that needed it. */
+.menu-new {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px 10px;
+  border-top: 1px solid var(--line);
+}
+.menu-new input { width: 100%; min-height: 32px; padding: 5px 9px; font-size: .84rem; }
+.menu-new .btn { align-self: flex-start; }
+.menu-new .menu-note { margin: 0; }

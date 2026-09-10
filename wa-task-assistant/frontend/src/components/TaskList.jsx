@@ -290,7 +290,7 @@ const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 export default function TaskList({
   tasks, loading, error, groupBy, view, query, groups = [], people = [],
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
-  onMove, onManageGroups, onAddUpdate, onAssign, onOpenGroup,
+  onMove, onManageGroups, onNewGroup, onAddUpdate, onAssign, onOpenGroup,
 }) {
   /*
    * Grouped by chat or by folder, the sections start shut.
@@ -372,6 +372,7 @@ export default function TaskList({
                 groups={groups}
                 onMove={onMove}
                 onManageGroups={onManageGroups}
+                onNewGroup={onNewGroup}
                 onAddUpdate={onAddUpdate}
                 people={people}
                 onAssign={onAssign}
@@ -458,6 +459,8 @@ export default function TaskList({
                     groups={groups}
                     onMove={onMove}
                     onManageGroups={onManageGroups}
+                    onNewGroup={onNewGroup}
+                onNewGroup={onNewGroup}
                     onAddUpdate={onAddUpdate}
                     people={people}
                     onAssign={onAssign}

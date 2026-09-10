@@ -125,9 +125,26 @@ function AssignButton({ task, people = [], onAssign }) {
  * that does not get made. The same control says where a task is filed and
  * moves it.
  */
-function GroupButton({ task, groups = [], onMove, onManageGroups }) {
+function GroupButton({ task, groups = [], onMove, onManageGroups, onNewGroup }) {
   const [open, setOpen] = useState(false);
+  /*
+   * Making the folder from here, rather than going to Manage groups first.
+   *
+   * The moment you learn a folder is missing is the moment you try to file
+   * something into it - and being sent to another page to make it means
+   * coming back, finding the row again, and opening this menu a second time.
+   * So the menu makes it, and puts the task straight in.
+   */
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState('');
+  const box = useRef(null);
   const wrap = useRef(null);
+
+  useEffect(() => { if (naming) box.current?.focus(); }, [naming]);
+  // A shut menu forgets what was half-typed into it.
+  useEffect(() => { if (!open) { setNaming(false); setName(''); setFailed(''); } }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -142,6 +159,24 @@ function GroupButton({ task, groups = [], onMove, onManageGroups }) {
   }, [open]);
 
   const put = (id) => { setOpen(false); onMove(task, id); };
+
+  const make = async (event) => {
+    event?.preventDefault?.();
+    const clean = name.trim();
+    if (!clean || busy) return;
+    setBusy(true);
+    setFailed('');
+    try {
+      const group = await onNewGroup(clean);
+      // Made and filed in one press: the folder existing but the task still
+      // loose would be half the job.
+      if (group?.id) put(group.id);
+    } catch (err) {
+      setFailed(err?.message || 'Could not make that folder');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="assign" ref={wrap}>
@@ -188,7 +223,31 @@ function GroupButton({ task, groups = [], onMove, onManageGroups }) {
                 </button>
               ) : null}
             </>
+          ) : null}
+
+          {onNewGroup && (naming ? (
+            <form className="menu-new" onSubmit={make}>
+              <input
+                ref={box}
+                value={name}
+                placeholder="Folder name"
+                aria-label="New folder name"
+                maxLength={60}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setNaming(false); } }}
+              />
+              <button type="submit" className="btn small" disabled={busy || !name.trim()}>
+                {busy ? 'Making…' : 'Make and file'}
+              </button>
+              {failed && <p className="menu-note error-text">{failed}</p>}
+            </form>
           ) : (
+            <button role="menuitem" onClick={() => setNaming(true)}>
+              <Icon name="plus" size={15} /> New folder
+            </button>
+          ))}
+
+          {!groups.length && !onNewGroup && (
             <button role="menuitem" onClick={() => { setOpen(false); onManageGroups(); }}>
               <Icon name="inbox" size={15} /> Make a folder to file this in
             </button>
@@ -335,7 +394,7 @@ function NoteBox({ task, onAddUpdate, onClose }) {
 
 export default function TaskItem({
   task, groups = [], people = [], onAssign, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
-  onMove, onManageGroups, onAddUpdate,
+  onMove, onManageGroups, onNewGroup, onAddUpdate,
   // One optional control, for a page where a task needs an action the board
   // does not have - the Nudge button on work given to somebody else. It sits
   // in the row rather than beside it, so the row stays one row.
@@ -575,6 +634,7 @@ export default function TaskItem({
           groups={groups}
           onMove={onMove}
           onManageGroups={onManageGroups}
+          onNewGroup={onNewGroup}
         />
       )}
 

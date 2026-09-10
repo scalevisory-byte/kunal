@@ -313,9 +313,12 @@ export default function App() {
 
   useEffect(() => { loadUnsure(); }, [loadUnsure, tasks]);
 
-  const loadGroups = useCallback(() => {
-    api.groups().then((d) => setGroups(d.groups)).catch(() => {});
-  }, []);
+  // Returns its promise, so a caller that has just made a folder can wait for
+  // the list to catch up before using it.
+  const loadGroups = useCallback(
+    () => api.groups().then((d) => setGroups(d.groups)).catch(() => {}),
+    []
+  );
 
   useEffect(() => { loadGroups(); }, [loadGroups, tasks]);
 
@@ -1406,6 +1409,17 @@ export default function App() {
                       groups={groups}
                       onMove={onMove}
                       onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      /*
+                        * A folder made from the row it is needed on. The
+                        * colour is left to the server's own rotation, so a new
+                        * one is distinguishable from the others without asking
+                        * him to pick from a palette mid-thought.
+                        */
+                      onNewGroup={async (name) => {
+                        const { group } = await api.createGroup({ name });
+                        await loadGroups();
+                        return group;
+                      }}
                       onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       /*
                         * Two ways in, one handler. With a sentence, it is the
