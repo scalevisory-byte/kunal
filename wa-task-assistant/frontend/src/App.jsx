@@ -28,6 +28,7 @@ import AttentionWidget from './components/AttentionWidget.jsx';
 import WorkHistory from './components/WorkHistory.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
+import LawDigest from './components/LawDigest.jsx';
 import Templates from './components/Templates.jsx';
 import NeedsConfirmation from './components/NeedsConfirmation.jsx';
 import Duplicates from './components/Duplicates.jsx';
@@ -109,6 +110,11 @@ const PAGES = {
   monthly: {
     title: 'Monthly deadlines',
     lede: 'The dates that never move — TDS, GST, GSTR-3B. Each becomes a task before its date.',
+    settings: true,
+  },
+  law: {
+    title: 'Law updates',
+    lede: 'GST, Income Tax, PF/ESI/PT, ROC and case law — read every morning and sent to your own WhatsApp.',
     settings: true,
   },
   leads: {
@@ -894,6 +900,20 @@ export default function App() {
                 onChanged={() => refresh({ quiet: true })}
                 onError={(err) => setError(err.message)}
               />
+            </section>
+          ) : section === 'law' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>Law updates</h2>
+                  <p>
+                    One message each morning: GST, Income Tax / TDS, PF-ESI-PT, ROC and any
+                    case law worth knowing, read off the tax feeds and written for clients.
+                    It goes to your own WhatsApp chat and nowhere else.
+                  </p>
+                </div>
+              </div>
+              <LawDigest onError={(err) => setError(err.message)} />
             </section>
           ) : section === 'duplicates' ? (
             <section className="settings-page">

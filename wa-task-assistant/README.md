@@ -211,7 +211,7 @@ One WhatsApp message each morning for the Scale Visory side of the desk: GST, In
 TDS, PF-ESI-PT, ROC / MCA and any case law worth knowing, in five Hinglish lines, with a
 "Client ko batao" line when something has a date on it. Off by default — it is the one
 scheduled thing here that costs money every day whether or not anything was published, so
-it is switched on deliberately in **Settings → Reminders & follow-ups**.
+it is switched on deliberately, on its own page: **Automation → Law updates**.
 
 It reads five TaxGuru category feeds (Income Tax, GST, Company Law, Corporate/Labour,
 Finance) over the last 26 hours, drops anything two categories both carry, and asks Claude

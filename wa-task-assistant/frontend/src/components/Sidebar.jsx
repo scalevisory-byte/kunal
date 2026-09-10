@@ -45,6 +45,7 @@ const NAV = [
     items: [
       { key: 'reminders', label: 'Reminders & follow-ups', icon: 'bell' },
       { key: 'monthly', label: 'Monthly deadlines', icon: 'calendar' },
+      { key: 'law', label: 'Law updates', icon: 'clipboard' },
       { key: 'templates', label: 'Templates', icon: 'flag' },
       { key: 'groups', label: 'Manage groups', icon: 'settings' },
     ],
