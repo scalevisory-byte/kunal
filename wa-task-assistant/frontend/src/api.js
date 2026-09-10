@@ -308,7 +308,8 @@ export const api = {
   /* The messages a chat produced nothing from - what a "0 tasks" row is made of. */
   quietMessages: (chat, days = 30) =>
     request(`/usage/quiet-messages?days=${days}${chat ? `&chat=${encodeURIComponent(chat)}` : ''}`),
-  blockedChats: () => request('/blocked-chats'),
+  /* A hundred, not the default forty: the panel searches this list by name. */
+  blockedChats: (limit = 100) => request(`/blocked-chats?limit=${limit}`),
   blockChat: (pattern) =>
     request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),
   unblockChat: (id) => request(`/blocked-chats/${id}`, { method: 'DELETE' }),

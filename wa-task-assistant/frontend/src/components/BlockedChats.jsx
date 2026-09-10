@@ -47,10 +47,29 @@ export default function BlockedChats({ mode, onError }) {
 
   if (mode !== 'ai') return null;
 
+  /*
+   * The box searches the chats the app has actually seen.
+   *
+   * It used to be a plain pattern field with eight of the most recent chats
+   * under it, which is fine only if the chat you want is one of those eight -
+   * and the one you want to block is usually a group you have stopped reading,
+   * so it is not. Typing now filters every chat on record by name, and pressing
+   * Block still blocks exactly what was typed, so a chat that has never sent a
+   * message can be blocked before it does.
+   */
+  const query = value.trim().toLowerCase();
   const blockedSet = new Set(blocked.map((b) => b.pattern.toLowerCase()));
-  const suggestions = recent
-    .filter((c) => c.chat_name && !blockedSet.has(c.chat_name.toLowerCase()))
-    .slice(0, 8);
+  const available = recent.filter(
+    (c) => c.chat_name && !blockedSet.has(c.chat_name.toLowerCase())
+  );
+
+  const matches = query
+    ? available
+      .filter((c) => c.chat_name.toLowerCase().includes(query))
+      // When searching, the loudest match first: that is the one worth blocking.
+      .sort((a, b) => b.messages - a.messages)
+      .slice(0, 12)
+    : available.slice(0, 8);
 
   return (
     <section className="panel-block">
@@ -75,7 +94,8 @@ export default function BlockedChats({ mode, onError }) {
               className="grow"
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              placeholder="Name or number to block…"
+              placeholder="Search a chat, or type a name or number…"
+              autoComplete="off"
             />
             <button className="btn primary" type="submit" disabled={!value.trim()}>
               Block
@@ -95,11 +115,15 @@ export default function BlockedChats({ mode, onError }) {
             </ul>
           )}
 
-          {suggestions.length > 0 && (
+          {matches.length > 0 && (
             <>
-              <p className="hint">Recent chats — tap to block:</p>
+              <p className="hint">
+                {query
+                  ? `${matches.length} chat${matches.length === 1 ? '' : 's'} match — tap to block:`
+                  : 'Recent chats — tap to block:'}
+              </p>
               <ul className="chip-list">
-                {suggestions.map((c) => (
+                {matches.map((c) => (
                   <li key={c.chat_id}>
                     <button className="chip ghost" onClick={() => add(c.chat_name)}>
                       {c.chat_name} <span className="chip-count">{c.messages}</span>
@@ -108,6 +132,18 @@ export default function BlockedChats({ mode, onError }) {
                 ))}
               </ul>
             </>
+          )}
+
+          {/*
+            * Nothing matched, which is not a dead end: the name is still
+            * blockable. A chat that has never sent a message is not on this
+            * list and is exactly the one you would want to block in advance.
+            */}
+          {query && matches.length === 0 && (
+            <p className="hint">
+              No chat on record matches “{value.trim()}”. Press <b>Block</b> to block that
+              name anyway — anything containing it is then never read.
+            </p>
           )}
         </div>
       )}
