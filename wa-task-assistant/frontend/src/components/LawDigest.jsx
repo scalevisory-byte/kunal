@@ -156,7 +156,7 @@ function Panel({ onError }) {
         * message answers without inventing a single finding to demonstrate it.
         */}
       {text
-        ? <pre>{text}</pre>
+        ? <pre><Linked text={text} /></pre>
         : (
           <>
             <p className="dim">
@@ -208,7 +208,7 @@ function Panel({ onError }) {
               <strong>{d.day}</strong>
               {d.sent_at ? ' · sent' : ' · not sent'}
               {d.error ? ` · ${d.error}` : ''}
-              <pre>{d.text}</pre>
+              <pre><Linked text={d.text} /></pre>
             </div>
           ))}
         </details>
@@ -239,4 +239,28 @@ function status(state, today) {
   const now = new Date();
   const passed = now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
   return passed ? 'Due — building shortly' : `Runs at ${state.settings.time}`;
+}
+
+/**
+ * The digest, with its sources reachable.
+ *
+ * Every line ends in the article it came from, and until now those were plain
+ * characters in a monospace block - the whole point of a digest is that you can
+ * go and read the one line that matters, and that meant copying a URL by hand.
+ *
+ * Built as elements rather than injected as HTML: this text is written by a
+ * model summarising somebody else's feed, and none of it is ever trusted as
+ * markup. Only http and https become links, and each opens in its own tab with
+ * no handle back to this page.
+ */
+function Linked({ text }) {
+  const parts = String(text ?? '').split(/(https?:\/\/[^\s<>"')\]]+)/g);
+  return parts.map((part, index) =>
+    /^https?:\/\//.test(part)
+      ? (
+        <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="digest-link">
+          {part}
+        </a>
+      )
+      : part);
 }

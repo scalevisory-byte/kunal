@@ -4095,3 +4095,6 @@ button.due:hover { background: var(--raised); }
   .quiet-msgs li { grid-template-columns: 1fr auto; }
   .qm-body { grid-column: 1 / -1; white-space: normal; }
 }
+/* A source in the digest is meant to be opened, not copied out by hand. */
+.digest-link { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.digest-link:hover { color: var(--accent); }

@@ -887,6 +887,33 @@ export async function handleMessage(message) {
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
     if (message.isStatus) return drop('status');
 
+    /*
+     * Which chat this is, from the id alone.
+     *
+     * On a message he sent, `message.from` is his own account and `message.to`
+     * is the chat - so a blocked chat tested against `from` was tested against
+     * himself, and his own end of it was kept.
+     */
+    const fallbackChatId = (message.fromMe ? message.to : message.from) || message.from || null;
+
+    /*
+     * The first of two blocklist checks, and the cheap one.
+     *
+     * Everything below this line can cost money before a message is even
+     * stored: a photo is downloaded and read, a voice note is sent to a
+     * transcription service. A chat that is never going to be kept should not
+     * pay for either, so what can be tested from the message alone - the id,
+     * and the name WhatsApp attaches to it - is tested first.
+     *
+     * It is not enough on its own: the name that finally goes on the row can
+     * come from the contact or from a group lookup, neither of which has
+     * happened yet. That is what the second check, below, is for.
+     */
+    if (isBlockedChat({ chatName: message._data?.notifyName, chatId: fallbackChatId })) {
+      state.blockedCount += 1;
+      return drop('blocked');
+    }
+
     const body = (message.body || '').trim();
 
     /*
@@ -936,7 +963,6 @@ export async function handleMessage(message) {
      * The id also has to come from the right end. On a message he sent,
      * `message.from` is his own account and `message.to` is the chat.
      */
-    const fallbackChatId = (message.fromMe ? message.to : message.from) || message.from || null;
     const chatId = chat?.id?._serialized ?? fallbackChatId ?? 'unknown';
     const isGroup = String(chatId).endsWith('@g.us') || Boolean(chat?.isGroup);
     if (!chat) state.chatLookupFailures += 1;
@@ -964,13 +990,23 @@ export async function handleMessage(message) {
       || (isGroup && message.author ? phoneFromWid(message.author) : null)
       || null;
 
-    // Blocked chats are dropped before anything is stored or sent to the API.
+    /*
+     * The second check: the name the row would actually be stored under.
+     *
+     * This read `chat?.name` alone, and `getChat()` fails often enough - a
+     * Meta-hosted business chat, a contact that will not resolve - that a
+     * message the row would happily file under "CYBER CHATHAN" was tested
+     * against undefined and kept. Reported exactly that way: blocked, and
+     * still arriving.
+     *
+     * So it now tests everything the row is built from - the chat's name, the
+     * sender's, and the id at the right end - because a blocklist that only
+     * matches when WhatsApp is feeling co-operative is not a blocklist.
+     */
+    const blockAgainst = [chat?.name, contactName].filter(Boolean);
     if (
-      isBlockedChat({
-        chatName: chat?.name,
-        chatId: chat?.id?._serialized ?? message.from,
-        contactNumber: contact?.number,
-      })
+      blockAgainst.some((name) => isBlockedChat({ chatName: name, chatId, contactNumber: contact?.number }))
+      || isBlockedChat({ chatId, contactNumber: contact?.number })
     ) {
       state.blockedCount += 1;
       return drop('blocked');
