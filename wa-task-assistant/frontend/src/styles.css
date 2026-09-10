@@ -3976,3 +3976,35 @@ button.due:hover { background: var(--raised); }
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
 }
+
+/*
+ * The law digest panel, inside the briefing preview's frame.
+ *
+ * Same shell as the other two previews, with two things they do not have: a
+ * line naming the sources (a digest is only worth what it read) and the earlier
+ * days, folded away. Kept in one frame rather than given a section of its own,
+ * because it is the same kind of thing - a message the app sends you.
+ */
+.briefing-preview > small.dim,
+.briefing-preview > p.dim {
+  display: block; padding: 10px 12px; margin: 0;
+  font-size: .74rem; line-height: 1.5; color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.digest-past { border-top: 1px solid var(--line); font-size: .76rem; }
+.digest-past > summary {
+  padding: 9px 12px; cursor: pointer; color: var(--muted);
+  list-style: none; user-select: none;
+}
+.digest-past > summary::-webkit-details-marker { display: none; }
+.digest-past > summary::before { content: "▸ "; }
+.digest-past[open] > summary::before { content: "▾ "; }
+.digest-past > summary:hover { color: var(--brand); }
+.digest-past > div { padding: 0 12px 8px; color: var(--muted); }
+.digest-past > div strong { color: var(--text-2); }
+.digest-past pre { max-height: 220px; padding: 6px 0 0; }
+.digest-failed {
+  margin: 0; padding: 10px 12px; border-top: 1px solid var(--line);
+  font-size: .76rem; line-height: 1.5; color: var(--danger);
+  background: var(--danger-wash, transparent);
+}

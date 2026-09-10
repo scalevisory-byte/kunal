@@ -10,7 +10,7 @@ import { requireAuth, authEnabled } from './auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { systemRouter } from './routes/system.js';
 import {
-  attentionRouter, notificationsRouter, settingsRouter, briefingRouter,
+  attentionRouter, notificationsRouter, settingsRouter, briefingRouter, lawDigestRouter,
 } from './routes/followups.js';
 import { historyRouter } from './routes/history.js';
 import { delegationRouter } from './routes/delegation.js';
@@ -89,6 +89,7 @@ export function createServer() {
   app.use('/api/attention', requireAuth, attentionRouter);
   app.use('/api/history', requireAuth, historyRouter);
   app.use('/api/briefing', requireAuth, briefingRouter);
+  app.use('/api/law-digest', requireAuth, lawDigestRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
   app.use('/api/scheduling-settings', requireAuth, settingsRouter);
   app.use('/api', requireAuth, systemRouter);

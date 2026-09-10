@@ -12,6 +12,9 @@ import {
   buildWeeklySummary, maybeSendWeekly, localWeek,
 } from '../briefing.js';
 import { briefingFor, recentBriefings, engineOverview } from '../scheduling.js';
+import {
+  maybeSendLawDigest, buildDigest, digestFor, recentDigests, feeds, digestKey,
+} from '../law-digest.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
@@ -112,6 +115,53 @@ briefingRouter.get('/weekly', (req, res) => {
 briefingRouter.post('/weekly/run', async (req, res, next) => {
   try {
     res.json(await maybeSendWeekly({ force: true }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------- law digest ---------------- */
+
+export const lawDigestRouter = Router();
+
+/**
+ * What is stored, and nothing more.
+ *
+ * The briefing's preview is free - it reads tasks already in the database - so
+ * it is built on every page load. This one costs an API call and five network
+ * fetches, so opening Settings must never trigger it: the page shows the digest
+ * that was last built, and building a new one is a button.
+ */
+lawDigestRouter.get('/', (req, res) => {
+  const day = localDay();
+  res.json({
+    day,
+    today: digestFor(day),
+    recent: recentDigests(7),
+    sent: briefingFor(digestKey()),
+    sources: feeds().map((f) => f.name),
+    settings: {
+      on: getSettings().lawDigest,
+      time: getSettings().lawDigestTime,
+    },
+  });
+});
+
+/** Fetch and summarise now, without sending: what today's message would say. */
+lawDigestRouter.post('/preview', async (req, res, next) => {
+  try {
+    res.json(await buildDigest());
+  } catch (err) {
+    // A feed being unreachable is the expected failure here and is the user's
+    // to see, not a 500 with the detail hidden in the server log.
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+/** Builds it and sends it to the linked account's own chat, now. */
+lawDigestRouter.post('/run', async (req, res, next) => {
+  try {
+    res.json(await maybeSendLawDigest({ force: true }));
   } catch (err) {
     next(err);
   }

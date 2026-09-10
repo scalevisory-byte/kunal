@@ -135,6 +135,14 @@ const DEFAULTS = {
   weeklySummary: false,
   weeklyDay: 0,                     // 0 = Sunday, matching localParts()
   weeklyTime: '20:00',
+  /*
+   * The morning law digest: GST, Income Tax, PF/ESI/PT, ROC and case law, read
+   * out of the tax feeds. Off by default because it is the one scheduled thing
+   * here that costs money every single day whether or not anything happened -
+   * roughly a rupee or two - so it is switched on deliberately.
+   */
+  lawDigest: false,
+  lawDigestTime: '08:00',           // in the configured timezone
   // Claude reads photos as well as text. Off by default: a picture costs
   // roughly a page of tokens, and most photos in a personal chat are forwards.
   readImages: false,            // in the configured timezone

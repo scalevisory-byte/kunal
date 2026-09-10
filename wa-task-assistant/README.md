@@ -205,6 +205,43 @@ rather than a second thing to get right.
 The breakdown adds up to the total — tasks finished with no deadline are counted as
 "without a deadline" rather than quietly disappearing between on time and late.
 
+### The daily law digest
+
+One WhatsApp message each morning for the Scale Visory side of the desk: GST, Income Tax /
+TDS, PF-ESI-PT, ROC / MCA and any case law worth knowing, in five Hinglish lines, with a
+"Client ko batao" line when something has a date on it. Off by default — it is the one
+scheduled thing here that costs money every day whether or not anything was published, so
+it is switched on deliberately in **Settings → Reminders & follow-ups**.
+
+It reads five TaxGuru category feeds (Income Tax, GST, Company Law, Corporate/Labour,
+Finance) over the last 26 hours, drops anything two categories both carry, and asks Claude
+for the five lines. Every call is written to `api_usage`, so it appears in **AI Usage**
+beside the extractor rather than as a surprise on the Anthropic bill. Roughly ₹1–2 a day.
+
+Three things are deliberate:
+
+- **It goes to your own chat and nowhere else.** The script this grew out of took a
+  recipient number, which is one typo away from messaging a client every morning.
+- **"Koi naya update nahi" is only ever said when the feeds actually answered.** If none of
+  them could be read the digest fails, loudly, and Settings says which ones and why. A
+  green tick on a morning when the network was down is worse than no message at all.
+- **One per day is a claim in the database** — the same `briefings` claim the daily
+  briefing uses, under a `law:` key. A restart, a retry, a second worker or a *Send now*
+  all find the day taken. A failed attempt retries at most three times.
+
+The digest text is kept in `law_digests`, not just the fact that one was sent: once the
+message has gone, that text is the only copy. So Settings shows this morning's and the
+last week's, and a digest built while WhatsApp was down is still readable rather than paid
+for twice.
+
+Sources can be changed without a deploy: `LAW_FEEDS="Income Tax|https://…/feed/,GST|https://…/feed/"`.
+
+**Not verified against the live feeds.** taxguru.in is not reachable from the environment
+this was written in and there is no API key here, so the feed reading, the summary and the
+send are all proved against stubs (`backend/tests/lawdigest.test.mjs`). What *has* been
+run end to end is the failure path: with the feeds unreachable the app reports exactly
+which ones failed and sends nothing.
+
 ### Reminders at a specific time
 
 A task can also carry `remind_at` — a single reminder at a stated moment, separate from
@@ -357,6 +394,9 @@ set. `/healthz` is always open.
 | POST | `/api/briefing/run` | Send the briefing now |
 | GET | `/api/briefing/weekly` | The week's review, same shape |
 | POST | `/api/briefing/weekly/run` | Send the weekly review now |
+| GET | `/api/law-digest` | The stored law digests, the sources, whether today's has gone |
+| POST | `/api/law-digest/preview` | Fetch the feeds and write today's digest **without sending** |
+| POST | `/api/law-digest/run` | Build it and send it to your own chat now |
 | GET | `/api/scheduling-settings` | Reminder, briefing and follow-up settings |
 | PATCH | `/api/scheduling-settings` | Change them |
 | GET | `/api/auth-state` | **Unauthenticated.** Whether a password is required at all |
@@ -409,6 +449,7 @@ session keeps receiving messages even when the phone is offline.
    | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | from `npx web-push generate-vapid-keys` |
    | `VAPID_SUBJECT` | `mailto:you@example.com` |
    | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` (already set in the image) |
+   | `LAW_FEEDS` | optional — `Name\|url` pairs, comma separated, to change the law-digest sources |
 
 5. Deploy, open the URL, unlock with the password, and scan the QR shown on the dashboard.
 6. Confirm the pipeline: send yourself a WhatsApp message like *"please send the GST invoice to

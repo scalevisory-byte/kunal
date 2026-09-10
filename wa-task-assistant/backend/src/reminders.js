@@ -27,6 +27,7 @@ import { materialiseDue, ruleForTask } from './recurring.js';
 import { dueNoteReminders, claimNoteReminder } from './notes.js';
 import { dueLeadReminders, claimLeadReminder } from './leads.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
+import { maybeSendLawDigest } from './law-digest.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -216,6 +217,16 @@ export async function runReminderEngine({ now = new Date() } = {}) {
     return { sent: false };
   });
   /*
+   * The law digest rides the same tick for the same reason, and is claimed the
+   * same way. It reaches the network and the model, so a failure here is caught
+   * exactly like the two above: the engine's own work must not be skipped
+   * because a feed was down.
+   */
+  const lawDigest = await maybeSendLawDigest({ now }).catch((err) => {
+    log.error('Law digest:', err?.message || err);
+    return { sent: false };
+  });
+  /*
    * Monthly deadlines become real tasks before anything else runs, so a task
    * created today is scheduled by the very same tick rather than waiting for
    * the next one. Creating one is claimed per month, so this is safe to call
@@ -308,6 +319,7 @@ export async function runReminderEngine({ now = new Date() } = {}) {
   return {
     sent, missed, planned, recurring: recurring.length, notes, leads,
     briefing: Boolean(briefing?.sent), weekly: Boolean(weekly?.sent),
+    lawDigest: Boolean(lawDigest?.sent),
   };
 }
 

@@ -260,6 +260,11 @@ export const api = {
   runBriefing: () => request('/briefing/run', { method: 'POST' }),
   weeklySummary: () => request('/briefing/weekly'),
   runWeekly: () => request('/briefing/weekly/run', { method: 'POST' }),
+
+  lawDigest: () => request('/law-digest'),
+  /* Fetches the feeds and pays for a summary, so it is only ever a button. */
+  previewLawDigest: () => request('/law-digest/preview', { method: 'POST' }),
+  runLawDigest: () => request('/law-digest/run', { method: 'POST' }),
   authState: () => request('/auth-state'),
 
   /**
