@@ -15,6 +15,9 @@ import { briefingFor, recentBriefings, engineOverview } from '../scheduling.js';
 import {
   maybeSendLawDigest, buildDigest, digestFor, recentDigests, feeds, digestKey, messageShape,
 } from '../law-digest.js';
+import {
+  CATEGORY_GROUPS, listUpdates, getUpdate, markUpdate, updateCounts, groupCounts, clientMessage,
+} from '../law-updates.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
@@ -140,6 +143,8 @@ lawDigestRouter.get('/', (req, res) => {
     recent: recentDigests(7),
     sent: briefingFor(digestKey()),
     sources: feeds().map((f) => f.name),
+    counts: updateCounts('tax'),
+    groups: CATEGORY_GROUPS.map((g) => ({ ...g, count: groupCounts('tax')[g.key] || 0 })),
     // The empty lines the model is asked to fill, so the page can show what a
     // digest looks like before one has been paid for.
     shape: messageShape(),
@@ -148,6 +153,65 @@ lawDigestRouter.get('/', (req, res) => {
       time: getSettings().lawDigestTime,
     },
   });
+});
+
+/**
+ * The updates themselves, filtered.
+ *
+ * Everything is a query parameter and everything is optional, so the page can
+ * ask for exactly what is on screen without the server knowing anything about
+ * the shape of the page.
+ */
+lawDigestRouter.get('/updates', (req, res) => {
+  const q = req.query;
+  const { updates, total } = listUpdates({
+    module: 'tax',
+    group: q.group || null,
+    category: q.category || null,
+    priority: q.priority || null,
+    source: q.source || null,
+    status: q.status || null,
+    important: q.important === '1' || q.important === 'true',
+    docType: q.docType || null,
+    deadlinesOnly: q.deadlines === '1' || q.deadlines === 'true',
+    when: q.when || null,
+    from: q.from || null,
+    to: q.to || null,
+    q: q.q || null,
+    limit: q.limit,
+    offset: q.offset,
+  });
+  res.json({
+    updates,
+    total,
+    counts: updateCounts('tax'),
+    groups: CATEGORY_GROUPS.map((g) => ({ ...g, count: groupCounts('tax')[g.key] || 0 })),
+  });
+});
+
+/** Reviewed, starred, archived - the marks a team puts on a list like this. */
+lawDigestRouter.patch('/updates/:id', (req, res) => {
+  const updated = markUpdate(req.params.id, {
+    status: req.body?.status,
+    important: req.body?.important,
+    reviewedBy: req.body?.reviewedBy,
+  });
+  if (!updated) return res.status(404).json({ error: 'not found' });
+  res.json({ update: updated });
+});
+
+/**
+ * A message about one update, ready to send on.
+ *
+ * Assembled from the stored row, not from a second AI call: the facts are
+ * already recorded, and asking a model to re-word a legal fact is asking for a
+ * chance to get it wrong. It names no client and attaches to none.
+ */
+lawDigestRouter.get('/updates/:id/message', (req, res) => {
+  const update = getUpdate(req.params.id);
+  if (!update) return res.status(404).json({ error: 'not found' });
+  const channel = req.query.channel === 'email' ? 'email' : 'whatsapp';
+  res.json({ channel, text: clientMessage(update, channel) });
 });
 
 /** Fetch and summarise now, without sending: what today's message would say. */

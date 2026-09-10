@@ -907,9 +907,10 @@ export default function App() {
                 <div>
                   <h2>Law updates</h2>
                   <p>
-                    One message each morning: GST, Income Tax / TDS, PF-ESI-PT, ROC and any
-                    case law worth knowing, read off the tax feeds and written for clients.
-                    It goes to your own WhatsApp chat and nowhere else.
+                    Tax and compliance: GST, Income Tax / TDS, MCA / ROC, PF-ESI-PT and the
+                    case law that matters, read off the feeds each morning. The digest is
+                    the day in one WhatsApp message, to your own chat and nowhere else;
+                    below it is every update it was built from, kept as a record.
                   </p>
                 </div>
               </div>

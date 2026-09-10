@@ -21,10 +21,13 @@
  *      the day taken.
  */
 import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { db, recordUsage } from './db.js';
 import { fetchFeed } from './feeds.js';
+import { CATEGORIES, saveUpdate, composeDigest, listUpdates } from './law-updates.js';
 import {
   getSettings, localParts, claimBriefing, recordBriefingSent, recordBriefingFailed, briefingFor,
 } from './scheduling.js';
@@ -40,11 +43,30 @@ import { sendMessage, reminderChatId, state } from './whatsapp.js';
  * source can be added or dropped without a deploy of new code.
  */
 export const DEFAULT_FEEDS = [
+  // Read first, and known to work: these are what the digest has been built
+  // from since it shipped.
   { name: 'Income Tax', url: 'https://taxguru.in/income-tax/feed/' },
   { name: 'GST', url: 'https://taxguru.in/goods-and-service-tax/feed/' },
   { name: 'Company Law', url: 'https://taxguru.in/company-law/feed/' },
   { name: 'Corporate / Labour', url: 'https://taxguru.in/corporate-law/feed/' },
   { name: 'SEBI / RBI / Finance', url: 'https://taxguru.in/finance/feed/' },
+
+  /*
+   * The regulators' own feeds.
+   *
+   * An article about a circular and the circular are not the same thing, and
+   * the page marks them differently - a link to rbi.org.in is an official
+   * source, a link to a write-up of it is a secondary one. So these are read
+   * as well.
+   *
+   * They have NOT been reached from the machine this was written on (no route
+   * to them here), so treat the URLs as unproven: a feed that does not answer
+   * is reported by name on the page and costs nothing else. Replace or drop
+   * them with LAW_FEEDS if one turns out to be wrong.
+   */
+  { name: 'RBI', url: 'https://www.rbi.org.in/pressreleases_rss.xml' },
+  { name: 'SEBI', url: 'https://www.sebi.gov.in/sebirss.xml' },
+  { name: 'PIB — Finance Ministry', url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3' },
 ];
 
 export function feeds() {
@@ -193,48 +215,83 @@ export const dateLabel = (now = new Date()) =>
     timeZone: config.timezone, day: '2-digit', month: 'short', year: 'numeric',
   });
 
-const SYSTEM_PROMPT = `Tum ek Indian CA firm (Scale Visory, Gujarat) ke liye daily compliance digest banate ho.
-Clients: small aur medium businesses, proprietors, Pvt Ltd companies.
-
-Diye gaye articles me se SIRF wahi lo jo naya rule, notification, circular, due date
-ya important court ruling hai aur jo chhote-medium clients ko affect karta hai.
-General articles, opinion pieces aur "what is" type basic content chhod do.
-
-Rules:
-- Hinglish (Roman Hindi) me likho, WhatsApp ke liye.
-- Har line zyada se zyada 25 shabd.
-- Section ka naam mat badlo.
-- Line ke end me source link daalo jab available ho.
-- Jo baat articles me nahi hai wo mat likho. Kuch na mile to us line par
-  "koi naya update nahi" likho - guess mat karo.
-- Koi intro, koi disclaimer, koi extra text nahi.`;
-
 /*
- * The five headings, written once.
+ * What one article has to be turned into.
  *
- * They are both what the model is told to produce and what the dashboard shows
- * when no digest has been built yet - so a reader can see the shape of the
- * message before paying for one. Two copies of this list would drift, and the
- * page would then promise a line the prompt never asks for.
+ * Every field is either in the article or empty. The prompt says so and the
+ * schema makes the empty case cheap to express, because the failure that
+ * matters here is not a missing field - it is a confident sentence about a
+ * deadline nobody announced.
  */
-const SECTIONS = [
-  { label: 'GST', ask: '<1 line, ya "koi naya update nahi">' },
-  { label: 'Income Tax / TDS', ask: '<1 line, ya "koi naya update nahi">' },
-  { label: 'PF / ESI / PT / Labour', ask: '<1 line, ya "koi naya update nahi">' },
-  { label: 'ROC / MCA', ask: '<1 line, ya "koi naya update nahi">' },
-  {
-    label: 'Case law',
-    ask: '<1 line agar koi important HC/SC/ITAT ruling hai, warna ye line hata do>',
-  },
-];
+const UpdateSchema = z.object({
+  updates: z.array(
+    z.object({
+      source_index: z.number().describe('Index of the article this came from.'),
+      category: z.string().describe(
+        `Exactly one of: ${CATEGORIES.join(' | ')}`
+      ),
+      title: z.string().describe('The update in one line, max ~90 characters.'),
+      summary: z.string().describe('Two sentences at most: what a professional needs to know.'),
+      what_changed: z.string().describe('The change itself. Empty if the article does not say.'),
+      previous_position: z.string().describe('What the rule was before, only if the article states it.'),
+      new_position: z.string().describe('What the rule is now, only if the article states it.'),
+      applies_to: z.string().describe(
+        'Who it generally applies to - "companies with turnover above X", "all GST registrants". Never a named client.'
+      ),
+      action_required: z.string().describe('What has to be done, if the article says. Empty otherwise.'),
+      effective_date: z.string().describe('YYYY-MM-DD if the article states one. Empty otherwise.'),
+      deadline: z.string().describe('YYYY-MM-DD if the article states a due date. Empty otherwise.'),
+      deadline_confirmed: z.boolean().describe(
+        'True only when the article itself states the deadline. False if you inferred or assumed it.'
+      ),
+      doc_type: z.string().describe('notification | circular | order | judgment | press release | news | empty'),
+      doc_number: z.string().describe('The notification / circular / order number, exactly as written. Empty if none.'),
+      priority: z.string().describe(
+        'critical for a deadline or a rule taking effect now; important for a real change; general otherwise.'
+      ),
+      ai_explanation: z.string().describe(
+        'Plain-language explanation in this exact shape, one line each, skipping any line the article cannot answer:\n'
+          + 'WHAT HAPPENED?\nWHAT CHANGED?\nEFFECTIVE FROM?\nWHO DOES IT GENERALLY APPLY TO?\n'
+          + 'WHAT ACTION IS REQUIRED?\nDEADLINE?\nSOURCE?'
+      ),
+    })
+  ),
+});
+
+const SYSTEM_PROMPT = `You read Indian tax and compliance articles for a CA firm (Scale Visory,
+Gujarat) whose clients are small and medium businesses, proprietors and private companies.
+
+Keep only what is a real development: a notification, a circular, an order, a rule change, a
+due date, a rate or threshold change, a new form, or a judgment that changes how something is
+done. Drop opinion pieces, explainers, "what is GST" articles, course advertisements and
+listicles.
+
+Absolute rules, because this is legal information:
+- Write nothing the article does not say. An empty field is correct; a plausible sentence is not.
+- Never invent a notification number, a section, a date or a deadline.
+- deadline_confirmed is true ONLY when the article states the date itself.
+- Copy notification and circular numbers, and section numbers, exactly as printed.
+- Use the source's own words for the legal position; do not restate a holding more strongly
+  than the article does.
+- Plain professional English. No greetings, no disclaimers, no marketing.
+- One entry per development. If two articles cover the same notification, return it once.`;
 
 const heading = (now) => `📋 *Law Update – ${dateLabel(now)}*`;
 
-const template = (now) => `${heading(now)}
-
-${SECTIONS.map((s) => `*${s.label}:* ${s.ask}`).join('\n')}
-
-⚠️ *Client ko batao:* <agar koi action ya due date hai to 1 line, warna "aaj kuch nahi">`;
+/*
+ * The five sections the WhatsApp message is written in.
+ *
+ * They live in law-updates.js now, because the message is composed from stored
+ * rows rather than written by the model in one go - but the shape a reader sees
+ * has not changed, and this is still the only place it is described.
+ */
+const SECTIONS = [
+  { label: 'GST' },
+  { label: 'Income Tax / TDS' },
+  { label: 'MCA / ROC' },
+  { label: 'PF / ESI / Labour' },
+  { label: 'Case law' },
+];
 
 /**
  * The shape of the message, with the lines left blank.
@@ -254,26 +311,29 @@ export const NOTHING_NEW = (now = new Date()) =>
   `📋 *Law Update – ${dateLabel(now)}*\n\nAaj koi naya notification / circular nahi aaya. ✅`;
 
 /**
- * The articles, as five lines. Every call is measured into `api_usage`, so this
- * shows up in the AI Usage page beside the extractor rather than as a surprise
- * on the Anthropic bill.
+ * The articles, as structured updates. One call, measured into `api_usage`.
+ *
+ * Returns rows ready for `saveUpdate` - the source link and name come from the
+ * article the model was given rather than from the model, so a hallucinated URL
+ * cannot become a citation.
  */
-export async function summarise(items, { now = new Date() } = {}) {
-  if (!items.length) return null;
+export async function extractUpdates(items, { now = new Date() } = {}) {
+  if (!items.length) return [];
 
   const articles = items
     .map((item, index) =>
-      `${index + 1}. [${item.category}] ${item.title}\n   ${item.summary}\n   ${item.link}`)
+      `${index}. [${item.category}] ${item.title}\n   ${item.summary}\n   ${item.link}`)
     .join('\n');
 
-  const response = await anthropic().messages.create({
+  const response = await anthropic().messages.parse({
     model: config.model,
-    max_tokens: 1200,
+    max_tokens: 8000,
     system: SYSTEM_PROMPT,
     messages: [{
       role: 'user',
-      content: `Output bilkul is format me do:\n\n${template(now)}\n\nARTICLES:\n${articles}`,
+      content: `Today is ${dateLabel(now)}. Read these ${items.length} articles and return the real developments.\n\nARTICLES:\n${articles}`,
     }],
+    output_config: { format: zodOutputFormat(UpdateSchema, 'law_updates') },
   });
 
   const usage = response.usage || {};
@@ -288,16 +348,24 @@ export async function summarise(items, { now = new Date() } = {}) {
     tasks: 0,
   });
 
-  const text = (response.content || [])
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n')
-    .trim();
-
   if (response.stop_reason === 'max_tokens') {
-    log.warn('Law digest: the summary was cut off at the token ceiling.');
+    log.warn('Law digest: the reply was cut off at the token ceiling; some updates may be missing.');
   }
-  return text || null;
+
+  const parsed = response.parsed_output?.updates ?? [];
+  return parsed.map((u) => {
+    // The article is the citation. The model is asked which one it read, not
+    // for a link - a link it wrote itself is a link nobody can check.
+    const article = items[u.source_index] || null;
+    return {
+      ...u,
+      day: localDay(now),
+      published_at: article?.published || null,
+      source_url: article?.link || null,
+      source_name: article?.category || null,
+      model: config.model,
+    };
+  });
 }
 
 /**
@@ -315,11 +383,32 @@ export async function buildDigest({ now = new Date(), fetchImpl } = {}) {
     throw new Error(`no law feed could be read (${tried} tried) — ${why}`);
   }
 
-  const summary = items.length ? await summarise(items, { now }) : null;
-  const text = summary || NOTHING_NEW(now);
   const day = localDay(now);
-  saveDigest(day, { text, items: items.length, sources });
-  return { day, text, items: items.length, sources, summarised: Boolean(summary) };
+  let stored = 0;
+  let duplicates = 0;
+
+  const extracted = items.length ? await extractUpdates(items, { now }) : [];
+  for (const update of extracted) {
+    // A notification carried by three feeds is one notification. The store
+    // decides that, by fingerprint, so a re-run adds nothing and loses nothing.
+    const { created } = saveUpdate(update);
+    if (created) stored += 1;
+    else duplicates += 1;
+  }
+
+  const digest = composeDigest(day, { heading: heading(now), nothingNew: NOTHING_NEW(now) });
+  saveDigest(day, { text: digest.text, items: digest.count, sources });
+
+  return {
+    day,
+    text: digest.text,
+    items: digest.count,
+    read: items.length,
+    stored,
+    duplicates,
+    sources,
+    summarised: digest.count > 0,
+  };
 }
 
 /* ---------------- sending ---------------- */

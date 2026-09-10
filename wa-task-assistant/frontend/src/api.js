@@ -262,6 +262,18 @@ export const api = {
   runWeekly: () => request('/briefing/weekly/run', { method: 'POST' }),
 
   lawDigest: () => request('/law-digest'),
+  /* The updates behind the digest: filtered server-side, so one page of rows. */
+  lawUpdates: (filters = {}) => {
+    const query = Object.entries(filters)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false)
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request(`/law-digest/updates${query ? `?${query}` : ''}`);
+  },
+  markLawUpdate: (id, patch) =>
+    request(`/law-digest/updates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  lawUpdateMessage: (id, channel = 'whatsapp') =>
+    request(`/law-digest/updates/${id}/message?channel=${channel}`),
   /* Fetches the feeds and pays for a summary, so it is only ever a button. */
   previewLawDigest: () => request('/law-digest/preview', { method: 'POST' }),
   runLawDigest: () => request('/law-digest/run', { method: 'POST' }),

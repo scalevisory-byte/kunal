@@ -4150,3 +4150,105 @@ button.due:hover { background: var(--raised); }
   .digest-row { grid-template-columns: 1fr; gap: 2px; }
   .digest-row.action { margin: 6px 0 0; }
 }
+
+/*
+ * Law updates: the records behind the digest.
+ *
+ * Same furniture as the task list - hairline rows, a quiet meta line, nothing
+ * inside a card inside a card. A row is scannable in one line (priority,
+ * heading, where it came from, any deadline) and opens to everything recorded.
+ */
+.lawupd { margin-top: 26px; }
+.lu-controls {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin: 0 0 10px;
+}
+.lu-controls.second { margin-bottom: 14px; }
+.lu-search { flex: 1 1 260px; max-width: 420px; }
+.lu-search input { width: 100%; }
+.lu-selects { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lu-selects select { font-size: .78rem; padding: 4px 8px; min-height: 30px; }
+
+.lu-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.lu-item { border-bottom: 1px solid var(--line); }
+.lu-item.archived { opacity: .62; }
+.lu-head {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  background: none; border: 0; padding: 11px 2px; min-height: 0;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.lu-head:hover .lu-title { color: var(--brand); }
+.lu-dot { font-size: .8rem; line-height: 1.5; }
+.lu-main { flex: 1; min-width: 0; }
+.lu-title {
+  display: block; font-size: .88rem; font-weight: 600; line-height: 1.45; color: var(--text);
+}
+.lu-star { color: var(--warn, var(--accent)); margin-right: 5px; }
+.lu-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px;
+  font-size: .74rem; color: var(--muted);
+}
+.lu-cat { font-weight: 500; color: var(--text-2); }
+.lu-src.official { color: var(--ok, var(--brand)); }
+.lu-doc { font-family: "IBM Plex Mono", monospace; font-size: .7rem; }
+.lu-state { text-transform: uppercase; letter-spacing: .05em; font-size: .66rem; }
+.lu-deadline {
+  flex: none; text-align: right; font-size: .76rem; color: var(--warn, var(--accent));
+  white-space: nowrap;
+}
+.lu-deadline.unconfirmed { color: var(--muted); }
+.lu-deadline small { display: block; font-size: .64rem; }
+
+.lu-body { padding: 2px 2px 16px 30px; }
+.lu-summary { margin: 0 0 10px; font-size: .86rem; line-height: 1.65; max-width: 74ch; }
+.lu-facts {
+  display: grid; grid-template-columns: 170px 1fr; gap: 6px 16px;
+  margin: 0 0 12px; font-size: .82rem; line-height: 1.6;
+}
+.lu-facts dt { color: var(--muted); font-size: .74rem; }
+.lu-facts dd { margin: 0; max-width: 70ch; }
+.lu-ai { margin: 0 0 12px; }
+.lu-ai > summary { cursor: pointer; color: var(--muted); font-size: .78rem; list-style: none; }
+.lu-ai > summary::-webkit-details-marker { display: none; }
+.lu-ai > summary::before { content: "▸ "; }
+.lu-ai[open] > summary::before { content: "▾ "; }
+.lu-ai pre {
+  margin: 8px 0 4px; padding: 10px 12px; background: var(--raised); border-radius: 6px;
+  font-family: "IBM Plex Mono", monospace; font-size: .76rem; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+}
+.lu-ai small { color: var(--muted); font-size: .72rem; }
+.lu-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.lu-actions .btn { font-size: .76rem; padding: 4px 10px; min-height: 0; text-decoration: none; }
+.lu-review { margin: 10px 0 0; font-size: .74rem; color: var(--muted); }
+.lu-message {
+  margin-top: 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--raised); overflow: hidden;
+}
+.lu-message-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+}
+.lu-message-head strong { font-size: .8rem; }
+.lu-message-head span { font-size: .72rem; color: var(--muted); }
+.lu-message pre {
+  margin: 0; padding: 12px; max-height: 320px; overflow: auto;
+  font-family: "IBM Plex Mono", monospace; font-size: .76rem; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+.lu-message-foot {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+.lu-message-foot small { font-size: .72rem; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .lu-facts { grid-template-columns: 1fr; gap: 1px 0; }
+  .lu-facts dt { margin-top: 8px; }
+  .lu-body { padding-left: 4px; }
+  .lu-deadline { text-align: left; }
+  .lu-selects select { flex: 1 1 132px; }
+}
+.digest-bullets { list-style: none; margin: 0; padding: 0; }
+.digest-bullets li { position: relative; padding-left: 14px; margin: 3px 0; }
+.digest-bullets li::before { content: "•"; position: absolute; left: 0; color: var(--muted); }

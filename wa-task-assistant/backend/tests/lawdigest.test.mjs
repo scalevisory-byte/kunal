@@ -20,6 +20,19 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-law-'));
 process.env.DATA_DIR = dir;
 process.env.EXTRACTION_MODE = 'manual';
 process.env.TIMEZONE = 'Asia/Kolkata';
+/*
+ * Five named feeds, so these cases are about what the reader does with them
+ * rather than about how many sources happen to ship by default - that list
+ * grows when a regulator's own feed is added, and it must not break the tests
+ * that check de-duplication and a source being down.
+ */
+process.env.LAW_FEEDS = [
+  'Income Tax|https://feed.test/income-tax',
+  'GST|https://feed.test/gst',
+  'Company Law|https://feed.test/company',
+  'Corporate|https://feed.test/corporate',
+  'Finance|https://feed.test/finance',
+].join(',');
 
 const { db } = await import('../src/db.js');
 const S = await import('../src/scheduling.js');
@@ -47,10 +60,37 @@ const answering = (body) => async () => ok(body);
 /** No feed answers at all. */
 const refusing = async () => { throw new Error('ECONNREFUSED'); };
 
-const model = (text) => ({
+/**
+ * The extractor's stub: structured updates, the way the schema asks for them.
+ *
+ * It used to hand back a block of WhatsApp text, because that is what the model
+ * used to be asked for. The digest is composed from stored rows now, so what a
+ * stub has to produce is rows.
+ */
+const model = (...updates) => ({
   messages: {
-    create: async () => ({
-      content: [{ type: 'text', text }],
+    parse: async () => ({
+      parsed_output: {
+        updates: updates.map((u, index) => ({
+          source_index: 0,
+          category: 'GST Updates',
+          title: 'GST update',
+          summary: '',
+          what_changed: '',
+          previous_position: '',
+          new_position: '',
+          applies_to: '',
+          action_required: '',
+          effective_date: '',
+          deadline: '',
+          deadline_confirmed: false,
+          doc_type: 'notification',
+          doc_number: `TEST-${index}`,
+          priority: 'important',
+          ai_explanation: '',
+          ...u,
+        })),
+      },
       usage: { input_tokens: 900, output_tokens: 120 },
       stop_reason: 'end_turn',
     }),
@@ -59,6 +99,7 @@ const model = (text) => ({
 
 beforeEach(() => {
   db.prepare('DELETE FROM law_digests').run();
+  db.prepare('DELETE FROM law_updates').run();
   db.prepare('DELETE FROM briefings').run();
   db.prepare('DELETE FROM api_usage').run();
   wa.state.status = 'disconnected';
@@ -136,7 +177,7 @@ describe('turning it on once', () => {
 describe('the shape shown before anything is built', () => {
   it('is the headings the model is asked for, with nothing filled in', () => {
     const shape = law.messageShape(NOW);
-    for (const heading of ['GST', 'Income Tax / TDS', 'PF / ESI / PT / Labour', 'ROC / MCA', 'Case law', 'Client ko batao']) {
+    for (const heading of ['GST', 'Income Tax / TDS', 'MCA / ROC', 'PF / ESI / Labour', 'Case law', 'Client ko batao']) {
       assert.ok(shape.includes(`*${heading}:*`), `${heading} is offered`);
     }
     // Nothing invented: every line ends at the ellipsis, so the page cannot
@@ -176,11 +217,12 @@ describe('when nothing can be read', () => {
 
 describe('the summary', () => {
   it('is written, stored and measured into api_usage', async () => {
-    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* naya circular aaya.'));
+    law.setClientForTests(model({ title: 'Naya circular aaya', summary: 'Naya circular aaya.' }));
     const out = await law.buildDigest({ now: NOW, fetchImpl: answering(feedXml('GST circular')) });
 
     assert.equal(out.summarised, true);
-    assert.match(out.text, /naya circular/);
+    assert.match(out.text, /Naya circular aaya/);
+    assert.equal(out.stored, 1, 'one row, from one article');
 
     const stored = law.digestFor(out.day);
     assert.equal(stored.text, out.text, 'kept, because the message is the only copy');
@@ -205,7 +247,7 @@ describe('sending it', () => {
 
   it('goes to the linked account and nowhere else', async () => {
     const sent = ready();
-    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* kuch naya.'));
+    law.setClientForTests(model({ title: 'Kuch naya', summary: 'Kuch naya hua hai.' }));
 
     const out = await law.maybeSendLawDigest({
       now: NOW, force: true, fetchImpl: answering(feedXml('GST notification')),
@@ -214,12 +256,12 @@ describe('sending it', () => {
     assert.equal(out.sent, true);
     assert.equal(sent.length, 1);
     assert.equal(sent[0].to, '919909993565@c.us', 'his own chat');
-    assert.match(sent[0].text, /kuch naya/);
+    assert.match(sent[0].text, /Kuch naya/);
   });
 
   it('is not sent twice on the same day', async () => {
     const sent = ready();
-    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* kuch naya.'));
+    law.setClientForTests(model({ title: 'Kuch naya', summary: 'Kuch naya hua hai.' }));
     const fetchImpl = answering(feedXml('GST notification'));
 
     S.saveSettings({ lawDigest: true, lawDigestTime: '08:00' });
@@ -242,28 +284,25 @@ describe('sending it', () => {
   });
 
   it('keeps the digest when WhatsApp is down, so it is not paid for twice', async () => {
-    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* kuch naya.'));
+    law.setClientForTests(model({ title: 'Kuch naya', summary: 'Kuch naya hua hai.' }));
     const out = await law.maybeSendLawDigest({
       now: NOW, force: true, fetchImpl: answering(feedXml('GST notification')),
     });
 
     assert.equal(out.sent, false);
     assert.equal(out.reason, 'whatsapp not connected');
-    assert.match(law.digestFor(out.day).text, /kuch naya/, 'readable in the dashboard');
+    assert.match(law.digestFor(out.day).text, /Kuch naya/, 'readable in the dashboard');
     assert.equal(law.digestFor(out.day).sent_at, null);
   });
 
   it('does not pay for a second summary when a send is retried', async () => {
     let summaries = 0;
+    const counted = model({ title: 'Kuch naya' });
     law.setClientForTests({
       messages: {
-        create: async () => {
+        parse: async (...args) => {
           summaries += 1;
-          return {
-            content: [{ type: 'text', text: '📋 *Law Update*\n\n*GST:* kuch naya.' }],
-            usage: { input_tokens: 900, output_tokens: 120 },
-            stop_reason: 'end_turn',
-          };
+          return counted.messages.parse(...args);
         },
       },
     });
@@ -285,7 +324,7 @@ describe('sending it', () => {
 
   it('sends the stored digest once the link comes back', async () => {
     const sent = ready();
-    law.setClientForTests(model('📋 *Law Update*\n\n*GST:* kuch naya.'));
+    law.setClientForTests(model({ title: 'Kuch naya', summary: 'Kuch naya hua hai.' }));
     law.saveDigest(law.digestKey(NOW).slice(4), {
       text: '📋 *Law Update*\n\n*GST:* kal ka bana hua.', items: 3, sources: [],
     });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Row, Toggle } from './SchedulingSettings.jsx';
+import LawUpdates from './LawUpdates.jsx';
 
 /**
  * The morning law digest, on its own page.
@@ -48,7 +49,7 @@ export default function LawDigest({ onError }) {
     <section className="settings">
       <Row
         label="Law update on WhatsApp"
-        note="Yesterday's notifications and circulars in five Hinglish lines, to your own chat. Costs about ₹1–2 a day in AI, whether or not anything was published."
+        note="Yesterday's notifications, circulars and rulings in one message to your own chat, grouped by area with the deadlines at the end. Costs about ₹1–2 a day in AI, whether or not anything was published."
       >
         <Toggle on={settings.lawDigest} label="Daily law digest"
           onChange={(v) => save({ lawDigest: v })} />
@@ -65,6 +66,13 @@ export default function LawDigest({ onError }) {
       </Row>
 
       <Panel onError={onError} />
+
+      {/*
+        * The digest above is the day in one message; this is everything it was
+        * built from. Same page on purpose - they are two views of one morning's
+        * reading, and splitting them would mean checking two places.
+        */}
+      <LawUpdates onError={onError} />
     </section>
   );
 }
@@ -266,18 +274,12 @@ function Digest({ text, compact = false }) {
         <div key={i} className={`digest-row ${s.tone}`}>
           <span className="digest-label">{s.label}</span>
           <span className="digest-text">
-            {s.body}
-            {s.links.map((href, n) => (
-              <a
-                key={n}
-                className="digest-source"
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {sourceName(href)} ↗
-              </a>
-            ))}
+            {s.body && <Line text={s.body} />}
+            {s.bullets.length > 0 && (
+              <ul className="digest-bullets">
+                {s.bullets.map((b, n) => <li key={n}><Line text={b} /></li>)}
+              </ul>
+            )}
           </span>
         </div>
       ))}
@@ -308,39 +310,55 @@ export function parseDigest(text) {
   const sections = [];
   const loose = [];
 
+  /*
+   * The message has three shapes of line and they have to stay in order:
+   * `*Label:* text` for a one-liner, `*Label:*` followed by `• …` bullets for a
+   * section with several, and a block heading like `🔴 *Urgent*` that owns the
+   * bullets under it. A bullet always belongs to whatever was declared last -
+   * losing that was what dropped the urgent items to the bottom of the page in
+   * the order they were never written in.
+   */
+  let current = null;
+
+  const open = (label, tone = '', body = '') => {
+    current = { label, body, bullets: [], tone };
+    sections.push(current);
+  };
+
   for (const line of lines) {
-    // The heading: bold, no label colon inside the asterisks.
-    const head = /^[^\w*]*\*([^*]+)\*[^\w]*$/.exec(line);
-    if (head && !title && !head[1].includes(':')) {
-      title = head[1].trim();
+    const bullet = /^[•\-]\s*(.+)$/.exec(line);
+    if (bullet && current) {
+      current.bullets.push(bullet[1].trim());
       continue;
     }
 
     const row = /^([^*]*)\*([^*]+?):\*\s*(.*)$/.exec(line);
     if (row) {
       const mark = row[1].trim();
-      const label = row[2].trim();
-      let body = row[3].trim();
-      const links = [];
-      body = body.replace(/https?:\/\/[^\s<>"')\]]+/g, (url) => {
-        links.push(url);
-        return '';
-      }).replace(/\s{2,}/g, ' ').trim();
-
-      sections.push({
-        label,
-        body,
-        links,
-        // "koi naya update nahi" is a real answer and should read as the quiet
-        // one; the line telling him to act on something should not.
-        tone: /^\s*(koi naya update nahi|aaj kuch nahi)\.?$/i.test(body)
+      const body = row[3].trim();
+      open(
+        row[2].trim(),
+        /^\s*(koi naya update nahi|aaj kuch nahi)\.?$/i.test(body)
           ? 'quiet'
           : mark.includes('⚠') ? 'action' : '',
-      });
+        body
+      );
+      continue;
+    }
+
+    // A heading: bold, no label colon inside the asterisks. The first one is
+    // the title of the message; a later one opens a block of bullets.
+    const head = /^([^\w*]*)\*([^*]+)\*[^\w]*$/.exec(line);
+    if (head && !head[2].includes(':')) {
+      const mark = head[1].trim();
+      const label = head[2].trim();
+      if (!title) title = label;
+      else open(label, mark.includes('🔴') ? 'action' : '');
       continue;
     }
 
     loose.push(line);
+    current = null;
   }
 
   return { title, sections, loose };
@@ -367,6 +385,8 @@ function sourceName(href) {
  * markup. Only http and https become links, and each opens in its own tab with
  * no handle back to this page.
  */
+const Line = ({ text }) => <Linked text={text} />;
+
 function Linked({ text }) {
   const parts = String(text ?? '').split(/(https?:\/\/[^\s<>"')\]]+)/g);
   return parts.map((part, index) =>
