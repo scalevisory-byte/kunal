@@ -5,10 +5,21 @@ import { api } from '../api.js';
  * Only meaningful in AI mode: names listed here are never read or stored.
  * Matching is loose, so "Mummy" also blocks "Mummy ❤️".
  */
+/**
+ * A name with the spacing and punctuation taken out.
+ *
+ * The same rule the server blocks by, so what this list shows as a match is
+ * exactly what blocking it would catch. "shubham prajapati" is filed as
+ * `shubhamprajapatis747`, and a literal search for it finds nothing - which is
+ * how five of seven blocks added in one evening never fired.
+ */
+const flatten = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
 export default function BlockedChats({ mode, onError }) {
   const [open, setOpen] = useState(false);
   const [blocked, setBlocked] = useState([]);
   const [recent, setRecent] = useState([]);
+  const [effect, setEffect] = useState([]);
   const [value, setValue] = useState('');
 
   const load = useCallback(async () => {
@@ -16,6 +27,7 @@ export default function BlockedChats({ mode, onError }) {
       const data = await api.blockedChats();
       setBlocked(data.blocked);
       setRecent(data.recent);
+      setEffect(data.effect || []);
     } catch (err) {
       onError?.(err);
     }
@@ -30,8 +42,11 @@ export default function BlockedChats({ mode, onError }) {
     const trimmed = String(pattern || '').trim();
     if (!trimmed) return;
     try {
-      setBlocked((await api.blockChat(trimmed)).blocked);
+      await api.blockChat(trimmed);
       setValue('');
+      // Reloaded rather than patched, because what matters next is what the
+      // block actually caught - and only the server can say.
+      await load();
     } catch (err) {
       onError?.(err);
     }
@@ -39,7 +54,8 @@ export default function BlockedChats({ mode, onError }) {
 
   const remove = async (id) => {
     try {
-      setBlocked((await api.unblockChat(id)).blocked);
+      await api.unblockChat(id);
+      await load();
     } catch (err) {
       onError?.(err);
     }
@@ -58,14 +74,21 @@ export default function BlockedChats({ mode, onError }) {
    * message can be blocked before it does.
    */
   const query = value.trim().toLowerCase();
-  const blockedSet = new Set(blocked.map((b) => b.pattern.toLowerCase()));
-  const available = recent.filter(
-    (c) => c.chat_name && !blockedSet.has(c.chat_name.toLowerCase())
-  );
+  /*
+   * Already-covered chats leave the list.
+   *
+   * The server marks them, because a pattern covers a chat by its rule and not
+   * by being equal to its name - "aditya" blocks "Aditya Consultancy", and
+   * offering that chat again to be blocked reads as if the first block failed.
+   */
+  const available = recent.filter((c) => c.chat_name && !c.blocked);
 
+  const flatQuery = flatten(query);
   const matches = query
     ? available
-      .filter((c) => c.chat_name.toLowerCase().includes(query))
+      .filter((c) => (flatQuery
+        ? flatten(c.chat_name).includes(flatQuery)
+        : c.chat_name.toLowerCase().includes(query)))
       // When searching, the loudest match first: that is the one worth blocking.
       .sort((a, b) => b.messages - a.messages)
       .slice(0, 12)
@@ -105,15 +128,42 @@ export default function BlockedChats({ mode, onError }) {
           </form>
 
           {blocked.length > 0 && (
-            <ul className="chip-list">
-              {blocked.map((b) => (
-                <li key={b.id} className="chip">
-                  {b.pattern}
-                  <button className="chip-x" onClick={() => remove(b.id)} aria-label={`Unblock ${b.pattern}`}>
-                    ×
-                  </button>
-                </li>
-              ))}
+            /*
+             * Each block with what it actually stopped.
+             *
+             * A bare list of names cannot answer the only question anybody asks
+             * of it - "I added these, why are the messages still coming?" - and
+             * the answer is usually that the name here is not the name the chat
+             * is filed under. Since a blocked chat is dropped before anything is
+             * stored, "nothing since" is proof, not a guess.
+             */
+            <ul className="block-list">
+              {blocked.map((b) => {
+                const e = effect.find((x) => x.id === b.id) || {};
+                const state = e.since > 0 ? 'leaking' : e.before > 0 ? 'working' : 'idle';
+                return (
+                  <li key={b.id} className={state}>
+                    <span className="bl-name">{b.pattern}</span>
+                    <span className="bl-state">
+                      {e.since > 0
+                        ? `${e.since} still arrived after you blocked it`
+                        : e.before > 0
+                          ? `nothing since — ${e.before} read before`
+                          : e.suggest
+                            ? `never matched — did you mean “${e.suggest}”?`
+                            : 'never matched a message'}
+                    </span>
+                    {e.suggest && !e.since && !e.before && (
+                      <button className="link" onClick={() => add(e.suggest)}>
+                        Block that instead
+                      </button>
+                    )}
+                    <button className="chip-x" onClick={() => remove(b.id)} aria-label={`Unblock ${b.pattern}`}>
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -146,9 +196,11 @@ export default function BlockedChats({ mode, onError }) {
             * list and is exactly the one you would want to block in advance.
             */}
           {query && matches.length === 0 && (
-            <p className="hint">
-              No chat on record matches “{value.trim()}”. Press <b>Block</b> to block that
-              name anyway — anything containing it is then never read.
+            <p className="hint warn">
+              <b>No chat on record matches “{value.trim()}”.</b> Blocking it will stop
+              nothing that is arriving now — a block only fires on the name a chat is
+              actually filed under. Search for the chat above and tap it instead. Press{' '}
+              <b>Block</b> only if you mean a chat that has not written yet.
             </p>
           )}
         </div>

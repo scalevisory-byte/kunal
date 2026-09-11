@@ -4,6 +4,7 @@ import {
   listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
+import { matchesPattern } from '../blocklist.js';
 import { state, flushNow, groupNameFor, reprocessStored } from '../whatsapp.js';
 import { repairGroupNames, groupChatIds, needsName, nameFromSiblings } from '../group-names.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
@@ -306,7 +307,31 @@ systemRouter.post('/push/unsubscribe', (req, res) => {
 /* ---------------- blocked chats ---------------- */
 
 systemRouter.get('/blocked-chats', (req, res) => {
-  res.json({ blocked: listBlockedChats(), recent: recentChats(req.query.limit) });
+  const blocked = listBlockedChats();
+  res.json({
+    blocked,
+    /*
+     * Each chat says whether it is already covered.
+     *
+     * Marked here rather than by comparing names in the page: a pattern covers
+     * a chat by the server's rule, not by being equal to its name, so a list
+     * that decided for itself would go on offering "Aditya Consultancy" to
+     * block when "aditya" already blocks it.
+     */
+    recent: recentChats(req.query.limit).map((chat) => ({
+      ...chat,
+      blocked: blocked.some((row) =>
+        matchesPattern(row.pattern, { chatName: chat.chat_name, chatId: chat.chat_id })),
+    })),
+    /*
+     * What each block has actually stopped, beside the block itself.
+     *
+     * This is where a block is added, so it is where "it is still arriving"
+     * has to be answerable. The same figures are on the AI Usage page; the
+     * question gets asked here first.
+     */
+    effect: blockEffect({ days: 30 }),
+  });
 });
 
 systemRouter.post('/blocked-chats', (req, res) => {

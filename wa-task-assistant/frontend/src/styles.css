@@ -4107,6 +4107,22 @@ button.due:hover { background: var(--raised); }
   .block-effect > li { grid-template-columns: 1fr; gap: 2px; }
 }
 
+/*
+ * A blocked chat with what it actually stopped. Three states, because a name on
+ * a list that never matched anything looks identical to one that works.
+ */
+.block-list { list-style: none; margin: 6px 0 10px; padding: 0; }
+.block-list > li {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .82rem;
+}
+.bl-name { font-weight: 600; }
+.bl-state { font-family: "IBM Plex Mono", monospace; font-size: .72rem; flex: 1 1 auto; }
+.block-list > li.leaking .bl-state { color: var(--danger); }
+.block-list > li.working .bl-state { color: var(--ok); }
+.block-list > li.idle .bl-state { color: var(--muted); }
+.hint.warn { color: var(--danger); }
+
 .quiet-senders { list-style: none; margin: 0; padding: 0; }
 .quiet-senders li {
   display: flex; align-items: baseline; gap: 8px;

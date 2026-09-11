@@ -14,6 +14,23 @@
  */
 export const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
 
+/**
+ * A name with the spacing and punctuation taken out.
+ *
+ * Typed by a person and stored by WhatsApp are two different spellings of the
+ * same chat: "shubham prajapati" is filed as `shubhamprajapatis747`, and "Sai
+ * Samarth" as "SaiSamarth". A literal substring test says no to both, so the
+ * block silently never fires and the chat goes on being read and paid for -
+ * which is exactly what happened to five of seven blocks added in one evening.
+ *
+ * Only spacing and punctuation are dropped. The letters still have to be
+ * there, in order, so this cannot start matching chats that were not meant.
+ */
+export const flatten = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/** Does this pattern name a WhatsApp chat id rather than a person? */
+const looksLikeId = (raw) => /@(c\.us|g\.us|lid|broadcast)$/i.test(raw);
+
 export function matchesPattern(pattern, { chatName, chatId, contactNumber } = {}) {
   const raw = String(pattern || '').trim();
   if (!raw) return false;
@@ -30,7 +47,21 @@ export function matchesPattern(pattern, { chatName, chatId, contactNumber } = {}
     return numbers.some((n) => n === asDigits || n.endsWith(asDigits));
   }
 
-  return name.includes(raw.toLowerCase());
+  /*
+   * A whole chat id is the one pattern that identifies a chat exactly, and it
+   * was the one that never worked: it is not all digits, so it was tested
+   * against the chat's NAME, where a chat id never appears. Blocking a group
+   * whose name WhatsApp has not resolved yet is precisely when you have only
+   * the id to go on.
+   */
+  if (looksLikeId(raw)) return String(chatId || '').toLowerCase() === raw.toLowerCase();
+
+  const flat = flatten(raw);
+  // An emoji-only pattern flattens to nothing; match it literally rather than
+  // matching everything.
+  if (!flat) return name.includes(raw.toLowerCase());
+
+  return flatten(name).includes(flat);
 }
 
 /**

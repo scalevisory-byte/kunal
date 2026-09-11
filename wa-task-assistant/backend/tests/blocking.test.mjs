@@ -23,6 +23,7 @@ process.env.TIMEZONE = 'Asia/Kolkata';
 process.env.BATCH_QUIET_SECONDS = '30';
 
 const { db, listBlockedChats, blockChat, unblockChat, blockEffect } = await import('../src/db.js');
+const { matchesPattern } = await import('../src/blocklist.js');
 const WA = await import('../src/whatsapp.js');
 
 WA.setClientForTests({ info: { wid: { _serialized: 'me@c.us' } }, getChats: async () => [] });
@@ -340,5 +341,50 @@ describe('a pattern that matched nothing', () => {
     const [row] = blockEffect({ days: 30 });
     assert.equal(row.since, 0);
     assert.equal(row.suggest, 'Sai Samarth Residency', 'one word out is why it caught nothing');
+  });
+});
+
+/*
+ * Typed by a person, stored by WhatsApp.
+ *
+ * Seven chats were blocked in one evening and five went on arriving, because a
+ * name typed with spaces does not literally contain the name WhatsApp filed it
+ * under. The letters were right; the spacing was not. This is the rule that
+ * makes a block do what the person meant by it.
+ */
+describe('how a typed name is matched', () => {
+  it('ignores spacing and punctuation on both sides', () => {
+    assert.ok(matchesPattern('shubham prajapati', { chatName: 'shubhamprajapatis747' }));
+    assert.ok(matchesPattern('saisamarth', { chatName: 'Sai Samarth Residency' }));
+    assert.ok(matchesPattern('Sai Samarth', { chatName: 'SaiSamarthResidency' }));
+    assert.ok(matchesPattern('cyber chathan', { chatName: 'CYBER CHATHAN' }));
+  });
+
+  it('still needs the letters, in order', () => {
+    assert.ok(!matchesPattern('shubham patel', { chatName: 'shubhamprajapatis747' }));
+    assert.ok(!matchesPattern('samarth sai', { chatName: 'Sai Samarth Residency' }));
+    assert.ok(!matchesPattern('Taxscan', { chatName: 'Booknfly Accounts' }));
+  });
+
+  it('keeps the loose rule that was already there', () => {
+    assert.ok(matchesPattern('Mummy', { chatName: 'Mummy ❤️ Home' }));
+  });
+
+  it('matches a whole chat id against the id, where a name never appears', () => {
+    // The case you have only an id for is a group WhatsApp has not named yet,
+    // which is exactly the one worth blocking.
+    assert.ok(matchesPattern('120363021@g.us', { chatName: 'unknown', chatId: '120363021@g.us' }));
+    assert.ok(matchesPattern('89309717786799@lid', { chatId: '89309717786799@lid' }));
+    assert.ok(!matchesPattern('120363021@g.us', { chatId: '120363099@g.us' }));
+  });
+
+  it('does not let an emoji-only pattern match everything', () => {
+    assert.ok(!matchesPattern('❤️', { chatName: 'Booknfly Accounts' }));
+    assert.ok(matchesPattern('❤️', { chatName: 'Mummy ❤️ Home' }));
+  });
+
+  it('still refuses a number too short to identify anyone', () => {
+    assert.ok(!matchesPattern('123', { contactNumber: '919912312345' }));
+    assert.ok(matchesPattern('9912312345', { contactNumber: '919912312345' }));
   });
 });
