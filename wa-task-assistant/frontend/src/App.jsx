@@ -749,6 +749,7 @@ export default function App() {
         connected={connected}
         delegation={delegation}
         leads={leadCounts}
+        duplicates={stats?.duplicates || 0}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />

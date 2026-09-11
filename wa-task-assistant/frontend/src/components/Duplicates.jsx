@@ -49,11 +49,45 @@ export default function Duplicates({ onError, onChanged, onOpen, standalone = fa
     ) : null;
   }
 
+  /*
+   * The same words, exactly.
+   *
+   * Merging a whole list at once is dangerous where the match is a word count:
+   * "Review Santosh Textile ledger" and "Review Parth Bajaj ledger" share five
+   * words out of seven and are two clients. But where the titles are character
+   * for character the same job, judgement adds nothing - and on a board of two
+   * hundred tasks, pressing a button nineteen times is why the page does not
+   * get used.
+   */
+  const flat = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const identical = groups.filter(
+    (g) => g.drop.every((d) => flat(d.title) === flat(g.keep.title))
+  );
+
   const merge = async (group) => {
     setBusy(group.keep.id);
     try {
       const res = await api.mergeDuplicates(group.keep.id, group.drop.map((t) => t.id));
       setDone((n) => n + res.merged.length);
+      await load();
+      onChanged?.();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const mergeIdentical = async () => {
+    setBusy('all');
+    try {
+      let merged = 0;
+      // One at a time, so a group that fails does not take the rest with it.
+      for (const group of identical) {
+        const res = await api.mergeDuplicates(group.keep.id, group.drop.map((t) => t.id));
+        merged += res.merged.length;
+      }
+      setDone((n) => n + merged);
       await load();
       onChanged?.();
     } catch (err) {
@@ -84,6 +118,24 @@ export default function Duplicates({ onError, onChanged, onOpen, standalone = fa
           : 'Each copy carries its own reminders, so the job gets chased once per copy. Keeping '
             + 'one archives the rest — they stay in Work History and can be restored.'}
       </p>
+
+      {identical.length > 1 && (
+        <p className="confirm-lede">
+          <button
+            type="button"
+            className="btn small"
+            disabled={busy === 'all'}
+            onClick={mergeIdentical}
+          >
+            {busy === 'all'
+              ? 'Merging…'
+              : `Merge the ${identical.length} with identical titles`}
+          </button>{' '}
+          <span className="hint">
+            Only where the words match exactly — the rest are left for you to read.
+          </span>
+        </p>
+      )}
 
       <ul>
         {groups.map((group) => (

@@ -24,7 +24,7 @@ const NAV = [
       /* Tidying up, not the day's work: it has a page rather than a block on
          the dashboard, where a run of twenty near-identical jobs buried the
          task list the page exists to show. */
-      { key: 'duplicates', label: 'Duplicates', icon: 'archive' },
+      { key: 'duplicates', label: 'Duplicates', icon: 'archive', count: 'duplicates' },
     ],
   },
   {
@@ -148,6 +148,7 @@ function NavGroup({ label, items, section, open, onToggle, onPick }) {
 /** The application's spine: where you are, and the one fact that matters below. */
 export default function Sidebar({
   section, onSection, connected, open, onClose, groups = [], delegation = null, leads = null,
+  duplicates = 0,
 }) {
   const [openGroups, setOpenGroups] = useState(readOpen);
 
@@ -199,7 +200,12 @@ export default function Sidebar({
          */
         badge: item.count === 'leads'
           ? (leads?.badge || 0)
-          : item.count ? (delegation?.[item.count] || 0) : 0,
+          // Copies are work owed twice, so the number belongs where the rest
+          // of the outstanding numbers are - not only on a page you have to
+          // already suspect something to open.
+          : item.count === 'duplicates'
+            ? duplicates
+            : item.count ? (delegation?.[item.count] || 0) : 0,
       })),
     });
   }
