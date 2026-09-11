@@ -57,7 +57,7 @@ export default function UsagePage({ onError }) {
 
   const {
     today, month, total, days, prices, usdInr,
-    byKind = [], chats = [], quiet = [], caching,
+    byKind = [], chats = [], quiet = [], blocking = [], caching,
   } = data;
   const nothingYet = total.calls === 0;
 
@@ -164,16 +164,27 @@ export default function UsagePage({ onError }) {
             </p>
           )}
 
+          {blocking.length > 0 && <BlockEffect rows={blocking} />}
+
           {chats.length > 0 && (
             <>
               <header className="section-head static second">
                 <h3>Busiest chats</h3>
-                <span className="section-count">messages read</span>
+                <span className="section-count">messages read · last 30 days</span>
               </header>
               <p className="usage-explain">
                 Every message read is a message paid for. A chat near the top with no
                 tasks beside it is cost with nothing to show for it — block it in
-                Settings and it stops being read at all.
+                Settings and it stops being read at all.{' '}
+                {/*
+                  * Said here because it is the question this list kept raising:
+                  * the figures cover thirty days, so a chat blocked yesterday
+                  * still shows what it cost before that. Whether the block is
+                  * working is a different figure, and it is above.
+                  */}
+                These are the last 30 days, so a chat you blocked yesterday still
+                shows what it cost <em>before</em> that — the panel above says
+                whether anything has arrived since.
               </p>
               <ul className="usage-list chats">
                 {chats.slice(0, 12).map((c) => (
@@ -350,3 +361,65 @@ const when = (stamp) => {
     ? ''
     : date.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 };
+
+
+/**
+ * What each block actually stopped.
+ *
+ * "I blocked these yesterday, why are they still in the list?" has two answers
+ * that look identical in the busiest-chats figures: the messages are from
+ * before the block, or the block is not working. The only figure that tells
+ * them apart is what has been read SINCE the pattern was added - in `ai` mode a
+ * blocked chat is dropped before anything is stored, so a block that works
+ * reads zero there, for ever.
+ *
+ * A pattern that matched nothing at all is the third answer, and the most
+ * common one: the name on the list is not the name the messages are filed
+ * under.
+ */
+function BlockEffect({ rows }) {
+  const leaking = rows.filter((r) => r.since > 0);
+  const working = rows.filter((r) => r.since === 0 && r.before > 0);
+  const idle = rows.filter((r) => r.since === 0 && r.before === 0);
+
+  return (
+    <>
+      <header className="section-head static second">
+        <h3>Blocked chats</h3>
+        <span className="section-count">
+          {leaking.length ? `${leaking.length} still arriving` : 'nothing getting through'}
+        </span>
+      </header>
+      <p className="usage-explain">
+        {leaking.length
+          ? 'These are still being read after you blocked them — the name below is what actually arrived.'
+          : 'Nothing has been read from any blocked chat since you blocked it. What the list above shows for them is what they cost before that.'}
+      </p>
+      <ul className="block-effect">
+        {[...leaking, ...working, ...idle].map((row) => (
+          <li key={row.id} className={row.since > 0 ? 'leaking' : row.before > 0 ? 'working' : 'idle'}>
+            <span className="be-pattern">{row.pattern}</span>
+            <span className="be-state">
+              {row.since > 0
+                ? `${row.since} read since you blocked it`
+                : row.before > 0
+                  ? 'nothing since you blocked it'
+                  : 'never matched a message'}
+            </span>
+            <span className="be-detail">
+              {row.since > 0
+                ? row.chats.map((c) => `${c.chat} (${c.messages})`).join(', ')
+                : row.before > 0
+                  ? `${row.before} read before`
+                  : row.suggest
+                    // One word out of "Sai Samarth Residency" is why a pattern
+                    // catches nothing, and naming it is the correction.
+                    ? `nothing is filed under that name — did you mean “${row.suggest}”?`
+                    : 'the name on the list is not the name these messages are filed under'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}

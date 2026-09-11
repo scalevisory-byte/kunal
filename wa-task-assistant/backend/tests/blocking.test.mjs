@@ -22,7 +22,7 @@ process.env.EXTRACTION_MODE = 'ai';
 process.env.TIMEZONE = 'Asia/Kolkata';
 process.env.BATCH_QUIET_SECONDS = '30';
 
-const { db, listBlockedChats, blockChat, unblockChat } = await import('../src/db.js');
+const { db, listBlockedChats, blockChat, unblockChat, blockEffect } = await import('../src/db.js');
 const WA = await import('../src/whatsapp.js');
 
 WA.setClientForTests({ info: { wid: { _serialized: 'me@c.us' } }, getChats: async () => [] });
@@ -252,5 +252,93 @@ describe('a chat on the blocked list', () => {
     }));
     assert.equal(stored().length, 1);
     assert.equal(stored()[0].chat_name, 'Meera Jariwala');
+  });
+});
+
+/*
+ * "I blocked these yesterday, why are they still there?"
+ *
+ * The busiest-chats list covers thirty days, so a chat blocked yesterday still
+ * shows every message it cost before that - which looks exactly like a block
+ * that is not working. These hold the one figure that tells them apart, and the
+ * third answer the figures never gave: a pattern that never matched anything,
+ * because the name on the list is not the name the messages are filed under.
+ */
+describe('what a block actually stopped', () => {
+  const stamp = (offsetSeconds) =>
+    new Date(Date.now() + offsetSeconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
+
+  const store = ({ chat, contact = null, number = null, group = 0, at }) =>
+    db.prepare(
+      `INSERT INTO messages
+         (wa_message_id, chat_id, chat_name, contact_name, contact_number, body, is_group, from_me, sent_at, created_at)
+       VALUES (?,?,?,?,?,?,?,0,?,?)`
+    ).run(`eff-${Math.random()}`, group ? '9@g.us' : '9@c.us', chat, contact, number, 'hi', group, at, at);
+
+  beforeEach(() => {
+    db.prepare('DELETE FROM messages').run();
+    db.prepare('DELETE FROM blocked_chats').run();
+  });
+
+  it('separates what it cost before from what has arrived since', () => {
+    store({ chat: 'Taxscan', contact: 'Taxscan', at: stamp(-3600) });
+    store({ chat: 'Taxscan', contact: 'Taxscan', at: stamp(-3600) });
+    blockChat('Taxscan');
+    const [row] = blockEffect({ days: 30 }).filter((r) => r.pattern === 'Taxscan');
+
+    assert.equal(row.before, 2, 'the messages it cost are history, not a leak');
+    assert.equal(row.since, 0, 'and nothing has been read since — the block works');
+  });
+
+  it('names the chat that is still arriving', () => {
+    blockChat('Surat');
+    store({ chat: 'Surat Final Accountant Job', group: 1, at: stamp(60) });
+    store({ chat: 'Surat Final Accountant Job', group: 1, at: stamp(60) });
+
+    const [row] = blockEffect({ days: 30 }).filter((r) => r.pattern === 'Surat');
+    assert.equal(row.since, 2);
+    assert.deepEqual(row.chats, [{ chat: 'Surat Final Accountant Job', messages: 2 }]);
+  });
+
+  it('says when a pattern never matched anything at all', () => {
+    store({ chat: 'Sai Samarth Residency', group: 1, at: stamp(-3600) });
+    blockChat('Samarth Society');
+
+    const [row] = blockEffect({ days: 30 }).filter((r) => r.pattern === 'Samarth Society');
+    assert.equal(row.before, 0);
+    assert.equal(row.since, 0, 'which is the third answer: the name is not what these are filed under');
+  });
+
+  it('counts a block the way the listener applies it — a chat, never a person', () => {
+    // Blocking a person silences his own chat and nothing else. His messages
+    // inside a group are that group's, and that group's work is real work.
+    blockChat('Rakesh');
+    store({ chat: 'Book N Fly Team', contact: 'Rakesh', number: '919900000002', group: 1, at: stamp(60) });
+    store({ chat: 'Rakesh', contact: 'Rakesh', number: '919900000002', group: 0, at: stamp(60) });
+
+    const [row] = blockEffect({ days: 30 }).filter((r) => r.pattern === 'Rakesh');
+    assert.equal(row.since, 1, 'his own chat, not the group he writes in');
+    assert.deepEqual(row.chats, [{ chat: 'Rakesh', messages: 1 }]);
+  });
+
+  it('reports nothing at all when nothing is blocked', () => {
+    assert.deepEqual(blockEffect({ days: 30 }), []);
+  });
+});
+
+describe('a pattern that matched nothing', () => {
+  it('names the chat it was probably reaching for', () => {
+    db.prepare('DELETE FROM messages').run();
+    db.prepare('DELETE FROM blocked_chats').run();
+    const at = new Date(Date.now() - 3600_000).toISOString().slice(0, 19).replace('T', ' ');
+    db.prepare(
+      `INSERT INTO messages (wa_message_id, chat_id, chat_name, contact_name, contact_number, body, is_group, from_me, sent_at, created_at)
+       VALUES ('sug-1','g@g.us','Sai Samarth Residency','Nilesh',NULL,'hi',1,0,?,?)`
+    ).run(at, at);
+    blockChat('Sai Samarth Society');
+
+    const [row] = blockEffect({ days: 30 });
+    assert.equal(row.since, 0);
+    assert.equal(row.suggest, 'Sai Samarth Residency', 'one word out is why it caught nothing');
   });
 });

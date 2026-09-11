@@ -25,10 +25,22 @@ process.env.TIMEZONE = 'Asia/Kolkata';
 const { db, createTask, getTask, updateTask } = await import('../src/db.js');
 const { planTask, rescheduleTask } = await import('../src/task-lifecycle.js');
 
-/** 18:00 IST on 11 Sep 2026, the default due hour. */
-const SIX_PM = '2026-09-11T12:30:00.000Z';
+/*
+ * A day ahead, worked out at runtime.
+ *
+ * It was written as a fixed date, which stopped being a deadline the moment
+ * that date arrived: 11 am today is in the past by lunchtime, the engine does
+ * not schedule a rung behind the clock, and the suite failed for a reason that
+ * had nothing to do with the code it was testing.
+ */
+const AHEAD = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date(Date.now() + 5 * 86400000));
+
+/** 18:00 IST, the default due hour. */
+const SIX_PM = `${AHEAD}T12:30:00.000Z`;
 /** 11:00 IST the same day - what he actually picked. */
-const ELEVEN_AM = '2026-09-11T05:30:00.000Z';
+const ELEVEN_AM = `${AHEAD}T05:30:00.000Z`;
 
 let id;
 beforeEach(() => {
@@ -36,7 +48,7 @@ beforeEach(() => {
   db.prepare('DELETE FROM reminders').run();
   id = createTask({
     title: 'Activate Uttarakhand GST',
-    due_date: '2026-09-11',
+    due_date: AHEAD,
     due_at: SIX_PM,
     priority: 'high',
     status: 'open',
@@ -58,7 +70,7 @@ describe('which field is the deadline', () => {
 
   it('does not move when remind_at is written', () => {
     updateTask(id, { remind_at: ELEVEN_AM });
-    rescheduleTask(id, { due_date: '2026-09-11', due_at: getTask(id).due_at });
+    rescheduleTask(id, { due_date: AHEAD, due_at: getTask(id).due_at });
     assert.equal(
       getTask(id).due_at, SIX_PM,
       'writing remind_at changed nothing - which is exactly what "not catching" looked like'
@@ -71,7 +83,7 @@ describe('which field is the deadline', () => {
 
     const task = getTask(id);
     assert.equal(task.due_at, ELEVEN_AM);
-    assert.equal(task.due_date, '2026-09-11', 'the day is unchanged');
+    assert.equal(task.due_date, AHEAD, 'the day is unchanged');
 
     /*
      * The ladder is rebuilt around the new deadline. A follow-up sits AFTER it

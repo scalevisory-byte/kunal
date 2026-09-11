@@ -27,42 +27,25 @@ import { createNote } from './notes.js';
 import { createLead, leadByWid } from './leads.js';
 import { listGroups } from './groups.js';
 import { repairGroupNames, looksLikeId } from './group-names.js';
+import { matchesPattern } from './blocklist.js';
 
 const { Client, LocalAuth } = pkg;
 
 /** Chats we never scan: status broadcasts and WhatsApp's own service messages. */
 const IGNORED_CHAT_IDS = new Set(['status@broadcast', '0@c.us']);
 
-const digitsOnly = (value) => String(value || '').replace(/\D/g, '');
-
 /**
- * Names and numbers need different matching. A name is matched loosely, because
- * "Mummy" should also catch "Mummy ❤️ Home". A number is matched on its ending,
- * so the same person matches with or without a country code — but never as a
- * loose substring, which would let a short pattern block half your contacts.
+ * Is this chat on the list?
+ *
+ * The rule itself lives in `blocklist.js`, because the AI Usage page answers
+ * "I blocked this yesterday, why is it still arriving?" by applying the very
+ * same rule to the messages that were actually stored. Two copies of it would
+ * eventually disagree, and then one of them would be lying.
  */
 export function isBlockedChat({ chatName, chatId, contactNumber }) {
   const rows = listBlockedChats();
   if (!rows.length) return false;
-
-  const name = String(chatName || '').toLowerCase();
-  const numbers = [digitsOnly(contactNumber), digitsOnly(chatId)].filter(Boolean);
-
-  return rows.some((row) => {
-    const pattern = row.pattern.trim();
-    if (!pattern) return false;
-
-    const asDigits = digitsOnly(pattern);
-    const isNumeric = asDigits.length > 0 && asDigits.length === pattern.replace(/[\s+()-]/g, '').length;
-
-    if (isNumeric) {
-      // Too short to identify anyone; refuse rather than block everything.
-      if (asDigits.length < 6) return false;
-      return numbers.some((n) => n === asDigits || n.endsWith(asDigits));
-    }
-
-    return name.includes(pattern.toLowerCase());
-  });
+  return rows.some((row) => matchesPattern(row.pattern, { chatName, chatId, contactNumber }));
 }
 
 /**

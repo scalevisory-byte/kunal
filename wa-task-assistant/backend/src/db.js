@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { unshout } from './titlecase.js';
 import { log } from './logger.js';
 import { numberOrNull } from './dates.js';
+import { patternWouldDrop } from './blocklist.js';
 
 export const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
@@ -444,6 +445,92 @@ export function messageVolumeByChat(days = 30, limit = 40) {
        LIMIT ?`
     )
     .all(`-${Math.min(Number(days) || 30, 365)} days`, Math.min(Number(limit) || 40, 200));
+}
+
+/**
+ * What each block actually stopped.
+ *
+ * "I blocked these yesterday, why are they still there?" is a fair question
+ * with two very different answers, and the busiest-chats list cannot tell them
+ * apart: it covers thirty days, so a chat blocked yesterday still shows every
+ * message it cost before that. Those are history. A block that is not working
+ * looks exactly the same.
+ *
+ * So this counts the two sides separately - what was read BEFORE the pattern
+ * was added, and what has been read SINCE - by applying the listener's own rule
+ * to the messages that were actually stored. `since` is the only figure that
+ * says whether a block works: in `ai` mode a blocked chat is dropped before
+ * anything is stored, so a working block reads zero there, for ever.
+ *
+ * A pattern that matched nothing at all is its own answer: the name on the list
+ * is not the name the messages are filed under.
+ */
+export function blockEffect({ days = 30 } = {}) {
+  const patterns = listBlockedChats();
+  if (!patterns.length) return [];
+
+  const window = `-${Math.min(Number(days) || 30, 365)} days`;
+  const rows = db
+    .prepare(
+      `SELECT chat_id, chat_name, contact_name, contact_number, is_group, created_at
+         FROM messages WHERE created_at >= datetime('now', ?)`
+    )
+    .all(window);
+
+  /*
+   * What a pattern that matched nothing was probably reaching for.
+   *
+   * "Sai Samarth Society" matches nothing while "Sai Samarth Residency" sends
+   * a hundred and forty messages a month, and the difference is one word.
+   * Telling him the name that IS there turns a dead entry on the list into one
+   * correction, which is the whole point of saying it matched nothing.
+   */
+  const nearest = (pattern) => {
+    const words = String(pattern).toLowerCase().split(/[^a-z0-9]+/i).filter((w) => w.length >= 4);
+    if (!words.length) return null;
+    const scored = new Map();
+    for (const message of rows) {
+      const chat = message.chat_name;
+      if (!chat) continue;
+      const name = chat.toLowerCase();
+      const hits = words.filter((w) => name.includes(w)).length;
+      if (hits) scored.set(chat, Math.max(scored.get(chat) || 0, hits));
+    }
+    const [best] = [...scored.entries()].sort((a, b) => b[1] - a[1]);
+    return best ? best[0] : null;
+  };
+
+  return patterns.map((row) => {
+    const effect = {
+      id: row.id,
+      pattern: row.pattern,
+      created_at: row.created_at,
+      before: 0,
+      since: 0,
+      chats: [],
+      lastAt: null,
+      suggest: null,
+    };
+    const stillArriving = new Map();
+
+    for (const message of rows) {
+      if (!patternWouldDrop(row.pattern, message)) continue;
+      if (message.created_at >= row.created_at) {
+        effect.since += 1;
+        stillArriving.set(message.chat_name, (stillArriving.get(message.chat_name) || 0) + 1);
+        if (!effect.lastAt || message.created_at > effect.lastAt) effect.lastAt = message.created_at;
+      } else {
+        effect.before += 1;
+      }
+    }
+
+    effect.chats = [...stillArriving.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([chat, messages]) => ({ chat, messages }));
+    if (!effect.before && !effect.since) effect.suggest = nearest(row.pattern);
+    return effect;
+  });
 }
 
 /**

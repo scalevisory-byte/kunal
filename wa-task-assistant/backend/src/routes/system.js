@@ -13,7 +13,7 @@ import { authEnabled, authStats } from '../auth.js';
 import { diagnostics } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
 import {
-  usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat,
+  usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat, blockEffect,
   messagesWithoutTasks, quietSenders,
 } from '../db.js';
 import { PRICES, PRICES_UPDATED, CACHE_MINIMUM, costOf } from '../pricing.js';
@@ -187,6 +187,12 @@ systemRouter.get('/usage', (req, res) => {
     /* Where it went, and what it was spent on. */
     byKind: usageByKind(req.query.days).map((row) => ({ ...row, ...costOf(row) })),
     chats: messageVolumeByChat(req.query.days),
+    /*
+     * What each block has actually stopped. The busiest-chats list covers
+     * thirty days, so a chat blocked yesterday still shows what it cost before
+     * that - which is indistinguishable from a block that is not working.
+     */
+    blocking: blockEffect({ days: req.query.days }),
     /* Who is sending the messages that cost money and produce nothing. */
     quiet: quietSenders(req.query.days),
 

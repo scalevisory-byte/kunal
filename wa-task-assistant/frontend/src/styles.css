@@ -2320,7 +2320,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .colour-swatch.picked { border-color: var(--card); box-shadow: 0 0 0 2px var(--group); }
 
-.ok-text { color: var(--ok, var(--brand)); }
+.ok-text { color: var(--ok); }
 
 @media (max-width: 1080px) { .group-tag { display: none; } }
 @media (max-width: 760px) {
@@ -2538,7 +2538,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   flex: none; font-size: .72rem; color: var(--muted);
   font-family: "IBM Plex Mono", monospace;
 }
-.recur-made { color: var(--ok, var(--brand)); font-family: inherit; }
+.recur-made { color: var(--ok); font-family: inherit; }
 
 .recur-day {
   flex: none; width: 38px; text-align: center;
@@ -3446,7 +3446,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .qa-said {
   margin: 9px 0 0; display: flex; align-items: center; gap: 6px;
-  font-size: .78rem; color: var(--ok, var(--brand));
+  font-size: .78rem; color: var(--ok);
 }
 .qa-hint { margin: 8px 0 0; font-size: .74rem; color: var(--muted); }
 
@@ -3551,7 +3551,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .cal-add-said {
   flex: 1 0 100%; margin: 2px 0 0;
   display: flex; align-items: center; gap: 6px;
-  font-size: .76rem; color: var(--ok, var(--brand));
+  font-size: .76rem; color: var(--ok);
 }
 
 .cal-notes { margin-top: 16px; }
@@ -4085,6 +4085,28 @@ button.due:hover { background: var(--raised); }
 .qm-body { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-open-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .chat-open-foot small { color: var(--muted); font-size: .74rem; }
+/*
+ * What each block stopped. Three states, one line each: still arriving (the
+ * only one that is a problem), nothing since, and never matched anything -
+ * which is a different problem, and the commonest.
+ */
+.block-effect { list-style: none; margin: 0 0 18px; padding: 0; }
+.block-effect > li {
+  display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(150px, 1fr) 2fr;
+  gap: 10px; align-items: baseline;
+  padding: 9px 2px; border-bottom: 1px solid var(--line); font-size: .82rem;
+}
+.be-pattern { font-weight: 600; }
+.be-state { font-family: "IBM Plex Mono", monospace; font-size: .74rem; }
+.block-effect > li.leaking .be-state { color: var(--danger); }
+.block-effect > li.working .be-state { color: var(--ok); }
+.block-effect > li.idle .be-state { color: var(--muted); }
+.be-detail { color: var(--muted); font-size: .76rem; }
+
+@media (max-width: 760px) {
+  .block-effect > li { grid-template-columns: 1fr; gap: 2px; }
+}
+
 .quiet-senders { list-style: none; margin: 0; padding: 0; }
 .quiet-senders li {
   display: flex; align-items: baseline; gap: 8px;
@@ -4248,7 +4270,7 @@ button.due:hover { background: var(--raised); }
   font-size: .74rem; color: var(--muted);
 }
 .lu-cat { font-weight: 500; color: var(--text-2); }
-.lu-src.official { color: var(--ok, var(--brand)); }
+.lu-src.official { color: var(--ok); }
 .lu-doc { font-family: "IBM Plex Mono", monospace; font-size: .7rem; }
 .lu-state { text-transform: uppercase; letter-spacing: .05em; font-size: .66rem; }
 .lu-deadline {
