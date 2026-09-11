@@ -42,6 +42,9 @@ describe('where an update came from', () => {
     assert.equal(U.classifySource('https://www.rbi.org.in/y').authority, 'RBI');
     assert.equal(U.classifySource('https://taxguru.in/z', 'TaxGuru').kind, 'secondary');
     assert.equal(U.classifySource('not a url').kind, 'secondary', 'unreadable is never official');
+    // Most high courts publish on nic.in, not gov.in. Filing a court's own
+    // order as somebody's write-up is the error this exists to prevent.
+    assert.equal(U.classifySource('https://bombayhighcourt.nic.in/order.pdf').kind, 'official');
   });
 
   it('is stored with the row, so the page can say which it is', () => {

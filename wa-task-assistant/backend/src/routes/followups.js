@@ -24,6 +24,7 @@ import {
   maybeSendLegalDigest, buildLegalDigest, legalDigestFor, recentLegalDigests,
   legalFeeds, legalKey, legalShape,
 } from '../law-legal.js';
+import { fetchWatch } from '../law-watch.js';
 
 /**
  * "Follow-ups" here means the user's own tasks that are past their deadline and
@@ -184,6 +185,26 @@ function mountWatches(router, mod) {
       // A name with no terms, or a two-letter term, is the user's to correct -
       // not a 500 with the reason hidden in the log.
       res.status(400).json({ error: String(err?.message || err) });
+    }
+  });
+
+  /*
+   * Go and look now.
+   *
+   * The button exists because the alternative is waiting until tomorrow to
+   * find out whether a watch's sources answer at all - and because a watch
+   * added today should be able to show what it is for today. It reaches the
+   * network and the model, so it is only ever a button, never a page load.
+   */
+  router.post('/watches/:id/fetch', async (req, res) => {
+    const watch = getWatch(req.params.id);
+    if (!watch || watch.module !== mod) return res.status(404).json({ error: 'not found' });
+    try {
+      const run = await fetchWatch(watch);
+      res.json({ run, watches: watchCounts(mod) });
+    } catch (err) {
+      // A feed that refused, or a model call that failed, is the user's to see.
+      res.status(502).json({ error: String(err?.message || err), watches: watchCounts(mod) });
     }
   });
 

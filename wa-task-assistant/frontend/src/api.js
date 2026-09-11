@@ -283,6 +283,8 @@ export const api = {
   addLawWatch: (body) =>
     request('/law-digest/watches', { method: 'POST', body: JSON.stringify(body) }),
   removeLawWatch: (id) => request(`/law-digest/watches/${id}`, { method: 'DELETE' }),
+  /* Reaches the feeds and the model, so it is only ever a button. */
+  fetchLawWatch: (id) => request(`/law-digest/watches/${id}/fetch`, { method: 'POST' }),
 
   /* Legal & court updates: the same shapes, its own endpoints and its own list. */
   legalDigest: () => request('/legal'),
@@ -303,6 +305,7 @@ export const api = {
   addLegalWatch: (body) =>
     request('/legal/watches', { method: 'POST', body: JSON.stringify(body) }),
   removeLegalWatch: (id) => request(`/legal/watches/${id}`, { method: 'DELETE' }),
+  fetchLegalWatch: (id) => request(`/legal/watches/${id}/fetch`, { method: 'POST' }),
   /* Fetches the feeds and pays for a summary, so it is only ever a button. */
   previewLawDigest: () => request('/law-digest/preview', { method: 'POST' }),
   runLawDigest: () => request('/law-digest/run', { method: 'POST' }),

@@ -297,8 +297,14 @@ export function classifySource(url, fallbackName = null) {
       return { kind: 'official', authority, host };
     }
   }
-  // A high-court site is official too, and there are twenty-five of them.
-  if (/(^|\.)(hcourt|highcourt|courts)\.gov\.in$/.test(host) || /\.gov\.in$/.test(host)) {
+  /*
+   * A high-court site is official too, and there are twenty-five of them - most
+   * of them on nic.in rather than gov.in. bombayhighcourt.nic.in is the court
+   * itself; filing its own order as a secondary source is exactly the error
+   * this classification exists to prevent. nic.in is the government's own
+   * network and hosts nothing else.
+   */
+  if (/\.gov\.in$/.test(host) || /(^|\.)nic\.in$/.test(host)) {
     return { kind: 'official', authority: fallbackName || host, host };
   }
   return { kind: 'secondary', authority: fallbackName || host, host };
@@ -430,6 +436,96 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_label ON law_watches(module, label);
 `);
 
+/*
+ * A watch that only filters is a watch that reads 0 forever.
+ *
+ * This is what the first day of Section 138 proved: the feeds are general
+ * top-story feeds, a cheque-bounce judgment reaches them perhaps once a week,
+ * and a watch over them said "0" while the practice it names went on happening.
+ * So a watch carries its own sources and goes looking, over a longer window
+ * than a day's digest reads.
+ */
+for (const [column, sql] of [
+  ['sources', 'ALTER TABLE law_watches ADD COLUMN sources TEXT'],
+  ['last_fetch_at', 'ALTER TABLE law_watches ADD COLUMN last_fetch_at TEXT'],
+  ['last_fetch_found', 'ALTER TABLE law_watches ADD COLUMN last_fetch_found INTEGER'],
+  ['last_fetch_note', 'ALTER TABLE law_watches ADD COLUMN last_fetch_note TEXT'],
+]) {
+  const has = db.prepare(`SELECT COUNT(*) n FROM pragma_table_info('law_watches') WHERE name = ?`).get(column).n;
+  if (!has) db.exec(sql);
+}
+
+/*
+ * Where a watch looks, when nobody has said otherwise.
+ *
+ * Two shapes, because no single one is enough. A WordPress site answers
+ * `?s=<words>&feed=rss2` with a real search feed and real article links -
+ * TaxGuru and SCC Online both do, and both carry cheque-bounce judgments. The
+ * aggregator covers everything else, including the two sites that publish most
+ * of the day's judgments and run no search feed at all.
+ *
+ * None of these has been reached from the machine this was written on, so the
+ * result of every fetch is stored per source and shown on the page: a source
+ * that stops answering says so, instead of the watch quietly reading zero.
+ */
+export function defaultWatchSources(terms = [], { days = 30 } = {}) {
+  const list = terms.filter(Boolean);
+  if (!list.length) return [];
+  const any = list.slice(0, 4).map((t) => `"${t}"`).join(' OR ');
+  const first = list[0];
+  return [
+    {
+      name: 'Google News',
+      url: `https://news.google.com/rss/search?q=${encodeURIComponent(`${any} when:${days}d`)}`
+        + '&hl=en-IN&gl=IN&ceid=IN:en',
+    },
+    { name: 'TaxGuru search', url: `https://taxguru.in/?s=${encodeURIComponent(first)}&feed=rss2` },
+    { name: 'SCC Online search', url: `https://www.scconline.com/blog/?s=${encodeURIComponent(first)}&feed=rss2` },
+  ];
+}
+
+const readSources = (value) => {
+  try {
+    const parsed = JSON.parse(value || 'null');
+    return Array.isArray(parsed) ? parsed.filter((f) => f && f.url) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** A watch's sources: the ones set on it, or the defaults built from its terms. */
+export const watchSources = (watch) =>
+  readSources(watch?.sources) || defaultWatchSources(watchTerms(watch));
+
+/** What a fetch found, kept on the row so the page can say when it last looked. */
+export const setWatchFetch = (id, { found, note }) =>
+  db.prepare(
+    `UPDATE law_watches
+        SET last_fetch_at = datetime('now'), last_fetch_found = ?, last_fetch_note = ?
+      WHERE id = ?`
+  ).run(Number(found) || 0, String(note || '').slice(0, 400), Number(id));
+
+/**
+ * Which of these articles are already recorded.
+ *
+ * Asked before the model is called, never after: a watch reads a month at a
+ * time and runs every day, so without this the same thirty articles would be
+ * summarised - and paid for - thirty times over, to produce rows that the
+ * duplicate check would then throw away.
+ */
+export function knownUrls(urls = []) {
+  const known = new Set();
+  const list = urls.filter(Boolean).map(String);
+  for (let i = 0; i < list.length; i += 400) {
+    const batch = list.slice(i, i + 400);
+    const marks = batch.map(() => '?').join(',');
+    for (const row of db.prepare(`SELECT source_url FROM law_updates WHERE source_url IN (${marks})`).all(batch)) {
+      known.add(row.source_url);
+    }
+  }
+  return known;
+}
+
 /** Terms are stored as typed and split on commas when they are used. */
 export const watchTerms = (watch) =>
   String(watch?.terms || '').split(',').map((t) => t.trim()).filter(Boolean);
@@ -437,7 +533,7 @@ export const watchTerms = (watch) =>
 export const listWatches = (mod = 'legal') =>
   db.prepare(`SELECT * FROM law_watches WHERE module = ? ORDER BY id`)
     .all(mod === 'legal' ? 'legal' : 'tax')
-    .map((w) => ({ ...w, termList: watchTerms(w) }));
+    .map((w) => ({ ...w, termList: watchTerms(w), sourceList: watchSources(w) }));
 
 export function addWatch({ module: mod = 'legal', label, terms }) {
   const name = clean(label, 80);
@@ -461,7 +557,7 @@ export const removeWatch = (id) =>
 
 export const getWatch = (id) => {
   const row = db.prepare(`SELECT * FROM law_watches WHERE id = ?`).get(Number(id));
-  return row ? { ...row, termList: watchTerms(row) } : null;
+  return row ? { ...row, termList: watchTerms(row), sourceList: watchSources(row) } : null;
 };
 
 /**
@@ -552,7 +648,9 @@ const PRIORITIES = new Set(['critical', 'important', 'general']);
  */
 export function saveUpdate(row) {
   const mod = row.module === 'legal' ? 'legal' : 'tax';
-  const source = classifySource(row.source_url, row.source_name);
+  // An aggregated item links back through the aggregator, so the domain that
+  // says whether this is official is the publisher's, not the link's.
+  const source = classifySource(row.publisher_url || row.source_url, row.source_name);
   const known = categoriesFor(mod);
   const category = known.includes(row.category)
     ? row.category

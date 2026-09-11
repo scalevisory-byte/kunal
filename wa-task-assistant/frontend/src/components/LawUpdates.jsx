@@ -56,6 +56,7 @@ const MODULES = {
     message: (id, channel) => api.lawUpdateMessage(id, channel),
     addWatch: (body) => api.addLawWatch(body),
     removeWatch: (id) => api.removeLawWatch(id),
+    fetchWatch: (id) => api.fetchLawWatch(id),
     watchHint: 'e.g. Section 43B, 194R, GSTR-9',
     empty: 'Press Fetch now above to read the feeds — the updates it finds are listed here.',
   },
@@ -65,6 +66,7 @@ const MODULES = {
     message: (id, channel) => api.legalUpdateMessage(id, channel),
     addWatch: (body) => api.addLegalWatch(body),
     removeWatch: (id) => api.removeLegalWatch(id),
+    fetchWatch: (id) => api.fetchLegalWatch(id),
     watchHint: 'e.g. section 138, cheque dishonour',
     empty: 'Press Fetch judgments above — what it finds is listed here.',
   },
@@ -79,6 +81,7 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [watchError, setWatchError] = useState('');
+  const [looking, setLooking] = useState(null);
 
   /*
    * The search waits for a pause rather than firing per keystroke: this is a
@@ -112,6 +115,16 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
   const watches = data?.watches ?? [];
 
   /*
+   * What the most recent look actually found. A watch showing 0 is two very
+   * different facts - a quiet month in the courts, or three sources that
+   * stopped answering - and the difference is the whole value of the line.
+   */
+  const lastLook = watches
+    .filter((w) => w.last_fetch_at)
+    .sort((a, b) => String(b.last_fetch_at).localeCompare(String(a.last_fetch_at)))
+    .map((w) => `${w.label} — ${w.last_fetch_note || 'looked'}`)[0] || '';
+
+  /*
    * Adding or removing a watch reloads the list, because the watch chips and
    * their counts arrive with it - there is no second copy to keep in step.
    */
@@ -123,6 +136,30 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
       await load();
     } catch (err) {
       setWatchError(String(err?.message || err));
+    }
+  };
+
+  /*
+   * Going and looking, on demand.
+   *
+   * The daily sweep is what keeps a watch current; this is here because a watch
+   * added today should be able to show what it is for today, and because a
+   * source that has stopped answering should be findable in one press rather
+   * than by noticing a week of silence.
+   */
+  const lookNow = async (watch) => {
+    setWatchError('');
+    setLooking(watch.id);
+    try {
+      const { run } = await endpoints.fetchWatch(watch.id);
+      await load();
+      setWatchError(run?.stored
+        ? `${watch.label}: ${run.stored} new — ${run.found} found across ${run.reachable} of ${run.tried} sources.`
+        : `${watch.label}: nothing new. ${run?.found || 0} found across ${run?.reachable || 0} of ${run?.tried || 0} sources.`);
+    } catch (err) {
+      setWatchError(`${watch.label}: ${String(err?.message || err)}`);
+    } finally {
+      setLooking(null);
     }
   };
 
@@ -178,6 +215,17 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
               </button>
               <button
                 type="button"
+                className="lu-watch-look"
+                title={w.last_fetch_at
+                  ? `Last looked ${w.last_fetch_at} UTC — ${w.last_fetch_note || ''}`
+                  : 'Read this watch\u2019s own sources now'}
+                disabled={looking === w.id}
+                onClick={() => lookNow(w)}
+              >
+                {looking === w.id ? '…' : 'Look'}
+              </button>
+              <button
+                type="button"
                 className="lu-watch-drop"
                 title={`Stop watching ${w.label}`}
                 onClick={() => dropWatch(w)}
@@ -196,9 +244,9 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
           )}
         </div>
         <p className="lu-watch-note">
-          {watchError
-            ? watchError
-            : 'A watch is a saved search, matched on the recorded text — so it flags exactly what typing the words would have found, and what it catches is called out in the daily digest by name.'}
+          {watchError || (lastLook
+            ? `Last looked: ${lastLook}`
+            : 'A watch reads its own sources — a news search plus the sites that answer one — over the last month, not just the day’s feeds, and what it finds is called out in the digest by name. Press Look to read them now.')}
         </p>
       </div>
 

@@ -4191,6 +4191,7 @@ button.due:hover { background: var(--raised); }
 }
 .lu-watch.on { border-color: var(--brand); }
 .lu-watch-pick,
+.lu-watch-look,
 .lu-watch-drop {
   background: none; border: 0; font: inherit; cursor: pointer;
   color: var(--text); padding: 4px 9px; min-height: 28px; font-size: .78rem;
@@ -4202,6 +4203,12 @@ button.due:hover { background: var(--raised); }
   font-size: .66rem; font-family: "IBM Plex Mono", monospace;
   color: var(--brand); border: 1px solid var(--brand); border-radius: 3px; padding: 0 4px;
 }
+.lu-watch-look {
+  color: var(--muted); border-left: 1px solid var(--line); padding: 4px 8px;
+  font-size: .72rem; letter-spacing: .02em;
+}
+.lu-watch-look:hover:not(:disabled) { color: var(--brand); }
+.lu-watch-look:disabled { opacity: .6; cursor: default; }
 .lu-watch-drop { color: var(--muted); border-left: 1px solid var(--line); padding: 4px 7px; }
 .lu-watch-drop:hover { color: var(--danger); }
 .lu-watch-form { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }

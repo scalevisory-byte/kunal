@@ -30,16 +30,40 @@ export function decodeEntities(text) {
 const safeChar = (code) =>
   Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
 
-/** The readable words inside a chunk of feed HTML, on one line. */
+const withoutTags = (html) =>
+  String(html ?? '')
+    // Script and style carry no prose and would otherwise arrive as code.
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ');
+
+/**
+ * The readable words inside a chunk of feed HTML, on one line.
+ *
+ * Stripped, decoded, and stripped again: an aggregator escapes the markup
+ * inside a description (`&lt;a href=…&gt;`), so decoding once leaves the anchor
+ * behind as visible text - and then that text is what gets sent to the model
+ * and stored as a summary.
+ */
 export function stripTags(html) {
-  return decodeEntities(
-    String(html ?? '')
-      // Script and style carry no prose and would otherwise arrive as code.
-      .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-      .replace(/<[^>]*>/g, ' ')
-  )
+  return withoutTags(decodeEntities(withoutTags(html)))
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * The publisher behind an aggregated item.
+ *
+ * Google News RSS gives every item a `<source url="https://www.livelaw.in">
+ * LiveLaw</source>` and a link that points back through news.google.com. The
+ * link is the only one that resolves, so it stays - but whether a source is
+ * official is read off a domain, and news.google.com is nobody's domain. This
+ * is where the real one comes from.
+ */
+function sourceOf(block) {
+  const match = /<source(\s[^>]*)?>([\s\S]*?)<\/source>/i.exec(block);
+  if (!match) return { sourceName: '', sourceUrl: '' };
+  const url = /url\s*=\s*["']([^"']+)["']/i.exec(match[1] || '');
+  return { sourceName: stripTags(match[2]), sourceUrl: url ? decodeEntities(url[1]).trim() : '' };
 }
 
 /** The text of the first `<tag>` inside a block, CDATA unwrapped. */
@@ -79,6 +103,7 @@ export function parseFeed(xml) {
       published,
       publishedAt: parseDate(published),
       summary: stripTags(body),
+      ...sourceOf(block),
     });
   }
 

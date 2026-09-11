@@ -29,6 +29,7 @@ import { dueLeadReminders, claimLeadReminder } from './leads.js';
 import { maybeSendBriefing, maybeSendWeekly } from './briefing.js';
 import { maybeSendLawDigest } from './law-digest.js';
 import { maybeSendLegalDigest } from './law-legal.js';
+import { refreshWatchesDaily } from './law-watch.js';
 
 const PRIORITY_MARK = { high: '🔴', medium: '🟡', low: '⚪' };
 
@@ -223,6 +224,16 @@ export async function runReminderEngine({ now = new Date() } = {}) {
    * exactly like the two above: the engine's own work must not be skipped
    * because a feed was down.
    */
+  /*
+   * What the watches are for is read first, so a judgment on the section a
+   * practice lives on is in this morning's digest rather than tomorrow's. It
+   * is claimed once a day for the same reason the digests are: the engine
+   * ticks every few minutes and a month of articles is not free to re-read.
+   */
+  await refreshWatchesDaily({ now }).catch((err) => {
+    log.error('Watches:', err?.message || err);
+    return { ran: false };
+  });
   const lawDigest = await maybeSendLawDigest({ now }).catch((err) => {
     log.error('Law digest:', err?.message || err);
     return { sent: false };
