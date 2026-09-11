@@ -59,7 +59,9 @@ function Reminders({ task, onError, onChanged }) {
     }
   };
 
-  const base = task.due_date ? new Date(`${task.due_date}T${(task.remind_at || '').slice(11, 16) || '17:00'}`) : null;
+  // Offered as the default for a new reminder: the deadline's own clock time,
+  // for the same reason as above - `remind_at` is the nudge, not the deadline.
+  const base = task.due_date ? new Date(`${task.due_date}T${(task.due_at || '').slice(11, 16) || '17:00'}`) : null;
   const active = rows.filter((r) => !['cancelled'].includes(r.status));
 
   return (
@@ -178,7 +180,17 @@ export default function TaskDetail({
   if (!task) return null;
 
   const source = taskSource(task);
-  const dueTime = task.remind_at ? new Date(task.remind_at).toTimeString().slice(0, 5) : '';
+  /*
+   * The time on the deadline, read from the deadline.
+   *
+   * This read `remind_at`, which is not the deadline - it is the moment the
+   * app decides to nudge, an hour before by default, and the engine rewrites it
+   * from `due_at` on every reschedule. So a task due at 6 showed 5 here, and
+   * the value could not be changed: writing `remind_at` back was overwritten
+   * the moment anything replanned the task. Reported as "I set 11 am and it is
+   * not catching", and it never could have.
+   */
+  const dueTime = task.due_at ? new Date(task.due_at).toTimeString().slice(0, 5) : '';
 
   return (
     <div className="sheet-backdrop" onClick={onClose} role="presentation">
@@ -364,8 +376,18 @@ export default function TaskDetail({
                 type="time"
                 value={dueTime}
                 onChange={(e) => {
-                  if (!e.target.value) return onEdit(task, { remind_at: '' });
-                  onEdit(task, { remind_at: localIso(task.due_date || todayIso(), e.target.value) });
+                  /*
+                   * Clearing the time keeps the day: the deadline falls back to
+                   * the default due hour. The date has to be sent with it -
+                   * clearing `due_at` alone takes `due_date` with it, because
+                   * the day is derived from the moment when the caller does not
+                   * say otherwise, and emptying the time would silently empty
+                   * the deadline.
+                   */
+                  if (!e.target.value) {
+                    return onEdit(task, { due_at: '', due_date: task.due_date || '' });
+                  }
+                  onEdit(task, { due_at: localIso(task.due_date || todayIso(), e.target.value) });
                 }}
               />
             </div>
