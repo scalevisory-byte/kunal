@@ -4168,6 +4168,54 @@ button.due:hover { background: var(--raised); }
   gap: 12px; flex-wrap: wrap; margin: 0 0 10px;
 }
 .lu-controls.second { margin-bottom: 14px; }
+
+/*
+ * The watch list sits above the filters because it is not one of them: a filter
+ * is how you look today, a watch is what you always care about. The chip is two
+ * buttons in one outline - the name scopes the list, the × stops watching -
+ * which keeps "remove" out of reach of a mis-tap on "show me".
+ */
+.lu-watches {
+  margin: 0 0 12px; padding: 10px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.lu-watch-label {
+  display: block; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 7px;
+}
+.lu-watch {
+  display: inline-flex; align-items: stretch;
+  border: 1px solid var(--line); border-radius: 5px; overflow: hidden;
+  background: var(--card);
+}
+.lu-watch.on { border-color: var(--brand); }
+.lu-watch-pick,
+.lu-watch-drop {
+  background: none; border: 0; font: inherit; cursor: pointer;
+  color: var(--text); padding: 4px 9px; min-height: 28px; font-size: .78rem;
+}
+.lu-watch-pick { display: inline-flex; align-items: center; gap: 6px; }
+.lu-watch.on .lu-watch-pick { color: var(--brand); font-weight: 600; }
+.lu-watch-pick:hover { color: var(--brand); }
+.lu-watch-new {
+  font-size: .66rem; font-family: "IBM Plex Mono", monospace;
+  color: var(--brand); border: 1px solid var(--brand); border-radius: 3px; padding: 0 4px;
+}
+.lu-watch-drop { color: var(--muted); border-left: 1px solid var(--line); padding: 4px 7px; }
+.lu-watch-drop:hover { color: var(--danger); }
+.lu-watch-form { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lu-watch-form input { font-size: .78rem; padding: 4px 8px; min-height: 28px; }
+.lu-watch-form input:first-of-type { width: 150px; }
+.lu-watch-form input:last-of-type { width: 250px; }
+.lu-watch-note { margin: 8px 0 0; font-size: .72rem; color: var(--muted); max-width: 72ch; }
+
+@media (max-width: 760px) {
+  .lu-watch-form input,
+  .lu-watch-form input:first-of-type,
+  .lu-watch-form input:last-of-type { width: 100%; }
+  .lu-watch-form { width: 100%; }
+}
 .lu-search { flex: 1 1 260px; max-width: 420px; }
 .lu-search input { width: 100%; }
 .lu-selects { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

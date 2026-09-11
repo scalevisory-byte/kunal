@@ -175,6 +175,11 @@ export const LEGAL_GROUPS = [
     label: 'Commercial & civil',
     categories: [
       'Contract Law', 'Commercial Law', 'Civil Law', 'Property Law', 'Arbitration',
+      // Cheque bounce has its own category because it is a practice, not a
+      // footnote to criminal law: Section 138 is most of what a recovery file
+      // turns on, and a judgment on it needs to be findable by name.
+      'Cheque Bounce / Negotiable Instruments (S.138)',
+      'Debt Recovery / DRT & SARFAESI',
     ],
   },
   {
@@ -399,6 +404,103 @@ ensureColumns('law_updates', [
   ['ruling_type', 'ALTER TABLE law_updates ADD COLUMN ruling_type TEXT'],
 ]);
 
+/* ---------------- watches ---------------- */
+
+/*
+ * The sections a firm actually lives on.
+ *
+ * A digest is a day's news; a watch is a standing interest. Section 138 of the
+ * Negotiable Instruments Act is the whole of a recovery practice - a judgment
+ * on it matters in March and in October, and nobody wants to remember to search
+ * for it every morning.
+ *
+ * A watch is a saved search with a name, deliberately: it matches on the text
+ * actually recorded, so it can be checked. It never asks the model "is this
+ * relevant?" - a model that guesses that wrong either buries the one judgment
+ * that mattered or flags forty that did not.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS law_watches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    module     TEXT NOT NULL DEFAULT 'legal',
+    label      TEXT NOT NULL,
+    terms      TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_label ON law_watches(module, label);
+`);
+
+/** Terms are stored as typed and split on commas when they are used. */
+export const watchTerms = (watch) =>
+  String(watch?.terms || '').split(',').map((t) => t.trim()).filter(Boolean);
+
+export const listWatches = (mod = 'legal') =>
+  db.prepare(`SELECT * FROM law_watches WHERE module = ? ORDER BY id`)
+    .all(mod === 'legal' ? 'legal' : 'tax')
+    .map((w) => ({ ...w, termList: watchTerms(w) }));
+
+export function addWatch({ module: mod = 'legal', label, terms }) {
+  const name = clean(label, 80);
+  const list = String(terms || '').split(',').map((t) => t.trim()).filter(Boolean);
+  if (!name) throw new Error('a watch needs a name');
+  if (!list.length) throw new Error('a watch needs at least one thing to look for');
+  // Two characters matches half the database; a watch that flags everything is
+  // a watch nobody reads.
+  if (list.some((t) => t.length < 3)) throw new Error('each term needs at least three characters');
+
+  db.prepare(
+    `INSERT INTO law_watches (module, label, terms) VALUES (?, ?, ?)
+     ON CONFLICT(module, label) DO UPDATE SET terms = excluded.terms`
+  ).run(mod === 'legal' ? 'legal' : 'tax', name, list.join(', '));
+
+  return listWatches(mod).find((w) => w.label === name) || null;
+}
+
+export const removeWatch = (id) =>
+  db.prepare(`DELETE FROM law_watches WHERE id = ?`).run(Number(id)).changes > 0;
+
+export const getWatch = (id) => {
+  const row = db.prepare(`SELECT * FROM law_watches WHERE id = ?`).get(Number(id));
+  return row ? { ...row, termList: watchTerms(row) } : null;
+};
+
+/**
+ * Section 138 is set up on first boot, once.
+ *
+ * Asked for by name - "need sec 138 related case update" - and it is the work
+ * Arth Advisory does, so it is there from the start rather than waiting to be
+ * typed in. A marker stops it coming back after it is deleted: a watch removed
+ * on purpose stays removed.
+ */
+export function seedDefaultWatchesOnce() {
+  const done = db.prepare(`SELECT value FROM meta WHERE key = 'law_watches_seeded'`).get();
+  if (done) return { added: 0 };
+
+  let added = 0;
+  const defaults = [
+    {
+      module: 'legal',
+      label: 'Section 138 NI Act',
+      // Both spellings, the section on its own, and the words a report uses
+      // when it never cites the section at all.
+      terms: 'section 138, 138 NI, negotiable instruments, cheque bounce, cheque dishonour, cheque dishonor, dishonour of cheque',
+    },
+  ];
+
+  for (const watch of defaults) {
+    try {
+      addWatch(watch);
+      added += 1;
+    } catch { /* already there, or refused - neither is worth failing a boot for */ }
+  }
+
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('law_watches_seeded', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(new Date().toISOString());
+  return { added };
+}
+
 /* ---------------- writing ---------------- */
 
 const norm = (value) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -533,6 +635,23 @@ export function saveUpdate(row) {
 
 /* ---------------- reading ---------------- */
 
+/*
+ * Every field worth searching, as one clause.
+ *
+ * A person looking for "GNL-1" is as likely to type the form number as the
+ * heading it appeared under, and "115BBE" only ever appears inside the text.
+ * The search box and a watch both read this, so a watch flags exactly what
+ * typing the term would have found.
+ */
+const matchesText = (param) => `(
+  title LIKE ${param} OR summary LIKE ${param} OR what_changed LIKE ${param}
+  OR doc_number LIKE ${param} OR category LIKE ${param} OR source_authority LIKE ${param}
+  OR action_required LIKE ${param} OR ai_explanation LIKE ${param} OR new_position LIKE ${param}
+  OR case_name LIKE ${param} OR case_number LIKE ${param} OR court LIKE ${param}
+  OR bench LIKE ${param} OR act_section LIKE ${param} OR key_issue LIKE ${param}
+  OR decision LIKE ${param} OR principle LIKE ${param}
+)`;
+
 
 
 /**
@@ -545,7 +664,7 @@ export function saveUpdate(row) {
 export function listUpdates({
   module: mod = 'tax', group = null, category = null, priority = null, source = null,
   status = null, important = null, docType = null, deadlinesOnly = false,
-  court = null, legalArea = null, rulingType = null,
+  court = null, legalArea = null, rulingType = null, terms = null,
   when = null, from = null, to = null, q = null, limit = 100, offset = 0,
 } = {}) {
   const where = ['module = @module'];
@@ -580,19 +699,21 @@ export function listUpdates({
   if (to) { where.push('day <= @to'); args.to = to; }
 
   if (q) {
-    /*
-     * One box, every field worth searching: a person looking for "GNL-1" is as
-     * likely to type the form number as the heading it appeared under, and
-     * "115BBE" only ever appears inside the text.
-     */
-    where.push(`(
-      title LIKE @q OR summary LIKE @q OR what_changed LIKE @q OR doc_number LIKE @q
-      OR category LIKE @q OR source_authority LIKE @q OR action_required LIKE @q
-      OR ai_explanation LIKE @q OR new_position LIKE @q
-      OR case_name LIKE @q OR case_number LIKE @q OR court LIKE @q OR bench LIKE @q
-      OR act_section LIKE @q OR key_issue LIKE @q OR decision LIKE @q OR principle LIKE @q
-    )`);
+    where.push(matchesText('@q'));
     args.q = `%${String(q).trim()}%`;
+  }
+
+  /*
+   * A watch is any of its terms. Written as an OR over the same fields the
+   * search box reads, so what a watch flags is exactly what typing the term
+   * would have found - which is what makes it checkable.
+   */
+  if (terms?.length) {
+    const clauses = terms.map((term, i) => {
+      args[`t${i}`] = `%${String(term).trim()}%`;
+      return matchesText(`@t${i}`);
+    });
+    where.push(`(${clauses.join(' OR ')})`);
   }
 
   args.limit = Math.min(Number(limit) || 100, 300);
@@ -645,6 +766,17 @@ export function groupCounts(mod = 'tax') {
     )
     .all(mod === 'legal' ? 'legal' : 'tax');
   return Object.fromEntries(rows.map((r) => [r.group_key, r.n]));
+}
+
+/** What each watch has caught, and how much of it is new. */
+export function watchCounts(mod = 'legal', { when = null } = {}) {
+  return listWatches(mod).map((watch) => ({
+    ...watch,
+    count: listUpdates({ module: mod, terms: watch.termList, when, limit: 1 }).total,
+    unreviewed: listUpdates({
+      module: mod, terms: watch.termList, status: 'new', when, limit: 1,
+    }).total,
+  }));
 }
 
 /* ---------------- the team's marks ---------------- */
@@ -860,13 +992,52 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
 
   const lines = [heading, ''];
   const used = new Set();
+  // Where an update was shown, so a section that has one can say which block
+  // carried it instead of claiming it had none.
+  const liftedTo = new Map();
 
+  const urgentLabel = legal ? 'Landmark / urgent' : 'Urgent';
   const urgent = updates.filter((u) => u.priority === 'critical');
   if (urgent.length) {
-    lines.push(legal ? '🔴 *Landmark / urgent*' : '🔴 *Urgent*');
+    lines.push(`🔴 *${urgentLabel}*`);
     for (const u of urgent.slice(0, MAX_PER_SECTION)) {
       used.add(u.id);
+      liftedTo.set(u.id, urgentLabel);
       lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
+    }
+    lines.push('');
+  }
+
+  /*
+   * The sections the practice actually lives on, called out by name.
+   *
+   * Section 138 of the NI Act is a recovery practice's whole day; a judgment on
+   * it must not arrive as the fourth bullet of "other forums". Matched through
+   * the same query the search box uses, so what is flagged here is exactly what
+   * typing the term would have found - and an update already shown under Urgent
+   * is named, not printed twice.
+   */
+  const watched = listWatches(mod)
+    .map((watch) => ({
+      watch,
+      hits: listUpdates({ module: mod, from: day, to: day, terms: watch.termList, limit: 10 }).updates,
+    }))
+    .filter((w) => w.hits.length);
+
+  if (watched.length) {
+    lines.push('👁 *Aapke watch list se*');
+    for (const { watch, hits } of watched) {
+      const fresh = hits.filter((u) => !used.has(u.id));
+      lines.push(`*${watch.label}* (${hits.length})`);
+      if (!fresh.length) {
+        lines.push(`• upar ${liftedTo.get(hits[0].id) || urgentLabel} me diya hai`);
+        continue;
+      }
+      for (const u of fresh.slice(0, MAX_PER_SECTION)) {
+        used.add(u.id);
+        liftedTo.set(u.id, watch.label);
+        lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
+      }
     }
     lines.push('');
   }
@@ -881,8 +1052,9 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
        * same message that just showed it is the kind of small lie that costs a
        * reader their trust in the whole digest.
        */
+      const where = [...new Set(all.map((u) => liftedTo.get(u.id)).filter(Boolean))];
       lines.push(all.length
-        ? `*${section.label}:* upar Urgent me diya hai`
+        ? `*${section.label}:* upar ${where.join(' / ') || urgentLabel} me diya hai`
         : `*${section.label}:* koi naya update nahi`);
       continue;
     }
@@ -891,6 +1063,26 @@ export function composeDigest(day, { heading, nothingNew, module: mod = 'tax' })
     lines.push(`*${section.label}:*`);
     for (const u of listed) lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
     if (mine.length > listed.length) lines.push(`  _…aur ${mine.length - listed.length} update._`);
+  }
+
+  /*
+   * Whatever the named sections do not cover.
+   *
+   * The sections are a reading order, not a filter - but they name five groups
+   * out of eleven, so a cheque-bounce judgment, an NCDRC order or an RBI
+   * circular was being fetched, summarised, paid for and then left out of the
+   * message entirely. Anything still unshown goes here rather than nowhere.
+   */
+  const covered = new Set(sections.map((sec) => sec.key));
+  const leftover = updates.filter((u) => !used.has(u.id) && !covered.has(u.group_key));
+  if (leftover.length) {
+    const room = MAX_PER_SECTION + 2;
+    lines.push(legal ? '*Baaki forums / vishay:*' : '*Baaki:*');
+    for (const u of leftover.slice(0, room)) {
+      used.add(u.id);
+      lines.push(`• ${short(u)}${u.source_url ? ` ${u.source_url}` : ''}`);
+    }
+    if (leftover.length > room) lines.push(`  _…aur ${leftover.length - room} update._`);
   }
 
   if (legal) {

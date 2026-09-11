@@ -18,6 +18,7 @@ import {
 import {
   CATEGORY_GROUPS, LEGAL_GROUPS, RULING_TYPES,
   listUpdates, getUpdate, markUpdate, updateCounts, groupCounts, clientMessage,
+  addWatch, removeWatch, getWatch, watchCounts,
 } from '../law-updates.js';
 import {
   maybeSendLegalDigest, buildLegalDigest, legalDigestFor, recentLegalDigests,
@@ -160,6 +161,54 @@ lawDigestRouter.get('/', (req, res) => {
   });
 });
 
+/* ---------------- watches, on both modules ---------------- */
+
+/**
+ * A watch is a standing interest: a saved search with a name.
+ *
+ * "Section 138 NI Act" is the whole of a recovery practice - the judgment
+ * matters in March and in October, and nobody wants to remember to search for
+ * it every morning. Mounted on both routers from one function because a watch
+ * is the same object in either list; only the module it belongs to differs.
+ */
+function mountWatches(router, mod) {
+  router.get('/watches', (req, res) => {
+    res.json({ watches: watchCounts(mod, { when: req.query.when || null }) });
+  });
+
+  router.post('/watches', (req, res) => {
+    try {
+      const watch = addWatch({ module: mod, label: req.body?.label, terms: req.body?.terms });
+      res.status(201).json({ watch, watches: watchCounts(mod) });
+    } catch (err) {
+      // A name with no terms, or a two-letter term, is the user's to correct -
+      // not a 500 with the reason hidden in the log.
+      res.status(400).json({ error: String(err?.message || err) });
+    }
+  });
+
+  router.delete('/watches/:id', (req, res) => {
+    const watch = getWatch(req.params.id);
+    if (!watch || watch.module !== mod) return res.status(404).json({ error: 'not found' });
+    removeWatch(req.params.id);
+    res.json({ watches: watchCounts(mod) });
+  });
+}
+
+/**
+ * `?watch=<id>` scopes the list to one watch.
+ *
+ * The terms are resolved here rather than sent by the client, so a watch's
+ * definition lives in exactly one place and editing it changes every list that
+ * reads it.
+ */
+const watchFilter = (id, mod) => {
+  const watch = id ? getWatch(id) : null;
+  return watch && watch.module === mod ? watch.termList : null;
+};
+
+mountWatches(lawDigestRouter, 'tax');
+
 /**
  * The updates themselves, filtered.
  *
@@ -171,6 +220,7 @@ lawDigestRouter.get('/updates', (req, res) => {
   const q = req.query;
   const { updates, total } = listUpdates({
     module: 'tax',
+    terms: watchFilter(q.watch, 'tax'),
     group: q.group || null,
     category: q.category || null,
     priority: q.priority || null,
@@ -191,6 +241,7 @@ lawDigestRouter.get('/updates', (req, res) => {
     total,
     counts: updateCounts('tax'),
     groups: CATEGORY_GROUPS.map((g) => ({ ...g, count: groupCounts('tax')[g.key] || 0 })),
+    watches: watchCounts('tax'),
   });
 });
 
@@ -268,6 +319,8 @@ const legalGroups = () => LEGAL_GROUPS.map((g) => ({
   count: groupCounts('legal')[g.key] || 0,
 }));
 
+mountWatches(legalRouter, 'legal');
+
 legalRouter.get('/', (req, res) => {
   const day = localDay();
   res.json({
@@ -291,6 +344,7 @@ legalRouter.get('/updates', (req, res) => {
   const q = req.query;
   const { updates, total } = listUpdates({
     module: 'legal',
+    terms: watchFilter(q.watch, 'legal'),
     group: q.group || null,
     category: q.category || null,
     priority: q.priority || null,
@@ -308,7 +362,10 @@ legalRouter.get('/updates', (req, res) => {
     limit: q.limit,
     offset: q.offset,
   });
-  res.json({ updates, total, counts: updateCounts('legal'), groups: legalGroups() });
+  res.json({
+    updates, total, counts: updateCounts('legal'), groups: legalGroups(),
+    watches: watchCounts('legal'),
+  });
 });
 
 legalRouter.patch('/updates/:id', (req, res) => {

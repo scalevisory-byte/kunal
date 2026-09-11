@@ -275,6 +275,15 @@ export const api = {
   lawUpdateMessage: (id, channel = 'whatsapp') =>
     request(`/law-digest/updates/${id}/message?channel=${channel}`),
 
+  /*
+   * Watches: the sections a practice lives on, as saved searches with names.
+   * Both modules keep their own, so the calls are paired like everything else.
+   */
+  lawWatches: () => request('/law-digest/watches'),
+  addLawWatch: (body) =>
+    request('/law-digest/watches', { method: 'POST', body: JSON.stringify(body) }),
+  removeLawWatch: (id) => request(`/law-digest/watches/${id}`, { method: 'DELETE' }),
+
   /* Legal & court updates: the same shapes, its own endpoints and its own list. */
   legalDigest: () => request('/legal'),
   previewLegal: () => request('/legal/preview', { method: 'POST' }),
@@ -290,6 +299,10 @@ export const api = {
     request(`/legal/updates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   legalUpdateMessage: (id, channel = 'whatsapp') =>
     request(`/legal/updates/${id}/message?channel=${channel}`),
+  legalWatches: () => request('/legal/watches'),
+  addLegalWatch: (body) =>
+    request('/legal/watches', { method: 'POST', body: JSON.stringify(body) }),
+  removeLegalWatch: (id) => request(`/legal/watches/${id}`, { method: 'DELETE' }),
   /* Fetches the feeds and pays for a summary, so it is only ever a button. */
   previewLawDigest: () => request('/law-digest/preview', { method: 'POST' }),
   runLawDigest: () => request('/law-digest/run', { method: 'POST' }),

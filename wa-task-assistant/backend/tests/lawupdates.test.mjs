@@ -271,3 +271,153 @@ describe('the two modules stay apart', () => {
     assert.equal(U.listUpdates({ module: 'legal' }).total, 1);
   });
 });
+
+/*
+ * A watch is a standing interest, and the reason it is a saved search rather
+ * than a question put to the model is that it can be checked: these cases hold
+ * that it catches the text actually recorded, that it refuses a term too short
+ * to mean anything, and that a watch deleted on purpose stays deleted.
+ */
+describe('a watch on a section', () => {
+  beforeEach(() => {
+    db.prepare('DELETE FROM law_watches').run();
+    db.prepare(`DELETE FROM meta WHERE key = 'law_watches_seeded'`).run();
+  });
+
+  const cheque = (over = {}) => base({
+    module: 'legal',
+    category: 'Cheque Bounce / Negotiable Instruments (S.138)',
+    title: 'Cheque dishonour complaint maintainable at payee bank branch',
+    summary: 'Territorial jurisdiction under the Negotiable Instruments Act.',
+    source_url: 'https://livelaw.in/sc/cheque-138.html',
+    act_section: 'Section 138, Negotiable Instruments Act 1881',
+    ...over,
+  });
+
+  it('catches a judgment by its section and by the words a report uses', () => {
+    U.addWatch({ module: 'legal', label: 'S.138', terms: 'section 138, cheque dishonour' });
+    U.saveUpdate(cheque());
+    U.saveUpdate(cheque({
+      title: 'Arbitration clause survives termination',
+      summary: 'Contract law.',
+      source_url: 'https://livelaw.in/sc/arb.html',
+      act_section: 'Section 16, Arbitration Act',
+    }));
+
+    const [watch] = U.listWatches('legal');
+    assert.equal(U.listUpdates({ module: 'legal', terms: watch.termList }).total, 1,
+      'the unrelated judgment is not swept in - a watch that flags everything is useless');
+  });
+
+  it('finds the term wherever it was recorded, not only in the title', () => {
+    U.addWatch({ module: 'legal', label: 'S.138', terms: 'negotiable instruments' });
+    U.saveUpdate(cheque({ title: 'Payee bank branch has jurisdiction', act_section: null }));
+    const [watch] = U.listWatches('legal');
+    assert.equal(U.listUpdates({ module: 'legal', terms: watch.termList }).total, 1);
+  });
+
+  it('refuses a term too short to mean anything', () => {
+    assert.throws(() => U.addWatch({ module: 'legal', label: 'too wide', terms: 'NI, 138' }),
+      /three characters/);
+    assert.throws(() => U.addWatch({ module: 'legal', label: '', terms: 'section 138' }), /name/);
+    assert.throws(() => U.addWatch({ module: 'legal', label: 'empty', terms: '  ' }), /look for/);
+    assert.equal(U.listWatches('legal').length, 0);
+  });
+
+  it('counts what it has caught and how much is still unread', () => {
+    U.addWatch({ module: 'legal', label: 'S.138', terms: 'cheque dishonour' });
+    const one = U.saveUpdate(cheque());
+    U.saveUpdate(cheque({ title: 'Cheque dishonour: compounding allowed', source_url: 'https://livelaw.in/sc/two.html' }));
+    U.markUpdate(one.id, { status: 'reviewed', reviewedBy: 'Dinesh' });
+
+    const [counted] = U.watchCounts('legal');
+    assert.equal(counted.count, 2);
+    assert.equal(counted.unreviewed, 1);
+  });
+
+  it('stays on its own module', () => {
+    U.addWatch({ module: 'legal', label: 'S.138', terms: 'cheque dishonour' });
+    assert.equal(U.listWatches('tax').length, 0);
+    assert.equal(U.watchCounts('tax').length, 0);
+  });
+
+  it('is seeded once, and a watch deleted on purpose stays deleted', () => {
+    assert.equal(U.seedDefaultWatchesOnce().added, 1);
+    const [seeded] = U.listWatches('legal');
+    assert.equal(seeded.label, 'Section 138 NI Act');
+
+    U.removeWatch(seeded.id);
+    assert.equal(U.seedDefaultWatchesOnce().added, 0, 'the marker stops it coming back');
+    assert.equal(U.listWatches('legal').length, 0);
+  });
+
+  it('puts its hits in the digest under their own name', () => {
+    U.addWatch({ module: 'legal', label: 'Section 138 NI Act', terms: 'cheque dishonour' });
+    U.saveUpdate(cheque({ day: '2026-09-10' }));
+    U.saveUpdate(cheque({
+      day: '2026-09-10',
+      title: 'GST registration cancellation set aside',
+      summary: 'Writ jurisdiction.',
+      source_url: 'https://livelaw.in/hc/gst.html',
+      category: 'High Court Judgments',
+      act_section: null,
+    }));
+
+    const out = U.composeDigest('2026-09-10', {
+      module: 'legal', heading: 'Legal update', nothingNew: 'kuch nahi',
+    });
+    assert.match(out.text, /watch list/i);
+    assert.match(out.text, /\*Section 138 NI Act\* \(1\)/);
+    assert.equal(out.count, 2);
+  });
+
+  it('names the block that carried an update instead of claiming the section was empty', () => {
+    U.addWatch({ module: 'legal', label: 'Section 138 NI Act', terms: 'cheque dishonour' });
+    U.saveUpdate(cheque({ day: '2026-09-10' }));
+
+    const out = U.composeDigest('2026-09-10', {
+      module: 'legal', heading: 'Legal update', nothingNew: 'kuch nahi',
+    });
+    // Commercial & civil is not one of the digest's named forums, so before the
+    // watch block a cheque-bounce judgment was summarised, paid for and then
+    // left out of the message altogether.
+    assert.match(out.text, /\*Section 138 NI Act\* \(1\)/);
+    assert.match(out.text, /Territorial jurisdiction/);
+    assert.equal(out.ids.length, 1);
+  });
+
+  it('says nothing at all when nothing it watches came in', () => {
+    U.addWatch({ module: 'legal', label: 'Section 138 NI Act', terms: 'cheque dishonour' });
+    U.saveUpdate(cheque({
+      day: '2026-09-10',
+      title: 'Arbitration clause survives termination',
+      summary: 'Contract law.',
+      source_url: 'https://livelaw.in/sc/arb.html',
+      act_section: null,
+    }));
+    const out = U.composeDigest('2026-09-10', {
+      module: 'legal', heading: 'Legal update', nothingNew: 'kuch nahi',
+    });
+    assert.doesNotMatch(out.text, /watch list/i);
+  });
+});
+
+describe('an update in a group the digest does not name', () => {
+  it('still reaches the message instead of being paid for and dropped', () => {
+    db.prepare('DELETE FROM law_watches').run();
+    U.saveUpdate(base({
+      module: 'legal',
+      day: '2026-09-10',
+      category: 'Consumer Court / NCDRC Updates',
+      title: 'NCDRC on builder delay compensation',
+      summary: 'Possession delay: interest payable from the promised date.',
+      source_url: 'https://livelaw.in/ncdrc/one.html',
+    }));
+
+    const out = U.composeDigest('2026-09-10', {
+      module: 'legal', heading: 'Legal update', nothingNew: 'kuch nahi',
+    });
+    assert.match(out.text, /Baaki forums/);
+    assert.match(out.text, /Possession delay/);
+  });
+});

@@ -145,6 +145,19 @@ try {
     log.warn('Could not turn on the law digest:', err?.message || err);
   }
 
+  /*
+   * The Section 138 watch, set up once. Asked for by name, and it is the work
+   * Arth Advisory does - so it is there on first boot rather than waiting to be
+   * typed in. A marker means a watch deleted on purpose stays deleted.
+   */
+  try {
+    const { seedDefaultWatchesOnce } = await import('./law-updates.js');
+    const { added } = seedDefaultWatchesOnce();
+    if (added) log.info(`Watch list seeded (${added}) - Section 138 NI Act judgments get called out by name.`);
+  } catch (err) {
+    log.warn('Could not seed the watch list:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

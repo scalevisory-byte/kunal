@@ -109,6 +109,15 @@ The engine chases **Dinesh about his own tasks**. There is no notion of chasing 
 - **A statute is not a judgment**: for legislation the labels read Authority / Notified on / What it provides, not Court / Judgment date / What the court decided.
 - **Never invent a citation.** The prompt's hardest rule: a case number, bench, section or holding the report did not state comes back empty. `ruling_type` is validated against the list, so a value the model made up is dropped. Source link comes from the article, never from the model.
 - **Fixed a real dedupe bug found here**: `source_url` was UNIQUE, so a round-up article reporting two judgments silently lost the second. Identity is now the case/document number, with the URL as fallback; the old unique index is dropped at boot.
+### Watch list — the sections a practice lives on
+- Asked for as *"need sec 138 releted case update"*. A digest is a day's news; a **watch is a standing interest** — Section 138 NI Act (cheque bounce) is most of what an Arth Advisory recovery file turns on, and it matters in March as much as in September.
+- A watch is a **saved search with a name**, deliberately: it matches on the text actually recorded (title, summary, doc/case number, court, `act_section`, decision, principle, the AI explanation), through the *same* SQL clause the search box uses — so what a watch flags is exactly what typing the words would have found, and it can be checked. It never asks the model "is this relevant?": a model that guesses that wrong either buries the one judgment that mattered or flags forty that did not.
+- Terms are a comma-separated list because the same thing is reported three ways (`section 138` / `cheque dishonour` / `negotiable instruments`), and a watch on one spelling misses the other two. A term under three characters is **refused** — a watch that flags everything is a watch nobody reads.
+- **Section 138 is seeded on first boot** (`seedDefaultWatchesOnce`, marker in `meta`), with both spellings of dishonour. Deleting it sticks.
+- Its hits get a **👁 block in the digest**, under the watch's own name, so the judgment reaches WhatsApp without anyone searching for it. An update already shown under Urgent is named there rather than printed twice.
+- **A real hole this exposed:** the digest names five groups out of eleven, so a cheque-bounce judgment, an NCDRC order or an RBI circular was fetched, summarised, **paid for and then left out of the message entirely**. Anything the named sections don't cover now goes in a **Baaki** block. Two new legal categories as well: *Cheque Bounce / Negotiable Instruments (S.138)* and *Debt Recovery / DRT & SARFAESI*.
+- Both modules have their own watches (`law_watches`, unique on `(module, label)`), a chip row above the filters that scopes the list, and `GET/POST/DELETE /watches` on each router. 10 more cases in `lawupdates.test.mjs`.
+
 - `backend/tests/legal.test.mjs` (13 cases) — the wall between modules, the legal fields, the empty-field rule, the digest shape, one-per-day, and that its spend is measured as `legal_digest`.
 
 ### Cost control (after the bill hit ₹175/day)

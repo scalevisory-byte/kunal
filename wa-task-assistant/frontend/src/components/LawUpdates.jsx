@@ -54,12 +54,18 @@ const MODULES = {
     list: (f) => api.lawUpdates(f),
     mark: (id, patch) => api.markLawUpdate(id, patch),
     message: (id, channel) => api.lawUpdateMessage(id, channel),
+    addWatch: (body) => api.addLawWatch(body),
+    removeWatch: (id) => api.removeLawWatch(id),
+    watchHint: 'e.g. Section 43B, 194R, GSTR-9',
     empty: 'Press Fetch now above to read the feeds — the updates it finds are listed here.',
   },
   legal: {
     list: (f) => api.legalUpdates(f),
     mark: (id, patch) => api.markLegalUpdate(id, patch),
     message: (id, channel) => api.legalUpdateMessage(id, channel),
+    addWatch: (body) => api.addLegalWatch(body),
+    removeWatch: (id) => api.removeLegalWatch(id),
+    watchHint: 'e.g. section 138, cheque dishonour',
     empty: 'Press Fetch judgments above — what it finds is listed here.',
   },
 };
@@ -71,6 +77,8 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [watchError, setWatchError] = useState('');
 
   /*
    * The search waits for a pause rather than firing per keystroke: this is a
@@ -101,9 +109,37 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
   const groups = data?.groups?.filter((g) => g.count > 0) ?? [];
   const counts = data?.counts ?? {};
   const updates = data?.updates ?? [];
+  const watches = data?.watches ?? [];
+
+  /*
+   * Adding or removing a watch reloads the list, because the watch chips and
+   * their counts arrive with it - there is no second copy to keep in step.
+   */
+  const saveWatch = async (label, terms) => {
+    setWatchError('');
+    try {
+      await endpoints.addWatch({ label, terms });
+      setAdding(false);
+      await load();
+    } catch (err) {
+      setWatchError(String(err?.message || err));
+    }
+  };
+
+  const dropWatch = async (watch) => {
+    setWatchError('');
+    try {
+      await endpoints.removeWatch(watch.id);
+      if (filters.watch === watch.id) set({ watch: null });
+      else await load();
+    } catch (err) {
+      setWatchError(String(err?.message || err));
+    }
+  };
 
   const active = useMemo(
-    () => Object.entries(filters).filter(([k, v]) => v && k !== 'when').length + (query ? 1 : 0),
+    () => Object.entries(filters).filter(([k, v]) => v && k !== 'when' && k !== 'watch').length
+      + (query ? 1 : 0),
     [filters, query]
   );
 
@@ -116,6 +152,55 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
           {counts.critical ? ` · ${counts.critical} critical` : ''}
         </span>
       </header>
+
+      <div className="lu-watches">
+        <span className="lu-watch-label">Watching</span>
+        <div className="chip-row">
+          {watches.map((w) => (
+            <span key={w.id} className={`lu-watch ${filters.watch === w.id ? 'on' : ''}`}>
+              <button
+                type="button"
+                className="lu-watch-pick"
+                aria-pressed={filters.watch === w.id}
+                title={w.termList?.join(', ')}
+                onClick={() => set({ watch: filters.watch === w.id ? null : w.id })}
+              >
+                {w.label}
+                {/* When everything it caught is unread, one figure says both. */}
+                {w.count > 0 && w.unreviewed === w.count ? (
+                  <span className="lu-watch-new">{w.count} new</span>
+                ) : (
+                  <>
+                    <span className="chip-count">{w.count}</span>
+                    {w.unreviewed ? <span className="lu-watch-new">{w.unreviewed} new</span> : null}
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                className="lu-watch-drop"
+                title={`Stop watching ${w.label}`}
+                onClick={() => dropWatch(w)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+
+          {adding ? (
+            <WatchForm hint={endpoints.watchHint} onSave={saveWatch} onCancel={() => { setAdding(false); setWatchError(''); }} />
+          ) : (
+            <button type="button" className="chip ghost" onClick={() => setAdding(true)}>
+              ＋ Watch a section
+            </button>
+          )}
+        </div>
+        <p className="lu-watch-note">
+          {watchError
+            ? watchError
+            : 'A watch is a saved search, matched on the recorded text — so it flags exactly what typing the words would have found, and what it catches is called out in the daily digest by name.'}
+        </p>
+      </div>
 
       <div className="lu-controls">
         <div className="chip-row">
@@ -456,3 +541,41 @@ const Fact = ({ label, value }) =>
       <dd>{value}</dd>
     </>
   ) : null;
+
+
+/**
+ * Naming a watch and the words to look for.
+ *
+ * Terms are typed as a comma-separated list rather than one phrase, because the
+ * same thing is reported three ways - "section 138", "cheque dishonour",
+ * "Negotiable Instruments Act" - and a watch on only one spelling quietly
+ * misses the other two. The server refuses a term under three characters, and
+ * says so here rather than accepting a watch that would flag everything.
+ */
+function WatchForm({ hint, onSave, onCancel }) {
+  const [label, setLabel] = useState('');
+  const [terms, setTerms] = useState('');
+
+  return (
+    <form
+      className="lu-watch-form"
+      onSubmit={(e) => { e.preventDefault(); onSave(label.trim(), terms.trim()); }}
+    >
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Name it"
+        aria-label="Watch name"
+        autoFocus
+      />
+      <input
+        value={terms}
+        onChange={(e) => setTerms(e.target.value)}
+        placeholder={`Words to look for — ${hint}`}
+        aria-label="Words to look for, comma separated"
+      />
+      <button type="submit" className="chip on" disabled={!label.trim() || !terms.trim()}>Watch</button>
+      <button type="button" className="chip ghost" onClick={onCancel}>Cancel</button>
+    </form>
+  );
+}
