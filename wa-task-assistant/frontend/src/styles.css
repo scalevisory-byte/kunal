@@ -4013,6 +4013,10 @@ button.due:hover { background: var(--raised); }
   background: var(--danger-wash, transparent);
 }
 .digest-shape { border-top: 1px solid var(--line); }
+/* Every value here is an ellipsis standing in for a line nobody has read yet. */
+.digest-shape .digest-text { color: var(--muted); }
+.digest-shape .digest-row.action { background: none; }
+.digest-shape .digest-raw { display: none; }
 .digest-shape > small {
   display: block; padding: 9px 12px 0;
   font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted);

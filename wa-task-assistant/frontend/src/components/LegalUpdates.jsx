@@ -191,9 +191,18 @@ function Panel({ onError }) {
                   digest here without sending it; <strong>Send now</strong> puts it in
                   your own WhatsApp chat.</>}
             </p>
+            {/*
+              * The empty shape, rendered exactly as a real digest is.
+              *
+              * It was left as raw monospace when the digest itself was made
+              * readable, which meant the page looked broken for the hours
+              * before the morning run - the same page, the same box, and the
+              * asterisks back. An example of the thing has to look like the
+              * thing.
+              */}
             <div className="digest-shape">
               <small>The lines it fills in</small>
-              <pre>{state.shape}</pre>
+              <Digest text={state.shape} compact />
             </div>
           </>
         )}
