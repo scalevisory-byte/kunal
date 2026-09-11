@@ -1,5 +1,6 @@
-import { db } from './db.js';
+import { db, listBlockedChats, blockChat } from './db.js';
 import { log } from './logger.js';
+import { matchesPattern } from './blocklist.js';
 
 /**
  * Putting the group's real name back, from WhatsApp itself.
@@ -165,6 +166,26 @@ export function applyGroupName(chatId, name) {
        WHERE chat_id = ? AND (chat_name IS NULL OR chat_name != ?)`
     )
     .run(clean, chatId, clean).changes;
+
+  /*
+   * A block written against a name it did not have yet.
+   *
+   * This is the leak the blocklist could not close on its own. A group arrives
+   * before WhatsApp will say what it is called, so it is stored under its id;
+   * the block is written against the NAME, matches nothing, and every message
+   * is read and paid for. Then this function learns the name - and the block
+   * that was meant for this chat all along suddenly applies to it.
+   *
+   * So the id goes on the list too, now. It is not a wider block: an id names
+   * exactly the one chat whose name is already blocked, and unlike a name it
+   * cannot fail to resolve again.
+   */
+  const blocked = listBlockedChats();
+  const alreadyById = blocked.some((row) => row.pattern === chatId);
+  if (!alreadyById && blocked.some((row) => matchesPattern(row.pattern, { chatName: clean }))) {
+    blockChat(chatId);
+    log.info(`"${clean}" is on the blocked list — blocking its id ${chatId} as well, since the name only just arrived.`);
+  }
 
   return { messages, tasks };
 }

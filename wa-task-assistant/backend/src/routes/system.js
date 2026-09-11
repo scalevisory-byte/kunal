@@ -11,7 +11,7 @@ import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
-import { diagnostics } from '../diagnostics.js';
+import { diagnostics, startedAt } from '../diagnostics.js';
 import { extractTasks } from '../extractor.js';
 import {
   usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat, blockEffect,
@@ -193,7 +193,7 @@ systemRouter.get('/usage', (req, res) => {
      * thirty days, so a chat blocked yesterday still shows what it cost before
      * that - which is indistinguishable from a block that is not working.
      */
-    blocking: blockEffect({ days: req.query.days }),
+    blocking: blockEffect({ days: req.query.days, since: startedAt }),
     /* Who is sending the messages that cost money and produce nothing. */
     quiet: quietSenders(req.query.days),
 
@@ -330,7 +330,7 @@ systemRouter.get('/blocked-chats', (req, res) => {
      * has to be answerable. The same figures are on the AI Usage page; the
      * question gets asked here first.
      */
-    effect: blockEffect({ days: 30 }),
+    effect: blockEffect({ days: 30, since: startedAt }),
   });
 });
 

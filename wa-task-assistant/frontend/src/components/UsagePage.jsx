@@ -378,9 +378,12 @@ const when = (stamp) => {
  * under.
  */
 function BlockEffect({ rows }) {
-  const leaking = rows.filter((r) => r.since > 0);
-  const working = rows.filter((r) => r.since === 0 && r.before > 0);
-  const idle = rows.filter((r) => r.since === 0 && r.before === 0);
+  // Leaking means leaking now: a block added before the running version came
+  // up has a large "since" behind it and may be working perfectly.
+  const leaking = rows.filter((r) => r.sinceBoot > 0);
+  const stale = rows.filter((r) => !r.sinceBoot && r.since > 0);
+  const working = rows.filter((r) => !r.since && r.before > 0);
+  const idle = rows.filter((r) => !r.since && !r.before);
 
   return (
     <>
@@ -392,19 +395,23 @@ function BlockEffect({ rows }) {
       </header>
       <p className="usage-explain">
         {leaking.length
-          ? 'These are still being read after you blocked them — the name below is what actually arrived.'
-          : 'Nothing has been read from any blocked chat since you blocked it. What the list above shows for them is what they cost before that.'}
+          ? 'These are still being read since the app last restarted — the name below is what actually arrived.'
+          : stale.length
+            ? 'Nothing has arrived from any blocked chat since the app last restarted. What got through before that is counted below, and is what the list above is still showing.'
+            : 'Nothing has been read from any blocked chat since you blocked it. What the list above shows for them is what they cost before that.'}
       </p>
       <ul className="block-effect">
-        {[...leaking, ...working, ...idle].map((row) => (
-          <li key={row.id} className={row.since > 0 ? 'leaking' : row.before > 0 ? 'working' : 'idle'}>
+        {[...leaking, ...stale, ...working, ...idle].map((row) => (
+          <li key={row.id} className={row.sinceBoot > 0 ? 'leaking' : row.since > 0 ? 'mixed' : row.before > 0 ? 'working' : 'idle'}>
             <span className="be-pattern">{row.pattern}</span>
             <span className="be-state">
-              {row.since > 0
-                ? `${row.since} read since you blocked it`
-                : row.before > 0
-                  ? 'nothing since you blocked it'
-                  : 'never matched a message'}
+              {row.sinceBoot > 0
+                ? `${row.sinceBoot} since the app restarted`
+                : row.since > 0
+                  ? `${row.since} got through, none since the restart`
+                  : row.before > 0
+                    ? 'nothing since you blocked it'
+                    : 'never matched a message'}
             </span>
             <span className="be-detail">
               {row.since > 0

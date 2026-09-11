@@ -465,7 +465,7 @@ export function messageVolumeByChat(days = 30, limit = 40) {
  * A pattern that matched nothing at all is its own answer: the name on the list
  * is not the name the messages are filed under.
  */
-export function blockEffect({ days = 30 } = {}) {
+export function blockEffect({ days = 30, since = null } = {}) {
   const patterns = listBlockedChats();
   if (!patterns.length) return [];
 
@@ -476,6 +476,17 @@ export function blockEffect({ days = 30 } = {}) {
          FROM messages WHERE created_at >= datetime('now', ?)`
     )
     .all(window);
+
+  /*
+   * The moment the running code started.
+   *
+   * "57 still arrived after you blocked it" is true and useless on its own: a
+   * block added last night, with the matching fixed this evening, is *supposed*
+   * to have a large number behind it. What says whether it is fixed is whether
+   * anything has arrived since the version now running came up - and that is a
+   * different number.
+   */
+  const boot = since ? String(since).slice(0, 19).replace('T', ' ') : null;
 
   /*
    * What a pattern that matched nothing was probably reaching for.
@@ -507,17 +518,32 @@ export function blockEffect({ days = 30 } = {}) {
       created_at: row.created_at,
       before: 0,
       since: 0,
+      sinceBoot: 0,
       chats: [],
+      ids: [],
       lastAt: null,
       suggest: null,
     };
     const stillArriving = new Map();
+    const ids = new Map();
 
     for (const message of rows) {
       if (!patternWouldDrop(row.pattern, message)) continue;
       if (message.created_at >= row.created_at) {
         effect.since += 1;
+        if (boot && message.created_at >= boot) effect.sinceBoot += 1;
         stillArriving.set(message.chat_name, (stillArriving.get(message.chat_name) || 0) + 1);
+        /*
+         * The id of a chat that got through.
+         *
+         * A group whose name WhatsApp could not resolve is stored under its id
+         * and repaired later, so the name the block was written against did not
+         * exist yet when the message arrived. The id always did - so offering it
+         * is the fix for the leak rather than a description of it.
+         */
+        if (message.is_group && message.chat_id) {
+          ids.set(message.chat_id, (ids.get(message.chat_id) || 0) + 1);
+        }
         if (!effect.lastAt || message.created_at > effect.lastAt) effect.lastAt = message.created_at;
       } else {
         effect.before += 1;
@@ -528,6 +554,11 @@ export function blockEffect({ days = 30 } = {}) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
       .map(([chat, messages]) => ({ chat, messages }));
+    effect.ids = [...ids.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([id]) => id)
+      .filter((id) => !patterns.some((p) => p.pattern === id));
     if (!effect.before && !effect.since) effect.suggest = nearest(row.pattern);
     return effect;
   });

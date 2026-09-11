@@ -4099,6 +4099,7 @@ button.due:hover { background: var(--raised); }
 .be-pattern { font-weight: 600; }
 .be-state { font-family: "IBM Plex Mono", monospace; font-size: .74rem; }
 .block-effect > li.leaking .be-state { color: var(--danger); }
+.block-effect > li.mixed .be-state { color: var(--warn); }
 .block-effect > li.working .be-state { color: var(--ok); }
 .block-effect > li.idle .be-state { color: var(--muted); }
 .be-detail { color: var(--muted); font-size: .76rem; }
@@ -4119,6 +4120,9 @@ button.due:hover { background: var(--raised); }
 .bl-name { font-weight: 600; }
 .bl-state { font-family: "IBM Plex Mono", monospace; font-size: .72rem; flex: 1 1 auto; }
 .block-list > li.leaking .bl-state { color: var(--danger); }
+/* Got through, but not since the running version came up: fixed, not broken. */
+.block-list > li.mixed .bl-state { color: var(--warn); }
+.bl-when { font-size: .72rem; color: var(--muted); }
 .block-list > li.working .bl-state { color: var(--ok); }
 .block-list > li.idle .bl-state { color: var(--muted); }
 .hint.warn { color: var(--danger); }

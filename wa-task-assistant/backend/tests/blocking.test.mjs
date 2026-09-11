@@ -24,6 +24,7 @@ process.env.BATCH_QUIET_SECONDS = '30';
 
 const { db, listBlockedChats, blockChat, unblockChat, blockEffect } = await import('../src/db.js');
 const { matchesPattern } = await import('../src/blocklist.js');
+const { applyGroupName } = await import('../src/group-names.js');
 const WA = await import('../src/whatsapp.js');
 
 WA.setClientForTests({ info: { wid: { _serialized: 'me@c.us' } }, getChats: async () => [] });
@@ -386,5 +387,130 @@ describe('how a typed name is matched', () => {
   it('still refuses a number too short to identify anyone', () => {
     assert.ok(!matchesPattern('123', { contactNumber: '919912312345' }));
     assert.ok(matchesPattern('9912312345', { contactNumber: '919912312345' }));
+  });
+});
+
+/*
+ * "57 still arrived after you blocked it" is true and useless on its own.
+ *
+ * A block added last night, with the matching fixed this evening, is SUPPOSED
+ * to have a large number behind it - every one of those arrived while the check
+ * could not match the name. What says whether it is fixed is whether anything
+ * has arrived since the running version came up, which is a different number.
+ */
+describe('leaking now, or leaked before the fix', () => {
+  const stamp = (offsetSeconds) =>
+    new Date(Date.now() + offsetSeconds * 1000).toISOString().slice(0, 19).replace('T', ' ');
+
+  const store = ({ chat, group = 0, chatId = '9@c.us', at }) =>
+    db.prepare(
+      `INSERT INTO messages
+         (wa_message_id, chat_id, chat_name, contact_name, contact_number, body, is_group, from_me, sent_at, created_at)
+       VALUES (?,?,?,NULL,NULL,'hi',?,0,?,?)`
+    ).run(`boot-${Math.random()}`, chatId, chat, group, at, at);
+
+  beforeEach(() => {
+    db.prepare('DELETE FROM messages').run();
+    db.prepare('DELETE FROM blocked_chats').run();
+  });
+
+  /*
+   * The block is added now, so "after it" means later than now: these stamps
+   * stand in for last night's leak (before the restart) and this minute's.
+   */
+  const LEAKED = 10;
+  const BOOT = 30;
+  const NOW = 60;
+
+  it('separates what got through before the restart from what is arriving now', () => {
+    blockChat('Taxscan');
+    store({ chat: 'Taxscan', at: stamp(LEAKED) });
+    store({ chat: 'Taxscan', at: stamp(LEAKED) });
+    store({ chat: 'Taxscan', at: stamp(NOW) });
+
+    const [row] = blockEffect({ days: 30, since: stamp(BOOT) });
+    assert.equal(row.since, 3, 'everything since the block was added');
+    assert.equal(row.sinceBoot, 1, 'and the one that is the problem now');
+    assert.ok(row.lastAt, 'with when the last one arrived');
+  });
+
+  it('reads zero since the restart when the fix took', () => {
+    blockChat('Taxscan');
+    store({ chat: 'Taxscan', at: stamp(LEAKED) });
+    store({ chat: 'Taxscan', at: stamp(LEAKED) });
+
+    const [row] = blockEffect({ days: 30, since: stamp(BOOT) });
+    assert.equal(row.since, 2, 'a big number here is not a fault on its own');
+    assert.equal(row.sinceBoot, 0, 'nothing since the running version came up');
+  });
+
+  it('offers the id of a group that got through, since a name can fail to resolve', () => {
+    // A group WhatsApp had not named yet is stored under its id and repaired
+    // later, so the name this block is written against did not exist when the
+    // message arrived. The id always did.
+    blockChat('Surat Final Accountant Job');
+    store({ chat: 'Surat Final Accountant Job', group: 1, chatId: '120363@g.us', at: stamp(NOW) });
+
+    const [row] = blockEffect({ days: 30, since: stamp(BOOT) });
+    assert.equal(row.sinceBoot, 1);
+    assert.deepEqual(row.ids, ['120363@g.us']);
+  });
+
+  it('does not offer an id that is already blocked', () => {
+    blockChat('Surat Final Accountant Job');
+    blockChat('120363@g.us');
+    store({ chat: 'Surat Final Accountant Job', group: 1, chatId: '120363@g.us', at: stamp(NOW) });
+
+    const row = blockEffect({ days: 30, since: stamp(BOOT) })
+      .find((r) => r.pattern === 'Surat Final Accountant Job');
+    assert.deepEqual(row.ids, []);
+  });
+
+  it('counts nothing as since-the-restart when no boot time is given', () => {
+    blockChat('Taxscan');
+    store({ chat: 'Taxscan', at: stamp(NOW) });
+    assert.equal(blockEffect({ days: 30 })[0].sinceBoot, 0);
+  });
+});
+
+/*
+ * The leak the blocklist could not close on its own.
+ *
+ * A group arrives before WhatsApp will say what it is called, so it is stored
+ * under its id. The block is written against the NAME, matches nothing, and
+ * every message is read and paid for. Later the name is learned - and the block
+ * that was meant for this chat all along suddenly applies to it.
+ */
+describe('a block written against a name that had not arrived', () => {
+  beforeEach(() => {
+    db.prepare('DELETE FROM messages').run();
+    db.prepare('DELETE FROM blocked_chats').run();
+  });
+
+  it('puts the id on the list as soon as the name is learned', () => {
+    blockChat('Surat Final Accountant Job');
+    applyGroupName('120363999@g.us', 'Surat Final Accountant Job');
+
+    const patterns = listBlockedChats().map((b) => b.pattern);
+    assert.ok(patterns.includes('120363999@g.us'), 'the id cannot fail to resolve again');
+  });
+
+  it('leaves an unrelated group alone', () => {
+    blockChat('Surat Final Accountant Job');
+    applyGroupName('120363111@g.us', 'Book N Fly Team');
+    assert.ok(!listBlockedChats().some((b) => b.pattern === '120363111@g.us'));
+  });
+
+  it('does not add the same id twice', () => {
+    blockChat('Surat Final Accountant Job');
+    applyGroupName('120363999@g.us', 'Surat Final Accountant Job');
+    applyGroupName('120363999@g.us', 'Surat Final Accountant Job');
+    const count = listBlockedChats().filter((b) => b.pattern === '120363999@g.us').length;
+    assert.equal(count, 1);
+  });
+
+  it('adds nothing when nothing is blocked', () => {
+    applyGroupName('120363222@g.us', 'Any Group');
+    assert.deepEqual(listBlockedChats(), []);
   });
 });

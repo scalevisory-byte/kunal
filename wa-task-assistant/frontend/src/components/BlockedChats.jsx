@@ -15,6 +15,24 @@ import { api } from '../api.js';
  */
 const flatten = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+/**
+ * How long ago, in the words a person would use.
+ *
+ * The server stores UTC without a zone marker, which `new Date()` would read as
+ * local time and report as hours in the future.
+ */
+const ago = (stamp) => {
+  if (!stamp) return '';
+  const at = new Date(`${String(stamp).replace(' ', 'T')}Z`);
+  const mins = Math.round((Date.now() - at.getTime()) / 60000);
+  if (!Number.isFinite(mins)) return '';
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} d ago`;
+};
+
 export default function BlockedChats({ mode, onError }) {
   const [open, setOpen] = useState(false);
   const [blocked, setBlocked] = useState([]);
@@ -105,7 +123,15 @@ export default function BlockedChats({ mode, onError }) {
           <p className="hint">
             Chats listed here are never read and never stored. Part of a name is enough.
             Blocking a <b>group</b> blocks the whole group — nothing anybody writes in it
-            is read.
+            is read.{' '}
+            {/*
+              * Said here because the figures beside each block raise it: a large
+              * count against a block that is now working is the normal shape of
+              * a fix, and only the "since the app restarted" figure is a fault.
+              */}
+            The count beside each one is everything that got through since you added it —
+            what matters is whether any arrived <b>since the app restarted</b>, because
+            that is the version running now.
           </p>
 
           <form
@@ -140,24 +166,52 @@ export default function BlockedChats({ mode, onError }) {
             <ul className="block-list">
               {blocked.map((b) => {
                 const e = effect.find((x) => x.id === b.id) || {};
-                const state = e.since > 0 ? 'leaking' : e.before > 0 ? 'working' : 'idle';
+                /*
+                 * Leaking means leaking NOW.
+                 *
+                 * A block added last night, with the matching fixed this
+                 * evening, has a large "since" behind it and is working
+                 * perfectly. What separates the two is whether anything has
+                 * arrived since the version now running came up.
+                 */
+                const state = e.sinceBoot > 0 ? 'leaking' : e.since > 0 ? 'mixed' : e.before > 0 ? 'working' : 'idle';
                 return (
                   <li key={b.id} className={state}>
                     <span className="bl-name">{b.pattern}</span>
                     <span className="bl-state">
-                      {e.since > 0
-                        ? `${e.since} still arrived after you blocked it`
-                        : e.before > 0
-                          ? `nothing since — ${e.before} read before`
-                          : e.suggest
-                            ? `never matched — did you mean “${e.suggest}”?`
-                            : 'never matched a message'}
+                      {e.sinceBoot > 0
+                        ? `${e.sinceBoot} arrived since the app restarted`
+                        : e.since > 0
+                          ? `${e.since} got through before the last restart — none since`
+                          : e.before > 0
+                            ? `nothing since — ${e.before} read before`
+                            : e.suggest
+                              ? `never matched — did you mean “${e.suggest}”?`
+                              : 'never matched a message'}
                     </span>
+                    {/* Only while it is still arriving: beside "none since the
+                        restart", a timestamp reads like a contradiction. */}
+                    {e.lastAt && e.sinceBoot > 0 && <span className="bl-when">last {ago(e.lastAt)}</span>}
                     {e.suggest && !e.since && !e.before && (
                       <button className="link" onClick={() => add(e.suggest)}>
                         Block that instead
                       </button>
                     )}
+                    {/*
+                      * A group whose name WhatsApp had not resolved was stored
+                      * under its id, so the name this block is written against
+                      * did not exist when the message arrived. The id did.
+                      */}
+                    {e.sinceBoot > 0 && (e.ids || []).map((id) => (
+                      <button
+                        key={id}
+                        className="link"
+                        title="A group WhatsApp had not named yet is stored under its id, so a block written against the name could not match. The id never changes."
+                        onClick={() => add(id)}
+                      >
+                        Block its id too
+                      </button>
+                    ))}
                     <button className="chip-x" onClick={() => remove(b.id)} aria-label={`Unblock ${b.pattern}`}>
                       ×
                     </button>
