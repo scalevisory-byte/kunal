@@ -283,6 +283,63 @@ run('the oldest is still the one kept when only it has a description', () => {
   assert.deepEqual(group.drop.map((t) => t.id), [second.id]);
 });
 
+/*
+ * "Ek hi kaam nahi - alag alag purpose he na."
+ *
+ * Two conversations with the same person, days apart, about different things.
+ * The title never said which, so both rows read "Talk with Vikas Gupta" and the
+ * app called them one job. A name answers WHO. Two tasks that agree on nothing
+ * else have not been shown to be the same work, and merging them loses the
+ * second conversation - which, unlike a duplicate row, is invisible.
+ */
+console.log('\na name is who, not what');
+
+run('refuses to merge two tasks that share only a person', () => {
+  task('Talk with Vikas Gupta', { due_date: '2027-05-04', contact: 'Vikas Gupta' });
+  const found = M.findDuplicateTask('Talk with Vikas Gupta', {
+    dueDate: '2027-05-04', contact: 'Vikas Gupta',
+  });
+  assert.equal(found, null, 'two conversations, not one job said twice');
+});
+
+run('does not offer that pair for review either', () => {
+  task('Talk with Vikas Gupta', { due_date: '2027-05-04', contact: 'Vikas Gupta' });
+  const group = M.duplicateGroups().find((g) => g.keep.title === 'Talk with Vikas Gupta');
+  assert.equal(group, undefined, 'the page would be asking a question it has not established');
+});
+
+run('merges them once the title says what it is about', () => {
+  const first = task('Talk with Vikas Gupta about the Sena GST refund', {
+    due_date: '2027-05-05', contact: 'Vikas Gupta',
+  });
+  const found = M.findDuplicateTask('Talk with Vikas Gupta about the Sena GST refund', {
+    dueDate: '2027-05-05', contact: 'Vikas Gupta',
+  });
+  assert.ok(found, 'same person AND same subject');
+  assert.equal(found.id, first.id);
+});
+
+run('keeps two subjects with the same person apart', () => {
+  // Dated clear of the case above, whose task is still open and whose title is
+  // word for word the one being asked about here.
+  task('Talk with Vikas Gupta about the Pinetree invoice', {
+    due_date: '2027-06-06', contact: 'Vikas Gupta',
+  });
+  assert.equal(
+    M.findDuplicateTask('Talk with Vikas Gupta about the Sena GST refund', {
+      dueDate: '2027-06-06', contact: 'Vikas Gupta',
+    }),
+    null
+  );
+});
+
+run('the verb of reaching somebody carries no identity', () => {
+  // "Talk with", "Call", "Meet" and "Discuss" are how you reach a person, not
+  // what the job is - the same class as "send" and "file".
+  assert.deepEqual(M.subjectWords('Call Vikas Gupta', 'Vikas Gupta'), []);
+  assert.deepEqual(M.subjectWords('Meet Vikas Gupta about GSTR-9', 'Vikas Gupta'), ['gstr', '9']);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

@@ -13,6 +13,8 @@ const NOISE = new Set([
   'do', 'done', 'complete', 'completed', 'process', 'send', 'make', 'check',
   // "File GSTR-1" and "GSTR - 1" are one job; the verb carries no identity.
   'file', 'filing', 'submit', 'upload',
+  // Nor does reaching somebody: what the conversation is ABOUT is the job.
+  'talk', 'call', 'meet', 'discuss', 'speak', 'contact', 'regarding', 'about', 'with',
   'task', 'karna', 'karni', 'karo', 'kar', 'karunga', 'karenge', 'hai', 'he',
   'ho', 'hua', 'hui', 'gaya', 'gayi', 'gai', 'diya', 'diyo', 'dena', 'bhej',
   'aaj', 'kal', 'parso', 'today', 'tomorrow', 'ka', 'ki', 'ke', 'me', 'mein',
@@ -67,6 +69,24 @@ const bestScore = (phraseWords, task) => Math.max(
   score(phraseWords, words(task.title)),
   score(phraseWords, words(`${task.title} ${task.description || ''}`))
 );
+
+/**
+ * What is left of a title once the person is taken out of it.
+ *
+ * "Talk with Vikas Gupta" twice is not one job said twice - it is two
+ * conversations, days apart, about different things, and the title simply never
+ * said which. A name answers *who*, and two tasks that agree on nothing but a
+ * name have not been shown to be the same work. So when a title reduces to the
+ * person it names, no merge is possible: the app cannot tell them apart, and
+ * neither can the person reading the list.
+ *
+ * The extractor is asked for the subject in the title for exactly this reason.
+ * This is what holds when it does not get one.
+ */
+export const subjectWords = (title, who = '') => {
+  const theirs = new Set(words(who));
+  return words(title).filter((w) => !theirs.has(w));
+};
 
 export const MATCH_THRESHOLD = 0.5;
 
@@ -141,9 +161,16 @@ export function matchOpenTask(phrase, { threshold = MATCH_THRESHOLD } = {}) {
  * side matches on the words alone, which is the older behaviour and the right
  * one for work that was never dated.
  */
-export function findDuplicateTask(title, { threshold = 0.8, dueDate = null } = {}) {
+export function findDuplicateTask(title, { threshold = 0.8, dueDate = null, contact = null } = {}) {
   const phraseWords = words(title);
   if (!phraseWords.length) return null;
+
+  /*
+   * A title that is only a person's name cannot be matched against anything:
+   * see `subjectWords`. Refusing here costs a duplicate row, which is visible;
+   * merging would cost the second conversation, which is not.
+   */
+  if (!subjectWords(title, contact).length) return null;
 
   const open = db.prepare(`SELECT * FROM tasks WHERE status != 'done' ORDER BY id DESC`).all();
   const scored = open
@@ -151,6 +178,7 @@ export function findDuplicateTask(title, { threshold = 0.8, dueDate = null } = {
     .filter((row) => row.score >= threshold)
     // Same words a month apart is next month's job, not a copy of this one.
     .filter((row) => sameOccurrence(dueDate, row.task.due_date))
+    .filter((row) => subjectWords(row.task.title, row.task.contact).length)
     .sort((a, b) => b.score - a.score);
 
   return scored.length ? scored[0].task : null;
@@ -179,10 +207,14 @@ export function duplicateGroups({ threshold = 0.7 } = {}) {
   for (const task of open) {
     if (seen.has(task.id)) continue;
     if (!words(task.title).length) continue;
+    // Two tasks that agree on nothing but a name are not offered as copies
+    // either: the page would be asking a question it has not established.
+    if (!subjectWords(task.title, task.contact).length) continue;
 
     const copies = open.filter((other) => {
       if (other.id === task.id || seen.has(other.id)) return false;
       if (!sameOccurrence(task.due_date, other.due_date)) return false;
+      if (!subjectWords(other.title, other.contact).length) return false;
       /*
        * Read from both sides, and the better reading wins.
        *

@@ -43,7 +43,10 @@ const ExtractionSchema = z.object({
         .describe(
           'Short imperative summary, max ~80 characters. Sentence case with ' +
             'misspellings fixed, whatever case the message was typed in; ' +
-            'acronyms and proper names kept as they are.'
+            'acronyms and proper names kept as they are. It must name the ' +
+            'SUBJECT, not only the person: "Talk with Vikas Gupta about the ' +
+            'Sena GST refund", never "Talk with Vikas Gupta" - two different ' +
+            'conversations must not produce the same title.'
         ),
       description: z
         .string()
@@ -104,6 +107,18 @@ Do NOT extract:
 
 Rules:
 - title: short and imperative, e.g. "Send GST invoice to Rakesh".
+
+  It must say WHAT the job is, not only who it is with. "Talk with Vikas Gupta"
+  and "Call regarding remittance" are the two worst titles this produces: a week
+  later he cannot tell which conversation was which, two different jobs read as
+  the same row, and the app itself cannot tell them apart either. Name the
+  subject every time:
+
+  * "Talk with Vikas Gupta about the Sena GST refund", not "Talk with Vikas Gupta".
+  * "Call Alka Gupta about the 60 lakh HKD transfer", not "Call regarding remittance".
+  * If the message never says what it is about, use whatever it does say - the
+    amount, the company, the document, the form number, the month. Something
+    that tells this job apart from the next one with the same person.
 
   Write it properly, whatever state the message was in. These are typed fast on
   a phone, often shouting and usually misspelt - "ADV IDMC AUDIT QUERY REVIW",
@@ -539,6 +554,17 @@ Do NOT:
   far more likely to be somebody's name, a place, or a product than a mistake,
   and a name rewritten into a different word is worse than the typo was.
 
+One more fix, and only where the original message is given under the title:
+
+- A title that names a PERSON and nothing else - "Talk with Vikas Gupta", "Call
+  regarding remittance" - does not say what the job is. Two different
+  conversations end up reading as the same row, days apart, and he cannot tell
+  which was which. Add the subject FROM THE MESSAGE: "Talk with Vikas Gupta
+  about the Sena GST refund", "Call Alka Gupta about the 60 lakh HKD transfer".
+- Take it from the message and nowhere else. If the message does not say what it
+  is about either, leave the title exactly as it is - a subject you invented is
+  worse than a vague title, because he will act on it.
+
 Copy each id back exactly. Set changed to false, and return the title unchanged,
 whenever there is nothing genuinely wrong with it - most titles are fine.`;
 
@@ -555,7 +581,18 @@ whenever there is nothing genuinely wrong with it - most titles are fine.`;
 export async function tidyTitles(tasks) {
   if (!tasks.length) return [];
 
-  const listed = tasks.map((t) => `${t.id}: ${t.title}`).join('\n');
+  /*
+   * The original message, for the titles that need it.
+   *
+   * Only where a title names a person and nothing else: that is the one fix
+   * that cannot be made from the title alone, and sending every task's source
+   * message would multiply the cost of the button for no gain elsewhere.
+   */
+  const listed = tasks
+    .map((t) => (t.source_message
+      ? `${t.id}: ${t.title}\n    (original message: ${String(t.source_message).slice(0, 300)})`
+      : `${t.id}: ${t.title}`))
+    .join('\n');
   const response = await anthropic().messages.parse({
     model: config.model,
     max_tokens: 4000,

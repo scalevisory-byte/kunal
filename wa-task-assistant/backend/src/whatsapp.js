@@ -219,7 +219,7 @@ async function processBatch(batch) {
         // would double every reminder it goes on to produce. Scoped to the
         // deadline, so a monthly job coming round again is not mistaken for a
         // repeat of the one still open from last month.
-        const existing = findDuplicateTask(task.title, { dueDate: task.due_date });
+        const existing = findDuplicateTask(task.title, { dueDate: task.due_date, contact: task.contact });
         if (existing) {
           log.info(`Skipped duplicate task: "${task.title}" matches open task ${existing.id}`);
           // Written down, so the message log can say the task was read and

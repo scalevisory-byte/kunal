@@ -12,7 +12,7 @@ import {
 } from '../task-lifecycle.js';
 import { EVENT, recordEvent, eventsForTask } from '../task-events.js';
 import { getGroup } from '../groups.js';
-import { duplicateGroups } from '../task-matching.js';
+import { duplicateGroups, subjectWords } from '../task-matching.js';
 import { tidyTitles } from '../extractor.js';
 import { subtaskProgressFor, subtasksFor } from '../subtasks.js';
 import { addUpdate, deleteUpdate, knownStages, latestUpdateFor, updateCountFor, updatesFor } from '../progress.js';
@@ -447,7 +447,21 @@ tasksRouter.patch('/:id', (req, res) => {
  */
 tasksRouter.post('/tidy/preview', async (req, res) => {
   const open = listTasks({ status: 'pending', limit: 200, includeSetAside: true })
-    .map((t) => ({ id: t.id, title: t.title }));
+    .map((t) => {
+      /*
+       * A title that names only a person cannot be fixed from itself: what the
+       * conversation was about is in the message it came from, and nowhere
+       * else. Sent only for those, so the button costs what it did before for
+       * every title that is merely misspelt.
+       */
+      const vague = !subjectWords(t.title, t.contact).length;
+      return {
+        id: t.id,
+        title: t.title,
+        // Already on the row: every task carries the one message it came from.
+        source_message: vague ? t.source_message || null : null,
+      };
+    });
   if (!open.length) return res.json({ proposals: [], considered: 0 });
 
   try {

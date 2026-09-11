@@ -74,13 +74,23 @@ export default function TidyTitles({ onError, onChanged }) {
 
       <div className="set-row">
         <div className="set-label">
-          <strong>Spelling and names</strong>
+          <strong>Spelling, names, and what a task is actually about</strong>
           <small>
             Shouting and lower case are fixed when a task is made. Spelling and names are
             not — no rule knows that &ldquo;odisha&rdquo; is a place or which word
             &ldquo;pendig&rdquo; was meant to be, and one that guessed would eventually
-            rewrite somebody&rsquo;s name. This asks Claude, shows you every change it
-            wants to make, and applies only the ones you keep.
+            rewrite somebody&rsquo;s name.{' '}
+            {/*
+              * The reason the button exists twice over now: a title naming only
+              * a person cannot be told apart from the next one with the same
+              * person, and the subject is in the message it came from.
+              */}
+            It also fills in titles that name only a person — &ldquo;Talk with Vikas
+            Gupta&rdquo; — using the original WhatsApp message, so two different
+            conversations stop reading as the same task. Nothing is invented: where the
+            message does not say what it was about either, the title is left alone.
+            This asks Claude, shows you every change it wants to make, and applies only
+            the ones you keep.
           </small>
         </div>
         <div className="set-control">
