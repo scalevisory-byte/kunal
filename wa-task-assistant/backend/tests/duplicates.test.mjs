@@ -206,6 +206,83 @@ run('an archived copy is not offered again', () => {
   assert.equal(group, undefined, 'one left standing is not a duplicate of anything');
 });
 
+/*
+ * Two ways the guard was defeated in production, both reported as duplicate
+ * rows on the board with identical titles.
+ */
+console.log('\nwhat let the copies through');
+
+run('a description on the existing task no longer hides it', () => {
+  // The score is the weaker of its two directions, so every word of a
+  // description made the task HARDER to recognise: three title words shared
+  // out of thirteen scored 0.23 against a threshold of 0.7, and a perfect copy
+  // was created. Reported as two "Activate Uttarakhand GST" rows, same day.
+  const existing = task('Activate Uttarakhand GST', {
+    due_date: '2026-09-11',
+    description: 'Office will visit today, I have to call and ask the time from the officer till 12',
+  });
+  const found = M.findDuplicateTask('Activate Uttarakhand GST', { dueDate: '2026-09-11' });
+  assert.ok(found, 'the same title is the same job whatever else is written on it');
+  assert.equal(found.id, existing.id);
+});
+
+run('the verb does not decide it: "File GSTR-1" is "GSTR - 1"', () => {
+  const existing = task('GSTR - 1', { due_date: '2026-09-12' });
+  const found = M.findDuplicateTask('File GSTR-1', { dueDate: '2026-09-12' });
+  assert.ok(found, 'file / submit / upload carry no identity');
+  assert.equal(found.id, existing.id);
+});
+
+run('but GSTR-9 is not GSTR-1, and GSTR-3B is neither', () => {
+  // The lone digit was being thrown away as too short, so both reduced to
+  // "gstr" and scored a perfect match - the annual return would have been
+  // silently suppressed as a copy of the monthly one.
+  //
+  // Dated well clear of the monthly deadline rules this app seeds, which
+  // legitimately carry these very titles.
+  const far = '2027-03-13';
+  task('File GSTR-1', { due_date: far });
+  assert.equal(M.findDuplicateTask('File GSTR-9', { dueDate: far }), null);
+  assert.equal(M.findDuplicateTask('File GSTR-3B', { dueDate: far }), null);
+  assert.ok(M.findDuplicateTask('GSTR 1', { dueDate: far }), 'the same return, said differently');
+});
+
+run('two clients with identically shaped work stay two tasks', () => {
+  // Five shared words out of seven scored 0.71 and merged them at the old bar.
+  // A duplicate is visible and removable; a task suppressed by mistake is
+  // invisible for ever, so refusing to merge is the safe error.
+  task('Review Parth Bajaj ledger scrutiny FY2025-26', { due_date: '2027-03-14' });
+  assert.equal(
+    M.findDuplicateTask('Review Santosh Textile ledger scrutiny FY2025-26', { dueDate: '2027-03-14' }),
+    null
+  );
+  // Both exist, which is the point: two clients, two pieces of work.
+  task('Review Santosh Textile ledger scrutiny FY2025-26', { due_date: '2027-03-14' });
+});
+
+run('the list still offers the looser pair to a person', () => {
+  // Strict when deciding alone, loose when asking: the pair above is exactly
+  // what a human should be shown and allowed to judge.
+  const group = M.duplicateGroups().find((g) => g.keep.title.includes('ledger scrutiny'));
+  assert.ok(group, 'offered for review');
+  assert.equal(group.drop.length, 1);
+});
+
+run('the oldest is still the one kept when only it has a description', () => {
+  // Probing with title AND description found the pair only on the second pass,
+  // from the copy that had none - so the group offered the NEWER row as the one
+  // to keep, losing the history that "keep the oldest" exists to protect.
+  const first = task('Renew trade licence', {
+    due_date: '2027-04-09',
+    description: 'Municipal office, ground floor, carry the old certificate and two photos',
+  });
+  const second = task('Renew trade licence', { due_date: '2027-04-09' });
+  const group = M.duplicateGroups().find((g) => g.keep.title === 'Renew trade licence');
+  assert.ok(group, 'found from either side');
+  assert.equal(group.keep.id, first.id, 'the older row carries the history');
+  assert.deepEqual(group.drop.map((t) => t.id), [second.id]);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

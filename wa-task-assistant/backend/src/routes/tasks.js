@@ -58,7 +58,15 @@ tasksRouter.get('/', (req, res) => {
     latest_update: latest.get(task.id) || null,
     update_count: updateCounts.get(task.id) || 0,
   }));
-  res.json({ tasks, stats: taskStats(), stages: knownStages() });
+  /*
+   * How many open tasks look like copies of each other.
+   *
+   * Counted here because the board polls this and nothing else: a Duplicates
+   * page nobody knows about is the same as no page, and "why duplication?" is
+   * asked of the list, not of the sidebar.
+   */
+  const duplicates = duplicateGroups().reduce((n, g) => n + g.drop.length, 0);
+  res.json({ tasks, stats: { ...taskStats(), duplicates }, stages: knownStages() });
 });
 
 tasksRouter.post('/', (req, res) => {

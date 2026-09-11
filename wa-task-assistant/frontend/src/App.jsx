@@ -1339,6 +1339,25 @@ export default function App() {
                       </p>
                     )}
 
+                    {/*
+                      * Copies, said where the copies are.
+                      *
+                      * There is a Duplicates page and it works, but "why
+                      * duplication?" gets asked of the list on screen, not of a
+                      * sidebar item nobody opened. One line, only when there is
+                      * something to say, and it goes straight there.
+                      */}
+                    {stats?.duplicates > 0 && page.overview && !searching && (
+                      <p className="dup-note">
+                        <b>{stats.duplicates}</b>{' '}
+                        {stats.duplicates === 1 ? 'task looks like a copy' : 'tasks look like copies'}
+                        {' '}of ones you already have.
+                        <button className="link" onClick={() => goto('duplicates')}>
+                          Review them
+                        </button>
+                      </p>
+                    )}
+
                     {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <FocusToday
                         tasks={dayTasks}
