@@ -434,6 +434,8 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
     onToggle: (task) => patch(task.id, { status: task.status === 'done' ? 'open' : 'done' }),
     onOpen: (task) => onOpenTask(task.id),
     onStatus: (task, status) => patch(task.id, { status }),
+    // Same rename as the board: F2 or a double-click on the title.
+    onRename: (task, title) => patch(task.id, { title }),
     onQuickDate: (task, offset) => patch(task.id, { due_date: isoDay(offset) }),
     onDelete: async (task) => {
       if (!window.confirm(`Delete "${task.title}"?`)) return;

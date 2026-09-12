@@ -160,6 +160,41 @@ await run('a group that does not exist is refused in words, and leaves no task',
   assert.equal(DB.listTasks({ status: 'all', limit: 500, includeSetAside: true }).length, before);
 });
 
+/*
+ * Renaming from the list, and what the record says afterwards.
+ *
+ * The title is what the list is read by, so a row that changed name is a row
+ * he may not recognise - and "edited: title" is a true sentence that answers
+ * nothing. The one thing the history has to be able to say is what it used to
+ * be called.
+ */
+console.log('\nrenaming a task');
+
+const editedIn = (events) => (events || []).find((e) => e.kind === 'edited');
+
+await run('records what the task used to be called', async () => {
+  const made = await call('POST', '/api/tasks', { title: 'Talk with Vikas Gupta' });
+  assert.equal(made.status, 201);
+
+  const patched = await call('PATCH', `/api/tasks/${made.body.id}`, {
+    title: 'Talk with Vikas Gupta about the Sena GST refund',
+  });
+  assert.equal(patched.status, 200);
+  assert.equal(patched.body.title, 'Talk with Vikas Gupta about the Sena GST refund');
+
+  const edited = editedIn(patched.body.events);
+  assert.ok(edited, 'the rename is in the record');
+  assert.match(edited.detail, /renamed from "Talk with Vikas Gupta"/);
+});
+
+await run('still names the fields for any other edit', async () => {
+  const made = await call('POST', '/api/tasks', { title: 'Pay the electricity bill' });
+  const patched = await call('PATCH', `/api/tasks/${made.body.id}`, { priority: 'high' });
+  const edited = editedIn(patched.body.events);
+  assert.ok(edited);
+  assert.equal(edited.detail, 'priority');
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });

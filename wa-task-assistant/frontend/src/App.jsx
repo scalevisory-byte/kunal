@@ -1317,6 +1317,7 @@ export default function App() {
                   onOpen={setOpenTask}
                   onToggle={onToggle}
                   onStatus={(task, next) => onEdit(task, { status: next })}
+                  onRename={(task, title) => onEdit(task, { title })}
                   onQuickDate={onQuickDate}
                   onDelete={onDelete}
                   onNotATask={onNotATask}
@@ -1518,6 +1519,10 @@ export default function App() {
                       onToggle={onToggle}
                       onOpen={setOpenTask}
                       onStatus={(task, next) => onEdit(task, { status: next })}
+                      /* Renamed in the list itself: F2 or a double-click. A
+                         title is what he reads back for weeks and is the one
+                         field worth fixing without opening anything. */
+                      onRename={(task, title) => onEdit(task, { title })}
                       onQuickDate={onQuickDate}
                       onDelete={onDelete}
                       onNotATask={onNotATask}

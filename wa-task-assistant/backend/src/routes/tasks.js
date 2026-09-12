@@ -401,7 +401,22 @@ tasksRouter.patch('/:id', (req, res) => {
     recordEvent(task.id, EVENT.noteAdded, patch.notes ? String(patch.notes).slice(0, 120) : 'cleared');
   }
   if (('title' in patch || 'description' in patch || 'priority' in patch) && before) {
-    recordEvent(task.id, EVENT.edited, Object.keys(patch).join(', '));
+    /*
+     * A renamed task says what it used to be called.
+     *
+     * "edited: title" is a true sentence and no help at all: the title is what
+     * the list is read by, so a row that changed name is a row he may not
+     * recognise, and the one thing the history has to be able to answer is what
+     * it was called before. Every other field is findable on the task itself.
+     */
+    const renamed = 'title' in patch && before.title && patch.title !== before.title;
+    recordEvent(
+      task.id,
+      EVENT.edited,
+      renamed
+        ? `renamed from "${String(before.title).slice(0, 120)}"`
+        : Object.keys(patch).join(', ')
+    );
   }
   if (task.status !== 'done' && before?.status === 'done') {
     recordEvent(task.id, EVENT.reopened);

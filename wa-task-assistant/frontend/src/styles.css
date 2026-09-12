@@ -1071,6 +1071,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   box-shadow: var(--shadow);
   padding: 5px;
 }
+/*
+ * On a phone the ⋮ sits at the left of the wrapped action row, so a menu that
+ * grows leftwards from it runs off the screen - which is where the Rename item
+ * was: present, and cut in half by the edge of the display.
+ */
+@media (max-width: 760px) {
+  .menu {
+    right: auto; left: 0;
+    max-width: calc(100vw - 24px);
+  }
+}
+
 .menu button {
   display: flex; align-items: center; gap: 9px;
   width: 100%; text-align: left;
@@ -4134,6 +4146,21 @@ button.due:hover { background: var(--raised); }
   display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
 }
 .dup-note b { font-weight: 650; }
+
+/*
+ * Renaming in place. It has to sit exactly where the title sat - a field that
+ * shifts the row by a pixel as it opens reads as something else appearing,
+ * rather than the same words becoming editable.
+ */
+.t-title-edit {
+  font: inherit; font-weight: 600; color: var(--text);
+  width: 100%; max-width: 100%;
+  padding: 1px 5px; margin: -2px -6px;
+  background: var(--card);
+  border: 1px solid var(--brand); border-radius: 4px;
+  min-height: 0; line-height: inherit;
+}
+.t-title-edit:focus { outline: none; box-shadow: 0 0 0 2px var(--brand-wash, transparent); }
 
 .quiet-senders { list-style: none; margin: 0; padding: 0; }
 .quiet-senders li {

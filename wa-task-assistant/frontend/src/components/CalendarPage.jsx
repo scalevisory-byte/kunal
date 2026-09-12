@@ -35,7 +35,7 @@ const clockOf = (iso) =>
  * The calendar decides the day; nothing else about them is different.
  */
 export default function CalendarPage({
-  tasks, notes = [], onOpen, onToggle, onStatus, onQuickDate, onDelete, onNotATask,
+  tasks, notes = [], onOpen, onToggle, onStatus, onRename, onQuickDate, onDelete, onNotATask,
   onChanged, onOpenNote, onError,
 }) {
   const today = isoOf(new Date());
@@ -217,6 +217,7 @@ export default function CalendarPage({
                 onToggle={onToggle}
                 onOpen={onOpen}
                 onStatus={onStatus}
+                onRename={onRename}
                 onQuickDate={onQuickDate}
                 onDelete={onDelete}
                 onNotATask={onNotATask}
