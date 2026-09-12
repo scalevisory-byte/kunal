@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
+import { useRename } from '../rename.js';
 import {
   addedLabel, agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, looksLikeWid, taskSource,
   timeLabel,
@@ -511,46 +512,10 @@ export default function TaskItem({
    */
   const [noting, setNoting] = useState(false);
 
-  /*
-   * Excel's rule, because that is the one he has: F2 or a double-click starts,
-   * Enter keeps, Escape throws away, and clicking somewhere else keeps - the
-   * same as stepping off a cell. An empty title is not a task, so it cancels
-   * rather than saving nothing.
-   */
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  // The rules live in one place; three lists show a title and a rule that
+  // differed between them would be worse than no rule.
+  const rename = useRename(task, onRename, { canEdit: !done });
 
-  /*
-   * A single click opens the task; two clicks rename it.
-   *
-   * The browser reports them in that order, so without this the first click of
-   * a double-click had already opened the drawer and the second one landed on
-   * whatever the drawer put there. Holding the open for a fifth of a second
-   * costs nothing anybody can see and makes the second click reach the title.
-   */
-  const openTimer = useRef(null);
-  useEffect(() => () => clearTimeout(openTimer.current), []);
-
-  const openSoon = () => {
-    clearTimeout(openTimer.current);
-    if (!onRename || done) return onOpen(task);
-    openTimer.current = setTimeout(() => onOpen(task), 180);
-  };
-
-  const startRename = () => {
-    clearTimeout(openTimer.current);
-    if (!onRename || done) return;
-    setDraft(task.title);
-    setEditing(true);
-  };
-
-  const commitRename = () => {
-    if (!editing) return;
-    setEditing(false);
-    const next = draft.trim();
-    if (!next || next === task.title) return;
-    onRename(task, next);
-  };
 
   /*
    * The whole row opens the task, not just its title.
@@ -594,36 +559,39 @@ export default function TaskItem({
         * it tells you anything. The drawer still has all of it.
         */}
       <div className="t-main">
-        {editing ? (
-          <input
-            className="t-title-edit"
-            value={draft}
-            autoFocus
-            aria-label={`Rename ${task.title}`}
-            onChange={(e) => setDraft(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
-              // Escape has to put the old title back before the blur that
-              // follows it, or blurring would save the abandoned draft.
-              if (e.key === 'Escape') { e.preventDefault(); setDraft(task.title); setEditing(false); }
-            }}
-            // The row opens the task on click; a click inside the field is
-            // aiming at the text.
-            onClick={(e) => e.stopPropagation()}
-          />
+        {rename.editing ? (
+          <input {...rename.fieldProps} />
         ) : (
-          <button
-            type="button"
-            className="t-title"
-            onClick={openSoon}
-            onDoubleClick={startRename}
-            onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); startRename(); } }}
-            title={onRename && !done ? 'Double-click or press F2 to rename' : undefined}
-          >
-            {task.title}
-          </button>
+          <span className="t-title-wrap">
+            <button
+              type="button"
+              className="t-title"
+              onClick={() => rename.openLater(() => onOpen(task))}
+              onDoubleClick={rename.start}
+              onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); rename.start(); } }}
+              title={rename.enabled ? 'Double-click or press F2 to rename' : undefined}
+            >
+              {task.title}
+            </button>
+            {/*
+              * A visible way in.
+              *
+              * Double-click is invisible: it works and nobody finds it, which
+              * is the same as it not working. The pencil appears on hover and
+              * stays put on a touch screen, like the ⋮ beside it.
+              */}
+            {rename.enabled && (
+              <button
+                type="button"
+                className="t-rename"
+                aria-label={`Rename ${task.title}`}
+                title="Rename"
+                onClick={rename.start}
+              >
+                <Icon name="edit" size={14} />
+              </button>
+            )}
+          </span>
         )}
 
         {/*
@@ -811,7 +779,7 @@ export default function TaskItem({
         onQuickDate={onQuickDate}
         onDelete={onDelete}
         onAddUpdate={onAddUpdate}
-        onRename={onRename && !done ? startRename : null}
+        onRename={rename.enabled ? rename.start : null}
       />
 
       {noting && (

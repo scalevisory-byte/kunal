@@ -4160,7 +4160,31 @@ button.due:hover { background: var(--raised); }
   border: 1px solid var(--brand); border-radius: 4px;
   min-height: 0; line-height: inherit;
 }
-.t-title-edit:focus { outline: none; box-shadow: 0 0 0 2px var(--brand-wash, transparent); }
+.t-title-edit:focus { outline: none; box-shadow: 0 0 0 2px var(--brand-wash); }
+
+/*
+ * The visible way in.
+ *
+ * A double-click that works and nobody finds is the same as one that does not,
+ * and it was reported as "not working". The pencil follows the ⋮ beside it:
+ * hidden until the row is hovered, always there on a touch screen, where there
+ * is no hover to reveal it.
+ */
+.t-title-wrap { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; }
+.t-rename {
+  border: 0; background: none; padding: 2px 4px; border-radius: 4px;
+  color: var(--muted); cursor: pointer; line-height: 0;
+  opacity: 0; transition: opacity .16s, color .16s;
+}
+.task:hover .t-rename,
+.task:focus-within .t-rename,
+.focus-list li:hover .t-rename,
+.focus-list li:focus-within .t-rename { opacity: 1; }
+.t-rename:hover { color: var(--brand); }
+@media (hover: none) { .t-rename { opacity: 1; } }
+
+.focus-body.editing { display: block; }
+.focus-body.editing .t-title-edit { font-weight: 600; }
 
 .quiet-senders { list-style: none; margin: 0; padding: 0; }
 .quiet-senders li {

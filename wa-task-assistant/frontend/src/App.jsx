@@ -1365,6 +1365,7 @@ export default function App() {
                         tasks={dayTasks}
                         onOpen={setOpenTask}
                         onToggle={onToggle}
+                        onRename={(task, title) => onEdit(task, { title })}
                         onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
                       />
                     )}
