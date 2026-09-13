@@ -71,6 +71,10 @@ export const state = {
   lastExtractionAt: null,
   bufferedCount: 0,
   blockedCount: 0,
+  // Reminders and digests this app sent, arriving back as if he had typed
+  // them. Counted rather than silently dropped: it is the shape of a loop and
+  // the number should be visible if it ever starts growing for another reason.
+  echoesIgnored: 0,
   lastCommandAt: null,
   lastError: null,
   // Pipeline counters since this process started, so a chat that produces no
@@ -609,6 +613,12 @@ export async function maybeSaveNote(message, chat, chatId) {
 export async function handleOwnMessage(message) {
   try {
     if (!message.fromMe) return;
+    // The app's own reminders reach this listener too, and manual mode reads
+    // exactly the messages he writes himself - which is what they look like.
+    if (sentByApp(message)) {
+      state.echoesIgnored += 1;
+      return;
+    }
 
     const body = (message.body || '').trim();
     if (!body) return;
@@ -654,6 +664,58 @@ export async function handleOwnMessage(message) {
   } catch (err) {
     log.error('handleOwnMessage:', err?.message || err);
   }
+}
+
+/* ---------------- the app's own messages, coming back ---------------- */
+
+/*
+ * Everything this app sends lands back on its own doorstep.
+ *
+ * A reminder, a digest, a briefing - all go to his own chat, from his own
+ * account, so WhatsApp reports them through `message_create` as `fromMe`, which
+ * is exactly what a note he typed to himself looks like. And a note he typed to
+ * himself is deliberately read as a task. So the six o'clock digest, which
+ * lists everything still open, was read back a minute later and every line of
+ * it made a second copy of the task it was reminding him about - every evening,
+ * for every task. That is the "again and again" duplicates, and the reason a
+ * reminder cost money to send AND to read.
+ *
+ * Both halves are remembered: the text, recorded before the send so the echo
+ * cannot beat it, and the message id once WhatsApp gives one. Entries expire,
+ * because this only has to survive the round trip - seconds, not a session.
+ */
+const OURS_TTL_MS = 10 * 60 * 1000;
+const ours = new Map();
+
+const textKey = (text) => `text:${String(text || '').trim().slice(0, 400)}`;
+
+function rememberOurs(key) {
+  ours.set(key, Date.now() + OURS_TTL_MS);
+  if (ours.size > 400) {
+    const now = Date.now();
+    for (const [k, expires] of ours) if (expires <= now) ours.delete(k);
+  }
+}
+
+/** Did this app send this message? */
+export function sentByApp(message) {
+  const now = Date.now();
+  const fresh = (key) => {
+    const expires = ours.get(key);
+    if (!expires) return false;
+    if (expires <= now) { ours.delete(key); return false; }
+    return true;
+  };
+
+  const id = message?.id?._serialized;
+  if (id && fresh(`id:${id}`)) return true;
+  const body = (message?.body || '').trim();
+  return Boolean(body) && fresh(textKey(body));
+}
+
+/** Test seam: lets a suite say "this text was just sent" without a browser. */
+export function rememberSentForTests(text) {
+  rememberOurs(textKey(text));
 }
 
 /** Records why a message was not kept, so a silent drop becomes a visible one. */
@@ -877,6 +939,17 @@ export async function handleMessage(message) {
     promoteToReady();
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
     if (message.isStatus) return drop('status');
+    /*
+     * Here as well as in the listeners, because this is the one door.
+     *
+     * Catch-up calls this directly after a reconnect, and a reconnect is
+     * exactly when the last digest is still sitting unread in his own chat - so
+     * without this the loop would close again on every restart.
+     */
+    if (sentByApp(message)) {
+      state.echoesIgnored += 1;
+      return drop('ourOwnMessage');
+    }
 
     /*
      * Which chat this is, from the id alone.
@@ -1356,6 +1429,15 @@ export function startWhatsApp() {
     // tasks as much as anything someone sends you.
     client.on('message_create', async (message) => {
       state.rawSeen += 1;
+      /*
+       * Our own reminder, coming straight back. Not a command, not a note, not
+       * a task - it is the app talking to itself, and reading it is how the
+       * same job ended up on the list twice a day.
+       */
+      if (sentByApp(message)) {
+        state.echoesIgnored += 1;
+        return;
+      }
       // Instructions about an existing task are checked first, in their own try
       // block: a failure here must not cost us the message itself.
       if (message.fromMe && message.body) {
@@ -1393,7 +1475,18 @@ export function reminderChatId() {
 export async function sendMessage(chatId, text) {
   if (!client || state.status !== 'ready') throw new Error('WhatsApp client is not ready');
   if (!chatId) throw new Error('No reminder recipient resolved');
-  return client.sendMessage(chatId, text);
+  /*
+   * Remembered BEFORE it is sent, not after.
+   *
+   * `message_create` can fire before `client.sendMessage` resolves, so an id
+   * recorded from the result is sometimes recorded too late to stop the echo.
+   * The text is known now.
+   */
+  rememberOurs(textKey(text));
+  const sent = await client.sendMessage(chatId, text);
+  const id = sent?.id?._serialized;
+  if (id) rememberOurs(`id:${id}`);
+  return sent;
 }
 
 /** Force-process anything currently buffered (used by POST /api/extract/flush). */

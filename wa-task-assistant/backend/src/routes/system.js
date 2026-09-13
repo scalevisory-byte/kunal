@@ -43,6 +43,9 @@ systemRouter.get('/status', (req, res) => {
       lastExtractionAt: state.lastExtractionAt,
       bufferedCount: state.bufferedCount,
       blockedCount: state.blockedCount,
+      // The app's own reminders arriving back. Zero is the healthy figure and
+      // a rising one used to be a task list doubling itself every evening.
+      echoesIgnored: state.echoesIgnored,
       lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
       events: state.events,

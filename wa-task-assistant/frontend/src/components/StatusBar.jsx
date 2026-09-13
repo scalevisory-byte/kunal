@@ -198,6 +198,10 @@ function Pipeline({ wa, cfg, connected }) {
     ['Delivered by WhatsApp', wa?.rawSeen ?? 0],
     ['Messages read since start', wa?.messagesSeen ?? 0],
     ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
+    /* Its own line because of what it used to be: every reminder this app sent
+       came back through WhatsApp looking like a note he had typed, and each
+       one made a second copy of the task it was reminding him about. */
+    ['Own reminders ignored', wa?.echoesIgnored ?? 0],
     ['Dropped', dropSummary(wa?.drops)],
     ['Waiting to be read', wa?.bufferedCount ?? 0],
     ['Tasks created since start', wa?.tasksCreated ?? 0],
