@@ -4186,6 +4186,35 @@ button.due:hover { background: var(--raised); }
 .focus-body.editing { display: block; }
 .focus-body.editing .t-title-edit { font-weight: 600; }
 
+/*
+ * Picking several rows, and the bar that acts on them.
+ *
+ * The tick keeps its place - a row with two checkboxes is a row nobody reads
+ * correctly - but it changes colour while picking, so the same control cannot
+ * be mistaken for "done" at a glance. The bar is fixed to the bottom because
+ * the rows being picked are spread down a long list.
+ */
+.task.picking { cursor: pointer; }
+.task.picking input[type="checkbox"].pick { accent-color: var(--brand); }
+.task.picked { background: var(--brand-wash); }
+
+.pick-bar {
+  position: sticky; bottom: 12px; z-index: 30;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 10px 0 14px; padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--brand); border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.pick-count { font-weight: 600; font-size: .85rem; flex: 1 1 auto; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.danger:disabled { opacity: .5; cursor: default; }
+
+@media (max-width: 760px) {
+  /* Clear of the fixed bottom navigation bar. */
+  .pick-bar { bottom: 72px; }
+}
+
 .quiet-senders { list-style: none; margin: 0; padding: 0; }
 .quiet-senders li {
   display: flex; align-items: baseline; gap: 8px;

@@ -291,6 +291,7 @@ export default function TaskList({
   tasks, loading, error, groupBy, view, query, groups = [], people = [],
   onRetry, onToggle, onOpen, onStatus, onQuickDate, onDelete, onNotATask,
   onMove, onManageGroups, onNewGroup, onAddUpdate, onAssign, onOpenGroup, onRename,
+  selecting = false, picked = null, onPick = null,
 }) {
   /*
    * Grouped by chat or by folder, the sections start shut.
@@ -375,6 +376,9 @@ export default function TaskList({
                 onNewGroup={onNewGroup}
                 onAddUpdate={onAddUpdate}
                 onRename={onRename}
+                selecting={selecting}
+                picked={Boolean(picked?.has(task.id))}
+                onPick={onPick}
                 people={people}
                 onAssign={onAssign}
               />
@@ -461,9 +465,11 @@ export default function TaskList({
                     onMove={onMove}
                     onManageGroups={onManageGroups}
                     onNewGroup={onNewGroup}
-                onNewGroup={onNewGroup}
                     onAddUpdate={onAddUpdate}
-                onRename={onRename}
+                    onRename={onRename}
+                    selecting={selecting}
+                    picked={Boolean(picked?.has(task.id))}
+                    onPick={onPick}
                     people={people}
                     onAssign={onAssign}
                   />

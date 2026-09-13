@@ -8,7 +8,7 @@ const SOURCES = [
 ];
 
 /** Search, grouping, and a filter popover that stays out of the way until asked. */
-export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats, onClearAll }) {
+export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats, onClearAll, selecting, onSelecting }) {
   const [open, setOpen] = useState(false);
   const popover = useRef(null);
 
@@ -59,6 +59,25 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
             </button>
           ))}
         </div>
+
+        {/*
+          * Picking several at once.
+          *
+          * A list that carries a hundred rows which were never tasks cannot be
+          * cleared one row at a time - that is not tidying, it is a reason to
+          * stop opening the list. This turns the done-tick into a picker for
+          * as long as it is on, and nothing else about the row changes.
+          */}
+        {onSelecting && (
+          <button
+            className={`btn ghost with-icon ${selecting ? 'on' : ''}`}
+            aria-pressed={Boolean(selecting)}
+            onClick={() => onSelecting(!selecting)}
+          >
+            <Icon name="check" size={16} />
+            {selecting ? 'Done selecting' : 'Select'}
+          </button>
+        )}
 
         <button
           className={`btn ghost with-icon ${active ? 'on' : ''}`}

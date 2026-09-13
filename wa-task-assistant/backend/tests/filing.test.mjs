@@ -195,6 +195,65 @@ await run('still names the fields for any other edit', async () => {
   assert.equal(edited.detail, 'priority');
 });
 
+/*
+ * Clearing several rows at once.
+ *
+ * Asked for over a list carrying a hundred rows that were never tasks - a
+ * chat's pleasantries, work already given to somebody else, the copies the app
+ * made of its own reminders. One at a time is not a way to clear that.
+ */
+console.log('\ntaking several off the list at once');
+
+await run('archives everything given, and says which', async () => {
+  const a = await call('POST', '/api/tasks', { title: 'Good morning everyone' });
+  const b = await call('POST', '/api/tasks', { title: 'Thanks bhai' });
+  const c = await call('POST', '/api/tasks', { title: 'Pay the electricity bill' });
+
+  const out = await call('POST', '/api/tasks/bulk/archive', { ids: [a.body.id, b.body.id] });
+  assert.equal(out.status, 200);
+  assert.equal(out.body.archived, 2);
+  assert.deepEqual(out.body.ids, [a.body.id, b.body.id]);
+
+  const open = await call('GET', '/api/tasks?status=open');
+  const titles = open.body.tasks.map((t) => t.title);
+  assert.ok(!titles.includes('Good morning everyone'));
+  assert.ok(titles.includes('Pay the electricity bill'), 'nothing else was touched');
+});
+
+await run('is archived, not deleted - the rows are still in the record', async () => {
+  const made = await call('POST', '/api/tasks', { title: 'Forwarded festival greeting' });
+  await call('POST', '/api/tasks/bulk/archive', { ids: [made.body.id] });
+
+  const history = await call('GET', `/api/history/${made.body.id}`);
+  assert.equal(history.status, 200, 'still readable');
+  const events = history.body.events || history.body.timeline || [];
+  assert.ok(events.some((e) => e.kind === 'archived'), 'and it says when it went');
+});
+
+await run('puts a whole batch back, which is what the undo presses', async () => {
+  const a = await call('POST', '/api/tasks', { title: 'Wrongly picked one' });
+  const b = await call('POST', '/api/tasks', { title: 'Wrongly picked two' });
+  await call('POST', '/api/tasks/bulk/archive', { ids: [a.body.id, b.body.id] });
+
+  const back = await call('POST', '/api/tasks/bulk/restore', { ids: [a.body.id, b.body.id] });
+  assert.equal(back.body.restored, 2);
+
+  const open = await call('GET', '/api/tasks?status=open');
+  const titles = open.body.tasks.map((t) => t.title);
+  assert.ok(titles.includes('Wrongly picked one') && titles.includes('Wrongly picked two'));
+});
+
+await run('ignores an id that is already gone rather than failing the batch', async () => {
+  const made = await call('POST', '/api/tasks', { title: 'Only this one exists' });
+  const out = await call('POST', '/api/tasks/bulk/archive', { ids: [made.body.id, 999999] });
+  assert.equal(out.body.archived, 1, 'the real one still goes');
+});
+
+await run('refuses an empty batch rather than pretending to work', async () => {
+  const out = await call('POST', '/api/tasks/bulk/archive', { ids: [] });
+  assert.equal(out.status, 400);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });

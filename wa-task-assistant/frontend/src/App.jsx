@@ -243,6 +243,14 @@ export default function App() {
 
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
+  /*
+   * Picking several rows at once, and what was picked.
+   *
+   * Ids rather than tasks: the list is refetched every thirty seconds and a
+   * held task object would go stale, while an id is still the same row.
+   */
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
   const [status, setStatus] = useState(null);
   /*
    * How the board is split into sections. Not remembered between visits: a
@@ -377,6 +385,34 @@ export default function App() {
     setOpenTask(null);
     return act(() => api.deleteTask(task.id));
   };
+
+  const togglePicked = (task) => setPicked((current) => {
+    const next = new Set(current);
+    next.has(task.id) ? next.delete(task.id) : next.add(task.id);
+    return next;
+  });
+
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); };
+
+  /*
+   * Archive everything picked, in one request, with one way back.
+   *
+   * The undo matters more here than anywhere: this is the one action that can
+   * take fifty rows off the list at once, and the id list is exactly what is
+   * needed to put them back.
+   */
+  const archivePicked = async () => {
+    const ids = [...picked];
+    if (!ids.length) return;
+    try {
+      const { archived } = await api.archiveMany(ids);
+      setUndo({ kind: 'archived', ids, count: archived });
+      stopSelecting();
+      await refresh({ quiet: true });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   /*
    * "This was never a task." Archived, not deleted: what the extractor got
    * wrong stays in Work History, and its reminders stop with it.
@@ -421,11 +457,12 @@ export default function App() {
     if (!undo) return;
     const last = undo;
     setUndo(null);
-    await act(() =>
-      last.kind === 'moved'
-        ? api.updateTask(last.id, { group_id: last.from })
-        : api.restoreTask(last.id)
-    );
+    await act(() => {
+      if (last.kind === 'moved') return api.updateTask(last.id, { group_id: last.from });
+      // A batch goes back as a batch: one request, the same ids.
+      if (last.kind === 'archived') return api.restoreMany(last.ids);
+      return api.restoreTask(last.id);
+    });
   };
   const onEdit = (task, patch) => {
     // Keep the open panel showing what was just changed, without a round trip.
@@ -1325,6 +1362,42 @@ export default function App() {
               ) : (
                 <div className={`workspace ${page.overview && !searching ? '' : 'solo'}`}>
                   <main className="work">
+                    {/*
+                      * What is picked, and the one thing to do with it.
+                      *
+                      * Fixed to the bottom of the screen rather than sitting in
+                      * the flow: the rows being picked are all over a long
+                      * list, and a button that scrolls away is a button you
+                      * cannot press at the moment you want it.
+                      */}
+                    {selecting && (
+                      <div className="pick-bar" role="region" aria-label="Selected tasks">
+                        <span className="pick-count">
+                          {picked.size === 0
+                            ? 'Tap the rows you want to remove'
+                            : `${picked.size} selected`}
+                        </span>
+                        <button
+                          type="button"
+                          className="link"
+                          onClick={() => setPicked(new Set(visible.map((t) => t.id)))}
+                        >
+                          Select all {visible.length}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn danger"
+                          disabled={!picked.size}
+                          onClick={archivePicked}
+                        >
+                          Delete {picked.size || ''}
+                        </button>
+                        <button type="button" className="btn ghost" onClick={stopSelecting}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
                     {undo && (
                       <p className="banner ok undo-bar" role="status">
                         <span>
@@ -1332,6 +1405,9 @@ export default function App() {
                             undo.toName
                               ? <>Moved <b>{undo.title}</b> to <b>{undo.toName}</b>.</>
                               : <>Took <b>{undo.title}</b> out of its group.</>
+                          ) : undo.kind === 'archived' ? (
+                            <>Took <b>{undo.count}</b> {undo.count === 1 ? 'task' : 'tasks'} off the list.
+                              {' '}They are in Work History.</>
                           ) : (
                             <>Took <b>{undo.title}</b> off the list.</>
                           )}
@@ -1400,6 +1476,8 @@ export default function App() {
                             onFilters={setFilters}
                             chats={chats}
                             onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
+                            selecting={selecting}
+                            onSelecting={(on) => (on ? setSelecting(true) : stopSelecting())}
                           />
                         )}
                       </div>
@@ -1524,6 +1602,9 @@ export default function App() {
                          title is what he reads back for weeks and is the one
                          field worth fixing without opening anything. */
                       onRename={(task, title) => onEdit(task, { title })}
+                      selecting={selecting}
+                      picked={picked}
+                      onPick={togglePicked}
                       onQuickDate={onQuickDate}
                       onDelete={onDelete}
                       onNotATask={onNotATask}

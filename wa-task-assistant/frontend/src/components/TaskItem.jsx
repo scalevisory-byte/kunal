@@ -493,6 +493,16 @@ export default function TaskItem({
   // does not have - the Nudge button on work given to somebody else. It sits
   // in the row rather than beside it, so the row stays one row.
   extra = null,
+  /*
+   * Picking several rows at once.
+   *
+   * While this is on the leading tick means "chosen", not "done" - the same
+   * control, because a row with two checkboxes on it is a row nobody reads
+   * correctly. Everything else about the row keeps working.
+   */
+  selecting = false,
+  picked = false,
+  onPick = null,
 }) {
   const done = isDone(task);
   const due = dueLabel(task.due_date);
@@ -533,19 +543,28 @@ export default function TaskItem({
     // between its buttons, and a press there must not open the drawer behind
     // it.
     if (event.target.closest('button, input, a, label, select, textarea, .assign, .row-menu, .rownote, .due-wrap')) return;
+    // While picking, the whole row is the target: reaching for a small tick
+    // fifty times is the thing this is supposed to replace.
+    if (selecting && onPick) return onPick(task);
     onOpen(task);
   };
 
   return (
     <li
-      className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''} ${noting ? 'noting' : ''}`}
+      className={`task ${done ? 'done' : ''} s-${task.status} ${isOverdue(task) ? 'late' : ''} ${noting ? 'noting' : ''}`
+        + `${selecting ? ' picking' : ''}${picked ? ' picked' : ''}`}
       onClick={openFromRow}
     >
       <input
         type="checkbox"
-        checked={done}
-        onChange={() => onToggle(task)}
-        aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
+        className={selecting ? 'pick' : ''}
+        checked={selecting ? picked : done}
+        onChange={() => (selecting && onPick ? onPick(task) : onToggle(task))}
+        aria-label={
+          selecting
+            ? `${picked ? 'Unpick' : 'Pick'} ${task.title}`
+            : done ? `Reopen ${task.title}` : `Mark done: ${task.title}`
+        }
       />
 
       {/*

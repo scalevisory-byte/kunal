@@ -90,6 +90,12 @@ export const api = {
 
   // Copies of the same job already on the list. Reading is free; merging only
   // happens on a press, because two rows that look alike are not always one job.
+  /* Several at once: archived like the single delete, and restorable. */
+  archiveMany: (ids) =>
+    request('/tasks/bulk/archive', { method: 'POST', body: JSON.stringify({ ids }) }),
+  restoreMany: (ids) =>
+    request('/tasks/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) }),
+
   duplicates: () => request('/tasks/duplicates/open'),
   mergeDuplicates: (keep, drop) =>
     request('/tasks/duplicates/merge', { method: 'POST', body: JSON.stringify({ keep, drop }) }),

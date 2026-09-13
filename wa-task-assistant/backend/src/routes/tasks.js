@@ -609,6 +609,59 @@ tasksRouter.delete('/:id', (req, res) => {
   res.json({ archived: true, id });
 });
 
+/**
+ * Several at once.
+ *
+ * Reported as *"ek saath select karke delete karne ka option do"* over a list
+ * carrying a hundred rows that were never tasks - a chat's pleasantries, work
+ * already given to somebody else, the copies the app made of its own reminders.
+ * One at a time is not a way to clear that; it is a reason to stop using the
+ * list.
+ *
+ * Archived, exactly like the single delete, and for the same reason: the rows,
+ * their history and their completions survive in Work History and can be
+ * restored. The ids come back so the page can say what it did and offer it
+ * back.
+ */
+tasksRouter.post('/bulk/archive', (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id));
+  if (!ids.length) return res.status(400).json({ error: 'no tasks given' });
+
+  const archived = [];
+  const at = new Date().toISOString();
+  for (const id of ids.slice(0, 500)) {
+    const task = getTask(id);
+    // Already gone, or never existed: not an error, just nothing to do.
+    if (!task || task.archived_at) continue;
+    completeTask(id);
+    updateTask(id, { archived_at: at });
+    recordEvent(id, EVENT.archived, ids.length > 1 ? `archived with ${ids.length - 1} other(s)` : null);
+    archived.push(id);
+  }
+
+  res.json({ archived: archived.length, ids: archived });
+});
+
+/** The other half: putting a batch back, for when the selection was wrong. */
+tasksRouter.post('/bulk/restore', (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+    .map(Number)
+    .filter((id) => Number.isInteger(id));
+  if (!ids.length) return res.status(400).json({ error: 'no tasks given' });
+
+  const restored = [];
+  for (const id of ids.slice(0, 500)) {
+    const task = getTask(id);
+    if (!task || !task.archived_at) continue;
+    updateTask(id, { archived_at: '' });
+    recordEvent(id, EVENT.statusChanged, 'restored from archive');
+    restored.push(id);
+  }
+  res.json({ restored: restored.length, ids: restored });
+});
+
 tasksRouter.post('/:id/restore', (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
