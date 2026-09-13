@@ -122,6 +122,75 @@ run('the reminder for a delegated task still goes to him', () => {
   assert.match(deliver, /With \$\{task\.assigned_to\}/, 'it just says whose desk it is on');
 });
 
+
+/*
+ * Where allotted work goes.
+ *
+ * Reported as "yaha pe bahut saare allotted task aa rahe he" - the board had
+ * become a list of other people's work, and the thing he actually has to do was
+ * somewhere inside it. Handing a task over now takes it off the board and
+ * leaves it on Task allotted. What these cases hold is the other half: it is
+ * moved, not dropped, and nothing about chasing it changes.
+ */
+console.log('\nwhere allotted work goes');
+
+const appSrc = fs.readFileSync(new URL('../../frontend/src/App.jsx', import.meta.url), 'utf8');
+const taskLib = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
+/*
+ * The board's own rule, lifted out of the source rather than restated here - a
+ * second copy of it would pass these tests long after the app stopped
+ * agreeing with them.
+ */
+const lineOf = (src, decl) => src.slice(src.indexOf(decl)).split('\n')[0].replace('export ', '');
+const withSomebody = new Function(
+  `${lineOf(taskLib, 'export const isAllotted')}
+   ${lineOf(taskLib, 'export const isDone')}
+   ${lineOf(appSrc, 'const withSomebody =')}
+   return withSomebody;`
+)();
+
+run('only unfinished work with somebody leaves the board', () => {
+  assert.equal(withSomebody({ assigned_to: 'Krishna', status: 'open' }), true);
+  assert.equal(withSomebody({ assigned_to: null, status: 'open' }), false);
+  // Finished is finished: it belongs in Completed with everything else, and
+  // keeping it there is what makes the count above the list exact.
+  assert.equal(withSomebody({ assigned_to: 'Krishna', status: 'done' }), false);
+});
+
+run('the board and its figures apply the same rule', () => {
+  // dayTasks is what every figure, the focus list, the calendar and the rail
+  // read; `visible` is the list. A rule applied to one and not the other is how
+  // "6 open" ends up over four rows.
+  const dayTasks = appSrc.slice(appSrc.indexOf('const dayTasks ='), appSrc.indexOf('const allottedHidden'));
+  const visible = appSrc.slice(appSrc.indexOf('const visible ='), appSrc.indexOf('const arrivedToday'));
+  assert.match(dayTasks, /withSomebody/, 'the figures leave out work with somebody else');
+  assert.match(visible, /withSomebody\(task\) && !showAllotted/, 'and so does the list');
+});
+
+run('nothing is hidden quietly - the list says where it went, and brings it back', () => {
+  const note = appSrc.slice(appSrc.indexOf('allottedHidden > 0'), appSrc.indexOf('<TaskList'));
+  assert.match(note, /with somebody else/);
+  assert.match(note, /goto\('allotted'\)/, 'it links to the page that holds them');
+  assert.match(note, /Show them here/, 'and one press puts them back on the board');
+});
+
+run('the number it reports is the number the sidebar badges', () => {
+  // Two counts of the same thing, computed in different places and different
+  // languages. They disagree the moment one of them starts counting finished
+  // delegations, which is exactly the mistake worth pinning.
+  const rows = DB.listTasks({ status: undefined, limit: 1000 });
+  const board = rows.filter((t) => !t.group_separate && withSomebody(t)).length;
+  assert.equal(board, A.delegationCounts().allotted);
+});
+
+run('taking it off the board does not take it off the engine', () => {
+  const t = task('Client agreement to sign', { due_date: '2020-01-01' });
+  A.assignTask(t.id, 'Krishna');
+  const chased = DB.pendingReminders('2030-01-01').map((r) => r.id);
+  assert.ok(chased.includes(t.id), 'it is off the list, not off his back');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

@@ -637,8 +637,19 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .scope-chip button:hover { background: var(--line); color: var(--text); }
 
-.toolbar { display: flex; gap: 10px; align-items: center; }
-.toolbar-right { position: relative; display: flex; gap: 8px; align-items: center; }
+/*
+ * The toolbar wraps rather than pushing the page sideways.
+ *
+ * "Select" becomes "Done selecting" while rows are being picked, and those
+ * eight extra characters were enough to put a horizontal scrollbar under a
+ * 390px screen - the one thing the layout is not allowed to do. Wrapping costs
+ * a line only while the wider label is there.
+ */
+.toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.toolbar-right {
+  position: relative; display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; min-width: 0;
+}
 
 .segment {
   display: inline-flex; gap: 2px;
@@ -4207,6 +4218,19 @@ button.due:hover { background: var(--raised); }
   box-shadow: var(--shadow);
 }
 .pick-count { font-weight: 600; font-size: .85rem; flex: 1 1 auto; }
+/*
+ * Naming the person, inside the bar rather than over it. A dialog for one
+ * short answer costs a press to open and a press to close; the field takes the
+ * place of the button that opened it, so the bar keeps its shape.
+ */
+.pick-give { display: flex; align-items: center; gap: 8px; }
+.pick-give input {
+  font: inherit; font-size: .85rem; padding: 5px 9px; min-width: 150px;
+  color: var(--text); background: var(--card);
+  border: 1px solid var(--brand); border-radius: 6px;
+}
+.pick-give input:focus { outline: none; box-shadow: 0 0 0 2px var(--brand-wash); }
+@media (max-width: 760px) { .pick-give { flex: 1 1 100%; } .pick-give input { flex: 1 1 auto; min-width: 0; } }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn.danger:disabled { opacity: .5; cursor: default; }
 

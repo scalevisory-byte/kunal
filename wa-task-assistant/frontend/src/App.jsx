@@ -43,12 +43,24 @@ import NotesPage from './components/NotesPage.jsx';
 import LeadsPage from './components/LeadsPage.jsx';
 import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
-import { isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
+import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
 import { activity, chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
 const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null };
+
+/*
+ * Work that is out with somebody and not finished yet.
+ *
+ * Only the unfinished half leaves the board. The reason for taking it off is
+ * that it is not his to do today - and that reason stops applying the moment it
+ * is done, when it is simply finished work and belongs in Completed with the
+ * rest. Keeping it that way also makes the count above the list exact: what it
+ * says is hidden is precisely what is hidden, and it is the same number the
+ * sidebar badges beside Task allotted.
+ */
+const withSomebody = (task) => isAllotted(task) && !isDone(task);
 
 /**
  * What each page is, and which of the dashboard's parts belong on it.
@@ -251,6 +263,8 @@ export default function App() {
    */
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
+  // Whether the picker bar is asking who the picked rows go to.
+  const [giving, setGiving] = useState(false);
   const [status, setStatus] = useState(null);
   /*
    * How the board is split into sections. Not remembered between visits: a
@@ -260,6 +274,14 @@ export default function App() {
    * arrival; the toolbar overrides it while you are there.
    */
   const [groupBy, setGroupBy] = useState('date');
+  /*
+   * Whether work already given to somebody is on the board.
+   *
+   * Off on arrival, every time, and deliberately not remembered: the reason it
+   * is off is that the list is meant to be what he still has to do, and a
+   * setting left on weeks ago is exactly how that quietly stops being true.
+   */
+  const [showAllotted, setShowAllotted] = useState(false);
   const [error, setError] = useState('');
   // Asked once, unauthenticated: the app should be able to tell you it is
   // unprotected rather than leaving you to test it from an incognito window.
@@ -392,7 +414,36 @@ export default function App() {
     return next;
   });
 
-  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); };
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); setGiving(false); };
+
+  /*
+   * Hand everything picked to one person.
+   *
+   * The board is where you notice that half of what is on it is somebody
+   * else's work; one row at a time is the reason it stays that way. There is
+   * no bulk route on the server for this and it does not need one - assigning
+   * is a small write and a handful of them in parallel is a few milliseconds,
+   * where an endpoint would be a second way to do the same thing.
+   *
+   * Nothing is sent to the person. Assigning records who has it; the app still
+   * reminds him, never them.
+   */
+  const givePicked = async (rawName) => {
+    const name = String(rawName || '').trim();
+    const ids = [...picked];
+    if (!name || !ids.length) return;
+    // A person already on the list brings their WhatsApp id with them, so a
+    // follow-up written later knows which chat it belongs in.
+    const known = people.find((p) => p.name?.toLowerCase() === name.toLowerCase());
+    try {
+      await Promise.all(ids.map((id) => api.assign(id, name, known?.wid || null)));
+      stopSelecting();
+      await refresh({ quiet: true });
+      loadPeople();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   /*
    * Archive everything picked, in one request, with one way back.
@@ -496,15 +547,35 @@ export default function App() {
   };
 
   /*
-   * The day's work: everything except the set-aside groups.
+   * The day's work: everything except the set-aside groups and the work he has
+   * already handed to somebody else.
    *
-   * Those are fetched with the rest because a group's own page needs them, but
-   * they are not the day - Vacancies alone is a hundred and ten open rows, and
-   * counted into "192 pending" it drowned the twenty-five things actually owed.
+   * Both are fetched with the rest because another page needs them, and both
+   * are excluded here for the same reason - Vacancies alone is a hundred and
+   * ten open rows, and counted into "192 pending" it drowned the twenty-five
+   * things actually owed. Allotted work does the same thing: it is still his
+   * to chase, so it keeps its deadline and its reminders, but it is not what he
+   * sits down to do, and Task allotted is the page that answers for it.
+   *
    * So every figure, the focus list, the calendar and the rail read this, and
-   * only that group's own page, the Businesses page and search read them all.
+   * only that group's own page, the Businesses page, Task allotted and search
+   * read them all. Nothing is hidden quietly: the line above the list says how
+   * many are with somebody, and one press brings them back.
    */
-  const dayTasks = useMemo(() => tasks.filter((t) => !t.group_separate), [tasks]);
+  const dayTasks = useMemo(
+    () => tasks.filter((t) => !t.group_separate && (showAllotted || !withSomebody(t))),
+    [tasks, showAllotted]
+  );
+
+  /*
+   * How much the line above the list is speaking for. Open only, so it agrees
+   * with the badge on the sidebar's Task allotted - a delegation everybody has
+   * finished with is history, not something to count.
+   */
+  const allottedHidden = useMemo(
+    () => tasks.filter((t) => !t.group_separate && withSomebody(t)).length,
+    [tasks]
+  );
 
   const overdueCount = useMemo(() => dayTasks.filter(isOverdue).length, [dayTasks]);
 
@@ -586,6 +657,12 @@ export default function App() {
        * it, which is exactly what "kept out of the main list" means.
        */
       if (task.group_separate && filters.group !== task.group_id) return false;
+      /*
+       * Work with somebody else lives on Task allotted. Same rule as above and
+       * the same escape hatches: the toggle on the line above the list, and
+       * search, which looks through everything you have.
+       */
+      if (withSomebody(task) && !showAllotted) return false;
 
       if (view === 'open' && isDone(task)) return false;
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
@@ -622,7 +699,7 @@ export default function App() {
 
       return matchesQuery(task, query);
     });
-  }, [tasks, view, filters, query, selectedDate, searching, doneDay]);
+  }, [tasks, view, filters, query, selectedDate, searching, doneDay, showAllotted]);
 
   /*
    * What came in today, and how much of it this page is hiding.
@@ -1374,7 +1451,7 @@ export default function App() {
                       <div className="pick-bar" role="region" aria-label="Selected tasks">
                         <span className="pick-count">
                           {picked.size === 0
-                            ? 'Tap the rows you want to remove'
+                            ? 'Tap the rows you want to remove or hand over'
                             : `${picked.size} selected`}
                         </span>
                         <button
@@ -1384,6 +1461,43 @@ export default function App() {
                         >
                           Select all {visible.length}
                         </button>
+                        {/*
+                          * The other thing worth doing to a pile of rows at
+                          * once: handing them over. Half of what clutters the
+                          * board is work somebody else is doing, and naming
+                          * that person is what moves it to Task allotted - one
+                          * name for fifty rows rather than fifty drawers.
+                          */}
+                        {giving ? (
+                          <form
+                            className="pick-give"
+                            onSubmit={(e) => { e.preventDefault(); givePicked(e.target.who.value); }}
+                          >
+                            <input
+                              name="who"
+                              autoFocus
+                              list="pick-people"
+                              placeholder="Who has it?"
+                              aria-label="Who the selected tasks go to"
+                              onKeyDown={(e) => { if (e.key === 'Escape') setGiving(false); }}
+                            />
+                            <datalist id="pick-people">
+                              {people.map((person) => (
+                                <option key={person.name} value={person.name} />
+                              ))}
+                            </datalist>
+                            <button type="submit" className="btn">Give {picked.size}</button>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            disabled={!picked.size}
+                            onClick={() => setGiving(true)}
+                          >
+                            Give to…
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn danger"
@@ -1583,6 +1697,30 @@ export default function App() {
                         onMore={(typed) => { setSeedTitle(typed); setComposing(true); }}
                         onError={(err) => setError(err.message)}
                       />
+                    )}
+
+                    {/*
+                      * Where the allotted work went.
+                      *
+                      * It is off this list on purpose - it is with somebody
+                      * else, and a hundred of those rows is what made All Tasks
+                      * unreadable. But work that disappears with no explanation
+                      * is worse than work in the way, so the list says how much
+                      * is elsewhere, links to the page that holds it, and puts
+                      * it back in one press for when he wants the whole picture.
+                      */}
+                    {allottedHidden > 0 && !searching && (
+                      <p className="dup-note">
+                        <b>{allottedHidden}</b>{' '}
+                        {allottedHidden === 1 ? 'task is' : 'tasks are'} with somebody else
+                        {showAllotted ? ' and shown here.' : ' and kept off this list.'}
+                        <button className="link" onClick={() => goto('allotted')}>
+                          Task allotted
+                        </button>
+                        <button className="link" onClick={() => setShowAllotted((v) => !v)}>
+                          {showAllotted ? 'Hide them again' : 'Show them here'}
+                        </button>
+                      </p>
                     )}
 
                     <TaskList

@@ -31,6 +31,16 @@ export const statusLabel = (key) => STATUSES.find((s) => s.key === key)?.label |
 export const isDone = (task) => task.status === 'done';
 export const isOverdue = (task) => !isDone(task) && task.due_date && task.due_date < todayIso();
 
+/*
+ * Work he has handed to somebody else.
+ *
+ * It is still his to chase, which is why it is still a task and still gets
+ * reminders - but it is not what he sits down to do, and a hundred allotted
+ * rows in All Tasks is what made the list unreadable. Task allotted is its
+ * home; the board says how many are there rather than hiding them silently.
+ */
+export const isAllotted = (task) => Boolean(task.assigned_to);
+
 /** Days between a due date and today; negative means late. */
 export function daysOut(dueDate) {
   if (!dueDate) return null;
