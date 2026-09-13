@@ -3520,10 +3520,28 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Naming somebody from inside the row menu. */
 .menu-name { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .menu-name input {
-  flex: 1; min-width: 0;
+  flex: 1 1 auto; min-width: 96px;
   border: 1px solid var(--line); border-radius: var(--r); background: var(--bg);
   color: var(--text); font: inherit; font-size: .8rem; padding: 4px 8px; min-height: 30px;
 }
+.menu-name input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-wash); }
+/*
+ * Give is a button, not a menu row.
+ *
+ * `.menu button` makes every item a full-width borderless row, which is right
+ * for the items and wrong here: it stretched Give to 195px and squeezed the
+ * name field it sits beside down to eighteen - a field you cannot see is a
+ * field you cannot fill, and filling it is the whole point of the menu.
+ */
+.menu .menu-name button {
+  width: auto; flex: 0 0 auto;
+  padding: 5px 11px; min-height: 30px;
+  border: 1px solid var(--brand); border-radius: var(--r);
+  background: var(--brand); color: #fff;
+  font-size: .8rem; font-weight: 600;
+}
+.menu .menu-name button:hover { background: var(--brand); }
+.menu .menu-name button:disabled { opacity: .45; cursor: default; }
 .menu-note { margin-left: auto; font-size: .68rem; color: var(--muted); }
 
 /* Where a task came from, said rather than implied. */
@@ -3782,24 +3800,37 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .folder-scroll {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   padding: 2px 2px 4px;
   scrollbar-width: thin;
 }
 .folder-scroll::-webkit-scrollbar { height: 4px; }
 .folder-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+/*
+ * The same size as the day chips directly above them.
+ *
+ * These were tiles - taller, rounder, with the count in a pill of its own -
+ * and stacked under All / Today / Tomorrow they read as a second, heavier
+ * control rather than the next row of the same one. Two bars of filters, one
+ * twice the height of the other, is what makes the top of the page feel like
+ * furniture. Same padding, same type size, same corner, count as plain muted
+ * figures: one family, and the list starts higher up the page.
+ */
 .folder-tile {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
+  gap: 6px;
+  padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--r);
   background: var(--card);
   color: var(--text-2);
-  font-size: .8rem;
+  font-size: .78rem;
+  /* A button does not inherit the page's line-height, and that alone left
+     these five pixels shorter than the day chips they sit under. */
+  line-height: 1.55;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
@@ -3814,20 +3845,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Set aside: it opens its own page rather than filtering, so it reads as a
    way out rather than as another filter. */
 .folder-tile.aside { border-style: dashed; }
-.folder-name { max-width: 13ch; overflow: hidden; text-overflow: ellipsis; }
+/* Room for a name like "AUDIT 30 SEP 2026" on one line - at 13ch it was cut
+   to "AUDIT 30 SE…", which names no folder anybody recognises. */
+.folder-name { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; }
 .folder-count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--raised);
   color: var(--muted);
   font-size: .7rem;
   font-weight: 700;
-  text-align: center;
+  font-family: "IBM Plex Mono", monospace;
 }
-.folder-tile.on .folder-count { background: var(--card); color: var(--accent); }
-.folder-tile.add { padding: 6px 9px; color: var(--muted); }
-.folder-tools { display: flex; gap: 6px; flex: 0 0 auto; align-items: flex-start; }
+.folder-tile.on .folder-count { color: var(--accent); }
+.folder-tile.add { padding: 4px 8px; color: var(--muted); }
+.folder-tools { display: flex; gap: 6px; flex: 0 0 auto; align-items: center; }
 
 /*
  * The same folders as a grid.
@@ -3838,22 +3867,21 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * same press - only the wrapping changes, so nothing has to be learnt twice.
  */
 .folder-strip.grid { align-items: flex-start; }
+/*
+ * The grid is a wrap, not a set of equal-width cards.
+ *
+ * Columns of 148px gave "SST 4" the same width as "AUDIT 30 SEP 2026", so a
+ * folder with a short name was mostly empty space and the row of nine took
+ * three lines. Wrapping chips are each as wide as their own name: the whole
+ * set is still visible at once, which is the only thing this shape is for,
+ * in about half the height.
+ */
 .folder-strip.grid .folder-scroll {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   overflow: visible;
   flex: 1;
-}
-.folder-strip.grid .folder-tile {
-  justify-content: flex-start;
-  border-radius: var(--r-sm, 6px);
-  padding: 10px 12px;
-}
-.folder-strip.grid .folder-tile { white-space: normal; text-align: left; }
-.folder-strip.grid .folder-name { flex: 1; max-width: none; overflow: visible; }
-@media (max-width: 520px) {
-  .folder-strip.grid .folder-scroll { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
 }
 
 

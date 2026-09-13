@@ -191,6 +191,49 @@ run('taking it off the board does not take it off the engine', () => {
 });
 
 
+
+/*
+ * "One click option do - but allot kisko karna he wo bhi karna padega,
+ * compulsory rakho usko." Both halves, held together: the row's Staff button
+ * is the only press needed to start, and there is no way through it that files
+ * a task under Task allotted without a person's name on it.
+ */
+console.log('\nputting one there in a single press');
+
+const rowSrc = fs.readFileSync(new URL('../../frontend/src/components/TaskItem.jsx', import.meta.url), 'utf8');
+const assignBtn = rowSrc.slice(rowSrc.indexOf('function AssignButton'), rowSrc.indexOf('function GroupButton'));
+
+run('the name field is open on the first press, not behind another one', () => {
+  // It used to sit behind "Somebody else…", which on the first days - when
+  // nobody is on the list yet - was the only road, so handing a task over was
+  // four actions deep.
+  // The step was a state flag that had to be flipped before the form existed.
+  assert.ok(!/setNaming/.test(assignBtn), 'no step between the button and the field');
+  assert.match(assignBtn, /<form[\s\S]*?className="menu-name"/, 'the field is in the menu itself');
+  assert.match(assignBtn, /autoFocus/, 'and it has the cursor');
+});
+
+run('naming somebody is compulsory', () => {
+  assert.match(assignBtn, /if \(name\.trim\(\)\) give\(name\.trim\(\)\)/, 'a blank name submits nothing');
+  assert.match(assignBtn, /disabled=\{!name\.trim\(\)\}/, 'and Give stays disabled until there is one');
+  // The one call that passes an empty name is the opposite action - taking it
+  // back off somebody - and it is only reachable when somebody holds it.
+  const empties = [...assignBtn.matchAll(/give\(''\)/g)];
+  assert.equal(empties.length, 1, 'exactly one give(\'\'), and it is "take it back"');
+  assert.match(assignBtn.slice(assignBtn.indexOf("give('')") - 200, assignBtn.indexOf("give('')") + 200),
+    /take it back/, 'it is the take-it-back row, not a way to allot nobody');
+});
+
+run('an empty name means take it back, never allot to nobody', () => {
+  const t = task('Ledger to reconcile');
+  A.assignTask(t.id, 'Meera');
+  assert.equal(A.assignTask(t.id, ''), null);
+  assert.equal(DB.getTask(t.id).assigned_to, null, 'it is his again');
+  // And back on the board with it: nothing is with anybody.
+  assert.ok(!DB.getTask(t.id).assigned_to);
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

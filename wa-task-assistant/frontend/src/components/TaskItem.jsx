@@ -35,9 +35,11 @@ function AssignButton({ task, people = [], onAssign }) {
    */
   const held = task.assigned_to && !looksLikeWid(task.assigned_to) ? task.assigned_to : null;
   const [open, setOpen] = useState(false);
-  const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const wrap = useRef(null);
+
+  // A shut menu forgets what was half-typed into it.
+  useEffect(() => { if (!open) setName(''); }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -51,9 +53,18 @@ function AssignButton({ task, people = [], onAssign }) {
     };
   }, [open]);
 
+  /*
+   * Handing it over always names somebody.
+   *
+   * Asked for as "allot kisko karna he wo bhi karna padega, compulsory rakho".
+   * There is deliberately no way through this menu that moves a task to Task
+   * allotted without a person on it - an unnamed delegation is a task off the
+   * board that nobody has been asked to do, which is worse than leaving it
+   * where it was. Passing an empty name is the one exception and it means the
+   * opposite: take it back.
+   */
   const give = (who, wid = null) => {
     setOpen(false);
-    setNaming(false);
     setName('');
     onAssign(task, who, wid);
   };
@@ -92,26 +103,29 @@ function AssignButton({ task, people = [], onAssign }) {
                 </button>
               ))}
           </div>
-          {naming ? (
-            <form
-              className="menu-name"
-              onSubmit={(e) => { e.preventDefault(); if (name.trim()) give(name.trim()); }}
-            >
-              <input
-                value={name}
-                autoFocus
-                placeholder="Name"
-                aria-label="Give this task to"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Escape' && setNaming(false)}
-              />
-              <button type="submit" className="btn small" disabled={!name.trim()}>Give</button>
-            </form>
-          ) : (
-            <button role="menuitem" onClick={() => setNaming(true)}>
-              <Icon name="plus" size={15} /> Somebody else…
-            </button>
-          )}
+          {/*
+            * The field is here on opening, not behind a "Somebody else…" step.
+            *
+            * That step cost a press before a single letter could be typed, and
+            * on the first few days - when nobody is on the list yet - it was
+            * the only way through, so handing a task over was four actions
+            * deep. Now the row's Staff button is the one press: type a name and
+            * Enter, or take a name above in a second press. Give stays disabled
+            * until there is a name, because that is the part that must happen.
+            */}
+          <form
+            className="menu-name"
+            onSubmit={(e) => { e.preventDefault(); if (name.trim()) give(name.trim()); }}
+          >
+            <input
+              value={name}
+              autoFocus
+              placeholder="Type a name"
+              aria-label="Give this task to"
+              onChange={(e) => setName(e.target.value)}
+            />
+            <button type="submit" className="btn small" disabled={!name.trim()}>Give</button>
+          </form>
         </div>
       )}
     </div>
