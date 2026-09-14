@@ -35,9 +35,63 @@ export function directionOf(task) {
   return 'own';
 }
 
-/** Everyone the user has given work to, with what is still outstanding. */
+/* ---------------- the staff list ---------------- */
+
+/**
+ * The people work can be handed to, whether or not they hold any yet.
+ *
+ * A name typed on a row is remembered here too (`rememberStaff` below), so the
+ * list builds itself out of ordinary use and the one place he has to maintain
+ * by hand is the one he chooses to.
+ */
+export const listStaff = () =>
+  db.prepare(`SELECT id, name, wid, number, created_at FROM staff ORDER BY name COLLATE NOCASE`).all();
+
+/**
+ * Add somebody. Returns the row, existing or new.
+ *
+ * `INSERT ... ON CONFLICT DO UPDATE` rather than a read-then-write: two presses
+ * of the button, or a name typed on a row at the same moment, must not be able
+ * to make two people out of one.
+ */
+export function addStaff(name, { wid = null, number = null } = {}) {
+  const clean = String(name ?? '').trim().slice(0, 80);
+  if (!clean) return null;
+  db.prepare(
+    `INSERT INTO staff (name, wid, number) VALUES (?, ?, ?)
+     ON CONFLICT(LOWER(name)) DO UPDATE SET
+       wid    = COALESCE(excluded.wid, staff.wid),
+       number = COALESCE(excluded.number, staff.number)`
+  ).run(clean, wid || null, number || null);
+  return db.prepare(`SELECT id, name, wid, number, created_at FROM staff WHERE LOWER(name) = LOWER(?)`)
+    .get(clean);
+}
+
+/**
+ * Take somebody off the list.
+ *
+ * Their tasks are untouched - the work is real whether or not the name is on a
+ * list, and a delete that silently un-assigned six tasks would be a very
+ * expensive way to tidy up. They simply stop being offered; if they still hold
+ * work, the page goes on showing them because the tasks say so.
+ */
+export const removeStaff = (id) =>
+  db.prepare(`DELETE FROM staff WHERE id = ?`).run(Number(id)).changes > 0;
+
+/** Quietly remember a name that was typed on a row, so it is there next time. */
+export const rememberStaff = (name, wid = null) => addStaff(name, { wid });
+
+/**
+ * Everyone the user has given work to, with what is still outstanding — plus
+ * everyone on the staff list who has not been given anything yet.
+ *
+ * Both in one list because the question the Staff menu asks is "who could this
+ * go to", and the answer has never been "only people who already have
+ * something". Someone with nothing open sorts to the end and carries zeros,
+ * which is true.
+ */
 export function delegates() {
-  return db
+  const held = db
     .prepare(
       `SELECT assigned_to AS name,
               MAX(assigned_to_wid) AS wid,
@@ -50,6 +104,22 @@ export function delegates() {
        ORDER BY open DESC, assigned_to`
     )
     .all();
+
+  const seen = new Set(held.map((row) => String(row.name || '').toLowerCase()));
+  const idle = listStaff()
+    .filter((person) => !seen.has(person.name.toLowerCase()))
+    .map((person) => ({
+      name: person.name,
+      wid: person.wid,
+      open: 0,
+      total: 0,
+      last_at: null,
+      // Says which half of the list this came from: a person with no work is on
+      // the page because he is staff, not because a task put him there.
+      on_list: true,
+    }));
+
+  return [...held, ...idle];
 }
 
 /** Everyone who has given the user work, with what is still outstanding. */
@@ -103,6 +173,15 @@ export function assignTask(taskId, name, wid = null) {
                       updated_at = datetime('now')
      WHERE id = ?`
   ).run(clean, wid || null, taskId);
+  /*
+   * A name typed once is on the list from then on.
+   *
+   * Without this the staff list is a second thing to maintain, and a list you
+   * have to remember to update is a list that goes stale - then the menu stops
+   * offering the person you actually give work to, and the typing (and the
+   * typos) start again.
+   */
+  rememberStaff(clean, wid);
   return clean;
 }
 

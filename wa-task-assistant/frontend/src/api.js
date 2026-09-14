@@ -256,6 +256,11 @@ export const api = {
   confirmLead: (id) => request(`/leads/${id}/confirm`, { method: 'POST' }),
   deleteLead: (id) => request(`/leads/${id}`, { method: 'DELETE' }),
 
+  staff: () => request('/delegation/staff'),
+  addStaff: (name, number = null) =>
+    request('/delegation/staff', { method: 'POST', body: JSON.stringify({ name, number }) }),
+  removeStaff: (id) => request(`/delegation/staff/${id}`, { method: 'DELETE' }),
+
   groupNames: () => request('/group-names'),
   repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
 

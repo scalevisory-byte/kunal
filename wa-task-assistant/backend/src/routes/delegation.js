@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getTask, listTasks } from '../db.js';
 import {
   delegates, requesters, delegationCounts, assignTask, followUpText, directionOf,
+  listStaff, addStaff, removeStaff,
 } from '../assignment.js';
 import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
@@ -146,3 +147,40 @@ delegationRouter.post('/tasks/:id/nudge', async (req, res) => {
  * that are still scheduled behind it. A second way in would be a second way to
  * get that wrong.
  */
+
+/* ---------------- the staff list ---------------- */
+
+/**
+ * The people work can be handed to.
+ *
+ * Separate from `GET /` on purpose: that answers "who holds what", which is
+ * about tasks, and this answers "who is there to give work to", which is not.
+ * A person on this list who holds nothing is still an answer to the second.
+ */
+delegationRouter.get('/staff', (req, res) => {
+  res.json({ staff: listStaff() });
+});
+
+delegationRouter.post('/staff', (req, res) => {
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) return res.status(400).json({ error: 'a name is required' });
+  /*
+   * A number is optional and is only ever used for the Nudge button — the one
+   * place in the app a message can reach anybody but the user, and only when a
+   * person presses it. Storing it here sends nothing.
+   */
+  const number = String(req.body?.number ?? '').replace(/\D/g, '').slice(0, 15) || null;
+  res.status(201).json({ person: addStaff(name, { number, wid: number ? `${number}@c.us` : null }) });
+});
+
+delegationRouter.delete('/staff/:id', (req, res) => {
+  /*
+   * Their work is untouched. A delete that silently un-assigned six tasks would
+   * be a very expensive way to tidy up a list, so this only stops the name being
+   * offered — if they still hold something, the page goes on showing them
+   * because the tasks say so.
+   */
+  const gone = removeStaff(req.params.id);
+  if (!gone) return res.status(404).json({ error: 'not found' });
+  res.json({ removed: true });
+});

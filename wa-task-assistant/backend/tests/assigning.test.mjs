@@ -281,6 +281,75 @@ run('handing it on is the same write the board makes', () => {
 });
 
 
+
+/*
+ * The people work can be handed to, before any of it has been.
+ *
+ * Asked as "staff ma name me staff ka name add karne de". The list the Staff
+ * menu offered was derived from tasks already assigned, so a person who had
+ * never been given anything did not exist: his name had to be typed from
+ * scratch every time, and one typo made a second person with a section of
+ * their own on the page.
+ */
+console.log('\nthe staff list');
+
+run('somebody can be on the list before they hold anything', () => {
+  A.addStaff('Rahul Shah');
+  A.addStaff('Jignesh');
+  const names = A.listStaff().map((p) => p.name);
+  assert.ok(names.includes('Rahul Shah') && names.includes('Jignesh'));
+  // And the menu offers them, which is the whole point.
+  const offered = A.delegates().map((d) => d.name);
+  assert.ok(offered.includes('Rahul Shah'), 'offered with nothing assigned');
+});
+
+run('one person per name, however it was typed', () => {
+  const before = A.listStaff().length;
+  A.addStaff('rahul shah');
+  A.addStaff('  RAHUL SHAH  ');
+  assert.equal(A.listStaff().length, before, '"rahul" and "Rahul" are not two people');
+});
+
+run('a blank name is nobody', () => {
+  const before = A.listStaff().length;
+  assert.equal(A.addStaff('   '), null);
+  assert.equal(A.listStaff().length, before);
+});
+
+run('a name typed on a row joins the list by itself', () => {
+  // Otherwise the list is a second thing to maintain, and a list you have to
+  // remember to update goes stale - then the menu stops offering the people you
+  // actually give work to and the typing starts again.
+  const t = task('Arrohan showroom quotation');
+  A.assignTask(t.id, 'Meera Shah');
+  assert.ok(A.listStaff().some((p) => p.name === 'Meera Shah'));
+});
+
+run('removing somebody leaves their work exactly where it is', () => {
+  const t = task('Sena GST refund follow up');
+  A.assignTask(t.id, 'Jignesh');
+  const person = A.listStaff().find((p) => p.name === 'Jignesh');
+  assert.equal(A.removeStaff(person.id), true);
+
+  assert.ok(!A.listStaff().some((p) => p.name === 'Jignesh'), 'no longer offered');
+  assert.equal(DB.getTask(t.id).assigned_to, 'Jignesh', 'but the task is untouched');
+  // And because the task still says so, the page goes on showing them.
+  assert.ok(A.delegates().some((d) => d.name === 'Jignesh' && d.open === 1));
+});
+
+run('the staff list is a list of names and nothing more', () => {
+  // No login, no role, no way for anybody on it to reach the app - and nothing
+  // here sends anybody a message. The number is only ever read by the nudge,
+  // which one person presses.
+  const src = fs.readFileSync(new URL('../src/assignment.js', import.meta.url), 'utf8');
+  const staff = src.slice(src.indexOf('export const listStaff'), src.indexOf('export function delegates'));
+  assert.ok(!/sendMessage|client\.send/.test(staff), 'adding somebody messages nobody');
+  const routes = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
+  const block = routes.slice(routes.indexOf("delegationRouter.get('/staff'"));
+  assert.ok(!/sendMessage/.test(block), 'and neither does any route that manages it');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

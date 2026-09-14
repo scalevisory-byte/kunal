@@ -401,6 +401,114 @@ function Rows({ tasks, onOpen, onNudge, people, onAssign }) {
   );
 }
 
+/**
+ * The people work can be handed to.
+ *
+ * Asked for as "staff ma name me staff ka name add karne de". Until now this
+ * list was derived from tasks already assigned, so a person who had never been
+ * given anything did not exist: his name had to be typed from scratch each
+ * time, and one typo made a second person with a section of their own.
+ *
+ * It still fills itself — a name typed on a row is remembered — so this is for
+ * putting the team in before the first task, not a form to keep up to date.
+ *
+ * Nothing here can message anybody. The number is optional and is only ever
+ * used by the Nudge button, which sends one message when a person presses it.
+ */
+function StaffList({ onError, onChanged }) {
+  const [staff, setStaff] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [number, setNumber] = useState('');
+
+  const load = useCallback(() => {
+    api.staff().then((d) => setStaff(d.staff)).catch(() => setStaff([]));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const add = async (event) => {
+    event.preventDefault();
+    if (!name.trim()) return;
+    try {
+      await api.addStaff(name.trim(), number.trim() || null);
+      setName('');
+      setNumber('');
+      load();
+      onChanged?.();
+    } catch (err) { onError(err); }
+  };
+
+  const remove = async (person) => {
+    try {
+      await api.removeStaff(person.id);
+      load();
+      onChanged?.();
+    } catch (err) { onError(err); }
+  };
+
+  if (!staff) return null;
+
+  return (
+    <section className="staff-panel">
+      <button className="link staff-toggle" onClick={() => setOpen((v) => !v)}>
+        {open ? 'Hide' : 'Manage'} staff{staff.length ? ` (${staff.length})` : ''}
+      </button>
+
+      {open && (
+        <div className="staff-body">
+          <p className="hint">
+            Names here are offered by the <b>Staff</b> button on every task, so you
+            do not have to type them. A name you type on a row is added here by
+            itself. Nobody is ever messaged from this list — the number is only for
+            the Nudge button, which sends one message when you press it.
+          </p>
+
+          <form className="add-row" onSubmit={add}>
+            <input
+              className="grow"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name"
+              autoComplete="off"
+            />
+            <input
+              className="staff-number"
+              value={number}
+              onChange={(e) => setNumber(e.target.value)}
+              placeholder="WhatsApp number (optional)"
+              inputMode="numeric"
+              autoComplete="off"
+            />
+            <button className="btn primary" type="submit" disabled={!name.trim()}>Add</button>
+          </form>
+
+          {staff.length > 0 && (
+            <ul className="staff-rows">
+              {staff.map((person) => (
+                <li key={person.id}>
+                  <Icon name="person" size={14} />
+                  <span className="staff-name">{person.name}</span>
+                  {person.number && <span className="muted">{person.number}</span>}
+                  {/* Their tasks stay exactly where they are; this only stops the
+                      name being offered. */}
+                  <button
+                    className="chip-x"
+                    onClick={() => remove(person)}
+                    title="Take off the list — their tasks are not touched"
+                    aria-label={`Remove ${person.name} from the staff list`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function Delegation({ side, onOpenTask, onError, onChanged, wa }) {
   const [data, setData] = useState(null);
   const [showDone, setShowDone] = useState(false);
@@ -524,6 +632,7 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
           {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} across {shown.length}{' '}
           {shown.length === 1 ? 'person' : 'people'}
         </span>
+        {side === 'allotted' && <StaffList onError={onError} onChanged={load} />}
       </div>
 
       {/*

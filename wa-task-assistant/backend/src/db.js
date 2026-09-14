@@ -172,6 +172,31 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  /*
+   * The people work gets handed to.
+   *
+   * Asked for as "staff ma name me staff ka name add karne de" - and until now
+   * there was nowhere to. The list of people the Staff menu offers was derived
+   * from tasks already assigned, so somebody who has never been given anything
+   * did not exist: his name had to be typed from scratch every time, and one
+   * typo made a second person who then had their own section on the page.
+   *
+   * Deliberately thin. This is a list of names, not a staff directory: no role,
+   * no email, no login. A person here can do nothing in the app and is never
+   * messaged by it - the same rule as everywhere else - they are simply a name
+   * that is ready to pick.
+   */
+  CREATE TABLE IF NOT EXISTS staff (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    wid        TEXT,
+    number     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  /* One person per name, however it was typed: "rahul" and "Rahul" are not two
+     people, and the whole point of the list is to stop them becoming two. */
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_name ON staff(LOWER(name));
+
   CREATE INDEX IF NOT EXISTS idx_attach_task        ON attachments(task_id);
 
 `);

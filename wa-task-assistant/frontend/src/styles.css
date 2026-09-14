@@ -4303,6 +4303,45 @@ button.due:hover { background: var(--raised); }
  * short answer costs a press to open and a press to close; the field takes the
  * place of the button that opened it, so the bar keeps its shape.
  */
+/*
+ * The staff list, folded away on the Task allotted page.
+ *
+ * Shut by default: it is a thing you set up once and then forget, and the page
+ * is about the work, not about the people list behind it.
+ */
+/*
+ * The toggle sits in the toolbar row; the panel it opens takes the whole width
+ * under it. Both are children of the same flex row, so the panel is told to
+ * wrap onto its own line - left to size itself it grew to the width of its
+ * widest row and pushed the whole page sideways.
+ */
+.staff-panel { flex: 0 0 auto; display: contents; }
+.staff-toggle { font-size: .82rem; }
+.staff-body {
+  flex: 1 1 100%; width: 100%; min-width: 0;
+  margin: 10px 0 0; padding: 12px;
+  background: var(--sunken); border: 1px solid var(--line); border-radius: var(--r);
+}
+.staff-body .add-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 0; }
+.staff-body .add-row .grow { flex: 1 1 180px; min-width: 0; }
+.staff-number { flex: 0 1 220px; min-width: 0; }
+.staff-rows { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.staff-rows li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: var(--r-sm); font-size: .85rem;
+}
+.staff-rows li:hover { background: var(--card); }
+.staff-rows .icon { color: var(--muted); flex: none; }
+.staff-name { font-weight: 600; }
+.staff-rows .chip-x { margin-left: auto; }
+@media (max-width: 760px) {
+  /* Three controls across a 390px screen squeezed the number field down to the
+     word "What" — a field whose placeholder is cut in half tells you nothing
+     about what belongs in it. Each takes its own line here. */
+  .staff-body .add-row .grow, .staff-number { flex: 1 1 100%; }
+  .staff-body .add-row .btn { flex: 1 1 100%; }
+}
+
 .pick-give { display: flex; align-items: center; gap: 8px; }
 .pick-give input {
   font: inherit; font-size: .85rem; padding: 5px 9px; min-width: 150px;
