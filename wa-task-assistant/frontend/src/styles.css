@@ -951,7 +951,35 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   overflow: hidden;
   font-size: .74rem; color: var(--muted); white-space: nowrap;
 }
-.t-chat { max-width: 130px; }
+/*
+ * Which chat a task came from — truncated when it is long, never removed.
+ *
+ * It used to be dropped outright below 1080px on the reasoning that it was the
+ * least useful thing on the line. That was written when the line also carried
+ * the arrival date and two more items; the date has its own column now, and in
+ * any case the chat is the opposite of least useful — it is who asked. Reported
+ * five times as "the name is not coming" while the count said 449 rows had one,
+ * because they did: the name was in the row and the CSS was hiding it.
+ */
+.t-chat {
+  /* The one item on the line that gives up room. Everything else on it is a
+     word or two and a fixed size; the chat name is the only thing that can be
+     forty characters long, so it is the only thing that should shrink - and it
+     shrinks by as much as the line is actually short, rather than to a pixel
+     figure guessed per breakpoint. It never shrinks past a few characters:
+     "BOOK N F..." still says which chat, an icon on its own does not.
+
+     No max-width on purpose. A cap is a guess at how much room there is, and
+     it was wrong at every width it was tried at — 90px on a row with 400px to
+     spare. Flex gives the true answer: the name takes what it needs when the
+     line has room and gives back exactly what it is short by when it does not,
+     so what follows it is never pushed off. (.m-item's own max-width would
+     override one written here in any case, source order being what it is.) */
+  flex: 0 1 auto; min-width: 5em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.t-line > * { flex: none; }
+.t-line > .t-chat { flex: 0 1 auto; }
 .warn-text { color: var(--warn); }
 
 /*
@@ -2302,13 +2330,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* ---------- the one-line row on smaller screens ---------- */
 
-/* Drop the least useful items first, rather than letting the line overflow. */
-@media (max-width: 1240px) {
-  .t-chat { max-width: 90px; }
-}
+/* The chat name narrows itself (see .t-chat); all that is left here is a
+   tighter gap, because at this width the line is carrying the same items with
+   less room between them. */
 @media (max-width: 1080px) {
   .t-line { gap: 10px; }
-  .t-chat { display: none; }
 }
 @media (max-width: 760px) {
   /* On a phone one line cannot hold both, so the meta drops under the title -
@@ -2316,7 +2342,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .t-main { flex-direction: column; align-items: flex-start; gap: 3px; }
   .t-title { white-space: normal; overflow: visible; }
   .t-line { flex-wrap: wrap; white-space: normal; gap: 10px; }
-  .t-chat { display: inline-flex; max-width: 120px; }
   .task { padding: 9px 12px; }
 }
 
