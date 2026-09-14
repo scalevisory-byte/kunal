@@ -99,6 +99,29 @@ export default function GroupNames({ onError }) {
               <dd>{state.tasks.noSource}</dd>
             </div>
           </dl>
+          {/*
+            * What the blank rows actually hold.
+            *
+            * Three rounds went on guessing this from a screenshot, and the
+            * guess was wrong each time. The stored value says which cause it
+            * is on sight: a "…:33" is a linked identity, a bare number is a
+            * contact that never resolved, and an empty one is a chat that was
+            * never recorded at all.
+            */}
+          {state.blanks?.length > 0 && (
+            <details className="blank-chats">
+              <summary>What those rows hold ({state.blanks.length} shown)</summary>
+              <ul>
+                {state.blanks.map((row) => (
+                  <li key={row.id}>
+                    <span className="bc-title">{row.title}</span>
+                    <code>{row.chat_name || (row.chat_id ? '(no name, has an id)' : '(nothing stored)')}</code>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
           {state.tasks.noSource > 0 && (
             <p className="field-note">
               <b>{state.tasks.noSource}</b>{' '}

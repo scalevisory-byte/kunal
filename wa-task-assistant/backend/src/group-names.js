@@ -31,13 +31,36 @@ import { matchesPattern } from './blocklist.js';
 export const NAME_IS_AN_ID = (col) =>
   `(${col} IS NULL OR ${col} = '' OR ${col} = chat_id
     OR ${col} LIKE '%@g.us' OR ${col} LIKE '%@c.us'
-    OR ${col} LIKE '%@lid' OR ${col} LIKE '%@broadcast')`;
+    OR ${col} LIKE '%@lid' OR ${col} LIKE '%@broadcast'
+    /*
+     * A name has letters in it; an id does not.
+     *
+     * This is the case that made the panel disagree with the list. A linked
+     * identity is stored as "202383321759941:33" and a contact as
+     * "919825011122" — neither ends in an @domain, so both were counted as
+     * named and no repair ever went looking for what they are really called.
+     * The row, meanwhile, printed a phone number or nothing. GLOB asks whether
+     * a single character outside digits, spaces, + : and - exists; Gujarati and
+     * Hindi names have plenty, so they are correctly names.
+     */
+    OR ${col} NOT GLOB '*[^0-9 +:-]*')`;
 
 /** "120363...@g.us" is an id, not a name - and neither is a bare number. */
 export const looksLikeId = (value) => {
   const text = String(value ?? '').trim();
   if (!text) return true;
-  return /@(g\.us|c\.us|lid|broadcast)$/i.test(text) || /^\+?\d[\d\s-]{5,}$/.test(text);
+  if (/@(g\.us|c\.us|lid|broadcast)$/i.test(text)) return true;
+  /*
+   * Anything with no letter in it at all.
+   *
+   * The old rule wanted digits, spaces and dashes only, so a linked identity
+   * carrying its device number — "202383321759941:33" — slipped through on the
+   * colon and was written onto tasks *as their chat name*. It names nobody, and
+   * because it then looked like a name, nothing ever went back to ask what the
+   * chat was really called. A Gujarati or Hindi name is full of non-digits and
+   * is correctly kept.
+   */
+  return /^[\d\s+:-]+$/.test(text);
 };
 
 /*
@@ -177,6 +200,32 @@ export function taskChatState() {
     )
     .get();
   return { named: row.named || 0, askable: row.askable || 0, noSource: row.noSource || 0 };
+}
+
+/**
+ * A handful of the rows that cannot name their chat, with what IS stored.
+ *
+ * Three rounds were spent guessing what the blank rows held, and the guess was
+ * wrong each time — the last one ("449 rows showing their chat") was a count
+ * that called a phone number a name. Showing the actual value ends that: a
+ * stored "202383321759941:33" says linked identity, "919825011122" says the
+ * contact never resolved, and an empty one says the chat was never recorded.
+ *
+ * Only ids and chat names of his own chats, and only eight of them — no message
+ * text, nothing anybody else wrote.
+ */
+export function blankChatExamples(limit = 8) {
+  return db
+    .prepare(
+      `SELECT id, substr(title, 1, 60) AS title, chat_name, chat_id, message_id
+       FROM tasks
+       WHERE archived_at IS NULL
+         AND ${NAME_IS_AN_ID('chat_name')}
+         AND (origin = 'ai' OR source = 'whatsapp')
+       ORDER BY id DESC
+       LIMIT ?`
+    )
+    .all(Math.min(Number(limit) || 8, 20));
 }
 
 /**

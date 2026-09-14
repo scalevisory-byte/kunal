@@ -4328,6 +4328,15 @@ button.due:hover { background: var(--raised); }
  * wrap onto its own line - left to size itself it grew to the width of its
  * widest row and pushed the whole page sideways.
  */
+/* What the rows that cannot name their chat actually hold. Folded away: it is
+   a diagnosis, read once, not a thing to live with on the page. */
+.blank-chats { margin: 10px 0 0; font-size: .82rem; }
+.blank-chats summary { cursor: pointer; color: var(--muted); }
+.blank-chats ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.blank-chats li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.bc-title { flex: 1 1 220px; min-width: 0; color: var(--text-2); }
+.blank-chats code { font-size: .76rem; color: var(--muted); }
+
 .staff-panel { flex: 0 0 auto; display: contents; }
 .staff-toggle { font-size: .82rem; }
 .staff-body {

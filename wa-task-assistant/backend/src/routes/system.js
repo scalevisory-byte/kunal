@@ -8,6 +8,7 @@ import { matchesPattern } from '../blocklist.js';
 import { state, flushNow, groupNameFor, reprocessStored } from '../whatsapp.js';
 import {
   repairGroupNames, groupChatIds, needsName, nameFromSiblings, taskChatState,
+  blankChatExamples,
 } from '../group-names.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { transcriptionState } from '../transcribe.js';
@@ -126,6 +127,11 @@ systemRouter.get('/group-names', (req, res) => {
      * which of them can still be filled.
      */
     tasks: taskChatState(),
+    /*
+     * What the blank rows actually hold. Three rounds went on guessing this
+     * from a screenshot; the value itself says which of the causes it is.
+     */
+    blanks: blankChatExamples(),
     whatsapp: state.status,
   });
 });

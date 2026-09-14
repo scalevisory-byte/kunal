@@ -349,6 +349,77 @@ await run('and the row stays quiet for it, by the same rule', () => {
 });
 
 
+
+/*
+ * The panel said 449 rows were showing their chat while the list showed none.
+ *
+ * Both could not be true, and the count was the liar: three different rules for
+ * "is this a name" had grown up in three places, and the loosest of them called
+ * a phone number a name. So every one of those rows was filed as fine, no
+ * repair ever went looking for what the chat was really called, and the row
+ * printed a bare number or nothing.
+ *
+ * One rule now, everywhere: a name has letters in it; an id does not.
+ */
+console.log('\na name has letters, an id does not');
+
+await run('a linked identity carrying its device number is an id', () => {
+  // The shape that slipped through: the old rule allowed digits, spaces and
+  // dashes only, so the colon made "202383321759941:33" look like a name — and
+  // applyGroupName would then write it onto tasks AS their chat name.
+  assert.equal(GN.looksLikeId('202383321759941:33'), true);
+  assert.equal(GN.looksLikeId('919825011122'), true);
+  assert.equal(GN.looksLikeId('+91 99099 93565'), true);
+});
+
+await run('and a real name is not, in any script', () => {
+  assert.equal(GN.looksLikeId('BOOK N FLY X AADRESS'), false);
+  assert.equal(GN.looksLikeId('CA Vishal Joshi'), false);
+  // The rule cannot be "has A-Z": most of his chats are named in Gujarati.
+  assert.equal(GN.looksLikeId('મમ્મી'), false);
+  assert.equal(GN.looksLikeId('सोनू भाई'), false);
+});
+
+await run('the count applies the same rule the row does', () => {
+  DB.db.prepare('DELETE FROM tasks').run();
+  const add = (title, chat_name, chat_id) =>
+    DB.db
+      .prepare(`INSERT INTO tasks (title, chat_name, chat_id, status, source, origin)
+                VALUES (?, ?, ?, 'open', 'whatsapp', 'ai')`)
+      .run(title, chat_name, chat_id);
+
+  add('Renewal agreement', '202383321759941:33', '202383321759941:33@lid');
+  add('Travelogy supplier', '919825011122', '919825011122@c.us');
+  add('Scan documents', '89309717786799', null);
+  add('Dehradun rent', 'BOOK N FLY X AADRESS', '120363111@g.us');
+  add('Mummy ko batao', 'મમ્મી', '919000000002@c.us');
+
+  const state = GN.taskChatState();
+  assert.equal(state.named, 2, 'only the two real names, Gujarati included');
+  assert.equal(state.askable, 2, 'the two ids that can still be looked up');
+  assert.equal(state.noSource, 1, 'and the one with nothing to look up from');
+});
+
+await run('and the panel can show what those rows actually hold', () => {
+  // Three rounds went on guessing this from a screenshot. The stored value says
+  // which cause it is on sight.
+  const held = GN.blankChatExamples().map((r) => r.chat_name);
+  assert.ok(held.includes('202383321759941:33'));
+  assert.ok(held.includes('919825011122'));
+  assert.ok(!held.includes('BOOK N FLY X AADRESS'), 'a named row is not a blank');
+});
+
+await run('a number is never written onto a task as its name', () => {
+  DB.db.prepare('DELETE FROM tasks').run();
+  DB.db
+    .prepare(`INSERT INTO tasks (title, chat_name, chat_id, status, source, origin)
+              VALUES ('Needs a name', NULL, '120363777@g.us', 'open', 'whatsapp', 'ai')`)
+    .run();
+  assert.deepEqual(GN.applyGroupName('120363777@g.us', '919825011122'), { messages: 0, tasks: 0 });
+  assert.equal(taskNamed('Needs a name').chat_name, null, 'left blank rather than given a number');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);
