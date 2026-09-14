@@ -344,13 +344,28 @@ export const taskChat = (task) => {
  */
 export function taskSource(task) {
   const chat = taskChat(task);
-  if (!task?.is_group) return chat ? { label: chat, chat } : null;
+  /*
+   * A row is never silent about where it came from.
+   *
+   * Reported as "ye sab me kisne msg kiya, wo kyu nahi he" - rows with nothing
+   * at all on the line. The cause is a chat WhatsApp never named: it is stored
+   * under its id, and a `@lid` id has no dialable number inside it to fall back
+   * on, so every road ended in null and the row printed nothing. Nothing reads
+   * as a bug; "Unnamed chat" reads as the truth, and it is - the name really is
+   * missing, the app is going back to WhatsApp for it, and the id is in the
+   * tooltip meanwhile.
+   */
+  const unknown = task?.chat_id || task?.message_id
+    ? { label: 'Unnamed chat', chat: null, unnamed: true, id: task?.chat_id || null }
+    : null;
+
+  if (!task?.is_group) return chat ? { label: chat, chat } : unknown;
 
   const who = [task.contact, task.requested_by].find((v) => v && !looksLikeWid(v));
   const sender = who ? readableName(who) : null;
   // Only when they are genuinely two different names: a group whose name is
   // also the sender's would otherwise be printed twice.
-  if (!sender || !chat || sender === chat) return chat ? { label: chat, chat } : null;
+  if (!sender || !chat || sender === chat) return chat ? { label: chat, chat } : unknown;
   return { label: `${sender} · ${chat}`, chat, sender, group: chat };
 }
 

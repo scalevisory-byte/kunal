@@ -906,6 +906,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
      than every other, which is exactly what a column is for avoiding. */
   white-space: nowrap;
 }
+/* A chat WhatsApp has not named. Said quietly, because it is a gap in what is
+   known rather than something wrong with the task. */
+.t-chat.unnamed { font-style: italic; opacity: .72; }
+
 .t-recv b { font-size: .72rem; font-weight: 600; color: var(--text-2); font-style: normal; }
 .t-recv i { font-size: .66rem; color: var(--muted); font-style: normal; }
 .task.done .t-recv b, .task.done .t-recv i { color: var(--muted); }

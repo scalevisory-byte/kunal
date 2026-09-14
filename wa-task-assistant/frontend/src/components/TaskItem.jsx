@@ -696,7 +696,12 @@ export default function TaskItem({
 
 
           {source && (
-            <span className="m-item t-chat" title={source.label}>
+            <span
+              className={`m-item t-chat ${source.unnamed ? 'unnamed' : ''}`}
+              title={source.unnamed
+                ? `WhatsApp has not given this chat a name yet${source.id ? ` (${source.id})` : ''}. The app asks again each time it reconnects.`
+                : source.label}
+            >
               {/* In a group: who wrote it, then where. The sender is the half
                   that says what the request actually is. */}
               <Icon name="chat" size={12} /> {source.label}

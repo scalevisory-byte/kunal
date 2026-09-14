@@ -2,15 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
 
 /**
- * Why a task shows the sender and not the group it came from.
+ * Why a row does not say which chat it came from.
  *
  * The name is read from WhatsApp when the message arrives, and that read fails
  * often enough — a Meta-hosted chat, a sync still running — that the row ends up
- * holding the chat's id instead. An id is not something the list can show, so
- * the row falls back to the sender and the group disappears.
+ * holding the chat's id instead. An id is not something the list can show, so a
+ * group falls back to the sender alone, and a one-to-one chat under a `@lid` id
+ * shows nothing at all: there is no dialable number inside a linked identity to
+ * fall back on.
  *
- * This says how many groups are in that state and offers the one thing that
- * fixes it: asking WhatsApp again, now, rather than waiting for a restart.
+ * This used to count groups only, which is why "still name not coming" survived
+ * the first fix — the chats that showed nothing were the ones it was not
+ * looking at. It now covers every chat, and offers the one thing that fixes
+ * them: asking WhatsApp again, now, rather than waiting for a restart.
  */
 export default function GroupNames({ onError }) {
   const [state, setState] = useState(null);
@@ -43,14 +47,15 @@ export default function GroupNames({ onError }) {
   return (
     <section className="settings-block">
       <header className="settings-head">
-        <h3>Group names</h3>
-        <span>{state.groups} group{state.groups === 1 ? '' : 's'} seen</span>
+        <h3>Chat names</h3>
+        <span>{state.groups} chat{state.groups === 1 ? '' : 's'} seen</span>
       </header>
 
       <p className="field-note">
-        A task from a group should read <b>sender · group</b>. Where WhatsApp could
-        not be asked for the name when the message arrived, the row has only the
-        sender.
+        A task from a group should read <b>sender · group</b>, and one from a
+        person should read their name. Where WhatsApp could not be asked when the
+        message arrived, the row has only the sender — or, for a chat with no
+        number in its id, <b>Unnamed chat</b>.
       </p>
 
       <dl className="facts">
@@ -71,16 +76,16 @@ export default function GroupNames({ onError }) {
       {done && (
         <p className={`field-note ${done.named ? 'ok-text' : ''}`}>
           {done.named
-            ? `Named ${done.named} group${done.named === 1 ? '' : 's'} — ${done.tasks} task${done.tasks === 1 ? '' : 's'} updated.`
+            ? `Named ${done.named} chat${done.named === 1 ? '' : 's'} — ${done.tasks} task${done.tasks === 1 ? '' : 's'} updated.`
             : done.asked
-              ? `Asked WhatsApp about ${done.asked} group${done.asked === 1 ? '' : 's'} and it could not name ${done.asked === 1 ? 'it' : 'them'}. Try again once it has finished syncing.`
-              : 'Every group already has its name.'}
+              ? `Asked WhatsApp about ${done.asked} chat${done.asked === 1 ? '' : 's'} and it could not name ${done.asked === 1 ? 'it' : 'them'}. Try again once it has finished syncing.`
+              : 'Every chat already has its name.'}
         </p>
       )}
 
       <div className="set-control">
         <button type="button" className="btn small" disabled={busy} onClick={repair}>
-          {busy ? 'Asking WhatsApp…' : 'Fix group names'}
+          {busy ? 'Asking WhatsApp…' : 'Fix chat names'}
         </button>
       </div>
 

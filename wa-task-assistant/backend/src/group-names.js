@@ -18,6 +18,21 @@ import { matchesPattern } from './blocklist.js';
  * stored without it.
  */
 
+/*
+ * A stored name that is really an id, as SQL can test it.
+ *
+ * SQLite cannot call `looksLikeId`, so the same rule is spelled out once here
+ * and used by every query below. Widened past `@g.us` after "still name not
+ * coming": a one-to-one chat WhatsApp could not resolve is stored under a
+ * `@c.us` or `@lid` id exactly the same way, and `@lid` is the worse case -
+ * there is not even a number in it to fall back on, so the row shows nothing
+ * at all.
+ */
+export const NAME_IS_AN_ID = (col) =>
+  `(${col} IS NULL OR ${col} = '' OR ${col} = chat_id
+    OR ${col} LIKE '%@g.us' OR ${col} LIKE '%@c.us'
+    OR ${col} LIKE '%@lid' OR ${col} LIKE '%@broadcast')`;
+
 /** "120363...@g.us" is an id, not a name - and neither is a bare number. */
 export const looksLikeId = (value) => {
   const text = String(value ?? '').trim();
@@ -25,14 +40,23 @@ export const looksLikeId = (value) => {
   return /@(g\.us|c\.us|lid|broadcast)$/i.test(text) || /^\+?\d[\d\s-]{5,}$/.test(text);
 };
 
-/** Every group chat that has anything stored against it. */
+/*
+ * Every chat that has anything stored against it - group or not.
+ *
+ * This used to be groups only, and that is why "still name not coming": a
+ * one-to-one chat whose lookup failed is stored under its id in exactly the
+ * same way, and nothing was ever going back to ask what it was called.
+ */
+const ID_SHAPES = `(chat_id LIKE '%@g.us' OR chat_id LIKE '%@c.us'
+                    OR chat_id LIKE '%@lid' OR chat_id LIKE '%@broadcast')`;
+
 export function groupChatIds({ limit = 300 } = {}) {
   return db
     .prepare(
       `SELECT chat_id FROM (
-         SELECT chat_id FROM messages WHERE chat_id LIKE '%@g.us'
+         SELECT chat_id FROM messages WHERE ${ID_SHAPES}
          UNION
-         SELECT chat_id FROM tasks    WHERE chat_id LIKE '%@g.us'
+         SELECT chat_id FROM tasks    WHERE ${ID_SHAPES}
        )
        WHERE chat_id IS NOT NULL
        LIMIT ?`
@@ -53,16 +77,15 @@ export function needsName(chatId) {
     .prepare(
       `SELECT
          (SELECT COUNT(*) FROM messages
-           WHERE chat_id = ?
-             AND (chat_name IS NULL OR chat_name = '' OR chat_name = chat_id
-                  OR chat_name LIKE '%@g.us')) AS msgs,
+           WHERE chat_id = ? AND ${NAME_IS_AN_ID('chat_name')}) AS msgs,
          (SELECT COUNT(*) FROM tasks
            WHERE chat_id = ?
-             AND (chat_name IS NULL OR chat_name = '' OR chat_name = chat_id
-                  OR chat_name LIKE '%@g.us'
-                  -- The other shape it takes: the sender's name standing in for
-                  -- the group's, which prints as one name instead of two.
-                  OR chat_name = contact)) AS tasks`
+             AND (${NAME_IS_AN_ID('chat_name')}
+                  -- The other shape it takes, in a GROUP only: the sender's
+                  -- name standing in for the group's, which prints as one name
+                  -- instead of two. In a one-to-one chat they are meant to be
+                  -- the same person, so that is not a fault there.
+                  OR (chat_id LIKE '%@g.us' AND chat_name = contact))) AS tasks`
     )
     .get(chatId, chatId);
   return bad.msgs > 0 || bad.tasks > 0;
@@ -114,7 +137,7 @@ export function repairFromStored({ limit = 300 } = {}) {
       tasks += done.tasks;
     }
   }
-  if (named) log.info(`Named ${named} group(s) from messages already stored: ${tasks} task(s) updated.`);
+  if (named) log.info(`Named ${named} chat(s) from messages already stored: ${tasks} task(s) updated.`);
   return { named, tasks };
 }
 
@@ -150,19 +173,26 @@ export function linkChatIds() {
 export function applyGroupName(chatId, name) {
   if (!chatId || looksLikeId(name)) return { messages: 0, tasks: 0 };
   const clean = String(name).trim().slice(0, 120);
+  /*
+   * Only a `@g.us` id is certainly a group, and `is_group` is not decoration:
+   * the blocklist's chat-is-not-a-person rule reads it, and so does the row,
+   * which prints "sender · group" for one and a single name for the other.
+   * Marking a one-to-one chat as a group to give it a name would be fixing the
+   * label by corrupting the fact underneath it.
+   */
+  const isGroup = /@g\.us$/i.test(chatId);
+  const setGroup = isGroup ? ', is_group = 1' : '';
 
   const messages = db
     .prepare(
-      `UPDATE messages SET chat_name = ?, is_group = 1
-       WHERE chat_id = ?
-         AND (chat_name IS NULL OR chat_name = '' OR chat_name = chat_id
-              OR chat_name LIKE '%@g.us')`
+      `UPDATE messages SET chat_name = ?${setGroup}
+       WHERE chat_id = ? AND ${NAME_IS_AN_ID('chat_name')}`
     )
     .run(clean, chatId).changes;
 
   const tasks = db
     .prepare(
-      `UPDATE tasks SET chat_name = ?, is_group = 1, updated_at = datetime('now')
+      `UPDATE tasks SET chat_name = ?${setGroup}, updated_at = datetime('now')
        WHERE chat_id = ? AND (chat_name IS NULL OR chat_name != ?)`
     )
     .run(clean, chatId, clean).changes;
@@ -226,10 +256,10 @@ export async function repairGroupNames(lookup, { limit = 300 } = {}) {
 
   if (named) {
     log.info(
-      `Named ${named} group(s) from WhatsApp: ${messages} message(s) and ${tasks} task(s) updated.`
+      `Named ${named} chat(s) from WhatsApp: ${messages} message(s) and ${tasks} task(s) updated.`
     );
   } else if (asked) {
-    log.info(`Asked WhatsApp about ${asked} unnamed group(s); none could be named.`);
+    log.info(`Asked WhatsApp about ${asked} unnamed chat(s); none could be named.`);
   }
   return { asked, named, messages, tasks };
 }

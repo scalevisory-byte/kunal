@@ -220,6 +220,74 @@ await run('a group whose name is already right keeps it', async () => {
   assert.equal(taskNamed('Already right').chat_name, 'ACCT - SENA GLOBAL DMC');
 });
 
+
+/*
+ * "Still name not coming."
+ *
+ * The first fix worked, and on the wrong set: it covered `@g.us` only, so the
+ * chats that showed NOTHING - a one-to-one chat WhatsApp never named - were
+ * exactly the ones nothing was going back to ask about. A `@lid` id is the
+ * worst of them: a linked identity has no dialable number inside it, so there
+ * is not even a phone number to print instead.
+ */
+console.log('\nthe chats that were never asked about');
+
+const LID = '89309717786799@lid';
+const CUS = '919825011122@c.us';
+
+await run('a one-to-one chat stored under its id is asked about too', async () => {
+  message({ chat_id: LID, chat_name: LID, is_group: 0 });
+  task({ title: 'Confirm Gulab Changulani x3 flight', chat_id: LID, chat_name: LID });
+
+  const asked = [];
+  await GN.repairGroupNames(async (id) => {
+    asked.push(id);
+    return id === LID ? 'Gulab Changulani' : null;
+  });
+
+  assert.ok(asked.includes(LID), `a @lid chat was never asked about: ${asked.join(', ')}`);
+  assert.equal(taskNamed('Confirm Gulab Changulani x3 flight').chat_name, 'Gulab Changulani');
+});
+
+await run('and so is a @c.us one', async () => {
+  message({ chat_id: CUS, chat_name: CUS, is_group: 0 });
+  task({ title: 'Pay Nitin Bhai August rent', chat_id: CUS, chat_name: CUS });
+
+  await GN.repairGroupNames(async (id) => (id === CUS ? 'Nitin Bhai' : null));
+  assert.equal(taskNamed('Pay Nitin Bhai August rent').chat_name, 'Nitin Bhai');
+});
+
+await run('naming a one-to-one chat does NOT turn it into a group', async () => {
+  // is_group is not decoration: the blocklist's chat-is-not-a-person rule reads
+  // it, and so does the row, which prints "sender · group" for one and a single
+  // name for the other. Fixing the label by corrupting the fact underneath it
+  // would be worse than the blank.
+  const row = taskNamed('Pay Nitin Bhai August rent');
+  assert.equal(row.is_group, 0, 'it is still a one-to-one chat');
+  const msg = DB.db.prepare(`SELECT is_group FROM messages WHERE chat_id = ?`).get(CUS);
+  assert.equal(msg.is_group, 0);
+});
+
+await run('a group still becomes a group, because that one really is', async () => {
+  const G = '120363555777@g.us';
+  message({ chat_id: G, chat_name: G, is_group: 1 });
+  task({ title: 'Send the GST working', chat_id: G, chat_name: G });
+  await GN.repairGroupNames(async (id) => (id === G ? 'BNF - GROWTH TEAM' : null));
+  const row = taskNamed('Send the GST working');
+  assert.equal(row.chat_name, 'BNF - GROWTH TEAM');
+  assert.equal(row.is_group, 1);
+});
+
+await run('a row whose chat cannot be named says so rather than nothing', () => {
+  // The client-side half: every road ended in null and the row printed an empty
+  // line, which reads as a bug rather than as a missing name.
+  const lib = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
+  const fn = lib.slice(lib.indexOf('export function taskSource'), lib.indexOf('/** Free-text match'));
+  assert.match(fn, /Unnamed chat/, 'it names the gap');
+  assert.match(fn, /task\?\.chat_id \|\| task\?\.message_id/, 'but only when a chat really is behind it');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

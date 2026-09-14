@@ -536,7 +536,16 @@ export function setGroupNameForTests(chatId, name) {
 }
 
 export async function groupNameFor(chatId) {
-  if (!chatId || !String(chatId).endsWith('@g.us')) return null;
+  /*
+   * Any chat, not only a group.
+   *
+   * This refused everything but `@g.us`, which is why "still name not coming":
+   * a one-to-one chat whose lookup failed at the time is stored under its id in
+   * exactly the same way, and nothing ever went back to ask. `@lid` is the case
+   * that shows nothing at all on the row - a linked identity has no dialable
+   * number inside it to fall back on.
+   */
+  if (!chatId || !/@(g\.us|c\.us|lid)$/i.test(String(chatId))) return null;
   if (groupNames.has(chatId)) return groupNames.get(chatId);
   if (!client || state.status !== 'ready') return null;
 
@@ -544,8 +553,18 @@ export async function groupNameFor(chatId) {
   try {
     const chat = await client.getChatById(chatId);
     name = looksLikeId(chat?.name) ? null : chat.name;
+    /*
+     * In a one-to-one chat the person IS the chat, and WhatsApp's own chat name
+     * is often the bare number while the contact carries the name you would
+     * recognise. So ask the contact too, and prefer whichever is a real name.
+     */
+    if (!name && !/@g\.us$/i.test(chatId)) {
+      const contact = await chat?.getContact?.();
+      const candidate = contact?.name || contact?.pushname || contact?.verifiedName || null;
+      name = looksLikeId(candidate) ? null : candidate;
+    }
   } catch (err) {
-    noteEvent('group name lookup failed', err?.message || err);
+    noteEvent('chat name lookup failed', err?.message || err);
   }
   // Cached either way: a group that cannot be read now will not read differently
   // in thirty seconds, and the boot repair asks again on the next start.
