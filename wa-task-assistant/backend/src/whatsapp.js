@@ -100,6 +100,15 @@ export const state = {
   // looking at it, and a fresh zero reads the same as a broken pipeline.
   ownSeenEver: 0,
   delegatedEver: 0,
+  /*
+   * Every reminder this app sent and then read back in, all time.
+   *
+   * `echoesIgnored` is this process's count and the app restarts on every
+   * deploy, so it reads 0 most of the time - which, for the one figure that
+   * answers "is it turning its own reminders back into tasks?", is the worst
+   * possible answer: indistinguishable from a guard that is not running.
+   */
+  echoesEver: 0,
   // Why messages were dropped. Without this a message that never becomes a task
   // looks the same whatever the reason.
   drops: { ignoredChat: 0, status: 0, noText: 0, blocked: 0, duplicate: 0, error: 0 },
@@ -617,6 +626,7 @@ export async function handleOwnMessage(message) {
     // exactly the messages he writes himself - which is what they look like.
     if (sentByApp(message)) {
       state.echoesIgnored += 1;
+      state.echoesEver = bumpCounter('echoes_ignored');
       return;
     }
 
@@ -948,6 +958,7 @@ export async function handleMessage(message) {
      */
     if (sentByApp(message)) {
       state.echoesIgnored += 1;
+      state.echoesEver = bumpCounter('echoes_ignored');
       return drop('ourOwnMessage');
     }
 
@@ -1328,6 +1339,7 @@ export function loadCounters() {
   try {
     state.ownSeenEver = Number(getMeta('own_messages_seen') || 0);
     state.delegatedEver = Number(getMeta('delegated_created') || 0);
+    state.echoesEver = Number(getMeta('echoes_ignored') || 0);
   } catch { /* a database that is not ready yet */ }
 }
 
@@ -1436,6 +1448,7 @@ export function startWhatsApp() {
        */
       if (sentByApp(message)) {
         state.echoesIgnored += 1;
+        state.echoesEver = bumpCounter('echoes_ignored');
         return;
       }
       // Instructions about an existing task are checked first, in their own try

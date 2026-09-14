@@ -46,6 +46,13 @@ systemRouter.get('/status', (req, res) => {
       // The app's own reminders arriving back. Zero is the healthy figure and
       // a rising one used to be a task list doubling itself every evening.
       echoesIgnored: state.echoesIgnored,
+      /*
+       * The same count since the app was first run. The per-process one resets
+       * on every deploy, and "0 own reminders ignored" then reads exactly like
+       * a guard that is not running - which is the one thing this figure exists
+       * to rule out.
+       */
+      echoesEver: state.echoesEver,
       lastCommandAt: state.lastCommandAt,
       lastError: state.lastError,
       events: state.events,

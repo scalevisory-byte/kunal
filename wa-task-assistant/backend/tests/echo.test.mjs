@@ -114,3 +114,35 @@ describe('a reminder this app sent, arriving back', () => {
     assert.ok(true);
   });
 });
+
+/*
+ * "The pending-task message it sends me — is it adding that list back as tasks
+ * again?"
+ *
+ * The right question, asked of the exact bug above. The guard answers it, but
+ * the figure that reports the guard was this process's own count, and the app
+ * restarts on every deploy - so it read 0 nearly all the time, which is
+ * indistinguishable from a guard that is not running at all.
+ */
+describe('the figure that answers whether it is still happening', () => {
+  it('survives a restart, because a per-process zero proves nothing', async () => {
+    const { getMeta } = await import('../src/db.js');
+    const before = Number(getMeta('echoes_ignored') || 0);
+
+    WA.rememberSentForTests('📋 *Aaj ke tasks*\n\n1. Pay the PF challan');
+    await WA.handleMessage(fromMe('📋 *Aaj ke tasks*\n\n1. Pay the PF challan'));
+
+    const after = Number(getMeta('echoes_ignored') || 0);
+    assert.equal(after, before + 1, 'the count is written down, not just held in memory');
+    assert.ok(WA.state.echoesEver >= after, 'and the running state agrees with it');
+  });
+
+  it('the status route reports both, so "0 this hour" cannot read as "never"', () => {
+    const routes = fs.readFileSync(new URL('../src/routes/system.js', import.meta.url), 'utf8');
+    assert.match(routes, /echoesIgnored: state\.echoesIgnored/);
+    assert.match(routes, /echoesEver: state\.echoesEver/);
+    const panel = fs.readFileSync(
+      new URL('../../frontend/src/components/StatusBar.jsx', import.meta.url), 'utf8');
+    assert.match(panel, /echoesEver/, 'and the panel shows the all-time figure beside it');
+  });
+});

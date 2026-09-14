@@ -200,8 +200,19 @@ function Pipeline({ wa, cfg, connected }) {
     ['Skipped (blocked chats)', wa?.blockedCount ?? 0],
     /* Its own line because of what it used to be: every reminder this app sent
        came back through WhatsApp looking like a note he had typed, and each
-       one made a second copy of the task it was reminding him about. */
-    ['Own reminders ignored', wa?.echoesIgnored ?? 0],
+       one made a second copy of the task it was reminding him about.
+       *
+       * All-time beside since-start, because the app restarts on every deploy
+       * and this figure then reads 0 — which is exactly what a guard that is
+       * not running would read. Asked directly: "the pending-task message it
+       * sends me, is it adding that list back as tasks again?" A number he can
+       * look at is the answer; a zero that means "not this hour" is not. */
+    [
+      'Own reminders ignored',
+      (wa?.echoesEver ?? 0) > (wa?.echoesIgnored ?? 0)
+        ? `${wa.echoesIgnored ?? 0} since start · ${wa.echoesEver} all time`
+        : `${wa?.echoesIgnored ?? 0}`,
+    ],
     ['Dropped', dropSummary(wa?.drops)],
     ['Waiting to be read', wa?.bufferedCount ?? 0],
     ['Tasks created since start', wa?.tasksCreated ?? 0],
