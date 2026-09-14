@@ -3554,6 +3554,17 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* The picker hangs off the button, not off the row's right edge. */
 .assign-menu { right: 0; left: auto; min-width: 190px; }
 
+/*
+ * On the Task allotted page the menu opens rightwards.
+ *
+ * There the Staff button sits at the LEFT of a wide card, so a menu anchored
+ * to its right edge grew leftwards - 250px of it, straight under the sidebar,
+ * where half the names could not be clicked at all. On a task row the button
+ * is at the right end and the default is correct; this is the mirror case.
+ */
+.al-who .menu, .al-row-meta .menu { left: 0; right: auto; }
+
+
 /* Naming somebody from inside the row menu. */
 .menu-name { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .menu-name input {

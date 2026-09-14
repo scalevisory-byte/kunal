@@ -234,6 +234,53 @@ run('an empty name means take it back, never allot to nobody', () => {
 });
 
 
+
+/*
+ * Moving it to somebody else, from the page that holds it.
+ *
+ * Asked as "allotted me staff ke sath move karne wala option bana he?" - and
+ * it was not. The board had the Staff button; Task allotted, the page that
+ * exists to hold delegated work, had the assignee as a line of text. The one
+ * screen you read while deciding who is doing what was the one screen that
+ * could not change it.
+ */
+console.log('\nmoving it to somebody else from Task allotted');
+
+const delegSrc = fs.readFileSync(new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+
+run('all three of its views carry the control, not just one', () => {
+  // The rename shipped on three lists and not the fourth because each had its
+  // own markup. This page has three: the by-person sections (task rows), the
+  // pipeline cards and the flat rows.
+  assert.match(delegSrc, /import TaskItem, \{ AssignButton \}/, 'one control, imported, not copied');
+  const card = delegSrc.slice(delegSrc.indexOf('function Card('), delegSrc.indexOf('function Board('));
+  const rows = delegSrc.slice(delegSrc.indexOf('function Rows('), delegSrc.indexOf('export default function Delegation'));
+  assert.match(card, /<AssignButton/, 'the pipeline cards');
+  assert.match(rows, /<AssignButton/, 'the flat rows');
+  // The by-person sections render TaskItem, which draws it when onAssign is
+  // given - so the actions object is what decides.
+  assert.match(delegSrc, /onAssign: side !== 'allotted' \? undefined :/, 'the task rows, through actions');
+});
+
+run('and Task received does not, because nothing there was given to anybody', () => {
+  assert.match(delegSrc, /side !== 'allotted' \? undefined/,
+    'work somebody asked HIM for has no assignee to move');
+  assert.match(delegSrc, /people: side === 'allotted' \?/,
+    'and no list of people to offer');
+});
+
+run('handing it on is the same write the board makes', () => {
+  const t = task('Sena GST refund follow up');
+  A.assignTask(t.id, 'Rahul');
+  assert.equal(DB.getTask(t.id).assigned_to, 'Rahul');
+  A.assignTask(t.id, 'Priya');
+  assert.equal(DB.getTask(t.id).assigned_to, 'Priya', 'moved, not duplicated');
+  // And it is still one task, still his to chase, still nothing sent to either
+  // of them.
+  assert.equal(DB.getTask(t.id).status, 'open');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

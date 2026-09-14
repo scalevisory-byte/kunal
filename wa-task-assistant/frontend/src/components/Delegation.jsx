@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from './Icon.jsx';
-import TaskItem from './TaskItem.jsx';
+import TaskItem, { AssignButton } from './TaskItem.jsx';
 import { api } from '../api.js';
 import { lastActivityLabel, pipeline, peopleFrom, soonestFirst, stageCounts, stageOf } from '../lib/pipeline.js';
 
@@ -291,13 +291,22 @@ const when = (iso) => {
 };
 
 /** One delegated task, the same card in both views. */
-function Card({ task, onOpen, onNudge }) {
+function Card({ task, onOpen, onNudge, people, onAssign }) {
   const activity = lastActivityLabel(task);
   return (
     <li className="al-card">
       <button className="al-title" onClick={() => onOpen(task)}>{task.title}</button>
+      {/*
+        * Who has it, as the control that moves it.
+        *
+        * It used to be a line of text - the one fact this page is organised
+        * by, and the one thing you could not change without going back to the
+        * board and finding the row again.
+        */}
       <p className="al-who">
-        <Icon name="person" size={12} /> {task.assigned_to}
+        {onAssign
+          ? <AssignButton task={task} people={people} onAssign={onAssign} />
+          : <><Icon name="person" size={12} /> {task.assigned_to}</>}
         {task.group_name && <span className="al-group">{task.group_name}</span>}
       </p>
       <p className="al-facts">
@@ -331,7 +340,7 @@ function Card({ task, onOpen, onNudge }) {
  * task moves between columns because the facts changed, not because somebody
  * dragged it.
  */
-function Board({ stages, onOpen, onNudge }) {
+function Board({ stages, onOpen, onNudge, people, onAssign }) {
   return (
     <div className="al-board">
       {stages.map((stage) => (
@@ -343,7 +352,10 @@ function Board({ stages, onOpen, onNudge }) {
           {stage.items.length === 0
             ? <p className="board-empty">Nothing here.</p>
             : <ul className="al-list">
-                {stage.items.map((t) => <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge} />)}
+                {stage.items.map((t) => (
+                  <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge}
+                    people={people} onAssign={onAssign} />
+                ))}
               </ul>}
         </section>
       ))}
@@ -352,7 +364,7 @@ function Board({ stages, onOpen, onNudge }) {
 }
 
 /** The same work as rows, for reading down rather than across. */
-function Rows({ tasks, onOpen, onNudge }) {
+function Rows({ tasks, onOpen, onNudge, people, onAssign }) {
   if (!tasks.length) return <p className="board-empty">Nothing in this stage.</p>;
   return (
     <ul className="al-rows">
@@ -364,7 +376,11 @@ function Rows({ tasks, onOpen, onNudge }) {
             <div className="al-row-main">
               <button className="al-title" onClick={() => onOpen(task)}>{task.title}</button>
               <span className="al-row-meta">
-                <Icon name="person" size={12} /> {task.assigned_to}
+                {/* The same control as the board and the cards: who has it,
+                    and the way to hand it to somebody else. */}
+                {onAssign
+                  ? <AssignButton task={task} people={people} onAssign={onAssign} />
+                  : <><Icon name="person" size={12} /> {task.assigned_to}</>}
                 {task.group_name && <span className="al-group">{task.group_name}</span>}
                 {activity && <span className="muted">{activity}</span>}
               </span>
@@ -437,6 +453,31 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
     // Same rename as the board: F2 or a double-click on the title.
     onRename: (task, title) => patch(task.id, { title }),
     onQuickDate: (task, offset) => patch(task.id, { due_date: isoDay(offset) }),
+    /*
+     * Moving it to somebody else, from this page.
+     *
+     * Asked as "allotted me staff ke sath move karne wala option bana he?" -
+     * and it was not. The board had the Staff button; the page that exists to
+     * hold delegated work did not, so the one screen you read when you are
+     * deciding who is doing what was the one screen that could not change it.
+     * Passing an empty name gives it back, which is the same control saying
+     * "nobody" - exactly as it behaves on the board.
+     */
+    people: side === 'allotted' ? (data?.people?.allotted || []) : [],
+    /*
+     * Only the allotted side can hand work on. Task received is work somebody
+     * asked HIM for: there is no assignee on it to move, and the control there
+     * would offer to give away a task that was never given to anybody.
+     */
+    onAssign: side !== 'allotted' ? undefined : async (task, name, wid) => {
+      try {
+        await api.assign(task.id, name, wid);
+        await load();
+        onChanged?.();
+      } catch (err) {
+        onError(err);
+      }
+    },
     onDelete: async (task) => {
       if (!window.confirm(`Delete "${task.title}"?`)) return;
       try {
@@ -584,9 +625,11 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
 
           {view === 'pipeline'
             ? <Board stages={stage ? stages.filter((s) => s.key === stage) : stages}
-                     onOpen={actions.onOpen} onNudge={setNudging} />
+                     onOpen={actions.onOpen} onNudge={setNudging}
+                     people={actions.people} onAssign={actions.onAssign} />
             : <Rows tasks={stage ? stages.find((s) => s.key === stage).items : scoped}
-                    onOpen={actions.onOpen} onNudge={setNudging} />}
+                    onOpen={actions.onOpen} onNudge={setNudging}
+                    people={actions.people} onAssign={actions.onAssign} />}
         </>
       )}
 

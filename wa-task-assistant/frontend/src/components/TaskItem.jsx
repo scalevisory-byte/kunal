@@ -23,7 +23,7 @@ const stamp = (iso) =>
  * a menu is one that does not get made. So the name is out in the open, and it
  * is the button - the same control shows who has it and changes who has it.
  */
-function AssignButton({ task, people = [], onAssign }) {
+export function AssignButton({ task, people = [], onAssign }) {
   /*
    * A number is not a person, so it is not shown as one.
    *
