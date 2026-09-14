@@ -17,6 +17,14 @@ export default function QuickActions({ counts, onAction, active }) {
     { key: 'high', label: 'High Priority', icon: 'flag', count: counts.highOpen },
     { key: 'chat', label: 'By Chat', icon: 'chat' },
     { key: 'ai', label: 'AI Tasks', icon: 'robot' },
+    /*
+     * The two sides of shared work, on the dashboard because that is where the
+     * day starts. Allotted especially: those rows are deliberately off the
+     * board, so without this the only way to them was a sidebar group that
+     * starts shut.
+     */
+    { key: 'allotted', label: 'Allotted', icon: 'outbox', count: counts.allotted },
+    { key: 'received', label: 'Received', icon: 'inbox', count: counts.received },
     { key: 'done', label: 'Completed', icon: 'check', count: counts.done },
     /* On the dashboard because it is a place people go looking for, and it was
        otherwise only reachable through a sidebar group that starts shut. */

@@ -350,6 +350,50 @@ run('the staff list is a list of names and nothing more', () => {
 });
 
 
+
+/*
+ * Two tabs, and a way in from the dashboard.
+ *
+ * Asked as "allotted ka shortcut bana do dashboard pe and task list me —
+ * received and allotted, two tab only". Allotted especially: those rows are
+ * deliberately off the board, so the only road to them was a sidebar group
+ * that starts shut.
+ */
+console.log('\nreceived and allotted, as views of the list');
+
+run('the list carries both tabs, with their counts', () => {
+  const tabs = appSrc.slice(appSrc.indexOf("{ key: 'myday', label: 'My Day' }"), appSrc.indexOf('].map((v) => ('));
+  assert.match(tabs, /key: 'received'/);
+  assert.match(tabs, /key: 'allotted'/);
+  assert.match(tabs, /count: allottedHidden/, 'the allotted tab counts the rows it would show');
+});
+
+run('the Allotted tab shows the rows the board otherwise keeps off it', () => {
+  // Without this it would be the one tab that is always empty: the gate above
+  // it exists precisely to take those rows off the list.
+  const visible = appSrc.slice(appSrc.indexOf('const visible ='), appSrc.indexOf('const arrivedToday'));
+  assert.match(visible, /withSomebody\(task\) && !showAllotted && view !== 'allotted'/);
+  assert.match(visible, /view === 'allotted' && !withSomebody\(task\)/);
+  assert.match(visible, /view === 'received' && \(!task\.requested_by \|\| isDone\(task\)\)/);
+});
+
+run('and the line about work "kept off this list" stands down there', () => {
+  // Saying they are kept off the list, over a list of them, is how a page
+  // stops being believed.
+  const note = appSrc.slice(appSrc.indexOf('allottedHidden > 0'), appSrc.indexOf('<TaskList'));
+  assert.match(note, /view !== 'allotted'/);
+});
+
+run('the dashboard offers both as shortcuts', () => {
+  const quick = fs.readFileSync(
+    new URL('../../frontend/src/components/QuickActions.jsx', import.meta.url), 'utf8');
+  assert.match(quick, /key: 'allotted'/);
+  assert.match(quick, /key: 'received'/);
+  // And they set the same view the tabs do rather than being a second road.
+  assert.match(appSrc, /if \(key === 'allotted' \|\| key === 'received'\)/);
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

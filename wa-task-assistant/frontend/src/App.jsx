@@ -662,7 +662,15 @@ export default function App() {
        * the same escape hatches: the toggle on the line above the list, and
        * search, which looks through everything you have.
        */
-      if (withSomebody(task) && !showAllotted) return false;
+      if (withSomebody(task) && !showAllotted && view !== 'allotted') return false;
+
+      /*
+       * The two delegation views. Allotted is the only view that asks for the
+       * rows the board otherwise keeps off it, which is why it steps past the
+       * gate above rather than needing the toggle pressed first.
+       */
+      if (view === 'allotted' && !withSomebody(task)) return false;
+      if (view === 'received' && (!task.requested_by || isDone(task))) return false;
 
       if (view === 'open' && isDone(task)) return false;
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
@@ -821,6 +829,15 @@ export default function App() {
       setView('open');
       return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] });
     }
+    /*
+     * The same two views the list's tabs set, reachable from the dashboard.
+     * Allotted especially: those rows are off the board by design, so without
+     * a way in from here the only road was a sidebar group that starts shut.
+     */
+    if (key === 'allotted' || key === 'received') {
+      setFilters(EMPTY_FILTERS);
+      return setView(key);
+    }
     // A section rather than a slice of the board, so it navigates.
     if (key === 'leads') return goto('leads');
     return undefined;
@@ -828,6 +845,8 @@ export default function App() {
 
   const activeQuick =
     view === 'myday' ? 'myday'
+      : view === 'allotted' ? 'allotted'
+      : view === 'received' ? 'received'
       : view === 'done' ? 'done'
         : filters.priority.length === 1 && filters.priority[0] === 'high' ? 'high'
           : filters.origin.length === 1 && filters.origin[0] === 'ai' ? 'ai'
@@ -1391,7 +1410,12 @@ export default function App() {
                   />
 
                   <QuickActions
-                    counts={{ ...summary.counts, leads: leadCounts.badge }}
+                    counts={{
+                      ...summary.counts,
+                      leads: leadCounts.badge,
+                      allotted: allottedHidden,
+                      received: delegation?.received || 0,
+                    }}
                     onAction={quickAction}
                     active={activeQuick}
                   />
@@ -1568,6 +1592,20 @@ export default function App() {
                               { key: 'myday', label: 'My Day' },
                               { key: 'open', label: 'Open' },
                               { key: 'all', label: 'All' },
+                              /*
+                               * The two sides of work that is not only his.
+                               *
+                               * Asked for as "received and allotted, two tab
+                               * only". They are views of this list, not links
+                               * to the two pages: the pages group by person and
+                               * stage, which is how you manage a handover, and
+                               * this is how you read one — the same rows, the
+                               * same sections, in the list already on screen.
+                               * Allotted also needs no other way in, since
+                               * those rows are otherwise off the board.
+                               */
+                              { key: 'received', label: 'Received', count: delegation?.received || 0 },
+                              { key: 'allotted', label: 'Allotted', count: allottedHidden },
                             ].map((v) => (
                               <button
                                 key={v.key}
@@ -1577,6 +1615,7 @@ export default function App() {
                                 onClick={() => { setView(v.key); setSelectedDate(null); }}
                               >
                                 {v.label}
+                                {v.count > 0 && <span className="tab-count">{v.count}</span>}
                               </button>
                             ))}
                           </nav>
@@ -1709,7 +1748,10 @@ export default function App() {
                       * is elsewhere, links to the page that holds it, and puts
                       * it back in one press for when he wants the whole picture.
                       */}
-                    {allottedHidden > 0 && !searching && (
+                    {/* Not on the Allotted tab, where they are exactly what is
+                        on screen — saying they are "kept off this list" over a
+                        list of them is how a page stops being believed. */}
+                    {allottedHidden > 0 && !searching && view !== 'allotted' && (
                       <p className="dup-note">
                         <b>{allottedHidden}</b>{' '}
                         {allottedHidden === 1 ? 'task is' : 'tasks are'} with somebody else

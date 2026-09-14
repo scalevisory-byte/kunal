@@ -663,6 +663,19 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   transition: background .16s, color .16s;
 }
 .segment button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
+/*
+ * The figure on a tab, which only two of them carry.
+ *
+ * Mono and muted, a little smaller than the label: it is how many rows the tab
+ * would show, not part of its name, and a tab that reads "Allotted 12" as one
+ * phrase is a tab you stop trusting the moment the number is stale.
+ */
+.segment button .tab-count {
+  margin-left: 6px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .7rem; font-weight: 700; color: var(--muted);
+}
+.segment button.active .tab-count { color: var(--brand); }
 
 .btn.ghost.on { border-color: var(--brand); color: var(--brand); }
 .btn.with-icon { display: inline-flex; align-items: center; gap: 7px; }
