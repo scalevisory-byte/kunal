@@ -197,6 +197,13 @@ systemRouter.get('/usage', (req, res) => {
      * that - which is indistinguishable from a block that is not working.
      */
     blocking: blockEffect({ days: req.query.days, since: startedAt }),
+    /*
+     * When the running version came up, because "none since the restart" is
+     * only worth what the restart is old. Asked as "why this blocked msg
+     * restarted?" - the panel said a block was clean since a moment it never
+     * named, and a deploy four minutes ago proves nothing at all.
+     */
+    bootedAt: startedAt,
     /* Who is sending the messages that cost money and produce nothing. */
     quiet: quietSenders(req.query.days),
 
@@ -334,6 +341,9 @@ systemRouter.get('/blocked-chats', (req, res) => {
      * question gets asked here first.
      */
     effect: blockEffect({ days: 30, since: startedAt }),
+    /* See bootedAt on /usage: the figure beside it is only as strong as this
+       is old. */
+    bootedAt: startedAt,
   });
 });
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api.js';
+import { spanLabel, tooSoonToTell } from '../lib/task.js';
 
 /**
  * Only meaningful in AI mode: names listed here are never read or stored.
@@ -38,6 +39,11 @@ export default function BlockedChats({ mode, onError }) {
   const [blocked, setBlocked] = useState([]);
   const [recent, setRecent] = useState([]);
   const [effect, setEffect] = useState([]);
+  /*
+   * When the running version came up. "None since the restart" is worth what
+   * the restart is old, and the panel used to leave that moment unnamed.
+   */
+  const [bootedAt, setBootedAt] = useState(null);
   const [value, setValue] = useState('');
 
   const load = useCallback(async () => {
@@ -46,6 +52,7 @@ export default function BlockedChats({ mode, onError }) {
       setBlocked(data.blocked);
       setRecent(data.recent);
       setEffect(data.effect || []);
+      setBootedAt(data.bootedAt || null);
     } catch (err) {
       onError?.(err);
     }
@@ -131,7 +138,20 @@ export default function BlockedChats({ mode, onError }) {
               */}
             The count beside each one is everything that got through since you added it —
             what matters is whether any arrived <b>since the app restarted</b>, because
-            that is the version running now.
+            that is the version running now.{' '}
+            {/*
+              * Which restart, and how long ago. The app restarts on every
+              * deploy, so "none since" can be four days of proof or four
+              * minutes of nothing, and the sentence read the same either way.
+              */}
+            {bootedAt && (
+              <>
+                It last restarted <b>{spanLabel(bootedAt)} ago</b>
+                {tooSoonToTell(bootedAt)
+                  ? ' — not long enough to prove a block yet; look again tomorrow.'
+                  : '.'}
+              </>
+            )}
           </p>
 
           <form
@@ -180,9 +200,9 @@ export default function BlockedChats({ mode, onError }) {
                     <span className="bl-name">{b.pattern}</span>
                     <span className="bl-state">
                       {e.sinceBoot > 0
-                        ? `${e.sinceBoot} arrived since the app restarted`
+                        ? `${e.sinceBoot} arrived in the ${spanLabel(bootedAt) || 'time'} since the app restarted`
                         : e.since > 0
-                          ? `${e.since} got through before the last restart — none since`
+                          ? `${e.since} got through before the last restart — none in the ${spanLabel(bootedAt) || 'time'} since`
                           : e.before > 0
                             ? `nothing since — ${e.before} read before`
                             : e.suggest

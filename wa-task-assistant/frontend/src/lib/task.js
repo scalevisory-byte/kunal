@@ -204,6 +204,42 @@ export const agoLabel = (value) => {
   return at.toLocaleDateString([], { day: 'numeric', month: 'short' });
 };
 
+/**
+ * How long something has been going on, as a plain span rather than a point.
+ *
+ * "None since the restart" is worth exactly what the restart is old: a deploy
+ * four minutes ago proves nothing, four days ago proves the block. So the
+ * figure has to carry its own basis - "none in the 3 days since" - which is a
+ * length, not a timestamp.
+ */
+export const spanLabel = (value) => {
+  if (!value) return null;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const mins = Math.max(0, Math.round((Date.now() - at.getTime()) / 60000));
+  if (mins < 2) return 'a minute';
+  if (mins < 60) return `${mins} minutes`;
+  const hours = Math.round(mins / 60);
+  if (hours === 1) return 'an hour';
+  if (hours < 36) return `${hours} hours`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? 'a day' : `${days} days`;
+};
+
+/**
+ * Whether a "nothing since the restart" reading has had long enough to mean
+ * anything. Two hours is the line: below it the app may simply not have been
+ * up long enough for the chat to have written.
+ */
+export const tooSoonToTell = (value) => {
+  if (!value) return false;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return false;
+  return Date.now() - at.getTime() < 2 * 60 * 60 * 1000;
+};
+
 export function addsNothing(title, description) {
   if (!description) return true;
   const inTitle = words(title);

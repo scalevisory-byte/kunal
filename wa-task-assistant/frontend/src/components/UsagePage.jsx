@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Icon from './Icon.jsx';
 import { api } from '../api.js';
+import { spanLabel, tooSoonToTell } from '../lib/task.js';
 
 const money = (usd) => (usd >= 1 ? `$${usd.toFixed(2)}` : `$${usd.toFixed(4)}`);
 
@@ -57,7 +58,7 @@ export default function UsagePage({ onError }) {
 
   const {
     today, month, total, days, prices, usdInr,
-    byKind = [], chats = [], quiet = [], blocking = [], caching,
+    byKind = [], chats = [], quiet = [], blocking = [], bootedAt = null, caching,
   } = data;
   const nothingYet = total.calls === 0;
 
@@ -164,7 +165,7 @@ export default function UsagePage({ onError }) {
             </p>
           )}
 
-          {blocking.length > 0 && <BlockEffect rows={blocking} />}
+          {blocking.length > 0 && <BlockEffect rows={blocking} bootedAt={bootedAt} />}
 
           {chats.length > 0 && (
             <>
@@ -377,13 +378,24 @@ const when = (stamp) => {
  * common one: the name on the list is not the name the messages are filed
  * under.
  */
-function BlockEffect({ rows }) {
+function BlockEffect({ rows, bootedAt }) {
   // Leaking means leaking now: a block added before the running version came
   // up has a large "since" behind it and may be working perfectly.
   const leaking = rows.filter((r) => r.sinceBoot > 0);
   const stale = rows.filter((r) => !r.sinceBoot && r.since > 0);
   const working = rows.filter((r) => !r.since && r.before > 0);
   const idle = rows.filter((r) => !r.since && !r.before);
+  /*
+   * How old the restart these figures are measured from is.
+   *
+   * Asked as "why this blocked msg restarted?" - every row said "none since
+   * the restart" against a moment the page never named, and the app restarts
+   * on every deploy. Four minutes of silence and four days of silence read
+   * identically and mean completely different things, so the span is said and
+   * a reading too young to mean anything says so.
+   */
+  const up = spanLabel(bootedAt);
+  const tooSoon = tooSoonToTell(bootedAt);
 
   return (
     <>
@@ -395,10 +407,20 @@ function BlockEffect({ rows }) {
       </header>
       <p className="usage-explain">
         {leaking.length
-          ? 'These are still being read since the app last restarted — the name below is what actually arrived.'
+          ? `These are still being read${up ? ` — ${up} of them, since the app last restarted` : ' since the app last restarted'}. The name below is what actually arrived.`
           : stale.length
-            ? 'Nothing has arrived from any blocked chat since the app last restarted. What got through before that is counted below, and is what the list above is still showing.'
+            ? `Nothing has arrived from any blocked chat in the ${up || 'time'} since the app last restarted — it restarts on every deploy, and that restart is the clock these figures run on. What got through before it is counted below, and is what the list above is still showing.`
             : 'Nothing has been read from any blocked chat since you blocked it. What the list above shows for them is what they cost before that.'}
+        {stale.length > 0 && tooSoon && (
+          <>
+            {' '}
+            {/* Said rather than implied: a fresh deploy has not had time to
+                prove a block, and a green reading that means nothing yet is
+                worse than an honest "not yet". */}
+            <b>That is not long enough to prove much yet</b> — these chats may simply not
+            have written in that time. It is worth another look tomorrow.
+          </>
+        )}
       </p>
       <ul className="block-effect">
         {[...leaking, ...stale, ...working, ...idle].map((row) => (
@@ -406,9 +428,9 @@ function BlockEffect({ rows }) {
             <span className="be-pattern">{row.pattern}</span>
             <span className="be-state">
               {row.sinceBoot > 0
-                ? `${row.sinceBoot} since the app restarted`
+                ? `${row.sinceBoot} in the ${up || 'time'} since the app restarted`
                 : row.since > 0
-                  ? `${row.since} got through, none since the restart`
+                  ? `${row.since} got through, none in the ${up || 'time'} since the restart`
                   : row.before > 0
                     ? 'nothing since you blocked it'
                     : 'never matched a message'}

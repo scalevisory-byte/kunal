@@ -514,3 +514,60 @@ describe('a block written against a name that had not arrived', () => {
     assert.deepEqual(listBlockedChats(), []);
   });
 });
+
+/*
+ * "Why this blocked msg restarted?"
+ *
+ * Every row on the panel read "none since the restart" against a moment the
+ * page never named — and the app restarts on every deploy, so that sentence
+ * covered four days of proof and four minutes of nothing equally well. The
+ * figure has to carry the age of the restart it is measured from, and a
+ * reading too young to mean anything has to say so.
+ */
+describe('the restart these figures are measured from', () => {
+  const src = (file) =>
+    fs.readFileSync(new URL(file, import.meta.url), 'utf8');
+
+  const lineOf = (text, decl) => text.slice(text.indexOf(decl)).split('\n')[0].replace('export ', '');
+  const lib = src('../../frontend/src/lib/task.js');
+  const pick = (decl, name) => new Function(
+    `${lib.slice(lib.indexOf(decl), lib.indexOf('export function addsNothing')).replace(/export /g, '')}
+     return ${name};`
+  )();
+
+  it('both routes say when the running version came up', () => {
+    const routes = src('../src/routes/system.js');
+    const uses = [...routes.matchAll(/blockEffect\(/g)].length;
+    const says = [...routes.matchAll(/bootedAt: startedAt/g)].length;
+    assert.equal(says, uses, 'every place that reports a block also reports the restart');
+  });
+
+  it('a span is a length, not a timestamp', () => {
+    const spanLabel = pick('export const spanLabel', 'spanLabel');
+    const min = (n) => new Date(Date.now() - n * 60000).toISOString();
+    assert.equal(spanLabel(min(0)), 'a minute');
+    assert.equal(spanLabel(min(25)), '25 minutes');
+    assert.equal(spanLabel(min(60)), 'an hour');
+    assert.equal(spanLabel(min(5 * 60)), '5 hours');
+    assert.equal(spanLabel(min(3 * 24 * 60)), '3 days');
+    assert.equal(spanLabel(null), null, 'nothing to say rather than "Invalid Date"');
+  });
+
+  it('a restart minutes old cannot prove a block, and says so', () => {
+    const tooSoonToTell = pick('export const spanLabel', 'tooSoonToTell');
+    const min = (n) => new Date(Date.now() - n * 60000).toISOString();
+    assert.equal(tooSoonToTell(min(4)), true, 'four minutes of silence is not evidence');
+    assert.equal(tooSoonToTell(min(3 * 60)), false, 'three hours is worth reading');
+    assert.equal(tooSoonToTell(min(3 * 24 * 60)), false);
+    assert.equal(tooSoonToTell(null), false);
+  });
+
+  it('the panels name the restart rather than leaving it implied', () => {
+    for (const file of ['../../frontend/src/components/UsagePage.jsx',
+      '../../frontend/src/components/BlockedChats.jsx']) {
+      const text = src(file);
+      assert.match(text, /spanLabel\(bootedAt\)/, `${file} says how long ago it was`);
+      assert.match(text, /tooSoonToTell\(bootedAt\)/, `${file} refuses to claim a fresh restart proves anything`);
+    }
+  });
+});
