@@ -117,6 +117,51 @@ export const addedLabel = (value) => {
   });
   return `Added ${date} · ${clock}`;
 };
+/**
+ * When a task came in, in two short pieces for the column at the head of the
+ * row: the day, and the time under it.
+ *
+ * Asked for as "need task rec date on starting of task". It was already on the
+ * row - "Added Sep 11 · 7:05 PM", fourth item along a meta line of six - and
+ * that is a place you read a date you already went looking for, not one you
+ * scan. At the front, every row's date sits in the same column, so "what has
+ * been sitting here since last week" is answered by running an eye down it.
+ *
+ * Today and Yesterday are named rather than dated, because on a list where
+ * most of the work arrived this week the date itself is the part that says
+ * least.
+ */
+export const receivedStamp = (value) => {
+  if (!value) return null;
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+
+  const now = new Date();
+  const day = at.toLocaleDateString('en-CA');
+  const clock = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  if (day === now.toLocaleDateString('en-CA')) return { day: 'Today', clock };
+  if (day === new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA')) {
+    return { day: 'Yesterday', clock };
+  }
+  const sameYear = at.getFullYear() === now.getFullYear();
+  return {
+    day: at
+      .toLocaleDateString([], {
+        day: 'numeric',
+        month: 'short',
+        // The year only when it is not this one - on a list where almost
+        // everything is from this month, "2026" on every row says nothing.
+        ...(sameYear ? {} : { year: '2-digit' }),
+      })
+      // "Dec 19, 25" is one character too wide for the column; the comma is
+      // the one character in it that carries nothing.
+      .replace(',', ''),
+    clock,
+  };
+};
+
 const FILLER = new Set([
   'a', 'an', 'and', 'be', 'by', 'do', 'done', 'for', 'has', 'have', 'is', 'it',
   'need', 'needs', 'of', 'on', 'the', 'to', 'today', 'tomorrow', 'up', 'with',

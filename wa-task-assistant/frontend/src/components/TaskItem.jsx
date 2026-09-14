@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { useRename } from '../rename.js';
 import {
-  addedLabel, agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, looksLikeWid, taskSource,
+  agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, looksLikeWid, receivedStamp, taskSource,
   timeLabel,
 } from '../lib/task.js';
 
@@ -522,13 +522,13 @@ export default function TaskItem({
   const due = dueLabel(task.due_date);
   const source = taskSource(task);
   /*
-   * When the task was added — created_at, and said so.
+   * When the task came in — created_at, at the head of the row.
    *
    * This was the message's own time, unlabelled, which is a different fact and
    * read as the deadline as often as not. The message's time still exists and
    * still matters; it lives with the message, in the drawer.
    */
-  const added = addedLabel(task.created_at);
+  const received = receivedStamp(task.created_at);
   /*
    * Held here rather than inside the button, because the note takes a whole
    * line and the row has to be told to wrap for it - which is a property of
@@ -580,6 +580,22 @@ export default function TaskItem({
             : done ? `Reopen ${task.title}` : `Mark done: ${task.title}`
         }
       />
+
+      {/*
+        * When it came in, at the front of the row.
+        *
+        * Every row's date in the same column, so a week of arrivals is read by
+        * running an eye down it rather than by finding the fourth item along
+        * six different meta lines. Two pieces because they answer different
+        * questions - which day this has been waiting since, and, on today's,
+        * how long ago - and the time is the quieter of the two.
+        */}
+      {received && (
+        <span className="t-recv" title={`Received ${dateTimeLabel(task.created_at)}`}>
+          <b>{received.day}</b>
+          <i>{received.clock}</i>
+        </span>
+      )}
 
       {/*
         * One line per task.
@@ -687,21 +703,9 @@ export default function TaskItem({
             </span>
           )}
 
-          {/*
-            * When it arrived, on every task rather than only undated ones.
-            *
-            * The message's own time when there is one, because "when did this
-            * come in" is a question about the message, not about the moment the
-            * extractor got round to it - and the two differ by however long the
-            * batch waited.
-            */}
-          {added && (
-            <span className="m-item quiet" title={dateTimeLabel(task.created_at)}>
-              {/* An inbox, not a clock: the clock belongs to the deadline, and
-                  wearing the same icon the two read as one fact stated twice. */}
-              <Icon name="inbox" size={12} /> {added}
-            </span>
-          )}
+          {/* When it arrived used to be said here, fourth along a line of
+              six. It is at the head of the row now; saying it twice would
+              only cost the line the room something else needs. */}
           {/*
             * Where the task came from, in a word.
             *

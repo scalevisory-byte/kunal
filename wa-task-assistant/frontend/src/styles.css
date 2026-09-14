@@ -886,6 +886,43 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
  * from and when. The list is taller and reads faster, which is the trade a
  * list of forty is worth making.
  */
+/*
+ * The received date, at the head of the row.
+ *
+ * A fixed width so it is a column and not an indent that moves with the
+ * longest date - reading down it is the whole point. Right-aligned for the
+ * same reason: "3 Sep" and "11 Sep" then end on the same pixel. Mono figures,
+ * because a proportional 1 is half the width of a 0 and a column of dates set
+ * in one ripples.
+ */
+.t-recv {
+  flex: 0 0 auto;
+  width: 70px;
+  display: flex; flex-direction: column; align-items: flex-end;
+  font-family: "IBM Plex Mono", monospace;
+  line-height: 1.35;
+  padding-top: 1px;
+  /* Never wrapped: a date broken over two lines makes that one row taller
+     than every other, which is exactly what a column is for avoiding. */
+  white-space: nowrap;
+}
+.t-recv b { font-size: .72rem; font-weight: 600; color: var(--text-2); font-style: normal; }
+.t-recv i { font-size: .66rem; color: var(--muted); font-style: normal; }
+.task.done .t-recv b, .task.done .t-recv i { color: var(--muted); }
+
+@media (max-width: 760px) {
+  /*
+   * On a phone the title already owns the whole first line, so a 70px column
+   * beside it is not on offer. The date lies flat instead and shares the line
+   * with the tick, above the title: still the first thing on the row, and read
+   * left to right like the date at the head of a message.
+   */
+  .t-recv {
+    width: auto; flex-direction: row; align-items: baseline; gap: 6px;
+    padding-top: 2px;
+  }
+}
+
 .t-main {
   flex: 1; min-width: 0;
   display: flex; align-items: baseline; gap: 3px 14px;

@@ -254,6 +254,56 @@ await run('refuses an empty batch rather than pretending to work', async () => {
   assert.equal(out.status, 400);
 });
 
+
+/*
+ * When a task came in, at the head of the row.
+ *
+ * Asked as "need task rec date on starting of task". It was already on the
+ * row - "Added Sep 11 · 7:05 PM", fourth item along a meta line of six - which
+ * is where you read a date you went looking for, not one you scan. These cases
+ * hold the two things that make it a column: it comes before the title, and it
+ * is said once.
+ */
+console.log('\nwhen it came in');
+
+const rowFile = fs.readFileSync(new URL('../../frontend/src/components/TaskItem.jsx', import.meta.url), 'utf8');
+const libFile = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
+const receivedStamp = new Function(
+  `${libFile.slice(libFile.indexOf('export const receivedStamp'), libFile.indexOf('const FILLER')).replace('export ', '')}
+   return receivedStamp;`
+)();
+
+await run('the date comes before the title, not after it', async () => {
+  const recv = rowFile.indexOf('className="t-recv"');
+  const title = rowFile.indexOf('className="t-title"');
+  assert.ok(recv > 0 && title > 0);
+  assert.ok(recv < title, 'it is the first thing on the row');
+});
+
+await run('and it is not said a second time further along', async () => {
+  // The meta line used to carry the same fact with an inbox icon. Two
+  // statements of one date is how a row stops being scannable.
+  assert.ok(!/addedLabel/.test(rowFile), 'the meta-line copy is gone');
+});
+
+await run('today and yesterday are named, older arrivals are dated', async () => {
+  const now = new Date();
+  const iso = (d) => d.toISOString().slice(0, 19).replace('T', ' ');
+  assert.equal(receivedStamp(iso(now)).day, 'Today');
+  assert.equal(receivedStamp(iso(new Date(Date.now() - 864e5))).day, 'Yesterday');
+  const old = receivedStamp('2025-12-19 09:05:00');
+  assert.match(old.day, /Dec/, 'an older year is dated');
+  // A comma would take the date over the width of the column and wrap the row.
+  assert.ok(!old.day.includes(','), `no comma in "${old.day}"`);
+  assert.ok(old.clock, 'and the time is the second line of the column');
+});
+
+await run('a task with no created_at shows nothing rather than "Invalid Date"', async () => {
+  assert.equal(receivedStamp(null), null);
+  assert.equal(receivedStamp('not a date'), null);
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });
