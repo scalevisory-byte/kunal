@@ -6,7 +6,9 @@ import {
 } from '../db.js';
 import { matchesPattern } from '../blocklist.js';
 import { state, flushNow, groupNameFor, reprocessStored } from '../whatsapp.js';
-import { repairGroupNames, groupChatIds, needsName, nameFromSiblings } from '../group-names.js';
+import {
+  repairGroupNames, groupChatIds, needsName, nameFromSiblings, taskChatState,
+} from '../group-names.js';
 import { runReminderCheck, runExactReminders } from '../reminders.js';
 import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
@@ -117,6 +119,13 @@ systemRouter.get('/group-names', (req, res) => {
     fixable_now: chats.filter((c) => c.needs_name && c.stored_name).length,
     // Only ids and names of the user's own groups - no message content.
     chats: chats.slice(0, 100),
+    /*
+     * The same question counted over the ROWS he is actually looking at.
+     * "Name abhi nahi aya" is asked of the task list, and a count of chats
+     * cannot answer it: what he needs to know is how many rows are blank and
+     * which of them can still be filled.
+     */
+    tasks: taskChatState(),
     whatsapp: state.status,
   });
 });

@@ -73,6 +73,43 @@ export default function GroupNames({ onError }) {
         </div>
       </dl>
 
+      {/*
+        * The same question counted over the rows he is looking at.
+        *
+        * "Name abhi nahi aya" is asked of the task list, and a count of chats
+        * cannot answer it. These three add up to every task, and they say which
+        * of the blanks the button below can still fill.
+        */}
+      {state.tasks && (
+        <>
+          <p className="field-note">On the task rows themselves:</p>
+          <dl className="facts">
+            <div>
+              <dt>Rows showing their chat</dt>
+              <dd>{state.tasks.named}</dd>
+            </div>
+            <div>
+              <dt>Blank, but askable</dt>
+              <dd className={state.tasks.askable ? 'warn-text' : ''}>{state.tasks.askable}</dd>
+            </div>
+            <div>
+              {/* No id, no message: there is nothing to look a name up from,
+                  now or ever. The row says "No chat" rather than staying blank. */}
+              <dt>No chat recorded at all</dt>
+              <dd>{state.tasks.noSource}</dd>
+            </div>
+          </dl>
+          {state.tasks.noSource > 0 && (
+            <p className="field-note">
+              <b>{state.tasks.noSource}</b>{' '}
+              {state.tasks.noSource === 1 ? 'task carries' : 'tasks carry'} no chat and no
+              message, so there is nothing to look a name up from — for those the row says
+              “No chat”. Everything else is fixable by the button below.
+            </p>
+          )}
+        </>
+      )}
+
       {done && (
         <p className={`field-note ${done.named ? 'ok-text' : ''}`}>
           {done.named

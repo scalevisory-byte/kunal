@@ -288,6 +288,67 @@ await run('a row whose chat cannot be named says so rather than nothing', () => 
 });
 
 
+
+/*
+ * "Name abhi nahi aya" — the second time, over rows that showed nothing at
+ * all, not even "Unnamed chat".
+ *
+ * Because the first fix only spoke for a task carrying some trace of its chat.
+ * One that came out of WhatsApp with neither an id nor a message still fell
+ * through to a blank — and a blank reads as something broken rather than
+ * something missing. The three causes look identical on the row and need
+ * completely different answers, so the app counts them rather than leaving it
+ * to be guessed from the outside.
+ */
+console.log('\nwhy a row cannot say where it came from');
+
+await run('the message knows the name even when the task has no chat id', async () => {
+  // applyGroupName works chat by chat, so a task with a null chat_id was never
+  // reached by it — even when its own message has had the name all along.
+  const m = DB.db
+    .prepare(`INSERT INTO messages (chat_id, chat_name, body, is_group, sent_at)
+              VALUES ('919825011122@c.us', 'CA Vishal Joshi', 'x', 0, '2026-09-08T00:00:00Z')`)
+    .run();
+  DB.db
+    .prepare(`INSERT INTO tasks (title, chat_name, chat_id, message_id, status, source, origin)
+              VALUES ('Share GST working', NULL, NULL, ?, 'open', 'whatsapp', 'ai')`)
+    .run(m.lastInsertRowid);
+
+  assert.equal(GN.nameFromMessages(), 1);
+  assert.equal(taskNamed('Share GST working').chat_name, 'CA Vishal Joshi');
+});
+
+await run('the three causes are counted apart, because they need different answers', () => {
+  // askable: an id to ask WhatsApp about. noSource: nothing to ask at all.
+  task({ title: 'Confirm the flight', chat_name: '8930971@lid', chat_id: '8930971@lid' });
+  task({ title: 'Send March GSTR-1', chat_name: null, chat_id: null });
+
+  const state = GN.taskChatState();
+  assert.ok(state.named >= 1, 'the repaired one counts as named');
+  assert.ok(state.askable >= 1, 'the @lid one can still be asked about');
+  assert.ok(state.noSource >= 1, 'the one with nothing on it cannot');
+});
+
+await run('a task he typed by hand is not counted as a blank', () => {
+  // It has no chat because it never came from one, the row already says "By
+  // hand", and counting it would make the panel disagree with the list.
+  const before = GN.taskChatState().noSource;
+  DB.db
+    .prepare(`INSERT INTO tasks (title, chat_name, chat_id, message_id, status, source, origin)
+              VALUES ('Renew shop licence', NULL, NULL, NULL, 'open', 'manual', 'manual')`)
+    .run();
+  assert.equal(GN.taskChatState().noSource, before, 'unchanged');
+});
+
+await run('and the row stays quiet for it, by the same rule', () => {
+  const lib = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
+  const fn = lib.slice(lib.indexOf('export function taskSource'), lib.indexOf('/** Free-text match'));
+  assert.match(fn, /No chat/, 'a WhatsApp task with nothing on it says so');
+  assert.match(fn, /task\?\.origin === 'ai' \|\| task\?\.source === 'whatsapp'/,
+    'but only one that came from WhatsApp');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

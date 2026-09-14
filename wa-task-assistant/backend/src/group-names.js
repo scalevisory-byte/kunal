@@ -125,8 +125,9 @@ export function nameFromSiblings(chatId) {
  * that chat gets it.
  */
 export function repairFromStored({ limit = 300 } = {}) {
+  // Free, and it reaches tasks no chat-by-chat pass can: those with no chat id.
+  let tasks = nameFromMessages();
   let named = 0;
-  let tasks = 0;
   for (const chatId of groupChatIds({ limit })) {
     if (!needsName(chatId)) continue;
     const name = nameFromSiblings(chatId);
@@ -139,6 +140,68 @@ export function repairFromStored({ limit = 300 } = {}) {
   }
   if (named) log.info(`Named ${named} chat(s) from messages already stored: ${tasks} task(s) updated.`);
   return { named, tasks };
+}
+
+/**
+ * Why a task's row cannot say which chat it came from — counted, by cause.
+ *
+ * "Name abhi nahi aya", twice. The three causes look identical on the row and
+ * need completely different answers, so guessing between them from the outside
+ * is exactly what kept costing a round trip:
+ *
+ *   named     - the row has a real name and is fine.
+ *   askable   - no name, but the chat's id is on the task, so WhatsApp can be
+ *               asked and "Fix chat names" will settle it.
+ *   noSource  - neither a name nor any id. Early versions did not put the chat
+ *               on the task, and the extractor leaves both empty when it points
+ *               at no message. Nothing can recover these: there is no id to ask
+ *               about. They are counted so that is a stated fact rather than a
+ *               silent row.
+ */
+export function taskChatState() {
+  const row = db
+    .prepare(
+      `SELECT
+         SUM(CASE WHEN ${NAME_IS_AN_ID('chat_name')} THEN 0 ELSE 1 END) AS named,
+         SUM(CASE WHEN ${NAME_IS_AN_ID('chat_name')}
+                       AND (chat_id IS NOT NULL OR message_id IS NOT NULL)
+                  THEN 1 ELSE 0 END) AS askable,
+         SUM(CASE WHEN ${NAME_IS_AN_ID('chat_name')}
+                       AND chat_id IS NULL AND message_id IS NULL
+                       -- A task he typed has no chat because it never came from
+                       -- one. The row stays quiet about it, so counting it here
+                       -- as a blank would make the panel disagree with the list.
+                       AND (origin = 'ai' OR source = 'whatsapp')
+                  THEN 1 ELSE 0 END) AS noSource
+       FROM tasks WHERE archived_at IS NULL`
+    )
+    .get();
+  return { named: row.named || 0, askable: row.askable || 0, noSource: row.noSource || 0 };
+}
+
+/**
+ * The name the task's own message is filed under.
+ *
+ * `applyGroupName` works chat by chat, so a task whose `chat_id` is null was
+ * never reached by it even when the message it came from has had its name
+ * repaired all along. One join settles those, needs no WhatsApp, and runs at
+ * boot with the rest.
+ */
+export function nameFromMessages() {
+  return db
+    .prepare(
+      `UPDATE tasks
+       SET chat_name = (SELECT chat_name FROM messages WHERE id = tasks.message_id),
+           updated_at = datetime('now')
+       WHERE ${NAME_IS_AN_ID('chat_name')}
+         AND message_id IN (
+           SELECT id FROM messages
+           WHERE chat_name IS NOT NULL AND chat_name != ''
+             AND chat_name NOT LIKE '%@g.us' AND chat_name NOT LIKE '%@c.us'
+             AND chat_name NOT LIKE '%@lid' AND chat_name NOT LIKE '%@broadcast'
+         )`
+    )
+    .run().changes;
 }
 
 /**

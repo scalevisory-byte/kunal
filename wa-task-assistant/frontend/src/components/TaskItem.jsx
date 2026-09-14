@@ -698,9 +698,11 @@ export default function TaskItem({
           {source && (
             <span
               className={`m-item t-chat ${source.unnamed ? 'unnamed' : ''}`}
-              title={source.unnamed
-                ? `WhatsApp has not given this chat a name yet${source.id ? ` (${source.id})` : ''}. The app asks again each time it reconnects.`
-                : source.label}
+              title={source.noSource
+                ? 'This task was created without a chat on it, so there is nothing to look the name up from. Tasks made by hand, and some from the app’s early days, are like this.'
+                : source.unnamed
+                  ? `WhatsApp has not given this chat a name yet${source.id ? ` (${source.id})` : ''}. Settings → Chat names will ask again.`
+                  : source.label}
             >
               {/* In a group: who wrote it, then where. The sender is the half
                   that says what the request actually is. */}

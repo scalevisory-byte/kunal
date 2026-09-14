@@ -357,7 +357,25 @@ export function taskSource(task) {
    */
   const unknown = task?.chat_id || task?.message_id
     ? { label: 'Unnamed chat', chat: null, unnamed: true, id: task?.chat_id || null }
-    : null;
+    /*
+     * Reported a second time as "name abhi nahi aya", because the line above
+     * only speaks for a task that carries some trace of its chat. One that came
+     * out of WhatsApp with neither an id nor a message — early versions did not
+     * put the chat on the task, and the extractor leaves both empty when it
+     * points at no message — still fell through to nothing, which is the blank
+     * he was looking at.
+     *
+     * Nothing can recover those: there is no id to ask WhatsApp about. Saying
+     * so is the whole of what can be done, and it beats a silent row, which
+     * reads as something broken rather than something missing.
+     *
+     * A task he typed himself is the one case that stays quiet: it has no chat
+     * because it never came from one, the row already says "By hand", and
+     * "No chat" beside that is a second way of saying the same thing.
+     */
+    : (task?.origin === 'ai' || task?.source === 'whatsapp')
+      ? { label: 'No chat', chat: null, unnamed: true, noSource: true, id: null }
+      : null;
 
   if (!task?.is_group) return chat ? { label: chat, chat } : unknown;
 
