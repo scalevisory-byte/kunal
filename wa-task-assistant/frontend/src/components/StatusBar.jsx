@@ -63,6 +63,23 @@ function Build({ build }) {
       {build.commit ? <code>{build.commit}</code> : 'build unknown'}
       {build.message && <span title={build.message}> · {build.message.split('\n')[0].slice(0, 60)}</span>}
       {when && <span> · running since {when}</span>}
+      {/*
+        * The dashboard file the server is actually handing out.
+        *
+        * The commit beside it is null wherever the host does not set it, which
+        * is exactly when it is needed. This needs nothing from the host: Vite
+        * names the bundle after a hash of its own contents, so if this matches
+        * the file the browser loaded, the screen really is running this code.
+        * Reported three times running as "still not working" with no way from a
+        * screenshot to tell that from "not deployed yet".
+        */}
+      {build.bundle && (
+        <span
+          title={`The dashboard file this server is serving. Compare it with what your browser loaded (DevTools → Network) — if they differ, the page is cached and a hard reload will fix it.${build.builtAt ? `\nBuilt ${new Date(build.builtAt).toLocaleString()}` : ''}`}
+        >
+          {' · '}<code>{build.bundle.replace(/^index-|\.js$/g, '')}</code>
+        </span>
+      )}
     </p>
   );
 }

@@ -15,12 +15,40 @@ export const startedAt = new Date().toISOString();
  * hosting provider's own environment (Railway sets these), so it cannot drift
  * from what is actually running the way a hand-written version number can.
  */
+/**
+ * The dashboard file this server is actually handing the browser.
+ *
+ * The commit above comes from the host's environment and is null wherever the
+ * host does not set it — which makes it useless in exactly the situation it
+ * exists for. This needs nothing: Vite writes the bundle under a hash of its
+ * own contents, so the name IS the version. If it matches the file the build
+ * produced, the browser is running that code; if it does not, the deploy has
+ * not landed and no amount of re-reading the app will change that.
+ */
+function servedBundle() {
+  try {
+    const dir = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../public/assets');
+    const js = fs.readdirSync(dir).filter((f) => /^index-.*\.js$/.test(f)).sort();
+    if (!js.length) return null;
+    const { mtime } = fs.statSync(path.join(dir, js[0]));
+    return { file: js[0], builtAt: mtime.toISOString() };
+  } catch {
+    // No dashboard bundled — running the API alone, which is normal in tests.
+    return null;
+  }
+}
+
+const bundle = servedBundle();
+
 export const build = {
   commit: (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 7) || null,
   message: process.env.RAILWAY_GIT_COMMIT_MESSAGE || null,
   branch: process.env.RAILWAY_GIT_BRANCH || null,
   // When this process started, which for a container is when it was deployed.
   deployedAt: startedAt,
+  // The one fact that needs no cooperation from the host.
+  bundle: bundle?.file || null,
+  builtAt: bundle?.builtAt || null,
 };
 
 /** Recursive size of a directory, in bytes. Missing directory counts as zero. */

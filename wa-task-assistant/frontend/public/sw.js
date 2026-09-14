@@ -1,7 +1,16 @@
 /* Service worker for the WA Task Assistant PWA.
    Two jobs: keep the app shell available offline, and surface push reminders. */
 
-const CACHE = 'wa-tasks-v1';
+/*
+ * The cache name carries the build, so a deploy cannot be served stale.
+ *
+ * It was a fixed 'wa-tasks-v1', and `activate` deletes every cache whose name
+ * is not the current one — which, with a name that never changed, deleted
+ * nothing, ever. Navigations are network-first so the page itself stayed
+ * fresh, but every hashed asset a browser had ever fetched was kept for good.
+ * Bumping the name on each release is what makes that sweep do its job.
+ */
+const CACHE = 'wa-tasks-2026-09-14';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
