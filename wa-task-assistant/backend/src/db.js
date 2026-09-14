@@ -1,17 +1,11 @@
-import { openDatabase } from './db-open.js';
+import Database from 'better-sqlite3';
 import { config } from './config.js';
 import { unshout } from './titlecase.js';
 import { log } from './logger.js';
 import { numberOrNull } from './dates.js';
 import { patternWouldDrop } from './blocklist.js';
 
-/*
- * Encrypted when DB_ENCRYPTION_KEY is set, plain when it is not, and converted
- * from one to the other on the boot where the key first appears. openDatabase
- * refuses rather than guesses when the file and the key disagree - see
- * db-open.js for why the conversion never writes to the original.
- */
-export const db = openDatabase(config.dbPath);
+export const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 

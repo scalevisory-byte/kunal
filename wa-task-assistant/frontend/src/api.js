@@ -263,7 +263,6 @@ export const api = {
 
   groupNames: () => request('/group-names'),
   repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
-  dropPlaintextBackup: () => request('/encryption/drop-plaintext-backup', { method: 'POST' }),
 
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),

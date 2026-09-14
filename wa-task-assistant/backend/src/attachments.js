@@ -5,7 +5,6 @@ import { db } from './db.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { safeDisplayName } from './safe-name.js';
-import { encryptBuffer, decryptBuffer } from './encryption.js';
 
 /**
  * Files kept beside a task - the invoice, the scan, the quotation.
@@ -83,10 +82,7 @@ export function addAttachment(taskId, { filename, mime, buffer }) {
   const ext = EXTENSION[type] || path.extname(display).slice(0, 10) || '';
   const stored = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
 
-  // Encrypted when a key is set, written as-is when it is not. `bytes` stays
-  // the size of the file the user gave us, which is the figure shown and the
-  // one the quota is reasoned about; the envelope adds 36 bytes on disk.
-  fs.writeFileSync(path.join(attachmentDir, stored), encryptBuffer(buffer));
+  fs.writeFileSync(path.join(attachmentDir, stored), buffer);
   try {
     const info = db
       .prepare(
@@ -109,9 +105,7 @@ export function readAttachment(id) {
   if (!row) return null;
   const full = path.join(attachmentDir, row.stored_name);
   if (!fs.existsSync(full)) return { ...row, missing: true };
-  // Files written before the key existed are still plain, and are returned as
-  // they are - decryptBuffer reads each file according to what it actually is.
-  return { ...row, buffer: decryptBuffer(fs.readFileSync(full)), inline: INLINE.has(row.mime) };
+  return { ...row, buffer: fs.readFileSync(full), inline: INLINE.has(row.mime) };
 }
 
 export function deleteAttachment(id) {

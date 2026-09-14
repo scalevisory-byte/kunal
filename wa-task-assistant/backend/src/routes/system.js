@@ -1,7 +1,5 @@
-import fs from 'node:fs';
 import { Router } from 'express';
 import { config } from '../config.js';
-import { log } from '../logger.js';
 import {
   listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
@@ -17,7 +15,6 @@ import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics, startedAt } from '../diagnostics.js';
-import { encryptionState, plaintextBackups } from '../db-open.js';
 import { extractTasks } from '../extractor.js';
 import {
   usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat, blockEffect,
@@ -80,9 +77,6 @@ systemRouter.get('/status', (req, res) => {
     },
     tasks: taskStats(),
     security: authStats(),
-    // What is actually on the disk, read from the files rather than from the
-    // setting - "meant to be encrypted" and "is encrypted" are different facts.
-    encryption: encryptionState(config.dbPath),
     diagnostics: diagnostics(),
     config: {
       extractionMode: config.extractionMode,
@@ -156,36 +150,6 @@ systemRouter.post('/group-names/repair', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err?.message || 'could not read the group names' });
   }
-});
-
-/*
- * Delete the plaintext copy the conversion left behind.
- *
- * This is the step that makes encryption real, and it is the step that makes a
- * lost key final, so it is a person's to take and nothing does it on a
- * schedule. It refuses unless the live database really is encrypted - deleting
- * the only readable copy while the working one is still plaintext would be
- * losing a backup to protect nothing.
- */
-systemRouter.post('/encryption/drop-plaintext-backup', (req, res) => {
-  const state = encryptionState(config.dbPath);
-  if (state.database !== 'encrypted') {
-    return res.status(400).json({
-      error: 'The live database is not encrypted, so this copy is not a leftover - it is the '
-        + 'only database. Nothing was deleted.',
-    });
-  }
-  const copies = plaintextBackups(config.dbPath);
-  if (!copies.length) return res.json({ deleted: 0, encryption: state });
-
-  let deleted = 0;
-  for (const copy of copies) {
-    fs.rmSync(copy.path, { force: true });
-    deleted += 1;
-    log.warn(`Encryption: deleted the plaintext backup ${copy.name} at the dashboard's request. `
-      + 'DB_ENCRYPTION_KEY is now the only way into this data.');
-  }
-  res.json({ deleted, encryption: encryptionState(config.dbPath) });
 });
 
 systemRouter.post('/selftest', async (req, res) => {

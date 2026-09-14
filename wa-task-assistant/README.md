@@ -525,7 +525,6 @@ session keeps receiving messages even when the phone is offline.
    | `VAPID_SUBJECT` | `mailto:you@example.com` |
    | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` (already set in the image) |
    | `LAW_FEEDS` | optional — `Name\|url` pairs, comma separated, to change the law-digest sources |
-   | `DB_ENCRYPTION_KEY` | optional — encrypts the database and attachments at rest. **Save it somewhere permanent: there is no recovery.** `openssl rand -base64 32` |
 
 5. Deploy, open the URL, unlock with the password, and scan the QR shown on the dashboard.
 6. Confirm the pipeline: send yourself a WhatsApp message like *"please send the GST invoice to
@@ -628,17 +627,4 @@ and Anthropic, and set a spend cap on the API key.
 - **Chat filtering is not implemented.** Every incoming chat is scanned, personal and family
   chats included. See the open question at the end of `CLAUDE.md` before adding an allow-list.
 - `DASHBOARD_PASSWORD` is a single shared secret, which is right for one user. It is not a
-  multi-user auth system.
-- **Encryption at rest is off until `DB_ENCRYPTION_KEY` is set**, and until then the database
-  is plain text on disk — anyone with a copy of the volume, or of a backup of it, can read
-  every message, task and note without a password. Setting the key converts the database on
-  the next boot: the conversion works on a copy, checks every table's row count against the
-  original before swapping them, and **leaves the plain-text original on disk** as
-  `tasks.db.plaintext-backup-<stamp>`. Encryption is not protecting anything until you delete
-  that copy, which Settings → Encryption at rest does on a confirmation. Do it only once the
-  key is saved somewhere you will still have in a year: after that, **a lost key is lost
-  data** and no one can recover it. A missing or wrong key stops the app with a clear message
-  rather than touching the file.
-- **The WhatsApp session is not encrypted and cannot be.** It is a Chromium profile written
-  continuously while the app runs. Anyone who takes `DATA_DIR/wa-session` can link the
-  account, with or without `DB_ENCRYPTION_KEY` set.
+  multi-user auth system, and messages/tasks are stored unencrypted in SQLite.
