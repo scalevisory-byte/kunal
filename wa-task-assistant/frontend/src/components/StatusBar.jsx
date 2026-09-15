@@ -441,6 +441,26 @@ export default function StatusBar({ status, stats, overdueCount, onRefresh, onEr
         * the phone, and then the one scan being watched fails too. It stops
         * after a few minutes now and waits here for a person with a phone.
         */}
+      {/*
+        * How long the link has been dead, which is the fact that explains it.
+        *
+        * WhatsApp logs a linked device out once it has been idle a while, so a
+        * connection that stops working quietly rots into an unlink. His had
+        * last worked on 22 July and the panel said only "Disconnected" — the
+        * same word it uses when the wifi dropped a minute ago.
+        */}
+      {state !== 'ready' && wa?.lastReadyAt && (() => {
+        const days = Math.floor((Date.now() - new Date(wa.lastReadyAt).getTime()) / 864e5);
+        if (days < 2) return null;
+        return (
+          <p className="field-note warn-text">
+            This link last worked <b>{days} days ago</b>. WhatsApp logs a linked device
+            out once it has been idle for a while, so it has most likely been unlinked
+            at their end — scan a fresh code to bring it back.
+          </p>
+        );
+      })()}
+
       {state === 'qr_gave_up' && (
         <div className="warn-box">
           <p>

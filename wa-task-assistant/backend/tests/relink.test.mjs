@@ -147,3 +147,51 @@ describe('how many pairing codes the app may ask for', () => {
     assert.match(panel, /Try again later/, 'the panel does not name the message he is seeing');
   });
 });
+
+/**
+ * Which row in his Linked devices list is this app, and how long it has been
+ * dead.
+ *
+ * From his phone: a device he had renamed by hand to "WA TASK", reported as
+ * "Google Chrome (Mac OS)", **last active 22 July** — eight weeks — with
+ * WhatsApp's own banner saying "Logging out today. Linked devices
+ * automatically log out if they haven't been active in a while."
+ *
+ * Two things were wrong, and both are the app's. It linked under a name
+ * indistinguishable from any browser left signed in, on a list capped at four
+ * devices where telling a dead row from a live one decides whether you free a
+ * slot or unlink the wrong thing. And the dashboard said "Disconnected" — the
+ * same word after a minute and after two months, with the link rotting toward
+ * an unlink somewhere in between.
+ */
+describe('the linked device', () => {
+  it('says which app it is, instead of posing as a browser', () => {
+    assert.match(src, /deviceName: 'WA Tasks'/);
+    assert.match(src, /browserName: 'WA Tasks'/);
+  });
+
+  it('records the moment the link genuinely worked, and keeps it across restarts', () => {
+    // Derived state would reset on every deploy - and it restarts on every
+    // deploy - so the one figure worth having has to be written down.
+    assert.match(src, /setMeta\('last_ready_at'/, 'nothing records when it last worked');
+    assert.match(src, /getMeta\('last_ready_at'\)/, 'it is written but never read back');
+    // Searched FROM the handler, not from the top of the file: runCatchUpOnce
+    // is declared far above it, so a bare indexOf ends the slice before it
+    // begins and quietly matches nothing.
+    const readyAt = src.indexOf("client.on('ready'");
+    const ready = src.slice(readyAt, src.indexOf('runCatchUpOnce', readyAt));
+    assert.match(ready, /last_ready_at/, 'it is not recorded at the moment it became ready');
+  });
+
+  it('reports it, so the panel can say how long rather than just "Disconnected"', () => {
+    assert.match(routes, /lastReadyAt: state\.lastReadyAt/);
+    assert.match(panel, /last worked/i);
+    assert.match(panel, /idle/i, 'the panel does not explain why an old link stops working');
+  });
+
+  it('stays quiet about a link that dropped a moment ago', () => {
+    // A blip is not a rotting link, and saying so on every brief disconnect is
+    // how a warning stops being read.
+    assert.match(panel, /days < 2\) return null/);
+  });
+});

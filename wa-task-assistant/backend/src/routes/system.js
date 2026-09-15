@@ -76,6 +76,10 @@ systemRouter.get('/status', (req, res) => {
       delegatedEver: state.delegatedEver,
       tasksCreated: state.tasksCreated,
       lastExtraction: state.lastExtraction,
+      // When the link last genuinely worked. "Disconnected" alone reads the
+      // same after a minute and after eight weeks, and WhatsApp unlinks an
+      // idle device somewhere in between.
+      lastReadyAt: state.lastReadyAt || null,
     },
     tasks: taskStats(),
     security: authStats(),

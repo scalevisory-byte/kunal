@@ -1360,6 +1360,7 @@ export function loadCounters() {
     state.ownSeenEver = Number(getMeta('own_messages_seen') || 0);
     state.delegatedEver = Number(getMeta('delegated_created') || 0);
     state.echoesEver = Number(getMeta('echoes_ignored') || 0);
+    state.lastReadyAt = getMeta('last_ready_at') || null;
   } catch { /* a database that is not ready yet */ }
 }
 
@@ -1458,6 +1459,19 @@ export function startWhatsApp() {
     // Stop offering pairing codes to nobody. See config.qrMaxRetries - the
     // library's default is unlimited, which is what got the account throttled.
     qrMaxRetries: config.qrMaxRetries,
+    /*
+     * Say who this is, in his Linked devices list.
+     *
+     * Unset, the library links as "Google Chrome (Mac OS)" - indistinguishable
+     * from any browser he has ever left signed in. He had already renamed the
+     * entry by hand to "WA TASK", which is the tell: the list gave him no way
+     * to know which row was this app. That matters because WhatsApp allows
+     * only four linked devices and logs idle ones out, so telling a dead entry
+     * from a live one is the difference between freeing a slot and unlinking
+     * the wrong thing.
+     */
+    deviceName: 'WA Tasks',
+    browserName: 'WA Tasks',
     puppeteer: {
       headless: true,
       executablePath: config.puppeteerExecutablePath,
@@ -1513,6 +1527,18 @@ export function startWhatsApp() {
     state.qrDataUrl = null;
     state.me = client.info?.wid?._serialized ?? null;
     state.meName = client.info?.pushname || null;
+    /*
+     * When the link was last actually alive, kept across restarts.
+     *
+     * WhatsApp logs a linked device out once it has been idle "a while", so a
+     * session that stops connecting quietly rots until it is unpaired. His had
+     * been unreachable since 22 July and the dashboard said only
+     * "Disconnected" — the same word it says when the wifi dropped a minute
+     * ago. Written here rather than derived, because the one moment worth
+     * recording is the one where it genuinely worked.
+     */
+    try { setMeta('last_ready_at', new Date().toISOString()); } catch { /* db not ready */ }
+    state.lastReadyAt = new Date().toISOString();
     log.info(`WhatsApp ready as ${state.me}`);
 
     runCatchUpOnce();
