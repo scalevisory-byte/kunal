@@ -86,3 +86,64 @@ describe('the recovery', () => {
       'a working connection should not be offered a button that breaks it');
   });
 });
+
+/**
+ * Not asking WhatsApp to pair a thousand times while nobody is holding a phone.
+ *
+ * Reported as "still scan nahi ho raha — phone me Try again later hi aa raha
+ * he". The library defaults `qrMaxRetries` to 0, which means UNLIMITED, and
+ * this app never set it: an unpaired client asks for a fresh pairing code
+ * every ~20 seconds, for ever. Sitting disconnected for seven hours, as it
+ * was, that is over a thousand requests to link one account — and WhatsApp
+ * answers that with "Try again later", so the one scan actually being watched
+ * fails too.
+ */
+const config = fs.readFileSync(new URL('../src/config.js', import.meta.url), 'utf8');
+
+describe('how many pairing codes the app may ask for', () => {
+  it('is bounded — the library default is unlimited and that is the bug', () => {
+    assert.match(config, /qrMaxRetries: num\(process\.env\.QR_MAX_RETRIES, (\d+)\)/);
+    const limit = Number(config.match(/QR_MAX_RETRIES, (\d+)\)/)[1]);
+    assert.ok(limit > 0, 'unlimited again — this is what earned "Try again later"');
+    assert.ok(limit <= 60, `${limit} codes is twenty minutes of asking nobody`);
+  });
+
+  it('is actually passed to the client, not merely configured', () => {
+    assert.match(src, /qrMaxRetries: config\.qrMaxRetries/,
+      'the setting exists but the client still uses the unlimited default');
+  });
+
+  it('giving up is a resting state, never a reason to clear the login', () => {
+    // From the handler to the unlink branch inside it. Sliced by those two
+    // markers rather than by "relink({ reason", which also matches the
+    // function's own signature far earlier in the file.
+    const handler = src.slice(
+      src.indexOf("client.on('disconnected'"),
+      src.indexOf('if (isUnlinked(reason))'),
+    );
+    assert.match(handler, /Max qrcode retries/i, 'giving up is not recognised');
+    // It must return before the unlink branch: losing the stored login because
+    // nobody scanned for four minutes would be a much worse bug than the one
+    // being fixed.
+    const gaveUp = src.indexOf('Max qrcode retries');
+    const unlink = src.indexOf('if (isUnlinked(reason))');
+    assert.ok(gaveUp < unlink, 'the give-up case falls through to clearing the login');
+    assert.equal(/Max qrcode retries/i.test('UNPAIRED'), false);
+    assert.equal(isUnlinked('Max qrcode retries reached'), false,
+      'giving up would have wiped the session');
+  });
+
+  it('offers a way to ask again that does NOT throw the login away', () => {
+    assert.match(src, /export async function showQr/);
+    const body = src.slice(src.indexOf('export async function showQr'), src.indexOf('export async function relink'));
+    assert.ok(!/rmSync/.test(body), 'the safe button deletes the session too');
+    assert.match(body, /startWhatsApp\(\)/);
+  });
+
+  it('tells him to open Linked devices BEFORE pressing it', () => {
+    // A code that appears while the phone is still locked is a code that
+    // expires before it is scanned, which is how the retries got spent.
+    assert.match(panel, /Linked devices/);
+    assert.match(panel, /Try again later/, 'the panel does not name the message he is seeing');
+  });
+});

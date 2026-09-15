@@ -6,7 +6,7 @@ import {
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
 import { matchesPattern } from '../blocklist.js';
-import { state, flushNow, groupNameFor, reprocessStored, relink } from '../whatsapp.js';
+import { state, flushNow, groupNameFor, reprocessStored, relink, showQr } from '../whatsapp.js';
 import {
   repairGroupNames, groupChatIds, needsName, nameFromSiblings, taskChatState,
   blankChatExamples,
@@ -211,6 +211,15 @@ systemRouter.delete('/backups/:name', (req, res) => {
  * Destructive on purpose: it WILL require scanning the code again, so the
  * dashboard asks before calling it.
  */
+/*
+ * Ask for a fresh QR. Keeps the stored login, so it is the safe one to press.
+ */
+systemRouter.post('/whatsapp/qr', async (req, res) => {
+  const result = await showQr();
+  if (!result.ok) return res.status(409).json({ error: result.reason });
+  res.json({ ok: true, whatsapp: state.status });
+});
+
 systemRouter.post('/whatsapp/relink', async (req, res) => {
   const result = await relink({ reason: 'asked from the dashboard' });
   if (!result.ok) return res.status(409).json({ error: result.reason });

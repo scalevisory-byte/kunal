@@ -1384,6 +1384,36 @@ let relinking = false;
  * profile that fails to open on the next start - which would turn "scan again"
  * into "the app will not start".
  */
+/**
+ * Show a fresh QR without throwing the stored login away.
+ *
+ * The counterpart to `relink`: that one is for a login that is dead, this one
+ * for an app that simply stopped asking. Nothing on disk is touched, so
+ * pressing it when the session was actually fine costs a reconnect and no trip
+ * to the phone.
+ */
+export async function showQr() {
+  if (relinking) return { ok: false, reason: 'already restarting' };
+  relinking = true;
+  try {
+    noteEvent('qr requested');
+    state.qrDataUrl = null;
+    state.status = 'restarting';
+    if (client) {
+      await client.destroy().catch(() => {});
+      client = null;
+    }
+    await new Promise((r) => setTimeout(r, 800));
+    startWhatsApp();
+    return { ok: true };
+  } catch (err) {
+    state.lastError = err?.message || String(err);
+    return { ok: false, reason: state.lastError };
+  } finally {
+    relinking = false;
+  }
+}
+
 export async function relink({ reason = 'asked from the dashboard' } = {}) {
   if (relinking) return { ok: false, reason: 'already restarting' };
   relinking = true;
@@ -1425,6 +1455,9 @@ export function startWhatsApp() {
 
   client = new Client({
     authStrategy: new LocalAuth({ dataPath: config.waSessionDir }),
+    // Stop offering pairing codes to nobody. See config.qrMaxRetries - the
+    // library's default is unlimited, which is what got the account throttled.
+    qrMaxRetries: config.qrMaxRetries,
     puppeteer: {
       headless: true,
       executablePath: config.puppeteerExecutablePath,
@@ -1516,6 +1549,21 @@ export function startWhatsApp() {
      * login: throwing away a healthy session because the wifi dropped would
      * force a re-scan for nothing.
      */
+    /*
+     * It stopped offering codes because nobody was scanning them.
+     *
+     * Not a fault, and emphatically not a reason to clear the login: it is the
+     * app declining to ask WhatsApp to pair a thousand more times while the
+     * phone is in another room. The dashboard says so and offers a button.
+     */
+    if (/Max qrcode retries/i.test(String(reason || ''))) {
+      state.status = 'qr_gave_up';
+      state.qrDataUrl = null;
+      log.warn('Stopped showing QR codes after '
+        + `${config.qrMaxRetries} tries. Press "Show a new QR code" when you are ready to scan.`);
+      return;
+    }
+
     if (isUnlinked(reason)) {
       log.warn('WhatsApp reports this device was unlinked. Clearing the dead session '
         + 'and starting again so a fresh QR can be scanned.');

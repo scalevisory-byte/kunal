@@ -264,6 +264,7 @@ export const api = {
   groupNames: () => request('/group-names'),
   repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
   relinkWhatsApp: () => request('/whatsapp/relink', { method: 'POST' }),
+  showWhatsAppQr: () => request('/whatsapp/qr', { method: 'POST' }),
   backups: () => request('/backups'),
   makeBackup: () => request('/backups', { method: 'POST' }),
 

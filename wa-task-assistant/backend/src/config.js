@@ -139,6 +139,25 @@ export const config = {
    */
   batchMaxWaitMs: num(process.env.BATCH_MAX_WAIT_SECONDS, 240) * 1000,
   batchMaxMessages: num(process.env.BATCH_MAX_MESSAGES, 40),
+  /*
+   * How many QR codes to show before giving up and waiting to be asked.
+   *
+   * whatsapp-web.js defaults this to 0, which means UNLIMITED - and this app
+   * never set it. So an unpaired app asks WhatsApp for a fresh pairing code
+   * every ~20 seconds, for ever. Left disconnected for seven hours, as it was,
+   * that is well over a thousand requests to link one account, all of them
+   * while nobody was holding a phone.
+   *
+   * WhatsApp answers that with "Try again later" on the phone, and then the
+   * one scan that IS being watched fails too - which is how a link that used
+   * to work becomes impossible.
+   *
+   * Twelve codes is about four minutes: long enough to fetch a phone and open
+   * Linked devices, short enough that an app nobody is looking at stops
+   * asking. After that the dashboard offers a button, because linking is a
+   * deliberate act and should happen when a person is ready for it.
+   */
+  qrMaxRetries: num(process.env.QR_MAX_RETRIES, 12),
   puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
 
   vapid: {

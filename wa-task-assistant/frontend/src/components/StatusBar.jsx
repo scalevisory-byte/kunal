@@ -7,6 +7,8 @@ const LABELS = {
   authenticated: 'Authenticated',
   ready: 'Connected',
   disconnected: 'Disconnected',
+  qr_gave_up: 'Waiting to be asked',
+  restarting: 'Restarting',
   error: 'Error',
 };
 
@@ -306,6 +308,27 @@ function Pipeline({ wa, cfg, connected }) {
  * offline, so the confirmation says which of those it is about to do rather
  * than a bare "are you sure".
  */
+/** Asks for a fresh QR. Keeps the login, so it is the safe button of the two. */
+function QrButton({ onDone, onError }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn primary"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try { await api.showWhatsAppQr(); await onDone?.(); }
+        catch (err) { onError?.(err); }
+        finally { setBusy(false); }
+      }}
+    >
+      {busy ? 'Starting…' : 'Show a new QR code'}
+    </button>
+  );
+}
+
+
 function RelinkButton({ onDone, onError }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -409,6 +432,31 @@ export default function StatusBar({ status, stats, overdueCount, onRefresh, onEr
         * without this the only cure was shell access to delete a folder, which
         * is the situation serving the QR over HTTP exists to prevent.
         */}
+      {/*
+        * It stopped offering codes because nobody was scanning.
+        *
+        * WhatsApp limits how often one account may be asked to link, and this
+        * app used to ask every twenty seconds for ever — over a thousand times
+        * across one disconnected night. That is what puts "Try again later" on
+        * the phone, and then the one scan being watched fails too. It stops
+        * after a few minutes now and waits here for a person with a phone.
+        */}
+      {state === 'qr_gave_up' && (
+        <div className="warn-box">
+          <p>
+            <b>Not showing a code right now.</b> WhatsApp limits how many times an
+            account can be asked to link, so the app stops offering codes when
+            nobody scans them — asking all night is what makes your phone say
+            <em> “Try again later.”</em>
+          </p>
+          <p>
+            Open <b>WhatsApp → Settings → Linked devices → Link a device</b> on your
+            phone <em>first</em>, with the camera ready. Then press this.
+          </p>
+          <QrButton onDone={onRefresh} onError={onError} />
+        </div>
+      )}
+
       {state !== 'ready' && state !== 'qr' && (
         <RelinkButton onDone={onRefresh} onError={onError} />
       )}
