@@ -28,7 +28,24 @@ export const config = {
   browserCacheDir: process.env.BROWSER_CACHE_DIR
     || path.join(os.tmpdir(), 'wa-browser-cache'),
 
-  dashboardPassword: process.env.DASHBOARD_PASSWORD || '',
+  /*
+   * Trimmed, and that is not tidiness - it is the difference between an app
+   * you can log into and one nobody can, ever.
+   *
+   * A password pasted into a hosting provider's variable box very easily
+   * carries a trailing space or a newline, and neither is visible in the box.
+   * Worse than merely hard to type: HTTP strips leading and trailing
+   * whitespace from a header value, so a password ending in a space CANNOT be
+   * sent in an Authorization header at all. The right password is refused, the
+   * fifth refusal locks the address out for fifteen minutes, and nothing
+   * anywhere says why. Reported as "login nahi ho raha he".
+   *
+   * Trimming costs a password whose meaning depends on invisible whitespace,
+   * which is a password nobody could type reliably anyway. The boot warning
+   * below says when this has actually happened, so it is repaired in the open
+   * rather than papered over.
+   */
+  dashboardPassword: (process.env.DASHBOARD_PASSWORD || '').trim(),
 
   // 'ai'     - Claude reads every incoming chat and decides what is a task.
   // 'manual' - no AI and no API key. Tasks come only from messages you write or

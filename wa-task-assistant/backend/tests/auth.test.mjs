@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-auth-'));
 process.env.DATA_DIR = dir;
@@ -113,6 +115,56 @@ run('addresses are locked out separately', () => {
   for (let i = 0; i < 6; i += 1) call('wrong', '10.0.0.1');
   assert.equal(call('wrong', '10.0.0.1').status, 429);
   assert.equal(call('correct-horse', '10.0.0.2').passed, true);
+});
+
+/*
+ * Whitespace around the password — how a correct password stops working for
+ * ever, reported as "login nahi ho raha he" the day after it was first set.
+ *
+ * A password pasted into a hosting provider's variable box very easily carries
+ * a trailing space or a newline, and the box shows neither. It is much worse
+ * than being hard to type: HTTP strips leading and trailing whitespace from a
+ * header value, so a password ending in a space CANNOT be sent in an
+ * Authorization header at all. The right password is refused, the fifth
+ * refusal locks the address out for fifteen minutes, and nothing says why.
+ */
+run('whitespace the browser sends around the password is ignored', () => {
+  resetAuthAttempts();
+  assert.equal(call(' correct-horse ', '10.0.0.3').passed, true,
+    'a space nobody can see stood between him and his own task list');
+});
+
+run('trimming did not make the check loose', () => {
+  resetAuthAttempts();
+  assert.equal(call('correct-hors', '10.0.0.4').status, 401);
+  assert.equal(call('correct-horse-extra', '10.0.0.5').status, 401);
+  assert.equal(call('', '10.0.0.6').status, 401);
+});
+
+run('a password CONFIGURED with whitespace still lets its owner in', () => {
+  /*
+   * The half that matters most, and the one that cannot be checked in this
+   * process: config.js reads the variable once at import. So it runs for real
+   * in a child, with the padding a paste actually leaves behind.
+   */
+  const { execFileSync } = require('node:child_process');
+  const probe = `
+    const { config } = await import('../src/config.js');
+    const { requireAuth } = await import('../src/auth.js');
+    const req = { ip: '9.9.9.9', method: 'GET', originalUrl: '/api/tasks',
+      get: () => 'Bearer MySecret123!' };
+    let ok = false;
+    requireAuth(req, { status: () => ({ json: () => {} }), set: () => {} }, () => { ok = true; });
+    console.log(JSON.stringify({ ok, stored: config.dashboardPassword }));
+  `;
+  const out = execFileSync(process.execPath, ['--input-type=module', '-e', probe], {
+    cwd: new URL('.', import.meta.url).pathname,
+    env: { ...process.env, DASHBOARD_PASSWORD: '  MySecret123!\n', DATA_DIR: dir },
+    encoding: 'utf8',
+  });
+  const result = JSON.parse(out.trim().split('\n').pop());
+  assert.equal(result.stored, 'MySecret123!', 'the variable was not trimmed on the way in');
+  assert.equal(result.ok, true, 'the correct password was refused');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

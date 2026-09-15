@@ -4,6 +4,24 @@ import { log } from './logger.js';
 
 export const authEnabled = Boolean(config.dashboardPassword);
 
+/*
+ * Say when the password had whitespace around it, rather than fixing it in
+ * silence.
+ *
+ * config.js trims it, so the login works either way now - but the variable in
+ * the hosting provider is still wrong, and the next person to copy it out (or
+ * to compare it against a password manager) will be comparing two different
+ * strings. Repairing something invisibly is how it stays wrong.
+ */
+const rawPassword = process.env.DASHBOARD_PASSWORD || '';
+if (rawPassword && rawPassword !== rawPassword.trim()) {
+  log.warn(
+    'DASHBOARD_PASSWORD has a space or a line break around it. It is being trimmed, so '
+    + 'logging in works — but fix the variable: HTTP strips trailing whitespace from a '
+    + 'header, so before this trim existed the correct password could not be sent at all.',
+  );
+}
+
 if (!authEnabled) {
   log.warn(
     'DASHBOARD_PASSWORD is not set — the API is open to anyone who can reach it. ' +
@@ -97,7 +115,10 @@ export function requireAuth(req, res, next) {
   }
 
   const header = req.get('authorization') || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  // Trimmed at both ends for the same reason the configured password is: a
+  // space nobody can see must never be the thing standing between him and his
+  // own task list.
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 
   if (token && timingSafeEqual(token, config.dashboardPassword)) {
     clearFailures(ip);
