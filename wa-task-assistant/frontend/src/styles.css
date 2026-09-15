@@ -4690,3 +4690,39 @@ button.due:hover { background: var(--raised); }
 .field-note.quiet { color: color-mix(in srgb, var(--muted) 82%, transparent); }
 .linkish { border: 0; background: none; padding: 0; font: inherit; cursor: pointer;
            color: var(--brand); text-decoration: underline; }
+
+/* ---------- the month strip ---------- */
+
+/*
+ * Same size as the folder chips below it and the day chips above — asked for
+ * once already ("task folder ko today tom jitni size ka bana do") and the
+ * answer has not changed: three rows of controls that each set their own type
+ * size read as three separate applications stacked on one page.
+ *
+ * Wrap rather than equal-width columns, so each chip is as wide as its own
+ * month and a year of them still sits on one or two lines.
+ */
+.month-strip {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 0 0 8px;
+}
+.month-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+/* The count sits quiet: it is a figure you read after the month, not before. */
+.month-n {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: .72rem; font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.month-chip.on .month-n { color: inherit; }
+/*
+ * A past month with work already late. The dot is the signal, not the colour
+ * of the whole chip - a row of red chips says "everything is wrong" and stops
+ * being read, which is the opposite of what a warning is for.
+ */
+.month-chip.late::after {
+  content: ''; width: 5px; height: 5px; border-radius: 999px;
+  background: var(--danger, #a3231b); flex: none;
+}

@@ -16,6 +16,7 @@ import Backups from './components/Backups.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import DayBar from './components/DayBar.jsx';
 import FolderStrip from './components/FolderStrip.jsx';
+import MonthStrip from './components/MonthStrip.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
 import QuickActions from './components/QuickActions.jsx';
@@ -44,12 +45,12 @@ import NotesPage from './components/NotesPage.jsx';
 import LeadsPage from './components/LeadsPage.jsx';
 import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
-import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, todayIso } from './lib/task.js';
+import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, taskMonth, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
 import { activity, chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
-const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null };
+const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null, month: null };
 
 /*
  * Work that is out with somebody and not finished yet.
@@ -634,7 +635,7 @@ export default function App() {
     );
   }, [allNotes, query]);
 
-  const visible = useMemo(() => {
+  const monthPool = useMemo(() => {
     const today = todayIso();
     /*
      * Searching is its own mode, not a filter on the page you were looking at.
@@ -709,6 +710,25 @@ export default function App() {
       return matchesQuery(task, query);
     });
   }, [tasks, view, filters, query, selectedDate, searching, doneDay, showAllotted]);
+
+  /*
+   * The month scope is applied AFTER everything else, and the chips count what
+   * comes out of the step before it.
+   *
+   * That ordering is the whole reason the strip can be trusted: filtered first
+   * by view, folder and the rest, so a chip agrees with the list it opens -
+   * and not yet by month, so picking September does not collapse every other
+   * chip to zero, which is exactly what a strip must not do.
+   *
+   * Search ignores it entirely. If you went looking for something you want to
+   * find it, whatever month it is in.
+   */
+  const visible = useMemo(
+    () => (filters.month && !searching
+      ? monthPool.filter((task) => taskMonth(task) === filters.month)
+      : monthPool),
+    [monthPool, filters.month, searching]
+  );
 
   /*
    * What came in today, and how much of it this page is hiding.
@@ -1734,6 +1754,14 @@ export default function App() {
                       * search is the scope, and on the folder pages, which are
                       * already one folder.
                       */}
+                    {(page.overview || page.tabs || page.toolbar) && !searching && (
+                      <MonthStrip
+                        tasks={monthPool}
+                        active={filters.month}
+                        onPick={(key) => setFilters((f) => ({ ...f, month: key }))}
+                      />
+                    )}
+
                     {(page.overview || page.tabs || page.toolbar) && !searching && !groupId
                       && view !== 'done' && (
                       <FolderStrip

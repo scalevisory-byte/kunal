@@ -423,3 +423,80 @@ export function formatWaNumber(wid) {
 /** First letter of the account name, for the header badge. */
 export const initialOf = (name, fallback) =>
   (String(name || '').trim()[0] || String(fallback || '').replace(/\D/g, '')[0] || '·').toUpperCase();
+
+/* ---------------- which month a task belongs to ---------------- */
+
+/**
+ * The month a task is filed under.
+ *
+ * Its DEADLINE's month when it has one, and the month it arrived when it does
+ * not. That is how the work is actually thought about: a job due on 20 October
+ * is October's work even if the message came in on 5 September. Only work with
+ * no deadline at all has nothing better to go on than when it turned up.
+ *
+ * `due_date` is already a plain local day, so it needs no conversion. A task
+ * that only has `due_at` (an instant) or nothing but `created_at` is read in
+ * the browser's own calendar, which is his - the same calendar the row's date
+ * column is printed in, so a task never appears under one month and prints a
+ * date in another.
+ */
+export function taskMonth(task) {
+  if (task.due_date) return String(task.due_date).slice(0, 7);
+  const stamp = task.due_at || task.created_at;
+  if (!stamp) return null;
+  const at = new Date(stamp.includes('T') ? stamp : `${stamp.replace(' ', 'T')}Z`);
+  if (Number.isNaN(at.getTime())) return null;
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** This month, in the same calendar taskMonth uses. */
+export function currentMonth(now = new Date()) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** "Sep 2026", or just "Sep" inside the current year, which is most of them. */
+export function monthLabel(key, now = new Date()) {
+  const [y, m] = String(key).split('-').map(Number);
+  if (!y || !m) return key;
+  const name = new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'short' });
+  return y === now.getFullYear() ? name : `${name} ${y}`;
+}
+
+/**
+ * The months worth showing above the list, newest first.
+ *
+ * The rule he asked for: a month that is over still gets its chip **while it
+ * still has work owed** - "month complete ho or o month k task pending he to
+ * us month ki tab me dikhe". A past month everything is finished in has
+ * nothing left to chase, so it stops taking up the row; its work is in
+ * Completed, where finished work lives.
+ *
+ * The current month is always there even when it is empty, because a row that
+ * loses today's chip on a quiet morning reads as broken.
+ *
+ * Counted from the tasks the board is showing - the same rows, after the same
+ * filters - so the chip and the sections underneath can never disagree.
+ */
+export function monthsFor(tasks = [], now = new Date()) {
+  const here = currentMonth(now);
+  const byMonth = new Map();
+
+  for (const task of tasks) {
+    const key = taskMonth(task);
+    if (!key) continue;
+    if (!byMonth.has(key)) byMonth.set(key, { key, total: 0, pending: 0, overdue: 0 });
+    const row = byMonth.get(key);
+    row.total += 1;
+    if (!isDone(task)) {
+      row.pending += 1;
+      if (isOverdue(task)) row.overdue += 1;
+    }
+  }
+
+  if (!byMonth.has(here)) byMonth.set(here, { key: here, total: 0, pending: 0, overdue: 0 });
+
+  return [...byMonth.values()]
+    .filter((m) => m.key === here || m.pending > 0)
+    .map((m) => ({ ...m, label: monthLabel(m.key, now), current: m.key === here }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+}

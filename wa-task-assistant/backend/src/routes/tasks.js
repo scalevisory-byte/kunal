@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createTask, getTask, listTasks, updateTask, deleteTask, taskStats } from '../db.js';
+import { createTask, getTask, listTasks, countTasks, updateTask, deleteTask, taskStats } from '../db.js';
 import { normalizeDueDate, normalizeInstant, today } from '../dates.js';
 import { parseQuickTask, isoAtLocal } from '../quickparse.js';
 import { config } from '../config.js';
@@ -66,7 +66,22 @@ tasksRouter.get('/', (req, res) => {
    * asked of the list, not of the sidebar.
    */
   const duplicates = duplicateGroups().reduce((n, g) => n + g.drop.length, 0);
-  res.json({ tasks, stats: { ...taskStats(), duplicates }, stages: knownStages() });
+  /*
+   * The true number of rows the scope holds, beside the rows actually sent.
+   *
+   * The cap used to bite in silence: tasks past it were simply absent from a
+   * board whose whole job is not to lose work, and every figure computed from
+   * the list - the month strip, the folder counts - was wrong with it. With
+   * the total here the page can say "showing 2,000 of 2,431" instead.
+   */
+  const total = countTasks({ status, includeSetAside: true });
+  res.json({
+    tasks,
+    total,
+    truncated: total > tasks.length,
+    stats: { ...taskStats(), duplicates },
+    stages: knownStages(),
+  });
 });
 
 tasksRouter.post('/', (req, res) => {

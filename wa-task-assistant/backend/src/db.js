@@ -902,7 +902,11 @@ export function getTask(id) {
  * question being asked is "what do I owe", and work deliberately set aside is
  * not an answer to it.
  */
-export function listTasks({ status, limit = 500, includeSetAside = false, order } = {}) {
+/**
+ * The clause that picks which rows a board query is about, shared by the list
+ * and the count so the two can never disagree about what they are counting.
+ */
+function taskScope({ status, includeSetAside = false }) {
   let where = '';
   const params = [];
   if (status === 'pending') {
@@ -914,6 +918,35 @@ export function listTasks({ status, limit = 500, includeSetAside = false, order 
     where = 'WHERE t.archived_at IS NULL';
   }
   if (!includeSetAside) where += ` AND ${NOT_SET_ASIDE}`;
+  return { where, params };
+}
+
+/**
+ * How many rows the list query would return without its cap.
+ *
+ * The cap existed from the start and said nothing when it bit: rows past it
+ * simply were not there, on a board whose entire job is not to lose work.
+ * Returning the true figure is what lets the page say "showing 2,000 of 2,431"
+ * instead of quietly being wrong.
+ */
+export function countTasks({ status, includeSetAside = false } = {}) {
+  const { where, params } = taskScope({ status, includeSetAside });
+  return db.prepare(`SELECT COUNT(*) AS n FROM tasks t ${where}`).get(...params).n;
+}
+
+/*
+ * The cap is 2,000 rather than 500.
+ *
+ * The dashboard fetches the whole list once and slices it client-side, and the
+ * month strip counts from the same rows - so a cap that bites does not just
+ * hide tasks, it makes every figure on the page wrong. At ~280 tasks today,
+ * 500 was closer than it looked. 2,000 is years of headroom at this rate, and
+ * the true total travels beside the rows so the day it is ever reached the
+ * page says so rather than silently dropping the rest.
+ */
+export function listTasks({ status, limit = 2000, includeSetAside = false, order } = {}) {
+  const { where: scopeWhere, params } = taskScope({ status, includeSetAside });
+  let where = scopeWhere;
 
   // "Recent" is the one view that asks a different question: not what is most
   // pressing, but what has just arrived.
@@ -928,7 +961,7 @@ export function listTasks({ status, limit = 500, includeSetAside = false, order 
        ${where}
        ORDER BY ${sort}
        LIMIT ?`;
-  params.push(Math.min(Number(limit) || 500, 1000));
+  params.push(Math.min(Number(limit) || 2000, 5000));
   return db.prepare(sql).all(...params);
 }
 

@@ -162,7 +162,16 @@ run('the board and its figures apply the same rule', () => {
   // read; `visible` is the list. A rule applied to one and not the other is how
   // "6 open" ends up over four rows.
   const dayTasks = appSrc.slice(appSrc.indexOf('const dayTasks ='), appSrc.indexOf('const allottedHidden'));
-  const visible = appSrc.slice(appSrc.indexOf('const visible ='), appSrc.indexOf('const arrivedToday'));
+  /*
+   * The whole chain that builds the board's list, not one variable's name.
+   *
+   * It was sliced from `const visible =` until the month strip split that memo
+   * in two - the predicate into `monthPool`, the month scope into `visible` -
+   * and the rule being checked moved with the predicate while staying in the
+   * same chain. Slicing the chain keeps the check about the rule rather than
+   * about where the rule currently sits.
+   */
+  const visible = appSrc.slice(appSrc.indexOf('const monthPool ='), appSrc.indexOf('const arrivedToday'));
   assert.match(dayTasks, /withSomebody/, 'the figures leave out work with somebody else');
   assert.match(visible, /withSomebody\(task\) && !showAllotted/, 'and so does the list');
 });
@@ -371,7 +380,16 @@ run('the list carries both tabs, with their counts', () => {
 run('the Allotted tab shows the rows the board otherwise keeps off it', () => {
   // Without this it would be the one tab that is always empty: the gate above
   // it exists precisely to take those rows off the list.
-  const visible = appSrc.slice(appSrc.indexOf('const visible ='), appSrc.indexOf('const arrivedToday'));
+  /*
+   * The whole chain that builds the board's list, not one variable's name.
+   *
+   * It was sliced from `const visible =` until the month strip split that memo
+   * in two - the predicate into `monthPool`, the month scope into `visible` -
+   * and the rule being checked moved with the predicate while staying in the
+   * same chain. Slicing the chain keeps the check about the rule rather than
+   * about where the rule currently sits.
+   */
+  const visible = appSrc.slice(appSrc.indexOf('const monthPool ='), appSrc.indexOf('const arrivedToday'));
   assert.match(visible, /withSomebody\(task\) && !showAllotted && view !== 'allotted'/);
   assert.match(visible, /view === 'allotted' && !withSomebody\(task\)/);
   assert.match(visible, /view === 'received' && \(!task\.requested_by \|\| isDone\(task\)\)/);
