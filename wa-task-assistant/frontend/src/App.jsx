@@ -1186,7 +1186,13 @@ export default function App() {
                   <h3>WhatsApp connection</h3>
                   <span>Where tasks come from</span>
                 </header>
-                <StatusBar status={status} stats={stats} overdueCount={overdueCount} />
+                <StatusBar
+                  status={status}
+                  stats={stats}
+                  overdueCount={overdueCount}
+                  onRefresh={() => refresh({ quiet: true })}
+                  onError={(err) => setError(err.message)}
+                />
               </section>
 
               {/*

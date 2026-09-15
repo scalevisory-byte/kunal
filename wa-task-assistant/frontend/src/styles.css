@@ -4726,3 +4726,6 @@ button.due:hover { background: var(--raised); }
   content: ''; width: 5px; height: 5px; border-radius: 999px;
   background: var(--danger, #a3231b); flex: none;
 }
+
+/* The relink confirmation reuses the warn box; it needs the same button gap. */
+.warn-box .btn + .btn { margin-left: 8px; }

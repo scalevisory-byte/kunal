@@ -28,6 +28,7 @@ import { createLead, leadByWid } from './leads.js';
 import { listGroups } from './groups.js';
 import { repairGroupNames, looksLikeId } from './group-names.js';
 import { matchesPattern } from './blocklist.js';
+import fs from 'node:fs';
 
 const { Client, LocalAuth } = pkg;
 
@@ -1362,6 +1363,58 @@ export function loadCounters() {
   } catch { /* a database that is not ready yet */ }
 }
 
+/*
+ * Reasons that mean the login itself is gone, rather than the connection.
+ *
+ * whatsapp-web.js passes the raw WhatsApp state through, so this matches on
+ * the two that mean "this device is no longer linked" and deliberately nothing
+ * else. CONFLICT (another session took over) and NAVIGATION recover by
+ * themselves and leave the login valid.
+ */
+const isUnlinked = (reason) => /UNPAIRED|LOGOUT/i.test(String(reason || ''));
+
+/** Stops two relinks running at once - each one starts a Chromium. */
+let relinking = false;
+
+/**
+ * Throw the stored login away and come back with a fresh QR.
+ *
+ * Destroy first, then delete: Chromium holds files inside the profile while it
+ * is running, so removing the directory underneath it leaves a half-deleted
+ * profile that fails to open on the next start - which would turn "scan again"
+ * into "the app will not start".
+ */
+export async function relink({ reason = 'asked from the dashboard' } = {}) {
+  if (relinking) return { ok: false, reason: 'already restarting' };
+  relinking = true;
+  try {
+    noteEvent('relink', reason);
+    state.status = 'restarting';
+    state.qr = null;
+    state.me = null;
+
+    if (client) {
+      await client.destroy().catch(() => {});
+      client = null;
+    }
+    // A moment for Chromium to release its file handles before the directory
+    // goes; on a slow volume the destroy resolves before the last write lands.
+    await new Promise((r) => setTimeout(r, 1500));
+
+    fs.rmSync(config.waSessionDir, { recursive: true, force: true });
+    log.warn(`WhatsApp session cleared (${reason}). Scan the QR on the dashboard to link again.`);
+
+    startWhatsApp();
+    return { ok: true };
+  } catch (err) {
+    state.lastError = err?.message || String(err);
+    log.error('Relink failed:', state.lastError);
+    return { ok: false, reason: state.lastError };
+  } finally {
+    relinking = false;
+  }
+}
+
 export function startWhatsApp() {
   loadCounters();
   clearStaleBrowserLocks();
@@ -1445,6 +1498,30 @@ export function startWhatsApp() {
     noteEvent('disconnected', reason);
     state.lastError = String(reason);
     log.warn('WhatsApp disconnected:', reason);
+
+    /*
+     * A device that has been unlinked can never come back on its own.
+     *
+     * This handler used to only write the reason down. So when WhatsApp said
+     * UNPAIRED - the phone removed this linked device, or the session simply
+     * expired - the dead login stayed on the volume, no `qr` event ever fired
+     * again, and every restart authenticated with the same dead session and was
+     * unpaired again. Seen on the live app after 162 starts: `authenticated`
+     * four times, then OPENING -> PAIRING -> UNPAIRED, for ever. With no shell
+     * access there was no way back, which is the exact situation the QR-over-
+     * HTTP feature exists to prevent.
+     *
+     * Only a genuine unlink triggers this. A network blip, a navigation or a
+     * second session taking over are all recoverable and must NOT cost the
+     * login: throwing away a healthy session because the wifi dropped would
+     * force a re-scan for nothing.
+     */
+    if (isUnlinked(reason)) {
+      log.warn('WhatsApp reports this device was unlinked. Clearing the dead session '
+        + 'and starting again so a fresh QR can be scanned.');
+      relink({ reason: `unlinked: ${reason}` }).catch((err) =>
+        log.error('Could not restart after being unlinked:', err?.message || err));
+    }
   });
 
   if (config.extractionMode === 'manual') {

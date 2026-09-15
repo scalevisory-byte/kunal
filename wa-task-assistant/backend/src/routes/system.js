@@ -6,7 +6,7 @@ import {
   listBlockedChats, blockChat, unblockChat, recentChats,
 } from '../db.js';
 import { matchesPattern } from '../blocklist.js';
-import { state, flushNow, groupNameFor, reprocessStored } from '../whatsapp.js';
+import { state, flushNow, groupNameFor, reprocessStored, relink } from '../whatsapp.js';
 import {
   repairGroupNames, groupChatIds, needsName, nameFromSiblings, taskChatState,
   blankChatExamples,
@@ -196,6 +196,25 @@ systemRouter.delete('/backups/:name', (req, res) => {
   }
   fs.rmSync(full, { force: true });
   res.json({ deleted: req.params.name, backups: backupState() });
+});
+
+/*
+ * Throw the WhatsApp login away and ask for a new QR.
+ *
+ * The automatic path (see the disconnected handler) only fires when WhatsApp
+ * announces the unlink while the app is listening. A session that died while
+ * the app was down - or one already sitting dead, as happened here after 162
+ * restarts - never produces that event again, so without this button the only
+ * cure was shell access to delete the folder. That is precisely what serving
+ * the QR over HTTP exists to avoid.
+ *
+ * Destructive on purpose: it WILL require scanning the code again, so the
+ * dashboard asks before calling it.
+ */
+systemRouter.post('/whatsapp/relink', async (req, res) => {
+  const result = await relink({ reason: 'asked from the dashboard' });
+  if (!result.ok) return res.status(409).json({ error: result.reason });
+  res.json({ ok: true, whatsapp: state.status });
 });
 
 systemRouter.post('/selftest', async (req, res) => {

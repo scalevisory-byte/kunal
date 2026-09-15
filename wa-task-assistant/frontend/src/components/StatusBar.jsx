@@ -297,7 +297,60 @@ function Pipeline({ wa, cfg, connected }) {
   );
 }
 
-export default function StatusBar({ status, stats, overdueCount }) {
+
+/**
+ * "Unlink and scan again" — destructive, so it asks first.
+ *
+ * It throws away the stored WhatsApp login. That is the whole point when the
+ * login is dead, and exactly the wrong thing to press when it is merely
+ * offline, so the confirmation says which of those it is about to do rather
+ * than a bare "are you sure".
+ */
+function RelinkButton({ onDone, onError }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const go = async () => {
+    setBusy(true);
+    try {
+      await api.relinkWhatsApp();
+      setAsking(false);
+      await onDone?.();
+    } catch (err) {
+      onError?.(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!asking) {
+    return (
+      <p className="field-note" style={{ marginTop: 10 }}>
+        <button type="button" className="btn" onClick={() => setAsking(true)}>
+          Unlink and scan again
+        </button>{' '}
+        Use this when WhatsApp says the device was unlinked and no QR appears —
+        a login removed from your phone cannot come back on its own.
+      </p>
+    );
+  }
+
+  return (
+    <div className="warn-box" style={{ marginTop: 10 }}>
+      <p>
+        This deletes the saved WhatsApp login and asks for a fresh QR code.{' '}
+        <b>You will have to scan it from your phone before any message is read again.</b>{' '}
+        Nothing else is touched — your tasks, history and notes all stay.
+      </p>
+      <button type="button" className="btn danger" disabled={busy} onClick={go}>
+        {busy ? 'Clearing…' : 'Yes, unlink and show a new QR'}
+      </button>
+      <button type="button" className="btn" onClick={() => setAsking(false)}>Cancel</button>
+    </div>
+  );
+}
+
+export default function StatusBar({ status, stats, overdueCount, onRefresh, onError }) {
   const wa = status?.whatsapp;
   const state = wa?.status || 'starting';
   const cfg = status?.config;
@@ -343,6 +396,21 @@ export default function StatusBar({ status, stats, overdueCount }) {
           <strong>AI mode</strong> — incoming chats are read automatically and actionable
           messages become tasks.
         </p>
+      )}
+
+      {/*
+        * The way back when the login is dead rather than merely offline.
+        *
+        * WhatsApp marks a removed device UNPAIRED, and a session in that state
+        * never produces another QR by itself: every restart authenticates with
+        * the dead login and is unpaired again. Seen live after 162 starts. The
+        * app clears it automatically when it is listening at the moment of the
+        * unlink, but a session that died while it was down needs asking — and
+        * without this the only cure was shell access to delete a folder, which
+        * is the situation serving the QR over HTTP exists to prevent.
+        */}
+      {state !== 'ready' && state !== 'qr' && (
+        <RelinkButton onDone={onRefresh} onError={onError} />
       )}
 
       {state === 'qr' && wa?.qrDataUrl && (
