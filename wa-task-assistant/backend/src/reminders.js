@@ -15,7 +15,9 @@ const dbUpdateCount = db.prepare(
 );
 import {
   getSettings, dueReminders, claimReminder, markMissed, addNotification,
+  claimBriefing, recordBriefingSent, localParts,
 } from './scheduling.js';
+import { makeBackup } from './backups.js';
 import { getTask } from './db.js';
 import {
   dueMoment, planTask, scheduleNextFollowUp, syncNextReminder, tasksWithDeadlines,
@@ -207,6 +209,28 @@ const LABEL = {
  */
 export async function runReminderEngine({ now = new Date() } = {}) {
   const settings = getSettings();
+
+  /*
+   * The nightly copy of the database rides this tick too.
+   *
+   * On the tick rather than on its own cron because the tick runs every few
+   * minutes: a machine that was asleep or redeploying at the scheduled minute
+   * still takes the day's copy the moment it is back, where a once-a-day cron
+   * would simply have missed it. Claimed for the day like the briefing, so a
+   * restart cannot take it twice.
+   *
+   * It never throws into the tick. This same pass sends reminders, and a disk
+   * too full to copy is exactly when the reminders matter most.
+   */
+  try {
+    const day = localParts(now).day;
+    if (claimBriefing(`backup:${day}`, { maxAttempts: 2 })) {
+      const result = makeBackup({ label: 'nightly' });
+      if (result.ok) recordBriefingSent(`backup:${day}`, 1);
+    }
+  } catch (err) {
+    log.error('Nightly backup:', err?.message || err);
+  }
 
   // The briefing rides the same tick as everything else: one scheduler, and a
   // claim that survives restarts, rather than a second cron to keep in step.

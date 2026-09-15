@@ -263,6 +263,33 @@ export const api = {
 
   groupNames: () => request('/group-names'),
   repairGroupNames: () => request('/group-names/repair', { method: 'POST' }),
+  backups: () => request('/backups'),
+  makeBackup: () => request('/backups', { method: 'POST' }),
+
+  /*
+   * Takes a copy off the box.
+   *
+   * This is the one action here that survives losing the volume, so it goes
+   * through fetch with the bearer token rather than a plain link - a link
+   * sends no Authorization header and would 401 the moment a password is set.
+   */
+  async downloadBackup(name) {
+    const token = getToken();
+    const response = await fetch(`/api/backups/${encodeURIComponent(name)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (response.status === 401) throw new UnauthorizedError();
+    if (!response.ok) throw new Error(`Could not download that copy (${response.status})`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
 
   engine: () => request('/attention/engine'),
   runEngine: () => request('/reminders/exact', { method: 'POST' }),

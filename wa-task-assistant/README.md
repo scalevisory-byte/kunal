@@ -525,6 +525,7 @@ session keeps receiving messages even when the phone is offline.
    | `VAPID_SUBJECT` | `mailto:you@example.com` |
    | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` (already set in the image) |
    | `LAW_FEEDS` | optional — `Name\|url` pairs, comma separated, to change the law-digest sources |
+   | `BACKUP_KEEP` | optional — how many nightly database copies to keep (default 7) |
 
 5. Deploy, open the URL, unlock with the password, and scan the QR shown on the dashboard.
 6. Confirm the pipeline: send yourself a WhatsApp message like *"please send the GST invoice to

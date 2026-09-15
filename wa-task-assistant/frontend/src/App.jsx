@@ -12,6 +12,7 @@ import CaptureSettings from './components/CaptureSettings.jsx';
 import TidyTitles from './components/TidyTitles.jsx';
 import MessagesRead from './components/MessagesRead.jsx';
 import GroupNames from './components/GroupNames.jsx';
+import Backups from './components/Backups.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import DayBar from './components/DayBar.jsx';
 import FolderStrip from './components/FolderStrip.jsx';
@@ -1215,6 +1216,13 @@ export default function App() {
                 onError={(err) => setError(err.message)}
               />
               <GroupNames onError={(err) => setError(err.message)} />
+              <Backups
+                state={status?.backups}
+                onMake={() => api.makeBackup()}
+                onDownload={(name) => api.downloadBackup(name)}
+                onError={(err) => setError(err.message)}
+                onRefresh={() => refresh({ quiet: true })}
+              />
               <BlockedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
               <MessagesRead mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
             </section>
@@ -1584,6 +1592,22 @@ export default function App() {
                       />
                     )}
 
+                    {/*
+                      * The controls stay put while the list scrolls.
+                      *
+                      * Asked for as "overdue ke upar wala part freeze ho".
+                      * Over 277 tasks the tabs, the day chips and the folders
+                      * are ten screens up by the time you want them, so
+                      * changing what you are looking at means scrolling back
+                      * to the top and then finding your place again. They are
+                      * one block so they cannot drift apart, pinned under the
+                      * top bar, which is sticky already.
+                      *
+                      * Only the controls. The greeting, the quick-add box and
+                      * the notices below them are read once and would cost a
+                      * third of a laptop screen for nothing.
+                      */}
+                    <div className="board-controls">
                     {(page.overview || page.tabs || page.toolbar) && !searching && (
                       <div className="work-head">
                         {(page.overview || page.tabs) ? (
@@ -1720,6 +1744,7 @@ export default function App() {
                         onManage={() => setSection('groups')}
                       />
                     )}
+                    </div>
 
                     {/*
                       * The fastest road of all: a line above the list, always

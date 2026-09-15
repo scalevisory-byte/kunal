@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Router } from 'express';
 import { config } from '../config.js';
 import {
@@ -15,6 +16,7 @@ import { transcriptionState } from '../transcribe.js';
 import { vapidEnabled } from '../push.js';
 import { authEnabled, authStats } from '../auth.js';
 import { diagnostics, startedAt } from '../diagnostics.js';
+import { backupState, makeBackup, backupPath, listBackups } from '../backups.js';
 import { extractTasks } from '../extractor.js';
 import {
   usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat, blockEffect,
@@ -77,6 +79,8 @@ systemRouter.get('/status', (req, res) => {
     },
     tasks: taskStats(),
     security: authStats(),
+    // Whether a copy of everything exists, and how old it is.
+    backups: backupState(),
     diagnostics: diagnostics(),
     config: {
       extractionMode: config.extractionMode,
@@ -150,6 +154,48 @@ systemRouter.post('/group-names/repair', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err?.message || 'could not read the group names' });
   }
+});
+
+/* ---------------- backups ---------------- */
+
+systemRouter.get('/backups', (req, res) => res.json(backupState()));
+
+/*
+ * Take one now. Bounded and pruned inside makeBackup, and it answers with the
+ * refusal rather than a 500 when the disk is tight - "not enough space" is an
+ * answer, not a crash.
+ */
+systemRouter.post('/backups', (req, res) => {
+  const result = makeBackup({ label: 'manual' });
+  if (!result.ok) return res.status(507).json({ error: result.reason });
+  res.json({ ...result, backups: backupState() });
+});
+
+/*
+ * Download one.
+ *
+ * This is the route that actually protects anything: every copy on the volume
+ * shares the fate of the volume, so getting a file onto his own machine is the
+ * only thing here that survives losing it. The name is matched against a fixed
+ * pattern rather than sanitised, so nothing outside the backup directory can
+ * be addressed however the path is spelled.
+ */
+systemRouter.get('/backups/:name', (req, res) => {
+  const full = backupPath(req.params.name);
+  if (!full) return res.status(404).json({ error: 'no such backup' });
+  res.download(full, req.params.name);
+});
+
+systemRouter.delete('/backups/:name', (req, res) => {
+  const full = backupPath(req.params.name);
+  if (!full) return res.status(404).json({ error: 'no such backup' });
+  // Refuse to leave nothing behind: deleting the only copy by hand is almost
+  // never what was meant, and the nightly job prunes without needing this.
+  if (listBackups().length <= 1) {
+    return res.status(400).json({ error: 'this is the only copy - it will be replaced automatically tonight' });
+  }
+  fs.rmSync(full, { force: true });
+  res.json({ deleted: req.params.name, backups: backupState() });
 });
 
 systemRouter.post('/selftest', async (req, res) => {

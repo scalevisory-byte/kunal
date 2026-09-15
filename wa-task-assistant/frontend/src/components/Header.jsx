@@ -59,8 +59,32 @@ export default function Header({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /*
+   * Publish this bar's height, so what sticks under it knows where to stop.
+   *
+   * The board controls below pin themselves to the bottom edge of this bar,
+   * and that edge moves: the bar wraps to two rows on a narrow screen, and
+   * grows with the browser's font size. A number written into the stylesheet
+   * would be right on one screen and wrong on the next, and being wrong here
+   * means the controls either float below a gap or hide behind the bar. So it
+   * is measured, and re-measured whenever the bar changes size.
+   */
+  const bar = useRef(null);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el) return undefined;
+    const publish = () => {
+      document.documentElement.style.setProperty('--topbar-h', `${Math.round(el.offsetHeight)}px`);
+    };
+    publish();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <header className="topbar">
+    <header className="topbar" ref={bar}>
       <button className="menu-btn" onClick={onMenu} aria-label="Open sections">
         <Icon name="list" size={20} />
       </button>
