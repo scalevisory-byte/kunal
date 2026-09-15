@@ -136,6 +136,15 @@ export const config = {
    * spaced five apart would miss it every time - and a cache write costs a
    * quarter MORE than a plain call. The ceiling has to sit inside the window
    * it depends on.
+   *
+   * But only while there IS a cache to keep warm - and on the model actually
+   * running (`claude-haiku-4-5`, which will not cache a prompt under 4,096
+   * tokens) there is none, which AI Usage now says outright. Nothing is being
+   * kept warm by staying under five minutes, so the four is buying nothing,
+   * and BATCH_MAX_WAIT_SECONDS can go well past it: the calls fall roughly in
+   * proportion, and what it costs is how late a message becomes a task. It is
+   * left at four because that is a decision about how quickly this thing
+   * answers, which is the owner's to make, not a default to change quietly.
    */
   batchMaxWaitMs: num(process.env.BATCH_MAX_WAIT_SECONDS, 240) * 1000,
   batchMaxMessages: num(process.env.BATCH_MAX_MESSAGES, 40),
