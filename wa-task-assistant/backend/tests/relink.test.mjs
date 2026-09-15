@@ -60,7 +60,8 @@ describe('the recovery', () => {
 
   it('starts again, so a fresh QR can actually appear', () => {
     const body = src.slice(src.indexOf('export async function relink'));
-    assert.match(body, /startWhatsApp\(\)/, 'nothing restarts, so no QR is ever produced');
+    assert.match(body, /startWhatsApp\(\{ force: true \}\)/,
+      'nothing restarts, so no QR is ever produced');
   });
 
   it('cannot run twice at once — each one starts a Chromium', () => {
@@ -137,7 +138,7 @@ describe('how many pairing codes the app may ask for', () => {
     assert.match(src, /export async function showQr/);
     const body = src.slice(src.indexOf('export async function showQr'), src.indexOf('export async function relink'));
     assert.ok(!/rmSync/.test(body), 'the safe button deletes the session too');
-    assert.match(body, /startWhatsApp\(\)/);
+    assert.match(body, /startWhatsApp\(\{ force: true \}\)/);
   });
 
   it('tells him to open Linked devices BEFORE pressing it', () => {
@@ -193,5 +194,49 @@ describe('the linked device', () => {
     // A blip is not a rotting link, and saying so on every brief disconnect is
     // how a warning stops being read.
     assert.match(panel, /days < 2\) return null/);
+  });
+});
+
+/**
+ * Not spending pairing attempts on an empty room.
+ *
+ * With the QR appearing correctly and the phone still answering "Try again
+ * later", the limit is already in force on the account — and something was
+ * still feeding it. A client that starts unlinked begins requesting pairing
+ * codes at once, a dozen of them, whether or not anyone is holding a phone.
+ * This app restarts on every deploy, so an ordinary day of work spends scores
+ * of pairing requests nobody ever saw, which is exactly what keeps the refusal
+ * in force for the one scan that IS being watched.
+ */
+describe('when the app may ask WhatsApp to pair', () => {
+  it('does not ask at all when there is no saved login', () => {
+    const body = src.slice(src.indexOf('export function startWhatsApp'));
+    assert.match(body, /if \(!force && !sessionOnDisk\(\)\.loggedIn\)/,
+      'an unlinked restart still starts requesting codes on its own');
+    const gate = body.slice(0, body.indexOf('client = new Client'));
+    assert.match(gate, /return null/, 'the gate does not actually stop the client starting');
+  });
+
+  it('still reconnects by itself when a login IS saved', () => {
+    // The gate must not cost a working install its automatic reconnect after
+    // a deploy; that would trade one problem for a worse one.
+    const body = src.slice(src.indexOf('export function startWhatsApp'));
+    const gate = body.slice(0, body.indexOf('client = new Client'));
+    assert.match(gate, /!sessionOnDisk\(\)\.loggedIn/,
+      'the gate fires on something other than the absence of a login');
+  });
+
+  it('both deliberate paths force it, because a person is waiting', () => {
+    const showQr = src.slice(src.indexOf('export async function showQr'), src.indexOf('export async function relink'));
+    const relink = src.slice(src.indexOf('export async function relink'));
+    assert.match(showQr, /startWhatsApp\(\{ force: true \}\)/, 'the QR button would do nothing');
+    assert.match(relink.slice(0, relink.indexOf('\n}')), /startWhatsApp\(\{ force: true \}\)/,
+      'relink would clear the login and then not come back');
+  });
+
+  it('says so on the page, including that only time clears the refusal', () => {
+    assert.match(panel, /needs_link/);
+    assert.match(panel, /only time clears it/i,
+      'the page does not say that pressing again makes the wait longer');
   });
 });

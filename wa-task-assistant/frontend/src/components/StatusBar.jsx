@@ -8,6 +8,7 @@ const LABELS = {
   ready: 'Connected',
   disconnected: 'Disconnected',
   qr_gave_up: 'Waiting to be asked',
+  needs_link: 'Not linked',
   restarting: 'Restarting',
   error: 'Error',
 };
@@ -461,13 +462,18 @@ export default function StatusBar({ status, stats, overdueCount, onRefresh, onEr
         );
       })()}
 
-      {state === 'qr_gave_up' && (
+      {(state === 'qr_gave_up' || state === 'needs_link') && (
         <div className="warn-box">
           <p>
             <b>Not showing a code right now.</b> WhatsApp limits how many times an
-            account can be asked to link, so the app stops offering codes when
-            nobody scans them — asking all night is what makes your phone say
-            <em> “Try again later.”</em>
+            account can be asked to link, so this app only asks when you do —
+            it no longer offers codes to an empty room on every restart, which
+            is what makes a phone say <em>“Try again later.”</em>
+          </p>
+          <p>
+            If your phone is still saying that, the limit is already in force on
+            your account and <b>only time clears it</b> — pressing this again
+            spends more attempts and holds it open. Leave it an hour.
           </p>
           <p>
             Open <b>WhatsApp → Settings → Linked devices → Link a device</b> on your

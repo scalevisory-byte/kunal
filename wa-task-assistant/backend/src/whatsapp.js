@@ -13,7 +13,7 @@ import {
 import { extractTasks } from './extractor.js';
 import { parseQuickTask } from './quickparse.js';
 import { parseCommand } from './commands.js';
-import { clearStaleBrowserLocks, pruneProfileCaches } from './session-store.js';
+import { clearStaleBrowserLocks, pruneProfileCaches, sessionOnDisk } from './session-store.js';
 import { planTask, completeTask, rescheduleTask } from './task-lifecycle.js';
 import { parseTaskInstruction } from './nl-commands.js';
 import { buildBriefing, collectToday, clockOf, localDay } from './briefing.js';
@@ -1405,7 +1405,7 @@ export async function showQr() {
       client = null;
     }
     await new Promise((r) => setTimeout(r, 800));
-    startWhatsApp();
+    startWhatsApp({ force: true });
     return { ok: true };
   } catch (err) {
     state.lastError = err?.message || String(err);
@@ -1435,7 +1435,7 @@ export async function relink({ reason = 'asked from the dashboard' } = {}) {
     fs.rmSync(config.waSessionDir, { recursive: true, force: true });
     log.warn(`WhatsApp session cleared (${reason}). Scan the QR on the dashboard to link again.`);
 
-    startWhatsApp();
+    startWhatsApp({ force: true });
     return { ok: true };
   } catch (err) {
     state.lastError = err?.message || String(err);
@@ -1446,8 +1446,32 @@ export async function relink({ reason = 'asked from the dashboard' } = {}) {
   }
 }
 
-export function startWhatsApp() {
+export function startWhatsApp({ force = false } = {}) {
   loadCounters();
+
+  /*
+   * With no saved login, wait to be asked rather than offering codes to nobody.
+   *
+   * A client that starts unlinked begins requesting pairing codes immediately -
+   * a dozen of them, four minutes' worth - whether or not a person is holding a
+   * phone. This app restarts on every deploy, so a day of ordinary work spends
+   * scores of pairing requests that nobody ever saw, and WhatsApp answers a
+   * pile of those by refusing the account: "Try again later" on the phone,
+   * including for the one scan that IS being watched.
+   *
+   * So linking is a deliberate act now. With a session on disk this starts
+   * normally and reconnects; with none it rests here until "Show a new QR code"
+   * is pressed, which passes force.
+   */
+  if (!force && !sessionOnDisk().loggedIn) {
+    state.status = 'needs_link';
+    state.qrDataUrl = null;
+    noteEvent('waiting to be linked');
+    log.warn('No saved WhatsApp login. Not requesting a pairing code until asked — '
+      + 'press "Show a new QR code" on the dashboard with your phone ready.');
+    return null;
+  }
+
   clearStaleBrowserLocks();
   // Anything a previous run left cached on the volume goes now; the flags below
   // keep this run's cache off it entirely.
