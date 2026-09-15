@@ -4191,6 +4191,13 @@ button.due:hover { background: var(--raised); }
   margin: 0 0 14px; color: var(--text-2);
   font-size: .8rem; line-height: 1.6; max-width: 74ch;
 }
+/*
+ * The model question is an answer to the paragraph above it, not a new topic -
+ * so it is set off by a rule and a little air rather than by a heading.
+ */
+.usage-explain.second {
+  border-top: 1px solid var(--line); padding-top: 12px; margin-top: -2px;
+}
 /* A chat name needs room a date does not, and there is no cost column here. */
 .usage-list.chats > li { grid-template-columns: minmax(0, 200px) minmax(60px, 1fr) 78px 78px; }
 .usage-list.chats .u-tokens { text-align: right; }

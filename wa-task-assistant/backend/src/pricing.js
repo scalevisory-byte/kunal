@@ -54,3 +54,39 @@ export function costOf({
     + (output_tokens / 1e6) * price.output;
   return { usd, priced: true };
 }
+
+/**
+ * The cache hit rate at which switching model would start to pay - or null when
+ * no switch can pay at any hit rate.
+ *
+ * This exists because "haiku will not cache a 3,000-token prompt" invites an
+ * obvious and wrong conclusion: move to a model that will. Switching changes
+ * the price of every token too, so the saving is real only if enough calls
+ * actually read a warm cache - and a cache that is missed is worse than no
+ * cache, because a write costs a quarter more than a plain call.
+ *
+ * The figure is deliberately the CANDIDATE'S BEST CASE: it assumes the whole
+ * prompt is cacheable prefix, when in truth the date and the messages are not.
+ * A real switch needs a higher hit rate than this, never a lower one - so a
+ * measured reach below this number rules the switch out for certain, which is
+ * the only direction worth being confident in.
+ */
+export function cacheBreakEven({ model, promptTokens }) {
+  const current = PRICES[model];
+  if (!current || !promptTokens) return null;
+
+  let best = null;
+  for (const [name, price] of Object.entries(PRICES)) {
+    if (name === model) continue;
+    const minimum = CACHE_MINIMUM[name];
+    /* A model that would not cache this prompt either changes nothing. */
+    if (!minimum || minimum > promptTokens) continue;
+
+    const spread = price.input * (CACHE_WRITE_RATE - CACHE_READ_RATE);
+    const rate = (price.input * CACHE_WRITE_RATE - current.input) / spread;
+    if (rate > 1) continue;                     /* cannot pay however warm */
+    const needs = Math.max(0, rate);
+    if (!best || needs < best.needs) best = { model: name, needs };
+  }
+  return best;
+}

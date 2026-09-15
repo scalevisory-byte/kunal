@@ -445,6 +445,46 @@ export function usageByKind(days = 30) {
 }
 
 /**
+ * How often a call could have hit a warm cache, measured rather than assumed.
+ *
+ * A cached prefix lives five minutes from the call that last touched it, so the
+ * only calls that can ever read one are those that follow another closely. That
+ * fraction is the whole of the model question: caching pays for a model with a
+ * lower minimum only if the calls are close enough together to use it, and a
+ * workload of a few runs an hour never is. It is computed from the gaps between
+ * the calls this app actually made - not from the batching settings, which say
+ * what the window allows rather than how often messages arrive.
+ *
+ * Only `extract` counts. The law digests run once a day by design; including
+ * them would drag the figure down for a reason that has nothing to do with
+ * reading chats.
+ */
+export function cacheReach(days = 30, windowMinutes = 5) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS runs,
+              COALESCE(SUM(CASE WHEN gap IS NOT NULL AND gap <= ? THEN 1 ELSE 0 END), 0) AS warm
+       FROM (
+         SELECT (julianday(at) - julianday(LAG(at) OVER (ORDER BY at))) * 1440 AS gap
+         FROM api_usage
+         WHERE COALESCE(kind, 'extract') = 'extract'
+           AND day >= date('now', ?)
+       )`
+    )
+    .get(Number(windowMinutes) || 5, `-${Math.min(Number(days) || 30, 365)} days`);
+
+  const runs = row?.runs || 0;
+  const warm = row?.warm || 0;
+  return {
+    runs,
+    warm,
+    windowMinutes: Number(windowMinutes) || 5,
+    /* Null rather than 0 with nothing to divide: no runs is not a 0% hit rate. */
+    rate: runs > 1 ? warm / (runs - 1) : null,
+  };
+}
+
+/**
  * Which chats the read messages came from, busiest first.
  *
  * Not a currency figure and deliberately not dressed as one: the app cannot

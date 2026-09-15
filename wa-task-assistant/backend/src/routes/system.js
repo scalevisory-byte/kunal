@@ -20,9 +20,12 @@ import { backupState, makeBackup, backupPath, listBackups } from '../backups.js'
 import { extractTasks } from '../extractor.js';
 import {
   usageByDay, usageTotals, unprocessedCount, usageByKind, messageVolumeByChat, blockEffect,
+  cacheReach,
   messagesWithoutTasks, quietSenders,
 } from '../db.js';
-import { PRICES, PRICES_UPDATED, CACHE_MINIMUM, costOf } from '../pricing.js';
+import {
+  PRICES, PRICES_UPDATED, CACHE_MINIMUM, costOf, cacheBreakEven,
+} from '../pricing.js';
 
 export const systemRouter = Router();
 
@@ -270,6 +273,20 @@ systemRouter.get('/usage', (req, res) => {
   const withCost = days.map((d) => ({ ...d, ...costOf(d) }));
   const sum = (rows) => rows.reduce((n, d) => n + d.usd, 0);
 
+  const byKind = usageByKind(req.query.days).map((row) => ({ ...row, ...costOf(row) }));
+
+  /*
+   * Tokens on one run of the extractor, which is what the cache minimum is
+   * tested against. Reading chats only: the law digests send a day's articles
+   * and are far larger, so an average across all three would answer for a
+   * prompt nothing actually sends.
+   */
+  const reading = byKind.filter((row) => row.kind === 'extract');
+  const readingCalls = reading.reduce((n, row) => n + row.calls, 0);
+  const perRun = readingCalls
+    ? Math.round(reading.reduce((n, row) => n + row.input_tokens + row.cache_read, 0) / readingCalls)
+    : 0;
+
   res.json({
     model: config.model,
     mode: config.extractionMode,
@@ -289,7 +306,7 @@ systemRouter.get('/usage', (req, res) => {
     total: { ...totals, ...costOf({ ...totals, model: config.model }) },
 
     /* Where it went, and what it was spent on. */
-    byKind: usageByKind(req.query.days).map((row) => ({ ...row, ...costOf(row) })),
+    byKind,
     chats: messageVolumeByChat(req.query.days),
     /*
      * What each block has actually stopped. The busiest-chats list covers
@@ -321,17 +338,23 @@ systemRouter.get('/usage', (req, res) => {
       read: totals.cache_read || 0,
       written: totals.cache_write || 0,
       working: (totals.cache_read || 0) > 0,
+
       /*
-       * No model is suggested here, deliberately.
+       * The two figures that answer "so switch model, then?".
        *
-       * The obvious move looks like a model with a lower cache minimum, and it
-       * was suggested for a while - wrongly. Switching model changes the price
-       * of every token too: claude-sonnet-5 is twice the input rate and ten
-       * times the output rate of haiku, and a cache WRITE costs a quarter more
-       * than a plain call. Worked through on this workload it comes out level
-       * or worse unless nine calls in ten hit a warm cache. What is true is
-       * only the fact below; a saving would have to be measured, not promised.
+       * A model with a lower cache minimum is the obvious move and it was
+       * recommended here once, wrongly: switching changes the price of every
+       * token too, and a cache that is MISSED costs a quarter more than not
+       * caching at all. So the saving turns entirely on how many calls could
+       * read a warm entry - which is not a matter of opinion. `reach` is the
+       * share of calls that followed the one before inside the five minutes a
+       * cached prefix lives, measured from the calls this app actually made,
+       * and `breakEven` is the share a switch would need in its best case.
+       * Reach below break-even rules the switch out; above it, it is worth
+       * measuring for real. Neither number is a promise.
        */
+      reach: cacheReach(req.query.days),
+      breakEven: cacheBreakEven({ model: config.model, promptTokens: perRun }),
     },
   });
 });

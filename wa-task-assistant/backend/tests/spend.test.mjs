@@ -194,3 +194,79 @@ describe('which chats the volume comes from', () => {
     assert.equal(rows[0].tasks, 0, 'five messages, nothing to show for them');
   });
 });
+
+/*
+ * Whether switching model could pay is a measurement, not an opinion.
+ *
+ * The page said "not being cached" and stopped, which invites exactly one
+ * wrong move: pick a model that caches shorter prompts. That only pays if the
+ * calls land close enough together to read a warm entry, and a miss costs more
+ * than never asking. These cases pin the two figures that decide it.
+ */
+describe('could a cache even be hit', () => {
+  const at = (iso, kind = 'extract') =>
+    db.prepare(
+      `INSERT INTO api_usage (at, day, kind, model, input_tokens, messages)
+       VALUES (?, ?, ?, 'claude-haiku-4-5', 3200, 3)`
+    ).run(iso, iso.slice(0, 10), kind);
+
+  it('counts a run as warm only when the one before it was inside the window', async () => {
+    const { cacheReach } = await import('../src/db.js');
+    at('2026-09-15 08:00:00');
+    at('2026-09-15 08:03:00');   /* 3 min  - warm */
+    at('2026-09-15 08:20:00');   /* 17 min - cold */
+    at('2026-09-15 08:24:00');   /* 4 min  - warm */
+
+    const reach = cacheReach(30);
+    assert.equal(reach.runs, 4);
+    assert.equal(reach.warm, 2);
+    /* Three gaps between four runs - the first run can never be warm. */
+    assert.equal(reach.rate, 2 / 3);
+  });
+
+  it('answers null rather than 0% when there is nothing to divide', async () => {
+    const { cacheReach } = await import('../src/db.js');
+    assert.equal(cacheReach(30).rate, null);
+    at('2026-09-15 08:00:00');
+    assert.equal(cacheReach(30).rate, null, 'one run has no gap behind it');
+  });
+
+  it('measures the extractor only, not the once-a-day digests', async () => {
+    const { cacheReach } = await import('../src/db.js');
+    at('2026-09-15 08:00:00');
+    at('2026-09-15 08:02:00');
+    at('2026-09-15 09:00:00', 'law_digest');
+    at('2026-09-15 09:01:00', 'legal_digest');
+
+    const reach = cacheReach(30);
+    assert.equal(reach.runs, 2, 'a digest is not a chat-reading run');
+    assert.equal(reach.warm, 1);
+  });
+
+  it('the rate a switch needs is the candidate\'s best case, so a miss can only make it worse', async () => {
+    const { cacheBreakEven, PRICES: P, CACHE_WRITE_RATE, CACHE_READ_RATE } = await import('../src/pricing.js');
+    const found = cacheBreakEven({ model: 'claude-haiku-4-5', promptTokens: 3200 });
+    assert.equal(found.model, 'claude-sonnet-5');
+
+    /* Exactly the rate at which the candidate's cached input equals haiku's. */
+    const cheap = P['claude-haiku-4-5'].input;
+    const dear = P['claude-sonnet-5'].input;
+    const cost = dear * (CACHE_READ_RATE * found.needs + CACHE_WRITE_RATE * (1 - found.needs));
+    assert.ok(Math.abs(cost - cheap) < 1e-9, 'break-even must actually break even');
+  });
+
+  it('offers no model that would decline this prompt too', async () => {
+    const { cacheBreakEven, CACHE_MINIMUM: MIN } = await import('../src/pricing.js');
+    const found = cacheBreakEven({ model: 'claude-haiku-4-5', promptTokens: 700 });
+    /* Under every minimum but opus-5's 512, so that is the only honest answer. */
+    assert.ok(!found || MIN[found.model] <= 700);
+  });
+
+  it('never proposes a switch that could not pay at any hit rate', async () => {
+    const { cacheBreakEven } = await import('../src/pricing.js');
+    for (const model of ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5']) {
+      const found = cacheBreakEven({ model, promptTokens: 4096 });
+      if (found) assert.ok(found.needs <= 1, `${model} -> ${found.model} needs ${found.needs}`);
+    }
+  });
+});

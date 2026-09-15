@@ -153,17 +153,12 @@ export default function UsagePage({ onError }) {
                       {caching.minimum.toLocaleString()} tokens or more, and this one is
                       shorter</>
                     : ''}
-                  {/*
-                    * No model is recommended here. A model that caches shorter
-                    * prompts also prices every token differently, and on this
-                    * workload the two cancel out unless nearly every call hits
-                    * a warm cache. Stating the fact is honest; promising a
-                    * saving from it was not.
-                    */}
                   . Fewer runs is what brings this down, which is what the
                   batching window is for.</>)}
             </p>
           )}
+
+          <CacheReach caching={caching} model={data.model} />
 
           {blocking.length > 0 && <BlockEffect rows={blocking} bootedAt={bootedAt} />}
 
@@ -283,6 +278,52 @@ export default function UsagePage({ onError }) {
  * opposite decisions, so the messages open underneath it - and blocking is
  * offered where you have just read them, not on another page.
  */
+/*
+ * "So switch to a model that caches, then?"
+ *
+ * The obvious next question after the line above, and the one that was left
+ * unanswered here for a while because the honest answer needed a measurement
+ * nobody had. It has one now. A cached prefix lives five minutes from the call
+ * that last touched it, so the share of calls that follow another inside five
+ * minutes is a ceiling on how many could ever read one - and a call that asks
+ * for a cache and misses pays a quarter MORE than a plain call. Below the rate
+ * a switch needs, it is not a close decision; above it, it is worth measuring
+ * for real rather than promising.
+ */
+function CacheReach({ caching, model }) {
+  if (!caching || caching.working) return null;
+  const { reach, breakEven } = caching;
+  if (!reach || reach.rate === null) return null;
+
+  const pct = (n) => `${Math.round(n * 100)}%`;
+  const needs = breakEven ? breakEven.needs : null;
+  const pays = needs !== null && reach.rate >= needs;
+
+  return (
+    <p className="usage-explain second">
+      <b>Would another model be cheaper?</b>{' '}
+      Of the {reach.runs.toLocaleString()} chat-reading runs in this window,{' '}
+      <b>{reach.warm.toLocaleString()} ({pct(reach.rate)})</b> came within{' '}
+      {reach.windowMinutes} minutes of the run before. A cached prompt lives{' '}
+      {reach.windowMinutes} minutes, so that is the most that could ever have read
+      one — every other run would pay to write a cache nothing then reads, which
+      costs a quarter more than not caching at all.
+      {needs === null
+        ? <> No other priced model caches a prompt this short, so there is nothing
+          to switch to.</>
+        : pays
+          ? <> <code>{breakEven.model}</code> would need {pct(needs)} at best, and this
+            workload is above it — worth measuring on a real day before committing,
+            because that figure assumes the whole prompt is the repeated part and
+            some of it never is.</>
+          : <> <code>{breakEven.model}</code> would need {pct(needs)} at best, which
+            this workload does not come near, so switching to it would raise the
+            bill rather than lower it. Fewer runs is the lever that works here; that is
+            what the blocklist and the batching window are for.</>}
+    </p>
+  );
+}
+
 function ChatRow({ chat, widest, onError }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(null);
