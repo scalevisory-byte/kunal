@@ -97,7 +97,7 @@ export default function Login({ onSubmit, hadToken }) {
           <ul className="hero-points">
             {POINTS.map((point) => (
               <li key={point.title}>
-                <span className="hero-ico"><Icon name={point.icon} size={18} /></span>
+                <span className="hero-ico"><Icon name={point.icon} size={21} strokeWidth={2.2} /></span>
                 <span>
                   <strong>{point.title}</strong>
                   <small>{point.note}</small>
@@ -126,7 +126,7 @@ export default function Login({ onSubmit, hadToken }) {
         <p className="pane-script">Work Smarter Together</p>
 
         <main className="login-card">
-          <span className="login-badge"><Icon name="lock" size={22} /></span>
+          <span className="login-badge"><Icon name="lock" size={24} strokeWidth={2.2} /></span>
 
           <h2>Welcome Back</h2>
           <p className={`login-sub ${rejected ? 'bad' : ''}`}>
@@ -199,7 +199,7 @@ export default function Login({ onSubmit, hadToken }) {
           <p className="login-secure"><Icon name="shield" size={15} /> Secure Access</p>
 
           <div className="login-safe">
-            <span className="safe-ico"><Icon name="shield" size={17} /></span>
+            <span className="safe-ico"><Icon name="shield" size={19} strokeWidth={2.2} /></span>
             <span>
               <strong>Your data is safe and secure.</strong>
               <small>Protected with industry standard security.</small>

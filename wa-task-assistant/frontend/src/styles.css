@@ -1588,12 +1588,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    * read as one block, and the split in the name is what makes it a wordmark
    * rather than a heading.
    */
-  --hero-blue: #2f6fb0;
+  --hero-blue: #1878e6;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
+  :root:not([data-theme="light"]) .login-hero { --hero-blue: #6fb2f5; }
 }
-:root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
+:root[data-theme="dark"] .login-hero { --hero-blue: #6fb2f5; }
 /*
  * The logo's own geometry, oversized and nearly invisible: three diagonals at
  * the mark's angle, laid across the panel. Repeating-linear-gradient rather
@@ -1677,11 +1677,17 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 .hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; }
 .hero-points li { display: flex; align-items: flex-start; gap: 15px; }
+/*
+ * Bolder than the rest of the app's icons, on purpose: everywhere else they
+ * label a control, here they are the only ornament on the page and a hairline
+ * glyph inside a pale disc reads as unfinished.
+ */
 .hero-ico {
-  flex: none; width: 42px; height: 42px; border-radius: 50%;
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
   display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand);
+  background: #e4effc; color: #1878e6;
 }
+.login-secure .icon { stroke-width: 2; }
 .hero-points strong { display: block; font-size: 1rem; color: var(--text); }
 .hero-points small { display: block; font-size: .86rem; color: var(--muted); }
 
@@ -1741,8 +1747,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    * which is what "let the picture show" asks for. It keeps its place at the
    * bottom-right and its fade, so it is still the layer behind the card.
    */
-  right: 3%; bottom: 62px; width: 62%; height: auto;
-  opacity: .5;
+  right: 2%; bottom: 58px; width: 68%; height: auto;
+  opacity: .62;
   /*
    * Faded on all four sides, so the photograph has no edge of its own.
    *
@@ -1770,6 +1776,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   :root:not([data-theme="light"]) .pane-desk { opacity: .12; }
 }
 :root[data-theme="dark"] .pane-desk { opacity: .12; }
+
+/* The bright discs are for the light ground; on dark they become a hole. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-ico,
+  :root:not([data-theme="light"]) .login-badge { background: var(--brand-wash); color: var(--brand); }
+  :root:not([data-theme="light"]) .safe-ico { color: var(--brand); }
+}
+:root[data-theme="dark"] .hero-ico,
+:root[data-theme="dark"] .login-badge { background: var(--brand-wash); color: var(--brand); }
+:root[data-theme="dark"] .safe-ico { color: var(--brand); }
 
 .pane-script, .pane-foot { position: absolute; z-index: 3; margin: 0; color: var(--muted); }
 .pane-script {
@@ -1806,7 +1822,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login-badge {
   display: grid; place-items: center;
   width: 54px; height: 54px; border-radius: 50%; margin-bottom: 20px;
-  background: var(--brand-wash); color: var(--brand);
+  background: #e4effc; color: #1878e6;
 }
 .login-card h2 {
   font-family: Archivo, sans-serif; font-weight: 700;
@@ -1878,7 +1894,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login-go:not(:disabled):hover { box-shadow: 0 8px 18px -8px rgba(15, 23, 42, .45); }
 .login-go:not(:disabled):hover .icon { transform: translateX(3px); }
 .login-go:not(:disabled):active { transform: translateY(1px); }
-.login-go:disabled { opacity: .55; cursor: not-allowed; }
+/* Softened rather than greyed: at .55 the navy washed out to slate and the
+   card's one strong element looked broken before a key was pressed. */
+.login-go:disabled { opacity: .72; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .login-go, .login-go .icon, .login-field input { transition: none; }
 }
@@ -1899,7 +1917,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   padding: 12px 13px; border-radius: 9px;
   background: var(--brand-wash); border: 1px solid var(--line);
 }
-.safe-ico { flex: none; color: var(--brand); margin-top: 1px; }
+.safe-ico { flex: none; color: #1878e6; margin-top: 1px; }
 .login-safe strong { display: block; font-size: .84rem; color: var(--text); }
 .login-safe small {
   display: block; font-size: .76rem; line-height: 1.45; color: var(--text-2);
