@@ -328,6 +328,12 @@ function ChatRow({ chat, widest, onError }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(null);
   const [blocked, setBlocked] = useState('');
+  /*
+   * Whether this chat is blocked RIGHT NOW, not just whether it was blocked in
+   * this session. It arrives with the row, decided by the listener's own rule,
+   * and the local state only records what was just pressed.
+   */
+  const [cover, setCover] = useState(chat.blockedBy || null);
   const share = widest ? Math.round((chat.messages / widest) * 100) : 0;
 
   const toggle = async () => {
@@ -345,10 +351,25 @@ function ChatRow({ chat, widest, onError }) {
 
   const block = async () => {
     try {
-      await api.blockChat(chat.chat);
+      /* The route answers with the whole list; find the row just added so the
+         Unblock beside it knows which pattern to lift. */
+      const out = await api.blockChat(chat.chat);
+      const mine = (out?.blocked || []).find((row) => row.pattern === chat.chat);
+      setCover(mine ? { id: mine.id, pattern: mine.pattern } : { id: null, pattern: chat.chat });
       setBlocked('Blocked — messages from this chat are no longer read or stored.');
     } catch (err) {
       setBlocked(err?.message ? `Not blocked — ${err.message}` : 'Not blocked.');
+    }
+  };
+
+  const unblock = async () => {
+    if (!cover?.id) return;
+    try {
+      await api.unblockChat(cover.id);
+      setCover(null);
+      setBlocked('Unblocked — this chat will be read again, and will cost again.');
+    } catch (err) {
+      setBlocked(err?.message ? `Not unblocked — ${err.message}` : 'Not unblocked.');
     }
   };
 
@@ -357,6 +378,8 @@ function ChatRow({ chat, widest, onError }) {
       <li className={open ? 'open' : ''}>
         <button type="button" className="u-day wide as-link" onClick={toggle} aria-expanded={open}>
           {chat.chat || 'Unknown chat'}
+          {/* On the row itself, because that is where the question is asked. */}
+          {cover && <span className="chat-blocked">blocked</span>}
         </button>
         <span className="u-bar"><span style={{ width: `${Math.max(share, 2)}%` }} /></span>
         <span className="u-tokens">{chat.messages} msg</span>
@@ -383,11 +406,20 @@ function ChatRow({ chat, widest, onError }) {
                 </ul>
               )}
           <div className="chat-open-foot">
-            <button type="button" className="btn ghost" onClick={block} disabled={Boolean(blocked)}>
-              Block this chat
-            </button>
+            {cover ? (
+              <button type="button" className="btn ghost" onClick={unblock} disabled={!cover.id}>
+                Unblock this chat
+              </button>
+            ) : (
+              <button type="button" className="btn ghost" onClick={block}>
+                Block this chat
+              </button>
+            )}
             <small>
-              {blocked || 'Blocked chats are dropped before anything is stored or sent to the AI.'}
+              {blocked || (cover
+                ? <>Blocked by the pattern <b>{cover.pattern}</b> — nothing from this chat is
+                  stored or sent to the AI. The messages above are what it cost before that.</>
+                : 'Blocked chats are dropped before anything is stored or sent to the AI.')}
             </small>
           </div>
         </li>

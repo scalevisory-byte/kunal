@@ -1,4 +1,12 @@
+import { useState } from 'react';
 import Icon from './Icon.jsx';
+
+const SHUT = 'wa-tasks-confirm-shut';
+
+/* Remembered between visits, but never silently: see the header below. */
+const wasShut = () => {
+  try { return localStorage.getItem(SHUT) === '1'; } catch { return false; }
+};
 
 /**
  * Extractions the model itself said it was unsure about.
@@ -12,18 +20,48 @@ import Icon from './Icon.jsx';
  * the app made.
  */
 export default function NeedsConfirmation({ tasks, onConfirm, onReject, onOpen }) {
+  /*
+   * Shut, and it stays shut.
+   *
+   * Six of these at the top of the dashboard is the whole first screen, and
+   * they are the least urgent thing on it - nothing here is being chased.
+   * So the panel rolls up to its own header and remembers that.
+   *
+   * What it does NOT do is disappear: the count stays on the header, in the
+   * same place, so a shut panel still says how many are waiting. A thing you
+   * can put away and then never be told about again is how work goes missing.
+   */
+  const [shut, setShut] = useState(wasShut);
+
   if (!tasks?.length) return null;
 
+  const toggle = () => {
+    const next = !shut;
+    setShut(next);
+    try { localStorage.setItem(SHUT, next ? '1' : '0'); } catch { /* private window */ }
+  };
+
   return (
-    <section className="confirm-panel">
+    <section className={`confirm-panel ${shut ? 'shut' : ''}`}>
       <header>
         <h3>
           <Icon name="robot" size={16} />
           Is this a task?
         </h3>
         <span>{tasks.length} waiting</span>
+        <button
+          type="button"
+          className="confirm-shut"
+          onClick={toggle}
+          aria-expanded={!shut}
+          title={shut ? 'Show these' : 'Hide these'}
+        >
+          {shut ? 'Show' : 'Hide'}
+          <Icon name="chevronDown" size={15} />
+        </button>
       </header>
 
+      {shut ? null : <>
       <p className="confirm-lede">
         Claude picked these out of your chats but said it was not sure about them.
         They are not being reminded about until you say.
@@ -55,6 +93,7 @@ export default function NeedsConfirmation({ tasks, onConfirm, onReject, onOpen }
           </li>
         ))}
       </ul>
+      </>}
     </section>
   );
 }

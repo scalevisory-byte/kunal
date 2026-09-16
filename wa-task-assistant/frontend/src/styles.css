@@ -2618,7 +2618,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   margin: 0; font-size: .92rem; font-weight: 600;
   display: flex; align-items: center; gap: 7px;
 }
-.confirm-panel header span { font-size: .74rem; color: var(--muted); }
+.confirm-panel header span { font-size: .74rem; color: var(--muted); margin-left: auto; }
+/* Roll the panel up. Its own header keeps the count, so nothing goes quiet. */
+.confirm-shut {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 0; padding: 2px 0 2px 6px;
+  font: inherit; font-size: .74rem; color: var(--muted); cursor: pointer;
+}
+.confirm-shut:hover { color: var(--text); }
+.confirm-shut .icon { transition: transform .16s; }
+.confirm-panel.shut .confirm-shut .icon { transform: rotate(-90deg); }
+.confirm-panel.shut { padding-bottom: 14px; }
+@media (prefers-reduced-motion: reduce) { .confirm-shut .icon { transition: none; } }
 .confirm-lede { margin: 6px 0 12px; font-size: .8rem; color: var(--muted); line-height: 1.5; }
 .confirm-panel ul { list-style: none; margin: 0; padding: 0; }
 .confirm-panel li {
@@ -4662,6 +4673,13 @@ button.due:hover { background: var(--raised); }
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .usage-list.chats .u-tasks.none { color: var(--danger); }
+/* Said on the row, because that is where "is this one blocked?" gets asked. */
+.chat-blocked {
+  display: inline-block; margin-left: 8px; padding: 1px 7px;
+  border-radius: 999px; background: var(--brand-wash); color: var(--brand);
+  font-size: .66rem; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
+  vertical-align: 1px;
+}
 @media (max-width: 760px) {
   .usage-kinds li { grid-template-columns: 1fr auto; row-gap: 2px; }
   .usage-kinds .k-note { grid-column: 1 / -1; }

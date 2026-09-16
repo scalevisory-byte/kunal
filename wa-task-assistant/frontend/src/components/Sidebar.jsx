@@ -258,15 +258,19 @@ export default function Sidebar({
           {/*
             * The parent brand, at the foot of the sidebar - where a product
             * says whose it is without competing with its own name at the top.
-            * The white artwork, because this panel is navy; the same file the
-            * sign-in screen uses on its dark theme, not a second copy.
+            * The white artwork, because this panel is navy.
+            *
+            * Its own file at exactly twice the 132px it draws at, rather than
+            * the sign-in screen's 760px one: a browser downscaling that far is
+            * a cheap filter on very fine type, and the taglines came out muddy.
+            * Same source image, resized properly instead of at render time.
             */}
           <div className="side-parent">
             <span>A product of</span>
             <img
-              src="/brand/scalevisory-light.png"
+              src="/brand/scalevisory-light-sm.png"
               alt="Scale Visory"
-              width="760" height="158"
+              width="264" height="55"
             />
           </div>
         </div>

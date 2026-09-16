@@ -495,7 +495,8 @@ export function cacheReach(days = 30, windowMinutes = 5) {
  * it. That is the row worth blocking.
  */
 export function messageVolumeByChat(days = 30, limit = 40) {
-  return db
+  const patterns = listBlockedChats();
+  const rows = db
     .prepare(
       `SELECT m.chat_name AS chat,
               m.is_group  AS is_group,
@@ -510,6 +511,25 @@ export function messageVolumeByChat(days = 30, limit = 40) {
        LIMIT ?`
     )
     .all(`-${Math.min(Number(days) || 30, 365)} days`, Math.min(Number(limit) || 40, 200));
+
+  /*
+   * Which of these is already blocked, by the listener's own rule.
+   *
+   * Asked as "kya block he kya unblock he proper kuch pata nahi chal raha" -
+   * and it was not: every row carried the same "Block this chat" button
+   * whether it was blocked or not, so the only way to know was to remember.
+   *
+   * The pattern comes back with it, so the row can offer to lift exactly the
+   * block that covers it rather than making somebody hunt for it in Settings.
+   * Decided with patternWouldDrop, the same function the listener uses, so
+   * this can never say blocked about a chat that still gets through.
+   */
+  return rows.map((row) => {
+    const probe = { chat_name: row.chat, is_group: row.is_group, chat_id: null,
+      contact_name: null, contact_number: null };
+    const hit = patterns.find((p) => patternWouldDrop(p.pattern, probe));
+    return { ...row, blockedBy: hit ? { id: hit.id, pattern: hit.pattern } : null };
+  });
 }
 
 /**

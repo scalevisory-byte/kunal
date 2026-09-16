@@ -235,8 +235,18 @@ describe('Scale Visory inside the app', () => {
 
   it('uses the white artwork, because that panel is navy', () => {
     /* The colour wordmark would be a dark shape on a dark sidebar. */
-    assert.match(sidebar, /src="\/brand\/scalevisory-light\.png"/);
+    assert.match(sidebar, /src="\/brand\/scalevisory-light(-sm)?\.png"/);
     assert.doesNotMatch(sidebar, /src="\/brand\/scalevisory\.png"/);
+  });
+
+  it('draws it from a file made for that size, not the big one squeezed down', () => {
+    /* The sidebar's width is fixed at 132px. A browser downscaling the 760px
+       sign-in asset that far is a cheap filter on very fine type, and the
+       taglines came out muddy — reported twice as "logo clear nahi he". */
+    assert.match(sidebar, /scalevisory-light-sm\.png/);
+    assert.match(sidebar, /width="264" height="55"/, 'exactly twice the 132px it draws at');
+    const at = new URL('../../frontend/public/brand/scalevisory-light-sm.png', import.meta.url);
+    assert.ok(fs.existsSync(at), 'the sidebar asset is missing');
   });
 
   it('stays quieter than the app\'s own name above it', () => {
