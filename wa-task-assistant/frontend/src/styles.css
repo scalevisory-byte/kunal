@@ -1725,16 +1725,35 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   position: absolute; z-index: 0; pointer-events: none; user-select: none;
   /* Clear of the footer line, which sits over this corner and must stay read
      as text rather than as something printed on a photograph. */
-  right: -2%; bottom: 52px; width: 66%; height: auto;
-  opacity: .55;
-  -webkit-mask-image: radial-gradient(115% 115% at 84% 78%, #000 30%, transparent 72%);
-  mask-image: radial-gradient(115% 115% at 84% 78%, #000 30%, transparent 72%);
+  right: 2%; bottom: 46px; width: 60%; height: auto;
+  opacity: .58;
+  /*
+   * Faded on all four sides, so the photograph has no edge of its own.
+   *
+   * A radial mask leaves the picture's own rectangle showing wherever its
+   * fade runs past the box - which it must, if the mug is to survive. Four
+   * linear fades intersected are predictable instead: hard on the left and
+   * top, where the picture meets the page and the card, and light on the
+   * right and bottom, where it meets the panel's edge.
+   */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 44%),
+    linear-gradient(to bottom, transparent, #000 40%),
+    linear-gradient(to left, transparent, #000 10%),
+    linear-gradient(to top, transparent, #000 9%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 44%),
+    linear-gradient(to bottom, transparent, #000 40%),
+    linear-gradient(to left, transparent, #000 10%),
+    linear-gradient(to top, transparent, #000 9%);
+  mask-composite: intersect;
 }
 .login-pane.has-desk::after { opacity: .025; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .pane-desk { opacity: .3; }
+  :root:not([data-theme="light"]) .pane-desk { opacity: .22; }
 }
-:root[data-theme="dark"] .pane-desk { opacity: .3; }
+:root[data-theme="dark"] .pane-desk { opacity: .22; }
 
 .pane-script, .pane-foot { position: absolute; z-index: 1; margin: 0; color: var(--muted); }
 .pane-script {

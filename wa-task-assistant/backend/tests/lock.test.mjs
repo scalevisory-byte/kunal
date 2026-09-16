@@ -187,6 +187,11 @@ describe('the sign-in screen', () => {
     /* Uploaded by hand, so the extension is whatever the phone produced. */
     assert.match(login, /const DESK = \[[^\]]*desk\.jpg[^\]]*desk\.png[^\]]*\]/s);
     assert.match(login, /const desk = deskAt < DESK\.length;/);
+    /* If it is there, it must be light enough to belong on the first screen. */
+    const at = new URL('../../frontend/public/brand/desk.jpg', import.meta.url);
+    if (fs.existsSync(at)) {
+      assert.ok(fs.statSync(at).size < 250_000, 'the desk photograph needs shrinking');
+    }
     assert.match(login, /className=\{`login-pane \$\{desk \? 'has-desk' : ''\}`\}/);
     assert.match(css, /\.login-pane\.has-desk::after \{ opacity: \.025; \}/,
       'two large marks in one corner is noise: the watermark stands down');
