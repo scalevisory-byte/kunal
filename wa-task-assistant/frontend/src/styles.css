@@ -1606,12 +1606,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    * read as one block, and the split in the name is what makes it a wordmark
    * rather than a heading.
    */
-  --hero-blue: #1878e6;
+  --hero-blue: #2f6fb0;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .login-hero { --hero-blue: #6fb2f5; }
+  :root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
 }
-:root[data-theme="dark"] .login-hero { --hero-blue: #6fb2f5; }
+:root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
 /*
  * The logo's own geometry, oversized and nearly invisible: three diagonals at
  * the mark's angle, laid across the panel. Repeating-linear-gradient rather
@@ -1703,8 +1703,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .hero-ico {
   flex: none; width: 44px; height: 44px; border-radius: 50%;
   display: grid; place-items: center;
-  background: #e4effc; color: #1878e6;
+  background: var(--brand-wash); color: var(--brand);
 }
+/*
+ * One orange, on the WhatsApp item and nowhere else.
+ *
+ * The dashboard rations orange to the thing that acts - the app's own mark and
+ * the New Task button - so on this page it marks the one feature that IS
+ * WhatsApp. A second orange anywhere here would spend the signal.
+ */
+.hero-ico.wa { background: var(--accent-wash); color: var(--accent); }
 .login-secure .icon { stroke-width: 2; }
 .hero-points strong { display: block; font-size: 1rem; color: var(--text); }
 .hero-points small { display: block; font-size: .86rem; color: var(--muted); }
@@ -1795,15 +1803,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 :root[data-theme="dark"] .pane-desk { opacity: .12; }
 
-/* The bright discs are for the light ground; on dark they become a hole. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-ico,
-  :root:not([data-theme="light"]) .login-badge { background: var(--brand-wash); color: var(--brand); }
-  :root:not([data-theme="light"]) .safe-ico { color: var(--brand); }
-}
-:root[data-theme="dark"] .hero-ico,
-:root[data-theme="dark"] .login-badge { background: var(--brand-wash); color: var(--brand); }
-:root[data-theme="dark"] .safe-ico { color: var(--brand); }
 
 .pane-script, .pane-foot { position: absolute; z-index: 3; margin: 0; color: var(--muted); }
 .pane-script {
@@ -1840,7 +1839,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login-badge {
   display: grid; place-items: center;
   width: 54px; height: 54px; border-radius: 50%; margin-bottom: 20px;
-  background: #e4effc; color: #1878e6;
+  background: var(--brand-wash); color: var(--brand);
 }
 .login-card h2 {
   font-family: Archivo, sans-serif; font-weight: 700;
@@ -1935,7 +1934,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   padding: 12px 13px; border-radius: 9px;
   background: var(--brand-wash); border: 1px solid var(--line);
 }
-.safe-ico { flex: none; color: #1878e6; margin-top: 1px; }
+.safe-ico { flex: none; color: var(--brand); margin-top: 1px; }
 .login-safe strong { display: block; font-size: .84rem; color: var(--text); }
 .login-safe small {
   display: block; font-size: .76rem; line-height: 1.45; color: var(--text-2);

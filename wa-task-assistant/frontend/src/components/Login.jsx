@@ -34,7 +34,7 @@ import Icon from './Icon.jsx';
 const DESK = ['/brand/desk.jpg', '/brand/desk.jpeg', '/brand/desk.png', '/brand/desk.webp'];
 
 const POINTS = [
-  { icon: 'whatsapp', title: 'Capture & Track', note: 'All your WhatsApp tasks in one place' },
+  { icon: 'whatsapp', title: 'Capture & Track', note: 'All your WhatsApp tasks in one place', accent: true },
   { icon: 'clipboard', title: 'Never Miss a Follow-up', note: 'Stay updated with automatic reminders' },
   { icon: 'chart', title: 'Be More Productive', note: 'Turn conversations into results' },
   { icon: 'shield', title: 'Secure & Reliable', note: 'Your data is safe with us' },
@@ -71,13 +71,13 @@ export default function Login({ onSubmit, hadToken }) {
               className="on-light"
               src="/brand/scalevisory.png"
               alt="Scale Visory — Accounting, Taxation, Legal. Balancing the unbalanced."
-              width="560" height="116"
+              width="592" height="123"
             />
             <img
               className="on-dark"
               src="/brand/scalevisory-light.png"
               alt="" aria-hidden="true"
-              width="560" height="116"
+              width="592" height="123"
             />
           </div>
           <p className="hero-steps">
@@ -97,7 +97,9 @@ export default function Login({ onSubmit, hadToken }) {
           <ul className="hero-points">
             {POINTS.map((point) => (
               <li key={point.title}>
-                <span className="hero-ico"><Icon name={point.icon} size={21} strokeWidth={2.2} /></span>
+                <span className={`hero-ico ${point.accent ? 'wa' : ''}`}>
+                  <Icon name={point.icon} size={21} strokeWidth={2.2} />
+                </span>
                 <span>
                   <strong>{point.title}</strong>
                   <small>{point.note}</small>
