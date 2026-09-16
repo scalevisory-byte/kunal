@@ -288,6 +288,15 @@ export default function App() {
   // Asked once, unauthenticated: the app should be able to tell you it is
   // unprotected rather than leaving you to test it from an incognito window.
   const [authOpen, setAuthOpen] = useState(false);
+  /*
+   * Whether a password is set at all - which decides whether Lock is offered.
+   *
+   * Not `!authOpen`: that starts false and only becomes true once the server
+   * answers, so an unprotected dashboard would show a Lock button for the
+   * first half second and a protected one would not. Both are read from the
+   * same answer instead, so they can never disagree.
+   */
+  const [authRequired, setAuthRequired] = useState(false);
   // Extractions the model itself said it was unsure about. Nothing chases
   // these until a person says they are real.
   const [unsure, setUnsure] = useState([]);
@@ -348,7 +357,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.authState().then((s) => setAuthOpen(!s.required)).catch(() => {});
+    api.authState()
+      .then((s) => { setAuthOpen(!s.required); setAuthRequired(Boolean(s.required)); })
+      .catch(() => {});
   }, []);
 
   const loadUnsure = useCallback(() => {
@@ -914,6 +925,15 @@ export default function App() {
           onQuery={setQuery}
           onRefresh={() => refresh()}
           loading={loading}
+          /*
+           * Lock. Asked for on the day the dashboard moved to a name anybody
+           * can guess, and used from a borrowed screen - there was no way out
+           * of it at all, short of clearing the browser's site data. Forgetting
+           * the password is the token; dropping it puts the login screen back,
+           * and nothing on the board outlives that, because the whole board
+           * unmounts with it.
+           */
+          onLock={authRequired ? () => { setToken(null); setNeedsAuth(true); } : null}
           onNewTask={() => { setQuick((v) => !v); setComposing(false); }}
           onEnablePush={onEnablePush}
           pushSupported={pushSupported()}

@@ -43,7 +43,7 @@ function Account({ wa, onSettings }) {
 /** Brand, search and the actions that apply to the whole page. */
 export default function Header({
   query, onQuery, onRefresh, loading, onNewTask, onEnablePush, pushSupported, pushOn, wa, install,
-  onSettings, onMenu, alerts, onBell, onThemeChange,
+  onSettings, onMenu, alerts, onBell, onThemeChange, onLock,
 }) {
   const search = useRef(null);
 
@@ -145,6 +145,23 @@ export default function Header({
         >
           <Icon name="refresh" size={19} className={loading ? 'spin' : ''} />
         </button>
+        {/*
+          * Lock, next to the other one-press controls.
+          *
+          * Only when a password is actually set: with none, the button would
+          * shut a door that has no lock, and the next press would let anybody
+          * straight back in - which reads as broken rather than as open.
+          */}
+        {onLock && (
+          <button
+            className="icon-action"
+            onClick={onLock}
+            title="Lock the dashboard"
+            aria-label="Lock the dashboard"
+          >
+            <Icon name="lock" size={19} />
+          </button>
+        )}
         <Account wa={wa} onSettings={onSettings} />
       </div>
     </header>

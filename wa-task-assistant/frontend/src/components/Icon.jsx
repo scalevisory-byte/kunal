@@ -24,6 +24,8 @@ const PATHS = {
   alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v5m0 3h.01',
   clipboard: 'M9 4h6v3H9V4Zm-1 1H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M8.5 12h7M8.5 16h5',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13.5V12l3 2',
+  /* A padlock, shut: the dashboard's Lock control, and the only thing it means. */
+  lock: 'M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3M7 10.5h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z',
   whatsapp: 'M20 11.7a8 8 0 0 1-11.9 7L4 20l1.3-4a8 8 0 1 1 14.7-4.3ZM9.2 8.6c.3.8.8 1.9 1.7 2.8.9.9 2 1.4 2.8 1.7l1-1 2 1v1.4c-.6.5-1.6.6-2.9.1a10 10 0 0 1-5.4-5.4c-.5-1.3-.4-2.3.1-2.9h1.4l1 2-.7 1Z',
   arrowRight: 'M5 12h13m-5-5 5 5-5 5',
   chevronDown: 'M6 9.5 12 15l6-5.5',
