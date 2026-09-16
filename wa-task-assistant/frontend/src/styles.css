@@ -1589,24 +1589,31 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    */
   --hero-blue: #2f6fb0;
 }
-:root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .login-hero { --hero-blue: #2f6fb0; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
 }
 :root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
 .hero-top {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 20px; flex-wrap: wrap;
 }
-.hero-brand { display: grid; gap: 1px; min-width: 0; }
-.hero-brand strong {
-  font-family: Archivo, sans-serif; font-weight: 700;
-  font-size: 1.24rem; letter-spacing: .06em; color: var(--brand);
+/*
+ * The firm's mark, as published, at its own proportions.
+ *
+ * A width and `height: auto` rather than a box it has to fit: a registered
+ * logo squeezed into somebody's grid is the one thing worse than not using it.
+ * The white version rides the theme - the navy wordmark disappears on the dark
+ * ground, and a logo nobody can see is a panel with a hole in it.
+ */
+.hero-logo { min-width: 0; }
+.hero-logo img { width: clamp(210px, 22vw, 268px); height: auto; display: block; }
+.hero-logo .on-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-logo .on-light { display: none; }
+  :root:not([data-theme="light"]) .hero-logo .on-dark { display: block; }
 }
-.hero-brand span { font-size: .78rem; color: var(--text-2); letter-spacing: .01em; }
-.hero-brand em {
-  font-size: .76rem; color: var(--accent); font-style: normal; font-weight: 600;
-}
+:root[data-theme="dark"] .hero-logo .on-light { display: none; }
+:root[data-theme="dark"] .hero-logo .on-dark { display: block; }
 .hero-steps {
   margin: 4px 0 0; font-size: .72rem; letter-spacing: .14em;
   text-transform: uppercase; color: var(--muted);

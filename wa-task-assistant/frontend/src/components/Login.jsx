@@ -39,10 +39,25 @@ export default function Login({ onSubmit, hadToken }) {
     <div className="login-split">
       <section className="login-hero">
         <header className="hero-top">
-          <div className="hero-brand">
-            <strong>SCALE VISORY</strong>
-            <span>Accounting · Taxation · Legal</span>
-            <em>Balancing the unbalanced</em>
+          {/*
+            * The real mark, from the firm's own website repo - not a type
+            * lockup standing in for it, and not something redrawn by eye.
+            * Two files because the wordmark is navy: on the dark theme's
+            * ground it would be a dark shape on a dark panel.
+            */}
+          <div className="hero-logo">
+            <img
+              className="on-light"
+              src="/brand/scalevisory.png"
+              alt="Scale Visory — Accounting, Taxation, Legal. Balancing the unbalanced."
+              width="560" height="116"
+            />
+            <img
+              className="on-dark"
+              src="/brand/scalevisory-light.png"
+              alt="" aria-hidden="true"
+              width="560" height="116"
+            />
           </div>
           <p className="hero-steps"><b>Organise</b> · Track · Achieve</p>
         </header>

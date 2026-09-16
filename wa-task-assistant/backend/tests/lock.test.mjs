@@ -97,6 +97,25 @@ describe('the sign-in screen', () => {
     assert.match(block('.hero-title span') || '', /color:\s*var\(--text\)/);
   });
 
+  it('uses the firm\'s published mark, not a type lockup standing in for it', () => {
+    assert.match(login, /src="\/brand\/scalevisory\.png"/);
+    for (const file of ['scalevisory.png', 'scalevisory-light.png']) {
+      const at = new URL(`../../frontend/public/brand/${file}`, import.meta.url);
+      assert.ok(fs.existsSync(at), `${file} is missing from public/brand`);
+      /* Small enough to belong on a login screen: this is the first request. */
+      assert.ok(fs.statSync(at).size < 60_000, `${file} is too heavy for a sign-in screen`);
+    }
+  });
+
+  it('swaps to the white mark on the dark theme, by the pattern the rest uses', () => {
+    /* The navy wordmark on the dark ground is a hole in the panel. */
+    assert.match(login, /src="\/brand\/scalevisory-light\.png"/);
+    assert.match(css, /prefers-color-scheme: dark\)[\s\S]{0,200}?\.hero-logo \.on-dark \{ display: block; \}/);
+    assert.match(css, /:root\[data-theme="dark"\] \.hero-logo \.on-dark \{ display: block; \}/);
+    /* Unguarded, :not([data-theme="light"]) also matches a LIGHT default. */
+    assert.doesNotMatch(css, /\n:root:not\(\[data-theme="light"\]\) \.hero-logo/);
+  });
+
   it('can show the password, because typing it blind is what cost the lockout', () => {
     assert.match(login, /type=\{reveal \? 'text' : 'password'\}/);
     assert.match(login, /aria-label=\{reveal \? 'Hide password' : 'Show password'\}/);
