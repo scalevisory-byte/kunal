@@ -1792,11 +1792,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .pane-foot b { color: var(--line-2); font-weight: 400; margin: 0 7px; }
 .login-card {
   position: relative; z-index: 2;
-  width: 100%; max-width: 486px;
+  width: 100%; max-width: 436px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 40px 38px 34px;
+  /* Narrower at the sides than at the head and foot: the card was reading as
+     roomy rather than composed, and the room it did not need was beside the
+     field. Taking it back also leaves the photograph more of the panel. */
+  padding: 36px 30px 30px;
   /* The only card in the app that lifts, because it is alone on its half. */
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 22px 48px -20px rgba(15, 23, 42, .22);
 }
@@ -1925,7 +1928,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .hero-title { font-size: clamp(2.5rem, 4.4vw, 3.5rem); margin-bottom: 14px; }
   .hero-lead { margin-bottom: 28px; }
   .hero-points { gap: 18px; }
-  .login-card { padding: 32px 34px 28px; }
+  .login-card { padding: 28px 28px 24px; }
   /*
    * A short screen cannot hold a 600px card AND the picture beside it, so the
    * picture drops to the floor of the panel: the mug's base, the pen and the
