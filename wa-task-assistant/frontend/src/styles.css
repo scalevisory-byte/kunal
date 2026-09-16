@@ -1577,6 +1577,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    * The firm's blue, laid on as light as it goes: a wash from the top-left and
    * one soft band low down, so the panel has depth without becoming a poster.
    */
+  position: relative; overflow: hidden;
   background:
     radial-gradient(900px 520px at 8% -6%, var(--brand-wash), transparent 68%),
     linear-gradient(160deg, var(--card) 0%, var(--bg-2) 100%);
@@ -1593,6 +1594,27 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   :root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
 }
 :root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
+/*
+ * The logo's own geometry, oversized and nearly invisible: three diagonals at
+ * the mark's angle, laid across the panel. Repeating-linear-gradient rather
+ * than an image, so it costs nothing and scales to any panel. Behind
+ * everything and unclickable.
+ */
+.login-hero::before {
+  content: ''; position: absolute; inset: -20% -10% -20% 40%;
+  z-index: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    115deg,
+    transparent 0 62px,
+    var(--brand-wash) 62px 104px,
+    transparent 104px 190px
+  );
+  opacity: .5;
+  -webkit-mask-image: linear-gradient(to left, #000, transparent 78%);
+  mask-image: linear-gradient(to left, #000, transparent 78%);
+}
+.hero-top, .hero-body, .hero-foot { position: relative; z-index: 1; }
+
 .hero-top {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 20px; flex-wrap: wrap;
@@ -1639,13 +1661,15 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Not --brand-deep: it stays near-black in the dark theme, where this sits on
    a dark ground and would vanish. --text is dark on light and light on dark. */
 .hero-title span { color: var(--text); }
-.hero-lead {
-  margin: 0 0 14px; max-width: 34ch;
-  font-size: 1.02rem; line-height: 1.5; color: var(--text-2);
+.hero-head {
+  font-family: Archivo, sans-serif; font-weight: 600;
+  font-size: clamp(1.1rem, 1.7vw, 1.36rem); line-height: 1.3;
+  letter-spacing: -.01em; color: var(--text);
+  margin: 0 0 12px; max-width: 22ch;
 }
-.hero-tag {
-  margin: 0 0 30px; font-size: .74rem; letter-spacing: .18em;
-  text-transform: uppercase; color: var(--muted);
+.hero-lead {
+  margin: 0 0 32px; max-width: 38ch;
+  font-size: 1rem; line-height: 1.6; color: var(--text-2);
 }
 
 .hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
@@ -1706,13 +1730,13 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .pane-foot b { color: var(--line-2); font-weight: 400; margin: 0 7px; }
 .login-card {
   position: relative; z-index: 1;
-  width: 100%; max-width: 396px;
+  width: 100%; max-width: 420px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 28px;
+  border-radius: 18px;
+  padding: 34px 32px 30px;
   /* The only card in the app that lifts, because it is alone on its half. */
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 36px -16px rgba(15, 23, 42, .22);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 22px 48px -20px rgba(15, 23, 42, .22);
 }
 .login-badge {
   display: grid; place-items: center;
@@ -1737,10 +1761,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login-field-icon { position: absolute; left: 12px; color: var(--muted); pointer-events: none; }
 .login-field input {
   width: 100%;
-  padding: 11px 44px 11px 38px;
+  padding: 12px 44px 12px 38px;
   font-size: .95rem;
-  border: 1px solid var(--line-2); border-radius: 8px;
+  border: 1px solid var(--line-2); border-radius: 10px;
   background: var(--sunken); color: var(--text);
+  transition: border-color .15s, box-shadow .15s, background .15s;
 }
 .login-field input:focus {
   outline: none; background: var(--card);
@@ -1780,9 +1805,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 .login-go {
   width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 11px; font-size: .95rem; margin-top: 2px;
+  padding: 13px; font-size: .95rem; border-radius: 10px; margin-top: 2px;
+  transition: transform .15s, box-shadow .15s, opacity .15s;
 }
+/* The arrow leans into the press. Small, and the only motion on the screen. */
+.login-go .icon { transition: transform .18s; }
+.login-go:not(:disabled):hover { box-shadow: 0 8px 18px -8px rgba(15, 23, 42, .45); }
+.login-go:not(:disabled):hover .icon { transform: translateX(3px); }
+.login-go:not(:disabled):active { transform: translateY(1px); }
 .login-go:disabled { opacity: .55; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .login-go, .login-go .icon, .login-field input { transition: none; }
+}
 
 /* A centred label with the rule running through it, as in the mock. */
 .login-secure {
@@ -1805,22 +1839,42 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .login-safe small {
   display: block; font-size: .76rem; line-height: 1.45; color: var(--text-2);
 }
+.login-fine {
+  margin: 12px 0 0; text-align: center;
+  font-size: .74rem; color: var(--muted);
+}
 
 /*
  * Narrow: one column, the panel above the card rather than beside it - and
  * shortened to the name and the promise, because four selling points above a
  * password field is a page you scroll to log in.
  */
+/*
+ * Narrow: the login comes FIRST, the pitch goes under it.
+ *
+ * Somebody on a phone is here to get in, not to be sold the product they
+ * already own - but the firm's mark still has to be the first thing on screen.
+ * So the hero stops being a panel (`display: contents`) and its three parts
+ * become ordinary rows that can be ordered around the card: mark, card, pitch,
+ * footer. Nothing is hidden and nothing is duplicated; the same elements are
+ * simply in the order that suits the screen.
+ */
 @media (max-width: 980px) {
-  .login-split { grid-template-columns: 1fr; }
-  .login-hero {
-    border-right: 0; border-bottom: 1px solid var(--line);
-    padding-bottom: 30px;
+  .login-split { grid-template-columns: 1fr; background: var(--bg); }
+  .login-hero { display: contents; }
+  .login-hero::before { display: none; }
+
+  .hero-top {
+    order: 1; padding: 22px 20px 20px;
+    background: linear-gradient(160deg, var(--card), var(--bg-2));
+    border-bottom: 1px solid var(--line);
   }
-  .hero-body { padding: 26px 0 0; }
-  .hero-lead { margin-bottom: 0; }
-  .hero-points, .hero-foot { display: none; }
-  .login-pane { padding-top: 30px; padding-bottom: 40px; }
+  .login-pane { order: 2; padding: 26px 18px 30px; }
+  .hero-body { order: 3; padding: 4px 20px 26px; }
+  .hero-foot { order: 4; margin: 0 20px 26px; }
+
+  .hero-title { font-size: clamp(2rem, 8vw, 2.6rem); }
+  .hero-lead { margin-bottom: 24px; }
   /* Wallpaper and marginalia are for a wide screen; here it is just a login. */
   .login-pane::after, .pane-script, .pane-foot { display: none; }
 }

@@ -27,7 +27,7 @@ const POINTS = [
   { icon: 'whatsapp', title: 'Capture & Track', note: 'All your WhatsApp tasks in one place' },
   { icon: 'clipboard', title: 'Never Miss a Follow-up', note: 'Stay updated with automatic reminders' },
   { icon: 'chart', title: 'Be More Productive', note: 'Turn conversations into results' },
-  { icon: 'shield', title: 'Secure & Reliable', note: 'Your data stays with you' },
+  { icon: 'shield', title: 'Secure & Reliable', note: 'Your data is safe with us' },
 ];
 
 export default function Login({ onSubmit, hadToken }) {
@@ -71,10 +71,11 @@ export default function Login({ onSubmit, hadToken }) {
         <div className="hero-body">
           <p className="hero-eyebrow">Welcome to</p>
           <h1 className="hero-title"><span>WA</span> Tasks</h1>
+          <p className="hero-head">Organize. Follow Up. Get Things Done.</p>
           <p className="hero-lead">
-            Manage your WhatsApp tasks, follow-ups and communications efficiently.
+            Manage your WhatsApp tasks, follow-ups and communications efficiently
+            — all in one place.
           </p>
-          <p className="hero-tag">Stay organized. Stay ahead.</p>
 
           <ul className="hero-points">
             {POINTS.map((point) => (
@@ -174,13 +175,17 @@ export default function Login({ onSubmit, hadToken }) {
           <div className="login-safe">
             <span className="safe-ico"><Icon name="shield" size={17} /></span>
             <span>
-              <strong>Your data is safe with you</strong>
-              <small>
-                This password is the only way in, and five wrong attempts lock the
-                device for fifteen minutes.
-              </small>
+              <strong>Your data is safe and secure.</strong>
+              <small>Protected with industry standard security.</small>
             </span>
           </div>
+
+          {/*
+            * Kept outside that box, and kept at all, because it is the one fact
+            * on this screen anybody actually needs: an hour was lost to a
+            * lockout today that nothing on the page had warned about.
+            */}
+          <p className="login-fine">Five wrong attempts lock this device for 15 minutes.</p>
         </main>
 
         <p className="pane-foot"><b>|</b> People <b>|</b> Process <b>|</b> Progress <b>|</b></p>

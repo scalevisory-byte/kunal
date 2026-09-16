@@ -80,12 +80,7 @@ describe('the sign-in screen', () => {
     assert.match(split, /grid-template-columns:\s*1\.15fr 1fr/);
     assert.match(split, /min-height:\s*100dvh/);
     /* Below 980 the panel goes above the card instead of beside it. */
-    assert.match(css, /max-width:\s*980px\)\s*\{[\s\S]*?\.login-split \{ grid-template-columns: 1fr; \}/);
-  });
-
-  it('drops the selling points before the card on a narrow screen', () => {
-    /* Four of them above a password field is a page you scroll to log in. */
-    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.hero-points, \.hero-foot \{ display: none; \}/);
+    assert.match(css, /max-width:\s*980px\)\s*\{[\s\S]*?\.login-split \{ grid-template-columns: 1fr;/);
   });
 
   it('does not colour the name with the dark sidebar\'s ink', () => {
@@ -149,12 +144,38 @@ describe('the sign-in screen', () => {
     assert.doesNotMatch(login, /href=/, 'a link here would have nowhere to go');
   });
 
-  it('carries the shared mock\'s own words', () => {
-    for (const line of ['Manage your WhatsApp tasks, follow-ups and communications efficiently',
-      'Stay organized. Stay ahead.', 'Capture & Track', 'Never Miss a Follow-up',
-      'Be More Productive', 'Secure & Reliable', 'Welcome Back', 'Secure Access']) {
+  it('carries the specified copy, word for word', () => {
+    for (const line of ['Organize. Follow Up. Get Things Done.',
+      'Manage your WhatsApp tasks, follow-ups and communications efficiently — all in one place',
+      'Capture & Track', 'All your WhatsApp tasks in one place',
+      'Never Miss a Follow-up', 'Stay updated with automatic reminders',
+      'Be More Productive', 'Turn conversations into results',
+      'Secure & Reliable', 'Your data is safe with us',
+      'Welcome Back', 'Enter the dashboard password to continue.',
+      'Dashboard Password', 'Keep me signed in', 'Forgot password?', 'Unlock',
+      'Secure Access', 'Your data is safe and secure.',
+      'Protected with industry standard security.']) {
       assert.ok(words.includes(line), `missing: ${line}`);
     }
+  });
+
+  it('still says what a lockout costs, outside that box', () => {
+    /* The one fact on this screen anybody needs: an hour went to a lockout
+       nothing on the page had warned about. It is not part of the two
+       specified lines, so it sits under them rather than inside them. */
+    assert.match(words, /Five wrong attempts lock this device for 15 minutes/);
+    assert.match(login, /className="login-fine"/);
+  });
+
+  it('puts the card before the pitch on a narrow screen, with the mark above both', () => {
+    /* Somebody on a phone is here to get in, not to be sold what they own. */
+    const narrow = css.match(/@media \(max-width: 980px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+    assert.match(narrow, /\.login-hero \{ display: contents; \}/,
+      'the hero must stop being a panel so its parts can be ordered');
+    const order = (sel) => Number(narrow.match(new RegExp(`\\${sel}[^}]*?order:\\s*(\\d)`))?.[1] ?? -1);
+    assert.ok(order('.hero-top') < order('.login-pane'), 'the mark stays on top');
+    assert.ok(order('.login-pane') < order('.hero-body'), 'the card comes before the pitch');
+    assert.ok(order('.hero-body') < order('.hero-foot'));
   });
 
   it('draws its wallpaper from the same mark file, not a second copy of it', () => {
@@ -164,11 +185,10 @@ describe('the sign-in screen', () => {
     assert.match(css, /max-width:\s*980px\)[\s\S]*?\.login-pane::after, \.pane-script, \.pane-foot \{ display: none; \}/);
   });
 
-  it('makes no security claim the audit does not support', () => {
-    /* SQLite and the session file are not encrypted at rest; one shared
-       password, no 2FA. "Industry standard security" would be a sentence the
-       app cannot stand behind, printed on the first screen. */
-    assert.doesNotMatch(words, /industry standard|bank[- ]grade|military/i);
-    assert.match(words, /lock the device for fifteen minutes/);
+  it('claims no encryption it does not do', () => {
+    /* The wording of the box is the owner's, asked for twice and in writing.
+       What must never appear is a claim of something specific the app does
+       not do: SQLite and the WhatsApp session are unencrypted at rest. */
+    assert.doesNotMatch(words, /end[- ]to[- ]end|encrypt|bank[- ]grade|military/i);
   });
 });
