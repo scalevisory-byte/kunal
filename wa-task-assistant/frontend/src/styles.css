@@ -1721,12 +1721,24 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * When it is present the geometric watermark stands down - two large marks in
  * one corner is noise, not richness.
  */
+/*
+ * Three layers, stated rather than left to paint order: the geometric
+ * watermark at the back, the photograph over it, the card over both. Written
+ * down because `::after` paints above earlier siblings by default, which put
+ * the watermark on top of the photograph by accident.
+ */
 .pane-desk {
-  position: absolute; z-index: 0; pointer-events: none; user-select: none;
+  position: absolute; z-index: 1; pointer-events: none; user-select: none;
   /* Clear of the footer line, which sits over this corner and must stay read
      as text rather than as something printed on a photograph. */
-  right: 2%; bottom: 46px; width: 60%; height: auto;
-  opacity: .58;
+  /*
+   * Larger, and pushed past the panel's edge: the branded cup sits at the
+   * picture's right, so running it off the edge leaves the plant and the
+   * notebook as the part that reads. The cup was the first thing the eye went
+   * to, and the first thing on this page must be the card.
+   */
+  right: -12%; bottom: 46px; width: 76%; height: auto;
+  opacity: .42;
   /*
    * Faded on all four sides, so the photograph has no edge of its own.
    *
@@ -1751,11 +1763,11 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .login-pane.has-desk::after { opacity: .025; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .pane-desk { opacity: .22; }
+  :root:not([data-theme="light"]) .pane-desk { opacity: .16; }
 }
-:root[data-theme="dark"] .pane-desk { opacity: .22; }
+:root[data-theme="dark"] .pane-desk { opacity: .16; }
 
-.pane-script, .pane-foot { position: absolute; z-index: 1; margin: 0; color: var(--muted); }
+.pane-script, .pane-foot { position: absolute; z-index: 3; margin: 0; color: var(--muted); }
 .pane-script {
   top: 30px; right: 34px;
   /*
@@ -1775,8 +1787,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .pane-foot b { color: var(--line-2); font-weight: 400; margin: 0 7px; }
 .login-card {
-  position: relative; z-index: 1;
-  width: 100%; max-width: 452px;
+  position: relative; z-index: 2;
+  width: 100%; max-width: 486px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
