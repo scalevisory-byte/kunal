@@ -24,6 +24,10 @@ const PATHS = {
   alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13v5m0 3h.01',
   clipboard: 'M9 4h6v3H9V4Zm-1 1H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M8.5 12h7M8.5 16h5',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-13.5V12l3 2',
+  /* Bars climbing: more done, which is what the sign-in page claims. */
+  chart: 'M4 20V4M4 20h16M8.5 20v-5.5M13 20v-9M17.5 20v-7',
+  /* A shield with a tick: the one security claim the page is allowed to make. */
+  shield: 'M12 3.5 19 6v5.5c0 4.2-2.8 7.4-7 9-4.2-1.6-7-4.8-7-9V6l7-2.5Zm-2.6 8.4 2 2 3.6-3.8',
   /* Show and hide the password - typed blind is how five attempts were spent. */
   eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 2.6a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z',
   eyeOff: 'M4 4l16 16M9.9 5.8A8.6 8.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3.3 4M6.6 7.9A16 16 0 0 0 2.5 12S6 18.5 12 18.5c1 0 1.9-.2 2.7-.5M10.2 10.3a2.6 2.6 0 0 0 3.5 3.6',

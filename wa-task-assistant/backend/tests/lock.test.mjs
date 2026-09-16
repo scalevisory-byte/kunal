@@ -56,29 +56,45 @@ describe('locking the dashboard', () => {
  *
  * It was a heading and a field in the top-left corner of a blank white page,
  * because `.login` centred its TEXT and never itself. Asked as "isko attractive
- * banvo". These pin the two things a stylesheet edit can quietly undo.
+ * banvo", then "isko bolte he login screen" over a two-panel mock. These pin
+ * what a later stylesheet edit could quietly undo - and the two places where
+ * the page deliberately departs from that mock, which are the two places a
+ * pretty screen would otherwise tell a lie.
  */
 describe('the sign-in screen', () => {
   const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '');
   const login = read('components/Login.jsx');
+  const api = read('api.js');
+  /* What the screen actually SAYS: comments stripped, wrapping undone. The
+     notes below explain why a phrase is absent, and would match a test for it. */
+  const words = login.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
   const block = (selector) => {
-    const re = new RegExp(`(^|[,}])\\s*${selector.replace('.', '\\.')}\\s*\\{([^{}]*)\\}`, 'm');
+    const re = new RegExp(`(^|[,}])\\s*${selector.replace(/\./g, '\\.')}\\s*\\{([^{}]*)\\}`, 'm');
     return css.match(re)?.[2] ?? null;
   };
 
-  it('sits in the middle of the page, not in its corner', () => {
-    const page = block('.login-page');
-    assert.ok(page, '.login-page is gone');
-    assert.match(page, /place-items:\s*center/);
-    assert.match(page, /min-height:\s*100dvh/, 'it must fill the screen to centre against');
-    assert.match(login, /className="login-page"/);
+  it('is two panels on a wide screen and one on a narrow one', () => {
+    const split = block('.login-split');
+    assert.ok(split, '.login-split is gone');
+    assert.match(split, /grid-template-columns:\s*1\.15fr 1fr/);
+    assert.match(split, /min-height:\s*100dvh/);
+    /* Below 980 the panel goes above the card instead of beside it. */
+    assert.match(css, /max-width:\s*980px\)\s*\{[\s\S]*?\.login-split \{ grid-template-columns: 1fr; \}/);
   });
 
-  it('does not colour its name with the dark sidebar\'s ink', () => {
-    /* --nav-text is pale, for the navy sidebar. On the white card it vanished. */
-    assert.doesNotMatch(login, /className="side-name"/, 'reuse the mark, never the name block');
-    assert.match(block('.login-name strong') || '', /color:\s*var\(--text\)/);
+  it('drops the selling points before the card on a narrow screen', () => {
+    /* Four of them above a password field is a page you scroll to log in. */
+    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.hero-points, \.hero-foot \{ display: none; \}/);
+  });
+
+  it('does not colour the name with the dark sidebar\'s ink', () => {
+    assert.doesNotMatch(login, /className="side-name"/, 'that colour is for the navy sidebar');
+  });
+
+  it('keeps the wordmark readable in the dark theme', () => {
+    /* --brand-deep stays near-black in dark, where this sits on a dark ground. */
+    assert.match(block('.hero-title span') || '', /color:\s*var\(--text\)/);
   });
 
   it('can show the password, because typing it blind is what cost the lockout', () => {
@@ -89,5 +105,33 @@ describe('the sign-in screen', () => {
   it('warns about Caps Lock before the fifth attempt, not after', () => {
     assert.match(login, /getModifierState\?\.\('CapsLock'\)/);
     assert.match(login, /\{caps && /);
+  });
+
+  /* ---- the two departures from the mock ---- */
+
+  it('"Keep me signed in" actually decides where the password is kept', () => {
+    assert.match(login, /onSubmit\(password\.trim\(\), \{ remember \}\)/);
+    assert.match(api, /remember \? window\.localStorage : window\.sessionStorage/);
+  });
+
+  it('forgetting clears both stores, so a lock cannot leave a copy behind', () => {
+    const fn = api.match(/export function setToken[\s\S]*?\n\}/)?.[0] ?? '';
+    assert.match(fn, /for \(const store of stores\(\)\)[\s\S]*?removeItem/);
+    assert.ok(fn.indexOf('removeItem') < fn.indexOf('if (!token) return'),
+      'both stores must be cleared before the new token is written');
+  });
+
+  it('offers no "Forgot password?", because there is nothing to reset', () => {
+    assert.doesNotMatch(words, /Forgot password\?/);
+    /* It says where the password actually lives instead. */
+    assert.match(words, /DASHBOARD_PASSWORD/);
+  });
+
+  it('makes no security claim the audit does not support', () => {
+    /* SQLite and the session file are not encrypted at rest; one shared
+       password, no 2FA. "Industry standard security" would be a sentence the
+       app cannot stand behind, printed on the first screen. */
+    assert.doesNotMatch(words, /industry standard|bank[- ]grade|military/i);
+    assert.match(words, /lock the device for fifteen minutes/);
   });
 });

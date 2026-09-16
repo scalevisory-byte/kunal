@@ -1,12 +1,40 @@
 const TOKEN_KEY = 'wa-tasks-token';
 
+/* Every store the token could be in, so forgetting it cannot half-work. */
+const stores = () => {
+  const out = [];
+  try { out.push(window.localStorage); } catch { /* blocked site data */ }
+  try { out.push(window.sessionStorage); } catch { /* ditto */ }
+  return out;
+};
+
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY) || '';
+  for (const store of stores()) {
+    const found = store.getItem(TOKEN_KEY);
+    if (found) return found;
+  }
+  return '';
 }
 
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+/**
+ * Remember the password, or only for this window.
+ *
+ * "Keep me signed in" has to mean something. Unticked, the token goes to
+ * sessionStorage and dies with the tab - which is the honest answer on the
+ * borrowed screen and the remote desktop this actually gets opened from.
+ * Ticked, it survives in localStorage as it always did.
+ *
+ * Clearing writes to BOTH, because the box may have been ticked last time and
+ * a Lock that left a copy behind in the other store would not be a lock.
+ */
+export function setToken(token, { remember = true } = {}) {
+  for (const store of stores()) {
+    try { store.removeItem(TOKEN_KEY); } catch { /* nothing to do */ }
+  }
+  if (!token) return;
+  try {
+    (remember ? window.localStorage : window.sessionStorage).setItem(TOKEN_KEY, token);
+  } catch { /* a private window still works for this session, in memory */ }
 }
 
 export class UnauthorizedError extends Error {

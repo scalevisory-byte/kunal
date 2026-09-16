@@ -1555,64 +1555,136 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* ---------- sign in ---------- */
 
 /*
- * The first screen anybody sees, and it used to be the only one that looked
- * unfinished: a heading and a field pinned to the top-left of a white page,
- * because `.login` set a width and a centre for its TEXT and never a margin
- * for itself. It is a card in the middle of the page now, on the same system
- * as everything behind it.
+ * The whole page, not a box on it.
+ *
+ * It began as a heading and a field in the top-left corner of a blank white
+ * page. This is the one screen seen before anything else and the one that
+ * carries the practice's name, so it gets the room: the firm and what the app
+ * does on the left, the way in on the right.
  */
-.login-page {
+.login-split {
   min-height: 100vh; min-height: 100dvh;
-  display: grid; place-items: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
-  /* A quiet wash off the top, so the card reads as lit rather than stuck on. */
+  display: grid; grid-template-columns: 1.15fr 1fr;
+}
+
+/* ----- left: who this is and what it does ----- */
+
+.login-hero {
+  display: flex; flex-direction: column;
+  padding: clamp(28px, 4vw, 52px) clamp(24px, 4vw, 60px);
+  color: var(--text);
+  /*
+   * The firm's blue, laid on as light as it goes: a wash from the top-left and
+   * one soft band low down, so the panel has depth without becoming a poster.
+   */
   background:
-    radial-gradient(1100px 420px at 50% -8%, var(--brand-wash), transparent 70%),
-    var(--bg);
+    radial-gradient(900px 520px at 8% -6%, var(--brand-wash), transparent 68%),
+    linear-gradient(160deg, var(--card) 0%, var(--bg-2) 100%);
+  border-right: 1px solid var(--line);
+  /*
+   * One lighter blue, defined here and nowhere else, because it exists for
+   * exactly one word. The palette's --brand is a deep navy; two words set in it
+   * read as one block, and the split in the name is what makes it a wordmark
+   * rather than a heading.
+   */
+  --hero-blue: #2f6fb0;
+}
+:root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .login-hero { --hero-blue: #2f6fb0; }
+}
+:root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
+.hero-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap;
+}
+.hero-brand { display: grid; gap: 1px; min-width: 0; }
+.hero-brand strong {
+  font-family: Archivo, sans-serif; font-weight: 700;
+  font-size: 1.24rem; letter-spacing: .06em; color: var(--brand);
+}
+.hero-brand span { font-size: .78rem; color: var(--text-2); letter-spacing: .01em; }
+.hero-brand em {
+  font-size: .76rem; color: var(--accent); font-style: normal; font-weight: 600;
+}
+.hero-steps {
+  margin: 4px 0 0; font-size: .72rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted);
+}
+.hero-steps b { color: var(--brand); font-weight: 600; }
+
+.hero-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; }
+.hero-eyebrow {
+  margin: 0 0 6px; font-size: .74rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted);
+}
+.hero-title {
+  font-family: Archivo, sans-serif; font-weight: 700;
+  /* Big, but it must not wrap at 1000px, where the panel is at its narrowest. */
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  line-height: 1.02; letter-spacing: -.03em;
+  margin: 0 0 14px; color: var(--hero-blue);
+}
+/* Not --brand-deep: it stays near-black in the dark theme, where this sits on
+   a dark ground and would vanish. --text is dark on light and light on dark. */
+.hero-title span { color: var(--text); }
+.hero-lead {
+  margin: 0 0 30px; max-width: 34ch;
+  font-size: 1.02rem; line-height: 1.5; color: var(--text-2);
+}
+
+.hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.hero-points li { display: flex; align-items: flex-start; gap: 13px; }
+.hero-ico {
+  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.hero-points strong { display: block; font-size: .92rem; color: var(--text); }
+.hero-points small { display: block; font-size: .8rem; color: var(--muted); }
+
+.hero-foot {
+  padding-top: 22px; border-top: 1px solid var(--line);
+  font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+
+/* ----- right: the way in ----- */
+
+.login-pane {
+  display: grid; place-items: center;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  background: var(--bg);
 }
 .login-card {
-  width: 100%; max-width: 392px;
+  width: 100%; max-width: 396px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 30px 28px 24px;
-  /* The one place in the app that lifts off the page, because it is alone on it. */
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 12px 32px -12px rgba(15, 23, 42, .18);
+  padding: 28px;
+  /* The only card in the app that lifts, because it is alone on its half. */
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 36px -16px rgba(15, 23, 42, .22);
 }
-.login-brand {
-  display: flex; align-items: center; gap: 10px;
-  padding-bottom: 20px; margin-bottom: 20px;
-  border-bottom: 1px solid var(--line);
+.login-badge {
+  display: grid; place-items: center;
+  width: 46px; height: 46px; border-radius: 13px; margin-bottom: 18px;
+  background: var(--brand-wash); color: var(--brand);
 }
-/*
- * Its own name block, not the sidebar's.
- *
- * `.side-name` colours its text with --nav-text, which is the pale ink of the
- * dark sidebar - on this white card the product's own name came out almost
- * invisible. The mark is shared, because that really is the same mark.
- */
-.login-name { display: grid; min-width: 0; line-height: 1.2; }
-.login-name strong {
+.login-card h2 {
   font-family: Archivo, sans-serif; font-weight: 700;
-  font-size: 1.02rem; letter-spacing: -.015em; color: var(--text);
-}
-.login-name small { font-size: .72rem; color: var(--muted); }
-
-.login-card h1 {
-  font-family: Archivo, sans-serif; font-weight: 700;
-  font-size: 1.32rem; letter-spacing: -.02em;
-  margin: 0 0 4px;
+  font-size: 1.34rem; letter-spacing: -.02em; margin: 0 0 4px;
 }
 .login-sub { color: var(--muted); font-size: .88rem; margin: 0 0 20px; }
 .login-sub.bad { color: var(--danger); }
 
 .login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-label {
+  font-size: .78rem; font-weight: 600; letter-spacing: .02em;
+  color: var(--text-2); margin-bottom: -4px;
+}
 
 /* The field carries the padlock and the reveal; the input itself is bare. */
 .login-field { position: relative; display: flex; align-items: center; }
-.login-field-icon {
-  position: absolute; left: 12px; color: var(--muted); pointer-events: none;
-}
+.login-field-icon { position: absolute; left: 12px; color: var(--muted); pointer-events: none; }
 .login-field input {
   width: 100%;
   padding: 11px 44px 11px 38px;
@@ -1638,17 +1710,57 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   display: flex; align-items: center; gap: 6px;
   margin: 0; font-size: .8rem; color: var(--warn);
 }
-.login-go { width: 100%; justify-content: center; padding: 11px; font-size: .95rem; }
+
+.login-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.login-check {
+  display: flex; align-items: center; gap: 7px;
+  font-size: .84rem; color: var(--text-2); cursor: pointer;
+}
+.login-check input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; }
+.login-row .link { font-size: .84rem; }
+.login-where {
+  margin: 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--sunken); border: 1px solid var(--line);
+  font-size: .8rem; line-height: 1.5; color: var(--text-2);
+}
+.login-where code { font-size: .76rem; }
+
+.login-go {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px; font-size: .95rem; margin-top: 2px;
+}
 .login-go:disabled { opacity: .55; cursor: not-allowed; }
 
-.login-foot {
-  margin: 18px 0 0; padding-top: 16px;
+.login-note {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin: 20px 0 0; padding-top: 18px;
   border-top: 1px solid var(--line);
-  font-size: .78rem; color: var(--muted); text-align: center;
+  font-size: .78rem; line-height: 1.5; color: var(--muted);
 }
+.login-note .icon { flex: none; margin-top: 1px; color: var(--ok, var(--brand)); }
 
+/*
+ * Narrow: one column, the panel above the card rather than beside it - and
+ * shortened to the name and the promise, because four selling points above a
+ * password field is a page you scroll to log in.
+ */
+@media (max-width: 980px) {
+  .login-split { grid-template-columns: 1fr; }
+  .login-hero {
+    border-right: 0; border-bottom: 1px solid var(--line);
+    padding-bottom: 30px;
+  }
+  .hero-body { padding: 26px 0 0; }
+  .hero-lead { margin-bottom: 0; }
+  .hero-points, .hero-foot { display: none; }
+  .login-pane { padding-top: 30px; padding-bottom: 40px; }
+}
 @media (max-width: 420px) {
-  .login-card { padding: 24px 20px 20px; border-radius: 10px; }
+  .login-card { padding: 22px 18px; border-radius: 10px; }
+  .hero-steps { display: none; }
 }
 
 /* Small phones: the header actions were squeezing the title onto two lines. */

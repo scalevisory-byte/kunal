@@ -893,8 +893,9 @@ export default function App() {
   if (needsAuth) {
     return (
       <Login
-        onSubmit={(password) => {
-          setToken(password);
+        onSubmit={(password, opts) => {
+          /* `remember` decides localStorage or sessionStorage - see api.js. */
+          setToken(password, opts);
           setNeedsAuth(false);
           refresh();
         }}
