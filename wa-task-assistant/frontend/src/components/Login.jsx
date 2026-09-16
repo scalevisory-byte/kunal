@@ -23,6 +23,16 @@ import Icon from './Icon.jsx';
  * second factor. So it says what is true instead - nobody else can open this,
  * and five wrong tries lock the device.
  */
+/*
+ * The desk photograph, under whichever name it was uploaded.
+ *
+ * It arrives by somebody dragging a file into GitHub, and "save it as exactly
+ * desk.jpg" is a rule that gets broken by a phone that hands you a .png. Each
+ * name is tried in turn and the last failure gives up quietly, so the only
+ * thing that has to be right is the folder.
+ */
+const DESK = ['/brand/desk.jpg', '/brand/desk.jpeg', '/brand/desk.png', '/brand/desk.webp'];
+
 const POINTS = [
   { icon: 'whatsapp', title: 'Capture & Track', note: 'All your WhatsApp tasks in one place' },
   { icon: 'clipboard', title: 'Never Miss a Follow-up', note: 'Stay updated with automatic reminders' },
@@ -33,14 +43,12 @@ const POINTS = [
 export default function Login({ onSubmit, hadToken }) {
   const [password, setPassword] = useState('');
   /*
-   * The desk photograph, if there is one.
-   *
-   * It is the firm's own picture and it is not in the repository yet, so the
-   * page must be right with it and right without it: the image reports its own
-   * absence and takes the class with it, and the geometric watermark stands in
-   * meanwhile. No placeholder, no broken-image icon, and nothing invented.
+   * Which name is being tried. Past the end of the list there is no photograph,
+   * and the page must be right either way: no placeholder, no broken-image
+   * icon, and the geometric watermark standing in until one turns up.
    */
-  const [desk, setDesk] = useState(true);
+  const [deskAt, setDeskAt] = useState(0);
+  const desk = deskAt < DESK.length;
   const [reveal, setReveal] = useState(false);
   const [caps, setCaps] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -109,9 +117,10 @@ export default function Login({ onSubmit, hadToken }) {
         {desk && (
           <img
             className="pane-desk"
-            src="/brand/desk.jpg"
+            key={DESK[deskAt]}
+            src={DESK[deskAt]}
             alt="" aria-hidden="true"
-            onError={() => setDesk(false)}
+            onError={() => setDeskAt((i) => i + 1)}
           />
         )}
         <p className="pane-script">Work Smarter Together</p>

@@ -182,8 +182,11 @@ describe('the sign-in screen', () => {
     /* The firm's own picture, not in the repository yet. No placeholder and
        no broken-image icon: the img reports its own absence and the geometric
        watermark stands back up in its place. */
-    assert.match(login, /onError=\{\(\) => setDesk\(false\)\}/);
+    assert.match(login, /onError=\{\(\) => setDeskAt\(\(i\) => i \+ 1\)\}/);
     assert.match(login, /\{desk && \(/, 'it must stop being rendered, not merely hidden');
+    /* Uploaded by hand, so the extension is whatever the phone produced. */
+    assert.match(login, /const DESK = \[[^\]]*desk\.jpg[^\]]*desk\.png[^\]]*\]/s);
+    assert.match(login, /const desk = deskAt < DESK\.length;/);
     assert.match(login, /className=\{`login-pane \$\{desk \? 'has-desk' : ''\}`\}/);
     assert.match(css, /\.login-pane\.has-desk::after \{ opacity: \.025; \}/,
       'two large marks in one corner is noise: the watermark stands down');
