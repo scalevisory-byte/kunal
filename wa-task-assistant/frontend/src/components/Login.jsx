@@ -2,28 +2,32 @@ import { useState } from 'react';
 import Icon from './Icon.jsx';
 
 /**
- * The way in.
+ * The way in, built to the mock Dinesh shared: the practice on the left, the
+ * way in on the right, the firm's own mark top-left and its own words around
+ * the edges.
  *
- * It was a heading and a field in the corner of a blank page; then a centred
- * card; now the whole page, because this is the one screen that is seen before
- * anything else and it carries the practice's name.
+ * Two things on it work rather than merely appear, because the first screen is
+ * where a lie is cheapest to tell and most expensive to keep:
  *
- * Two things on it deliberately do NOT follow the mock this was built from:
+ * "Keep me signed in" decides where the password is kept - unticked it goes to
+ * sessionStorage and dies with the tab, which is the honest answer on the
+ * borrowed screen and the remote desktop this actually gets opened from.
  *
- * "Keep me signed in" is real - unticked, the password lives in sessionStorage
- * and dies with the tab, which is the honest answer on the borrowed screen and
- * the remote desktop this actually gets opened from. A checkbox that changed
- * nothing would be worse than no checkbox.
+ * "Forgot password?" opens the answer instead of going nowhere: there IS no
+ * reset, the password is a variable in the hosting provider, and saying so is
+ * the only useful thing that link can do.
  *
- * And there is no "Forgot password?", because there is no reset: the password
- * is a variable in the hosting provider. Saying where it lives is useful; a
- * link that goes nowhere is a lie told on the first screen.
+ * And the panel's claim is one the app can stand behind. The mock offered
+ * "protected with industry standard security"; the audit says SQLite and the
+ * WhatsApp session are unencrypted at rest, with one shared password and no
+ * second factor. So it says what is true instead - nobody else can open this,
+ * and five wrong tries lock the device.
  */
 const POINTS = [
-  { icon: 'whatsapp', title: 'Capture & track', note: 'Every WhatsApp task in one place' },
-  { icon: 'clock', title: 'Never miss a follow-up', note: 'Reminders that keep asking until it is done' },
-  { icon: 'chart', title: 'Get more done', note: 'Conversations turned into work you can see' },
-  { icon: 'shield', title: 'Yours alone', note: 'One password, and nothing is sent to anybody else' },
+  { icon: 'whatsapp', title: 'Capture & Track', note: 'All your WhatsApp tasks in one place' },
+  { icon: 'clipboard', title: 'Never Miss a Follow-up', note: 'Stay updated with automatic reminders' },
+  { icon: 'chart', title: 'Be More Productive', note: 'Turn conversations into results' },
+  { icon: 'shield', title: 'Secure & Reliable', note: 'Your data stays with you' },
 ];
 
 export default function Login({ onSubmit, hadToken }) {
@@ -59,21 +63,23 @@ export default function Login({ onSubmit, hadToken }) {
               width="560" height="116"
             />
           </div>
-          <p className="hero-steps"><b>Organise</b> · Track · Achieve</p>
+          <p className="hero-steps">
+            Organize <span>|</span> <b>Track</b> <span>|</span> Achieve
+          </p>
         </header>
 
         <div className="hero-body">
           <p className="hero-eyebrow">Welcome to</p>
           <h1 className="hero-title"><span>WA</span> Tasks</h1>
           <p className="hero-lead">
-            Your WhatsApp tasks, follow-ups and deadlines — read, sorted and chased
-            for you.
+            Manage your WhatsApp tasks, follow-ups and communications efficiently.
           </p>
+          <p className="hero-tag">Stay organized. Stay ahead.</p>
 
           <ul className="hero-points">
             {POINTS.map((point) => (
               <li key={point.title}>
-                <span className="hero-ico"><Icon name={point.icon} size={19} /></span>
+                <span className="hero-ico"><Icon name={point.icon} size={18} /></span>
                 <span>
                   <strong>{point.title}</strong>
                   <small>{point.note}</small>
@@ -84,15 +90,18 @@ export default function Login({ onSubmit, hadToken }) {
         </div>
 
         <footer className="hero-foot">
-          Scale Visory · Vadodara &amp; Surat
+          <i />
+          <span>Scale Visory <b>|</b> Technology for a more organized tomorrow</span>
         </footer>
       </section>
 
       <section className="login-pane">
+        <p className="pane-script">Work Smarter Together</p>
+
         <main className="login-card">
           <span className="login-badge"><Icon name="lock" size={22} /></span>
 
-          <h2>Welcome back</h2>
+          <h2>Welcome Back</h2>
           <p className={`login-sub ${rejected ? 'bad' : ''}`}>
             {rejected
               ? 'That password was rejected. Try again.'
@@ -106,7 +115,7 @@ export default function Login({ onSubmit, hadToken }) {
               if (password.trim()) onSubmit(password.trim(), { remember });
             }}
           >
-            <label className="login-label" htmlFor="dash-password">Dashboard password</label>
+            <label className="login-label" htmlFor="dash-password">Dashboard Password</label>
             <div className="login-field">
               <Icon name="lock" size={17} className="login-field-icon" />
               <input
@@ -143,16 +152,15 @@ export default function Login({ onSubmit, hadToken }) {
                 Keep me signed in
               </label>
               <button type="button" className="link" onClick={() => setWhereIsIt((v) => !v)}>
-                Forgotten it?
+                Forgot password?
               </button>
             </div>
 
             {whereIsIt && (
               <p className="login-where">
-                There is no reset link, because there is nothing to reset: the password is
-                the <code>DASHBOARD_PASSWORD</code> variable in the hosting provider.
-                Open it there to read it, or change it — the new one works within a
-                few minutes.
+                There is nothing to reset: the password is the <code>DASHBOARD_PASSWORD</code>{' '}
+                variable in the hosting provider. Open it there to read it, or change it —
+                the new one works within a few minutes.
               </p>
             )}
 
@@ -161,14 +169,21 @@ export default function Login({ onSubmit, hadToken }) {
             </button>
           </form>
 
-          <p className="login-note">
-            <Icon name="shield" size={17} />
+          <p className="login-secure"><Icon name="shield" size={15} /> Secure Access</p>
+
+          <div className="login-safe">
+            <span className="safe-ico"><Icon name="shield" size={17} /></span>
             <span>
-              This password is the only way in. Five wrong attempts lock the device
-              for fifteen minutes.
+              <strong>Your data is safe with you</strong>
+              <small>
+                This password is the only way in, and five wrong attempts lock the
+                device for fifteen minutes.
+              </small>
             </span>
-          </p>
+          </div>
         </main>
+
+        <p className="pane-foot"><b>|</b> People <b>|</b> Process <b>|</b> Progress <b>|</b></p>
       </section>
     </div>
   );

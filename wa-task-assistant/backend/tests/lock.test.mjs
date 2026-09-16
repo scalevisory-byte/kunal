@@ -140,10 +140,28 @@ describe('the sign-in screen', () => {
       'both stores must be cleared before the new token is written');
   });
 
-  it('offers no "Forgot password?", because there is nothing to reset', () => {
-    assert.doesNotMatch(words, /Forgot password\?/);
-    /* It says where the password actually lives instead. */
+  it('"Forgot password?" opens the answer rather than going nowhere', () => {
+    /* There IS no reset; the password is a variable in the hosting provider.
+       The label is the mock's, the behaviour is the only useful one it has. */
+    assert.match(words, /Forgot password\?/);
+    assert.match(login, /onClick=\{\(\) => setWhereIsIt\(\(v\) => !v\)\}/);
     assert.match(words, /DASHBOARD_PASSWORD/);
+    assert.doesNotMatch(login, /href=/, 'a link here would have nowhere to go');
+  });
+
+  it('carries the shared mock\'s own words', () => {
+    for (const line of ['Manage your WhatsApp tasks, follow-ups and communications efficiently',
+      'Stay organized. Stay ahead.', 'Capture & Track', 'Never Miss a Follow-up',
+      'Be More Productive', 'Secure & Reliable', 'Welcome Back', 'Secure Access']) {
+      assert.ok(words.includes(line), `missing: ${line}`);
+    }
+  });
+
+  it('draws its wallpaper from the same mark file, not a second copy of it', () => {
+    assert.match(css, /\.login-pane::after[\s\S]*?brand\/scalevisory-mark\.png/);
+    /* Behind the card and unclickable: it is wallpaper, not an image. */
+    assert.match(css, /\.login-pane::after[\s\S]*?pointer-events: none/);
+    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.login-pane::after, \.pane-script, \.pane-foot \{ display: none; \}/);
   });
 
   it('makes no security claim the audit does not support', () => {

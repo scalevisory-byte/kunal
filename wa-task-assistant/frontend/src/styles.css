@@ -1615,10 +1615,14 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 :root[data-theme="dark"] .hero-logo .on-light { display: none; }
 :root[data-theme="dark"] .hero-logo .on-dark { display: block; }
 .hero-steps {
-  margin: 4px 0 0; font-size: .72rem; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--muted);
+  margin: 6px 0 0; font-size: .72rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap;
 }
-.hero-steps b { color: var(--brand); font-weight: 600; }
+.hero-steps span { margin: 0 6px; color: var(--line-2); }
+.hero-steps b {
+  color: var(--brand); font-weight: 600;
+  border-bottom: 2px solid var(--hero-blue); padding-bottom: 3px;
+}
 
 .hero-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; }
 .hero-eyebrow {
@@ -1636,14 +1640,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
    a dark ground and would vanish. --text is dark on light and light on dark. */
 .hero-title span { color: var(--text); }
 .hero-lead {
-  margin: 0 0 30px; max-width: 34ch;
+  margin: 0 0 14px; max-width: 34ch;
   font-size: 1.02rem; line-height: 1.5; color: var(--text-2);
+}
+.hero-tag {
+  margin: 0 0 30px; font-size: .74rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted);
 }
 
 .hero-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
 .hero-points li { display: flex; align-items: flex-start; gap: 13px; }
 .hero-ico {
-  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  flex: none; width: 36px; height: 36px; border-radius: 50%;
   display: grid; place-items: center;
   background: var(--brand-wash); color: var(--brand);
 }
@@ -1651,18 +1659,53 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .hero-points small { display: block; font-size: .8rem; color: var(--muted); }
 
 .hero-foot {
+  display: flex; align-items: center; gap: 14px;
   padding-top: 22px; border-top: 1px solid var(--line);
-  font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
 }
+.hero-foot i { flex: none; width: 28px; height: 2px; background: var(--hero-blue); }
+.hero-foot b { color: var(--line-2); font-weight: 400; margin: 0 4px; }
 
 /* ----- right: the way in ----- */
 
 .login-pane {
+  position: relative; overflow: hidden;
   display: grid; place-items: center;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   background: var(--bg);
 }
+/*
+ * The mark again, very large and very faint, behind the card - the same file,
+ * so there is no second drawing of it to keep in step. Behind everything and
+ * unclickable; it is wallpaper, not an image anybody needs.
+ */
+.login-pane::after {
+  content: ''; position: absolute; z-index: 0; pointer-events: none;
+  right: -12%; bottom: -6%; width: 78%; aspect-ratio: 512 / 352;
+  background: url('/brand/scalevisory-mark.png') no-repeat center / contain;
+  opacity: .06;
+}
+.pane-script, .pane-foot { position: absolute; z-index: 1; margin: 0; color: var(--muted); }
+.pane-script {
+  top: 30px; right: 34px;
+  /*
+   * A handwritten flourish, and no font file shipped for it: this is one
+   * decorative line, not worth 40 kB on the first request. Windows has Segoe
+   * Script, macOS has Bradley Hand; where neither lands, the italic keeps it
+   * reading as a flourish rather than as a stray sentence.
+   */
+  font-family: "Segoe Script", "Bradley Hand", "Brush Script MT", cursive;
+  font-style: italic; font-weight: 500;
+  font-size: 1.14rem; line-height: 1.3; text-align: right;
+  max-width: 7ch; color: var(--brand);
+}
+.pane-foot {
+  bottom: 24px; right: 34px;
+  font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+}
+.pane-foot b { color: var(--line-2); font-weight: 400; margin: 0 7px; }
 .login-card {
+  position: relative; z-index: 1;
   width: 100%; max-width: 396px;
   background: var(--card);
   border: 1px solid var(--line);
@@ -1673,7 +1716,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .login-badge {
   display: grid; place-items: center;
-  width: 46px; height: 46px; border-radius: 13px; margin-bottom: 18px;
+  width: 48px; height: 48px; border-radius: 50%; margin-bottom: 18px;
   background: var(--brand-wash); color: var(--brand);
 }
 .login-card h2 {
@@ -1741,13 +1784,27 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .login-go:disabled { opacity: .55; cursor: not-allowed; }
 
-.login-note {
-  display: flex; align-items: flex-start; gap: 9px;
-  margin: 20px 0 0; padding-top: 18px;
-  border-top: 1px solid var(--line);
-  font-size: .78rem; line-height: 1.5; color: var(--muted);
+/* A centred label with the rule running through it, as in the mock. */
+.login-secure {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin: 20px 0 14px; font-size: .74rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
 }
-.login-note .icon { flex: none; margin-top: 1px; color: var(--ok, var(--brand)); }
+.login-secure::before, .login-secure::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+.login-secure .icon { color: var(--ok); }
+
+.login-safe {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 13px; border-radius: 9px;
+  background: var(--brand-wash); border: 1px solid var(--line);
+}
+.safe-ico { flex: none; color: var(--brand); margin-top: 1px; }
+.login-safe strong { display: block; font-size: .84rem; color: var(--text); }
+.login-safe small {
+  display: block; font-size: .76rem; line-height: 1.45; color: var(--text-2);
+}
 
 /*
  * Narrow: one column, the panel above the card rather than beside it - and
@@ -1764,6 +1821,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .hero-lead { margin-bottom: 0; }
   .hero-points, .hero-foot { display: none; }
   .login-pane { padding-top: 30px; padding-bottom: 40px; }
+  /* Wallpaper and marginalia are for a wide screen; here it is just a login. */
+  .login-pane::after, .pane-script, .pane-foot { display: none; }
 }
 @media (max-width: 420px) {
   .login-card { padding: 22px 18px; border-radius: 10px; }
