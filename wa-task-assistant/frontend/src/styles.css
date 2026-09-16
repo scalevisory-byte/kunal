@@ -1697,8 +1697,13 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 .login-pane {
   position: relative; overflow: hidden;
-  display: grid; place-items: center;
-  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  /*
+   * The card sits high and slightly left of centre, not in the middle.
+   * Dead centre put it over the photograph's corner, and the photograph is
+   * meant to be seen whole - so the two share the panel rather than stack.
+   */
+  display: grid; place-items: start center; align-content: start;
+  padding: clamp(28px, 7vh, 74px) 20px calc(24px + env(safe-area-inset-bottom));
   background: var(--bg);
 }
 /*
@@ -1732,13 +1737,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   /* Clear of the footer line, which sits over this corner and must stay read
      as text rather than as something printed on a photograph. */
   /*
-   * Larger, and pushed past the panel's edge: the branded cup sits at the
-   * picture's right, so running it off the edge leaves the plant and the
-   * notebook as the part that reads. The cup was the first thing the eye went
-   * to, and the first thing on this page must be the card.
+   * Whole, and inside the panel: nothing of the desk is cut off by the edge,
+   * which is what "let the picture show" asks for. It keeps its place at the
+   * bottom-right and its fade, so it is still the layer behind the card.
    */
-  right: -12%; bottom: 46px; width: 76%; height: auto;
-  opacity: .42;
+  right: 3%; bottom: 62px; width: 62%; height: auto;
+  opacity: .5;
   /*
    * Faded on all four sides, so the photograph has no edge of its own.
    *
@@ -1763,9 +1767,9 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 }
 .login-pane.has-desk::after { opacity: .025; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .pane-desk { opacity: .16; }
+  :root:not([data-theme="light"]) .pane-desk { opacity: .12; }
 }
-:root[data-theme="dark"] .pane-desk { opacity: .16; }
+:root[data-theme="dark"] .pane-desk { opacity: .12; }
 
 .pane-script, .pane-foot { position: absolute; z-index: 3; margin: 0; color: var(--muted); }
 .pane-script {
@@ -1922,6 +1926,13 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .hero-lead { margin-bottom: 28px; }
   .hero-points { gap: 18px; }
   .login-card { padding: 32px 34px 28px; }
+  /*
+   * A short screen cannot hold a 600px card AND the picture beside it, so the
+   * picture drops to the floor of the panel: the mug's base, the pen and the
+   * notebook clear the card's bottom edge and read as the near edge of a desk.
+   * Whole is for a tall screen; here the aim is that it not look buried.
+   */
+  .pane-desk { right: 1%; bottom: 6px; width: 58%; }
 }
 
 /*
