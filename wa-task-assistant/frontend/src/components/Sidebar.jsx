@@ -254,6 +254,21 @@ export default function Sidebar({
             <span className="state-dot" />
             {connected ? 'Connected via WhatsApp' : 'WhatsApp not connected'}
           </p>
+
+          {/*
+            * The parent brand, at the foot of the sidebar - where a product
+            * says whose it is without competing with its own name at the top.
+            * The white artwork, because this panel is navy; the same file the
+            * sign-in screen uses on its dark theme, not a second copy.
+            */}
+          <div className="side-parent">
+            <span>A product of</span>
+            <img
+              src="/brand/scalevisory-light.png"
+              alt="Scale Visory"
+              width="560" height="116"
+            />
+          </div>
         </div>
       </aside>
     </>

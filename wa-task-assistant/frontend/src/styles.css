@@ -220,13 +220,31 @@ body {
 }
 .side-item.on .icon { color: var(--accent); }
 
-.side-foot { margin-top: auto; padding: 12px 11px 4px; position: relative; z-index: 1; }
+.side-foot { margin-top: auto; padding: 12px 11px 16px; position: relative; z-index: 1; }
 .side-motto {
   margin: 0 0 9px; font-size: .78rem; color: var(--nav-muted); line-height: 1.45;
 }
 .side-state { display: flex; align-items: center; gap: 7px; margin: 0; font-size: .74rem; }
 .side-state.on { color: var(--ok); }
 .side-state.off { color: var(--warn); }
+
+/*
+ * Whose product this is, at the foot of the navigation.
+ *
+ * Quiet on purpose: the app's own name is at the top of this panel and must
+ * stay the loudest thing on it. A hairline, four small words and the mark at
+ * a size you read rather than notice.
+ */
+.side-parent {
+  margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--nav-line);
+}
+.side-parent span {
+  display: block; margin-bottom: 7px;
+  font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--nav-muted);
+}
+.side-parent img { width: 132px; height: auto; display: block; opacity: .9; }
 
 .scrim { display: none; }
 .menu-btn { display: none; }

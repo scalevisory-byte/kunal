@@ -215,3 +215,34 @@ describe('the sign-in screen', () => {
     assert.doesNotMatch(words, /end[- ]to[- ]end|encrypt|bank[- ]grade|military/i);
   });
 });
+
+/*
+ * The parent brand inside the app, not only on the way in.
+ *
+ * Asked as "andar bhi kahi pe scale visory ka logo laga do". It sits at the
+ * foot of the navigation, which is where a product says whose it is without
+ * arguing with its own name at the top of the same panel.
+ */
+describe('Scale Visory inside the app', () => {
+  const sidebar = read('components/Sidebar.jsx');
+  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('shows the mark at the foot of the sidebar', () => {
+    assert.match(sidebar, /className="side-parent"/);
+    assert.match(sidebar, /A product of/i);
+  });
+
+  it('uses the white artwork, because that panel is navy', () => {
+    /* The colour wordmark would be a dark shape on a dark sidebar. */
+    assert.match(sidebar, /src="\/brand\/scalevisory-light\.png"/);
+    assert.doesNotMatch(sidebar, /src="\/brand\/scalevisory\.png"/);
+  });
+
+  it('stays quieter than the app\'s own name above it', () => {
+    const block = css.match(/\.side-parent img \{([^}]*)\}/)?.[1] ?? '';
+    assert.match(block, /width:\s*132px/);
+    const brand = css.match(/\.side-name strong \{([^}]*)\}/)?.[1] ?? '';
+    assert.ok(brand.includes('700'), 'the product name keeps the heavier weight');
+  });
+});
