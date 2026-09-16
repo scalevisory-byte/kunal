@@ -32,6 +32,15 @@ const POINTS = [
 
 export default function Login({ onSubmit, hadToken }) {
   const [password, setPassword] = useState('');
+  /*
+   * The desk photograph, if there is one.
+   *
+   * It is the firm's own picture and it is not in the repository yet, so the
+   * page must be right with it and right without it: the image reports its own
+   * absence and takes the class with it, and the geometric watermark stands in
+   * meanwhile. No placeholder, no broken-image icon, and nothing invented.
+   */
+  const [desk, setDesk] = useState(true);
   const [reveal, setReveal] = useState(false);
   const [caps, setCaps] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -96,7 +105,15 @@ export default function Login({ onSubmit, hadToken }) {
         </footer>
       </section>
 
-      <section className="login-pane">
+      <section className={`login-pane ${desk ? 'has-desk' : ''}`}>
+        {desk && (
+          <img
+            className="pane-desk"
+            src="/brand/desk.jpg"
+            alt="" aria-hidden="true"
+            onError={() => setDesk(false)}
+          />
+        )}
         <p className="pane-script">Work Smarter Together</p>
 
         <main className="login-card">

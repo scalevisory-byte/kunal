@@ -178,11 +178,26 @@ describe('the sign-in screen', () => {
     assert.ok(order('.hero-body') < order('.hero-foot'));
   });
 
+  it('is right with the desk photograph and right without it', () => {
+    /* The firm's own picture, not in the repository yet. No placeholder and
+       no broken-image icon: the img reports its own absence and the geometric
+       watermark stands back up in its place. */
+    assert.match(login, /onError=\{\(\) => setDesk\(false\)\}/);
+    assert.match(login, /\{desk && \(/, 'it must stop being rendered, not merely hidden');
+    assert.match(login, /className=\{`login-pane \$\{desk \? 'has-desk' : ''\}`\}/);
+    assert.match(css, /\.login-pane\.has-desk::after \{ opacity: \.025; \}/,
+      'two large marks in one corner is noise: the watermark stands down');
+  });
+
+  it('keeps the photograph off a phone, with the rest of the marginalia', () => {
+    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.pane-desk \{ display: none; \}/);
+  });
+
   it('draws its wallpaper from the same mark file, not a second copy of it', () => {
     assert.match(css, /\.login-pane::after[\s\S]*?brand\/scalevisory-mark\.png/);
     /* Behind the card and unclickable: it is wallpaper, not an image. */
     assert.match(css, /\.login-pane::after[\s\S]*?pointer-events: none/);
-    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.login-pane::after, \.pane-script, \.pane-foot \{ display: none; \}/);
+    assert.match(css, /max-width:\s*980px\)[\s\S]*?\.login-pane::after, \.pane-script, \.pane-foot, \.pane-desk \{ display: none; \}/);
   });
 
   it('claims no encryption it does not do', () => {

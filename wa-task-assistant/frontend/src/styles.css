@@ -1712,6 +1712,30 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   background: url('/brand/scalevisory-mark.png') no-repeat center / contain;
   opacity: .06;
 }
+/*
+ * The firm's own desk photograph, along the bottom-right edge.
+ *
+ * Secondary by construction: behind the card, faded out towards the card with
+ * a mask so it has no hard edge to compete with, and dimmed further in the
+ * dark theme where a bright photograph would be the only lit thing on screen.
+ * When it is present the geometric watermark stands down - two large marks in
+ * one corner is noise, not richness.
+ */
+.pane-desk {
+  position: absolute; z-index: 0; pointer-events: none; user-select: none;
+  /* Clear of the footer line, which sits over this corner and must stay read
+     as text rather than as something printed on a photograph. */
+  right: -2%; bottom: 52px; width: 66%; height: auto;
+  opacity: .55;
+  -webkit-mask-image: radial-gradient(115% 115% at 84% 78%, #000 30%, transparent 72%);
+  mask-image: radial-gradient(115% 115% at 84% 78%, #000 30%, transparent 72%);
+}
+.login-pane.has-desk::after { opacity: .025; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .pane-desk { opacity: .3; }
+}
+:root[data-theme="dark"] .pane-desk { opacity: .3; }
+
 .pane-script, .pane-foot { position: absolute; z-index: 1; margin: 0; color: var(--muted); }
 .pane-script {
   top: 30px; right: 34px;
@@ -1896,7 +1920,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   .hero-title { font-size: clamp(2rem, 8vw, 2.6rem); }
   .hero-lead { margin-bottom: 24px; }
   /* Wallpaper and marginalia are for a wide screen; here it is just a login. */
-  .login-pane::after, .pane-script, .pane-foot { display: none; }
+  .login-pane::after, .pane-script, .pane-foot, .pane-desk { display: none; }
 }
 @media (max-width: 420px) {
   .login-card { padding: 22px 18px; border-radius: 10px; }
