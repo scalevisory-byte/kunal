@@ -297,6 +297,8 @@ export default function App() {
    * same answer instead, so they can never disagree.
    */
   const [authRequired, setAuthRequired] = useState(false);
+  /* What the server says it is running - shown on the way in, see server.js. */
+  const [build, setBuild] = useState(null);
   // Extractions the model itself said it was unsure about. Nothing chases
   // these until a person says they are real.
   const [unsure, setUnsure] = useState([]);
@@ -358,7 +360,11 @@ export default function App() {
 
   useEffect(() => {
     api.authState()
-      .then((s) => { setAuthOpen(!s.required); setAuthRequired(Boolean(s.required)); })
+      .then((s) => {
+        setAuthOpen(!s.required);
+        setAuthRequired(Boolean(s.required));
+        setBuild(s.build || null);
+      })
       .catch(() => {});
   }, []);
 
@@ -900,6 +906,7 @@ export default function App() {
           refresh();
         }}
         hadToken={Boolean(getToken())}
+        build={build}
       />
     );
   }

@@ -266,7 +266,7 @@ export default function Sidebar({
             <img
               src="/brand/scalevisory-light.png"
               alt="Scale Visory"
-              width="592" height="123"
+              width="760" height="158"
             />
           </div>
         </div>

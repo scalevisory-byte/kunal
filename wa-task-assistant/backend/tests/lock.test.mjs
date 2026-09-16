@@ -246,3 +246,35 @@ describe('Scale Visory inside the app', () => {
     assert.ok(brand.includes('700'), 'the product name keeps the heavier weight');
   });
 });
+
+/*
+ * Which build is on screen, before anybody logs in.
+ *
+ * "I cannot see any changes" and "that has not deployed yet" look identical
+ * from outside, and until now the answer sat behind the very password this
+ * screen asks for. Nothing on this line is typed by a person: the commit comes
+ * from the host, the bundle name is a hash of the dashboard's own contents.
+ */
+describe('the build stamp on the way in', () => {
+  const login = read('components/Login.jsx');
+  const app = read('App.jsx');
+  const server = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
+
+  it('rides the one endpoint that needs no password', () => {
+    assert.match(server, /auth-state[\s\S]{0,120}?required: authEnabled, build/);
+    assert.match(app, /setBuild\(s\.build \|\| null\)/);
+    assert.match(app, /build=\{build\}/);
+  });
+
+  it('shows nothing rather than a blank when the host reports nothing', () => {
+    assert.match(login, /\{build && \(build\.commit \|\| build\.bundle\) && \(/);
+  });
+
+  it('is never hand-written', () => {
+    /* A version a person types drifts from what is running, which is worse
+       than no version at all. Both halves are derived. */
+    assert.doesNotMatch(login, /v\d+\.\d+\.\d+/);
+    assert.match(login, /build\.commit/);
+    assert.match(login, /build\.bundle/);
+  });
+});

@@ -40,7 +40,7 @@ const POINTS = [
   { icon: 'shield', title: 'Secure & Reliable', note: 'Your data is safe with us' },
 ];
 
-export default function Login({ onSubmit, hadToken }) {
+export default function Login({ onSubmit, hadToken, build }) {
   const [password, setPassword] = useState('');
   /*
    * Which name is being tried. Past the end of the list there is no photograph,
@@ -71,13 +71,13 @@ export default function Login({ onSubmit, hadToken }) {
               className="on-light"
               src="/brand/scalevisory.png"
               alt="Scale Visory — Accounting, Taxation, Legal. Balancing the unbalanced."
-              width="592" height="123"
+              width="760" height="158"
             />
             <img
               className="on-dark"
               src="/brand/scalevisory-light.png"
               alt="" aria-hidden="true"
-              width="592" height="123"
+              width="760" height="158"
             />
           </div>
           <p className="hero-steps">
@@ -214,6 +214,23 @@ export default function Login({ onSubmit, hadToken }) {
             * lockout today that nothing on the page had warned about.
             */}
           <p className="login-fine">Five wrong attempts lock this device for 15 minutes.</p>
+
+          {/*
+            * Which build this is, before anybody has to log in to find out.
+            *
+            * "I cannot see any changes" and "that has not deployed yet" look
+            * exactly the same from outside, and the answer used to sit behind
+            * this very password. Nothing here is typed by a person: the commit
+            * comes from the host and the bundle name is a hash of the
+            * dashboard's own contents, so neither can drift from what is
+            * really running.
+            */}
+          {build && (build.commit || build.bundle) && (
+            <p className="login-build" title={build.bundle || ''}>
+              {build.commit ? <>Build <b>{build.commit}</b></> : 'Build'}
+              {build.bundle ? <> · {build.bundle.replace(/^index-|\.js$/g, '')}</> : ''}
+            </p>
+          )}
         </main>
 
         <p className="pane-foot"><b>|</b> People <b>|</b> Process <b>|</b> Progress <b>|</b></p>

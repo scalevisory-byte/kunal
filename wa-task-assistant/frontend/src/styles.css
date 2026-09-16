@@ -1943,6 +1943,13 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   margin: 12px 0 0; text-align: center;
   font-size: .74rem; color: var(--muted);
 }
+/* Quiet enough to ignore, legible enough to read out over the phone. */
+.login-build {
+  margin: 6px 0 0; text-align: center;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: .68rem; letter-spacing: .01em; color: var(--line-2);
+}
+.login-build b { font-weight: 600; color: var(--muted); }
 
 /*
  * Narrow: one column, the panel above the card rather than beside it - and

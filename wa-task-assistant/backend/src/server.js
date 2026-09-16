@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { requireAuth, authEnabled } from './auth.js';
+import { build } from './diagnostics.js';
 import { tasksRouter } from './routes/tasks.js';
 import { systemRouter } from './routes/system.js';
 import {
@@ -73,7 +74,14 @@ export function createServer() {
   // "am I actually protected?" before it holds a token. It reveals only
   // whether a password is set, never what it is - and if the answer is no,
   // an attacker could read every task anyway, so it leaks nothing new.
-  app.get('/api/auth-state', (req, res) => res.json({ required: authEnabled }));
+  //
+  // It also carries the build, because "I cannot see any changes" and "that
+  // change has not deployed yet" look identical from outside, and the answer
+  // used to live behind the very password this screen is asking for. Nothing
+  // here is written by hand: the commit comes from the host and the bundle
+  // name is a hash of the dashboard's own contents, so neither can drift from
+  // what is actually running.
+  app.get('/api/auth-state', (req, res) => res.json({ required: authEnabled, build }));
 
   // Checklists, dependencies and attachments hang off a task, so they share
   // its path. Mounted before the task router so /tasks/:id/subtasks is not
