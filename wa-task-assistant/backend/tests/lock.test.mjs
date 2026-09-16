@@ -50,3 +50,44 @@ describe('locking the dashboard', () => {
     assert.match(actions, /aria-label="Lock the dashboard"/, 'it must be in the top bar itself');
   });
 });
+
+/*
+ * The way in is the first thing anybody sees.
+ *
+ * It was a heading and a field in the top-left corner of a blank white page,
+ * because `.login` centred its TEXT and never itself. Asked as "isko attractive
+ * banvo". These pin the two things a stylesheet edit can quietly undo.
+ */
+describe('the sign-in screen', () => {
+  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const login = read('components/Login.jsx');
+  const block = (selector) => {
+    const re = new RegExp(`(^|[,}])\\s*${selector.replace('.', '\\.')}\\s*\\{([^{}]*)\\}`, 'm');
+    return css.match(re)?.[2] ?? null;
+  };
+
+  it('sits in the middle of the page, not in its corner', () => {
+    const page = block('.login-page');
+    assert.ok(page, '.login-page is gone');
+    assert.match(page, /place-items:\s*center/);
+    assert.match(page, /min-height:\s*100dvh/, 'it must fill the screen to centre against');
+    assert.match(login, /className="login-page"/);
+  });
+
+  it('does not colour its name with the dark sidebar\'s ink', () => {
+    /* --nav-text is pale, for the navy sidebar. On the white card it vanished. */
+    assert.doesNotMatch(login, /className="side-name"/, 'reuse the mark, never the name block');
+    assert.match(block('.login-name strong') || '', /color:\s*var\(--text\)/);
+  });
+
+  it('can show the password, because typing it blind is what cost the lockout', () => {
+    assert.match(login, /type=\{reveal \? 'text' : 'password'\}/);
+    assert.match(login, /aria-label=\{reveal \? 'Hide password' : 'Show password'\}/);
+  });
+
+  it('warns about Caps Lock before the fifth attempt, not after', () => {
+    assert.match(login, /getModifierState\?\.\('CapsLock'\)/);
+    assert.match(login, /\{caps && /);
+  });
+});
