@@ -378,38 +378,59 @@ run('the staff list is a list of names and nothing more', () => {
  * deliberately off the board, so the only road to them was a sidebar group
  * that starts shut.
  */
-console.log('\nreceived and allotted, as views of the list');
+console.log('\nreceived and allotted, as one page with three doors');
 
-run('the list carries both tabs, with their counts', () => {
+/*
+ * They were two tabs and a page, and the tabs were views of the board.
+ *
+ * Reported as "why both allotted tab diff — ek hi hona chahiye na", over two
+ * screens holding the same two rows: same tasks, same count, arranged two
+ * ways. The page groups by person and stage and carries Nudge, Delete, Manage
+ * staff and Give someone a task; the tab was the board with a filter and
+ * nothing of its own. Two shapes for one thing is a question about which is
+ * real, and he answered it: "page ek hi rahe, dono jagah se open hona
+ * chahiye". So the shortcut stays and the second arrangement goes.
+ */
+run('the list still carries both, with their counts', () => {
   const tabs = appSrc.slice(appSrc.indexOf("{ key: 'myday', label: 'My Day' }"), appSrc.indexOf('].map((v) => ('));
   assert.match(tabs, /key: 'received'/);
   assert.match(tabs, /key: 'allotted'/);
-  assert.match(tabs, /count: allottedHidden/, 'the allotted tab counts the rows it would show');
+  assert.match(tabs, /count: allottedHidden/, 'the allotted tab counts the rows the page holds');
 });
 
-run('the Allotted tab shows the rows the board otherwise keeps off it', () => {
-  // Without this it would be the one tab that is always empty: the gate above
-  // it exists precisely to take those rows off the list.
+run('but they open the page rather than filtering the list', () => {
+  const tabs = appSrc.slice(appSrc.indexOf("{ key: 'myday', label: 'My Day' }"), appSrc.indexOf('].map((v) => ('));
+  assert.match(tabs, /key: 'received'[\s\S]*?to: 'received'/);
+  assert.match(tabs, /key: 'allotted'[\s\S]*?to: 'allotted'/);
+  // The other three are still views: a tab that navigates and a tab that
+  // filters look identical, so only these two carry `to`.
+  const plain = tabs.slice(0, tabs.indexOf("key: 'received'"));
+  assert.ok(!/to: '/.test(plain), 'My Day, Open and All stay on the list');
+  assert.match(appSrc, /if \(v\.to\) return goto\(v\.to\)/);
+});
+
+run('and the board no longer has a second arrangement of them', () => {
   /*
-   * The whole chain that builds the board's list, not one variable's name.
+   * The whole chain that builds the board's list, not one variable's name -
+   * the predicate moved into `monthPool` when the month strip split that memo.
    *
-   * It was sliced from `const visible =` until the month strip split that memo
-   * in two - the predicate into `monthPool`, the month scope into `visible` -
-   * and the rule being checked moved with the predicate while staying in the
-   * same chain. Slicing the chain keeps the check about the rule rather than
-   * about where the rule currently sits.
+   * What is asserted is the ABSENCE of the two view branches: with the tabs
+   * navigating, a `view === 'allotted'` nothing sets is dead code that reads
+   * like a second Allotted screen still exists.
    */
   const visible = appSrc.slice(appSrc.indexOf('const monthPool ='), appSrc.indexOf('const arrivedToday'));
-  assert.match(visible, /withSomebody\(task\) && !showAllotted && view !== 'allotted'/);
-  assert.match(visible, /view === 'allotted' && !withSomebody\(task\)/);
-  assert.match(visible, /view === 'received' && \(!task\.requested_by \|\| isDone\(task\)\)/);
+  assert.match(visible, /withSomebody\(task\) && !showAllotted\) return false/,
+    'the gate that keeps delegated rows off the board stays');
+  assert.ok(!/view === 'allotted'/.test(appSrc), 'no view nothing can set');
+  assert.ok(!/view === 'received'/.test(appSrc));
 });
 
-run('and the line about work "kept off this list" stands down there', () => {
-  // Saying they are kept off the list, over a list of them, is how a page
-  // stops being believed.
+run('so the "kept off this list" line can never sit over a list of them', () => {
+  // It used to need standing down on the Allotted tab. There is no such tab
+  // now, and a page cannot be the board, so the condition went with it.
   const note = appSrc.slice(appSrc.indexOf('allottedHidden > 0'), appSrc.indexOf('<TaskList'));
-  assert.match(note, /view !== 'allotted'/);
+  assert.ok(!/view !== 'allotted'/.test(note));
+  assert.match(note, /goto\('allotted'\)/, 'and it still links to the one page');
 });
 
 run('the dashboard offers both as shortcuts', () => {
@@ -417,8 +438,9 @@ run('the dashboard offers both as shortcuts', () => {
     new URL('../../frontend/src/components/QuickActions.jsx', import.meta.url), 'utf8');
   assert.match(quick, /key: 'allotted'/);
   assert.match(quick, /key: 'received'/);
-  // And they set the same view the tabs do rather than being a second road.
-  assert.match(appSrc, /if \(key === 'allotted' \|\| key === 'received'\)/);
+  // Three doors, one room: the sidebar, the board's tabs and this row all
+  // arrive at the page rather than at three arrangements of it.
+  assert.match(appSrc, /if \(key === 'allotted' \|\| key === 'received'\) \{\n\s*setFilters\(EMPTY_FILTERS\);\n\s*return goto\(key\);/);
 });
 
 

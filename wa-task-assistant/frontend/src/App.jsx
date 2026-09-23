@@ -681,15 +681,7 @@ export default function App() {
        * the same escape hatches: the toggle on the line above the list, and
        * search, which looks through everything you have.
        */
-      if (withSomebody(task) && !showAllotted && view !== 'allotted') return false;
-
-      /*
-       * The two delegation views. Allotted is the only view that asks for the
-       * rows the board otherwise keeps off it, which is why it steps past the
-       * gate above rather than needing the toggle pressed first.
-       */
-      if (view === 'allotted' && !withSomebody(task)) return false;
-      if (view === 'received' && (!task.requested_by || isDone(task))) return false;
+      if (withSomebody(task) && !showAllotted) return false;
 
       if (view === 'open' && isDone(task)) return false;
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
@@ -883,13 +875,13 @@ export default function App() {
       return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] });
     }
     /*
-     * The same two views the list's tabs set, reachable from the dashboard.
-     * Allotted especially: those rows are off the board by design, so without
-     * a way in from here the only road was a sidebar group that starts shut.
+     * The same page the list's tabs open, reachable from the dashboard too.
+     * Three doors, one room: the sidebar, the board's tabs and this row all
+     * arrive at Task allotted rather than at three arrangements of it.
      */
     if (key === 'allotted' || key === 'received') {
       setFilters(EMPTY_FILTERS);
-      return setView(key);
+      return goto(key);
     }
     // A section rather than a slice of the board, so it navigates.
     if (key === 'leads') return goto('leads');
@@ -898,8 +890,9 @@ export default function App() {
 
   const activeQuick =
     view === 'myday' ? 'myday'
-      : view === 'allotted' ? 'allotted'
-      : view === 'received' ? 'received'
+      /* These two are pages now, so the section says which one is open. */
+      : section === 'allotted' ? 'allotted'
+      : section === 'received' ? 'received'
       : view === 'done' ? 'done'
         : filters.priority.length === 1 && filters.priority[0] === 'high' ? 'high'
           : filters.origin.length === 1 && filters.origin[0] === 'ai' ? 'ai'
@@ -1712,15 +1705,37 @@ export default function App() {
                                * Allotted also needs no other way in, since
                                * those rows are otherwise off the board.
                                */
-                              { key: 'received', label: 'Received', count: delegation?.received || 0 },
-                              { key: 'allotted', label: 'Allotted', count: allottedHidden },
+                              /*
+                               * These two OPEN the page rather than filtering
+                               * this list.
+                               *
+                               * Asked as "why both allotted tab diff — ek hi
+                               * hona chahiye na", over two screens showing the
+                               * same two rows. They were the same tasks, the
+                               * same count, arranged two ways: the page groups
+                               * by person and stage and carries Nudge, Delete,
+                               * Manage staff and Give someone a task; the tab
+                               * was the board with a filter and nothing of its
+                               * own. Two shapes for one thing is a question
+                               * about which is real, and he answered it: "page
+                               * ek hi rahe, dono jagah se open hona chahiye".
+                               * So the shortcut he asked for stays, and there
+                               * is exactly one Allotted screen behind it.
+                               */
+                              { key: 'received', label: 'Received', count: delegation?.received || 0, to: 'received' },
+                              { key: 'allotted', label: 'Allotted', count: allottedHidden, to: 'allotted' },
                             ].map((v) => (
                               <button
                                 key={v.key}
                                 role="tab"
                                 aria-selected={view === v.key}
                                 className={view === v.key ? 'active' : ''}
-                                onClick={() => { setView(v.key); setSelectedDate(null); }}
+                                onClick={() => {
+                                  if (v.to) return goto(v.to);
+                                  setView(v.key);
+                                  setSelectedDate(null);
+                                  return undefined;
+                                }}
                               >
                                 {v.label}
                                 {v.count > 0 && <span className="tab-count">{v.count}</span>}
@@ -1866,10 +1881,11 @@ export default function App() {
                       * is elsewhere, links to the page that holds it, and puts
                       * it back in one press for when he wants the whole picture.
                       */}
-                    {/* Not on the Allotted tab, where they are exactly what is
-                        on screen — saying they are "kept off this list" over a
-                        list of them is how a page stops being believed. */}
-                    {showBoard && allottedHidden > 0 && !searching && view !== 'allotted' && (
+                    {/* The condition that used to stand this down — "not on
+                        the Allotted tab" — is gone with the tab: there is one
+                        Allotted screen now, and it is a page, so this line can
+                        never appear over a list of the rows it is about. */}
+                    {showBoard && allottedHidden > 0 && !searching && (
                       <p className="dup-note">
                         <b>{allottedHidden}</b>{' '}
                         {allottedHidden === 1 ? 'task is' : 'tasks are'} with somebody else
