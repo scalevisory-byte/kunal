@@ -7,6 +7,7 @@ import QuickAdd from './components/QuickAdd.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import Login from './components/Login.jsx';
 import StatBoard from './components/StatBoard.jsx';
+import DashboardHome from './components/DashboardHome.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
 import CaptureSettings from './components/CaptureSettings.jsx';
 import TidyTitles from './components/TidyTitles.jsx';
@@ -20,7 +21,6 @@ import MonthStrip from './components/MonthStrip.jsx';
 import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
 import QuickActions from './components/QuickActions.jsx';
-import SideRail from './components/SideRail.jsx';
 import MonthCalendar from './components/MonthCalendar.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -47,7 +47,7 @@ import Delegation from './components/Delegation.jsx';
 import { useInstall } from './lib/install.js';
 import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, taskMonth, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
-import { activity, chatCounts, greeting, onDay, summarise } from './lib/derive.js';
+import { chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
 /*
@@ -771,7 +771,7 @@ export default function App() {
   };
 
   const summary = useMemo(() => summarise(dayTasks), [dayTasks]);
-  const recent = useMemo(() => activity(dayTasks), [dayTasks]);
+
 
   /**
    * The sidebar sets the same state everything else does; it is navigation over
@@ -818,7 +818,33 @@ export default function App() {
    * "calendar ko yaha dalo" - it had been filed among the figures at the
    * bottom, a screen and a half below the work it is about.
    */
-  const dashCal = page.overview && !searching;
+  /*
+   * Pressing a figure opens what it counts.
+   *
+   * Two of the six could not be reached from the old row at all: "Due today"
+   * needs the board scoped to today's date, and "Completed today" needs the
+   * done view scoped to this day's completions. Both already existed as state
+   * (`selectedDate`, `doneDay`); nothing on the page could set them.
+   */
+  /*
+   * Pressing a figure opens exactly what it counts - always, and it leaves the
+   * dashboard to do it.
+   *
+   * Two things this went through. It first only set the view, and the
+   * dashboard is a summary with no list on it, so the figure lit up and the
+   * screen did not change. Then it kept the old row's toggle, which on a
+   * control that navigates is worse than useless: "Open" is lit on arrival, so
+   * pressing the one figure that says Open took you to a list of everything.
+   *
+   * A figure here is a doorway, not a filter chip. Nothing is lit, nothing
+   * toggles, and `goto` runs before the scope because it clears it.
+   */
+  const goFigure = (key) => {
+    goto('all');
+    if (key === 'due_today') { setView('open'); return setSelectedDate(todayIso()); }
+    if (key === 'completed_today') { setView('done'); return setDoneDay(todayIso()); }
+    setView(key);
+  };
 
   const goto = (key) => {
     setSection(key);
@@ -1472,22 +1498,78 @@ export default function App() {
                     }}
                   />
 
-                  <StatBoard
-                    counts={summary.counts}
-                    view={view}
-                    onPick={(v) => { setView(v); setSelectedDate(null); }}
-                  />
-
-                  <QuickActions
-                    counts={{
-                      ...summary.counts,
-                      leads: leadCounts.badge,
-                      allotted: allottedHidden,
-                      received: delegation?.received || 0,
-                    }}
-                    onAction={quickAction}
-                    active={activeQuick}
-                  />
+                  {/*
+                    * The dashboard, in the shape he drew: six figures, the
+                    * work needing attention beside today's numbers, the whole
+                    * list and the week just worked, what was finished and what
+                    * arrived, and the connection at the foot.
+                    *
+                    * Every figure comes from `dayTasks` - not `tasks` -
+                    * because delegated and set-aside work is off the board and
+                    * everything on this page has to read the same list. The
+                    * first render passed the raw one to half of it and put six
+                    * zeroes above a bar that said two. The jump row and the
+                    * duplicates notice go through as children: they are
+                    * navigation and a warning, not figures.
+                    */}
+                  <DashboardHome
+                    innerRef={railRef}
+                    tasks={dayTasks}
+                    summary={summary}
+                    status={status}
+                    chats={chats}
+                    onPick={goFigure}
+                    onOpen={setOpenTask}
+                    onCompleted={() => { setView('done'); setDoneDay(todayIso()); }}
+                    onUpcoming={showUpcoming}
+                    onViewAi={() => goto('ai')}
+                    focus={
+                      <>
+                        {stats?.duplicates > 0 && (
+                          <p className="dup-note">
+                            <b>{stats.duplicates}</b>{' '}
+                            {stats.duplicates === 1 ? 'task looks like a copy' : 'tasks look like copies'}
+                            {' '}of ones you already have.
+                            <button className="link" onClick={() => goto('duplicates')}>Review them</button>
+                          </p>
+                        )}
+                        {view !== 'done' && (
+                          <FocusToday
+                            tasks={dayTasks}
+                            onOpen={setOpenTask}
+                            onToggle={onToggle}
+                            onRename={(task, title) => onEdit(task, { title })}
+                            onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
+                          />
+                        )}
+                        <p className="dash-onward">
+                          <button className="link" onClick={() => goto('all')}>Open the full list</button>
+                          <span className="muted"> — every task, grouped by when it is due.</span>
+                        </p>
+                      </>
+                    }
+                    calendar={
+                      <section className="card">
+                        <header className="card-head"><h3>Calendar</h3></header>
+                        <MonthCalendar
+                          tasks={dayTasks}
+                          selected={selectedDate}
+                          onSelect={(iso) => { setSelectedDate(iso); setView('all'); }}
+                        />
+                      </section>
+                    }
+                  >
+                    <QuickActions
+                      counts={{
+                        ...summary.counts,
+                        leads: leadCounts.badge,
+                        allotted: allottedHidden,
+                        received: delegation?.received || 0,
+                      }}
+                      onAction={quickAction}
+                      active={activeQuick}
+                    />
+                  </DashboardHome>
                 </>
               )}
 
@@ -1538,7 +1620,7 @@ export default function App() {
                   * of the page and "calendar ko yaha dalo". Everywhere else
                   * is `solo` - a task list wants the whole width.
                   */
-                <div className={`workspace ${dashCal ? 'withcal' : 'solo'}`}>
+                <div className="workspace solo">
                   <main className="work">
                     {/*
                       * What is picked, and the one thing to do with it.
@@ -1640,59 +1722,18 @@ export default function App() {
                       * sidebar item nobody opened. One line, only when there is
                       * something to say, and it goes straight there.
                       */}
-                    {stats?.duplicates > 0 && page.overview && !searching && (
-                      <p className="dup-note">
-                        <b>{stats.duplicates}</b>{' '}
-                        {stats.duplicates === 1 ? 'task looks like a copy' : 'tasks look like copies'}
-                        {' '}of ones you already have.
-                        <button className="link" onClick={() => goto('duplicates')}>
-                          Review them
-                        </button>
-                      </p>
-                    )}
-
-
-                    {(page.overview || page.focus) && view !== 'done' && !searching && (
+                    {/*
+                      * Focus today belongs to My Day here. On the dashboard it
+                      * is rendered by DashboardHome, in the card the drawing
+                      * puts it in - one strip either way, not two.
+                      */}
+                    {page.focus && view !== 'done' && !searching && (
                       <FocusToday
                         tasks={dayTasks}
                         onOpen={setOpenTask}
                         onToggle={onToggle}
                         onRename={(task, title) => onEdit(task, { title })}
                         onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
-                      />
-                    )}
-                    {/* The road on from a page that is now only a summary:
-                        the figures say what is owed, this opens it. */}
-                    {page.overview && !searching && (
-                      <p className="dash-onward">
-                        <button className="link" onClick={() => goto('all')}>
-                          Open the full list
-                        </button>
-                        <span className="muted"> — every task, grouped by when it is due.</span>
-                      </p>
-                    )}
-                    {/*
-                      * The rail's panels, laid across the page rather than
-                      * stacked in a 276px strip down the side.
-                      *
-                      * Asked as "side strip hata do — niche jaga khali ho gya
-                      * he waha bana do". Taking the list off the dashboard left
-                      * the main column ending after Focus today with most of a
-                      * screen empty beside a very tall thin column of cards.
-                      * Same panels, same figures, same order; what changes is
-                      * that they use the width the list used to.
-                      */}
-                    {page.overview && !searching && (
-                      <SideRail
-                        spread
-                        innerRef={railRef}
-                        summary={summary}
-                        activity={recent}
-                        chats={chats}
-                        status={status}
-                        onUpcoming={showUpcoming}
-                        onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
-                        onViewAi={() => goto('ai')}
                       />
                     )}
 
@@ -1996,22 +2037,6 @@ export default function App() {
 
                   </main>
 
-                  {/*
-                    * The one thing in that column. It is `position: sticky`,
-                    * so it is still there after a scroll through Focus today -
-                    * a calendar you have to scroll back up to is a calendar
-                    * you stop using.
-                    */}
-                  {dashCal && (
-                    <aside className="dash-cal" aria-label="Calendar">
-                      <h3 className="rail-title">Calendar</h3>
-                      <MonthCalendar
-                        tasks={dayTasks}
-                        selected={selectedDate}
-                        onSelect={(iso) => { setSelectedDate(iso); setView('all'); }}
-                      />
-                    </aside>
-                  )}
                 </div>
               )}
             </>

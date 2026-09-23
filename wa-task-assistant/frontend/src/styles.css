@@ -153,7 +153,7 @@ body {
   width: 100%;
 }
 .page > * { max-width: 1408px; }  /* 1460 less the page's own padding */
-.page > .workspace.withcal { max-width: none; }
+.page > .home { max-width: none; }  /* the dashboard, and only it */
 
 .sidebar {
   position: sticky; top: 0; align-self: flex-start;
@@ -2736,36 +2736,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .workspace.solo { grid-template-columns: minmax(0, 1fr); }
 
 /*
- * The dashboard keeps one column beside the board, and the calendar is the
- * only thing in it. Asked with a screenshot of the empty strip down the right
- * of the page: "calendar ko yaha dalo".
+ * The calendar's own column is gone: it is a card inside DashboardHome now, in
+ * the side column the mockup put it in, so `.workspace.withcal` and
+ * `.dash-cal` matched nothing. Its cell sizing moved onto `.card .cal-*`
+ * below, which is where the calendar actually lives.
  */
-.workspace.withcal { grid-template-columns: minmax(0, 1fr) minmax(258px, 302px); gap: 16px; }
-.dash-cal {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  box-shadow: var(--shadow-sm);
-  padding: 14px 15px 15px;
-  position: sticky; top: 76px;
-  min-width: 0;
-}
-/* Its rows are pressable, like the ones it replaced at the foot of the page. */
-.dash-cal .cal-grid { gap: 2px; grid-template-rows: auto; grid-auto-rows: minmax(34px, 1fr); }
-.dash-cal .cal-day { height: auto; font-size: .78rem; }
-.dash-cal .cal-day.has::after { bottom: calc(50% - 13px); }
-.dash-cal .cal-dow { font-size: .64rem; padding-bottom: 4px; }
-.dash-cal .cal-head { margin-bottom: 9px; }
-
-/*
- * Under 1240px there is no strip to put it in, and a column taken out of the
- * board is the thing the strip existed to avoid. It goes back under the board
- * at the width it is drawn at, not stretched across the page.
- */
-@media (max-width: 1240px) {
-  .workspace.withcal { grid-template-columns: minmax(0, 1fr); }
-  .dash-cal { position: static; max-width: 340px; margin-top: 16px; }
-}
+.card .cal-grid { gap: 2px; grid-template-rows: auto; grid-auto-rows: minmax(34px, 1fr); }
+.card .cal-day { height: auto; font-size: .78rem; }
+.card .cal-day.has::after { bottom: calc(50% - 13px); }
+.card .cal-dow { font-size: .64rem; padding-bottom: 4px; }
+.card .cal-head { margin-bottom: 9px; }
 
 .page-head-right { display: flex; align-items: center; gap: 14px; }
 .page-count {
@@ -5485,98 +5465,196 @@ button.due:hover { background: var(--raised); }
 .warn-box .btn + .btn { margin-left: 8px; }
 
 /* The dashboard is a summary now, so it names the way on to the list. */
-.dash-onward { margin: 14px 0 0; font-size: .84rem; order: 99; }
+/* `order: 99` came from the flex column this used to sit in; in the
+   dashboard's grid it threw the line to the bottom of the page, under both
+   charts, which is not where "here is the way on from the strip" belongs. */
+.dash-onward { margin: 2px 0 0; font-size: .84rem; }
 .dash-onward .link { font-weight: 600; }
 
 
 /*
- * The dashboard's panels, across the page rather than down a strip.
- *
- * First asked as "side strip hata do — niche jaga khali ho gya he waha bana
- * do". Once the task list left the dashboard the main column ended after
- * Focus today, so a 276px column of six stacked cards ran far past the bottom
- * of everything beside it.
- *
- * Then asked as "recent activity ko sidhi line me lo / calendar ko side me
- * kar do / thodi height badi karna", which is a layout, not a reflow: an
- * `auto-fit` grid puts each card wherever it happens to land, so the calendar
- * sat in the middle of the first row and Recent activity got a 375px column
- * it had to wrap every line into. Named areas instead, so each panel has a
- * place:
- *
- *   today  upcoming  ai         the figures and the AI state read together,
- *   activity activity activity  and the log runs the width of the page.
- *
- * The calendar left this block for a column of its own beside the board
- * (`.workspace.withcal`), which is the strip the next screenshot pointed at.
+ * `.rail.spread` and its named areas are gone with SideRail.jsx: the panels it
+ * laid out are cards on the dashboard now, and a stylesheet block nothing can
+ * ever match is a block the next person reads and believes. What stays below
+ * are the small helpers DashboardHome still uses - rail-title, rail-empty,
+ * rail-note and the rail-list rows.
  */
-.rail.spread {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-areas:
-    "today    upcoming ai"
-    "activity activity activity";
-  gap: 14px;
-  /*
-   * Each card keeps its own height. Without this they stretch to the tallest
-   * in the row, and Upcoming - three lines - ends up a card with 160px of
-   * nothing under it, which reads as something that failed to load. It was
-   * lost when the named areas replaced the auto-fit grid, which had it.
-   */
-  align-items: start;
-  margin-top: 16px;
-}
-.rail.spread .r-today { grid-area: today; }
-.rail.spread .r-upcoming { grid-area: upcoming; }
-.rail.spread .r-ai { grid-area: ai; }
-.rail.spread .r-activity { grid-area: activity; }
 
+/* ---------- the dashboard, in the shape he drew ---------- */
 
 /*
- * Recent activity, one straight line per entry. Down a 276px strip the text
- * wrapped onto two and three lines and the times no longer lined up with
- * anything; across the page each row is a time, then what happened, on one
- * line, separated by a hairline like the task list.
+ * Asked with a full mockup: six figures across the top, the work needing
+ * attention beside today's numbers, the whole list and the week just worked,
+ * what was finished and what arrived, and the connection at the foot.
+ *
+ * Two of its pieces are built differently from the drawing on purpose, and
+ * both are explained in lib/derive.js: the stacked bar's slices had to be made
+ * disjoint before they could honestly be parts of a whole, and the week chart
+ * draws nothing on days that have not happened.
  */
-.rail.spread .r-activity .activity { gap: 0; }
-.rail.spread .r-activity .activity li {
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: baseline; gap: 14px;
+.home { display: grid; gap: 16px; }
+
+/* The six. A tinted mark, the figure, the word - and every one of them opens
+   exactly what it counts, including the two the old row could not reach. */
+.figs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.fig {
+  display: flex; align-items: center; gap: 11px; min-width: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow-sm); padding: 13px 14px;
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color .16s, box-shadow .16s, transform .16s;
+}
+.fig:hover { border-color: var(--line-2); }
+.fig.picked { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.fig-icon {
+  width: 36px; height: 36px; border-radius: 11px; flex: none;
+  display: grid; place-items: center; background: var(--raised); color: var(--muted);
+}
+.fig.t-info .fig-icon { background: var(--info-wash); color: var(--info); }
+.fig.t-danger .fig-icon { background: var(--danger-wash); color: var(--danger); }
+.fig.t-warn .fig-icon { background: var(--warn-wash); color: var(--warn); }
+.fig.t-ok .fig-icon { background: var(--ok-wash); color: var(--ok); }
+.fig.t-brand .fig-icon { background: var(--brand-wash); color: var(--brand); }
+.fig-body { display: grid; line-height: 1.15; min-width: 0; }
+.fig-body strong {
+  font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+}
+.fig.t-danger .fig-body strong { color: var(--danger); }
+.fig.t-warn .fig-body strong { color: var(--warn); }
+.fig.t-ok .fig-body strong { color: var(--ok); }
+.fig-body small {
+  font-size: .76rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* The work, beside the day. */
+.home-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(258px, 320px); gap: 16px; align-items: start; }
+.home-main { min-width: 0; display: grid; gap: 14px; align-content: start; }
+.home-side { min-width: 0; display: grid; gap: 14px; }
+.home-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--shadow-sm); padding: 15px 16px 16px;
+  min-width: 0;
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.card-head h3 { margin: 0; font-size: .92rem; font-weight: 600; }
+.card-head h3 .muted { font-weight: 400; font-size: .8rem; }
+.card-head .link { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; }
+.card-head .icon { color: var(--muted); }
+
+.home-date { margin: -8px 0 14px; font-size: 1.05rem; font-weight: 600; font-family: Archivo, sans-serif; }
+.daystats { margin: 0; display: grid; gap: 12px; }
+.daystats > div { display: flex; align-items: center; gap: 10px; }
+.ds-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex: none;
+  display: grid; place-items: center; background: var(--raised); color: var(--muted);
+}
+.ds-icon.t-info { background: var(--info-wash); color: var(--info); }
+.ds-icon.t-danger { background: var(--danger-wash); color: var(--danger); }
+.ds-icon.t-ok { background: var(--ok-wash); color: var(--ok); }
+.ds-body { display: grid; line-height: 1.2; min-width: 0; }
+.ds-body strong { font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.ds-body small { font-size: .75rem; color: var(--muted); }
+
+/* One bar, in slices that really are parts of the whole. */
+.statusbar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--raised); }
+.sb { min-width: 3px; }
+.sb.t-danger { background: var(--danger); }
+.sb.t-warn { background: var(--warn); }
+.sb.t-info { background: var(--info); }
+.sb.t-ok { background: var(--ok); }
+.sb-key { margin: 14px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.sb-key > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: .82rem; }
+.sb-key dt { display: inline-flex; align-items: baseline; gap: 7px; color: var(--muted); min-width: 0; }
+.sb-key dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sb-key .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot.t-danger { background: var(--danger); }
+.dot.t-warn { background: var(--warn); }
+.dot.t-info { background: var(--info); }
+.dot.t-ok { background: var(--ok); }
+
+/* The week just worked. A day still ahead gets a hairline, not a zero bar. */
+.weekbars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; height: 150px; }
+.wb { display: grid; grid-template-rows: auto 1fr auto; gap: 6px; align-items: end; justify-items: center; height: 100%; }
+.wb-val { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wb-bar { width: 100%; max-width: 34px; border-radius: 5px 5px 0 0; background: var(--line-2); align-self: end; }
+.wb.now .wb-bar { background: var(--brand); }
+.wb.now .wb-val { color: var(--brand); font-weight: 700; }
+.wb.ahead .wb-bar { background: var(--line); }
+.wb.ahead .wb-day { color: var(--line-2); }
+.wb-day { font-size: .72rem; color: var(--muted); }
+
+/* What was finished, and what arrived. */
+.daylist { list-style: none; margin: 0; padding: 0; }
+.daylist li {
+  display: flex; align-items: center; gap: 10px;
   padding: 8px 0; border-bottom: 1px solid var(--line);
 }
-.rail.spread .r-activity .activity li:last-child { border-bottom: 0; padding-bottom: 2px; }
-.rail.spread .r-activity .act-text {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal;
+.daylist li:last-child { border-bottom: 0; padding-bottom: 0; }
+.dl-mark {
+  width: 24px; height: 24px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: var(--raised); color: var(--muted);
+}
+.dl-mark.t-ok { background: var(--ok-wash); color: var(--ok); }
+.dl-mark.t-brand { background: var(--brand-wash); color: var(--brand); }
+.dl-title {
+  flex: 1 1 auto; min-width: 0; border: 0; background: none; padding: 0;
+  font: inherit; font-size: .85rem; color: var(--text); text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dl-title:hover { color: var(--brand); }
+.dl-time {
+  flex: none; font-size: .74rem; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
 }
 
-/*
- * The breakpoints count the calendar column, because the panels sit beside
- * it: at 1300px three of them would be 222px each. Two columns from 1360
- * down - where the calendar folds away at 1240 the panels get its width
- * back - and one on a phone.
- */
-@media (max-width: 1360px) {
-  .rail.spread {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      "today    upcoming"
-      "ai       ai"
-      "activity activity";
-  }
+/* The connection, and what it actually produced. */
+.conn-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.conn-mark {
+  width: 44px; height: 44px; border-radius: 13px; flex: none;
+  display: grid; place-items: center; background: var(--raised); color: var(--muted);
 }
-@media (max-width: 820px) {
-  .rail.spread {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "today" "upcoming" "ai" "activity";
-  }
-  .rail.spread .cal-grid { grid-auto-rows: minmax(32px, 1fr); }
-  /*
-   * A phone has no width to hold a line straight in. At 390px five of six
-   * entries were cut mid-word, so the log wraps again here - a truncated
-   * sentence says less than a second line costs.
-   */
-  .rail.spread .r-activity .activity li { grid-template-columns: 58px minmax(0, 1fr); gap: 10px; }
-  .rail.spread .r-activity .act-text {
-    white-space: normal; overflow: visible; overflow-wrap: anywhere;
-  }
+.conn-mark.on { background: var(--ok-wash); color: var(--ok); }
+.conn-mark.off { background: var(--warn-wash); color: var(--warn); }
+.conn-who { display: grid; line-height: 1.35; }
+.conn-who strong { font-size: .95rem; }
+.conn-who small { font-size: .78rem; display: inline-flex; align-items: center; gap: 6px; }
+.conn-who .state-dot { background: currentColor; }
+.conn-when { margin-left: auto; font-size: .76rem; color: var(--muted); text-align: right; line-height: 1.45; }
+.conn-pill {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  padding: 7px 13px; border-radius: 999px; font-size: .8rem; font-weight: 600;
+}
+.conn-pill.ok { background: var(--ok-wash); color: var(--ok); }
+.conn-pill.warn { background: var(--warn-wash); color: var(--warn); }
+.conn-figs {
+  margin: 15px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 18px;
+}
+.conn-figs > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: .84rem; }
+.conn-figs dt { color: var(--muted); }
+.conn-figs dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.conn .btn { margin-top: 13px; }
+
+/*
+ * Narrower than a laptop the six figures cannot stay on one line: at 1200px
+ * each would be 150px, which is not a card, it is a tile with a number
+ * falling out of it. Three, then two.
+ */
+@media (max-width: 1200px) { .figs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1240px) {
+  .home-split { grid-template-columns: minmax(0, 1fr); }
+  .home-side { grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
+}
+@media (max-width: 900px) {
+  .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-two { grid-template-columns: minmax(0, 1fr); }
+  .sb-key { grid-template-columns: minmax(0, 1fr); }
+  .conn-when { margin-left: 0; text-align: left; flex-basis: 100%; }
 }

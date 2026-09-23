@@ -80,6 +80,75 @@ export function summarise(tasks) {
   };
 }
 
+/**
+ * Every task, cut into slices that do not overlap.
+ *
+ * The mockup for this asked for a stacked bar of Open · Due today · Overdue ·
+ * Added today · Completed. Those five are not parts of a whole: an overdue
+ * task is also open, a task due today is also open, and "added today" can be
+ * any of them - the five sum to more than there are tasks, so a bar drawn from
+ * them shows parts that do not make up the thing they sit inside. A chart is
+ * a claim about proportion, and that one would be false.
+ *
+ * So the slices are disjoint and they add up: overdue, due today (and not yet
+ * late), everything else still open, and finished. "Added today" is not a
+ * status at all - it is when a task arrived - so it stays a figure of its own
+ * above and does not enter the bar.
+ */
+export function statusSlices(tasks) {
+  const today = todayIso();
+  const open = tasks.filter((t) => !isDone(t));
+  const overdue = open.filter(isOverdue);
+  const dueToday = open.filter((t) => !isOverdue(t) && t.due_date === today);
+  const later = open.length - overdue.length - dueToday.length;
+  const done = tasks.length - open.length;
+
+  const slices = [
+    { key: 'overdue', tone: 'danger', label: 'Overdue', value: overdue.length },
+    { key: 'due_today', tone: 'warn', label: 'Due today', value: dueToday.length },
+    { key: 'open', tone: 'info', label: 'Open', value: later },
+    { key: 'done', tone: 'ok', label: 'Completed', value: done },
+  ];
+  // The invariant the bar depends on, kept where it is computed rather than
+  // trusted: if these ever stop adding up the bar is wrong, not the caption.
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  return { slices, total, exact: total === tasks.length };
+}
+
+/**
+ * This week, Monday to Sunday: how much was finished on each day.
+ *
+ * Read off `completed_at`, which is a recorded fact - the same source Recent
+ * activity uses. The mockup drew a bar on every day of the week including the
+ * four that had not happened yet, which reads as "you did nothing on Friday"
+ * about a Friday that is still two days away. A day in the future carries no
+ * bar and says so; a day that has passed with nothing finished carries a real
+ * zero, which is a different fact and worth seeing.
+ */
+export function weekActivity(tasks, now = new Date()) {
+  const today = todayIso();
+  const monday = new Date(now);
+  // getDay() is 0 for Sunday, and the working week here starts on Monday.
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+
+  const days = [];
+  for (let i = 0; i < 7; i += 1) {
+    const at = new Date(monday);
+    at.setDate(monday.getDate() + i);
+    const iso = at.toLocaleDateString('en-CA');
+    const future = iso > today;
+    days.push({
+      iso,
+      label: at.toLocaleDateString([], { weekday: 'short' }),
+      today: iso === today,
+      future,
+      count: future ? null : tasks.filter((t) => isDone(t) && onDay(t.completed_at, iso)).length,
+    });
+  }
+  const peak = Math.max(1, ...days.map((d) => d.count || 0));
+  return { days, peak, total: days.reduce((sum, d) => sum + (d.count || 0), 0) };
+}
+
 /** Chats that have tasks, busiest first. Names come from the tasks themselves. */
 export function chatCounts(tasks) {
   const counts = new Map();
