@@ -259,3 +259,37 @@ describe('the figures share the page with the calendar', () => {
     assert.deepEqual(dead, [], `callbacks nothing calls: ${dead.join(', ')}`);
   });
 });
+
+/*
+ * "Upcoming, Completed, Added, Connected services - ek idhar ek udhar he,
+ * sahi se align karo." Upcoming hung under the calendar and ended 130px below
+ * the charts beside it; Completed and Added were two cards of two heights.
+ */
+describe('every edge on the page meets another edge', () => {
+  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (sel) => new RegExp(`${sel.replace(/\./g, '\\.')}\\s*\\{([^{}]*)\\}`).exec(css)?.[1] || '';
+  const track = (body) => /minmax\(\s*258px,\s*320px\s*\)/.test(body);
+
+  it('lays the bottom row on the columns above it', () => {
+    const split = rule('.home-split');
+    const three = rule('.home-three');
+    assert.ok(track(split) && track(three), 'the bottom row has its own columns, not the page\'s');
+    assert.match(three, /gap:\s*16px/);
+    assert.match(split, /gap:\s*16px/);
+  });
+
+  it('gives each row one top edge and one bottom edge', () => {
+    assert.match(rule('.home-three'), /align-items:\s*stretch/);
+    assert.match(rule('.home-two'), /align-items:\s*stretch/);
+  });
+
+  it('puts Upcoming under the calendar, last in that row, not hanging off the side', () => {
+    const side = home.slice(home.indexOf('className="home-side"'), home.indexOf('className="home-three"'));
+    assert.ok(!/<h3>Upcoming<\/h3>/.test(side), 'Upcoming is still in the side column');
+    const row = home.slice(home.indexOf('className="home-three"'), home.indexOf('className="card conn"'));
+    const order = ['title="Completed today"', 'title="Added today"', '<h3>Upcoming</h3>'].map((s) => row.indexOf(s));
+    assert.ok(order.every((i) => i > -1), 'a card is missing from the row');
+    assert.deepEqual([...order].sort((a, b) => a - b), order, 'the row is out of column order');
+  });
+});

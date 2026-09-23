@@ -288,36 +288,10 @@ export default function DashboardHome({
           />
           </section>
 
-          {/*
-            * What is coming. The second drawing has no place for it, and it
-            * was taken out when that drawing was followed - which left
-            * `onUpcoming` wired to nothing and the page with no figure that
-            * looks past today. Now that the figures moved into the board's
-            * column there is room beside them for it: "three tomorrow,
-            * eleven this week" is a real count of real rows, and each line
-            * opens exactly what it counts.
-            */}
-          <section className="card">
-            <header className="card-head"><h3>Upcoming</h3></header>
-            {summary.upcoming.every((u) => u.count === 0) ? (
-              <p className="rail-empty">Nothing dated in the next two weeks.</p>
-            ) : (
-              <ul className="rail-list">
-                {summary.upcoming.map((u) => (
-                  <li key={u.key}>
-                    <button className="rail-row" onClick={() => onUpcoming(u.key)}>
-                      <span className="rail-name"><Icon name="calendar" size={15} /> {u.label}</span>
-                      <span className="rail-count">{u.count} {u.count === 1 ? 'task' : 'tasks'}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </aside>
       </div>
 
-      <div className="home-two">
+      <div className="home-three">
         <DayList
           title="Completed today" count={counts.completedToday} rows={doneToday} icon="check" tone="ok"
           empty="Nothing finished yet today." onOpen={onOpen} onAll={onCompleted}
@@ -326,6 +300,32 @@ export default function DashboardHome({
           title="Added today" count={counts.addedToday} rows={addedToday} icon="plus" tone="brand"
           empty="Nothing new has arrived today." onOpen={onOpen}
         />
+        {/*
+          * What is coming, beside what came and went today.
+          *
+          * It sat under the calendar, and was reported with the two lists and
+          * the connection card as "ek idhar ek udhar": the side column ended
+          * 130px below the charts beside it, and Completed and Added were two
+          * cards of different heights. Three cards on one row, stretched to
+          * the same height, is one edge along the top and one along the bottom.
+          */}
+        <section className="card">
+          <header className="card-head"><h3>Upcoming</h3></header>
+          {summary.upcoming.every((u) => u.count === 0) ? (
+            <p className="rail-empty">Nothing dated in the next two weeks.</p>
+          ) : (
+            <ul className="rail-list">
+              {summary.upcoming.map((u) => (
+                <li key={u.key}>
+                  <button className="rail-row" onClick={() => onUpcoming(u.key)}>
+                    <span className="rail-name"><Icon name="calendar" size={15} /> {u.label}</span>
+                    <span className="rail-count">{u.count} {u.count === 1 ? 'task' : 'tasks'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
 
       <section className="card conn">

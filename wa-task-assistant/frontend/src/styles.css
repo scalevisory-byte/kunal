@@ -5564,8 +5564,25 @@ button.due:hover { background: var(--raised); }
 /* The work, beside the day. */
 .home-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(258px, 320px); gap: 16px; align-items: start; }
 .home-main { min-width: 0; display: grid; gap: 14px; align-content: start; }
-.home-side { min-width: 0; display: grid; gap: 14px; }
-.home-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.home-side { min-width: 0; display: grid; gap: 14px; align-self: stretch; align-content: start; }
+/* The calendar rides down its column while the board beside it is read, so
+   the column's length is the calendar's track rather than a blank under it. */
+.home-side > .card { position: sticky; top: 84px; }
+.home-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+/*
+ * The day's lists and what is coming, on the page's own columns: two halves
+ * of the board's width, then the calendar's. The same 16px gaps and the same
+ * 258-320px side track as .home-split, so Completed and Added start and end
+ * where the two charts above them do and Upcoming lines up under the
+ * calendar. `stretch`, not `start`: one card with a single row beside one
+ * with five was the "ek idhar ek udhar" - equal heights give the row one top
+ * edge and one bottom edge.
+ */
+.home-three {
+  display: grid; gap: 16px; align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(258px, 320px);
+}
+.home-three > .card { display: flex; flex-direction: column; }
 
 .card {
   background: var(--card); border: 1px solid var(--line);
@@ -5666,22 +5683,31 @@ button.due:hover { background: var(--raised); }
 }
 .conn-pill.ok { background: var(--ok-wash); color: var(--ok); }
 .conn-pill.warn { background: var(--warn-wash); color: var(--warn); }
+/* Label over figure, four even cells with a rule between them. Stretched
+   across a 1600px card, "label ...... 21" put each number nearer the next
+   cell's label than its own, which is half of what "ek idhar ek udhar" was
+   about. */
 .conn-figs {
   margin: 15px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 18px;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 0;
 }
-.conn-figs > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: .84rem; }
-.conn-figs dt { color: var(--muted); }
-.conn-figs dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.conn-figs > div { display: grid; gap: 3px; padding: 0 16px; border-left: 1px solid var(--line); min-width: 0; }
+.conn-figs > div:first-child { border-left: 0; padding-left: 0; }
+.conn-figs dt { color: var(--muted); font-size: .76rem; }
+.conn-figs dd { margin: 0; font-weight: 600; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .conn .btn { margin-top: 13px; }
 
 @media (max-width: 1240px) {
+  .home-side > .card { position: static; }
+  .home-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .home-split { grid-template-columns: minmax(0, 1fr); }
   .home-side { grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
 }
 @media (max-width: 900px) {
   .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-two { grid-template-columns: minmax(0, 1fr); }
+  .home-two, .home-three { grid-template-columns: minmax(0, 1fr); }
+  .conn-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 0; }
+  .conn-figs > div:nth-child(3) { border-left: 0; padding-left: 0; }
   .sb-key { grid-template-columns: minmax(0, 1fr); }
   .conn-when { margin-left: 0; text-align: left; flex-basis: 100%; }
 }
