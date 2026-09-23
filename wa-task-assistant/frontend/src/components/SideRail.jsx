@@ -80,8 +80,11 @@ export default function SideRail({
    * `spread` lays the same cards across the page instead of down a 276px
    * strip. It is the dashboard's layout now: with the task list gone from
    * that page, a narrow column beside an empty half-screen was the worst of
-   * both. `innerRef` is what the phone's "Summary" button scrolls to - it used
-   * to sit on the wrapper this no longer has.
+   * both. Each card carries an `r-` class so the stylesheet can put it in a
+   * named grid area - the calendar down the side, Recent activity across the
+   * full width - rather than letting an auto-fit grid drop them wherever they
+   * happen to land. `innerRef` is what the phone's "Summary" button scrolls
+   * to - it used to sit on the wrapper this no longer has.
    */
   spread = false, innerRef = null,
 }) {
@@ -91,7 +94,7 @@ export default function SideRail({
 
   return (
     <aside className={`rail ${spread ? 'spread' : ''}`} aria-label="Summary" ref={innerRef}>
-      <section className="rail-card">
+      <section className="rail-card r-today">
         <h3 className="rail-title">Today's summary</h3>
         <p className="rail-date">
           {new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}
@@ -119,13 +122,13 @@ export default function SideRail({
         />
       </section>
 
-      <section className="rail-card">
+      <section className="rail-card r-cal">
         <h3 className="rail-title">Calendar</h3>
         <Calendar tasks={tasks} selected={selectedDate} onSelect={onSelectDate} />
       </section>
 
 
-      <section className="rail-card">
+      <section className="rail-card r-upcoming">
         <h3 className="rail-title">Upcoming</h3>
         {summary.upcoming.every((u) => u.count === 0) ? (
           <p className="rail-empty">Nothing dated in the next two weeks.</p>
@@ -143,7 +146,7 @@ export default function SideRail({
         )}
       </section>
 
-      <section className="rail-card ai-card">
+      <section className="rail-card ai-card r-ai">
         <h3 className="rail-title">AI task intelligence</h3>
         <div className="ai-state">
           <span className={`ai-mark ${connected ? 'on' : 'off'}`}><Icon name="whatsapp" size={17} /></span>
@@ -183,7 +186,7 @@ export default function SideRail({
         )}
       </section>
 
-      <section className="rail-card">
+      <section className="rail-card r-activity">
         <h3 className="rail-title">Recent activity</h3>
         {activity.length === 0 ? (
           <p className="rail-empty">Nothing yet.</p>
