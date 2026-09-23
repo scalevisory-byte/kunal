@@ -5757,3 +5757,122 @@ button.due:hover { background: var(--raised); }
   .donut-key { width: 100%; }
   .daystats.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/*
+ * All Tasks as a table.
+ *
+ * One sheet, hairline rows, the same card the list sits on. The table scrolls
+ * sideways inside its own frame on a narrow screen, never the page: eight
+ * columns do not fit 390px, and hiding some of them is how the chat name went
+ * missing for five rounds - so nothing is hidden, the table is just wider
+ * than the phone.
+ */
+.tt {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow-sm); min-width: 0;
+}
+.tt-scroll { overflow-x: auto; }
+.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 860px; }
+.tt-table th, .tt-table td {
+  padding: 8px 10px; text-align: left; vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+}
+.tt-table thead th {
+  background: var(--raised);
+  font-weight: 600; font-size: .74rem; color: var(--muted); white-space: nowrap;
+}
+.tt-table tbody tr:last-child td { border-bottom: 0; }
+.tt-table tbody tr:hover { background: var(--raised); }
+.tt-table tbody tr.picked { background: var(--brand-wash); }
+.tt-table tbody tr.is-done .tt-title { color: var(--muted); text-decoration: line-through; }
+
+.tt-pick { width: 34px; padding-right: 0 !important; }
+.tt-pick input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+.tt-act { width: 44px; text-align: right !important; }
+
+.tt-sort {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0;
+  background: none; font: inherit; color: inherit; cursor: pointer;
+}
+.tt-sort .icon { opacity: 0; transition: opacity .15s, transform .15s; }
+.tt-sort:hover .icon, .tt-sort.on .icon { opacity: 1; }
+.tt-sort.on { color: var(--text); }
+.tt-sort .icon.up { transform: rotate(180deg); }
+
+/* The title takes what the row has left; everything else is as wide as it
+   needs. `min-width` keeps a long title from squeezing the date to two
+   lines, which is the column that is scanned. */
+.tt-task { min-width: 260px; }
+.tt-title {
+  display: block; padding: 0; border: 0; background: none; font: inherit;
+  font-weight: 600; color: var(--text); text-align: left; cursor: pointer; line-height: 1.3;
+}
+.tt-title:hover { color: var(--brand); }
+.tt-task small { display: block; margin-top: 2px; font-size: .74rem; color: var(--muted); }
+.tt-task small.unnamed { font-style: italic; }
+.tt-task .t-title-edit { width: 100%; }
+
+.tt-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 190px;
+  padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tt-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.tt-none { color: var(--muted); }
+.tt-who { white-space: nowrap; }
+
+.tt-due { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tt-due small { display: block; font-size: .72rem; color: var(--muted); }
+.tt-due.t-danger { color: var(--danger); font-weight: 600; }
+.tt-due.t-warn { color: var(--warn); font-weight: 600; }
+
+/* Priority is a word with a wash behind it, never the colour alone. */
+.tt-pri {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: .74rem; font-weight: 600;
+}
+.tt-pri.p-high { background: var(--danger-wash); color: var(--danger); }
+.tt-pri.p-medium { background: var(--warn-wash); color: var(--warn); }
+.tt-pri.p-low { background: var(--ok-wash); color: var(--ok); }
+
+/* The app's form fields are 36px tall for a thumb; in a row read by the
+   dozen that doubled the row, so this one is the height of its text. */
+.tt-status {
+  min-height: 0; height: 26px; line-height: 1;
+  font: inherit; font-size: .78rem; font-weight: 600; padding: 0 4px 0 7px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text);
+  cursor: pointer;
+}
+.tt-status.s-in_progress { background: var(--info-wash); color: var(--info); border-color: transparent; }
+.tt-status.s-waiting { background: var(--warn-wash); color: var(--warn); border-color: transparent; }
+.tt-status.s-done { background: var(--ok-wash); color: var(--ok); border-color: transparent; }
+
+/* The ⋮ is the row's own, so it is visible on every row rather than on hover:
+   in a table the actions column is a column. */
+.tt-act .row-menu-btn { opacity: 1; color: var(--text-2); }
+
+.tt-foot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted);
+}
+.tt-count { margin-right: auto; }
+.tt-count b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tt-pages { display: flex; align-items: center; gap: 4px; }
+.tt-page {
+  min-width: 30px; height: 30px; padding: 0 6px; border: 1px solid transparent;
+  border-radius: 6px; background: none; font: inherit; color: var(--text); cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.tt-page:hover { border-color: var(--line); }
+.tt-page.on { background: var(--brand); color: var(--brand-ink, #fff); font-weight: 600; }
+.tt-gap { padding: 0 4px; }
+.tt-size select {
+  min-height: 0; height: 30px;
+  font: inherit; font-size: .8rem; padding: 0 6px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--card); color: var(--text);
+}
+
+.layout-switch button { display: inline-flex; align-items: center; gap: 5px; }
+@media (max-width: 760px) {
+  .tt-pages { order: 3; width: 100%; justify-content: center; }
+}

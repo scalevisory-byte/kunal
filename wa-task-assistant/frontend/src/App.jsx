@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, getToken, setToken, UnauthorizedError, LockedOutError } from './api.js';
 import { enablePush, pushAlreadyEnabled, pushSupported } from './push.js';
 import TaskList from './components/TaskList.jsx';
+import TaskTable from './components/TaskTable.jsx';
 import AddTaskForm from './components/AddTaskForm.jsx';
 import QuickAdd from './components/QuickAdd.jsx';
 import StatusBar from './components/StatusBar.jsx';
@@ -269,6 +270,25 @@ export default function App() {
    */
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
+  /*
+   * All Tasks as sections or as a table - his drawing is a table.
+   *
+   * Remembered, because it is a way of reading rather than a filter: a filter
+   * left on weeks ago silently shrinks the list, a layout left on only changes
+   * its shape. A phone starts on the list, since eight columns on 390px is a
+   * table you read sideways; either can be picked on either.
+   */
+  const [layout, setLayout] = useState(() => {
+    try {
+      const saved = localStorage.getItem('layout');
+      if (saved === 'list' || saved === 'table') return saved;
+    } catch { /* private window: fall through to the default */ }
+    return window.matchMedia?.('(min-width: 900px)').matches ? 'table' : 'list';
+  });
+  const pickLayout = (next) => {
+    setLayout(next);
+    try { localStorage.setItem('layout', next); } catch { /* not remembered, still applied */ }
+  };
   // Whether the picker bar is asking who the picked rows go to.
   const [giving, setGiving] = useState(false);
   const [status, setStatus] = useState(null);
@@ -436,6 +456,17 @@ export default function App() {
     next.has(task.id) ? next.delete(task.id) : next.add(task.id);
     return next;
   });
+
+  // A box ticked in the table is a pick, so the bar that acts on picks comes up.
+  const pickRow = (task) => { setSelecting(true); togglePicked(task); };
+  const pickMany = (ids, on) => {
+    setSelecting(true);
+    setPicked((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  };
 
   const stopSelecting = () => { setSelecting(false); setPicked(new Set()); setGiving(false); };
 
@@ -797,6 +828,7 @@ export default function App() {
         toolbar: true,
       }
     : PAGES[section] || PAGES.dashboard;
+  const tableOn = layout === 'table' && Boolean(page.tabs) && view !== 'myday';
 
   /*
    * The dashboard is a summary, and only a summary.
@@ -1396,7 +1428,11 @@ export default function App() {
                 <div className="page-head">
                   <div>
                     <h2>{page.title}</h2>
-                    <p>{page.lede}</p>
+                    <p>{tableOn
+                      /* The lede says "grouped by when it is due", which is the
+                         list's shape; the table is one order, set by a heading. */
+                      ? 'Everything you have, one row each — sort by any heading.'
+                      : page.lede}</p>
                   </div>
                   <div className="page-head-right">
                     {!page.calendar && (
@@ -1835,6 +1871,12 @@ export default function App() {
                             onClearAll={() => { setFilters(EMPTY_FILTERS); setSelectedDate(null); setQuery(''); }}
                             selecting={selecting}
                             onSelecting={(on) => (on ? setSelecting(true) : stopSelecting())}
+                            /* Only on All Tasks, which is what he drew, and not on
+                               My Day, whose rows are a ranked few rather than a
+                               list to page through. */
+                            layout={tableOn ? 'table' : 'list'}
+                            onLayout={page.tabs && view !== 'myday' ? pickLayout : null}
+                            onCalendar={() => goto('calendar')}
                           />
                         )}
                       </div>
@@ -1980,7 +2022,30 @@ export default function App() {
                       </p>
                     )}
 
-                    {showBoard && (
+                    {showBoard && tableOn && (
+                      <TaskTable
+                        tasks={visible}
+                        loading={loading}
+                        error={error && !tasks.length ? error : ''}
+                        groups={groups}
+                        picked={picked}
+                        onPick={pickRow}
+                        onPickMany={pickMany}
+                        /* What starts the table again from page 1: a new
+                           question, never a new poll of the same one. */
+                        scope={[view, groupId, selectedDate, doneDay, query, showAllotted,
+                          JSON.stringify(filters)].join('|')}
+                        onRetry={() => refresh()}
+                        onOpen={setOpenTask}
+                        onStatus={(task, next) => onEdit(task, { status: next })}
+                        onQuickDate={onQuickDate}
+                        onDelete={onDelete}
+                        onRename={(task, title) => onEdit(task, { title })}
+                        onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                      />
+                    )}
+
+                    {showBoard && !tableOn && (
                     <TaskList
                       tasks={visible}
                       loading={loading}

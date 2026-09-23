@@ -345,7 +345,7 @@ function DueButton({ task, due, onQuickDate }) {
 }
 
 /** Everything you can do to a task without opening it, behind one control. */
-function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename }) {
+export function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef(null);
 

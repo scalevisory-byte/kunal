@@ -8,7 +8,10 @@ const SOURCES = [
 ];
 
 /** Search, grouping, and a filter popover that stays out of the way until asked. */
-export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats, onClearAll, selecting, onSelecting }) {
+export default function Toolbar({
+  groupBy, onGroupBy, filters, onFilters, chats, onClearAll, selecting, onSelecting,
+  layout = 'list', onLayout = null, onCalendar = null,
+}) {
   const [open, setOpen] = useState(false);
   const popover = useRef(null);
 
@@ -38,6 +41,40 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
   return (
     <div className="toolbar">
       <div className="toolbar-right" ref={popover}>
+        {/*
+          * The shape of the list: sections, a table, or the month.
+          *
+          * From his All Tasks drawing. List and Table are two readings of the
+          * same rows; Calendar is not a third reading here but the calendar
+          * page, which already exists - a switch that opened a second calendar
+          * would be two answers to one question.
+          */}
+        {onLayout && (
+          <div className="segment small layout-switch" role="group" aria-label="Layout">
+            {[
+              { key: 'list', label: 'List', icon: 'list' },
+              { key: 'table', label: 'Table', icon: 'board' },
+            ].map((l) => (
+              <button
+                key={l.key}
+                className={layout === l.key ? 'active' : ''}
+                aria-pressed={layout === l.key}
+                onClick={() => onLayout(l.key)}
+              >
+                <Icon name={l.icon} size={15} /> {l.label}
+              </button>
+            ))}
+            {onCalendar && (
+              <button onClick={onCalendar}>
+                <Icon name="calendar" size={15} /> Calendar
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Grouping is what the sections are; a table has one order, set by
+            its headings, so the control would press and change nothing. */}
+        {layout !== 'table' && (
         <div className="segment small">
           {/*
             * Three ways to read the same list: when it is due, which business
@@ -59,6 +96,7 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
             </button>
           ))}
         </div>
+        )}
 
         {/*
           * Picking several at once.
@@ -68,7 +106,8 @@ export default function Toolbar({ groupBy, onGroupBy, filters, onFilters, chats,
           * stop opening the list. This turns the done-tick into a picker for
           * as long as it is on, and nothing else about the row changes.
           */}
-        {onSelecting && (
+        {/* The table's boxes are always there, so it needs no mode for them. */}
+        {onSelecting && layout !== 'table' && (
           <button
             className={`btn ghost with-icon ${selecting ? 'on' : ''}`}
             aria-pressed={Boolean(selecting)}
