@@ -222,25 +222,31 @@ export default function DashboardHome({
 
   return (
     <div className="home" ref={innerRef}>
-      <section className="figs" aria-label="Task summary">
-        {figures.map((cell) => (
-          <Figure key={cell.key} cell={cell} onPick={onPick} />
-        ))}
-      </section>
-
-      {/* The jump row and the duplicates notice, which are navigation and a
-          warning rather than figures, keep the place they already had. */}
-      {children}
-
+      {/*
+        * Two columns from the very top.
+        *
+        * Asked with two crops - the figures and the jump row in one, the
+        * calendar in the other - and "ye saare tab itni space me hi rakho /
+        * itne part me calendar wala part": the figures used to run the whole
+        * width and the calendar started below them, so the tallest card on
+        * the page began a screen down and the page was longer than it needed
+        * to be. The figures belong to the board's column; the calendar rises
+        * beside them.
+        */}
       <div className="home-split">
-        {/*
-          * Focus today keeps its own fold, its rename and its tick - it is the
-          * same strip, in the place the drawing puts it. The two charts sit
-          * under it rather than below the whole split: the side column is
-          * three cards tall and this one was one, which left a screen of
-          * nothing between the strip and the next thing.
-          */}
         <div className="home-main">
+          <section className="figs" aria-label="Task summary">
+            {figures.map((cell) => (
+              <Figure key={cell.key} cell={cell} onPick={onPick} />
+            ))}
+          </section>
+
+          {/* The jump row and the duplicates notice: navigation and a warning
+              rather than figures, so they keep the place they already had. */}
+          {children}
+
+          {/* Focus today keeps its own fold, its rename and its tick - it is
+              the same strip, in the place the drawing puts it. */}
           {focus}
           <div className="home-two">
             <section className="card">
@@ -282,6 +288,32 @@ export default function DashboardHome({
           />
           </section>
 
+          {/*
+            * What is coming. The second drawing has no place for it, and it
+            * was taken out when that drawing was followed - which left
+            * `onUpcoming` wired to nothing and the page with no figure that
+            * looks past today. Now that the figures moved into the board's
+            * column there is room beside them for it: "three tomorrow,
+            * eleven this week" is a real count of real rows, and each line
+            * opens exactly what it counts.
+            */}
+          <section className="card">
+            <header className="card-head"><h3>Upcoming</h3></header>
+            {summary.upcoming.every((u) => u.count === 0) ? (
+              <p className="rail-empty">Nothing dated in the next two weeks.</p>
+            ) : (
+              <ul className="rail-list">
+                {summary.upcoming.map((u) => (
+                  <li key={u.key}>
+                    <button className="rail-row" onClick={() => onUpcoming(u.key)}>
+                      <span className="rail-name"><Icon name="calendar" size={15} /> {u.label}</span>
+                      <span className="rail-count">{u.count} {u.count === 1 ? 'task' : 'tasks'}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </aside>
       </div>
 

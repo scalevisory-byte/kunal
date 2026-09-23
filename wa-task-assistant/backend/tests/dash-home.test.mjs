@@ -204,3 +204,58 @@ describe('the ring is parts of a whole', () => {
     assert.match(ring, /aria-label=/, 'the ring says nothing to a screen reader');
   });
 });
+
+/*
+ * Two columns from the very top.
+ *
+ * Asked with two crops - the figures with the jump row in one, the right edge
+ * of the page with the calendar in the other - and "ye saare tab itni space
+ * me hi rakho / itne part me calendar wala part". The figures used to run the
+ * whole width with the calendar starting below them; they belong to the
+ * board's column, and the calendar rises beside them.
+ */
+describe('the figures share the page with the calendar', () => {
+  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8');
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const at = (needle) => home.indexOf(needle);
+
+  it('puts them in the board column and the calendar beside them', () => {
+    const split = at('className="home-split"');
+    const main = at('className="home-main"');
+    const side = at('className="home-side"');
+    const figs = at('className="figs"');
+    assert.ok(split > -1 && main > split && side > main, 'the two columns are not there');
+    assert.ok(figs > main && figs < side, 'the figures are not inside the board column');
+    assert.ok(at('{calendar}') > side, 'the calendar is not in the column beside them');
+  });
+
+  it('does not ask for six across a column that cannot hold six', () => {
+    // The column is 336px narrower than the page. At a laptop's 1440 that is
+    // 126px per figure - a number falling out of a tile - so the row is three
+    // by default and six only where the width is genuinely there.
+    const rules = [...bare.matchAll(/(@media[^{]*\{\s*)?\.figs\s*\{([^{}]*)\}/g)];
+    const six = rules.filter((m) => /repeat\(6/.test(m[2]));
+    assert.ok(six.length, 'nothing lays them six across at any width');
+    for (const m of six) {
+      assert.ok(m[1] && /min-width:\s*(\d+)px/.test(m[1]),
+        'six across is claimed outside a minimum width');
+      assert.ok(Number(/min-width:\s*(\d+)px/.exec(m[1])[1]) >= 1700,
+        'six across is claimed on a window too narrow to hold it');
+    }
+    const base = rules.find((m) => !m[1]);
+    assert.ok(base && /repeat\(3/.test(base[2]), 'the default row is not three');
+  });
+
+  it('leaves no callback wired to nothing', () => {
+    // `onUpcoming` outlived the card that called it when the second mockup was
+    // followed, which is how a real figure left the page without anyone
+    // noticing. A prop the component never calls is a promise it cannot keep.
+    const sig = /export default function DashboardHome\(\{([\s\S]*?)\}\)/.exec(home);
+    assert.ok(sig, 'the component signature moved');
+    const body = home.slice(sig.index + sig[0].length);
+    const props = sig[1].split(',').map((p) => p.trim().split(/[=:\s]/)[0]).filter((p) => /^on[A-Z]/.test(p));
+    assert.ok(props.length >= 4, 'no callbacks found to check');
+    const dead = props.filter((p) => !new RegExp(`\\b${p}\\b`).test(body));
+    assert.deepEqual(dead, [], `callbacks nothing calls: ${dead.join(', ')}`);
+  });
+});

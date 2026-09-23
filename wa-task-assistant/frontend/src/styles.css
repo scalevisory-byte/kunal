@@ -5521,9 +5521,16 @@ button.due:hover { background: var(--raised); }
 /* The six. A tinted mark, the figure, the word - and every one of them opens
    exactly what it counts, including the two the old row could not reach. */
 /* Asked as "make this more smaller": the six were 62px of card for two lines
-   of text. Tighter padding, a smaller mark and a smaller figure - the row
-   keeps its six columns and gives the page back about 20px. */
-.figs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+   of text. Tighter padding, a smaller mark and a smaller figure.
+ *
+ * Three to a row, not six. The figures share the page with the calendar
+ * column now ("ye saare tab itni space me hi rakho"), which takes 336px off
+ * the width they had - at a laptop's 1440 six across is 126px each, a number
+ * falling out of a tile. Two rows of three is 122px tall beside a calendar
+ * that is four hundred, so the space is there. Six only where there is
+ * genuinely room for six: his own window is wider than that. */
+.figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 1801px) { .figs { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .fig {
   display: flex; align-items: center; gap: 9px; min-width: 0;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
@@ -5668,12 +5675,6 @@ button.due:hover { background: var(--raised); }
 .conn-figs dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .conn .btn { margin-top: 13px; }
 
-/*
- * Narrower than a laptop the six figures cannot stay on one line: at 1200px
- * each would be 150px, which is not a card, it is a tile with a number
- * falling out of it. Three, then two.
- */
-@media (max-width: 1200px) { .figs { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 1240px) {
   .home-split { grid-template-columns: minmax(0, 1fr); }
   .home-side { grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
