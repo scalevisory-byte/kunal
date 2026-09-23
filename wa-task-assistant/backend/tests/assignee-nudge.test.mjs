@@ -24,7 +24,7 @@ process.env.TIMEZONE = 'Asia/Kolkata';
 
 const { db, createTask, updateTask, getTask } = await import('../src/db.js');
 const { addStaff } = await import('../src/assignment.js');
-const { EVENT, recordEvent } = await import('../src/task-events.js');
+const { EVENT, recordEvent, messagesSentFor } = await import('../src/task-events.js');
 const { whyNot, chatForAssignee, nudgesSoFar, nudgesToPersonToday } =
   await import('../src/assignee-nudge.js');
 const { state } = await import('../src/whatsapp.js');
@@ -320,5 +320,65 @@ describe('his own copy for work he gave away', () => {
     // Without this, turning the copy off would mean his staff are chased and
     // he never hears of it - which is the failure the notice exists for.
     assert.match(src, /} else if \(told && state\.status === 'ready'\)/);
+  });
+});
+
+/*
+ * "Auto followup done? followup history maintain?" - asked over a row reading
+ * "already chased 2 times" that said nothing about when or what.
+ */
+describe('what was sent is on the row that says it was sent', () => {
+  it('returns every message to the holder, oldest first, saying how each went out', () => {
+    const task = given('Nidhi');
+    recordEvent(task.id, EVENT.handoverSent, 'Nidhi', { text: 'New task for you' });
+    recordEvent(task.id, EVENT.nudgeSent, 'Nidhi', { text: 'Quick update please', automatic: true });
+    recordEvent(task.id, EVENT.nudgeSent, 'Nidhi', { text: 'Any news?' });
+    recordEvent(task.id, EVENT.edited, 'title');
+    const sent = messagesSentFor([task.id]).get(task.id);
+    assert.deepEqual(sent.map((m) => m.how), ['handover', 'automatic', 'pressed']);
+    assert.deepEqual(sent.map((m) => m.text), ['New task for you', 'Quick update please', 'Any news?']);
+    assert.ok(sent.every((m) => m.to === 'Nidhi' && m.at));
+  });
+
+  it('agrees with the count the engine stops on', () => {
+    // The log and "chased N times" read the same event, so they cannot differ.
+    const task = given('Nidhi');
+    recordEvent(task.id, EVENT.nudgeSent, 'Nidhi', { text: 'a', automatic: true });
+    recordEvent(task.id, EVENT.nudgeSent, 'Nidhi', { text: 'b', automatic: true });
+    const sent = messagesSentFor([task.id]).get(task.id);
+    assert.equal(sent.filter((m) => m.how !== 'handover').length, nudgesSoFar(task.id));
+  });
+
+  it('is carried by the Task allotted rows and drawn on both views', () => {
+    const route = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
+    assert.match(route, /sent: sent\.get\(task\.id\) \|\| \[\]/);
+    const page = fs.readFileSync(new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+    assert.equal((page.match(/<SentLog sent=\{task\.sent\} \/>/g) || []).length, 2,
+      'the pipeline cards and the flat rows must both show it');
+  });
+});
+
+/* "How to followup screen make minimal and useful." */
+describe('the follow-up screen shows the follow-up and little else', () => {
+  const page = fs.readFileSync(new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+  const drawer = fs.readFileSync(new URL('../../frontend/src/components/TaskDetail.jsx', import.meta.url), 'utf8');
+  const route = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
+
+  it('opens an allotted task on its follow-up, built by the rows\' own decorate', () => {
+    const body = drawer.slice(drawer.indexOf('<div className="sheet-body">'));
+    assert.ok(body.indexOf('<FollowUp') > -1 && body.indexOf('<FollowUp') < body.indexOf('d-title'),
+      'the follow-up is not the first thing in the drawer');
+    assert.match(drawer, /import \{ Chase, SentLog \} from '\.\/Delegation\.jsx'/);
+    const one = route.slice(route.indexOf("'/tasks/:id/followup'"));
+    assert.match(one.slice(0, 600), /decorate\(\[task\]\)/, 'the drawer has its own copy of the rules');
+  });
+
+  it('draws no stage that holds nothing', () => {
+    assert.match(page, /stages\.filter\(\(s\) => s\.items\.length \|\| stage === s\.key\)/);
+    assert.match(page, /const held = stages\.filter\(\(stage\) => stage\.items\.length\)/);
+  });
+
+  it('keeps the diagnosis for when there is something to diagnose', () => {
+    assert.match(page, /wa && \(!wa\.ownSeenEver \|\| !wa\.delegatedEver\) && \(\s*<p className="deleg-counts">/);
   });
 });

@@ -4,7 +4,7 @@ import {
   delegates, requesters, delegationCounts, assignTask, followUpText, handoverText,
   directionOf, listStaff, addStaff, removeStaff,
 } from '../assignment.js';
-import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
+import { EVENT, recordEvent, lastActivityFor, messagesSentFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
 import { getSettings, nextRemindersFor } from '../scheduling.js';
 import { sendMessage, resolveSendable, state as waState } from '../whatsapp.js';
@@ -66,6 +66,7 @@ const decorate = (rows) => {
   // question — a task given three days ago with nothing since is the one to
   // chase, and the deadline alone does not say that.
   const activity = lastActivityFor(ids);
+  const sent = messagesSentFor(ids);
   return rows.map((task) => {
     const schedule = taskSchedule(task, settings, { next: next.get(task.id) || {} });
     return {
@@ -74,6 +75,7 @@ const decorate = (rows) => {
       direction: directionOf(task),
       last_activity: activity.get(task.id) || null,
       chase: chaseFor(task, settings, schedule),
+      sent: sent.get(task.id) || [],
     };
   });
 };
@@ -119,6 +121,28 @@ delegationRouter.get('/', (req, res) => {
 
 /** Just the two numbers, for the sidebar. Cheap enough to poll. */
 delegationRouter.get('/counts', (req, res) => res.json(delegationCounts()));
+
+/*
+ * One task's follow-up, for the task drawer.
+ *
+ * Built by the same `decorate` the Task allotted rows use, so the drawer and
+ * the row cannot tell two stories about the same task. The drawer needs its
+ * own call because it re-reads the plain task after every refresh, which
+ * carries none of this.
+ */
+delegationRouter.get('/tasks/:id/followup', (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return res.status(404).json({ error: 'No such task' });
+  const [row] = decorate([task]);
+  return res.json({
+    assigned_to: row.assigned_to || null,
+    due_at: row.due_at || null,
+    due_date: row.due_date || null,
+    next_follow_up_at: row.next_follow_up_at || null,
+    chase: row.chase,
+    sent: row.sent,
+  });
+});
 
 /**
  * Give a task to somebody, or take it back.

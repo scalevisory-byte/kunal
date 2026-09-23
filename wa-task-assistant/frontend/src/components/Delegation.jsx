@@ -555,7 +555,7 @@ function DoneButton({ task, onDone }) {
  * off, a number never stored and a cap already spent all looked the same from
  * here: a row that simply went quiet.
  */
-function Chase({ chase }) {
+export function Chase({ chase }) {
   if (!chase) return null;
   if (chase.reason) {
     return (
@@ -568,6 +568,47 @@ function Chase({ chase }) {
     <span className="al-chase on">
       <Icon name="whatsapp" size={11} /> Reminding them {when(chase.at)}
     </span>
+  );
+}
+
+/**
+ * What the app has already said to them, on this task.
+ *
+ * Asked as "auto followup done? followup history maintain?" over a row that
+ * read "already chased 2 times". Every message was on the task's permanent
+ * record with its text, and nowhere on this page: the count said it happened
+ * and nothing said when or what. One line with the times, and a press opens
+ * each message as it was sent - automatic, pressed, or the handover.
+ */
+const SENT_HOW = {
+  automatic: 'Automatic follow-up',
+  pressed: 'You pressed Nudge',
+  handover: 'Handover message',
+};
+
+export function SentLog({ sent, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  if (!sent?.length) return null;
+  return (
+    <div className="al-sent">
+      <button type="button" className="al-sent-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <Icon name="whatsapp" size={11} />
+        {' '}{sent.length} WhatsApp {sent.length === 1 ? 'message' : 'messages'} sent to {sent[0].to || 'them'}
+        {' · '}{sent.map((m) => when(m.at)).join(', ')}
+        <Icon name="chevronDown" size={12} className={open ? 'up' : ''} />
+      </button>
+      {open && (
+        <ol className="al-sent-list">
+          {sent.map((m, i) => (
+            <li key={`${m.at}-${i}`}>
+              <span className="al-sent-when">{when(m.at)}</span>
+              <span className="al-sent-how">{SENT_HOW[m.how] || m.how}</span>
+              {m.text && <span className="al-sent-text">{m.text}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 
@@ -728,6 +769,7 @@ function Card({ task, onOpen, onNudge, onDone, onDelete, onDeadline, people, onA
       </p>
       {activity && <p className="al-activity">{activity}</p>}
       {task.direction === 'allotted' && <p className="al-activity"><Chase chase={task.chase} /></p>}
+      {task.direction === 'allotted' && <SentLog sent={task.sent} />}
       <div className="al-acts">
         <DoneButton task={task} onDone={onDone} />
         {task.status !== 'done' && (
@@ -748,9 +790,13 @@ function Card({ task, onOpen, onNudge, onDone, onDelete, onDeadline, people, onA
  * dragged it.
  */
 function Board({ stages, onOpen, onNudge, onDone, onDelete, onDeadline, people, onAssign }) {
+  // Only the stages that hold something: with two tasks, six columns reading
+  // "Nothing here." pushed the one that mattered off the right of the screen.
+  // Every stage keeps its count in the row above, so none of them is lost.
+  const held = stages.filter((stage) => stage.items.length);
   return (
     <div className="al-board">
-      {stages.map((stage) => (
+      {(held.length ? held : stages).map((stage) => (
         <section className="al-col" key={stage.key}>
           <header className="al-col-head">
             <h4>{stage.label}</h4>
@@ -793,6 +839,7 @@ function Rows({ tasks, onOpen, onNudge, onDone, onDelete, onDeadline, people, on
                 {activity && <span className="muted">{activity}</span>}
                 {task.direction === 'allotted' && <Chase chase={task.chase} />}
               </span>
+              {task.direction === 'allotted' && <SentLog sent={task.sent} />}
             </div>
             <span className={`al-stage s-${stage.key}`}>{stage.label}</span>
             <span className="al-row-due">
@@ -1086,14 +1133,17 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, onOpe
       </div>
 
       {/*
-        * Always, not only on an empty page.
+        * Only when it points at a problem.
         *
-        * It was shown only when there was nothing here, so the moment one task
-        * appeared - a manual one - the figure that explains the automatic ones
-        * disappeared with it. Which is exactly when it is needed: the page is
-        * no longer empty and the pipeline is still not working.
+        * It was shown only on an empty page, then always - because a page with
+        * one manual task in it still needed to say the automatic ones were not
+        * arriving. But "Read 2101 · handed over by Claude: 24" over a working
+        * pipeline is a diagnosis of nothing, and "make the follow-up screen
+        * minimal" was asked over it. So it stands exactly where it earns its
+        * place: nothing of his has been read, or nothing read has ever been
+        * handed to anybody.
         */}
-      {side === 'allotted' && wa && (
+      {side === 'allotted' && wa && (!wa.ownSeenEver || !wa.delegatedEver) && (
         <p className="deleg-counts">
           Read from your own messages: <b>{wa.ownSeenEver ?? 0}</b>
           {typeof wa.ownSeen === 'number' && wa.ownSeen !== wa.ownSeenEver && ` (${wa.ownSeen} since this server started)`}
@@ -1175,7 +1225,10 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, onOpe
             >
               <b>{counts.total}</b><span>Total</span>
             </button>
-            {stages.map((s) => (
+            {/* A stage with nothing in it is a box saying nothing: five of
+                the eight read 0 on a page of two tasks. The one picked stays,
+                so a filter never disappears from under the press that set it. */}
+            {stages.filter((s) => s.items.length || stage === s.key).map((s) => (
               <button
                 key={s.key}
                 className={`al-count ${stage === s.key ? 'on' : ''}`}

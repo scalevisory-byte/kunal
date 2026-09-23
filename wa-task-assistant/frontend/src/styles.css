@@ -5907,3 +5907,41 @@ button.due:hover { background: var(--raised); }
 @media (max-width: 760px) {
   .tt-pages { order: 3; width: 100%; justify-content: center; }
 }
+
+/* The messages already sent to whoever holds the task: one quiet line, and
+   each message with its time and how it went out when opened. */
+.al-sent { margin-top: 4px; font-size: .76rem; min-width: 0; }
+/* Inline, not a flex row: in a narrow card a wrapping flex row left the icon
+   alone on one line and the chevron on another. As text it wraps like text. */
+.al-sent-btn {
+  display: inline; text-align: left; line-height: 1.45;
+  padding: 0; border: 0; background: none; font: inherit; color: var(--ok); cursor: pointer;
+}
+.al-sent-btn:hover { text-decoration: underline; }
+.al-sent-btn .icon { vertical-align: -2px; }
+.al-sent-btn .icon.up { transform: rotate(180deg); }
+.al-sent-list {
+  list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--line);
+  display: grid; gap: 6px;
+}
+.al-sent-list li { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; }
+.al-sent-when { font-family: "IBM Plex Mono", monospace; color: var(--text-2); white-space: nowrap; }
+.al-sent-how { font-weight: 600; color: var(--text); }
+.al-sent-text {
+  grid-column: 2; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* Follow-up, at the top of an allotted task's drawer: one sheet of facts,
+   tinted so it reads as the reason the drawer was opened. */
+.fu-panel {
+  margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--line);
+  border-radius: var(--r); background: var(--raised); display: grid; gap: 6px;
+}
+.fu-panel h3 {
+  margin: 0; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-family: "IBM Plex Mono", monospace; font-weight: 500;
+}
+.fu-who { margin: 0; font-size: .86rem; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.fu-next { margin: 0; font-size: .8rem; }
+.fu-none { margin: 0; font-size: .78rem; color: var(--muted); }
+.fu-panel .al-sent { margin-top: 2px; }

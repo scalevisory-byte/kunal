@@ -99,6 +99,42 @@ export function lastActivityFor(taskIds) {
   return out;
 }
 
+/**
+ * Every WhatsApp message the app sent to the person holding each task, oldest
+ * first: the automatic follow-ups, a pressed Nudge and the handover.
+ *
+ * Asked as "auto followup done? followup history maintain?" over a row that
+ * read "already chased 2 times" and said nothing about when or what. Each send
+ * has always been written here, with its text; the only place that read them
+ * back was Work History, which lists finished work - so while a job was still
+ * open its chasing was on the record and nowhere on screen. The row that says
+ * "chased 2 times" now shows the two.
+ */
+export function messagesSentFor(taskIds) {
+  const out = new Map();
+  if (!taskIds.length) return out;
+  const marks = taskIds.map(() => '?').join(',');
+  const rows = db
+    .prepare(
+      `SELECT task_id, kind, detail, meta, at FROM task_events
+        WHERE task_id IN (${marks}) AND kind IN (?, ?)
+        ORDER BY at ASC, id ASC`
+    )
+    .all(...taskIds, EVENT.nudgeSent, EVENT.handoverSent);
+  for (const row of rows) {
+    const meta = row.meta ? JSON.parse(row.meta) : {};
+    const list = out.get(row.task_id) || [];
+    list.push({
+      at: row.at,
+      to: row.detail,
+      how: row.kind === EVENT.handoverSent ? 'handover' : meta.automatic ? 'automatic' : 'pressed',
+      text: meta.text || null,
+    });
+    out.set(row.task_id, list);
+  }
+  return out;
+}
+
 export const recentEvents = (limit = 12) =>
   db
     .prepare(
