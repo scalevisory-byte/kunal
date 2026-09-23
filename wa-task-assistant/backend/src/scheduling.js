@@ -140,6 +140,26 @@ const DEFAULTS = {
    * automated repeat messaging to other people is what gets numbers banned.
    */
   nudgeAssignee: false,
+  /*
+   * Whether HIS own WhatsApp copy still goes out for work that is with
+   * somebody else.
+   *
+   * Asked as "why task reminder coming to me — direct Nidhi ko jana chahiye",
+   * over the hour-before message for a job given to NIDHI BNF. That message is
+   * correctly his: `pre_due` is not one of the two rungs the assignee nudge
+   * rides, so she heard nothing at 2pm and hears from the app at 3.
+   *
+   * Turning this off does NOT send her more. It sends HIM less: his own
+   * WhatsApp copies for delegated work stop, hers are untouched, and the app
+   * still tells him in one line whenever it has messaged her. The caps that
+   * protect the number - twice per task, four per person per day, nothing at
+   * night - are not settings and do not move.
+   *
+   * On by default: it stays his work to chase, and a deadline that goes quiet
+   * on the owner is how things get forgotten. The dashboard, the digest and
+   * the briefing list it either way.
+   */
+  ownCopyWhenDelegated: true,
   dailyBriefing: false,             // one morning message listing the day
   briefingTime: '09:00',            // in the configured timezone
   // One review of the week just finished. Sunday evening by default: the week

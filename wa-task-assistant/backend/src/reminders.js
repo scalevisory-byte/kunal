@@ -468,9 +468,19 @@ async function deliver(task, reminder, settings) {
 
   // WhatsApp is opt-in, per kind, and reminderChatId() is always the linked
   // account's own chat - there is no path here that can message a contact.
-  const wantsWhatsApp = reminder.kind === 'follow_up'
+  const byKind = reminder.kind === 'follow_up'
     ? settings.whatsappFollowUps
     : settings.notifyWhatsApp;
+  /*
+   * His own copy, for work that is with somebody else.
+   *
+   * "Why task reminder coming to me — direct Nidhi ko jana chahiye." With this
+   * off he stops getting the WhatsApp copy for a delegated task; SHE gets
+   * exactly what she got before, and the one-line notice below still tells him
+   * whenever the app has messaged her. Nothing here can send her more.
+   */
+  const wantsWhatsApp = byKind
+    && !(task.assigned_to && settings.ownCopyWhenDelegated === false);
 
   /*
    * The person it was given to, before his own message rather than after it.

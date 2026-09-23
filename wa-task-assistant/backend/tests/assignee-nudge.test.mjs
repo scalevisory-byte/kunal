@@ -274,3 +274,51 @@ describe('nothing is sent on his behalf in silence', () => {
     assert.ok(!src.includes('sending to an assignee happens only from the dashboard'));
   });
 });
+
+
+/*
+ * "Why task reminder coming to me — direct Nidhi ko jana chahiye."
+ *
+ * Asked of the 2pm message for a 3pm job given to NIDHI BNF. That message is
+ * correctly his: it is the `pre_due` rung, an hour before, and the assignee
+ * nudge rides only `due` and `follow_up` - so she heard nothing at 2 and hears
+ * from the app at 3. What he wanted was to stop being copied on work that is
+ * not his to do.
+ */
+describe('his own copy for work he gave away', () => {
+  const src = fs.readFileSync(new URL('../src/reminders.js', import.meta.url), 'utf8');
+
+  it('the hour-before rung was never sent to the assignee', async () => {
+    const { whyNot } = await import('../src/assignee-nudge.js');
+    const t = given('Nidhi', { assigned_to_wid: '919825011111@c.us' });
+    assert.match(whyNot(t, 'pre_due', ON, DAY), /only the deadline and the first follow-up/);
+    assert.match(whyNot(t, 'warning', ON, DAY), /only the deadline and the first follow-up/);
+    assert.equal(whyNot(t, 'due', ON, DAY), null, 'that one does reach her');
+  });
+
+  it('turning the copy off sends her nothing extra', () => {
+    /*
+     * The whole point, and the thing that must not drift: this setting can
+     * only ever REMOVE one of his own messages. It is not in the assignee's
+     * path at all, and the caps that protect the number are constants rather
+     * than settings.
+     */
+    const nudge = fs.readFileSync(new URL('../src/assignee-nudge.js', import.meta.url), 'utf8');
+    assert.ok(!/ownCopyWhenDelegated/.test(nudge), 'it cannot reach the send-to-them path');
+    assert.match(src, /const wantsWhatsApp = byKind\s*\n?\s*&& !\(task\.assigned_to && settings\.ownCopyWhenDelegated === false\)/);
+    assert.match(nudge, /const MAX_PER_TASK = 2/);
+  });
+
+  it('it is on by default, because a silent deadline is how work is forgotten', async () => {
+    const sched = fs.readFileSync(new URL('../src/scheduling.js', import.meta.url), 'utf8');
+    assert.match(sched, /ownCopyWhenDelegated: true/);
+    const { getSettings } = await import('../src/scheduling.js');
+    assert.equal(getSettings().ownCopyWhenDelegated, true);
+  });
+
+  it('and he is still told each time the app messages them', () => {
+    // Without this, turning the copy off would mean his staff are chased and
+    // he never hears of it - which is the failure the notice exists for.
+    assert.match(src, /} else if \(told && state\.status === 'ready'\)/);
+  });
+});

@@ -1086,12 +1086,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 .t-title:hover { color: var(--brand); }
 
+/*
+ * The deadline reads down the page, not raggedly across it.
+ *
+ * It was `flex: none` and so as wide as its own words: "13 days late" and
+ * "Sep 10, 6:00 PM" ended at different pixels on consecutive rows, which is
+ * what made a column of red figures look scattered rather than ranked. A
+ * fixed width and a right edge gives the eye one line to run down.
+ */
 .due {
   flex: none;
+  min-width: 112px; text-align: right;
   font-size: .78rem; font-weight: 600;
   color: var(--text-2);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+@media (max-width: 760px) { .due { min-width: 0; text-align: left; } }
 .due.danger { color: var(--danger); }
 .due.warn { color: var(--warn); }
 /* A border colour used as text failed contrast outright. Quiet, but legible:
@@ -4125,7 +4135,27 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * place to look and one place to press. Quiet while nobody's name is on it -
  * most tasks are his - and in the accent once one is.
  */
-.assign { position: relative; flex: none; }
+/*
+ * Each action keeps its own slot, so the deadline column lands on one pixel.
+ *
+ * `.due` sits before these in the row, so where it ends is decided by how wide
+ * they are — and a row carrying "AUDIT 30 SEP 2026" pushed its deadline 60px
+ * left of the row below it. That is what made a column of red "N days late"
+ * figures read as scattered rather than ranked. A fixed slot costs a long
+ * folder name a few characters it was already losing to the ellipsis.
+ */
+/* `min-width: 0` is the whole of it: a flex item defaults to `min-width:
+   auto`, so the slot grew back to fit "AUDIT 30 SEP 2026" and the basis was
+   ignored — which is why one row's deadline still sat 44px off. */
+.assign { position: relative; flex: 0 0 86px; min-width: 0; display: flex; }
+.assign > .assign-btn { width: 100%; }
+/*
+ * The note button is not inside an `.assign` wrapper — it is a bare button in
+ * the row — so it needed the slot naming separately. Without it one row in
+ * eight carried a one-character count where the others carried the word
+ * "Note", and that row's deadline sat 44px left of all the others.
+ */
+.task > .assign-btn { flex: 0 0 62px; justify-content: center; }
 .assign-btn {
   display: inline-flex; align-items: center; gap: 5px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--card);
@@ -4135,6 +4165,30 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   transition: border-color .15s, color .15s, background .15s;
 }
 .assign-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/*
+ * A control carrying a value is content; an empty one is an affordance.
+ *
+ * Asked as "make clean professional design", over a list where the right-hand
+ * side of every row was the same three outlined pills — Note, Folder, Staff —
+ * saying nothing. Twenty-two rows is sixty-six boxes of pure chrome, and the
+ * two that did carry a value (AUDIT 30 SEP 2026, SENA) were lost among them.
+ *
+ * So the rule the ⋮ and the ✕ already follow applies to these too: hidden
+ * until the row is reached, always there on a touch screen. `.on` — a folder
+ * named, a person named, a note counted — is a fact about the task and stays
+ * at all times. Scoped to `.task` deliberately: the same button is a permanent
+ * control on the delegation pages, where there is no row to hover.
+ *
+ * `opacity`, not `display`, so the row does not resize under the pointer.
+ */
+.task .assign-btn:not(.on) { opacity: 0; transition: opacity .14s, border-color .15s, color .15s; }
+.task:hover .assign-btn:not(.on),
+.task:focus-within .assign-btn:not(.on),
+.task .assign-btn:not(.on):focus-visible,
+.task .assign-btn:not(.on)[aria-expanded="true"],
+.task.noting .assign-btn:not(.on) { opacity: 1; }
+@media (hover: none) { .task .assign-btn:not(.on) { opacity: 1; } }
 .assign-btn:hover { border-color: var(--line-2); color: var(--text); }
 .assign-btn.on {
   border-color: color-mix(in srgb, var(--brand) 35%, transparent);
@@ -5234,6 +5288,41 @@ button.due:hover { background: var(--raised); }
 .board-controls > :last-child { margin-bottom: 8px; }
 
 /*
+ * Three rows of outlined pills, above a list of outlined pills.
+ *
+ * Asked as "make clean professional design". The filters are right and he uses
+ * all of them — tabs, days, months, folders — but every chip in every row
+ * carried a full border, so the block read as heavily as the work underneath
+ * it and the eye had nothing to rank. A filter that is OFF is a place you
+ * could go; one that is ON is where you are, and only the second is worth a
+ * box around it.
+ *
+ * So inside this block a chip is plain text until it is hovered or chosen.
+ * Scoped to `.board-controls`: the same chip is used on pages where it is the
+ * only control on screen and needs its own edges.
+ *
+ * The tabs and the toolbar buttons keep theirs — a segmented control and a
+ * row of actions both have to look pressable.
+ */
+.board-controls .chip,
+.board-controls .folder-tile {
+  border-color: transparent;
+  background: none;
+}
+.board-controls .chip:hover,
+.board-controls .folder-tile:hover { border-color: var(--line); background: var(--card); }
+.board-controls .chip.on,
+.board-controls .folder-tile.on { background: var(--card); }
+/* Never the active one: that border is the whole signal. */
+.board-controls .chip.on { border-color: var(--brand); }
+.board-controls .folder-tile.aside { border-color: var(--line); }
+
+/* The rows sit closer, because they are one control rather than three. */
+.board-controls .donebar,
+.board-controls .folder-strip,
+.board-controls .month-strip { margin-bottom: 6px; }
+
+/*
  * On a phone the block is most of the screen.
  *
  * The top bar wraps to two rows there (the search takes its own line), and
@@ -5298,3 +5387,7 @@ button.due:hover { background: var(--raised); }
 
 /* The relink confirmation reuses the warn box; it needs the same button gap. */
 .warn-box .btn + .btn { margin-left: 8px; }
+
+/* The dashboard is a summary now, so it names the way on to the list. */
+.dash-onward { margin: 14px 0 0; font-size: .84rem; order: 99; }
+.dash-onward .link { font-weight: 600; }

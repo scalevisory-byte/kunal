@@ -814,6 +814,21 @@ export default function App() {
       }
     : PAGES[section] || PAGES.dashboard;
 
+  /*
+   * The dashboard is a summary, and only a summary.
+   *
+   * Asked as "ye dashboard se hata do — dashboard pe sirf summary chahiye".
+   * It used to render the whole board underneath the figures: the tabs, the
+   * day, month and folder strips, the quick-add box and all 342 rows. So the
+   * first screen of the app was the same list All Tasks holds, under a
+   * summary of itself — two answers to "what should I look at", and the
+   * figures pushed off the top by the list they were counting.
+   *
+   * Search is the one exception: Ctrl-K from the dashboard must show what it
+   * found, and the results ARE the list.
+   */
+  const showBoard = !page.overview || searching;
+
   const goto = (key) => {
     setSection(key);
     setSelectedDate(null);
@@ -1636,6 +1651,17 @@ export default function App() {
                       </p>
                     )}
 
+                    {/* The road on from a page that is now only a summary:
+                        the figures say what is owed, this opens it. */}
+                    {page.overview && !searching && (
+                      <p className="dash-onward">
+                        <button className="link" onClick={() => goto('all')}>
+                          Open the full list
+                        </button>
+                        <span className="muted"> — every task, grouped by when it is due.</span>
+                      </p>
+                    )}
+
                     {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <FocusToday
                         tasks={dayTasks}
@@ -1661,10 +1687,14 @@ export default function App() {
                       * the notices below them are read once and would cost a
                       * third of a laptop screen for nothing.
                       */}
+                    {/* Not an empty sticky band on the dashboard: the block
+                        carries a bottom rule, so with nothing inside it drew a
+                        line across the page under the figures. */}
+                    {showBoard && (
                     <div className="board-controls">
-                    {(page.overview || page.tabs || page.toolbar) && !searching && (
+                    {showBoard && (page.tabs || page.toolbar) && !searching && (
                       <div className="work-head">
-                        {(page.overview || page.tabs) ? (
+                        {page.tabs ? (
                           <nav className="segment tabs" role="tablist" aria-label="View">
                             {[
                               { key: 'myday', label: 'My Day' },
@@ -1699,7 +1729,7 @@ export default function App() {
                           </nav>
                         ) : <span />}
 
-                        {(page.overview || page.toolbar) && (
+                        {page.toolbar && (
                           <Toolbar
                             groupBy={groupBy}
                             onGroupBy={setGroupBy}
@@ -1766,7 +1796,7 @@ export default function App() {
                       * It drives the same `selectedDate` the calendar sets, so
                       * the two agree and neither has to know about the other.
                       */}
-                    {view !== 'done' && (page.overview || page.tabs || page.toolbar)
+                    {view !== 'done' && showBoard && (page.tabs || page.toolbar)
                       && !searching && (
                       <DayBar
                         day={selectedDate}
@@ -1788,7 +1818,7 @@ export default function App() {
                       * search is the scope, and on the folder pages, which are
                       * already one folder.
                       */}
-                    {(page.overview || page.tabs || page.toolbar) && !searching && (
+                    {showBoard && (page.tabs || page.toolbar) && !searching && (
                       <MonthStrip
                         tasks={monthPool}
                         active={filters.month}
@@ -1796,7 +1826,7 @@ export default function App() {
                       />
                     )}
 
-                    {(page.overview || page.tabs || page.toolbar) && !searching && !groupId
+                    {showBoard && (page.tabs || page.toolbar) && !searching && !groupId
                       && view !== 'done' && (
                       <FolderStrip
                         groups={groups}
@@ -1807,6 +1837,7 @@ export default function App() {
                       />
                     )}
                     </div>
+                    )}
 
                     {/*
                       * The fastest road of all: a line above the list, always
@@ -1814,7 +1845,7 @@ export default function App() {
                       * the day chips are already on the panel above when that
                       * is open, and here the point is Enter.
                       */}
-                    {!searching && !page.calendar && view !== 'done' && !quick && (
+                    {showBoard && !searching && !page.calendar && view !== 'done' && !quick && (
                       <QuickAdd
                         compact
                         groupId={groupId}
@@ -1838,7 +1869,7 @@ export default function App() {
                     {/* Not on the Allotted tab, where they are exactly what is
                         on screen — saying they are "kept off this list" over a
                         list of them is how a page stops being believed. */}
-                    {allottedHidden > 0 && !searching && view !== 'allotted' && (
+                    {showBoard && allottedHidden > 0 && !searching && view !== 'allotted' && (
                       <p className="dup-note">
                         <b>{allottedHidden}</b>{' '}
                         {allottedHidden === 1 ? 'task is' : 'tasks are'} with somebody else
@@ -1852,6 +1883,7 @@ export default function App() {
                       </p>
                     )}
 
+                    {showBoard && (
                     <TaskList
                       tasks={visible}
                       loading={loading}
@@ -1912,6 +1944,7 @@ export default function App() {
                         } catch (err) { setError(err.message); }
                       }}
                     />
+                    )}
 
                   </main>
 

@@ -195,6 +195,18 @@ export default function SchedulingSettings({ onError }) {
           onChange={(v) => save({ nudgeAssignee: v })} />
       </Row>
 
+      <Row
+        label="Your own copy for work you gave away"
+        note={'Asked as "why task reminder coming to me — direct Nidhi ko jana chahiye". '
+          + 'Turn this off and the WhatsApp copies for a delegated task stop reaching you. '
+          + 'It sends THEM nothing extra: they still get the deadline and one follow-up, no '
+          + 'more, and the app still tells you in one line each time it has messaged them. '
+          + 'The task stays on your dashboard, your digest and your briefing either way.'}
+      >
+        <Toggle on={settings.ownCopyWhenDelegated !== false} label="Also send it to me"
+          onChange={(v) => save({ ownCopyWhenDelegated: v })} />
+      </Row>
+
       <header className="settings-head second">
         <h3>Daily briefing</h3>
         <span>One WhatsApp message each morning</span>
