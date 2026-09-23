@@ -290,8 +290,37 @@ const when = (iso) => {
   });
 };
 
+/**
+ * Taking a task off this page.
+ *
+ * Asked as "how to delet task from here": every row here carried a Nudge and
+ * nothing else, so the one page that fills up with work you have handed out -
+ * and with the copies and the false positives that come with it - was the one
+ * page you could not clear. The board has had this on its ⋮ menu all along;
+ * this page draws its own rows, which is why it never inherited it.
+ *
+ * It **archives**, exactly like the board's delete: the task, its history and
+ * its completion survive and stay searchable in Work History, its reminders
+ * stop, and one press of Undo puts it back. That is why there is no "are you
+ * sure" - a confirm buys nothing a working undo does not, and it costs a click
+ * on every single row.
+ */
+function RemoveButton({ task, onDelete }) {
+  if (!onDelete) return null;
+  return (
+    <button
+      className="tool danger-tool"
+      onClick={() => onDelete(task)}
+      title="Take it off this list - it stays in Work History, and Undo puts it back"
+      aria-label={`Remove ${task.title}`}
+    >
+      Delete
+    </button>
+  );
+}
+
 /** One delegated task, the same card in both views. */
-function Card({ task, onOpen, onNudge, people, onAssign }) {
+function Card({ task, onOpen, onNudge, onDelete, people, onAssign }) {
   const activity = lastActivityLabel(task);
   return (
     <li className="al-card">
@@ -325,9 +354,12 @@ function Card({ task, onOpen, onNudge, people, onAssign }) {
         )}
       </p>
       {activity && <p className="al-activity">{activity}</p>}
-      {task.status !== 'done' && (
-        <button className="tool al-nudge" onClick={() => onNudge(task)}>Nudge</button>
-      )}
+      <div className="al-acts">
+        {task.status !== 'done' && (
+          <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
+        )}
+        <RemoveButton task={task} onDelete={onDelete} />
+      </div>
     </li>
   );
 }
@@ -340,7 +372,7 @@ function Card({ task, onOpen, onNudge, people, onAssign }) {
  * task moves between columns because the facts changed, not because somebody
  * dragged it.
  */
-function Board({ stages, onOpen, onNudge, people, onAssign }) {
+function Board({ stages, onOpen, onNudge, onDelete, people, onAssign }) {
   return (
     <div className="al-board">
       {stages.map((stage) => (
@@ -354,7 +386,7 @@ function Board({ stages, onOpen, onNudge, people, onAssign }) {
             : <ul className="al-list">
                 {stage.items.map((t) => (
                   <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge}
-                    people={people} onAssign={onAssign} />
+                    onDelete={onDelete} people={people} onAssign={onAssign} />
                 ))}
               </ul>}
         </section>
@@ -364,7 +396,7 @@ function Board({ stages, onOpen, onNudge, people, onAssign }) {
 }
 
 /** The same work as rows, for reading down rather than across. */
-function Rows({ tasks, onOpen, onNudge, people, onAssign }) {
+function Rows({ tasks, onOpen, onNudge, onDelete, people, onAssign }) {
   if (!tasks.length) return <p className="board-empty">Nothing in this stage.</p>;
   return (
     <ul className="al-rows">
@@ -391,9 +423,12 @@ function Rows({ tasks, onOpen, onNudge, people, onAssign }) {
                 ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>{when(task.due_at)}</span>
                 : <span className="muted">No deadline</span>}
             </span>
-            {task.status !== 'done'
-              ? <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
-              : <span />}
+            <span className="al-acts">
+              {task.status !== 'done' && (
+                <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
+              )}
+              <RemoveButton task={task} onDelete={onDelete} />
+            </span>
           </li>
         );
       })}
@@ -517,6 +552,8 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
   // chat; this is for the ones agreed on a call, or in the room.
   const [giving, setGiving] = useState(false);
   const [sent, setSent] = useState(null);
+  // The last task taken off the page, held so one press puts it back.
+  const [removed, setRemoved] = useState(null);
   // The pipeline's own controls: which layout, which stage, whose work.
   const [view, setView] = useState(readView);
   const [stage, setStage] = useState(null);
@@ -586,16 +623,36 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
         onError(err);
       }
     },
+    /*
+     * Archive, never destroy - the same call the board's delete makes.
+     *
+     * The confirm that used to sit here was replaced by the undo below: a
+     * dialog asks before the mistake and an undo fixes it after, and only one
+     * of those costs a click on every row you meant to remove.
+     */
     onDelete: async (task) => {
-      if (!window.confirm(`Delete "${task.title}"?`)) return;
       try {
         await api.deleteTask(task.id);
+        setRemoved({ id: task.id, title: task.title });
         await load();
         onChanged?.();
       } catch (err) {
         onError(err);
       }
     },
+  };
+
+  const undoRemove = async () => {
+    if (!removed) return;
+    const last = removed;
+    setRemoved(null);
+    try {
+      await api.restoreTask(last.id);
+      await load();
+      onChanged?.();
+    } catch (err) {
+      onError(err);
+    }
   };
 
   if (!data) return <p className="muted">Loading…</p>;
@@ -655,6 +712,16 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
       {sent && (
         <p className="banner ok" role="status">
           Sent to {sent}. <button className="link" onClick={() => setSent(null)}>Dismiss</button>
+        </p>
+      )}
+
+      {removed && (
+        <p className="banner ok undo-bar" role="status">
+          <span>
+            Took <b>{removed.title}</b> off this list. It is in Work History.
+          </span>
+          <button className="link" onClick={undoRemove}>Undo</button>
+          <button className="link" onClick={() => setRemoved(null)}>Dismiss</button>
         </p>
       )}
 
@@ -734,10 +801,10 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
 
           {view === 'pipeline'
             ? <Board stages={stage ? stages.filter((s) => s.key === stage) : stages}
-                     onOpen={actions.onOpen} onNudge={setNudging}
+                     onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
                      people={actions.people} onAssign={actions.onAssign} />
             : <Rows tasks={stage ? stages.find((s) => s.key === stage).items : scoped}
-                    onOpen={actions.onOpen} onNudge={setNudging}
+                    onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
                     people={actions.people} onAssign={actions.onAssign} />}
         </>
       )}

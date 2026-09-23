@@ -412,6 +412,109 @@ run('the dashboard offers both as shortcuts', () => {
 });
 
 
+
+/*
+ * Taking a task off this page.
+ *
+ * Asked as "how to delet task from here", over a Task allotted page whose
+ * every row carried a Nudge and nothing else. The board has had Delete on its
+ * menu all along; this page draws its own rows - cards and flat rows - so it
+ * inherited nothing, and the one list that fills up with handed-out work, and
+ * with the copies and the false positives that come with it, was the one list
+ * that could not be cleared.
+ *
+ * It archives, like every other delete in the app. That is what makes it safe
+ * to put in the open on every row: the work, its history and its completion
+ * stay in Work History, and one press puts the row back.
+ */
+console.log('\ntaking a task off Task allotted');
+
+/* Exactly the query GET /api/delegation reads the allotted side from. */
+const onThePage = () =>
+  DB.listTasks({ status: 'pending', limit: 500, includeSetAside: true })
+    .filter((t) => t.assigned_to);
+
+run('all of its views carry the way off, not just one', () => {
+  // The rename shipped on three lists and not the fourth because each list has
+  // its own markup. The same trap: this page has the by-person sections (task
+  // rows), the pipeline cards and the flat rows.
+  const card = delegSrc.slice(delegSrc.indexOf('function Card('), delegSrc.indexOf('function Board('));
+  const rows = delegSrc.slice(delegSrc.indexOf('function Rows('), delegSrc.indexOf('function StaffList('));
+  assert.match(card, /<RemoveButton/, 'the pipeline cards');
+  assert.match(rows, /<RemoveButton/, 'the flat rows');
+  // One button, defined once - two copies would eventually differ.
+  assert.equal((delegSrc.match(/function RemoveButton\(/g) || []).length, 1);
+  // The by-person sections render TaskItem, which draws Delete on its menu
+  // when onDelete is given - so the actions object is what decides.
+  assert.match(delegSrc, /onDelete: async \(task\) => \{/, 'the task rows, through actions');
+  assert.match(delegSrc, /onDelete=\{actions\.onDelete\}/, 'and both pipeline views are given it');
+});
+
+run('it is offered on a finished row, where Nudge is not', () => {
+  // Chasing somebody about work they have already done is the one message the
+  // page must not make easy. Clearing that row is exactly what you are here
+  // for.
+  const card = delegSrc.slice(delegSrc.indexOf('function Card('), delegSrc.indexOf('function Board('));
+  const acts = card.slice(card.indexOf('al-acts'));
+  assert.match(acts, /task\.status !== 'done' && \([\s\S]*?Nudge/, 'Nudge only while it is owed');
+  const nudgeAt = acts.indexOf('Nudge');
+  const removeAt = acts.indexOf('<RemoveButton');
+  assert.ok(removeAt > nudgeAt, 'and Delete after it, outside that condition');
+  assert.ok(!acts.slice(removeAt - 80, removeAt).includes("status !== 'done'"),
+    'Delete is not gated on the task being unfinished');
+});
+
+run('no confirm, because there is an undo', () => {
+  // A dialog asks before the mistake and an undo fixes it after, and only one
+  // of them costs a click on every row you meant to remove.
+  assert.ok(!/window\.confirm/.test(delegSrc), 'the confirm is gone');
+  assert.match(delegSrc, /setRemoved\(\{ id: task\.id, title: task\.title \}\)/, 'the last one is held');
+  assert.match(delegSrc, /api\.restoreTask\(last\.id\)/, 'and one press puts it back');
+  assert.match(delegSrc, /className="banner ok undo-bar"/, 'said on the page, not in a toast');
+});
+
+run('it goes through the archiving route, not the destroying one', () => {
+  const apiSrc = fs.readFileSync(new URL('../../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(apiSrc, /deleteTask: \(id\) => request\(`\/tasks\/\$\{id\}`, \{ method: 'DELETE' \}\)/);
+  // `?hard=1` is the one that really removes the row. This page never asks for
+  // it - the whole point is that the work survives.
+  assert.ok(!/hard=1/.test(delegSrc));
+  assert.match(apiSrc, /restoreTask: \(id\) => request\(`\/tasks\/\$\{id\}\/restore`/);
+});
+
+run('archiving a delegated task leaves the work and the person intact', () => {
+  const t = task('Collect all staff documents for arrohan');
+  A.assignTask(t.id, 'Daksh');
+  A.addStaff('Daksh');
+
+  // Exactly what DELETE /api/tasks/:id does without ?hard=1.
+  L.completeTask(t.id);
+  DB.updateTask(t.id, { archived_at: new Date().toISOString() });
+
+  const after = DB.getTask(t.id);
+  assert.ok(after, 'the row is still there to be read');
+  assert.equal(after.assigned_to, 'Daksh', 'still says whose it was');
+  assert.ok(A.listStaff().some((p) => p.name === 'Daksh'), 'and the person is still on the staff list');
+  // Off the page, though - which is the whole point of pressing it.
+  assert.ok(!onThePage().some((row) => row.id === t.id));
+});
+
+run('and it stops being chased, until it is put back', () => {
+  const t = task('Share Apdu rent agreement ARROHAN', { due_date: '2026-09-30' });
+  A.assignTask(t.id, 'Yogita');
+
+  DB.updateTask(t.id, { archived_at: new Date().toISOString() });
+  assert.ok(!L.tasksWithDeadlines().some((row) => row.id === t.id),
+    'an archived task is not on the engine’s list');
+
+  // Undo: the same write the restore route makes.
+  DB.updateTask(t.id, { archived_at: '' });
+  assert.ok(L.tasksWithDeadlines().some((row) => row.id === t.id),
+    'and it is chased again the moment it is back');
+  assert.ok(onThePage().some((row) => row.id === t.id), 'back on the page too');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

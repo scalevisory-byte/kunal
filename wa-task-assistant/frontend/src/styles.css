@@ -3645,7 +3645,28 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .al-facts { display: flex; flex-wrap: wrap; gap: 8px; }
 .al-follow { display: inline-flex; align-items: center; gap: 4px; }
 .al-activity { font-size: .71rem; }
-.al-nudge { margin-top: 8px; }
+/*
+ * The row's actions, together.
+ *
+ * Nudge was alone here and Delete joins it, so both are one control group
+ * rather than a button and an afterthought. On a card they sit under the
+ * facts; in a row they are the last cell, which is why the margin belongs to
+ * the card and not to the group.
+ */
+.al-acts { display: flex; align-items: center; gap: 6px; flex: none; }
+.al-card .al-acts { margin-top: 8px; }
+
+/*
+ * Destructive, and it says so before it is pressed rather than after.
+ * It archives - Work History keeps it and Undo puts it back - so the colour is
+ * a warning, not an alarm: quiet until hovered.
+ */
+.tool.danger-tool { color: var(--muted); }
+.tool.danger-tool:hover {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: var(--danger-wash);
+}
 
 /* The same work as rows: read down a column rather than across the board. */
 .al-rows { list-style: none; margin: 0; padding: 0; }
