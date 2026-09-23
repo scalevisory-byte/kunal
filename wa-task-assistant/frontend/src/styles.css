@@ -5952,3 +5952,14 @@ button.due:hover { background: var(--raised); }
 .fu-next { margin: 0; font-size: .8rem; }
 .fu-none { margin: 0; font-size: .78rem; color: var(--muted); }
 .fu-panel .al-sent { margin-top: 2px; }
+
+/* The drawer's fold: one quiet line that says what is inside. */
+.more-details { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.more-details > summary {
+  cursor: pointer; font-size: .82rem; font-weight: 600; color: var(--text-2);
+  list-style: none; padding: 4px 0 10px;
+}
+.more-details > summary::-webkit-details-marker { display: none; }
+.more-details > summary::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform .15s; }
+.more-details[open] > summary::before { transform: rotate(90deg); }
+.more-details > summary .muted { font-weight: 400; }

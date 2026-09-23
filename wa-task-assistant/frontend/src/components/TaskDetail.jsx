@@ -219,6 +219,13 @@ export default function TaskDetail({
   onClose, onEdit, onDelete, onNotATask, onError, onChanged,
 }) {
   const [showMessage, setShowMessage] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => {
+    try { return localStorage.getItem('wa.drawer.more') === 'open'; } catch { return false; }
+  });
+  const rememberMore = (open) => {
+    setMoreOpen(open);
+    try { localStorage.setItem('wa.drawer.more', open ? 'open' : 'shut'); } catch { /* still applied */ }
+  };
 
   // Escape closes the panel, as it does in every other tool.
   useEffect(() => {
@@ -230,6 +237,15 @@ export default function TaskDetail({
   if (!task) return null;
 
   const source = taskSource(task);
+  const plural = (n, one) => `${n} ${one}${n === 1 ? '' : 's'}`;
+  const moreHas = [
+    task.description && 'description',
+    task.subtasks?.length && plural(task.subtasks.length, 'checklist step'),
+    task.blockers?.length && plural(task.blockers.length, 'blocker'),
+    task.attachments?.length && plural(task.attachments.length, 'file'),
+    task.notes && 'notes',
+    task.source_message && 'original message',
+  ].filter(Boolean);
   /*
    * The time on the deadline, read from the deadline.
    *
@@ -262,28 +278,6 @@ export default function TaskDetail({
           <FollowUp task={task} onError={onError} />
 
           <div className="field">
-            <label htmlFor="d-title">Title</label>
-            <input
-              id="d-title"
-              defaultValue={task.title}
-              onBlur={(e) => e.target.value.trim() && e.target.value !== task.title
-                && onEdit(task, { title: e.target.value.trim() })}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="d-desc">Description</label>
-            <textarea
-              id="d-desc"
-              rows={3}
-              defaultValue={task.description || ''}
-              placeholder="Anything worth remembering about this one"
-              onBlur={(e) => e.target.value !== (task.description || '')
-                && onEdit(task, { description: e.target.value })}
-            />
-          </div>
-
-          <div className="field">
             <label>Status</label>
             <div className="segment">
               {STATUSES.map((s) => (
@@ -311,95 +305,6 @@ export default function TaskDetail({
               <p className="field-note">Waiting is not done — reminders and follow-ups keep running.</p>
             </div>
           )}
-
-          {/* Above the checklist: a checklist is the plan, progress is what
-              actually happened, and the second is what you open a task to
-              find out. */}
-          <TaskProgress
-            task={task}
-            initial={task.updates}
-            stages={task.stages}
-            autoFocus={focusProgress}
-            onError={onError}
-            onChanged={onChanged}
-          />
-
-          <Checklist
-            task={task}
-            initial={task.subtasks}
-            onError={onError}
-            onChanged={onChanged}
-          />
-
-          <Dependencies task={task} tasks={tasks} initial={task} onError={onError} />
-
-          <Attachments task={task} initial={task.attachments} onError={onError} />
-
-          {groups.length > 0 && (
-            <div className="field">
-              <label htmlFor="d-group">Business</label>
-              <select
-                id="d-group"
-                value={task.group_id ?? ''}
-                onChange={(e) => onEdit(task, { group_id: e.target.value ? Number(e.target.value) : null })}
-              >
-                <option value="">No group</option>
-                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-            </div>
-          )}
-
-          <div className="field">
-            <label htmlFor="d-notes">Notes</label>
-            <textarea
-              id="d-notes"
-              rows={2}
-              defaultValue={task.notes || ''}
-              placeholder="Internal note — never sent to WhatsApp"
-              onBlur={(e) => e.target.value !== (task.notes || '') && onEdit(task, { notes: e.target.value })}
-            />
-          </div>
-
-          <div className="field">
-            <label>Priority</label>
-            <div className="segment">
-              {PRIORITIES.map((p) => (
-                <button
-                  key={p.key}
-                  className={task.priority === p.key ? 'active' : ''}
-                  onClick={() => onEdit(task, { priority: p.key })}
-                >
-                  {p.dot} {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/*
-            * Who is doing it.
-            *
-            * Editable because the extractor only fills this in when it is sure,
-            * and because work changes hands. Clearing the box takes the task
-            * back, which is the same thing as never having delegated it - one
-            * control for both directions rather than an "unassign" button.
-            */}
-          <div className="field">
-            <label htmlFor="d-assign">Given to</label>
-            <input
-              id="d-assign"
-              type="text"
-              placeholder="Nobody — this one is yours"
-              defaultValue={task.assigned_to || ''}
-              key={`assign-${task.id}-${task.assigned_to || ''}`}
-              onBlur={(e) => {
-                const name = e.target.value.trim();
-                if (name === (task.assigned_to || '')) return;
-                api.assign(task.id, name, task.assigned_to_wid)
-                  .then(() => onChanged())
-                  .catch(onError);
-              }}
-            />
-          </div>
 
           <div className="field-row">
             <div className="field">
@@ -443,6 +348,140 @@ export default function TaskDetail({
                 }}
               />
             </div>
+          </div>
+
+          <div className="field">
+            <label>Priority</label>
+            <div className="segment">
+              {PRIORITIES.map((p) => (
+                <button
+                  key={p.key}
+                  className={task.priority === p.key ? 'active' : ''}
+                  onClick={() => onEdit(task, { priority: p.key })}
+                >
+                  {p.dot} {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Above the checklist: a checklist is the plan, progress is what
+              actually happened, and the second is what you open a task to
+              find out. */}
+          <TaskProgress
+            task={task}
+            initial={task.updates}
+            stages={task.stages}
+            autoFocus={focusProgress}
+            onError={onError}
+            onChanged={onChanged}
+          />
+
+          {/*
+            * Everything else, folded.
+            *
+            * "Follow-up tab is very good but it's still too lengthy form": under
+            * the part he opens a task for sat a title box repeating the header,
+            * an empty description, an empty checklist, an empty "waiting on", an
+            * empty file list, a business picker, notes, the reminder presets and
+            * the facts - a screen and a half of form for a task that needed a
+            * glance. What stays open is what gets acted on: follow-up, status,
+            * deadline, priority, and what is happening. The rest is one press
+            * away, and the fold is remembered.
+            *
+            * A fold must not hide a value in silence, so its heading names
+            * whatever inside has something in it - "2 checklist steps · 1 file
+            * · notes" - and an empty section costs nothing but its name.
+            */}
+          <details
+            className="more-details"
+            open={moreOpen}
+            onToggle={(e) => rememberMore(e.currentTarget.open)}
+          >
+            <summary>
+              More details
+              {moreHas.length > 0 && <span className="muted"> · {moreHas.join(' · ')}</span>}
+            </summary>
+          <div className="field">
+            <label htmlFor="d-title">Title</label>
+            <input
+              id="d-title"
+              defaultValue={task.title}
+              onBlur={(e) => e.target.value.trim() && e.target.value !== task.title
+                && onEdit(task, { title: e.target.value.trim() })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="d-desc">Description</label>
+            <textarea
+              id="d-desc"
+              rows={3}
+              defaultValue={task.description || ''}
+              placeholder="Anything worth remembering about this one"
+              onBlur={(e) => e.target.value !== (task.description || '')
+                && onEdit(task, { description: e.target.value })}
+            />
+          </div>
+          <Checklist
+            task={task}
+            initial={task.subtasks}
+            onError={onError}
+            onChanged={onChanged}
+          />
+
+          <Dependencies task={task} tasks={tasks} initial={task} onError={onError} />
+
+          <Attachments task={task} initial={task.attachments} onError={onError} />
+
+          {groups.length > 0 && (
+            <div className="field">
+              <label htmlFor="d-group">Business</label>
+              <select
+                id="d-group"
+                value={task.group_id ?? ''}
+                onChange={(e) => onEdit(task, { group_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">No group</option>
+                {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="field">
+            <label htmlFor="d-notes">Notes</label>
+            <textarea
+              id="d-notes"
+              rows={2}
+              defaultValue={task.notes || ''}
+              placeholder="Internal note — never sent to WhatsApp"
+              onBlur={(e) => e.target.value !== (task.notes || '') && onEdit(task, { notes: e.target.value })}
+            />
+          </div>
+
+          {/*
+            * Who is doing it.
+            *
+            * Editable because the extractor only fills this in when it is sure,
+            * and because work changes hands. Clearing the box takes the task
+            * back, which is the same thing as never having delegated it - one
+            * control for both directions rather than an "unassign" button.
+            */}
+          <div className="field">
+            <label htmlFor="d-assign">Given to</label>
+            <input
+              id="d-assign"
+              type="text"
+              placeholder="Nobody — this one is yours"
+              defaultValue={task.assigned_to || ''}
+              key={`assign-${task.id}-${task.assigned_to || ''}`}
+              onBlur={(e) => {
+                const name = e.target.value.trim();
+                if (name === (task.assigned_to || '')) return;
+                api.assign(task.id, name, task.assigned_to_wid)
+                  .then(() => onChanged())
+                  .catch(onError);
+              }}
+            />
           </div>
 
           <Reminders task={task} onError={onError} onChanged={onChanged} />
@@ -549,6 +588,7 @@ export default function TaskDetail({
               )}
             </div>
           )}
+          </details>
         </div>
 
         <footer className="sheet-foot">

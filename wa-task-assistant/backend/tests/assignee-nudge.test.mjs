@@ -382,3 +382,30 @@ describe('the follow-up screen shows the follow-up and little else', () => {
     assert.match(page, /wa && \(!wa\.ownSeenEver \|\| !wa\.delegatedEver\) && \(\s*<p className="deleg-counts">/);
   });
 });
+
+/* "Follow-up tab is very good but it's still too lengthy form." */
+describe('the drawer opens on what gets acted on, and folds the rest', () => {
+  const drawer = fs.readFileSync(new URL('../../frontend/src/components/TaskDetail.jsx', import.meta.url), 'utf8');
+  const open = drawer.slice(drawer.indexOf('<div className="sheet-body">'), drawer.indexOf('<details'));
+  const folded = drawer.slice(drawer.indexOf('<details'), drawer.indexOf('</details>'));
+
+  it('keeps follow-up, status, deadline, priority and progress outside the fold', () => {
+    for (const bit of ['<FollowUp', '<label>Status</label>', 'id="d-due"', 'id="d-time"', '<label>Priority</label>', '<TaskProgress']) {
+      assert.ok(open.includes(bit), `${bit} is folded away`);
+    }
+  });
+
+  it('puts the long tail inside it', () => {
+    for (const bit of ['id="d-title"', 'id="d-desc"', '<Checklist', '<Dependencies', '<Attachments', 'id="d-notes"', '<Reminders', 'className="facts"']) {
+      assert.ok(folded.includes(bit), `${bit} is still in the open part`);
+    }
+  });
+
+  it('never hides a value in silence, and survives storage that throws', () => {
+    assert.match(folded, /moreHas\.length > 0 &&/);
+    for (const field of ['description', 'subtasks', 'attachments', 'notes', 'source_message']) {
+      assert.match(drawer, new RegExp(`task\\.${field}`), `the fold's heading does not mention ${field}`);
+    }
+    assert.match(drawer, /try \{ return localStorage\.getItem\('wa\.drawer\.more'\)/);
+  });
+});
