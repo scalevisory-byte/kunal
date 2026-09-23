@@ -28,7 +28,10 @@ process.env.DATA_DIR = dir;
 process.env.EXTRACTION_MODE = 'manual';
 
 const { createTask, getTask, insertMessage, findChats } = await import('../src/db.js');
-const { assignTask, addStaff, listStaff } = await import('../src/assignment.js');
+const { assignTask, addStaff, listStaff, handoverText, followUpText, delegates } =
+  await import('../src/assignment.js');
+const { EVENT, recordEvent } = await import('../src/task-events.js');
+const { nudgesSoFar } = await import('../src/assignee-nudge.js');
 const { chatForAssignee } = await import('../src/assignee-nudge.js');
 const { resolveSendable, state } = await import('../src/whatsapp.js');
 
@@ -212,9 +215,15 @@ describe('saying why a send failed, and asking WhatsApp for the right id', () =>
     state.status = 'ready';
   });
 
-  it('the route logs the failure and passes the reason on', () => {
+  it('the send path logs the failure and passes the reason on', () => {
     const src = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
-    const send = src.slice(src.indexOf("delegationRouter.post('/tasks/:id/nudge'"));
+    /*
+     * One send path, read as one. The nudge and the handover both go through
+     * `messageAssignee`, which is where the logging moved when the second
+     * caller arrived - a second copy of these steps is a second place for the
+     * rails to drift out of line.
+     */
+    const send = src.slice(src.indexOf('async function messageAssignee('));
     assert.match(send, /log\.error\(/, 'a failure nobody can read is a failure nobody can fix');
     assert.match(send, /err\?\.message/, "and it is WhatsApp's own words, not a paraphrase");
     assert.match(send, /log\.warn\(/, 'a refusal before the send is logged too');
@@ -233,5 +242,99 @@ describe('saying why a send failed, and asking WhatsApp for the right id', () =>
     assert.match(preview, /await resolveSendable\(wid\)/);
     assert.match(preview, /can_send: Boolean\(target\?\.ok\)/, 'the button follows the real answer');
     assert.match(preview, /problem:/, 'and the reason travels with it');
+  });
+});
+
+
+/*
+ * Giving somebody a job, and telling them, in one action.
+ *
+ * Asked as *"muje koi task dena he to direct app se de sakta hu - task me bhi
+ * add ho jayega and msg bhi chala jayega"*. Handing work over in the app told
+ * the person nothing: the task existed, the deadline was set, and the first
+ * they heard of it was the reminder on the day it fell due.
+ */
+describe('the handover message', () => {
+  it('reads as a handover, not as a chase', () => {
+    const t = createTask({ title: 'File pvt ltd UK GSTR 3B with RCM', source: 'manual', origin: 'manual' });
+    assignTask(t.id, 'Nidhi');
+    const task = getTask(t.id);
+
+    const handover = handoverText(task);
+    assert.match(handover, /this one is with you/i);
+    assert.match(handover, /File pvt ltd UK GSTR 3B with RCM/);
+    // "A quick update please" about work nobody has been told about yet reads
+    // as a reproach for not having done it.
+    assert.ok(!/quick update/i.test(handover));
+    assert.match(followUpText(task), /quick update/i, 'the chase is still the chase');
+  });
+
+  it('does not spend one of the two automatic chases', () => {
+    // THE reason it has its own event kind. `nudgesSoFar` counts nudgeSent to
+    // decide when the app has asked enough; filing a handover under it would
+    // spend one of the two before anybody had been chased at all.
+    const t = createTask({ title: 'Collect the rent agreement', source: 'manual', origin: 'manual' });
+    assignTask(t.id, 'Nidhi');
+    assert.equal(nudgesSoFar(t.id), 0);
+
+    recordEvent(t.id, EVENT.handoverSent, 'Nidhi', { text: 'x' });
+    assert.equal(nudgesSoFar(t.id), 0, 'telling somebody is not chasing them');
+
+    recordEvent(t.id, EVENT.nudgeSent, 'Nidhi', { text: 'x' });
+    assert.equal(nudgesSoFar(t.id), 1);
+    assert.notEqual(EVENT.handoverSent, EVENT.nudgeSent);
+  });
+
+  it('both messages leave through one door, with one set of rails', () => {
+    const src = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
+    assert.equal((src.match(/await sendMessage\(/g) || []).length, 1, 'one send in the file');
+    assert.match(src, /async function messageAssignee\(task, text, kind\)/);
+    // Each caller names the event it writes; the door does not decide it.
+    assert.match(src, /messageAssignee\(task, text, EVENT\.nudgeSent\)/);
+    assert.match(src, /messageAssignee\(task, text, EVENT\.handoverSent\)/);
+  });
+
+  it('the sheet offers it only when the person can actually be reached', () => {
+    const src = fs.readFileSync(
+      new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+    const sheet = src.slice(src.indexOf('function GiveSheet('), src.indexOf('const VIEW_STORE'));
+    assert.match(sheet, /const reachable = Boolean\(known\?\.wid\)/);
+    assert.match(sheet, /disabled=\{!reachable\}/, 'not offered when it cannot work');
+    assert.match(sheet, /no WhatsApp chat is known for this name yet/, 'and it says why');
+  });
+
+  it('and never says it was sent when it was not', () => {
+    // The first version reported "Sent to Nidhi" whether or not the message
+    // left - the worst thing this sheet could do, because he would walk away
+    // believing she had been told. The task still stands either way: the work
+    // is hers, and losing it because WhatsApp was down is the worse bug.
+    const src = fs.readFileSync(
+      new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+    const save = src.slice(src.indexOf('let told = null;'), src.indexOf('onSaved(told);') + 20);
+    assert.match(save, /await api\.sendHandover\(made\.id\);\n\s*told = name;/,
+      'told is set only after the send resolves');
+    assert.match(save, /onError\(err\)/);
+    assert.match(save, /onSaved\(told\)/);
+  });
+});
+
+describe('who can be reached', () => {
+  it('somebody holding work takes their chat from the staff list too', () => {
+    /*
+     * Found by this feature: `delegates()` read the wid off the TASKS, and a
+     * task handed over by typing a name carries none - so a person with a
+     * number on the staff list and one job in flight was reported as having no
+     * chat at all. Anybody who has ever been given anything is in that half of
+     * the query, which is to say nearly everybody. The same mistake the Nudge
+     * button made, in a second place.
+     */
+    const t = createTask({ title: 'Sign the BNF document', source: 'manual', origin: 'manual' });
+    assignTask(t.id, 'Yogita');
+    assert.equal(getTask(t.id).assigned_to_wid, null);
+
+    addStaff('Yogita', { wid: '919825044444@c.us', number: '919825044444' });
+    const row = delegates().find((d) => d.name === 'Yogita');
+    assert.equal(row.wid, '919825044444@c.us', 'the Give sheet can offer to tell her');
+    assert.ok(row.open >= 1, 'and she is still listed as holding the work');
   });
 });

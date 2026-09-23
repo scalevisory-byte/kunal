@@ -298,10 +298,20 @@ function NudgeSheet({ task, onClose, onSent, onError, onChanged }) {
  * Three fields, because three is what the page is asking: who, what, and by
  * when. Everything else a task can carry is in the drawer afterwards.
  */
-function GiveSheet({ onClose, onSaved, onError }) {
+function GiveSheet({ onClose, onSaved, onError, people = [] }) {
   const [form, setForm] = useState({ name: '', title: '', date: '', time: '18:00' });
+  const [tell, setTell] = useState(true);
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  /*
+   * Whether this person can be reached at all, decided before the message is
+   * offered rather than after it fails. The staff list is where a chat is
+   * stored, and a name typed fresh has none until one is picked.
+   */
+  const typed = form.name.trim().toLowerCase();
+  const known = people.find((p) => String(p.name || '').trim().toLowerCase() === typed);
+  const reachable = Boolean(known?.wid);
 
   const isoDay = (offset) => {
     const at = new Date();
@@ -317,7 +327,7 @@ function GiveSheet({ onClose, onSaved, onError }) {
 
     setBusy(true);
     try {
-      await api.createTask({
+      const made = await api.createTask({
         title,
         assigned_to: name,
         due_date: form.date || null,
@@ -325,7 +335,36 @@ function GiveSheet({ onClose, onSaved, onError }) {
         // reminder ladder as anything else - and the reminders come to you.
         due_at: form.date ? new Date(`${form.date}T${form.time || '18:00'}:00`).toISOString() : null,
       });
-      onSaved();
+      /*
+       * And tell them, if the box is ticked.
+       *
+       * Asked as "task me bhi add ho jayega and msg bhi chala jayega". Giving
+       * somebody work here used to tell them nothing - the first they heard of
+       * it was the reminder on the day it fell due. The send is deliberately
+       * after the task exists and its failure is reported without undoing it:
+       * the work is now theirs whether or not WhatsApp was reachable, and
+       * losing the task because a message did not go would be the worse bug.
+       */
+      let told = null;
+      if (tell && reachable && made?.id) {
+        try {
+          await api.sendHandover(made.id);
+          told = name;
+        } catch (err) {
+          /*
+           * Reported, and NOT claimed as sent.
+           *
+           * The first version said "Sent to Nidhi" whether or not the message
+           * left, which is the worst thing this sheet could do: he would walk
+           * away believing she had been told. The task still stands - the work
+           * is hers either way, and losing it because WhatsApp was down would
+           * be the worse bug - so the failure is shown and the row is there to
+           * press Nudge on.
+           */
+          onError(err);
+        }
+      }
+      onSaved(told);
     } catch (err) {
       onError(err);
     } finally {
@@ -349,7 +388,19 @@ function GiveSheet({ onClose, onSaved, onError }) {
         <div className="sheet-body">
           <label className="field">
             <span>Who is doing it</span>
-            <input value={form.name} onChange={set('name')} placeholder="Rahul" autoFocus />
+            <input
+              value={form.name}
+              onChange={set('name')}
+              placeholder="Rahul"
+              list="give-people"
+              autoComplete="off"
+              autoFocus
+            />
+            {/* The people already on the staff list, so the common case is a
+                name that already carries a chat rather than one typed fresh. */}
+            <datalist id="give-people">
+              {people.map((p) => <option key={p.name} value={p.name} />)}
+            </datalist>
           </label>
 
           <label className="field">
@@ -375,9 +426,30 @@ function GiveSheet({ onClose, onSaved, onError }) {
             </label>
           </div>
 
+          <label className={`check-inline give-tell ${reachable ? '' : 'off'}`}>
+            <input
+              type="checkbox"
+              checked={tell && reachable}
+              disabled={!reachable}
+              onChange={(e) => setTell(e.target.checked)}
+            />
+            <span>
+              Tell {form.name.trim() || 'them'} on WhatsApp now
+              {!reachable && (
+                <em>
+                  {' — '}
+                  {typed
+                    ? 'no WhatsApp chat is known for this name yet. Add it in Manage staff, or use Nudge on the row afterwards.'
+                    : 'type a name first.'}
+                </em>
+              )}
+            </span>
+          </label>
+
           <p className="field-note">
-            The reminders come to you, not to them. Chasing them is the Nudge button on the
-            row, and only when you press it.
+            One message, now, saying the job is theirs — nothing else. After that the
+            reminders come to <b>you</b>; they hear from the app again only at the deadline
+            and once after it.
           </p>
         </div>
 
@@ -1136,8 +1208,14 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
 
       {giving && (
         <GiveSheet
+          people={data?.people?.allotted || []}
           onClose={() => setGiving(false)}
-          onSaved={() => { setGiving(false); load(); onChanged?.(); }}
+          onSaved={(toldWhom) => {
+            setGiving(false);
+            if (toldWhom) setSent(toldWhom);
+            load();
+            onChanged?.();
+          }}
           onError={onError}
         />
       )}

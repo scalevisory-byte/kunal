@@ -105,6 +105,23 @@ export function delegates() {
     )
     .all();
 
+  /*
+   * A person holding work still takes their chat from the staff list when the
+   * tasks do not carry one.
+   *
+   * `MAX(assigned_to_wid)` is null for every task handed over by typing a
+   * name, so somebody with a number on the staff list and one task in flight
+   * was reported as having no chat at all - the same mistake the Nudge button
+   * made, in a second place. Anyone who has ever been given anything is in the
+   * `held` half, which is to say: nearly everybody.
+   */
+  const stored = new Map(
+    listStaff().map((person) => [person.name.trim().toLowerCase(), person.wid])
+  );
+  for (const row of held) {
+    if (!row.wid) row.wid = stored.get(String(row.name || '').trim().toLowerCase()) || null;
+  }
+
   const seen = new Set(held.map((row) => String(row.name || '').toLowerCase()));
   const idle = listStaff()
     .filter((person) => !seen.has(person.name.toLowerCase()))
@@ -220,6 +237,38 @@ export const tasksFor = (name) =>
  * Composed in one place so the text the user is shown before sending is exactly
  * the text that goes out - a preview that differs from the message is a lie.
  */
+/**
+ * The message that hands a job over, sent once when it is handed over.
+ *
+ * Asked as *"muje koi task dena he to direct app se de sakta hu - task me bhi
+ * add ho jayega and msg bhi chala jayega"*. Before this, giving somebody work
+ * in the app told them nothing: the task existed, the deadline was set, and
+ * the first they heard of it was the reminder on the day it was due.
+ *
+ * It is a different message from `followUpText`, not a reuse of it. That one
+ * chases ("a quick update please"), which read as a reproach for work nobody
+ * had been told about yet.
+ */
+export function handoverText(task) {
+  const who = task.assigned_to || 'there';
+  const lines = [`${who}, this one is with you: *${task.title}*`];
+  if (task.description && task.description.trim()) lines.push('', task.description.trim());
+
+  const iso = task.due_at || task.due_date;
+  if (iso) {
+    const at = new Date(iso.length === 10 ? `${iso}T12:00:00` : iso);
+    if (!Number.isNaN(at.getTime())) {
+      lines.push('', `_Due ${new Intl.DateTimeFormat('en-IN', {
+        timeZone: config.timezone,
+        day: 'numeric',
+        month: 'short',
+        ...(task.due_at ? { hour: 'numeric', minute: '2-digit' } : {}),
+      }).format(at)}._`);
+    }
+  }
+  return lines.join('\n');
+}
+
 export function followUpText(task) {
   const who = task.assigned_to || 'there';
   const lines = [`${who}, a quick update on *${task.title}* please.`];

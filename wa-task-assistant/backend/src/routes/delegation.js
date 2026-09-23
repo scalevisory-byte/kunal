@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { getTask, listTasks, findChats } from '../db.js';
 import {
-  delegates, requesters, delegationCounts, assignTask, followUpText, directionOf,
-  listStaff, addStaff, removeStaff,
+  delegates, requesters, delegationCounts, assignTask, followUpText, handoverText,
+  directionOf, listStaff, addStaff, removeStaff,
 } from '../assignment.js';
 import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
@@ -137,6 +137,7 @@ delegationRouter.get('/tasks/:id/nudge', async (req, res) => {
     to: task.assigned_to,
     wid,
     text: followUpText(task),
+    handover: handoverText(task),
     // The button is honest about being unable to send when it cannot.
     can_send: Boolean(target?.ok),
     connected: waState.status === 'ready',
@@ -187,56 +188,78 @@ delegationRouter.post('/tasks/:id/chat', (req, res) => {
 });
 
 /**
- * Send that nudge. Nothing else in the app can reach this code path: no cron,
- * no reminder pass, no extractor. One press, one message, to one person the
- * user chose - and it is recorded on the task so the history shows who was
- * chased and when.
+ * The one door out of this file, used by both messages it can send.
+ *
+ * Nothing else in the app reaches it: no cron, no reminder pass, no extractor.
+ * A person presses a button, one message goes to one person they chose, and it
+ * is recorded on the task. Two callers - the nudge and the handover - because
+ * a second copy of the resolve-and-send steps is a second place for the rails
+ * to drift out of line.
  */
-delegationRouter.post('/tasks/:id/nudge', async (req, res) => {
-  const task = getTask(Number(req.params.id));
-  if (!task) return res.status(404).json({ error: 'not found' });
-  if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
-  // The same rule the preview showed and the engine uses - task first, then
-  // the staff list. A person who is on neither is not messaged.
+async function messageAssignee(task, text, kind) {
   const chat = chatForAssignee(task);
-  if (!chat) {
-    return res.status(400).json({ error: 'no WhatsApp chat is known for this person' });
-  }
+  if (!chat) return { ok: false, status: 400, error: 'no WhatsApp chat is known for this person' };
 
-  /*
-   * Ask WhatsApp for the real id before sending, and say what it answers.
-   *
-   * "WhatsApp could not send that right now" was the whole of what this route
-   * told anybody, on a connected session, with nothing written to the log
-   * either - so a number that is not on WhatsApp, a linked identity that
-   * cannot be addressed, and a passing blip all read the same and none of
-   * them could be acted on.
-   */
   const target = await resolveSendable(chat);
   if (!target.ok) {
-    log.warn(`Nudge to ${task.assigned_to} (${chat}) not sent: ${target.reason}`);
-    return res.status(400).json({ error: target.reason });
+    log.warn(`Message to ${task.assigned_to} (${chat}) not sent: ${target.reason}`);
+    return { ok: false, status: 400, error: target.reason };
   }
-  /* The corrected id replaces the guess, on the task and on the staff list,
-     so the lookup happens once rather than on every press. */
   if (target.corrected) {
     assignTask(task.id, task.assigned_to, target.wid);
     addStaff(task.assigned_to, { wid: target.wid });
     log.info(`Corrected ${task.assigned_to}'s chat: ${chat} -> ${target.wid}`);
   }
 
-  const text = String(req.body?.text || followUpText(task)).slice(0, 1000);
   try {
     await sendMessage(target.wid, text);
   } catch (err) {
-    /* The library's own words, logged in full and passed on in short. A
-       failure nobody can read is a failure nobody can fix. */
-    log.error(`Nudge to ${task.assigned_to} (${target.wid}) failed:`, err?.message || err);
-    return res.status(503).json({
+    log.error(`Message to ${task.assigned_to} (${target.wid}) failed:`, err?.message || err);
+    return {
+      ok: false,
+      status: 503,
       error: `WhatsApp refused to send that: ${String(err?.message || err).slice(0, 200)}`,
-    });
+    };
   }
-  recordEvent(task.id, EVENT.nudgeSent, task.assigned_to, { text });
+  recordEvent(task.id, kind, task.assigned_to, { text });
+  return { ok: true };
+}
+
+/**
+ * Chase somebody about work already given to them.
+ */
+delegationRouter.post('/tasks/:id/nudge', async (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return res.status(404).json({ error: 'not found' });
+  if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
+
+  const text = String(req.body?.text || followUpText(task)).slice(0, 1000);
+  const out = await messageAssignee(task, text, EVENT.nudgeSent);
+  if (!out.ok) return res.status(out.status).json({ error: out.error });
+  res.json({ sent: true, to: task.assigned_to, text });
+});
+
+/**
+ * Tell somebody, once, that a job is now theirs.
+ *
+ * Asked as "muje koi task dena he to direct app se de sakta hu - task me bhi
+ * add ho jayega and msg bhi chala jayega". Handing work over in the app used
+ * to tell nobody: the task existed, the deadline was set, and the first the
+ * person heard of it was the reminder on the day it fell due.
+ *
+ * Same door, same rails, and still a press - the checkbox on the Give sheet.
+ * What differs is the event it writes: a handover is not a chase, and filing
+ * it as one would spend one of the two automatic follow-ups before anybody
+ * had been chased at all.
+ */
+delegationRouter.post('/tasks/:id/handover', async (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return res.status(404).json({ error: 'not found' });
+  if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
+
+  const text = String(req.body?.text || handoverText(task)).slice(0, 1000);
+  const out = await messageAssignee(task, text, EVENT.handoverSent);
+  if (!out.ok) return res.status(out.status).json({ error: out.error });
   res.json({ sent: true, to: task.assigned_to, text });
 });
 

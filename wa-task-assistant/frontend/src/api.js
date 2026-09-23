@@ -145,6 +145,12 @@ export const api = {
   // Chats this app has already seen, so "which Nidhi?" is answered by picking
   // a name rather than by typing a phone number from memory.
   findChats: (q) => request(`/delegation/chats?q=${encodeURIComponent(q)}`),
+  // Telling somebody, once, that a job is now theirs. Its own call because a
+  // handover is not a chase: it must not spend one of the two follow-ups.
+  sendHandover: (taskId, text) =>
+    request(`/delegation/tasks/${taskId}/handover`, {
+      method: 'POST', body: JSON.stringify({ text }),
+    }),
   setAssigneeChat: (taskId, wid) =>
     request(`/delegation/tasks/${taskId}/chat`, {
       method: 'POST', body: JSON.stringify({ wid }),

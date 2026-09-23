@@ -45,6 +45,15 @@ export const EVENT = {
   assigned: 'assigned',
   unassigned: 'taken back',
   nudgeSent: 'follow-up sent',
+  /*
+   * Telling somebody, once, that a job is now theirs.
+   *
+   * Deliberately NOT nudgeSent: `nudgesSoFar` counts that kind to decide when
+   * the app has chased enough (twice, then it stops). Filing a handover under
+   * it would spend one of those two before anybody had been chased at all -
+   * the message that starts the work would eat the message that follows it up.
+   */
+  handoverSent: 'handed over on WhatsApp',
   filed: 'filed',
   stageChanged: 'stage changed',
   progressNoted: 'progress noted',

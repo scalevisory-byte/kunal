@@ -3646,6 +3646,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .al-follow { display: inline-flex; align-items: center; gap: 4px; }
 .al-activity { font-size: .71rem; }
 /*
+ * "Tell them on WhatsApp now" - the one control on this sheet that reaches
+ * somebody else, so it says who it will reach and why it cannot when it
+ * cannot, rather than sitting there greyed out with no explanation.
+ */
+.give-tell { align-items: flex-start; gap: 9px; }
+.give-tell span { font-size: .84rem; line-height: 1.45; }
+.give-tell em { color: var(--muted); font-style: normal; font-size: .8rem; }
+.give-tell.off span { color: var(--muted); }
+
+/*
  * The deadline as a control rather than a fact.
  *
  * It reads as text until it is hovered, because a row of seven buttons is a
