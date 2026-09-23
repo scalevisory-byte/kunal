@@ -41,12 +41,25 @@ export const SORTABLE = Object.keys(COLUMNS);
  * With no column the rows keep the order they arrived in, which is the
  * board's own; and because Array#sort is stable, that order also breaks
  * every tie, so two tasks due the same day stay the way the board has them.
+ * In every case finished rows come after unfinished ones.
  */
 export function sortRows(rows, key, dir = 'asc', ctx = {}) {
   const read = COLUMNS[key];
-  if (!read) return rows.slice();
   const sign = dir === 'desc' ? -1 : 1;
   return rows.slice().sort((a, b) => {
+    /*
+     * Finished work goes under everything still owed, whatever the column.
+     *
+     * Reported as "why done showing here - here be only latest pending", over
+     * a first page of struck-through rows: sorted by deadline, a task finished
+     * a fortnight ago has the oldest deadline on the list, so it came first,
+     * still wearing "17 days late" in red. The section list has always put
+     * Done last; a heading press must not undo that.
+     */
+    const doneA = a.status === 'done';
+    const doneB = b.status === 'done';
+    if (doneA !== doneB) return doneA ? 1 : -1;
+    if (!read) return 0;
     const x = read(a, ctx);
     const y = read(b, ctx);
     if (x === null && y === null) return 0;

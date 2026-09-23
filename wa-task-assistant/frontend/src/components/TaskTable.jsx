@@ -4,7 +4,7 @@ import { RowMenu } from './TaskItem.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
-  STATUSES, PRIORITIES, isDone, dueLabel, taskSource, timeLabel,
+  STATUSES, PRIORITIES, isDone, dueLabel, taskSource, timeLabel, receivedStamp,
 } from '../lib/task.js';
 
 /*
@@ -23,6 +23,8 @@ import {
  */
 
 const HEAD = [
+  // When it came in, first - the same column the list leads with.
+  { key: 'added', label: 'Received' },
   { key: 'task', label: 'Task' },
   { key: 'folder', label: 'Business / Folder' },
   { key: 'assignee', label: 'Assignee' },
@@ -47,7 +49,11 @@ function Title({ task, onOpen, rename }) {
 }
 
 function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename }) {
-  const due = dueLabel(task.due_date);
+  const done = isDone(task);
+  // A finished task is not late: it is done, and when it was done is the fact.
+  const due = done ? null : dueLabel(task.due_date);
+  const finished = done ? receivedStamp(task.completed_at) : null;
+  const received = receivedStamp(task.created_at);
   const source = taskSource(task);
   // One rename per row, shared by the title and the menu: the menu's Rename
   // is the same edit for a thumb, which has neither F2 nor a double-click.
@@ -61,6 +67,9 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
           onChange={() => onPick(task)}
           aria-label={`Select ${task.title}`}
         />
+      </td>
+      <td className="tt-rec">
+        {received ? <>{received.day}<small>{received.clock}</small></> : <span className="tt-none">—</span>}
       </td>
       <td className="tt-task">
         <Title task={task} onOpen={onOpen} rename={rename} />
@@ -81,7 +90,9 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
         {task.assigned_to ? task.assigned_to : <span className="tt-none">You</span>}
       </td>
       <td className={`tt-due ${due?.tone ? `t-${due.tone}` : ''}`}>
-        {due ? (
+        {done ? (
+          <span className="tt-none">Done{finished && <small>{finished.day}</small>}</span>
+        ) : due ? (
           <>
             {due.text}
             {task.due_at && <small>{timeLabel(task.due_at)}</small>}
@@ -124,9 +135,9 @@ export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
   onRetry, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename,
 }) {
-  // Soonest deadline first, undated last: the order the sections read in, so
-  // switching from List to Table does not reshuffle what he was looking at.
-  const [sort, setSort] = useState({ key: 'due', dir: 'asc' });
+  // Newest first, and finished work below all of it (sortRows does that for
+  // every column): "here be only latest pending". Due date is one press away.
+  const [sort, setSort] = useState({ key: 'added', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(() => {
     try { return Number(localStorage.getItem('tableSize')) || 20; } catch { return 20; }

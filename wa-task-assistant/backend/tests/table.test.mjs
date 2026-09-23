@@ -59,6 +59,40 @@ describe('a sort never floats the blanks to the top', () => {
   });
 });
 
+/*
+ * "Why done showing here - here be only latest pending." Sorted by deadline, a
+ * task finished a fortnight ago has the oldest deadline on the list, so page 1
+ * was struck-through rows still marked "17 days late".
+ */
+describe('finished work goes under everything still owed', () => {
+  const rows = [
+    t(1, { status: 'done', due_date: '2026-09-01', created_at: '2026-09-01 10:00:00' }),
+    t(2, { due_date: '2026-09-20', created_at: '2026-09-18 10:00:00' }),
+    t(3, { status: 'done', due_date: '2026-09-02', created_at: '2026-09-22 10:00:00' }),
+    t(4, { status: 'in_progress', due_date: '2026-09-25', created_at: '2026-09-20 10:00:00' }),
+  ];
+
+  it('whatever the column and whichever way', () => {
+    for (const key of ['due', 'added', 'task', 'priority', 'status', null]) {
+      for (const dir of ['asc', 'desc']) {
+        const out = sortRows(rows, key, dir);
+        const firstDone = out.findIndex((r) => r.status === 'done');
+        assert.ok(out.slice(firstDone).every((r) => r.status === 'done'),
+          `${key} ${dir} put finished work among the owed: ${ids(out)}`);
+      }
+    }
+  });
+
+  it('opens on the newest owed work', () => {
+    assert.match(table, /useState\(\{ key: 'added', dir: 'desc' \}\)/);
+    assert.deepEqual(ids(sortRows(rows, 'added', 'desc')), [4, 2, 3, 1]);
+  });
+
+  it('never calls a finished task late', () => {
+    assert.match(table, /const due = done \? null : dueLabel\(task\.due_date\)/);
+  });
+});
+
 describe('"Showing 1-20 of N" counts the list on screen', () => {
   const rows = Array.from({ length: 45 }, (_, i) => t(i + 1));
 

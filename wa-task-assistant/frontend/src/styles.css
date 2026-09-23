@@ -5798,7 +5798,7 @@ button.due:hover { background: var(--raised); }
   box-shadow: var(--shadow-sm); min-width: 0;
 }
 .tt-scroll { overflow-x: auto; }
-.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 860px; }
+.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 940px; }
 .tt-table th, .tt-table td {
   padding: 8px 10px; text-align: left; vertical-align: middle;
   border-bottom: 1px solid var(--line);
@@ -5813,6 +5813,11 @@ button.due:hover { background: var(--raised); }
 .tt-table tbody tr.is-done .tt-title { color: var(--muted); text-decoration: line-through; }
 
 .tt-pick { width: 34px; padding-right: 0 !important; }
+/* The same column the list leads with: mono figures so a run of dates reads
+   down the page without rippling. */
+.tt-rec { width: 86px; white-space: nowrap; font-family: "IBM Plex Mono", monospace; font-size: .78rem; color: var(--text-2); }
+.tt-rec small { display: block; font-size: .7rem; color: var(--muted); }
+.tt-due .tt-none small { display: block; font-size: .72rem; }
 .tt-pick input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
 .tt-act { width: 44px; text-align: right !important; }
 
