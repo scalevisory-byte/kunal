@@ -48,7 +48,7 @@ function Title({ task, onOpen, rename }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename }) {
+function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -117,6 +117,26 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
         </select>
       </td>
       <td className="tt-act">
+        {/*
+          * Throwing one out is one press, as it is on the list.
+          *
+          * Asked as "yaha se direct delete karne wala option kaha gya": the
+          * list has always had this ✕ on every row, and the table put delete
+          * behind the ⋮ instead, which is two presses and a hunt for the one
+          * thing done most often to a list read from WhatsApp. The same
+          * handler as the list: it archives, and the undo bar puts it back.
+          */}
+        {onNotATask && (
+          <button
+            type="button"
+            className="tt-dismiss"
+            title={`Not a task — take "${task.title}" off the list`}
+            aria-label={`Not a task: ${task.title}`}
+            onClick={() => onNotATask(task)}
+          >
+            ✕
+          </button>
+        )}
         <RowMenu
           task={task}
           onOpen={onOpen}
@@ -133,7 +153,7 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
 
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
-  onRetry, onOpen, onStatus, onQuickDate, onDelete, onAddUpdate, onRename,
+  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
   // every column): "here be only latest pending". Due date is one press away.
@@ -235,6 +255,7 @@ export default function TaskTable({
                 onStatus={onStatus}
                 onQuickDate={onQuickDate}
                 onDelete={onDelete}
+                onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}
                 onRename={onRename}
               />

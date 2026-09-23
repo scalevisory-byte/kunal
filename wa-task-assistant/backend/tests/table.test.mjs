@@ -149,6 +149,13 @@ describe('one box, one meaning', () => {
     assert.match(table, /onPickMany\(onPage,/);
   });
 
+  it('throws a row out in one press, with the list\'s own handler', () => {
+    // "yaha se direct delete karne wala option kaha gya": the list's ✕ was
+    // left out of the table, putting delete two presses deep behind the ⋮.
+    assert.match(table, /className="tt-dismiss"[\s\S]*?onClick=\{\(\) => onNotATask\(task\)\}/);
+    assert.match(app, /<TaskTable[\s\S]*?onNotATask=\{onNotATask\}/);
+  });
+
   it('shares the row menu rather than copying it', () => {
     assert.match(table, /import \{ RowMenu \} from '\.\/TaskItem\.jsx'/);
     assert.ok(!/function RowMenu/.test(table));

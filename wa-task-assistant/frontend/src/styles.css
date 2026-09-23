@@ -5819,7 +5819,14 @@ button.due:hover { background: var(--raised); }
 .tt-rec small { display: block; font-size: .7rem; color: var(--muted); }
 .tt-due .tt-none small { display: block; font-size: .72rem; }
 .tt-pick input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
-.tt-act { width: 44px; text-align: right !important; }
+.tt-act { width: 76px; text-align: right !important; white-space: nowrap; }
+.tt-act .row-menu { display: inline-block; vertical-align: middle; }
+/* Visible on every row: in a table the actions are a column, not a hover. */
+.tt-dismiss {
+  width: 28px; height: 28px; vertical-align: middle; border: 1px solid transparent;
+  border-radius: 6px; background: none; color: var(--muted); cursor: pointer; font-size: .85rem;
+}
+.tt-dismiss:hover { color: var(--danger); border-color: var(--line); background: var(--danger-wash); }
 
 .tt-sort {
   display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0;

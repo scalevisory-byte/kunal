@@ -2040,6 +2040,7 @@ export default function App() {
                         onStatus={(task, next) => onEdit(task, { status: next })}
                         onQuickDate={onQuickDate}
                         onDelete={onDelete}
+                        onNotATask={onNotATask}
                         onRename={(task, title) => onEdit(task, { title })}
                         onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                       />
