@@ -130,17 +130,22 @@ body {
 .shell { display: flex; min-height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /*
- * The cap is 1460 + the calendar column it now has to hold (302 + a 16px gap).
- * At 1460 the column would have come out of the board's width; the screenshot
- * that asked for it was of the strip past 1460 that the page was throwing
- * away, so the column is built from that instead. A board this wide is still
- * readable because the deadline is right-aligned in a fixed slot and the chat
- * name is the one thing on the meta line that yields.
+ * 1460, and it stays 1460.
+ *
+ * The calendar column was briefly paid for by raising this to 1778, so that
+ * it came out of the strip past the cap rather than out of the board. But
+ * this cap is what every banner, the "is this a task?" card and the KPI row
+ * are as wide as - they sit above the workspace and take the whole page - so
+ * raising it stretched all three, and the next screenshot was of exactly
+ * those three: "ye part jese tha wese hi rehne do". They were not part of
+ * what was asked for, and a change nobody asked for is not paid for by the
+ * one they did. The column comes out of the board's width instead, which
+ * costs the dashboard 318px it has the room for.
  */
 .page {
   position: relative;
   padding: 18px 26px calc(56px + env(safe-area-inset-bottom));
-  max-width: 1778px;
+  max-width: 1460px;
   width: 100%;
 }
 
