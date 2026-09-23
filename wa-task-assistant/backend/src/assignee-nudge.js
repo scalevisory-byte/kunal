@@ -29,6 +29,31 @@ const MAX_PER_TASK = 2;
 const DAY_START = 8;   // nothing before 8am,
 const DAY_END = 21;    // nothing after 9pm, whatever the ladder says.
 
+/*
+ * And no more than this to one person in a day, whatever the ladder wants.
+ *
+ * The per-task limit alone does not bound what one person receives: eight jobs
+ * falling due together is eight messages to the same colleague, each of them
+ * inside its own limit. Four is a busy morning; nine is a machine.
+ */
+const MAX_PER_PERSON_PER_DAY = 4;
+
+/*
+ * A pause between one message and the next.
+ *
+ * This is the rail that matters most and it is the one I had missed. The
+ * reminder pass is a loop, so eight deadlines at 9:00 went out as eight
+ * messages in under a second - to one person, from a personal number, through
+ * an unofficial library. Nothing else in this file would have read as
+ * automated; that would have, instantly. A few seconds apart, and jittered so
+ * the gaps are not identical either, is a person working through a list.
+ */
+const GAP_MS = 4000;
+const JITTER_MS = 6000;
+let lastSentAt = 0;
+
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
 /**
  * The chat to reach somebody on, or null.
  *
@@ -49,6 +74,28 @@ export function chatForAssignee(task) {
 export const nudgesSoFar = (taskId) =>
   db.prepare(`SELECT COUNT(*) AS n FROM task_events WHERE task_id = ? AND kind = ?`)
     .get(taskId, EVENT.nudgeSent).n;
+
+/**
+ * How many messages one person has had today, across every task.
+ *
+ * The day is his, not the server's: `at` is stored in UTC, and the boundary
+ * that matters is midnight in Vadodara. Counted from the same events the
+ * per-task limit reads, so a pressed nudge spends this allowance too.
+ */
+export function nudgesToPersonToday(name, now = new Date()) {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: config.timezone }).format(now);
+  const midnight = new Date(`${today}T00:00:00`);
+  const offsetMin = (new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }))
+    - new Date(now.toLocaleString('en-US', { timeZone: config.timezone }))) / 60000;
+  const fromUtc = new Date(midnight.getTime() + offsetMin * 60000)
+    .toISOString().slice(0, 19).replace('T', ' ');
+  return db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM task_events
+        WHERE kind = ? AND LOWER(detail) = LOWER(?) AND at >= ?`
+    )
+    .get(EVENT.nudgeSent, String(name || ''), fromUtc).n;
+}
 
 /**
  * Why this task will not be chased automatically right now - or null to send.
@@ -75,6 +122,9 @@ export function whyNot(task, kind, settings, now = new Date()) {
   if (nudgesSoFar(task.id) >= MAX_PER_TASK) {
     return `already chased ${MAX_PER_TASK} times — after that it is for you to do, not the app`;
   }
+  if (nudgesToPersonToday(task.assigned_to, now) >= MAX_PER_PERSON_PER_DAY) {
+    return `${task.assigned_to} has already had ${MAX_PER_PERSON_PER_DAY} today — the rest can wait`;
+  }
 
   const { hour } = localParts(now, config.timezone);
   if (hour < DAY_START || hour >= DAY_END) {
@@ -98,6 +148,13 @@ export async function nudgeAssignee(task, kind, settings, now = new Date()) {
 
   const chat = chatForAssignee(task);
   const text = followUpText(task);
+
+  /* Paced, so a morning's worth of deadlines does not leave in one burst. */
+  const since = Date.now() - lastSentAt;
+  const gap = GAP_MS + Math.floor(Math.random() * JITTER_MS);
+  if (lastSentAt && since < gap) await wait(gap - since);
+  lastSentAt = Date.now();
+
   try {
     await sendMessage(chat, text);
   } catch (err) {

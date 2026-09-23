@@ -25,7 +25,8 @@ process.env.TIMEZONE = 'Asia/Kolkata';
 const { db, createTask, updateTask, getTask } = await import('../src/db.js');
 const { addStaff } = await import('../src/assignment.js');
 const { EVENT, recordEvent } = await import('../src/task-events.js');
-const { whyNot, chatForAssignee, nudgesSoFar } = await import('../src/assignee-nudge.js');
+const { whyNot, chatForAssignee, nudgesSoFar, nudgesToPersonToday } =
+  await import('../src/assignee-nudge.js');
 const { state } = await import('../src/whatsapp.js');
 
 /* Connected, so these cases are about the rails and not about the link. That
@@ -107,6 +108,40 @@ describe('what stops it', () => {
     /* A warning fires days ahead; chasing somebody before a job is even due
        is how a useful message becomes one that gets muted. */
     assert.match(whyNot(task, 'warning', ON, DAY), /only the deadline and the first follow-up/);
+  });
+
+  it('caps what ONE PERSON gets in a day, across every task they hold', () => {
+    /*
+     * The per-task limit alone does not bound this: eight jobs falling due
+     * together is eight messages to one colleague, each inside its own limit
+     * and the lot inside a second. That is the pattern that gets a number
+     * banned, and it is the rail I had missed until it was asked for.
+     */
+    addStaff('Rahul', { wid: '919812345678@c.us' });
+    const jobs = [given('Rahul'), given('Rahul'), given('Rahul'), given('Rahul'), given('Rahul')];
+    assert.equal(whyNot(jobs[4], 'due', ON, DAY), null, 'the first four are fine');
+    for (let i = 0; i < 4; i++) recordEvent(jobs[i].id, EVENT.nudgeSent, 'Rahul', {});
+    assert.equal(nudgesToPersonToday('Rahul', DAY), 4);
+    assert.match(whyNot(jobs[4], 'due', ON, DAY), /already had 4 today/);
+  });
+
+  it('counts that allowance by person, not by everybody at once', () => {
+    addStaff('Rahul', { wid: '919812345678@c.us' });
+    addStaff('Meera', { wid: '919898989898@c.us' });
+    /* Spread across four of his jobs, so it is the DAILY limit being reached
+       and not the per-task one. */
+    const his = [given('Rahul'), given('Rahul'), given('Rahul'), given('Rahul'), given('Rahul')];
+    const hers = given('Meera');
+    for (let i = 0; i < 4; i++) recordEvent(his[i].id, EVENT.nudgeSent, 'Rahul', {});
+    assert.match(whyNot(his[4], 'due', ON, DAY), /already had 4 today/);
+    assert.equal(whyNot(hers, 'due', ON, DAY), null, 'one busy person must not silence another');
+  });
+
+  it('paces its sends, so a morning of deadlines is not one burst', () => {
+    const src = fs.readFileSync(new URL('../src/assignee-nudge.js', import.meta.url), 'utf8');
+    assert.match(src, /GAP_MS/);
+    assert.match(src, /JITTER_MS/, 'identical gaps read as automated too');
+    assert.match(src, /await wait\(gap - since\)/);
   });
 
   it('says nothing to a task nobody was given', () => {
