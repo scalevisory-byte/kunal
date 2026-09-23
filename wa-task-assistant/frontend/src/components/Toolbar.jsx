@@ -137,7 +137,10 @@ export default function Toolbar({
             />
             <FilterGroup
               title="Priority"
-              options={PRIORITIES.map((p) => ({ key: p.key, label: `${p.dot} ${p.label}` }))}
+              options={PRIORITIES.map((p) => ({
+                key: p.key,
+                label: <><span className={`pri-mark p-${p.key}`} aria-hidden="true" />{p.label}</>,
+              }))}
               selected={filters.priority}
               onToggle={(k) => toggle('priority', k)}
             />

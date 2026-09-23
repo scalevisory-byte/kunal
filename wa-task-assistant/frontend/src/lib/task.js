@@ -21,10 +21,16 @@ export const STATUSES = [
   { key: 'done', label: 'Done' },
 ];
 
+/*
+ * No emoji dots. 🟠 and 🟢 arrived in Unicode 12 and Windows' emoji font does
+ * not draw them, so on his Chrome the drawer read "▯ Medium · ▯ Low" beside a
+ * red 🔴 that happened to be older. The mark is `.pri-mark`, drawn in CSS from
+ * the app's own status colours, so it looks the same on every machine.
+ */
 export const PRIORITIES = [
-  { key: 'high', label: 'High', dot: '🔴' },
-  { key: 'medium', label: 'Medium', dot: '🟠' },
-  { key: 'low', label: 'Low', dot: '🟢' },
+  { key: 'high', label: 'High' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'low', label: 'Low' },
 ];
 
 export const statusLabel = (key) => STATUSES.find((s) => s.key === key)?.label || key;

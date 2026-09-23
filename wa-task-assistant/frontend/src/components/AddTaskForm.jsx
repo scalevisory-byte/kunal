@@ -170,7 +170,7 @@ export default function AddTaskForm({ onAdd, onClose, onBack, initialTitle = '',
                   className={form.priority === p.key ? 'active' : ''}
                   onClick={() => setForm((f) => ({ ...f, priority: p.key }))}
                 >
-                  {p.dot} {p.label}
+                  <span className={`pri-mark p-${p.key}`} aria-hidden="true" />{p.label}
                 </button>
               ))}
             </div>

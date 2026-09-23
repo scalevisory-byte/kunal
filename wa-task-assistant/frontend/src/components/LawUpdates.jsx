@@ -22,10 +22,12 @@ const RULING_TYPES = [
  * particular client is a professional judgement and is left to a person.
  */
 
+// The mark is drawn in CSS (.pri-mark), not an emoji: 🟠 and 🟢 do not exist
+// in Windows' emoji font and rendered as empty boxes.
 const PRIORITY = {
-  critical: { dot: '🔴', label: 'Critical' },
-  important: { dot: '🟠', label: 'Important' },
-  general: { dot: '🟢', label: 'General' },
+  critical: { tone: 'high', label: 'Critical' },
+  important: { tone: 'medium', label: 'Important' },
+  general: { tone: 'low', label: 'General' },
 };
 
 const WHEN = [
@@ -299,9 +301,9 @@ export default function LawUpdates({ onError, module: mod = 'tax' }) {
         <div className="lu-selects">
           <select value={filters.priority || ''} onChange={(e) => set({ priority: e.target.value || null })}>
             <option value="">Any priority</option>
-            <option value="critical">🔴 Critical</option>
-            <option value="important">🟠 Important</option>
-            <option value="general">🟢 General</option>
+            <option value="critical">Critical</option>
+            <option value="important">Important</option>
+            <option value="general">General</option>
           </select>
 
           <select value={filters.source || ''} onChange={(e) => set({ source: e.target.value || null })}>
@@ -453,7 +455,9 @@ function UpdateRow({ update: u, endpoints, open, onToggle, onChanged, onError })
   return (
     <li className={`lu-item ${open ? 'open' : ''} ${u.status}`}>
       <button type="button" className="lu-head" onClick={onToggle} aria-expanded={open}>
-        <span className="lu-dot" title={priority.label}>{priority.dot}</span>
+        <span className="lu-dot" title={priority.label}>
+          <span className={`pri-mark p-${priority.tone}`} role="img" aria-label={priority.label} />
+        </span>
         <span className="lu-main">
           <span className="lu-title">
             {u.important ? <span className="lu-star" aria-label="Important">★</span> : null}

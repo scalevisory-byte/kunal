@@ -555,7 +555,7 @@ function DoneButton({ task, onDone }) {
  * off, a number never stored and a cap already spent all looked the same from
  * here: a row that simply went quiet.
  */
-export function Chase({ chase }) {
+function Chase({ chase }) {
   if (!chase) return null;
   if (chase.reason) {
     return (
@@ -586,8 +586,8 @@ const SENT_HOW = {
   handover: 'Handover message',
 };
 
-export function SentLog({ sent, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+function SentLog({ sent }) {
+  const [open, setOpen] = useState(false);
   if (!sent?.length) return null;
   return (
     <div className="al-sent">

@@ -5280,7 +5280,8 @@ button.due:hover { background: var(--raised); }
   font: inherit; text-align: left; cursor: pointer;
 }
 .lu-head:hover .lu-title { color: var(--brand); }
-.lu-dot { font-size: .8rem; line-height: 1.5; }
+.lu-dot { font-size: .8rem; line-height: 1.5; display: inline-flex; align-items: center; min-height: 1.5em; }
+.lu-dot .pri-mark { margin-right: 0; }
 .lu-main { flex: 1; min-width: 0; }
 .lu-title {
   display: block; font-size: .88rem; font-weight: 600; line-height: 1.45; color: var(--text);
@@ -5963,3 +5964,12 @@ button.due:hover { background: var(--raised); }
 .more-details > summary::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform .15s; }
 .more-details[open] > summary::before { transform: rotate(90deg); }
 .more-details > summary .muted { font-weight: 400; }
+
+/* The priority mark: a drawn dot, not an emoji a font may not have. */
+.pri-mark {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 6px; vertical-align: 0; flex: none; background: var(--muted);
+}
+.pri-mark.p-high { background: var(--danger); }
+.pri-mark.p-medium { background: var(--warn); }
+.pri-mark.p-low { background: var(--ok); }

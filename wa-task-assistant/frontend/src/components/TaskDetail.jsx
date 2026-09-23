@@ -4,7 +4,6 @@ import Checklist from './Checklist.jsx';
 import TaskProgress from './TaskProgress.jsx';
 import Dependencies from './Dependencies.jsx';
 import Attachments from './Attachments.jsx';
-import { Chase, SentLog } from './Delegation.jsx';
 import { api } from '../api.js';
 import { REMINDER_OFFSETS, TASK_STATE, clock as fmtClock, dueLabel } from '../lib/schedule.js';
 import {
@@ -165,55 +164,6 @@ function FollowUpLadder({ task }) {
   );
 }
 
-/**
- * Follow-up, first in the drawer of a task somebody else holds.
- *
- * Asked as "how to followup screen make minimal and useful", over this drawer
- * opened from Task allotted: a title box, an empty description, a status bar,
- * an empty checklist, an empty "waiting on", an empty file list - and nothing
- * about the follow-up, which is the one thing that page is for. Who has it,
- * when it is due, what the app will send next or why it will not, and every
- * message already sent. Read from the same route the rows are built by, so
- * the drawer and the row cannot disagree.
- */
-function FollowUp({ task, onError }) {
-  const [data, setData] = useState(null);
-  useEffect(() => {
-    if (!task.assigned_to) { setData(null); return undefined; }
-    let live = true;
-    api.followUp(task.id)
-      .then((d) => { if (live) setData(d); })
-      .catch((err) => onError?.(err));
-    return () => { live = false; };
-    // updated_at: a nudge, a new deadline or a reassignment re-reads it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.id, task.assigned_to, task.updated_at, task.status]);
-
-  if (!task.assigned_to || !data) return null;
-  const deadline = data.due_at || data.due_date;
-  return (
-    <section className="fu-panel" aria-label="Follow-up">
-      <h3>Follow-up</h3>
-      <p className="fu-who">
-        <Icon name="person" size={13} /> With <b>{data.assigned_to}</b>
-        <span className="muted">
-          {' · '}
-          {deadline
-            ? `due ${new Date(data.due_at || `${data.due_date}T00:00:00`).toLocaleString([], {
-              day: 'numeric', month: 'short',
-              ...(data.due_at ? { hour: 'numeric', minute: '2-digit' } : {}),
-            })}`
-            : 'no deadline, so nothing is sent automatically'}
-        </span>
-      </p>
-      {task.status !== 'done' && <p className="fu-next"><Chase chase={data.chase} /></p>}
-      {data.sent.length
-        ? <SentLog sent={data.sent} defaultOpen />
-        : <p className="fu-none">Nothing has been sent to {data.assigned_to} yet.</p>}
-    </section>
-  );
-}
-
 export default function TaskDetail({
   task, tasks, groups = [], focusProgress = false,
   onClose, onEdit, onDelete, onNotATask, onError, onChanged,
@@ -275,8 +225,6 @@ export default function TaskDetail({
         </header>
 
         <div className="sheet-body">
-          <FollowUp task={task} onError={onError} />
-
           <div className="field">
             <label>Status</label>
             <div className="segment">
@@ -359,7 +307,7 @@ export default function TaskDetail({
                   className={task.priority === p.key ? 'active' : ''}
                   onClick={() => onEdit(task, { priority: p.key })}
                 >
-                  {p.dot} {p.label}
+                  <span className={`pri-mark p-${p.key}`} aria-hidden="true" />{p.label}
                 </button>
               ))}
             </div>

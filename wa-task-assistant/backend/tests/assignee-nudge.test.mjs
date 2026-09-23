@@ -364,13 +364,13 @@ describe('the follow-up screen shows the follow-up and little else', () => {
   const drawer = fs.readFileSync(new URL('../../frontend/src/components/TaskDetail.jsx', import.meta.url), 'utf8');
   const route = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
 
-  it('opens an allotted task on its follow-up, built by the rows\' own decorate', () => {
-    const body = drawer.slice(drawer.indexOf('<div className="sheet-body">'));
-    assert.ok(body.indexOf('<FollowUp') > -1 && body.indexOf('<FollowUp') < body.indexOf('d-title'),
-      'the follow-up is not the first thing in the drawer');
-    assert.match(drawer, /import \{ Chase, SentLog \} from '\.\/Delegation\.jsx'/);
-    const one = route.slice(route.indexOf("'/tasks/:id/followup'"));
-    assert.match(one.slice(0, 600), /decorate\(\[task\]\)/, 'the drawer has its own copy of the rules');
+  it('says the follow-up once, on the row, not again in the drawer', () => {
+    // "Follow-up task ke niche dikha raha he to yaha dikhane ki need nahi":
+    // the row already carries who has it, the chase line and every message
+    // sent, so the drawer repeating it was the same fact twice.
+    assert.ok(!/<FollowUp\b/.test(drawer), 'the drawer repeats the follow-up the row shows');
+    assert.ok(!/'\/tasks\/:id\/followup'/.test(route), 'an endpoint nothing calls any more');
+    assert.equal((page.match(/<SentLog sent=\{task\.sent\} \/>/g) || []).length, 2);
   });
 
   it('draws no stage that holds nothing', () => {
@@ -389,8 +389,8 @@ describe('the drawer opens on what gets acted on, and folds the rest', () => {
   const open = drawer.slice(drawer.indexOf('<div className="sheet-body">'), drawer.indexOf('<details'));
   const folded = drawer.slice(drawer.indexOf('<details'), drawer.indexOf('</details>'));
 
-  it('keeps follow-up, status, deadline, priority and progress outside the fold', () => {
-    for (const bit of ['<FollowUp', '<label>Status</label>', 'id="d-due"', 'id="d-time"', '<label>Priority</label>', '<TaskProgress']) {
+  it('keeps status, deadline, priority and progress outside the fold', () => {
+    for (const bit of ['<label>Status</label>', 'id="d-due"', 'id="d-time"', '<label>Priority</label>', '<TaskProgress']) {
       assert.ok(open.includes(bit), `${bit} is folded away`);
     }
   });
@@ -407,5 +407,22 @@ describe('the drawer opens on what gets acted on, and folds the rest', () => {
       assert.match(drawer, new RegExp(`task\\.${field}`), `the fold's heading does not mention ${field}`);
     }
     assert.match(drawer, /try \{ return localStorage\.getItem\('wa\.drawer\.more'\)/);
+  });
+});
+
+/*
+ * "▯ Medium · ▯ Low": 🟠 and 🟢 are Unicode 12, and Windows' emoji font does
+ * not draw them, so on his Chrome they were empty boxes beside a 🔴 that
+ * happened to be older. Priority is a drawn mark (.pri-mark) now.
+ */
+describe('no mark the screen cannot draw', () => {
+  it('uses no Unicode 12 coloured circles or squares anywhere in the dashboard', () => {
+    const dir = new URL('../../frontend/src/', import.meta.url);
+    const files = ['lib/task.js', ...fs.readdirSync(new URL('components/', dir)).map((f) => `components/${f}`)];
+    const late = /[\u{1F7E0}-\u{1F7EB}]/u;
+    const hits = files.filter((f) => late.test(
+      fs.readFileSync(new URL(f, dir), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ''),
+    ));
+    assert.deepEqual(hits, [], `draws empty boxes on Windows: ${hits.join(', ')}`);
   });
 });

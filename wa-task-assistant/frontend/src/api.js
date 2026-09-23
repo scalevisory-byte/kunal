@@ -136,7 +136,6 @@ export const api = {
     request(`/delegation/tasks/${taskId}/assign`, {
       method: 'POST', body: JSON.stringify({ name, wid }),
     }),
-  followUp: (taskId) => request(`/delegation/tasks/${taskId}/followup`),
   nudgePreview: (taskId) => request(`/delegation/tasks/${taskId}/nudge`),
   sendNudge: (taskId, text) =>
     request(`/delegation/tasks/${taskId}/nudge`, {
