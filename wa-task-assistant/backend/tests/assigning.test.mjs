@@ -547,6 +547,63 @@ run('and it stops being chased, until it is put back', () => {
 });
 
 
+/*
+ * Finishing the work, from the page the work is on.
+ *
+ * Asked as "task completd ka optin bhi nahi he", over rows carrying Nudge and
+ * Delete and nothing else. It matters more than a missing convenience: marking
+ * done is what cancels the reminder ladder, so a task that cannot be ticked off
+ * here is one the app goes on chasing for ever.
+ */
+run('a row can be marked done from this page', () => {
+  const card = delegSrc.slice(delegSrc.indexOf('function Card('), delegSrc.indexOf('function Board('));
+  const rows = delegSrc.slice(delegSrc.indexOf('function Rows('), delegSrc.indexOf('function StaffList('));
+  assert.match(card, /<DoneButton/, 'the pipeline cards');
+  assert.match(rows, /<DoneButton/, 'the flat rows');
+  // One control, defined once - this page draws its rows twice and two copies
+  // of a button eventually differ. The same lesson the delete already carries.
+  assert.equal((delegSrc.match(/function DoneButton\(/g) || []).length, 1);
+  // Both views have to be handed the action, or the button renders nothing.
+  assert.equal((delegSrc.match(/onDone=\{actions\.onToggle\}/g) || []).length, 2);
+  // And unlike Nudge it is offered on a finished row too, because that is how
+  // a row marked done by mistake is put back.
+  const acts = card.slice(card.indexOf('al-acts'));
+  const doneAt = acts.indexOf('<DoneButton');
+  assert.ok(!acts.slice(Math.max(0, doneAt - 80), doneAt).includes("status !== 'done'"),
+    'Mark done is not gated on the task being unfinished');
+});
+
+/*
+ * "Auto reminder not gone when task is not completed on deadline."
+ *
+ * The engine already knew why - `whyNot` returns a sentence, not a boolean -
+ * and wrote it to the server log, which he cannot read. So a switch left off,
+ * a number never stored and a cap already spent all looked identical from the
+ * one place the question is asked.
+ */
+run('every row says what the app will do by itself, or why it will not', () => {
+  const route = fs.readFileSync(new URL('../src/routes/delegation.js', import.meta.url), 'utf8');
+  // The SAME function the engine decides with. A second copy would drift, and
+  // then the row would be explaining behaviour the engine no longer has.
+  assert.match(route, /import \{ chatForAssignee, whyNot \} from '\.\.\/assignee-nudge\.js'/);
+  assert.match(route, /function chaseFor\(task, settings, schedule\)/);
+  assert.match(route, /const reason = whyNot\(task, kind, settings/);
+  // Asked at the moment the rung will fire, not now: the night rule is a fact
+  // about that hour, and a rung due at 7am is one that will be skipped.
+  assert.match(route, /at \? new Date\(at\) : new Date\(\)/);
+  assert.match(route, /chase: chaseFor\(task, settings, schedule\)/, 'and it travels with the row');
+  // The master switch, said once at the top as well: with it off, a page of
+  // Nudge buttons looks exactly like a page the app is also chasing from.
+  assert.match(route, /nudgeAssignee: Boolean\(getSettings\(\)\.nudgeAssignee\)/);
+  assert.match(delegSrc, /data\.nudgeAssignee === false/, 'the page says it');
+  assert.match(delegSrc, /function Chase\(\{ chase \}\)/, 'and every row says its own reason');
+  const card = delegSrc.slice(delegSrc.indexOf('function Card('), delegSrc.indexOf('function Board('));
+  const rows = delegSrc.slice(delegSrc.indexOf('function Rows('), delegSrc.indexOf('function StaffList('));
+  assert.match(card, /<Chase chase=\{task\.chase\}/, 'on the cards');
+  assert.match(rows, /<Chase chase=\{task\.chase\}/, 'and on the flat rows');
+});
+
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 fs.rmSync(dir, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

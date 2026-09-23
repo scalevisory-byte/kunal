@@ -1169,6 +1169,7 @@ export default function App() {
               <Delegation
                 side={page.delegation}
                 wa={status?.whatsapp}
+                onOpenSettings={() => goto('reminders')}
                 onOpenTask={(id) => {
                   const found = tasks.find((t) => t.id === id);
                   if (found) setOpenTask(found);

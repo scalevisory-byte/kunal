@@ -517,6 +517,61 @@ function RemoveButton({ task, onDelete }) {
 }
 
 /**
+ * Finishing the work, from the page the work lives on.
+ *
+ * Asked as "task completd ka optin bhi nahi he". Every row here carried Nudge
+ * and Delete and nothing else, so the one list of work you are waiting on was
+ * the one list you could not tick anything off - you had to go back to the
+ * board and find the row. It is also the control that ends the chasing:
+ * completion cancels the whole ladder, so a task nobody can mark done is a
+ * task the app goes on reminding about for ever.
+ *
+ * Defined once and used by both the cards and the flat rows, like the Delete
+ * beside it - this page draws its own markup twice, and two copies of a
+ * control eventually differ.
+ */
+function DoneButton({ task, onDone }) {
+  if (!onDone) return null;
+  const done = task.status === 'done';
+  return (
+    <button
+      className={`tool done-tool ${done ? 'on' : ''}`}
+      onClick={() => onDone(task)}
+      title={done ? 'Put it back on the list' : 'Mark it finished — this also stops the reminders'}
+      aria-pressed={done}
+      aria-label={done ? `Reopen ${task.title}` : `Mark done: ${task.title}`}
+    >
+      <Icon name="check" size={14} /> {done ? 'Done' : 'Mark done'}
+    </button>
+  );
+}
+
+/**
+ * What the app will do about this row by itself, in one line.
+ *
+ * Reported as "auto reminder not gone when task is not completed on deadline".
+ * The engine already knew why — `whyNot` returns a sentence, not a boolean —
+ * and wrote it to the server log, where nobody can read it. So a switch left
+ * off, a number never stored and a cap already spent all looked the same from
+ * here: a row that simply went quiet.
+ */
+function Chase({ chase }) {
+  if (!chase) return null;
+  if (chase.reason) {
+    return (
+      <span className="al-chase off" title="Nobody is messaged automatically about this one">
+        <Icon name="alert" size={11} /> Not chasing: {chase.reason}
+      </span>
+    );
+  }
+  return (
+    <span className="al-chase on">
+      <Icon name="whatsapp" size={11} /> Reminding them {when(chase.at)}
+    </span>
+  );
+}
+
+/**
  * The deadline, set from the row.
  *
  * Asked as *"hua abhi auto kese hoga"* — the pressed nudge had just worked, so
@@ -640,7 +695,7 @@ function DeadlineButton({ task, onDeadline }) {
 }
 
 /** One delegated task, the same card in both views. */
-function Card({ task, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
+function Card({ task, onOpen, onNudge, onDone, onDelete, onDeadline, people, onAssign }) {
   const activity = lastActivityLabel(task);
   return (
     <li className="al-card">
@@ -672,7 +727,9 @@ function Card({ task, onOpen, onNudge, onDelete, onDeadline, people, onAssign })
         )}
       </p>
       {activity && <p className="al-activity">{activity}</p>}
+      {task.direction === 'allotted' && <p className="al-activity"><Chase chase={task.chase} /></p>}
       <div className="al-acts">
+        <DoneButton task={task} onDone={onDone} />
         {task.status !== 'done' && (
           <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
         )}
@@ -690,7 +747,7 @@ function Card({ task, onOpen, onNudge, onDelete, onDeadline, people, onAssign })
  * task moves between columns because the facts changed, not because somebody
  * dragged it.
  */
-function Board({ stages, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
+function Board({ stages, onOpen, onNudge, onDone, onDelete, onDeadline, people, onAssign }) {
   return (
     <div className="al-board">
       {stages.map((stage) => (
@@ -703,7 +760,7 @@ function Board({ stages, onOpen, onNudge, onDelete, onDeadline, people, onAssign
             ? <p className="board-empty">Nothing here.</p>
             : <ul className="al-list">
                 {stage.items.map((t) => (
-                  <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge}
+                  <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge} onDone={onDone}
                     onDelete={onDelete} onDeadline={onDeadline}
                     people={people} onAssign={onAssign} />
                 ))}
@@ -715,7 +772,7 @@ function Board({ stages, onOpen, onNudge, onDelete, onDeadline, people, onAssign
 }
 
 /** The same work as rows, for reading down rather than across. */
-function Rows({ tasks, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
+function Rows({ tasks, onOpen, onNudge, onDone, onDelete, onDeadline, people, onAssign }) {
   if (!tasks.length) return <p className="board-empty">Nothing in this stage.</p>;
   return (
     <ul className="al-rows">
@@ -734,6 +791,7 @@ function Rows({ tasks, onOpen, onNudge, onDelete, onDeadline, people, onAssign }
                   : <><Icon name="person" size={12} /> {task.assigned_to}</>}
                 {task.group_name && <span className="al-group">{task.group_name}</span>}
                 {activity && <span className="muted">{activity}</span>}
+                {task.direction === 'allotted' && <Chase chase={task.chase} />}
               </span>
             </div>
             <span className={`al-stage s-${stage.key}`}>{stage.label}</span>
@@ -741,6 +799,7 @@ function Rows({ tasks, onOpen, onNudge, onDelete, onDeadline, people, onAssign }
               <DeadlineButton task={task} onDeadline={onDeadline} />
             </span>
             <span className="al-acts">
+              <DoneButton task={task} onDone={onDone} />
               {task.status !== 'done' && (
                 <button className="tool" onClick={() => onNudge(task)}>Nudge</button>
               )}
@@ -861,7 +920,7 @@ function StaffList({ onError, onChanged }) {
   );
 }
 
-export default function Delegation({ side, onOpenTask, onError, onChanged, wa }) {
+export default function Delegation({ side, onOpenTask, onError, onChanged, onOpenSettings, wa }) {
   const [data, setData] = useState(null);
   const [showDone, setShowDone] = useState(false);
   const [nudging, setNudging] = useState(null);
@@ -1044,6 +1103,26 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
       )}
 
       {/*
+        * The switch, said once at the top rather than on every row.
+        *
+        * Reported as "auto reminder not gone when task is not completed on
+        * deadline". `nudgeAssignee` is off by default - deliberately, because
+        * this is the app's most sensitive behaviour - and with it off a page
+        * of Nudge buttons looks exactly like a page where the app is also
+        * chasing by itself. Nothing anywhere said which of the two it was.
+        */}
+      {side === 'allotted' && data && data.nudgeAssignee === false && tasks.length > 0 && (
+        <p className="banner warn">
+          <span>
+            <b>Automatic reminders to staff are off.</b> Nobody on this page is messaged
+            by the app — the deadline comes and goes and only you hear about it. The{' '}
+            <b>Nudge</b> button still works; it sends one message when you press it.
+          </span>
+          <button className="link" onClick={() => onOpenSettings?.()}>Turn them on</button>
+        </p>
+      )}
+
+      {/*
         * The one thing standing between this page and the automatic reminder.
         *
         * "hua abhi auto kese hoga" was asked over seven rows that every one of
@@ -1154,12 +1233,12 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
 
           {view === 'pipeline'
             ? <Board stages={stage ? stages.filter((s) => s.key === stage) : stages}
-                     onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
-                     onDeadline={actions.onDeadline}
+                     onOpen={actions.onOpen} onNudge={setNudging} onDone={actions.onToggle}
+                     onDelete={actions.onDelete} onDeadline={actions.onDeadline}
                      people={actions.people} onAssign={actions.onAssign} />
             : <Rows tasks={stage ? stages.find((s) => s.key === stage).items : scoped}
-                    onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
-                    onDeadline={actions.onDeadline}
+                    onOpen={actions.onOpen} onNudge={setNudging} onDone={actions.onToggle}
+                    onDelete={actions.onDelete} onDeadline={actions.onDeadline}
                     people={actions.people} onAssign={actions.onAssign} />}
         </>
       )}

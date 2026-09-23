@@ -3814,6 +3814,32 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   background: var(--danger-wash);
 }
 
+/*
+ * Finishing the work, from the page the work is on.
+ *
+ * Asked as "task completd ka optin bhi nahi he". It reads as the good outcome
+ * rather than as another grey action, because it is the one control here that
+ * ends the chasing - completion cancels the whole ladder.
+ */
+.tool.done-tool { color: var(--muted); }
+.tool.done-tool .icon { color: var(--ok); }
+.tool.done-tool:hover {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: var(--ok-wash);
+}
+.tool.done-tool.on { color: var(--ok); background: var(--ok-wash); border-color: color-mix(in srgb, var(--ok) 32%, transparent); }
+
+/*
+ * What the app will do about this row by itself, or why it will do nothing.
+ * The reason is a sentence, not a colour, so it is set in the meta line's own
+ * size and only the icon carries the state.
+ */
+.al-chase { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+.al-chase .icon { flex: none; position: relative; top: 2px; }
+.al-chase.on { color: var(--ok); }
+.al-chase.off { color: var(--warn); }
+
 /* The same work as rows: read down a column rather than across the board. */
 .al-rows { list-style: none; margin: 0; padding: 0; }
 .al-rows li {

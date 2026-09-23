@@ -8,7 +8,7 @@ import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
 import { getSettings, nextRemindersFor } from '../scheduling.js';
 import { sendMessage, resolveSendable, state as waState } from '../whatsapp.js';
-import { chatForAssignee } from '../assignee-nudge.js';
+import { chatForAssignee, whyNot } from '../assignee-nudge.js';
 import { log } from '../logger.js';
 
 /**
@@ -27,6 +27,37 @@ import { log } from '../logger.js';
  */
 export const delegationRouter = Router();
 
+/**
+ * What the app will do about this task by itself - or why it will do nothing.
+ *
+ * Reported as "auto reminder not gone when task is not completed on deadline",
+ * over a row that had had exactly one message: the deadline one. The engine
+ * was right; something in `whyNot` had refused the rung after it. But that
+ * sentence was only ever written to the server log, which he cannot read - so
+ * a switch left off, a missing number and a cap already spent all looked
+ * identical from the one place the question gets asked.
+ *
+ * It is the SAME function the engine decides with, evaluated at the moment the
+ * next rung will actually fire, so the row cannot say one thing while the
+ * engine does another. Its night check is a fact about that hour, not about
+ * now, which is the whole reason for passing the rung's own time.
+ */
+function chaseFor(task, settings, schedule) {
+  if (!task.assigned_to || task.status === 'done') return null;
+
+  // The two rungs that reach the assignee are the deadline and the follow-ups.
+  const followUp = schedule.next_follow_up_at;
+  const due = schedule.due_at && new Date(schedule.due_at) > new Date() ? schedule.due_at : null;
+  const at = followUp || due;
+  const kind = followUp ? 'follow_up' : 'due';
+
+  const reason = whyNot(task, kind, settings, at ? new Date(at) : new Date());
+  // Nothing pending and nothing refusing is not "it will happen": it is a task
+  // the ladder has run out of, and saying so beats an empty space.
+  if (!reason && !at) return { at: null, reason: 'the ladder has no rung left to send' };
+  return { at: at || null, reason };
+}
+
 const decorate = (rows) => {
   const settings = getSettings();
   const ids = rows.map((t) => t.id);
@@ -35,12 +66,16 @@ const decorate = (rows) => {
   // question — a task given three days ago with nothing since is the one to
   // chase, and the deadline alone does not say that.
   const activity = lastActivityFor(ids);
-  return rows.map((task) => ({
-    ...task,
-    ...taskSchedule(task, settings, { next: next.get(task.id) || {} }),
-    direction: directionOf(task),
-    last_activity: activity.get(task.id) || null,
-  }));
+  return rows.map((task) => {
+    const schedule = taskSchedule(task, settings, { next: next.get(task.id) || {} });
+    return {
+      ...task,
+      ...schedule,
+      direction: directionOf(task),
+      last_activity: activity.get(task.id) || null,
+      chase: chaseFor(task, settings, schedule),
+    };
+  });
 };
 
 /** Everything with another person's name on it, either way round. */
@@ -72,6 +107,13 @@ delegationRouter.get('/', (req, res) => {
     // Who is on each side, so the page can be read as people rather than rows.
     people: { allotted: delegates(), received: requesters() },
     counts: delegationCounts(),
+    /*
+     * The master switch, so the page can say the one thing that explains every
+     * silent row at once. It is off by default, and a page full of "Nudge"
+     * buttons looks identical whether the app is also chasing by itself or
+     * has never sent anything on its own.
+     */
+    nudgeAssignee: Boolean(getSettings().nudgeAssignee),
   });
 });
 
