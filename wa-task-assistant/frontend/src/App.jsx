@@ -1560,14 +1560,11 @@ export default function App() {
                       </>
                     }
                     calendar={
-                      <section className="card">
-                        <header className="card-head"><h3>Calendar</h3></header>
-                        <MonthCalendar
-                          tasks={dayTasks}
-                          selected={selectedDate}
-                          onSelect={(iso) => { setSelectedDate(iso); setView('all'); }}
-                        />
-                      </section>
+                      <MonthCalendar
+                        tasks={dayTasks}
+                        selected={selectedDate}
+                        onSelect={(iso) => { setSelectedDate(iso); setView('all'); }}
+                      />
                     }
                   >
                     <QuickActions

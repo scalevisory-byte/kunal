@@ -2741,11 +2741,35 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * `.dash-cal` matched nothing. Its cell sizing moved onto `.card .cal-*`
  * below, which is where the calendar actually lives.
  */
+/*
+ * The calendar card, as drawn: a tinted mark, the month in the card's own
+ * heading size, and the arrows at the right - one header rather than a card
+ * title with a second, smaller month line under it.
+ */
 .card .cal-grid { gap: 2px; grid-template-rows: auto; grid-auto-rows: minmax(34px, 1fr); }
-.card .cal-day { height: auto; font-size: .78rem; }
-.card .cal-day.has::after { bottom: calc(50% - 13px); }
-.card .cal-dow { font-size: .64rem; padding-bottom: 4px; }
-.card .cal-head { margin-bottom: 9px; }
+.card .cal-day { height: auto; font-size: .82rem; }
+.card .cal-dow { font-size: .68rem; padding-bottom: 6px; color: var(--muted); }
+.card .cal-head {
+  margin-bottom: 13px; gap: 10px;
+  font-size: .95rem; font-weight: 600;
+}
+.card .cal-head .cal-mark {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.card .cal-head > span:not(.cal-mark) { margin-right: auto; }
+.card .cal-head .icon-btn { font-size: 1.2rem; line-height: 1; padding: 2px 7px; color: var(--muted); }
+.card .cal-head .icon-btn:hover { color: var(--text); }
+
+/* Today is a filled disc, not a coloured numeral - the one day the month is
+   read from has to be findable without looking for a different shade. */
+.card .cal-day.today {
+  background: var(--brand); color: var(--brand-ink, #fff); font-weight: 700;
+  border-radius: 50%;
+}
+.card .cal-day.today::after { background: var(--brand-ink, #fff); }
+.card .cal-day.today:hover { background: var(--brand); }
 
 .page-head-right { display: flex; align-items: center; gap: 14px; }
 .page-count {
@@ -5496,18 +5520,21 @@ button.due:hover { background: var(--raised); }
 
 /* The six. A tinted mark, the figure, the word - and every one of them opens
    exactly what it counts, including the two the old row could not reach. */
-.figs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+/* Asked as "make this more smaller": the six were 62px of card for two lines
+   of text. Tighter padding, a smaller mark and a smaller figure - the row
+   keeps its six columns and gives the page back about 20px. */
+.figs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .fig {
-  display: flex; align-items: center; gap: 11px; min-width: 0;
+  display: flex; align-items: center; gap: 9px; min-width: 0;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
-  box-shadow: var(--shadow-sm); padding: 13px 14px;
+  box-shadow: var(--shadow-sm); padding: 9px 11px;
   font: inherit; text-align: left; cursor: pointer;
   transition: border-color .16s, box-shadow .16s, transform .16s;
 }
 .fig:hover { border-color: var(--line-2); }
 .fig.picked { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
 .fig-icon {
-  width: 36px; height: 36px; border-radius: 11px; flex: none;
+  width: 30px; height: 30px; border-radius: 9px; flex: none;
   display: grid; place-items: center; background: var(--raised); color: var(--muted);
 }
 .fig.t-info .fig-icon { background: var(--info-wash); color: var(--info); }
@@ -5517,7 +5544,7 @@ button.due:hover { background: var(--raised); }
 .fig.t-brand .fig-icon { background: var(--brand-wash); color: var(--brand); }
 .fig-body { display: grid; line-height: 1.15; min-width: 0; }
 .fig-body strong {
-  font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.45rem;
+  font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.2rem;
   font-variant-numeric: tabular-nums;
 }
 .fig.t-danger .fig-body strong { color: var(--danger); }
@@ -5525,7 +5552,7 @@ button.due:hover { background: var(--raised); }
 .fig.t-ok .fig-body strong { color: var(--ok); }
 /* It wraps rather than truncating: "Completed t…" is a label you have to
    guess at, and a second line costs nothing but four pixels of card. */
-.fig-body small { font-size: .76rem; color: var(--muted); line-height: 1.25; }
+.fig-body small { font-size: .715rem; color: var(--muted); line-height: 1.22; }
 
 /* The work, beside the day. */
 .home-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(258px, 320px); gap: 16px; align-items: start; }
@@ -5672,17 +5699,26 @@ button.due:hover { background: var(--raised); }
  */
 .fig { position: relative; }
 .fig-go {
-  position: absolute; top: 10px; right: 10px;
+  position: absolute; top: 7px; right: 8px;
   color: var(--line-2); transition: color .16s, transform .16s;
 }
 .fig:hover .fig-go { color: var(--muted); transform: translateX(2px); }
-.fig-body small { padding-right: 14px; }
+.fig-body small { padding-right: 12px; }
 
 /* The day's four figures, as tiles under the month they are about. */
+/*
+ * Each tile wears its own state's wash, as drawn. The tint is a second
+ * encoding, not the only one: the word is on the tile and the mark inside it
+ * keeps the icon, so the tiles read the same in greyscale.
+ */
 .daystats.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .daystats.tiles > div {
   background: var(--raised); border-radius: var(--r-sm); padding: 10px 11px;
 }
+.daystats.tiles > div.w-warn { background: var(--warn-wash); }
+.daystats.tiles > div.w-danger { background: var(--danger-wash); }
+.daystats.tiles > div.w-ok { background: var(--ok-wash); }
+.daystats.tiles .ds-icon { background: var(--card); }
 
 /*
  * The ring. Four disjoint slices and the real total in the middle - never the

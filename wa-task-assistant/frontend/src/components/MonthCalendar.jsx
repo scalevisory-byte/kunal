@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import Icon from './Icon.jsx';
 import { dueByDay } from '../lib/derive.js';
 import { todayIso } from '../lib/task.js';
 
@@ -38,9 +39,13 @@ export default function MonthCalendar({ tasks, selected, onSelect }) {
 
   return (
     <div className="cal">
+      {/* The month IS the card's heading - a card titled "Calendar" with
+          "September 2026" in smaller type underneath said the same thing
+          twice and cost a line. */}
       <div className="cal-head">
-        <button className="icon-btn" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
+        <span className="cal-mark"><Icon name="calendar" size={18} /></span>
         <span>{monthStart.toLocaleDateString([], { month: 'long', year: 'numeric' })}</span>
+        <button className="icon-btn" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
         <button className="icon-btn" onClick={() => shift(1)} aria-label="Next month">›</button>
       </div>
       <div className="cal-grid">

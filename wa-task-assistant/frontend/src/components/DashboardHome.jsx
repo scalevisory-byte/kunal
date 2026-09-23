@@ -260,8 +260,8 @@ export default function DashboardHome({
             * of their own: the date is beside the New Task button now, so a
             * card whose job was to say "Wednesday" had nothing left to do.
             */}
-          {calendar}
           <section className="card">
+          {calendar}
           <dl className="daystats tiles">
             {[
               { tone: 'warn', icon: 'calendar', value: counts.dueToday, label: 'Due today' },
@@ -269,7 +269,7 @@ export default function DashboardHome({
               { tone: 'ok', icon: 'check', value: counts.done, label: 'Completed' },
               { tone: 'ok', icon: 'check', value: counts.completedToday, label: 'Completed today' },
             ].map((d) => (
-              <div key={d.label}>
+              <div key={d.label} className={`w-${d.tone}`}>
                 <span className={`ds-icon t-${d.tone}`}><Icon name={d.icon} size={15} /></span>
                 <span className="ds-body"><strong>{d.value}</strong><small>{d.label}</small></span>
               </div>
