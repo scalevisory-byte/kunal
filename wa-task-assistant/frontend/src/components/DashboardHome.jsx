@@ -47,42 +47,20 @@ function Figure({ cell, onPick }) {
         <strong>{cell.value}</strong>
         <small>{cell.label}</small>
       </span>
+      <Icon name="arrowRight" size={15} className="fig-go" />
     </button>
   );
 }
 
-/** The whole list in one bar, in slices that really are parts of it. */
-function StatusBar({ tasks }) {
-  const { slices, total, exact } = statusSlices(tasks);
-  if (!total) return <p className="rail-empty">No tasks yet.</p>;
-  return (
-    <>
-      <div className="statusbar" role="img"
-        aria-label={slices.map((s) => `${s.label} ${s.value}`).join(', ')}>
-        {slices.filter((s) => s.value > 0).map((s) => (
-          <span key={s.key} className={`sb t-${s.tone}`} style={{ flexGrow: s.value }} />
-        ))}
-      </div>
-      <dl className="sb-key">
-        {slices.map((s) => (
-          <div key={s.key}>
-            <dt><span className={`dot t-${s.tone}`} /> {s.label}</dt>
-            <dd>{s.value}</dd>
-          </div>
-        ))}
-      </dl>
-      {/* The caption is a fact about the bar, not a hope: if the slices ever
-          stopped adding up the bar would be wrong and this would say so. */}
-      <p className="rail-note">
-        {exact
-          ? `${total} tasks in all — every one of them in exactly one slice above.`
-          : `These slices do not add up to ${tasks.length}; the bar is not to be trusted.`}
-      </p>
-    </>
-  );
-}
-
-/** The week just worked, from when each task was actually finished. */
+/**
+ * The week just worked, from when each task was actually finished.
+ *
+ * The drawing carries a bar on every day of the week, including the four that
+ * had not happened yet - which reads as "you did nothing on Friday" about a
+ * Friday two days away. A day still ahead gets a hairline and no figure; a day
+ * that has passed with nothing finished gets a real 0, because those are
+ * different facts.
+ */
 function WeekBars({ tasks }) {
   const { days, peak, total } = weekActivity(tasks);
   return (
@@ -109,12 +87,90 @@ function WeekBars({ tasks }) {
   );
 }
 
+/**
+ * Task distribution: four parts of one whole, with the whole in the middle.
+ *
+ * The drawing put five slices in this ring — Open, Due today, Overdue, Added
+ * today, Completed — over a total of 514, which is those five added together.
+ * There are not 514 tasks: 349 + 13 + 25 + 41 + 86 double-counts every overdue
+ * task (it is also open) and every task that arrived today (it is also
+ * something else). A ring is a claim that the parts make the whole, and the
+ * percentages printed beside it would each be wrong.
+ *
+ * So it draws `statusSlices`, which are disjoint, and the number in the middle
+ * is the real count of tasks rather than the sum of five overlapping figures.
+ *
+ * These are status colours, which this app reserves for exactly these states
+ * and uses the same way everywhere — so identity is never carried by the
+ * colour alone: every slice has a dot, its word and its figure in the legend,
+ * and each arc carries its own title for a pointer.
+ */
+function Donut({ tasks }) {
+  const { slices, total, exact } = statusSlices(tasks);
+  if (!total) return <p className="rail-empty">No tasks yet.</p>;
+
+  const shown = slices.filter((s) => s.value > 0);
+  const R = 52;
+  const C = 2 * Math.PI * R;
+  const GAP = shown.length > 1 ? 4 : 0;   // a surface gap, so two arcs never touch
+  let at = 0;
+
+  return (
+    <div className="donut-wrap">
+      <div className="donut">
+        <svg viewBox="0 0 140 140" role="img"
+          aria-label={`${total} tasks: ${shown.map((s) => `${s.label} ${s.value}`).join(', ')}`}>
+          <circle cx="70" cy="70" r={R} className="donut-track" />
+          {shown.map((s) => {
+            const len = (s.value / total) * C;
+            const dash = Math.max(0, len - GAP);
+            const el = (
+              <circle
+                key={s.key} cx="70" cy="70" r={R}
+                className={`donut-arc t-${s.tone}`}
+                strokeDasharray={`${dash} ${C - dash}`}
+                strokeDashoffset={-at}
+              >
+                <title>{`${s.label}: ${s.value} of ${total}`}</title>
+              </circle>
+            );
+            at += len;
+            return el;
+          })}
+        </svg>
+        <span className="donut-mid">
+          <strong>{total}</strong>
+          <small>Total tasks</small>
+        </span>
+      </div>
+      <dl className="sb-key donut-key">
+        {slices.map((s) => (
+          <div key={s.key}>
+            <dt><span className={`dot t-${s.tone}`} /> {s.label}</dt>
+            <dd>
+              {s.value}
+              <span className="muted"> · {total ? Math.round((s.value / total) * 100) : 0}%</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {/* The invariant stated rather than assumed: a ring whose parts stopped
+          making the whole would be wrong, and this would say so. */}
+      <p className="rail-note">
+        {exact
+          ? 'Every task is in exactly one slice, so the parts really do make the whole.'
+          : `These slices do not add up to ${tasks.length}; the ring is not to be trusted.`}
+      </p>
+    </div>
+  );
+}
+
 /** What was finished today, and what arrived — the two halves of the day. */
-function DayList({ title, rows, icon, tone, empty, onOpen, onAll }) {
+function DayList({ title, count, rows, icon, tone, empty, onOpen, onAll }) {
   return (
     <section className="card">
       <header className="card-head">
-        <h3>{title}</h3>
+        <h3>{title} <span className="muted">({count})</span></h3>
         {onAll && rows.length > 0 && (
           <button className="link" onClick={onAll}>View all <Icon name="arrowRight" size={13} /></button>
         )}
@@ -188,77 +244,54 @@ export default function DashboardHome({
           {focus}
           <div className="home-two">
             <section className="card">
-              <header className="card-head"><h3>Task status <span className="muted">(all tasks)</span></h3></header>
-              <StatusBar tasks={tasks} />
+              <header className="card-head"><h3>Task overview <span className="muted">(finished this week)</span></h3></header>
+              <WeekBars tasks={tasks} />
             </section>
             <section className="card">
-              <header className="card-head"><h3>My activity <span className="muted">(tasks finished this week)</span></h3></header>
-              <WeekBars tasks={tasks} />
+              <header className="card-head"><h3>Task distribution <span className="muted">(all tasks)</span></h3></header>
+              <Donut tasks={tasks} />
             </section>
           </div>
         </div>
 
         <aside className="home-side">
-          <section className="card">
-            <header className="card-head">
-              <h3>{new Date().toLocaleDateString([], { weekday: 'long' })}</h3>
-              <Icon name="calendar" size={16} />
-            </header>
-            <p className="home-date">
-              {new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-            <dl className="daystats">
-              {[
-                { tone: 'info', icon: 'calendar', value: counts.dueToday, label: 'Tasks due today' },
-                { tone: 'danger', icon: 'alert', value: counts.overdue, label: 'Overdue tasks' },
-                { tone: 'ok', icon: 'check', value: counts.done, label: 'Completed tasks' },
-                { tone: 'ok', icon: 'check', value: counts.completedToday, label: 'Completed today' },
-              ].map((s) => (
-                <div key={s.label}>
-                  <span className={`ds-icon t-${s.tone}`}><Icon name={s.icon} size={15} /></span>
-                  <span className="ds-body"><strong>{s.value}</strong><small>{s.label}</small></span>
-                </div>
-              ))}
-            </dl>
-            <Progress
-              progress={summary.progress}
-              completedToday={counts.completedToday}
-              todayTotal={summary.todayTotal}
-            />
-          </section>
-
-          {/* What is coming. The drawing has no place for it, but "three
-              tomorrow, eleven this week" is a real figure and the only thing
-              on the page that looks past today. */}
-          <section className="card">
-            <header className="card-head"><h3>Upcoming</h3></header>
-            {summary.upcoming.every((u) => u.count === 0) ? (
-              <p className="rail-empty">Nothing dated in the next two weeks.</p>
-            ) : (
-              <ul className="rail-list">
-                {summary.upcoming.map((u) => (
-                  <li key={u.key}>
-                    <button className="rail-row" onClick={() => onUpcoming(u.key)}>
-                      <span className="rail-name"><Icon name="calendar" size={15} /> {u.label}</span>
-                      <span className="rail-count">{u.count} {u.count === 1 ? 'task' : 'tasks'}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
+          {/*
+            * The day's four figures sit on the calendar rather than in a card
+            * of their own: the date is beside the New Task button now, so a
+            * card whose job was to say "Wednesday" had nothing left to do.
+            */}
           {calendar}
+          <section className="card">
+          <dl className="daystats tiles">
+            {[
+              { tone: 'warn', icon: 'calendar', value: counts.dueToday, label: 'Due today' },
+              { tone: 'danger', icon: 'alert', value: counts.overdue, label: 'Overdue' },
+              { tone: 'ok', icon: 'check', value: counts.done, label: 'Completed' },
+              { tone: 'ok', icon: 'check', value: counts.completedToday, label: 'Completed today' },
+            ].map((d) => (
+              <div key={d.label}>
+                <span className={`ds-icon t-${d.tone}`}><Icon name={d.icon} size={15} /></span>
+                <span className="ds-body"><strong>{d.value}</strong><small>{d.label}</small></span>
+              </div>
+            ))}
+          </dl>
+          <Progress
+            progress={summary.progress}
+            completedToday={counts.completedToday}
+            todayTotal={summary.todayTotal}
+          />
+          </section>
+
         </aside>
       </div>
 
       <div className="home-two">
         <DayList
-          title="Completed today" rows={doneToday} icon="check" tone="ok"
+          title="Completed today" count={counts.completedToday} rows={doneToday} icon="check" tone="ok"
           empty="Nothing finished yet today." onOpen={onOpen} onAll={onCompleted}
         />
         <DayList
-          title="Added today" rows={addedToday} icon="plus" tone="brand"
+          title="Added today" count={counts.addedToday} rows={addedToday} icon="plus" tone="brand"
           empty="Nothing new has arrived today." onOpen={onOpen}
         />
       </div>

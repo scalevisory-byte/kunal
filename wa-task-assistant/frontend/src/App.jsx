@@ -1374,12 +1374,23 @@ export default function App() {
               ) : page.overview ? (
                 <div className="page-head">
                   <div>
-                    <h2>{greeting()} <span className="wave">👋</span></h2>
-                    <p>Here&rsquo;s your task overview for today.</p>
+                    <h2>
+                      {greeting()}{status?.whatsapp?.meName ? `, ${String(status.whatsapp.meName).split(' ')[0]}` : ''}!{' '}
+                      <span className="wave">👋</span>
+                    </h2>
+                    <p>Stay focused. Here&rsquo;s what&rsquo;s important today.</p>
                   </div>
-                  <button className="btn primary lg" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
-                    <span aria-hidden="true">+</span> New Task
-                  </button>
+                  <div className="page-head-right">
+                    {/* The date, beside the one button on the page rather than
+                        in a card of its own - it is one fact, not a panel. */}
+                    <span className="head-date">
+                      <small>{new Date().toLocaleDateString([], { weekday: 'long' })}</small>
+                      <strong>{new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+                    </span>
+                    <button className="btn primary lg" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
+                      <span aria-hidden="true">+</span> New Task
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="page-head">

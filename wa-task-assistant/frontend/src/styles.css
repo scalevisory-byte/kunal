@@ -5523,10 +5523,9 @@ button.due:hover { background: var(--raised); }
 .fig.t-danger .fig-body strong { color: var(--danger); }
 .fig.t-warn .fig-body strong { color: var(--warn); }
 .fig.t-ok .fig-body strong { color: var(--ok); }
-.fig-body small {
-  font-size: .76rem; color: var(--muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+/* It wraps rather than truncating: "Completed t…" is a label you have to
+   guess at, and a second line costs nothing but four pixels of card. */
+.fig-body small { font-size: .76rem; color: var(--muted); line-height: 1.25; }
 
 /* The work, beside the day. */
 .home-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(258px, 320px); gap: 16px; align-items: start; }
@@ -5657,4 +5656,67 @@ button.due:hover { background: var(--raised); }
   .home-two { grid-template-columns: minmax(0, 1fr); }
   .sb-key { grid-template-columns: minmax(0, 1fr); }
   .conn-when { margin-left: 0; text-align: left; flex-basis: 100%; }
+}
+
+/* The date, beside the one button on the page rather than in a card. */
+.head-date { display: grid; line-height: 1.25; text-align: right; }
+.head-date small { font-size: .74rem; color: var(--muted); }
+.head-date strong { font-size: .92rem; font-weight: 600; font-family: Archivo, sans-serif; }
+
+/*
+ * A figure is a doorway: the chevron says so before it is pressed.
+ *
+ * Out of the flow, in the corner. In the row it took 15px plus a gap from the
+ * label, which is what cut "Completed today" to "Completed t…" in the sixth
+ * card - and a word that has to be guessed at is worse than no chevron.
+ */
+.fig { position: relative; }
+.fig-go {
+  position: absolute; top: 10px; right: 10px;
+  color: var(--line-2); transition: color .16s, transform .16s;
+}
+.fig:hover .fig-go { color: var(--muted); transform: translateX(2px); }
+.fig-body small { padding-right: 14px; }
+
+/* The day's four figures, as tiles under the month they are about. */
+.daystats.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.daystats.tiles > div {
+  background: var(--raised); border-radius: var(--r-sm); padding: 10px 11px;
+}
+
+/*
+ * The ring. Four disjoint slices and the real total in the middle - never the
+ * five overlapping ones the drawing summed to 514.
+ *
+ * These are the app's reserved status colours, used here exactly as they are
+ * everywhere else, so identity never rests on the colour: the legend carries a
+ * dot, the word and the figure, and each arc has its own title for a pointer.
+ * The 4px dash gap is the surface showing between two arcs so they never touch.
+ */
+.donut-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+.donut { position: relative; width: 140px; flex: none; }
+.donut svg { width: 140px; height: 140px; transform: rotate(-90deg); }
+.donut circle { fill: none; stroke-width: 16; }
+.donut-track { stroke: var(--raised); }
+.donut-arc { stroke-linecap: butt; }
+.donut-arc.t-danger { stroke: var(--danger); }
+.donut-arc.t-warn { stroke: var(--warn); }
+.donut-arc.t-info { stroke: var(--info); }
+.donut-arc.t-ok { stroke: var(--ok); }
+.donut-mid {
+  position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+  line-height: 1.15; pointer-events: none;
+}
+.donut-mid strong {
+  font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.donut-mid small { font-size: .7rem; color: var(--muted); }
+.donut-key { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
+.donut-wrap > .rail-note { grid-column: 1 / -1; margin-top: 4px; }
+
+@media (max-width: 900px) {
+  .donut-wrap { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .donut-key { width: 100%; }
+  .daystats.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

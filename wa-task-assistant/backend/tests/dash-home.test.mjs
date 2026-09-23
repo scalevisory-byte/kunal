@@ -159,3 +159,48 @@ describe('every block keeps its width, except the one asked to grow', () => {
     assert.ok(!fs.existsSync(new URL('../../frontend/src/components/SideRail.jsx', import.meta.url)));
   });
 });
+
+/*
+ * The ring, from the second mockup: a donut with the total in the middle.
+ *
+ * That drawing summed five overlapping categories to "514 Total Tasks" and
+ * printed a percentage against each - 349 + 13 + 25 + 41 + 86. There are not
+ * 514 tasks: every overdue one is counted twice (it is also open) and every
+ * one that arrived today two or three times. A ring is a claim that the parts
+ * make the whole, so each of those percentages would have been wrong.
+ */
+describe('the ring is parts of a whole', () => {
+  it('puts the real count in the middle, not the sum of overlapping figures', () => {
+    const list = [
+      t(1, { due_date: yday }), t(2, { due_date: yday }),
+      t(3, { due_date: today }),
+      t(4, { due_date: '2099-01-01' }), t(5),
+      t(6, { status: 'done', completed_at: `${today} 09:00:00` }),
+    ];
+    const { total } = statusSlices(list);
+    assert.equal(total, 6, 'the middle number is not the number of tasks');
+    // The drawing's arithmetic, for contrast: open + dueToday + overdue + done
+    // counts the same tasks more than once and would read 5 + 1 + 2 + 1 = 9.
+    const open = list.filter((x) => x.status !== 'done').length;
+    const overlapping = open + 1 + 2 + 1;
+    assert.ok(overlapping > total, 'the overlapping sum is not larger, so this case proves nothing');
+  });
+
+  it('its percentages are of that total, so they come to a hundred', () => {
+    const list = [t(1, { due_date: yday }), t(2), t(3), t(4, { status: 'done', completed_at: `${today} 09:00:00` })];
+    const { slices, total } = statusSlices(list);
+    const pct = slices.map((s) => Math.round((s.value / total) * 100)).reduce((a, c) => a + c, 0);
+    assert.ok(Math.abs(pct - 100) <= 2, `percentages came to ${pct}`);
+  });
+
+  it('identity never rests on the colour alone', () => {
+    // These are the app's reserved status colours. Every slice carries a dot,
+    // its word and its figure in the legend, and each arc its own title.
+    const ring = home.slice(home.indexOf('function Donut('), home.indexOf('function DayList('));
+    assert.match(ring, /<title>/, 'an arc has no title for a pointer');
+    assert.match(ring, /className={`dot t-\$\{s\.tone\}`}/, 'the legend has no dot');
+    assert.match(ring, /\{s\.label\}/, 'the legend has no word');
+    assert.match(ring, /\{s\.value\}/, 'the legend has no figure');
+    assert.match(ring, /aria-label=/, 'the ring says nothing to a screen reader');
+  });
+});
