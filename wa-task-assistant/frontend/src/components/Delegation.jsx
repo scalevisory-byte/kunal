@@ -94,7 +94,7 @@ function Person({ person, tasks, side, actions, onNudge }) {
  * which is the one mistake this panel exists to make impossible to do by
  * accident. Groups are not offered at all: a nudge names one person.
  */
-function ChatPicker({ task, onError, onPicked }) {
+function ChatPicker({ task, onError, onPicked, quiet = false }) {
   const [term, setTerm] = useState(task.assigned_to || '');
   const [hits, setHits] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -126,10 +126,12 @@ function ChatPicker({ task, onError, onPicked }) {
 
   return (
     <div className="chat-pick">
-      <p className="banner warn prose">
-        No WhatsApp chat is known for <b>{task.assigned_to}</b> yet. Pick their chat once and
-        every task of theirs can reach them.
-      </p>
+      {!quiet && (
+        <p className="banner warn prose">
+          No WhatsApp chat is known for <b>{task.assigned_to}</b> yet. Pick their chat once and
+          every task of theirs can reach them.
+        </p>
+      )}
 
       <label className="field">
         <span>Search your chats</span>
@@ -236,14 +238,30 @@ function NudgeSheet({ task, onClose, onSent, onError, onChanged }) {
           </p>
 
           {preview && !preview.can_send && (
-            preview.wid
+            !preview.connected
               ? <p className="banner error">WhatsApp is not connected right now.</p>
               : (
-                <ChatPicker
-                  task={task}
-                  onError={onError}
-                  onPicked={() => { load(); onChanged?.(); }}
-                />
+                <>
+                  {/*
+                    * The reason, in WhatsApp's own words rather than "could not
+                    * send that right now" - which was the whole of what this
+                    * said, on a connected session, with nothing in the log
+                    * either. A wrong number and a passing blip read the same,
+                    * and neither could be acted on.
+                    */}
+                  {preview.problem && (
+                    <p className="banner error prose">
+                      {preview.problem}
+                      {' '}The chat on file is <code>{preview.wid}</code> — pick the right one below.
+                    </p>
+                  )}
+                  <ChatPicker
+                    task={task}
+                    onError={onError}
+                    onPicked={() => { load(); onChanged?.(); }}
+                    quiet={Boolean(preview.problem)}
+                  />
+                </>
               )
           )}
 

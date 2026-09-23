@@ -1679,6 +1679,61 @@ export function reminderChatId() {
   return state.me;
 }
 
+/**
+ * The id WhatsApp will actually accept for a chat, or the reason it will not.
+ *
+ * Reported as *"WhatsApp could not send that right now"* — a red line with
+ * nothing behind it, on a connected session, from the one button in this app
+ * that a person presses expecting a message to leave. The route swallowed the
+ * library's error and logged nothing, so there was no way to tell a number
+ * that is not on WhatsApp from a linked identity that cannot be addressed
+ * from one plain network blip.
+ *
+ * And the id itself was a guess. A wid built by sticking `@c.us` on some
+ * digits — which is what a typed number and a contact number stored inside a
+ * message both give — is a guess at the id WhatsApp files that person under.
+ * `getNumberId` is the answer rather than the guess, and it also says, for
+ * free, whether that number is on WhatsApp at all. A chat the library already
+ * knows needs no lookup and gets none.
+ *
+ * Deliberately not on the automatic path: this is a round trip to WhatsApp,
+ * and the reminder pass has its own rails. A person waiting on a press can
+ * afford a moment and is the one who can act on the answer.
+ *
+ * `api` is the live client by default. It is a parameter so the rules above
+ * can be tested for what they do rather than for how they are written — the
+ * one thing source-reading tests cannot check.
+ */
+export async function resolveSendable(wid, api = client) {
+  if (!api || state.status !== 'ready') {
+    return { ok: false, reason: 'WhatsApp is not connected right now.' };
+  }
+  const id = String(wid ?? '').trim();
+  if (!id) return { ok: false, reason: 'No chat was given.' };
+  if (id.endsWith('@g.us')) {
+    return { ok: false, reason: 'That is a group. A nudge names one person, so it is never sent to a group.' };
+  }
+
+  /* A chat already in the session is sendable exactly as it stands. */
+  const known = await api.getChatById(id).catch(() => null);
+  if (known) return { ok: true, wid: id };
+
+  const digits = id.split('@')[0].split(':')[0].replace(/\D/g, '');
+  if (!digits) {
+    return { ok: false, reason: `WhatsApp does not know the chat ${id}, and there is no number in it to look up.` };
+  }
+
+  const found = await api.getNumberId(digits).catch(() => null);
+  if (!found?._serialized) {
+    return {
+      ok: false,
+      reason: `+${digits} is not on WhatsApp, or this account cannot reach it. Check the number, including the country code.`,
+    };
+  }
+  /* Learnt, so the guess is replaced rather than re-made on every press. */
+  return { ok: true, wid: found._serialized, corrected: found._serialized !== id };
+}
+
 export async function sendMessage(chatId, text) {
   if (!client || state.status !== 'ready') throw new Error('WhatsApp client is not ready');
   if (!chatId) throw new Error('No reminder recipient resolved');

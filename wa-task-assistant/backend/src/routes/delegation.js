@@ -7,8 +7,9 @@ import {
 import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
 import { getSettings, nextRemindersFor } from '../scheduling.js';
-import { sendMessage, state as waState } from '../whatsapp.js';
+import { sendMessage, resolveSendable, state as waState } from '../whatsapp.js';
 import { chatForAssignee } from '../assignee-nudge.js';
+import { log } from '../logger.js';
 
 /**
  * Work between the user and other people.
@@ -105,7 +106,7 @@ delegationRouter.post('/tasks/:id/assign', (req, res) => {
  * What a nudge would say. Shown before sending, and the same string that is
  * sent - a preview that differs from the message would be a lie.
  */
-delegationRouter.get('/tasks/:id/nudge', (req, res) => {
+delegationRouter.get('/tasks/:id/nudge', async (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
   if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
@@ -123,13 +124,23 @@ delegationRouter.get('/tasks/:id/nudge', (req, res) => {
    * pressed could not. One rule for both now, and it is the engine's.
    */
   const wid = chatForAssignee(task);
+  /*
+   * And the chat is checked here, not only on the press.
+   *
+   * A Send button that is enabled and then fails is worse than one that was
+   * never offered: the message looks sent. So if WhatsApp will not take this
+   * chat, the sheet says so with the reason while there is still something to
+   * do about it.
+   */
+  const target = wid && waState.status === 'ready' ? await resolveSendable(wid) : null;
   res.json({
     to: task.assigned_to,
     wid,
     text: followUpText(task),
     // The button is honest about being unable to send when it cannot.
-    can_send: Boolean(wid) && waState.status === 'ready',
+    can_send: Boolean(target?.ok),
     connected: waState.status === 'ready',
+    problem: wid && target && !target.ok ? target.reason : null,
   });
 });
 
@@ -192,11 +203,38 @@ delegationRouter.post('/tasks/:id/nudge', async (req, res) => {
     return res.status(400).json({ error: 'no WhatsApp chat is known for this person' });
   }
 
+  /*
+   * Ask WhatsApp for the real id before sending, and say what it answers.
+   *
+   * "WhatsApp could not send that right now" was the whole of what this route
+   * told anybody, on a connected session, with nothing written to the log
+   * either - so a number that is not on WhatsApp, a linked identity that
+   * cannot be addressed, and a passing blip all read the same and none of
+   * them could be acted on.
+   */
+  const target = await resolveSendable(chat);
+  if (!target.ok) {
+    log.warn(`Nudge to ${task.assigned_to} (${chat}) not sent: ${target.reason}`);
+    return res.status(400).json({ error: target.reason });
+  }
+  /* The corrected id replaces the guess, on the task and on the staff list,
+     so the lookup happens once rather than on every press. */
+  if (target.corrected) {
+    assignTask(task.id, task.assigned_to, target.wid);
+    addStaff(task.assigned_to, { wid: target.wid });
+    log.info(`Corrected ${task.assigned_to}'s chat: ${chat} -> ${target.wid}`);
+  }
+
   const text = String(req.body?.text || followUpText(task)).slice(0, 1000);
   try {
-    await sendMessage(chat, text);
+    await sendMessage(target.wid, text);
   } catch (err) {
-    return res.status(503).json({ error: 'WhatsApp could not send that right now' });
+    /* The library's own words, logged in full and passed on in short. A
+       failure nobody can read is a failure nobody can fix. */
+    log.error(`Nudge to ${task.assigned_to} (${target.wid}) failed:`, err?.message || err);
+    return res.status(503).json({
+      error: `WhatsApp refused to send that: ${String(err?.message || err).slice(0, 200)}`,
+    });
   }
   recordEvent(task.id, EVENT.nudgeSent, task.assigned_to, { text });
   res.json({ sent: true, to: task.assigned_to, text });

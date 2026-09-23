@@ -91,22 +91,37 @@ describe('nothing automatic reaches somebody else', () => {
        * the point. Reading that column directly is what made the Nudge button
        * unable to reach somebody whose number was added after the task was
        * handed over — while the engine, reading the line below, could.
+       *
+       * `target.wid` is that same chat after WhatsApp has been asked for the
+       * id it really files the person under — a second hop from `chat`, never
+       * a second source. The chain is pinned below rather than taken on
+       * trust, because a guard on a variable name guards nothing.
        */
       'chat',
+      'target.wid',
     ]);
     for (const t of targets) {
       assert.ok(allowed.has(t.arg), `${t.file} sends to ${t.arg}, which is not on the list`);
     }
   });
 
-  it('and `chat` is never anything but the one resolver', () => {
+  it('and those names are never anything but the one chain', () => {
     // The name is only as good as what is behind it, in every file that uses
     // it — otherwise this whole list is guarding a variable name.
     for (const file of ['assignee-nudge.js', path.join('routes', 'delegation.js')]) {
       const text = fs.readFileSync(path.join(src, file), 'utf8');
-      if (!/sendMessage\(\s*chat\b/.test(text)) continue;
-      assert.match(text, /const chat = chatForAssignee\(task\)/,
-        `${file} sends to \`chat\` without resolving it through chatForAssignee`);
+      if (/sendMessage\(\s*chat\b/.test(text)) {
+        assert.match(text, /const chat = chatForAssignee\(task\)/,
+          `${file} sends to \`chat\` without resolving it through chatForAssignee`);
+      }
+      if (/sendMessage\(\s*target\.wid\b/.test(text)) {
+        // One hop further, and the hop must be the resolver - not a body
+        // field, not a query parameter, not a name looked up somewhere else.
+        assert.match(text, /const target = await resolveSendable\(chat\)/,
+          `${file} sends to \`target.wid\` without resolving it from chat`);
+        assert.match(text, /const chat = chatForAssignee\(task\)/,
+          `${file} resolves a chat that did not come from chatForAssignee`);
+      }
     }
   });
 
@@ -122,7 +137,7 @@ describe('nothing automatic reaches somebody else', () => {
     /* The Nudge is a route, so it is reached by a person. Everything else that
        can address another chat must be the one bounded file - if a second one
        appears, these rails have been copied and one copy will fall behind. */
-    const automatic = targets.filter((t) => t.arg === 'chat');
+    const automatic = targets.filter((t) => t.arg === 'chat' || t.arg === 'target.wid');
     const files = new Set(automatic.map((t) => t.file));
     assert.deepEqual([...files].sort(), ['assignee-nudge.js', 'delegation.js']);
   });
