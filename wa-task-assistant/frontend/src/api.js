@@ -142,6 +142,13 @@ export const api = {
     request(`/delegation/tasks/${taskId}/nudge`, {
       method: 'POST', body: JSON.stringify({ text }),
     }),
+  // Chats this app has already seen, so "which Nidhi?" is answered by picking
+  // a name rather than by typing a phone number from memory.
+  findChats: (q) => request(`/delegation/chats?q=${encodeURIComponent(q)}`),
+  setAssigneeChat: (taskId, wid) =>
+    request(`/delegation/tasks/${taskId}/chat`, {
+      method: 'POST', body: JSON.stringify({ wid }),
+    }),
 
   history: (params = {}) => {
     const query = Object.entries(params)

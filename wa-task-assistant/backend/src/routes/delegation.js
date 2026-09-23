@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getTask, listTasks } from '../db.js';
+import { getTask, listTasks, findChats } from '../db.js';
 import {
   delegates, requesters, delegationCounts, assignTask, followUpText, directionOf,
   listStaff, addStaff, removeStaff,
@@ -8,6 +8,7 @@ import { EVENT, recordEvent, lastActivityFor } from '../task-events.js';
 import { taskSchedule } from '../task-lifecycle.js';
 import { getSettings, nextRemindersFor } from '../scheduling.js';
 import { sendMessage, state as waState } from '../whatsapp.js';
+import { chatForAssignee } from '../assignee-nudge.js';
 
 /**
  * Work between the user and other people.
@@ -108,13 +109,70 @@ delegationRouter.get('/tasks/:id/nudge', (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
   if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
+  /*
+   * The chat comes from `chatForAssignee`, not from the task's own column.
+   *
+   * Reported as "unable to send msg", and the dead end was worse than it
+   * looked. A task given by typing a name carries no wid, so the button said
+   * "no WhatsApp chat is known for Nidhi" - and putting her number on the
+   * Staff list afterwards did not help, because this route never read it.
+   * Nothing would have, ever: the wid is copied onto the task when the work is
+   * handed over, so a number learnt later could not reach a task already
+   * given. Meanwhile the automatic reminder resolved through the staff list
+   * happily, so the app could message her on its own while the button a person
+   * pressed could not. One rule for both now, and it is the engine's.
+   */
+  const wid = chatForAssignee(task);
   res.json({
     to: task.assigned_to,
-    wid: task.assigned_to_wid,
+    wid,
     text: followUpText(task),
     // The button is honest about being unable to send when it cannot.
-    can_send: Boolean(task.assigned_to_wid) && waState.status === 'ready',
+    can_send: Boolean(wid) && waState.status === 'ready',
+    connected: waState.status === 'ready',
   });
+});
+
+/**
+ * Chats this app has seen, to answer "which Nidhi?".
+ *
+ * Only ever reached from the picker below, and it hands back names and numbers
+ * of one-to-one chats - never a group, never a message body, and never a chat
+ * this app has not actually seen. See `findChats`.
+ */
+delegationRouter.get('/chats', (req, res) => {
+  res.json({ chats: findChats(req.query.q, 8) });
+});
+
+/**
+ * Say which chat a person is, once, and mean it everywhere.
+ *
+ * It writes to the task *and* to the staff list, deliberately: the task so
+ * this nudge can go now, the list so every other task of theirs - and the
+ * automatic reminder, which reads the same list - knows it too. Answering the
+ * question twice for the same person is how it stops being answered.
+ */
+delegationRouter.post('/tasks/:id/chat', (req, res) => {
+  const task = getTask(Number(req.params.id));
+  if (!task) return res.status(404).json({ error: 'not found' });
+  if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
+
+  const wid = String(req.body?.wid ?? '').trim();
+  /*
+   * Either a chat id this app has seen, or a plain number typed by hand.
+   * A group is refused outright - a nudge names one person and says what they
+   * owe; sending that to twenty people is a different act entirely.
+   */
+  if (wid.endsWith('@g.us')) return res.status(400).json({ error: 'a nudge cannot go to a group' });
+  const digits = wid.replace(/\D/g, '');
+  const picked = wid.includes('@')
+    ? wid
+    : (digits.length >= 8 && digits.length <= 15 ? `${digits}@c.us` : null);
+  if (!picked) return res.status(400).json({ error: 'that does not look like a WhatsApp number' });
+
+  assignTask(task.id, task.assigned_to, picked);
+  addStaff(task.assigned_to, { wid: picked, number: digits || null });
+  res.json({ ...getTask(task.id), wid: picked });
 });
 
 /**
@@ -127,13 +185,16 @@ delegationRouter.post('/tasks/:id/nudge', async (req, res) => {
   const task = getTask(Number(req.params.id));
   if (!task) return res.status(404).json({ error: 'not found' });
   if (!task.assigned_to) return res.status(400).json({ error: 'this task is not assigned to anybody' });
-  if (!task.assigned_to_wid) {
+  // The same rule the preview showed and the engine uses - task first, then
+  // the staff list. A person who is on neither is not messaged.
+  const chat = chatForAssignee(task);
+  if (!chat) {
     return res.status(400).json({ error: 'no WhatsApp chat is known for this person' });
   }
 
   const text = String(req.body?.text || followUpText(task)).slice(0, 1000);
   try {
-    await sendMessage(task.assigned_to_wid, text);
+    await sendMessage(chat, text);
   } catch (err) {
     return res.status(503).json({ error: 'WhatsApp could not send that right now' });
   }

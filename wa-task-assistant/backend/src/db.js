@@ -4,6 +4,7 @@ import { unshout } from './titlecase.js';
 import { log } from './logger.js';
 import { numberOrNull } from './dates.js';
 import { patternWouldDrop } from './blocklist.js';
+import { isRawId, phoneFromWid } from './wid.js';
 
 export const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
@@ -482,6 +483,78 @@ export function cacheReach(days = 30, windowMinutes = 5) {
     /* Null rather than 0 with nothing to divide: no runs is not a 0% hit rate. */
     rate: runs > 1 ? warm / (runs - 1) : null,
   };
+}
+
+/**
+ * One-to-one chats this app has actually seen, matched by name or number.
+ *
+ * It exists because of a dead end: a task handed to "Nidhi" carries her name
+ * and nothing else, so the Nudge button had no chat to send to and the only
+ * cure on offer was to type her phone number from memory. The number is
+ * already here - she has been writing to him for months - and the thing he
+ * recognises is the name on the chat, not fifteen digits.
+ *
+ * Three rules it will not bend on, because this is the one lookup that decides
+ * where a message goes:
+ *
+ *   - **Never a group.** A nudge is to one person; a group chat is an audience.
+ *   - **Only chats already recorded.** Nothing is guessed, invented or fetched
+ *     from WhatsApp - if this app has never seen the chat, it does not offer it.
+ *   - **It never picks.** It returns candidates in the order most recently
+ *     written in; a person chooses. Deciding "Nidhi means this Nidhi" alone is
+ *     how a message reaches a stranger.
+ *
+ * Names and numbers only. No message body ever leaves through here.
+ */
+export function findChats(query, limit = 8) {
+  const q = String(query ?? '').trim();
+  if (q.length < 2) return [];
+  /* A number typed with spaces, +, or dashes is the same number. */
+  const digits = q.replace(/\D/g, '');
+  const like = `%${q.toLowerCase()}%`;
+
+  const rows = db
+    .prepare(
+      `SELECT m.chat_id                       AS id,
+              MAX(m.chat_name)                AS chat_name,
+              MAX(m.contact_name)             AS contact_name,
+              MAX(m.contact_number)           AS number,
+              COUNT(*)                        AS messages,
+              MAX(m.sent_at)                  AS last_at
+       FROM messages m
+       WHERE m.is_group = 0
+         AND m.chat_id NOT LIKE '%@g.us'
+         AND m.chat_id != ''
+         AND (LOWER(IFNULL(m.chat_name, '')) LIKE ?
+              OR LOWER(IFNULL(m.contact_name, '')) LIKE ?
+              OR (LENGTH(?) >= 4 AND (
+                   REPLACE(IFNULL(m.contact_number, ''), ' ', '') LIKE ?
+                   OR m.chat_id LIKE ?)))
+       GROUP BY m.chat_id
+       ORDER BY last_at DESC
+       LIMIT ?`
+    )
+    .all(like, like, digits, `%${digits}%`, `%${digits}%`,
+         Math.min(Number(limit) || 8, 25));
+
+  return rows.map((row) => {
+    /*
+     * The name to show, and never an id wearing one.
+     *
+     * WhatsApp files plenty of chats under the bare number, and a lid under
+     * something no human reads. `isRawId` is the app's one rule for that, so a
+     * row with nothing better says so rather than offering "202383321759941"
+     * as a person to message.
+     */
+    const named = [row.chat_name, row.contact_name].find((v) => v && !isRawId(v)) || null;
+    return {
+      id: row.id,
+      name: named,
+      number: row.number || phoneFromWid(row.id),
+      messages: row.messages,
+      last_at: row.last_at,
+    };
+  });
 }
 
 /**

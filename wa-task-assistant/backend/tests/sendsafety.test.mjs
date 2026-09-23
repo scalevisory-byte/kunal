@@ -80,19 +80,33 @@ describe('nothing automatic reaches somebody else', () => {
       // The chat a command arrived in - and handleCommand refuses to act
       // unless that chat IS his own, which the next test pins down.
       'chatId',
-      // The Nudge button. No cron, no pass, no extractor can reach it; a
-      // person presses it.
-      'task.assigned_to_wid',
       /*
-       * The second exception, added deliberately: the engine chasing whoever
-       * the task was given to. `chat` here is chatForAssignee(task), which
-       * resolves only from the task's own stored id or the Staff list, and
-       * every rail around it lives in that one file.
+       * The person a task was given to — the engine chasing them, and the
+       * Nudge button a person presses. Both send to `chat`, and in both places
+       * `chat` is chatForAssignee(task), which is pinned below: it resolves
+       * only from the task's own stored id or the Staff list, never from a
+       * name, and every rail around the automatic half lives in one file.
+       *
+       * `task.assigned_to_wid` used to be on this list, and taking it off is
+       * the point. Reading that column directly is what made the Nudge button
+       * unable to reach somebody whose number was added after the task was
+       * handed over — while the engine, reading the line below, could.
        */
       'chat',
     ]);
     for (const t of targets) {
       assert.ok(allowed.has(t.arg), `${t.file} sends to ${t.arg}, which is not on the list`);
+    }
+  });
+
+  it('and `chat` is never anything but the one resolver', () => {
+    // The name is only as good as what is behind it, in every file that uses
+    // it — otherwise this whole list is guarding a variable name.
+    for (const file of ['assignee-nudge.js', path.join('routes', 'delegation.js')]) {
+      const text = fs.readFileSync(path.join(src, file), 'utf8');
+      if (!/sendMessage\(\s*chat\b/.test(text)) continue;
+      assert.match(text, /const chat = chatForAssignee\(task\)/,
+        `${file} sends to \`chat\` without resolving it through chatForAssignee`);
     }
   });
 
@@ -108,7 +122,7 @@ describe('nothing automatic reaches somebody else', () => {
     /* The Nudge is a route, so it is reached by a person. Everything else that
        can address another chat must be the one bounded file - if a second one
        appears, these rails have been copied and one copy will fall behind. */
-    const automatic = targets.filter((t) => t.arg === 'chat' || t.arg === 'task.assigned_to_wid');
+    const automatic = targets.filter((t) => t.arg === 'chat');
     const files = new Set(automatic.map((t) => t.file));
     assert.deepEqual([...files].sort(), ['assignee-nudge.js', 'delegation.js']);
   });

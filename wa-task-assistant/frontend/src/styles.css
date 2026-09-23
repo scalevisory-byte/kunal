@@ -3646,6 +3646,29 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .al-follow { display: inline-flex; align-items: center; gap: 4px; }
 .al-activity { font-size: .71rem; }
 /*
+ * "Which chat is Nidhi?" - the picker inside the nudge sheet.
+ *
+ * Each row is one chat, and the number under the name is what tells two people
+ * of the same name apart. It is the last thing read before a message goes to
+ * somebody, so it is set as a list of people, not as a dropdown of strings.
+ */
+.chat-pick { display: flex; flex-direction: column; gap: 10px; }
+.chat-pick .banner { margin: 0; }
+.chat-pick .hint { margin: 0; }
+.chat-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.chat-hits button {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  padding: 8px 11px; text-align: left;
+  border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  background: var(--card); font: inherit; cursor: pointer;
+  transition: background .16s, border-color .16s;
+}
+.chat-hits button:hover:not(:disabled) { border-color: var(--brand); background: var(--raised); }
+.chat-hits button:disabled { opacity: .6; cursor: default; }
+.ch-name { font-size: .86rem; font-weight: 600; color: var(--text); }
+.ch-meta { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/*
  * The row's actions, together.
  *
  * Nudge was alone here and Delete joins it, so both are one control group

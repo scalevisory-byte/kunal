@@ -75,24 +75,127 @@ function Person({ person, tasks, side, actions, onNudge }) {
 }
 
 /**
+ * "Which chat is Nidhi?"
+ *
+ * Reported as *"unable to send msg"*. A task handed over by typing a name
+ * carries the name and nothing else, so the button had no chat to send to -
+ * and the old answer, a red line saying so, left him with one road: find her
+ * number, go to another page, type fifteen digits. Meanwhile his phone has had
+ * her chat open for months.
+ *
+ * So the question is asked where it arises, and answered with what the app
+ * already knows: the one-to-one chats it has actually seen, searched by the
+ * name he would recognise. A number can still be typed, for somebody who has
+ * never written to him.
+ *
+ * **It never guesses.** Typing "nidhi" offers every Nidhi it has seen, most
+ * recent first, with the number under each - and nothing is sent until one is
+ * chosen. Picking the wrong chat here sends a person's work to a stranger,
+ * which is the one mistake this panel exists to make impossible to do by
+ * accident. Groups are not offered at all: a nudge names one person.
+ */
+function ChatPicker({ task, onError, onPicked }) {
+  const [term, setTerm] = useState(task.assigned_to || '');
+  const [hits, setHits] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  /* Search as he types, a beat behind, so it does not fire on every key. */
+  useEffect(() => {
+    const q = term.trim();
+    if (q.length < 2) { setHits(null); return undefined; }
+    const timer = setTimeout(() => {
+      api.findChats(q).then((d) => setHits(d.chats)).catch(() => setHits([]));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [term]);
+
+  const choose = async (wid) => {
+    setBusy(true);
+    try {
+      await api.setAssigneeChat(task.id, wid);
+      onPicked();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const digits = term.replace(/\D/g, '');
+  const couldBeNumber = digits.length >= 8 && digits.length <= 15;
+
+  return (
+    <div className="chat-pick">
+      <p className="banner warn prose">
+        No WhatsApp chat is known for <b>{task.assigned_to}</b> yet. Pick their chat once and
+        every task of theirs can reach them.
+      </p>
+
+      <label className="field">
+        <span>Search your chats</span>
+        <input
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          placeholder="Name or number"
+          autoFocus
+        />
+      </label>
+
+      {hits === null ? (
+        <p className="hint">Type at least two letters of the name as it appears in WhatsApp.</p>
+      ) : hits.length === 0 ? (
+        <p className="hint">
+          No chat here matches “{term.trim()}”. This app only offers chats it has actually
+          seen — if they have never written to you, type their number instead.
+        </p>
+      ) : (
+        <ul className="chat-hits">
+          {hits.map((chat) => (
+            <li key={chat.id}>
+              <button disabled={busy} onClick={() => choose(chat.id)}>
+                <span className="ch-name">{chat.name || <i>Unnamed chat</i>}</span>
+                <span className="ch-meta">
+                  {chat.number || chat.id}
+                  {chat.messages ? ` · ${chat.messages} message${chat.messages === 1 ? '' : 's'}` : ''}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {couldBeNumber && (
+        <button className="btn ghost small" disabled={busy} onClick={() => choose(digits)}>
+          Use the number {digits}
+        </button>
+      )}
+
+      <p className="field-note">
+        Saved against {task.assigned_to} on the staff list too, so you are asked this once.
+      </p>
+    </div>
+  );
+}
+
+/**
  * The nudge, shown in full before it goes anywhere.
  *
  * The text is editable and is exactly what gets sent - a preview that differed
  * from the message would be worse than no preview. Sending happens on this
  * button and nowhere else in the app.
  */
-function NudgeSheet({ task, onClose, onSent, onError }) {
+function NudgeSheet({ task, onClose, onSent, onError, onChanged }) {
   const [preview, setPreview] = useState(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let live = true;
+  const load = useCallback(() => {
     api.nudgePreview(task.id)
-      .then((p) => { if (live) { setPreview(p); setText(p.text); } })
+      .then((p) => { setPreview(p); setText((t) => t || p.text); })
       .catch(onError);
-    return () => { live = false; };
   }, [task.id, onError]);
+
+  useEffect(() => { load(); }, [load]);
 
   const send = async () => {
     setBusy(true);
@@ -132,18 +235,22 @@ function NudgeSheet({ task, onClose, onSent, onError }) {
             to you, never to them.
           </p>
 
+          {preview && !preview.can_send && (
+            preview.wid
+              ? <p className="banner error">WhatsApp is not connected right now.</p>
+              : (
+                <ChatPicker
+                  task={task}
+                  onError={onError}
+                  onPicked={() => { load(); onChanged?.(); }}
+                />
+              )
+          )}
+
           <label className="field">
             <span>Message</span>
             <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} />
           </label>
-
-          {preview && !preview.can_send && (
-            <p className="banner error">
-              {preview.wid
-                ? 'WhatsApp is not connected right now.'
-                : `No WhatsApp chat is known for ${task.assigned_to}. A task captured from a chat carries one; this one was typed by hand.`}
-            </p>
-          )}
         </div>
 
         <footer className="sheet-foot">
@@ -865,6 +972,7 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
           onClose={() => setNudging(null)}
           onSent={() => { setSent(nudging.assigned_to); setNudging(null); load(); }}
           onError={onError}
+          onChanged={() => { load(); onChanged?.(); }}
         />
       )}
     </div>
