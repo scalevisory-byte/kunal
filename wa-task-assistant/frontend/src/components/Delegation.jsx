@@ -444,8 +444,131 @@ function RemoveButton({ task, onDelete }) {
   );
 }
 
+/**
+ * The deadline, set from the row.
+ *
+ * Asked as *"hua abhi auto kese hoga"* — the pressed nudge had just worked, so
+ * the question was what makes the next one happen by itself. The answer was
+ * sitting on every row of that page in grey text: **No deadline**.
+ *
+ * The automatic reminder hangs off the deadline. The engine's pass reads
+ * `tasksWithDeadlines()`, a task with neither `due_at` nor `due_date` is not in
+ * it, so no deadline reminder and no follow-up is ever built — and the assignee
+ * nudge rides those two and nothing else. Seven tasks with nobody chasing them,
+ * a switch that was correctly on, and no reason anywhere on the screen.
+ *
+ * So the deadline stops being a fact printed on the row and becomes the control
+ * that sets it. Two presses for the common cases; a date and a time for the
+ * rest. `due_at` and `due_date` are written together, because the day is
+ * derived from the moment unless the caller says otherwise.
+ */
+function DeadlineButton({ task, onDeadline }) {
+  /*
+   * `at` holds where the menu goes, and its presence is what "open" means.
+   *
+   * It is rendered onto the body, not beside the button: the pipeline is a
+   * horizontally scrolling strip (`.al-board { overflow-x: auto }`), and a
+   * menu inside a scroll container is clipped by it - which is exactly how
+   * this first shipped, with "Today, 6pm" sliced in half by the edge of the
+   * card. The same reason the nudge sheet is a portal.
+   */
+  const [at, setAt] = useState(null);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('18:00');
+  const open = Boolean(at);
+  if (!onDeadline) {
+    return task.due_at
+      ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>{when(task.due_at)}</span>
+      : <span className="muted">No deadline</span>;
+  }
+
+  const day = (offset) => {
+    const at = new Date();
+    at.setDate(at.getDate() + offset);
+    return at.toLocaleDateString('en-CA');
+  };
+  const set = (isoDay, clock) => {
+    setAt(null);
+    onDeadline(task, isoDay, clock || '18:00');
+  };
+
+  const place = (event) => {
+    if (open) return setAt(null);
+    const box = event.currentTarget.getBoundingClientRect();
+    /* Kept inside the window: 210px of menu hanging off the edge of a phone is
+       the same as no menu. Sideways is decided here, because the width is
+       known; the height is not, so it is corrected below. */
+    const width = 210;
+    setAt({
+      top: box.bottom + 4,
+      left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)),
+      width,
+      above: box.top,
+    });
+  };
+
+  /*
+   * Measured, not guessed.
+   *
+   * The first version clamped against a hard-coded 190px of menu; the menu is
+   * 202 with the Clear item, so on a 844px phone it ran 12px off the bottom.
+   * A height that changes with the contents cannot be a constant, so the menu
+   * is measured once it exists and flipped above the row when it does not fit
+   * below - which is what a row near the bottom of a long list always is.
+   */
+  const fit = useCallback((node) => {
+    if (!node || !at) return;
+    const height = node.getBoundingClientRect().height;
+    const room = window.innerHeight - 8;
+    if (at.top + height <= room) return;
+    const flipped = at.above - height - 4;
+    const top = flipped >= 8 ? flipped : Math.max(8, room - height);
+    if (Math.abs(top - at.top) > 1) setAt((now) => (now ? { ...now, top } : now));
+  }, [at]);
+
+  return (
+    <span className="deadline-pick">
+      <button
+        className={`deadline-btn ${task.due_at ? '' : 'none'} ${task.state === 'overdue' ? 'danger-text' : ''}`}
+        onClick={place}
+        title={task.due_at ? 'Change the deadline' : 'Nothing is chased automatically without one'}
+      >
+        {task.due_at ? when(task.due_at) : 'Set a deadline'}
+      </button>
+
+      {open && createPortal(
+        <>
+          <span className="menu-scrim" onClick={() => setAt(null)} role="presentation" />
+          <div
+            className="menu due-menu floating"
+            role="menu"
+            ref={fit}
+            style={{ top: at.top, left: at.left, width: at.width }}
+          >
+            <button onClick={() => set(day(0))}>Today, 6pm</button>
+            <button onClick={() => set(day(1))}>Tomorrow, 6pm</button>
+            <div className="due-exact">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <button className="btn primary small" disabled={!date} onClick={() => set(date, time)}>
+                Set
+              </button>
+            </div>
+            {task.due_at && (
+              <button className="danger" onClick={() => { setAt(null); onDeadline(task, null); }}>
+                No deadline
+              </button>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 /** One delegated task, the same card in both views. */
-function Card({ task, onOpen, onNudge, onDelete, people, onAssign }) {
+function Card({ task, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
   const activity = lastActivityLabel(task);
   return (
     <li className="al-card">
@@ -464,9 +587,7 @@ function Card({ task, onOpen, onNudge, onDelete, people, onAssign }) {
         {task.group_name && <span className="al-group">{task.group_name}</span>}
       </p>
       <p className="al-facts">
-        {task.due_at
-          ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>Due {when(task.due_at)}</span>
-          : <span className="muted">No deadline</span>}
+        <DeadlineButton task={task} onDeadline={onDeadline} />
         {task.next_follow_up_at && task.state === 'overdue' && (
           <span className="al-follow"><Icon name="refresh" size={11} /> {when(task.next_follow_up_at)}</span>
         )}
@@ -497,7 +618,7 @@ function Card({ task, onOpen, onNudge, onDelete, people, onAssign }) {
  * task moves between columns because the facts changed, not because somebody
  * dragged it.
  */
-function Board({ stages, onOpen, onNudge, onDelete, people, onAssign }) {
+function Board({ stages, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
   return (
     <div className="al-board">
       {stages.map((stage) => (
@@ -511,7 +632,8 @@ function Board({ stages, onOpen, onNudge, onDelete, people, onAssign }) {
             : <ul className="al-list">
                 {stage.items.map((t) => (
                   <Card key={t.id} task={t} onOpen={onOpen} onNudge={onNudge}
-                    onDelete={onDelete} people={people} onAssign={onAssign} />
+                    onDelete={onDelete} onDeadline={onDeadline}
+                    people={people} onAssign={onAssign} />
                 ))}
               </ul>}
         </section>
@@ -521,7 +643,7 @@ function Board({ stages, onOpen, onNudge, onDelete, people, onAssign }) {
 }
 
 /** The same work as rows, for reading down rather than across. */
-function Rows({ tasks, onOpen, onNudge, onDelete, people, onAssign }) {
+function Rows({ tasks, onOpen, onNudge, onDelete, onDeadline, people, onAssign }) {
   if (!tasks.length) return <p className="board-empty">Nothing in this stage.</p>;
   return (
     <ul className="al-rows">
@@ -544,9 +666,7 @@ function Rows({ tasks, onOpen, onNudge, onDelete, people, onAssign }) {
             </div>
             <span className={`al-stage s-${stage.key}`}>{stage.label}</span>
             <span className="al-row-due">
-              {task.due_at
-                ? <span className={task.state === 'overdue' ? 'danger-text' : ''}>{when(task.due_at)}</span>
-                : <span className="muted">No deadline</span>}
+              <DeadlineButton task={task} onDeadline={onDeadline} />
             </span>
             <span className="al-acts">
               {task.status !== 'done' && (
@@ -755,6 +875,20 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
      * dialog asks before the mistake and an undo fixes it after, and only one
      * of those costs a click on every row you meant to remove.
      */
+    /*
+     * Setting the deadline from the row, which is what starts the chasing.
+     *
+     * Both columns go together: `due_at` is the moment the engine builds the
+     * ladder from, `due_date` is the plain day the board files it under, and
+     * clearing `due_at` alone would take the day with it.
+     */
+    onDeadline: (task, isoDay, clock = '18:00') => {
+      if (!isoDay) return patch(task.id, { due_date: null, due_at: null });
+      return patch(task.id, {
+        due_date: isoDay,
+        due_at: new Date(`${isoDay}T${clock}:00`).toISOString(),
+      });
+    },
     onDelete: async (task) => {
       try {
         await api.deleteTask(task.id);
@@ -793,6 +927,9 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
   const stages = pipeline(scoped);
   const counts = stageCounts(scoped);
   const pipelinePeople = peopleFrom(tasks);
+  /* Counted over the same rows the page shows, so the line and the list can
+     never disagree. Finished work needs no deadline and is not counted. */
+  const undated = tasks.filter((t) => t.status !== 'done' && !t.due_at && !t.due_date).length;
   const pickView = (next) => {
     setView(next);
     try { localStorage.setItem(VIEW_STORE, next); } catch { /* private window */ }
@@ -831,6 +968,25 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
           {typeof wa.ownSeen === 'number' && wa.ownSeen !== wa.ownSeenEver && ` (${wa.ownSeen} since this server started)`}
           {' · '}handed to somebody by Claude: <b>{wa.delegatedEver ?? 0}</b>
           {!wa.ownSeenEver && ' — nothing you have written has been read at all, which is a connection problem rather than a wording one.'}
+        </p>
+      )}
+
+      {/*
+        * The one thing standing between this page and the automatic reminder.
+        *
+        * "hua abhi auto kese hoga" was asked over seven rows that every one of
+        * them said "No deadline" on. The switch was on, the numbers were
+        * stored, and nothing would ever have gone out - because the engine
+        * builds its ladder from the deadline, and the assignee nudge rides
+        * that ladder. A feature that cannot fire and says nothing about why is
+        * indistinguishable from one that is broken.
+        */}
+      {side === 'allotted' && undated > 0 && (
+        <p className="banner warn prose deleg-undated">
+          <b>{undated}</b> of these {undated === 1 ? 'has' : 'have'} no deadline, so nobody is
+          chased about {undated === 1 ? 'it' : 'them'} automatically — the reminder is built from
+          the deadline. Press <b>Set a deadline</b> on the row and the app takes it from there:
+          one message on the day, one follow-up if it is still not done, and then it stops.
         </p>
       )}
 
@@ -927,9 +1083,11 @@ export default function Delegation({ side, onOpenTask, onError, onChanged, wa })
           {view === 'pipeline'
             ? <Board stages={stage ? stages.filter((s) => s.key === stage) : stages}
                      onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
+                     onDeadline={actions.onDeadline}
                      people={actions.people} onAssign={actions.onAssign} />
             : <Rows tasks={stage ? stages.find((s) => s.key === stage).items : scoped}
                     onOpen={actions.onOpen} onNudge={setNudging} onDelete={actions.onDelete}
+                    onDeadline={actions.onDeadline}
                     people={actions.people} onAssign={actions.onAssign} />}
         </>
       )}

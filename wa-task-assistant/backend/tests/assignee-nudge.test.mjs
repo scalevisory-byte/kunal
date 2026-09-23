@@ -169,3 +169,59 @@ describe('the switch', () => {
     assert.match(src, /nudgeAssignee: false,/);
   });
 });
+
+
+/*
+ * The thing that decides whether any of the above ever happens.
+ *
+ * Asked as *"hua abhi auto kese hoga"* — the pressed nudge had just gone out,
+ * so the question was what makes the next one happen by itself. The answer was
+ * printed in grey on all seven rows of that page: **No deadline**.
+ *
+ * The engine builds its ladder from the deadline, the assignee nudge rides two
+ * rungs of that ladder and nothing else, so a task with neither `due_at` nor
+ * `due_date` can never produce one. Switch on, numbers stored, nothing would
+ * ever have been sent — and nothing on the screen said why. A feature that
+ * cannot fire and is silent about it is indistinguishable from a broken one.
+ */
+describe('nothing is chased automatically without a deadline', () => {
+  it('a task with no deadline is not in the engine\'s pass at all', async () => {
+    const { tasksWithDeadlines } = await import('../src/task-lifecycle.js');
+    const t = given('Meera', { assigned_to_wid: '919825033333@c.us' });
+    assert.ok(!t.due_at && !t.due_date, 'this is the state every row was in');
+    assert.ok(!tasksWithDeadlines().some((row) => row.id === t.id));
+  });
+
+  it('and giving it one puts it there, which is what starts the chasing', async () => {
+    const { tasksWithDeadlines } = await import('../src/task-lifecycle.js');
+    const t = given('Meera', { assigned_to_wid: '919825033333@c.us' });
+    updateTask(t.id, { due_date: '2026-09-24', due_at: '2026-09-24T12:30:00.000Z' });
+    assert.ok(tasksWithDeadlines().some((row) => row.id === t.id));
+    // And the rails still decide the rest: this is the entry ticket, not a
+    // licence to message.
+    assert.equal(whyNot(getTask(t.id), 'due', ON, DAY), null);
+  });
+
+  it('the page says so, over the rows it is true of', () => {
+    const src = fs.readFileSync(
+      new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+    assert.match(src, /const undated = tasks\.filter/, 'counted from the rows on screen');
+    assert.match(src, /status !== 'done' && !t\.due_at && !t\.due_date/,
+      'finished work needs no deadline and is not counted');
+    assert.match(src, /undated > 0 &&/, 'and the line is not shown when it is not true');
+    // The way out is on the row, not on another page.
+    assert.match(src, /function DeadlineButton/);
+    assert.match(src, /Set a deadline/);
+  });
+
+  it('setting it from the row writes both columns', () => {
+    // `due_at` is the moment the ladder is built from; `due_date` is the day
+    // the board files it under. Clearing one alone takes the other with it.
+    const src = fs.readFileSync(
+      new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+    const fn = src.slice(src.indexOf('onDeadline: (task'), src.indexOf('onDelete: async'));
+    assert.match(fn, /due_date: isoDay/);
+    assert.match(fn, /due_at: new Date/);
+    assert.match(fn, /\{ due_date: null, due_at: null \}/, 'and clearing clears both');
+  });
+});

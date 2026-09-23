@@ -3646,6 +3646,39 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .al-follow { display: inline-flex; align-items: center; gap: 4px; }
 .al-activity { font-size: .71rem; }
 /*
+ * The deadline as a control rather than a fact.
+ *
+ * It reads as text until it is hovered, because a row of seven buttons is a
+ * row nobody scans - but "Set a deadline" has to look pressable, since it is
+ * the thing that turns the automatic reminder on.
+ */
+.deadline-pick { position: relative; display: inline-flex; }
+.deadline-btn {
+  border: 1px solid transparent; background: none;
+  font: inherit; font-size: inherit; color: inherit;
+  padding: 2px 6px; border-radius: var(--r-sm);
+  cursor: pointer; white-space: nowrap;
+  transition: background .16s, border-color .16s, color .16s;
+}
+.deadline-btn:hover { background: var(--raised); border-color: var(--line-2); color: var(--brand); }
+.deadline-btn.none { color: var(--muted); border-style: dashed; border-color: var(--line-2); }
+.deadline-btn.none:hover { color: var(--brand); border-color: var(--brand); border-style: solid; }
+
+/* A click anywhere else shuts the menu, without a document listener per row. */
+.menu-scrim { position: fixed; inset: 0; z-index: 60; }
+
+/* Mounted on the body, so it is placed rather than positioned by its parent -
+   see DeadlineButton: the pipeline scrolls sideways and would clip it. */
+.menu.floating { position: fixed; top: 0; left: 0; right: auto; z-index: 61; }
+@media (max-width: 760px) { .menu.floating { left: 0; } }
+
+.due-exact { display: flex; align-items: center; gap: 5px; padding: 6px 9px; flex-wrap: wrap; }
+.due-exact input { flex: 1 1 96px; min-width: 0; font-size: .78rem; padding: 4px 6px; }
+.due-exact .btn { flex: none; padding: 4px 10px; min-height: 26px; font-size: .76rem; }
+
+.deleg-undated { margin: 0 0 14px; }
+
+/*
  * "Which chat is Nidhi?" - the picker inside the nudge sheet.
  *
  * Each row is one chat, and the number under the name is what tells two people
