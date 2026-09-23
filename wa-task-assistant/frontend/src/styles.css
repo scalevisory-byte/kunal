@@ -5391,3 +5391,23 @@ button.due:hover { background: var(--raised); }
 /* The dashboard is a summary now, so it names the way on to the list. */
 .dash-onward { margin: 14px 0 0; font-size: .84rem; order: 99; }
 .dash-onward .link { font-weight: 600; }
+
+/*
+ * The dashboard's panels, across the page rather than down a strip.
+ *
+ * Asked as "side strip hata do — niche jaga khali ho gya he waha bana do".
+ * Once the task list left the dashboard the main column ended after Focus
+ * today, so a 276px column of six stacked cards ran far past the bottom of
+ * everything beside it. `auto-fit` with a 300px floor means the number of
+ * columns is decided by the width there actually is, not by a breakpoint
+ * guessing at it: three across on a laptop, two on a half-screen, one on a
+ * phone — and each card keeps its own height rather than being stretched to
+ * match the tallest in its row.
+ */
+.rail.spread {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  align-items: start;
+  margin-top: 16px;
+}

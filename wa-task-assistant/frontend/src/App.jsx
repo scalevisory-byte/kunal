@@ -1521,7 +1521,7 @@ export default function App() {
                   onNotATask={onNotATask}
                 />
               ) : (
-                <div className={`workspace ${page.overview && !searching ? '' : 'solo'}`}>
+                <div className="workspace solo">
                   <main className="work">
                     {/*
                       * What is picked, and the one thing to do with it.
@@ -1634,16 +1634,6 @@ export default function App() {
                       </p>
                     )}
 
-                    {/* The road on from a page that is now only a summary:
-                        the figures say what is owed, this opens it. */}
-                    {page.overview && !searching && (
-                      <p className="dash-onward">
-                        <button className="link" onClick={() => goto('all')}>
-                          Open the full list
-                        </button>
-                        <span className="muted"> — every task, grouped by when it is due.</span>
-                      </p>
-                    )}
 
                     {(page.overview || page.focus) && view !== 'done' && !searching && (
                       <FocusToday
@@ -1654,6 +1644,44 @@ export default function App() {
                         onShowAll={() => { setView('open'); setSelectedDate(todayIso()); }}
                       />
                     )}
+                    {/* The road on from a page that is now only a summary:
+                        the figures say what is owed, this opens it. */}
+                    {page.overview && !searching && (
+                      <p className="dash-onward">
+                        <button className="link" onClick={() => goto('all')}>
+                          Open the full list
+                        </button>
+                        <span className="muted"> — every task, grouped by when it is due.</span>
+                      </p>
+                    )}
+                    {/*
+                      * The rail's panels, laid across the page rather than
+                      * stacked in a 276px strip down the side.
+                      *
+                      * Asked as "side strip hata do — niche jaga khali ho gya
+                      * he waha bana do". Taking the list off the dashboard left
+                      * the main column ending after Focus today with most of a
+                      * screen empty beside a very tall thin column of cards.
+                      * Same panels, same figures, same order; what changes is
+                      * that they use the width the list used to.
+                      */}
+                    {page.overview && !searching && (
+                      <SideRail
+                        spread
+                        innerRef={railRef}
+                        tasks={dayTasks}
+                        summary={summary}
+                        activity={recent}
+                        chats={chats}
+                        status={status}
+                        selectedDate={selectedDate}
+                        onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
+                        onUpcoming={showUpcoming}
+                        onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
+                        onViewAi={() => goto('ai')}
+                      />
+                    )}
+
 
                     {/*
                       * The controls stay put while the list scrolls.
@@ -1957,22 +1985,6 @@ export default function App() {
                   {/* The rail belongs to the overview. On a focused list its
                       "today at a glance" figures are about a different scope
                       than the list beside them, which is just noise. */}
-                  {page.overview && !searching && (
-                    <div ref={railRef} className="rail-wrap">
-                      <SideRail
-                        tasks={dayTasks}
-                        summary={summary}
-                        activity={recent}
-                        chats={chats}
-                        status={status}
-                        selectedDate={selectedDate}
-                        onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
-                        onUpcoming={showUpcoming}
-                        onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
-                        onViewAi={() => goto('ai')}
-                      />
-                    </div>
-                  )}
                 </div>
               )}
             </>

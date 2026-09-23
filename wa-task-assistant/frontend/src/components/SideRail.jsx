@@ -76,13 +76,21 @@ function Calendar({ tasks, selected, onSelect }) {
  */
 export default function SideRail({
   tasks, summary, activity, chats, status, selectedDate, onSelectDate, onUpcoming, onChat, onViewAi,
+  /*
+   * `spread` lays the same cards across the page instead of down a 276px
+   * strip. It is the dashboard's layout now: with the task list gone from
+   * that page, a narrow column beside an empty half-screen was the worst of
+   * both. `innerRef` is what the phone's "Summary" button scrolls to - it used
+   * to sit on the wrapper this no longer has.
+   */
+  spread = false, innerRef = null,
 }) {
   const wa = status?.whatsapp;
   const connected = wa?.status === 'ready';
   const { counts } = summary;
 
   return (
-    <aside className="rail" aria-label="Summary">
+    <aside className={`rail ${spread ? 'spread' : ''}`} aria-label="Summary" ref={innerRef}>
       <section className="rail-card">
         <h3 className="rail-title">Today's summary</h3>
         <p className="rail-date">
