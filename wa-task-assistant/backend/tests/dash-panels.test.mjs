@@ -21,6 +21,7 @@ import fs from 'node:fs';
 const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '');
 const jsx = fs.readFileSync(new URL('../../frontend/src/components/SideRail.jsx', import.meta.url), 'utf8');
+const app = fs.readFileSync(new URL('../../frontend/src/App.jsx', import.meta.url), 'utf8');
 
 /** Every `grid-template-areas` value written for `.rail.spread`, as rows of names. */
 function areaMaps() {
@@ -47,7 +48,7 @@ describe('the dashboard panels are placed, not dropped', () => {
 
   it('gives every panel in the markup a place', () => {
     const named = [...jsx.matchAll(/className="rail-card[^"]*\br-([a-z]+)\b/g)].map((m) => m[1]);
-    assert.ok(named.length >= 5, `expected the panels to be named, saw ${named.length}`);
+    assert.ok(named.length >= 4, `expected the panels to be named, saw ${named.length}`);
     for (const name of named) {
       assert.match(
         css,
@@ -61,6 +62,31 @@ describe('the dashboard panels are placed, not dropped', () => {
         );
       }
     }
+  });
+
+  /*
+   * Asked with a screenshot of the empty strip down the right of the page:
+   * "calendar ko yaha dalo". It had been one of the panels at the foot of the
+   * dashboard, a screen and a half below the work it is about.
+   */
+  it('keeps the calendar beside the board, not among the panels', () => {
+    assert.ok(
+      !/r-cal/.test(jsx) && !/MonthCalendar/.test(jsx),
+      'the calendar is back in the rail, where it is below everything it is about',
+    );
+    assert.match(app, /className="dash-cal"/, 'nothing renders the calendar column');
+    assert.match(app, /<MonthCalendar/, 'the column is empty');
+    assert.match(
+      css,
+      /\.workspace\.withcal\s*\{[^{}]*grid-template-columns:\s*minmax\(0, 1fr\)\s+minmax\(/,
+      'the dashboard has no second column for it',
+    );
+    // A calendar that scrolls away is one you scroll back up to, so it sticks.
+    assert.match(css, /\.dash-cal\s*\{[^{}]*position:\s*sticky/, 'the column does not stay put');
+    // And where there is no strip to take it from, it must not take the board's.
+    const narrow = /@media\s*\(max-width:\s*1240px\)\s*\{([\s\S]*?)\n\}/.exec(css);
+    assert.ok(narrow, 'no breakpoint folding the column away');
+    assert.match(narrow[1], /\.workspace\.withcal\s*\{[^{}]*grid-template-columns:\s*minmax\(0, 1fr\)\s*;/);
   });
 
   it('runs the activity log the full width of its row', () => {

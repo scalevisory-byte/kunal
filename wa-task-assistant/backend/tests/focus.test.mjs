@@ -96,5 +96,46 @@ run('nothing owed and nothing urgent says so', () => {
   assert.equal(focusTasks([t(1, 'Later', '2099-01-01')]).total, 0);
 });
 
+/*
+ * The drawer, asked for as "focus today ko drawer banavo". A twelve-row strip
+ * is most of the first screen of a page that is meant to be a summary.
+ *
+ * What these pin is the one thing folding must not cost. The rows can go; the
+ * figures cannot - shut, the header still has to say how much is owed and how
+ * much of it is late, or a fold takes the overdue work off the page with it.
+ */
+run('the strip reports how much of it is already late', () => {
+  assert.equal(focusTasks(list).late, 1);
+  assert.equal(focusTasks(list).total, 11);
+  const allLate = [t(1, 'a', yday), t(2, 'b', yday), t(3, 'c', yday)];
+  assert.equal(focusTasks(allLate).late, 3);
+  assert.equal(focusTasks([t(1, 'Later', '2099-01-01')]).late, 0);
+});
+
+run('the header keeps the count when the drawer is shut', () => {
+  const header = src.slice(src.indexOf('<button className="focus-head"'), src.indexOf('{shut ? null'));
+  assert.ok(header.includes('need'), 'the count is not in the header');
+  assert.ok(header.includes('late'), 'the late figure is not in the header');
+  assert.ok(header.includes('aria-expanded'), 'the handle does not say whether it is open');
+  // Everything after that point is what folding hides, so nothing else may
+  // report a figure from in there.
+  const hidden = src.slice(src.indexOf('{shut ? null'));
+  assert.ok(!hidden.includes('need your attention'), 'the count is inside the folded half');
+});
+
+run('it opens when the browser will not say what was stored', () => {
+  // Private windows, cleared site data and the thumbnail capture all throw or
+  // come back empty. Open is the safe default: a page nobody unfolds would
+  // never show what is late.
+  const read = new Function(`${src.slice(src.indexOf('const SHUT_KEY'), src.indexOf('export default'))}; return readShut;`)();
+  globalThis.window = { get localStorage() { throw new Error('denied'); } };
+  assert.equal(read(), false);
+  globalThis.window = { localStorage: { getItem: () => null } };
+  assert.equal(read(), false);
+  globalThis.window = { localStorage: { getItem: () => '1' } };
+  assert.equal(read(), true);
+  delete globalThis.window;
+});
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

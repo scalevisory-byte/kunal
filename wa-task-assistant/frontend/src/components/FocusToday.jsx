@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Icon from './Icon.jsx';
 import { useRename } from '../rename.js';
 import { dueLabel, isOverdue, taskSource, timeLabel, todayIso } from '../lib/task.js';
@@ -42,25 +43,60 @@ export function focusTasks(tasks, { max = SHOW_MAX } = {}) {
 
   const all = [...owed, ...filler];
   // The count is what is owed, whether or not every row fits on the strip.
-  return { tasks: all.slice(0, max), total: all.length, owed: owed.length };
+  return { tasks: all.slice(0, max), total: all.length, owed: owed.length, late: late.length };
 }
 
+/*
+ * Whether the strip is folded, kept across visits.
+ *
+ * localStorage throws in a private window and in the thumbnail capture, and
+ * comes back empty with site data cleared - so both ends are wrapped and the
+ * strip renders open when it cannot be read. Open is the safe default: the
+ * cost of forgetting a fold is one click, the cost of defaulting to shut is
+ * that a page nobody unfolds never shows what is late.
+ */
+const SHUT_KEY = 'wa.focus.shut';
+
+const readShut = () => {
+  try { return window.localStorage.getItem(SHUT_KEY) === '1'; } catch { return false; }
+};
+
 export default function FocusToday({ tasks, onOpen, onToggle, onShowAll, onRename }) {
-  const { tasks: focus, total, owed } = focusTasks(tasks);
+  const { tasks: focus, total, late } = focusTasks(tasks);
   const hidden = total - focus.length;
+  const [shut, setShut] = useState(readShut);
+
+  const fold = () => {
+    setShut((was) => {
+      const next = !was;
+      try { window.localStorage.setItem(SHUT_KEY, next ? '1' : '0'); } catch { /* not worth failing for */ }
+      return next;
+    });
+  };
 
   return (
-    <section className="focus" aria-label="Focus today">
-      <header className="focus-head">
+    <section className={`focus ${shut ? 'shut' : ''}`} aria-label="Focus today">
+      {/*
+        * A drawer, asked for as "focus today ko drawer banavo" - on a summary
+        * page a twelve-row strip is most of the first screen.
+        *
+        * The count stays in the header, so folding hides the rows and never
+        * the fact: shut, it still reads "11 tasks need your attention, 8 late".
+        * A fold that can take the overdue figure off the page with it is how
+        * work goes quiet.
+        */}
+      <button className="focus-head" aria-expanded={!shut} onClick={fold}>
         <h3>Focus today</h3>
         <span>
           {total === 0
             ? 'Nothing needs attention'
             : `${total} ${total === 1 ? 'task needs' : 'tasks need'} your attention`}
+          {late > 0 ? ` · ${late} late` : ''}
         </span>
-      </header>
+        <Icon name="chevronDown" size={17} className={`focus-chevron ${shut ? '' : 'up'}`} />
+      </button>
 
-      {focus.length === 0 ? (
+      {shut ? null : focus.length === 0 ? (
         <p className="focus-empty">
           <Icon name="check" size={16} /> You&rsquo;re on top of today.
         </p>
@@ -80,7 +116,7 @@ export default function FocusToday({ tasks, onOpen, onToggle, onShowAll, onRenam
 
       {/* Nothing is dropped silently: a strip too long to show says how much of
           it is not on screen, and takes you to the rest. */}
-      {hidden > 0 && (
+      {hidden > 0 && !shut && (
         <button className="link focus-more" onClick={onShowAll}>
           {hidden} more due today
         </button>

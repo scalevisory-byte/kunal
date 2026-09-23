@@ -129,10 +129,18 @@ body {
 
 .shell { display: flex; min-height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/*
+ * The cap is 1460 + the calendar column it now has to hold (302 + a 16px gap).
+ * At 1460 the column would have come out of the board's width; the screenshot
+ * that asked for it was of the strip past 1460 that the page was throwing
+ * away, so the column is built from that instead. A board this wide is still
+ * readable because the deadline is right-aligned in a fixed slot and the chat
+ * name is the one thing on the meta line that yields.
+ */
 .page {
   position: relative;
   padding: 18px 26px calc(56px + env(safe-area-inset-bottom));
-  max-width: 1460px;
+  max-width: 1778px;
   width: 100%;
 }
 
@@ -780,12 +788,31 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   padding: 13px 16px 14px;
   margin-top: 14px;
 }
-.focus-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+/*
+ * The header is the drawer's handle: the whole row is the target, so the fold
+ * is not a 17px chevron to aim at. It is the only control on the strip that
+ * is not a task, which is why it carries no border - a button styled like a
+ * button here would read as a fifth thing to press on a row of tasks.
+ */
+.focus-head {
+  display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px;
+  width: 100%; border: 0; background: none; padding: 0;
+  font: inherit; text-align: left; cursor: pointer;
+}
 .focus-head h3 {
   margin: 0; font-size: .68rem; font-weight: 600;
   letter-spacing: .12em; text-transform: uppercase; color: var(--brand);
 }
 .focus-head span { font-size: .78rem; color: var(--muted); margin-left: auto; }
+.focus-chevron {
+  flex: none; align-self: center; color: var(--line-2);
+  transition: transform .18s, color .18s;
+}
+.focus-head:hover .focus-chevron { color: var(--muted); }
+.focus-chevron.up { transform: rotate(180deg); }
+/* Folded, the strip is its own header and nothing else. */
+.focus.shut { padding-bottom: 11px; }
+.focus.shut .focus-head { margin-bottom: 0; }
 .focus-empty {
   display: flex; align-items: center; gap: 8px;
   margin: 0; font-size: .84rem; color: var(--muted);
@@ -2696,6 +2723,38 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 
 /* A focused list has no rail beside it, so it uses the full width. */
 .workspace.solo { grid-template-columns: minmax(0, 1fr); }
+
+/*
+ * The dashboard keeps one column beside the board, and the calendar is the
+ * only thing in it. Asked with a screenshot of the empty strip down the right
+ * of the page: "calendar ko yaha dalo".
+ */
+.workspace.withcal { grid-template-columns: minmax(0, 1fr) minmax(258px, 302px); gap: 16px; }
+.dash-cal {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 15px 15px;
+  position: sticky; top: 76px;
+  min-width: 0;
+}
+/* Its rows are pressable, like the ones it replaced at the foot of the page. */
+.dash-cal .cal-grid { gap: 2px; grid-template-rows: auto; grid-auto-rows: minmax(34px, 1fr); }
+.dash-cal .cal-day { height: auto; font-size: .78rem; }
+.dash-cal .cal-day.has::after { bottom: calc(50% - 13px); }
+.dash-cal .cal-dow { font-size: .64rem; padding-bottom: 4px; }
+.dash-cal .cal-head { margin-bottom: 9px; }
+
+/*
+ * Under 1240px there is no strip to put it in, and a column taken out of the
+ * board is the thing the strip existed to avoid. It goes back under the board
+ * at the width it is drawn at, not stretched across the page.
+ */
+@media (max-width: 1240px) {
+  .workspace.withcal { grid-template-columns: minmax(0, 1fr); }
+  .dash-cal { position: static; max-width: 340px; margin-top: 16px; }
+}
 
 .page-head-right { display: flex; align-items: center; gap: 14px; }
 .page-count {
@@ -5408,19 +5467,17 @@ button.due:hover { background: var(--raised); }
  * it had to wrap every line into. Named areas instead, so each panel has a
  * place:
  *
- *   today     ai   cal          the figures and the AI state read together,
- *   upcoming  ai   cal          the calendar is the side column,
- *   activity  activity activity and the log runs the width of the page.
+ *   today  upcoming  ai         the figures and the AI state read together,
+ *   activity activity activity  and the log runs the width of the page.
  *
- * The two spanning cards are what gives the block its height - the calendar
- * fills the two rows beside it rather than ending halfway up them.
+ * The calendar left this block for a column of its own beside the board
+ * (`.workspace.withcal`), which is the strip the next screenshot pointed at.
  */
 .rail.spread {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(258px, 330px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
-    "today    ai       cal"
-    "upcoming ai       cal"
+    "today    upcoming ai"
     "activity activity activity";
   gap: 14px;
   margin-top: 16px;
@@ -5428,31 +5485,8 @@ button.due:hover { background: var(--raised); }
 .rail.spread .r-today { grid-area: today; }
 .rail.spread .r-upcoming { grid-area: upcoming; }
 .rail.spread .r-ai { grid-area: ai; }
-.rail.spread .r-cal { grid-area: cal; }
 .rail.spread .r-activity { grid-area: activity; }
 
-/*
- * The calendar takes the height its column is given. `grid-template-rows:
- * auto` keeps the day-of-week header the size of its letters; every week row
- * after it is implicit and shares what is left, so the month grows with the
- * card instead of leaving a gap under it.
- */
-.rail.spread .r-cal { display: flex; flex-direction: column; }
-.rail.spread .r-cal .cal { flex: 1; display: flex; flex-direction: column; }
-.rail.spread .cal-head { margin-bottom: 9px; }
-.rail.spread .cal-grid {
-  flex: 1; gap: 2px;
-  grid-template-rows: auto; grid-auto-rows: minmax(30px, 1fr);
-}
-.rail.spread .cal-day { height: auto; font-size: .78rem; }
-/*
- * The "work on this day" dot is pinned 2px off the bottom of the cell, which
- * on a 25px cell sits under the number and on a 60px one sits half a row
- * away from it. Measured from the middle instead, so it stays with its date
- * however tall the month is drawn.
- */
-.rail.spread .cal-day.has::after { bottom: calc(50% - 13px); }
-.rail.spread .cal-dow { font-size: .64rem; padding-bottom: 4px; }
 
 /*
  * Recent activity, one straight line per entry. Down a 276px strip the text
@@ -5472,17 +5506,16 @@ button.due:hover { background: var(--raised); }
 }
 
 /*
- * Narrower than a laptop there is no room for three columns beside a
- * calendar, so the calendar keeps its side and everything else stacks into
- * the one beside it. Below that it is a single column, where "side" has no
- * meaning and the order is what matters.
+ * The breakpoints count the calendar column, because the panels sit beside
+ * it: at 1300px three of them would be 222px each. Two columns from 1360
+ * down - where the calendar folds away at 1240 the panels get its width
+ * back - and one on a phone.
  */
-@media (max-width: 1180px) {
+@media (max-width: 1360px) {
   .rail.spread {
-    grid-template-columns: minmax(0, 1fr) minmax(238px, 300px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
-      "today    cal"
-      "upcoming cal"
+      "today    upcoming"
       "ai       ai"
       "activity activity";
   }
@@ -5490,7 +5523,7 @@ button.due:hover { background: var(--raised); }
 @media (max-width: 820px) {
   .rail.spread {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "today" "cal" "upcoming" "ai" "activity";
+    grid-template-areas: "today" "upcoming" "ai" "activity";
   }
   .rail.spread .cal-grid { grid-auto-rows: minmax(32px, 1fr); }
   /*

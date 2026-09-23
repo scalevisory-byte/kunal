@@ -21,6 +21,7 @@ import TaskDetail from './components/TaskDetail.jsx';
 import Header from './components/Header.jsx';
 import QuickActions from './components/QuickActions.jsx';
 import SideRail from './components/SideRail.jsx';
+import MonthCalendar from './components/MonthCalendar.jsx';
 import MobileNav from './components/MobileNav.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Icon from './components/Icon.jsx';
@@ -811,6 +812,13 @@ export default function App() {
    * found, and the results ARE the list.
    */
   const showBoard = !page.overview || searching;
+  /*
+   * The calendar sits in a column of its own beside the dashboard. Asked with
+   * a screenshot of the empty strip running down the right of the page and
+   * "calendar ko yaha dalo" - it had been filed among the figures at the
+   * bottom, a screen and a half below the work it is about.
+   */
+  const dashCal = page.overview && !searching;
 
   const goto = (key) => {
     setSection(key);
@@ -1521,7 +1529,15 @@ export default function App() {
                   onNotATask={onNotATask}
                 />
               ) : (
-                <div className="workspace solo">
+                /*
+                  * The dashboard keeps a column beside the board, and the
+                  * calendar is the one thing in it.
+                  *
+                  * Asked with a screenshot of the empty strip down the right
+                  * of the page and "calendar ko yaha dalo". Everywhere else
+                  * is `solo` - a task list wants the whole width.
+                  */
+                <div className={`workspace ${dashCal ? 'withcal' : 'solo'}`}>
                   <main className="work">
                     {/*
                       * What is picked, and the one thing to do with it.
@@ -1669,13 +1685,10 @@ export default function App() {
                       <SideRail
                         spread
                         innerRef={railRef}
-                        tasks={dayTasks}
                         summary={summary}
                         activity={recent}
                         chats={chats}
                         status={status}
-                        selectedDate={selectedDate}
-                        onSelectDate={(iso) => { setSelectedDate(iso); setView('all'); }}
                         onUpcoming={showUpcoming}
                         onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
                         onViewAi={() => goto('ai')}
@@ -1982,9 +1995,22 @@ export default function App() {
 
                   </main>
 
-                  {/* The rail belongs to the overview. On a focused list its
-                      "today at a glance" figures are about a different scope
-                      than the list beside them, which is just noise. */}
+                  {/*
+                    * The one thing in that column. It is `position: sticky`,
+                    * so it is still there after a scroll through Focus today -
+                    * a calendar you have to scroll back up to is a calendar
+                    * you stop using.
+                    */}
+                  {dashCal && (
+                    <aside className="dash-cal" aria-label="Calendar">
+                      <h3 className="rail-title">Calendar</h3>
+                      <MonthCalendar
+                        tasks={dayTasks}
+                        selected={selectedDate}
+                        onSelect={(iso) => { setSelectedDate(iso); setView('all'); }}
+                      />
+                    </aside>
+                  )}
                 </div>
               )}
             </>

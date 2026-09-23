@@ -1,7 +1,5 @@
-import { useMemo, useState } from 'react';
 import Progress from './Progress.jsx';
 import Icon from './Icon.jsx';
-import { dueByDay } from '../lib/derive.js';
 import { todayIso } from '../lib/task.js';
 
 const timeOfDay = (at) => at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -12,70 +10,12 @@ const dayLabel = (at) => {
   return at.toLocaleDateString([], { day: 'numeric', month: 'short' });
 };
 
-/** A month at a glance: which days carry work, and which one is being viewed. */
-function Calendar({ tasks, selected, onSelect }) {
-  const [monthStart, setMonthStart] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-
-  const due = useMemo(() => dueByDay(tasks), [tasks]);
-  const today = todayIso();
-
-  const year = monthStart.getFullYear();
-  const month = monthStart.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  // Monday-first, which is how a working week is read here.
-  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
-
-  const cells = [
-    ...Array.from({ length: lead }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => {
-      const day = i + 1;
-      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      return { day, iso, count: due.get(iso) || 0 };
-    }),
-  ];
-
-  const shift = (delta) => setMonthStart(new Date(year, month + delta, 1));
-
-  return (
-    <div className="cal">
-      <div className="cal-head">
-        <button className="icon-btn" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
-        <span>{monthStart.toLocaleDateString([], { month: 'long', year: 'numeric' })}</span>
-        <button className="icon-btn" onClick={() => shift(1)} aria-label="Next month">›</button>
-      </div>
-      <div className="cal-grid">
-        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-          <span key={i} className="cal-dow">{d}</span>
-        ))}
-        {cells.map((cell, i) =>
-          cell ? (
-            <button
-              key={cell.iso}
-              className={`cal-day ${cell.iso === today ? 'today' : ''} ${selected === cell.iso ? 'on' : ''} ${cell.count ? 'has' : ''}`}
-              aria-pressed={selected === cell.iso}
-              title={cell.count ? `${cell.count} task${cell.count === 1 ? '' : 's'}` : 'No tasks'}
-              onClick={() => onSelect(selected === cell.iso ? null : cell.iso)}
-            >
-              {cell.day}
-            </button>
-          ) : (
-            <span key={`pad-${i}`} />
-          )
-        )}
-      </div>
-    </div>
-  );
-}
-
 /**
  * The rail answers the questions the board cannot: how today is going, what is
  * coming, whether the WhatsApp side is actually working, and what changed last.
  */
 export default function SideRail({
-  tasks, summary, activity, chats, status, selectedDate, onSelectDate, onUpcoming, onChat, onViewAi,
+  summary, activity, chats, status, onUpcoming, onChat, onViewAi,
   /*
    * `spread` lays the same cards across the page instead of down a 276px
    * strip. It is the dashboard's layout now: with the task list gone from
@@ -121,12 +61,6 @@ export default function SideRail({
           todayTotal={summary.todayTotal}
         />
       </section>
-
-      <section className="rail-card r-cal">
-        <h3 className="rail-title">Calendar</h3>
-        <Calendar tasks={tasks} selected={selectedDate} onSelect={onSelectDate} />
-      </section>
-
 
       <section className="rail-card r-upcoming">
         <h3 className="rail-title">Upcoming</h3>
