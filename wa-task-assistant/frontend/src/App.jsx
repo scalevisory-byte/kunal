@@ -26,7 +26,6 @@ import Sidebar from './components/Sidebar.jsx';
 import Icon from './components/Icon.jsx';
 import FocusToday from './components/FocusToday.jsx';
 import UsagePage from './components/UsagePage.jsx';
-import AttentionWidget from './components/AttentionWidget.jsx';
 import WorkHistory from './components/WorkHistory.jsx';
 import NotificationCentre from './components/NotificationCentre.jsx';
 import SchedulingSettings from './components/SchedulingSettings.jsx';
@@ -50,7 +49,18 @@ import { getTheme, setTheme } from './lib/theme.js';
 import { activity, chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
 
-const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, attention: false, group: null, month: null };
+/*
+ * `attention` is gone from here with the panel and the page it fed.
+ *
+ * Asked as "need attention no need hata do", after reading what the two
+ * actually were: Focus today is today's work, Needs attention was the same
+ * overdue rows plus the ones the engine had given up chasing - a second
+ * arrangement of a list already on screen, and the one thing it alone said is
+ * on the row itself as "Stopped asking". The engine's flag stays exactly as it
+ * was: after three follow-ups the app still stops asking. Only the second
+ * place to read that went.
+ */
+const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, group: null, month: null };
 
 /*
  * Work that is out with somebody and not finished yet.
@@ -84,13 +94,6 @@ const PAGES = {
     lede: 'Everything you have, grouped by when it is due.',
     tabs: true,
     toolbar: true,
-  },
-  attention: {
-    title: 'Needs Attention',
-    lede: 'Work that is late, owed today, or has been asked about as many times as the app is willing to ask. Grouped by which of those it is.',
-    /* Grouped by the reason it is here, not by date: the page is about now, so
-       a section headed "Today" told you nothing you had not read in the title. */
-    groupBy: 'reason',
   },
   chat: {
     title: 'By Chat',
@@ -702,18 +705,6 @@ export default function App() {
          "not in any business yet" line shows you which tasks it means. */
       if (filters.group === 'none' && task.group_id) return false;
       if (filters.group && filters.group !== 'none' && task.group_id !== filters.group) return false;
-      /*
-       * "Due" is only the first hour after a deadline, so a task due at 6pm was
-       * plain "open" all day and never reached this page - at nine in the
-       * morning the page was empty while six things were due that evening.
-       * Today's work needs attention today, which is what the page is called.
-       */
-      if (filters.attention) {
-        const wants = ['due', 'overdue'].includes(task.state)
-          || task.due_date === todayIso()
-          || task.needs_attention;
-        if (!wants) return false;
-      }
       if (selectedDate && task.due_date !== selectedDate) return false;
 
       return matchesQuery(task, query);
@@ -851,7 +842,6 @@ export default function App() {
     if (key === 'recent') return setView('all');
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }
-    if (key === 'attention') { setView('open'); return setFilters({ ...EMPTY_FILTERS, attention: true }); }
     if (key === 'history') return undefined;
     if (key.startsWith('group:')) {
       setView('open');
@@ -1980,20 +1970,6 @@ export default function App() {
                         onUpcoming={showUpcoming}
                         onChat={(chat) => { setView('open'); setFilters({ ...EMPTY_FILTERS, chat }); }}
                         onViewAi={() => goto('ai')}
-                        attentionWidget={
-                          <AttentionWidget
-                            tasks={dayTasks}
-                            onDone={(task) => onEdit(task, { status: 'done' })}
-                            onSnooze={onSnoozeTask}
-                            onOpen={setOpenTask}
-                            onViewAll={() => {
-                              setSection('all');
-                              setView('open');
-                              setFilters({ ...EMPTY_FILTERS, attention: true });
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                          />
-                        }
                       />
                     </div>
                   )}

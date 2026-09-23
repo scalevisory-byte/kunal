@@ -199,7 +199,7 @@ export default function Groups({ onChanged, onError }) {
             </label>
             <p className="field-note">
               Its work is still captured and still has its own section in the sidebar, but it
-              stays out of the dashboard, Focus today and Needs attention — and it is never
+              stays out of the dashboard and Focus today — and it is never
               chased: no reminders, no digest, no daily briefing. For things worth keeping a
               record of that are not the day&rsquo;s work.
             </p>

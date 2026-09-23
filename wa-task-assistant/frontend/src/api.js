@@ -104,7 +104,6 @@ export const api = {
   acknowledgeReminder: (reminderId) =>
     request(`/tasks/reminders/${reminderId}/acknowledge`, { method: 'POST', body: JSON.stringify({}) }),
 
-  attention: () => request('/attention'),
 
   // What the app has actually read, and what each message produced. The only
   // thing that separates "it never arrived" from "nothing was made of it".

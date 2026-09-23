@@ -1,12 +1,10 @@
 import { Router } from 'express';
 import { config } from '../config.js';
-import { getTask, listTasks } from '../db.js';
 import {
   getSettings, saveSettings,
   listNotifications, unreadNotificationCount, markNotificationRead,
   markAllNotificationsRead, dismissNotification,
 } from '../scheduling.js';
-import { taskSchedule, taskState, dueMoment } from '../task-lifecycle.js';
 import {
   buildBriefing, maybeSendBriefing, localDay,
   buildWeeklySummary, maybeSendWeekly, localWeek,
@@ -46,29 +44,17 @@ attentionRouter.get('/engine', (req, res) => {
   });
 });
 
-attentionRouter.get('/', (req, res) => {
-  const settings = getSettings();
-  const now = new Date();
-
-  const rows = listTasks({ status: 'pending', limit: 500 })
-    .map((task) => ({ ...task, ...taskSchedule(task, settings) }))
-    .filter((task) => ['due', 'overdue'].includes(task.state) || task.needs_attention);
-
-  const dueToday = listTasks({ status: 'pending', limit: 500 }).filter((task) => {
-    const due = dueMoment(task, settings);
-    return due && due.toDateString() === now.toDateString() && taskState(task, now, settings) === task.status;
-  }).length;
-
-  res.json({
-    tasks: rows.sort((a, b) => (a.due_at || '').localeCompare(b.due_at || '')),
-    stats: {
-      overdue: rows.filter((t) => t.state === 'overdue').length,
-      due: rows.filter((t) => t.state === 'due').length,
-      needsAttention: rows.filter((t) => t.needs_attention).length,
-      dueToday,
-    },
-  });
-});
+/*
+ * `GET /attention` is gone with the panel it fed.
+ *
+ * Asked as "need attention no need hata do". It answered with overdue and due
+ * rows plus the ones the engine had given up chasing - a second arrangement of
+ * a list the board already shows, from its own query with its own 500 cap and
+ * without the board's rules, which is why its count could disagree with Focus
+ * today over the same work. The state it alone reported is on the row as
+ * "Stopped asking" and on the engine page's own tab. The router stays for
+ * `/attention/engine`, which is a different thing: the engine's live schedule.
+ */
 
 /* ---------------- notifications ---------------- */
 

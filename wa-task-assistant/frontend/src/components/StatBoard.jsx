@@ -35,7 +35,9 @@ export default function StatBoard({ counts, view, onPick }) {
       tone: 'danger',
       label: 'Overdue',
       value: counts.overdue,
-      note: counts.overdue === 0 ? "You're all caught up" : 'Needs attention',
+      /* It used to read "Needs attention", which named a panel. That panel is
+         gone, and a subtitle should say something about the figure above it. */
+      note: counts.overdue === 0 ? "You're all caught up" : 'Past their deadline',
     },
     {
       key: 'done',
