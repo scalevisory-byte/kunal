@@ -5973,3 +5973,14 @@ button.due:hover { background: var(--raised); }
 .pri-mark.p-high { background: var(--danger); }
 .pri-mark.p-medium { background: var(--warn); }
 .pri-mark.p-low { background: var(--ok); }
+
+/* Which chats are read: a card, because it decides what the app reads at all. */
+.panel-block.listed {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; margin-bottom: 16px; display: grid; gap: 10px;
+}
+.panel-block.listed h3 { margin: 0; font-size: .95rem; }
+.panel-block.listed .segment { justify-self: start; flex-wrap: wrap; }
+.panel-block.listed .segment button:disabled { opacity: .5; cursor: not-allowed; }
+.panel-block.listed .hint { margin: 0; }
+.panel-block.listed .chip:disabled { opacity: .55; cursor: not-allowed; }

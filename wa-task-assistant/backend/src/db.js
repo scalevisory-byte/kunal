@@ -68,6 +68,19 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  /*
+   * The chats he chose to have read, for "only the chats I list" mode.
+   * pattern is matched by the same rule as a block; label is the name the
+   * chat had when it was picked, because a pattern that is a bare id reads as
+   * nothing to a person.
+   */
+  CREATE TABLE IF NOT EXISTS allowed_chats (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern    TEXT NOT NULL UNIQUE,
+    label      TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS api_usage (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     at             TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1420,6 +1433,56 @@ export function blockChat(pattern) {
 
 export function unblockChat(id) {
   return db.prepare(`DELETE FROM blocked_chats WHERE id = ?`).run(id).changes > 0;
+}
+
+/* ---------------- listed chats (read only these) ---------------- */
+
+export function listAllowedChats() {
+  return db.prepare(`SELECT * FROM allowed_chats ORDER BY COALESCE(label, pattern) COLLATE NOCASE`).all();
+}
+
+export function allowChat(pattern, label = null) {
+  const value = String(pattern || '').trim();
+  if (!value) throw new Error('pattern is required');
+  const name = String(label || '').trim() || null;
+  db.prepare(
+    `INSERT INTO allowed_chats (pattern, label) VALUES (?, ?)
+     ON CONFLICT(pattern) DO UPDATE SET label = COALESCE(excluded.label, allowed_chats.label)`
+  ).run(value, name);
+  return listAllowedChats();
+}
+
+export function disallowChat(id) {
+  return db.prepare(`DELETE FROM allowed_chats WHERE id = ?`).run(id).changes > 0;
+}
+
+/**
+ * Every chat the app has a record of - from messages and from tasks - for the
+ * "read only these" picker. Tasks count too because once the list is on, an
+ * unlisted chat's messages are no longer stored, and the picker must still be
+ * able to offer the chats he has already been working with.
+ */
+export function knownChats({ q = '', limit = 60 } = {}) {
+  const like = `%${String(q || '').trim()}%`;
+  return db
+    .prepare(
+      `SELECT chat_id, MAX(chat_name) AS chat_name, MAX(is_group) AS is_group,
+              MAX(last_seen) AS last_seen, SUM(n) AS messages
+       FROM (
+         SELECT chat_id, chat_name, is_group, MAX(sent_at) AS last_seen, COUNT(*) AS n
+         FROM messages WHERE chat_id IS NOT NULL AND chat_name IS NOT NULL AND chat_name != ''
+         GROUP BY chat_id
+         UNION ALL
+         SELECT chat_id, chat_name, CASE WHEN chat_id LIKE '%@g.us' THEN 1 ELSE 0 END, MAX(created_at), 0
+         FROM tasks WHERE chat_id IS NOT NULL AND chat_name IS NOT NULL AND chat_name != ''
+         GROUP BY chat_id
+       )
+       WHERE chat_name LIKE ? OR chat_id LIKE ?
+       GROUP BY chat_id
+       ORDER BY last_seen DESC
+       LIMIT ?`
+    )
+    .all(like, like, Math.min(Number(limit) || 60, 500));
 }
 
 /** Distinct chats seen recently, so the dashboard can offer them for blocking. */

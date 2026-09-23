@@ -82,3 +82,35 @@ export const patternWouldDrop = (pattern, row) => {
   return names.filter(Boolean).some((n) => matchesPattern(pattern, { chatName: n, chatId, contactNumber }))
     || matchesPattern(pattern, { chatId, contactNumber });
 };
+
+/**
+ * Whether a chat is on the "read only these" list.
+ *
+ * The same `matchesPattern` a block uses - a name loosely, a number by its
+ * ending, a whole id exactly - so a chat is listed by exactly the rule that
+ * would block it, and the panel that explains the list cannot disagree with
+ * the listener that obeys it. `names` are every name the chat could be filed
+ * under: the lookup that supplies one of them fails often enough that testing
+ * only one would silently skip a chat he asked to have read.
+ */
+export function isListedChat(rows, { names = [], chatId = null, contactNumber = null } = {}) {
+  if (!rows?.length) return false;
+  return rows.some((row) =>
+    names.filter(Boolean).some((n) => matchesPattern(row.pattern, { chatName: n, chatId, contactNumber }))
+    || matchesPattern(row.pattern, { chatId, contactNumber }));
+}
+
+/**
+ * Read this chat or not, when only listed chats are read.
+ *
+ * Two things are always read whatever the list says: his own "message
+ * yourself" chat, because that is where he writes tasks down on purpose - a
+ * list that could silence it would turn the switch into a way to lose notes -
+ * and, when the mode is off, everything (the blocklist still applies). A block
+ * wins over a listing; that check happens before this one.
+ */
+export function readsChat({ onlyListed, rows, selfId, names, chatId, contactNumber }) {
+  if (!onlyListed) return true;
+  if (selfId && chatId === selfId) return true;
+  return isListedChat(rows, { names, chatId, contactNumber });
+}

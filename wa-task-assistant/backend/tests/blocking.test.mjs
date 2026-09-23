@@ -539,7 +539,9 @@ describe('the restart these figures are measured from', () => {
     const routes = src('../src/routes/system.js');
     const uses = [...routes.matchAll(/blockEffect\(/g)].length;
     const says = [...routes.matchAll(/bootedAt: startedAt/g)].length;
-    assert.equal(says, uses, 'every place that reports a block also reports the restart');
+    // At least as many: the listed-chats panel reports a since-restart figure
+    // of its own and names the restart too, which is the same rule, not a breach.
+    assert.ok(says >= uses, `every place that reports a block also reports the restart (${says} < ${uses})`);
   });
 
   it('a span is a length, not a timestamp', () => {

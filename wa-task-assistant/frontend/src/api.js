@@ -437,6 +437,13 @@ export const api = {
   blockChat: (pattern) =>
     request('/blocked-chats', { method: 'POST', body: JSON.stringify({ pattern }) }),
   unblockChat: (id) => request(`/blocked-chats/${id}`, { method: 'DELETE' }),
+  /* Read only these chats: the other shape of chat filtering. */
+  listedChats: (q = '') => request(`/listed-chats${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  addListedChat: (pattern, label) =>
+    request('/listed-chats', { method: 'POST', body: JSON.stringify({ pattern, label }) }),
+  removeListedChat: (id) => request(`/listed-chats/${id}`, { method: 'DELETE' }),
+  setListedMode: (on) =>
+    request('/listed-chats/mode', { method: 'POST', body: JSON.stringify({ on }) }),
   flushExtraction: () => request('/extract/flush', { method: 'POST' }),
   pendingExtraction: () => request('/extract/pending'),
   rerunExtraction: () => request('/extract/rerun', { method: 'POST', body: JSON.stringify({}) }),

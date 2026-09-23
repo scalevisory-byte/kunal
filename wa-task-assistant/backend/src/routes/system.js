@@ -4,8 +4,10 @@ import { config } from '../config.js';
 import {
   listMessages, listMessagesWithOutcome, savePushSubscription, deletePushSubscription, taskStats,
   listBlockedChats, blockChat, unblockChat, recentChats,
+  listAllowedChats, allowChat, disallowChat, knownChats,
 } from '../db.js';
-import { matchesPattern } from '../blocklist.js';
+import { matchesPattern, isListedChat } from '../blocklist.js';
+import { getSettings, saveSettings } from '../scheduling.js';
 import { state, flushNow, groupNameFor, reprocessStored, relink, showQr } from '../whatsapp.js';
 import {
   repairGroupNames, groupChatIds, needsName, nameFromSiblings, taskChatState,
@@ -481,6 +483,76 @@ systemRouter.post('/blocked-chats', (req, res) => {
 systemRouter.delete('/blocked-chats/:id', (req, res) => {
   if (!unblockChat(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
   res.json({ blocked: listBlockedChats() });
+});
+
+/* ---------------- listed chats: read only these ---------------- */
+
+/*
+ * The other shape of chat filtering. The blocklist reads everything less what
+ * is named; this reads nothing but what is named. Asked as "jitni chat add kare
+ * wahi read kare, aur usme se task aaye".
+ */
+const listedView = (q) => {
+  const listed = listAllowedChats();
+  const blocked = listBlockedChats();
+  const known = knownChats({ q, limit: 500 });
+  const targets = (c) => ({ names: [c.chat_name], chatId: c.chat_id });
+  return {
+    on: Boolean(getSettings().onlyListedChats),
+    listed: listed.map((row) => {
+      /*
+       * What each entry actually catches, from the chats on record. A typed
+       * name that matches nothing is the failure nobody sees - the chat he
+       * meant keeps being ignored - so it is said on the entry itself.
+       */
+      const hits = known.filter((c) => isListedChat([row], targets(c)));
+      return { ...row, matches: hits.length, examples: hits.slice(0, 3).map((c) => c.chat_name) };
+    }),
+    // Offered to pick from, each saying whether it is already read or blocked.
+    chats: known.slice(0, q ? 60 : 40).map((c) => ({
+      ...c,
+      listed: isListedChat(listed, targets(c)),
+      blocked: blocked.some((row) => matchesPattern(row.pattern, { chatName: c.chat_name, chatId: c.chat_id })),
+    })),
+    unlistedDropped: state.unlistedCount || 0,
+    bootedAt: startedAt,
+  };
+};
+
+systemRouter.get('/listed-chats', (req, res) => res.json(listedView(req.query.q)));
+
+systemRouter.post('/listed-chats', (req, res) => {
+  try {
+    allowChat(req.body?.pattern, req.body?.label);
+    res.status(201).json(listedView());
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+systemRouter.delete('/listed-chats/:id', (req, res) => {
+  if (!disallowChat(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  /*
+   * Removing the last entry while the mode is on would leave it reading
+   * nothing but his notes chat, silently. The mode goes off with it and the
+   * page says so - back to every chat less the blocked ones.
+   */
+  let switchedOff = false;
+  if (getSettings().onlyListedChats && !listAllowedChats().length) {
+    saveSettings({ onlyListedChats: false });
+    switchedOff = true;
+  }
+  return res.json({ ...listedView(), switchedOff });
+});
+
+systemRouter.post('/listed-chats/mode', (req, res) => {
+  const on = Boolean(req.body?.on);
+  // On with an empty list reads nothing at all: refused, with the reason.
+  if (on && !listAllowedChats().length) {
+    return res.status(400).json({ error: 'Add at least one chat before switching this on - with an empty list nothing would be read.' });
+  }
+  saveSettings({ onlyListedChats: on });
+  return res.json(listedView());
 });
 
 /** Fire any exact-time reminders that are due right now. */

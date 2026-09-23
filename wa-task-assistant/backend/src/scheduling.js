@@ -110,6 +110,14 @@ const DEFAULTS = {
   businessEnd: '19:00',
   skipWeekends: false,
   notifyBrowser: true,
+  /*
+   * Read only the chats on the list, instead of every chat less the blocked
+   * ones. Asked as "jitni chat add kare wahi read kare, aur usme se task aaye".
+   * Off by default: on with an empty list, nothing but his own notes chat is
+   * read, and switching a working install into silence by default would be
+   * the worst kind of surprise.
+   */
+  onlyListedChats: false,
   // Every WhatsApp message this app sends goes to the linked account's own
   // chat. There is no path that messages a contact, and these switches only
   // decide whether the user hears from themselves.

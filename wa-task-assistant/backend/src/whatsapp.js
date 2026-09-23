@@ -7,7 +7,7 @@ import { phoneFromWid } from './wid.js';
 import {
   insertMessage, markMessagesProcessed, noteMessageMerged, createTask,
   unprocessedMessages, unprocessedCount,
-  listBlockedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
+  listBlockedChats, listAllowedChats, taskByDigestPos, tasksInLastDigest, updateTask, getTask,
   getMeta, setMeta, db,
 } from './db.js';
 import { extractTasks } from './extractor.js';
@@ -27,7 +27,7 @@ import { createNote } from './notes.js';
 import { createLead, leadByWid } from './leads.js';
 import { listGroups } from './groups.js';
 import { repairGroupNames, looksLikeId } from './group-names.js';
-import { matchesPattern } from './blocklist.js';
+import { matchesPattern, readsChat, blockTargetsOf } from './blocklist.js';
 import fs from 'node:fs';
 
 const { Client, LocalAuth } = pkg;
@@ -72,6 +72,8 @@ export const state = {
   lastExtractionAt: null,
   bufferedCount: 0,
   blockedCount: 0,
+  // Dropped because "read only listed chats" is on and this one is not listed.
+  unlistedCount: 0,
   // Reminders and digests this app sent, arriving back as if he had typed
   // them. Counted rather than silently dropped: it is the shape of a loop and
   // the number should be visible if it ever starts growing for another reason.
@@ -311,8 +313,23 @@ async function processBatch(batch) {
  */
 export async function reprocessStored({ limit = 500 } = {}) {
   if (flushing) return { ran: 0, batches: 0, skipped: 'a batch is already running' };
-  const rows = unprocessedMessages({ limit });
-  if (!rows.length) return { ran: 0, batches: 0, remaining: 0 };
+  const stored = unprocessedMessages({ limit });
+  /*
+   * The same "only listed chats" rule the listener applies, because this is a
+   * second road to the model. Messages stored before the switch was turned on
+   * - from chats he has since chosen not to have read - would otherwise be
+   * read and paid for on the next press. They are marked done rather than
+   * left waiting, or the button would offer them again for ever.
+   */
+  const settings = getSettings();
+  const allowed = listAllowedChats();
+  const reads = (row) => readsChat({
+    onlyListed: settings.onlyListedChats, rows: allowed, selfId: state.me, ...blockTargetsOf(row),
+  });
+  const unlisted = stored.filter((row) => !reads(row));
+  if (unlisted.length) markMessagesProcessed(unlisted.map((row) => row.id));
+  const rows = stored.filter(reads);
+  if (!rows.length) return { ran: 0, batches: 0, remaining: unprocessedCount(), unlisted: unlisted.length };
 
   flushing = true;
   let batches = 0;
@@ -332,7 +349,7 @@ export async function reprocessStored({ limit = 500 } = {}) {
   const remaining = unprocessedCount();
   noteEvent('re-ran stored messages', `${rows.length} message(s) in ${batches} batch(es), ${remaining} still waiting`);
   log.info(`Re-ran ${rows.length} stored message(s) that were never extracted, in ${batches} batch(es). ${remaining} still waiting.`);
-  return { ran: rows.length, batches, remaining };
+  return { ran: rows.length, batches, remaining, unlisted: unlisted.length };
 }
 
 /**
@@ -1016,27 +1033,8 @@ export async function handleMessage(message) {
     }
 
     const body = (message.body || '').trim();
-
-    /*
-     * A photo is worth reading on its own. Invoices, bills, cheques, tickets and
-     * bank-transfer screenshots arrive here as pictures, usually with no caption
-     * at all, and what has to be done is visible only in the image.
-     *
-     * It stays opt-in (`readImages`): a picture costs roughly a page of tokens,
-     * and a chat full of forwarded good-mornings would spend real money on
-     * nothing. With it off, the old rule holds - no text, nothing to extract.
-     */
-    const image = await downloadImage(message);
-
-    /*
-     * A voice note becomes its own words. Written into `body`, so everything
-     * downstream - the extractor, the message list, search, the task's source
-     * message - sees an ordinary sentence and needs to know nothing about audio.
-     */
-    const spoken = await transcribeVoice(message);
-    const text = spoken ? [body, spoken].filter(Boolean).join(' ') : body;
-
-    if (!text && !image) return drop('noText');
+    // Nothing to read and nothing attached: no lookup is worth making for it.
+    if (!body && !message.hasMedia) return drop('noText');
 
     // Chat and contact lookups go back to WhatsApp and can fail on their own -
     // a Meta-hosted business chat, a contact that will not resolve. The message
@@ -1150,6 +1148,61 @@ export async function handleMessage(message) {
       return drop('blocked');
     }
 
+    /*
+     * Only the chats he listed, when he has asked for that.
+     *
+     * Asked as "jitni chat add kare wahi read kare, aur usme se task aaye". A
+     * chat that is not on the list is dropped here - before it is stored,
+     * before a photo is downloaded or a voice note transcribed, and before
+     * anything is sent to the model - so an unlisted chat costs nothing and
+     * leaves nothing behind. His own notes chat is always read (see
+     * `readsChat`), and his own commands never reach this far: "done 2" and
+     * friends are handled by the listener before this function is called.
+     *
+     * Tested against every name the row could be filed under, like the block,
+     * because missing a chat he asked for loses real work.
+     */
+    const settings = getSettings();
+    if (!readsChat({
+      onlyListed: settings.onlyListedChats,
+      rows: listAllowedChats(),
+      selfId: state.me,
+      names: blockAgainst,
+      chatId,
+      contactNumber: blockNumber,
+    })) {
+      state.unlistedCount += 1;
+      return drop('notListed');
+    }
+
+    /*
+     * Paid-for reading happens only now, once the chat is known to be kept:
+     * it used to run before the chat lookup, which meant a blocked or unlisted
+     * chat whose name was only learnt from the lookup still had its photos
+     * read and its voice notes transcribed first.
+     */
+
+    /*
+     * A photo is worth reading on its own. Invoices, bills, cheques, tickets and
+     * bank-transfer screenshots arrive here as pictures, usually with no caption
+     * at all, and what has to be done is visible only in the image.
+     *
+     * It stays opt-in (`readImages`): a picture costs roughly a page of tokens,
+     * and a chat full of forwarded good-mornings would spend real money on
+     * nothing. With it off, the old rule holds - no text, nothing to extract.
+     */
+    const image = await downloadImage(message);
+
+    /*
+     * A voice note becomes its own words. Written into `body`, so everything
+     * downstream - the extractor, the message list, search, the task's source
+     * message - sees an ordinary sentence and needs to know nothing about audio.
+     */
+    const spoken = await transcribeVoice(message);
+    const text = spoken ? [body, spoken].filter(Boolean).join(' ') : body;
+
+    if (!text && !image) return drop('noText');
+
     const row = {
       wa_message_id: message.id?._serialized ?? null,
       chat_id: chatId,
@@ -1176,7 +1229,7 @@ export async function handleMessage(message) {
      * message, which is still going on to be read as work.
      */
     try {
-      await maybeLead({ ...row, id }, message, getSettings());
+      await maybeLead({ ...row, id }, message, settings);
     } catch (err) {
       log.warn('Lead check failed:', err?.message || err);
     }

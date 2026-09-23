@@ -10,6 +10,7 @@ import Login from './components/Login.jsx';
 import StatBoard from './components/StatBoard.jsx';
 import DashboardHome from './components/DashboardHome.jsx';
 import BlockedChats from './components/BlockedChats.jsx';
+import ListedChats from './components/ListedChats.jsx';
 import CaptureSettings from './components/CaptureSettings.jsx';
 import TidyTitles from './components/TidyTitles.jsx';
 import MessagesRead from './components/MessagesRead.jsx';
@@ -1329,6 +1330,9 @@ export default function App() {
                 </div>
               </section>
 
+              {/* First after the connection: it decides what is read at all,
+                  and the blocklist further down is only the second filter. */}
+              <ListedChats mode={status?.whatsapp?.mode} onError={(err) => setError(err.message)} />
               <CaptureSettings onError={(err) => setError(err.message)} />
               <TidyTitles
                 onChanged={() => refresh({ quiet: true })}
