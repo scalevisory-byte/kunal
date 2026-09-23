@@ -89,6 +89,42 @@ describe('the dashboard panels are placed, not dropped', () => {
     assert.match(narrow[1], /\.workspace\.withcal\s*\{[^{}]*grid-template-columns:\s*minmax\(0, 1fr\)\s*;/);
   });
 
+  /*
+   * Lost once already, when the named areas replaced the auto-fit grid, which
+   * had carried it. Without it every card is as tall as the tallest in its
+   * row, and Upcoming - three lines - is a card with 160px of nothing under
+   * it, which reads as something that failed to load.
+   */
+  it('lets each panel keep its own height', () => {
+    assert.match(
+      /\.rail\.spread\s*\{([^{}]*)\}/.exec(css)?.[1] || '',
+      /align-items:\s*start/,
+      'the panels stretch to the tallest in their row',
+    );
+  });
+
+  /*
+   * "ye part jese tha wese hi rehne do", over the banners, the "is this a
+   * task?" card and the KPI row. They are as wide as the page's cap, so the
+   * cap cannot be raised to make room for the calendar column. It lives on
+   * the page's children instead, with the dashboard's board the one exception.
+   */
+  it('caps every block at the width it has always been, except the one asked to grow', () => {
+    const child = /\.page\s*>\s*\*\s*\{([^{}]*)\}/.exec(css);
+    assert.ok(child, 'nothing caps the blocks on a page');
+    // 1408 = the old 1460 page less its own 26px of padding either side. A
+    // child capped at 1460 is 52px wider than it has always been.
+    assert.match(child[1], /max-width:\s*1408px/, 'the blocks are not the width they were');
+    assert.match(
+      css,
+      /\.page\s*>\s*\.workspace\.withcal\s*\{[^{}]*max-width:\s*none/,
+      'the dashboard board cannot reach past the cap, so the calendar column still comes out of it',
+    );
+    // And the exception is exactly one: a list page must not quietly widen.
+    const exceptions = [...css.matchAll(/\.page\s*>\s*([^{]*?)\s*\{[^{}]*max-width:\s*none/g)].map((m) => m[1].trim());
+    assert.deepEqual(exceptions, ['.workspace.withcal'], `more than the board is uncapped: ${exceptions.join(', ')}`);
+  });
+
   it('runs the activity log the full width of its row', () => {
     for (const map of areaMaps()) {
       const rows = map.filter((row) => row.includes('activity'));

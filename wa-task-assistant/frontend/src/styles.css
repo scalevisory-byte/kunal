@@ -130,24 +130,30 @@ body {
 .shell { display: flex; min-height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /*
- * 1460, and it stays 1460.
+ * 1460 is how wide the page reads, and every block on it keeps that - the
+ * banners, the "is this a task?" card, the KPI row, every task list. Raising
+ * it stretched those, which is what "ye part jese tha wese hi rehne do" was
+ * about, and a change nobody asked for is not paid for by the one they did.
  *
- * The calendar column was briefly paid for by raising this to 1778, so that
- * it came out of the strip past the cap rather than out of the board. But
- * this cap is what every banner, the "is this a task?" card and the KPI row
- * are as wide as - they sit above the workspace and take the whole page - so
- * raising it stretched all three, and the next screenshot was of exactly
- * those three: "ye part jese tha wese hi rehne do". They were not part of
- * what was asked for, and a change nobody asked for is not paid for by the
- * one they did. The column comes out of the board's width instead, which
- * costs the dashboard 318px it has the room for.
+ * So the cap moved off `.page` and onto its children - as 1408, not 1460,
+ * because the page's own 26px of padding used to be inside that number and
+ * is now outside it; capping a child at 1460 would make it 52px wider than
+ * it has always been, which is the same bug in a smaller size. With exactly
+ * one exception: the dashboard's board-and-calendar. That is the one block asked
+ * to use the strip past 1460 ("calendar ko yaha dalo"), and now it does -
+ * on a 1936px window it reaches the edge instead of stopping 240px short,
+ * and the calendar column no longer comes out of the board. Everything else
+ * ends on the pixel it ended on before, because the rule it obeys is the
+ * same number in a different place.
  */
 .page {
   position: relative;
   padding: 18px 26px calc(56px + env(safe-area-inset-bottom));
-  max-width: 1460px;
+  max-width: 1778px;
   width: 100%;
 }
+.page > * { max-width: 1408px; }  /* 1460 less the page's own padding */
+.page > .workspace.withcal { max-width: none; }
 
 .sidebar {
   position: sticky; top: 0; align-self: flex-start;
@@ -5485,6 +5491,13 @@ button.due:hover { background: var(--raised); }
     "today    upcoming ai"
     "activity activity activity";
   gap: 14px;
+  /*
+   * Each card keeps its own height. Without this they stretch to the tallest
+   * in the row, and Upcoming - three lines - ends up a card with 160px of
+   * nothing under it, which reads as something that failed to load. It was
+   * lost when the named areas replaced the auto-fit grid, which had it.
+   */
+  align-items: start;
   margin-top: 16px;
 }
 .rail.spread .r-today { grid-area: today; }
