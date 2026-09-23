@@ -439,9 +439,11 @@ async function deliver(task, reminder, settings) {
     : null;
   /*
    * A delegated task is still the user's to chase, so the reminder still comes
-   * to him - it just says whose desk it is sitting on. Nothing here messages
-   * that person: sending to an assignee happens only from the dashboard, on a
-   * press. See routes/delegation.js.
+   * to him - it just says whose desk it is sitting on. It may ALSO reach that
+   * person now, on the deadline and once after it; that is handled below and
+   * reported back to him, never done silently. (This comment used to say
+   * nothing here messages the assignee, which stopped being true the day the
+   * automatic nudge shipped.)
    */
   const withWhom = task.assigned_to ? `With ${task.assigned_to}.` : null;
 
@@ -470,6 +472,29 @@ async function deliver(task, reminder, settings) {
     ? settings.whatsappFollowUps
     : settings.notifyWhatsApp;
 
+  /*
+   * The person it was given to, before his own message rather than after it.
+   *
+   * This is the one path in the engine that reaches somebody else. It is
+   * bounded in assignee-nudge.js - never a group, never at night, never more
+   * than twice about one job, never to a name whose number was not
+   * deliberately stored - and every refusal is written to the log with its
+   * reason, because "it did not send" with no reason is what wastes an evening.
+   *
+   * It runs first so that the message going to HIM can say it happened. The
+   * app must never message somebody on his behalf without telling him.
+   */
+  let told = null;
+  if (task.assigned_to) {
+    const out = await nudgeAssignee(task, reminder.kind, settings);
+    if (out.sent) {
+      told = out.to;
+      log.info(`Reminded ${out.to} about "${task.title}".`);
+    } else if (settings.nudgeAssignee) {
+      log.info(`Did not remind ${task.assigned_to}: ${out.reason}.`);
+    }
+  }
+
   if (wantsWhatsApp && state.status === 'ready') {
     const heading = reminder.kind === 'follow_up'
       ? '🔔 *FOLLOW-UP*'
@@ -487,6 +512,7 @@ async function deliver(task, reminder, settings) {
         ? `This is due ${whenWord}.`
         : reminder.kind === 'follow_up' ? 'Status: still not completed' : 'Status: not completed',
       blockedNote ? `⛔ ${blockedNote}` : null,
+      told ? `✔ I have also reminded ${told} on WhatsApp.` : null,
       '',
       `Reply *done ${task.id}* to close it, *snooze ${task.id} 2 hours*,`,
       'or open WA Tasks to reschedule.',
@@ -498,23 +524,28 @@ async function deliver(task, reminder, settings) {
     } catch (err) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
+  } else if (told && state.status === 'ready') {
+    /*
+     * His own follow-up messages are off by default (three of them per late
+     * task is how a reminder becomes something you mute) - but the nudge to
+     * the assignee is not, so without this the app would message his staff at
+     * 3:30 and tell him nothing. Finding out later that your app has been
+     * chasing people on your behalf is how a feature loses its welcome.
+     *
+     * One line, and bounded by the nudge's own caps: it can only happen when a
+     * message really went out, which is at most twice per task.
+     */
+    try {
+      await sendMessage(
+        reminderChatId(),
+        `✔ Reminded *${told}* on WhatsApp about *${task.title}*.`
+          + (dueLabel ? `\nDeadline: ${dueLabel}` : '')
+      );
+    } catch (err) {
+      log.error('Assignee-nudge notice failed:', err?.message || err);
+    }
   }
 
-  /*
-   * And the person it was given to.
-   *
-   * Separate from everything above: that all went to the linked account's own
-   * chat, this is the one path in the engine that reaches somebody else. It is
-   * bounded in assignee-nudge.js - never a group, never at night, never more
-   * than twice about one job, never to a name whose number was not
-   * deliberately stored - and every refusal is written to the log with its
-   * reason, because "it did not send" with no reason is what wastes an evening.
-   */
-  if (task.assigned_to) {
-    const out = await nudgeAssignee(task, reminder.kind, settings);
-    if (out.sent) log.info(`Reminded ${out.to} about "${task.title}".`);
-    else if (settings.nudgeAssignee) log.info(`Did not remind ${task.assigned_to}: ${out.reason}.`);
-  }
 }
 
 /**

@@ -116,9 +116,19 @@ run('nothing about assigning sends anybody anything', () => {
 run('the reminder for a delegated task still goes to him', () => {
   const engine = fs.readFileSync(new URL('../src/reminders.js', import.meta.url), 'utf8');
   const deliver = engine.slice(engine.indexOf('async function deliver('), engine.indexOf('async function deliverNoteReminders'));
-  const sends = [...deliver.matchAll(/sendMessage\(([^,]+),/g)].map((m) => m[1].trim());
-  assert.deepEqual(sends, ['reminderChatId()'],
-    `a task with somebody else's name on it still reminds him: ${sends.join(', ')}`);
+  const sends = [...deliver.matchAll(/sendMessage\(\s*([^,]+),/g)].map((m) => m[1].trim());
+  /*
+   * Every send in here goes to his own chat. That is the rule, and it is what
+   * this checks - not the number of them, which was the original assertion and
+   * which broke the day a second one was added: the notice telling him the app
+   * had just messaged his assignee. Both go to the same place; counting them
+   * only pinned today's shape.
+   */
+  assert.ok(sends.length >= 1, 'this test cannot pass by finding no sends');
+  for (const target of sends) {
+    assert.equal(target, 'reminderChatId()',
+      `a task with somebody else's name on it still reminds him: ${sends.join(', ')}`);
+  }
   assert.match(deliver, /With \$\{task\.assigned_to\}/, 'it just says whose desk it is on');
 });
 

@@ -225,3 +225,52 @@ describe('nothing is chased automatically without a deadline', () => {
     assert.match(fn, /\{ due_date: null, due_at: null \}/, 'and clearing clears both');
   });
 });
+
+
+/*
+ * He is told every time the app messages somebody for him.
+ *
+ * His own follow-up messages are off by default - three per late task is how a
+ * reminder becomes something you mute - but the nudge to the assignee is not.
+ * So at the deadline he heard about it and at the follow-up, thirty minutes
+ * later, his staff got a message and he got nothing. Finding out later that
+ * your app has been chasing people on your behalf is how a feature loses its
+ * welcome, and this is the app's most sensitive behaviour.
+ */
+describe('nothing is sent on his behalf in silence', () => {
+  const src = fs.readFileSync(new URL('../src/reminders.js', import.meta.url), 'utf8');
+
+  it('the nudge runs before his own message, so that message can carry it', () => {
+    const nudgeAt = src.indexOf('await nudgeAssignee(task, reminder.kind, settings)');
+    const mineAt = src.indexOf('if (wantsWhatsApp && state.status');
+    assert.ok(nudgeAt > 0 && mineAt > 0);
+    assert.ok(nudgeAt < mineAt, 'ordered the other way, his message cannot mention it');
+    assert.match(src, /told \? `✔ I have also reminded \$\{told\} on WhatsApp\.` : null/);
+  });
+
+  it('and when his own message is not sent, he is told anyway', () => {
+    // This is the case that was silent: kind 'follow_up' with
+    // whatsappFollowUps off, which is the default.
+    const tail = src.slice(src.indexOf('} else if (told && state.status'));
+    assert.match(tail, /sendMessage\(\s*\n?\s*reminderChatId\(\)/, 'to his own chat, as always');
+    assert.match(tail, /Reminded \*\$\{told\}\*/);
+    // Only when a message really went out - `told` is set from out.sent alone.
+    assert.match(src, /if \(out\.sent\) \{\n\s*told = out\.to;/);
+  });
+
+  it('the notice cannot outnumber the nudges it reports', () => {
+    // It is bounded by the nudge's own caps rather than by a rule of its own:
+    // at most two per task, four per person per day, and nothing at night.
+    const nudge = fs.readFileSync(new URL('../src/assignee-nudge.js', import.meta.url), 'utf8');
+    assert.match(nudge, /const MAX_PER_TASK = 2/);
+    assert.match(nudge, /const MAX_PER_PERSON_PER_DAY = 4/);
+  });
+
+  it('the comment that said this never happens is gone', () => {
+    // It read "Nothing here messages that person", which stopped being true
+    // the day the automatic nudge shipped. A comment that lies is worse than
+    // no comment: the next person reads it instead of the code.
+    assert.ok(!/Nothing here messages\s*\n?\s*\* that person/.test(src));
+    assert.ok(!src.includes('sending to an assignee happens only from the dashboard'));
+  });
+});
