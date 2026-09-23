@@ -145,6 +145,17 @@ try {
     log.warn('Could not turn on the law digest:', err?.message || err);
   }
 
+  /* Reminding whoever a task was given to, likewise: asked for outright. */
+  try {
+    const { enableAssigneeNudgeOnce } = await import('./scheduling.js');
+    const { changed } = enableAssigneeNudgeOnce();
+    if (changed) {
+      log.info('Automatic reminders to assignees turned on — at most two per task, 8am-9pm, never to a group.');
+    }
+  } catch (err) {
+    log.warn('Could not turn on assignee reminders:', err?.message || err);
+  }
+
   /*
    * The Section 138 watch, set up once. Asked for by name, and it is the work
    * Arth Advisory does - so it is there on first boot rather than waiting to be

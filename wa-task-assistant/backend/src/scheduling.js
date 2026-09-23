@@ -128,6 +128,18 @@ const DEFAULTS = {
    * chasing is wanted.
    */
   whatsappFollowUps: false,         // per-reminder messages after it
+  /*
+   * Reminding the person a task was GIVEN to, without anybody pressing a
+   * button. Asked for outright ("karna to he hi"), which overrules the rule
+   * this app was built on - that it messages nobody but its owner on its own.
+   *
+   * Bounded in assignee-nudge.js rather than here, because these are not
+   * preferences: never a group, never outside 8am-9pm, never more than twice
+   * about one job, and never to a name whose number was not deliberately
+   * stored. This runs on a personal number through an unofficial library, and
+   * automated repeat messaging to other people is what gets numbers banned.
+   */
+  nudgeAssignee: false,
   dailyBriefing: false,             // one morning message listing the day
   briefingTime: '09:00',            // in the configured timezone
   // One review of the week just finished. Sunday evening by default: the week
@@ -249,6 +261,31 @@ export function enableDeadlineMessagesOnce() {
  * It costs money every day, which is exactly why this is a one-time nudge with
  * a visible switch rather than a default nobody chose.
  */
+/**
+ * Turn assignee reminders on, once, because they were asked for.
+ *
+ * The same one-time marker the law digest uses: it goes on for the person who
+ * asked for it, and if it is switched off afterwards it STAYS off - a nudge
+ * that reappears after being turned off is worse than one that never shipped,
+ * and this one messages other people.
+ */
+export function enableAssigneeNudgeOnce() {
+  const done = db.prepare(`SELECT value FROM meta WHERE key = 'assignee_nudge_default_on'`).get();
+  if (done) return { changed: false };
+
+  let changed = false;
+  if (getSettings().nudgeAssignee !== true) {
+    saveSettings({ nudgeAssignee: true });
+    changed = true;
+  }
+
+  db.prepare(
+    `INSERT INTO meta (key, value) VALUES ('assignee_nudge_default_on', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(new Date().toISOString());
+  return { changed };
+}
+
 export function enableLawDigestOnce() {
   const done = db.prepare(`SELECT value FROM meta WHERE key = 'law_digest_default_on'`).get();
   if (done) return { changed: false };

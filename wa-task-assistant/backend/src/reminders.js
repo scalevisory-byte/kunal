@@ -6,6 +6,7 @@ import {
   dueExactReminders, markExactRemindersSent,
 } from './db.js';
 import { sendMessage, reminderChatId, state } from './whatsapp.js';
+import { nudgeAssignee } from './assignee-nudge.js';
 import { sendPush } from './push.js';
 import { today, daysUntil } from './dates.js';
 import { db } from './db.js';
@@ -497,6 +498,22 @@ async function deliver(task, reminder, settings) {
     } catch (err) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
+  }
+
+  /*
+   * And the person it was given to.
+   *
+   * Separate from everything above: that all went to the linked account's own
+   * chat, this is the one path in the engine that reaches somebody else. It is
+   * bounded in assignee-nudge.js - never a group, never at night, never more
+   * than twice about one job, never to a name whose number was not
+   * deliberately stored - and every refusal is written to the log with its
+   * reason, because "it did not send" with no reason is what wastes an evening.
+   */
+  if (task.assigned_to) {
+    const out = await nudgeAssignee(task, reminder.kind, settings);
+    if (out.sent) log.info(`Reminded ${out.to} about "${task.title}".`);
+    else if (settings.nudgeAssignee) log.info(`Did not remind ${task.assigned_to}: ${out.reason}.`);
   }
 }
 

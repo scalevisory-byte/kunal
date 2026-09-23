@@ -1,12 +1,21 @@
 /**
  * Where the app is allowed to put a message.
  *
- * The rule is one line: nothing this app does on its own may place a message
- * in anybody else's chat. There is exactly one exception, and it is a button -
- * the Nudge on a task he has given to somebody, one press, one message. This
- * test reads the source and holds every other send to the rule, because the
- * failure mode is silent: a message goes to a client and nobody finds out from
- * the dashboard.
+ * The rule was one line: nothing this app does on its own may place a message
+ * in anybody else's chat, the Nudge button excepted - one press, one message.
+ *
+ * That rule was overruled on purpose ("karna to he hi"): a task given to
+ * somebody is now chased on WhatsApp without a press. So the rule became two
+ * lines rather than none. There are exactly TWO places a message can leave for
+ * somebody else - the Nudge button and assignee-nudge.js - and this test still
+ * holds every other send to the original rule, because the failure mode has
+ * not changed: a message goes to a client and nobody finds out from the
+ * dashboard.
+ *
+ * What guards the new one is not this file but its own rails, which
+ * assignee-nudge.test.mjs pins: never a group, never at night, never more than
+ * twice about one job, never a number nobody deliberately stored. The last
+ * case below makes sure that file is the only door.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,9 +80,16 @@ describe('nothing automatic reaches somebody else', () => {
       // The chat a command arrived in - and handleCommand refuses to act
       // unless that chat IS his own, which the next test pins down.
       'chatId',
-      // The one deliberate exception: the Nudge button. No cron, no pass, no
-      // extractor can reach it; a person presses it.
+      // The Nudge button. No cron, no pass, no extractor can reach it; a
+      // person presses it.
       'task.assigned_to_wid',
+      /*
+       * The second exception, added deliberately: the engine chasing whoever
+       * the task was given to. `chat` here is chatForAssignee(task), which
+       * resolves only from the task's own stored id or the Staff list, and
+       * every rail around it lives in that one file.
+       */
+      'chat',
     ]);
     for (const t of targets) {
       assert.ok(allowed.has(t.arg), `${t.file} sends to ${t.arg}, which is not on the list`);
@@ -86,6 +102,24 @@ describe('nothing automatic reaches somebody else', () => {
     const guard = body.slice(0, body.indexOf('let targets'));
     assert.match(guard, /chatId !== reminderChatId\(\)/, 'the guard is still there');
     assert.match(guard, /return false/);
+  });
+
+  it('only one file may send to somebody else without a press', () => {
+    /* The Nudge is a route, so it is reached by a person. Everything else that
+       can address another chat must be the one bounded file - if a second one
+       appears, these rails have been copied and one copy will fall behind. */
+    const automatic = targets.filter((t) => t.arg === 'chat' || t.arg === 'task.assigned_to_wid');
+    const files = new Set(automatic.map((t) => t.file));
+    assert.deepEqual([...files].sort(), ['assignee-nudge.js', 'delegation.js']);
+  });
+
+  it('that file refuses a group, the night, and a third message', () => {
+    const text = fs.readFileSync(path.join(src, 'assignee-nudge.js'), 'utf8');
+    assert.match(text, /@g\.us/, 'a group must be refused by name');
+    assert.match(text, /MAX_PER_TASK/);
+    assert.match(text, /DAY_START|DAY_END/);
+    /* And it cannot send at all while the switch is off. */
+    assert.match(text, /if \(!settings\.nudgeAssignee\) return/);
   });
 
   it('a note typed in somebody else\'s chat is confirmed to him, not to them', () => {
