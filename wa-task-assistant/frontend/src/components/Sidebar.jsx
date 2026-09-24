@@ -62,6 +62,7 @@ const NAV = [
     items: [
       { key: 'usage', label: 'AI Usage', icon: 'clipboard' },
       { key: 'settings', label: 'Settings', icon: 'settings' },
+      { key: 'whatsnew', label: 'What’s new', icon: 'tag', count: 'whatsnew' },
     ],
   },
 ];
@@ -148,7 +149,7 @@ function NavGroup({ label, items, section, open, onToggle, onPick }) {
 /** The application's spine: where you are, and the one fact that matters below. */
 export default function Sidebar({
   section, onSection, connected, open, onClose, groups = [], delegation = null, leads = null,
-  duplicates = 0,
+  duplicates = 0, whatsNew = 0,
 }) {
   const [openGroups, setOpenGroups] = useState(readOpen);
 
@@ -205,7 +206,9 @@ export default function Sidebar({
           // already suspect something to open.
           : item.count === 'duplicates'
             ? duplicates
-            : item.count ? (delegation?.[item.count] || 0) : 0,
+            : item.count === 'whatsnew'
+              ? whatsNew
+              : item.count ? (delegation?.[item.count] || 0) : 0,
       })),
     });
   }

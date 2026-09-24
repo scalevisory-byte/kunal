@@ -1,3 +1,4 @@
+import { CURRENT } from '../changelog.js';
 import { useState } from 'react';
 import { api } from '../api.js';
 
@@ -63,6 +64,7 @@ function Build({ build }) {
     : null;
   return (
     <p className="build-line">
+      <strong>v{CURRENT.version}</strong>{' · '}
       {build.commit ? <code>{build.commit}</code> : 'build unknown'}
       {build.message && <span title={build.message}> · {build.message.split('\n')[0].slice(0, 60)}</span>}
       {when && <span> · running since {when}</span>}

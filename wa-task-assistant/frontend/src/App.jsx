@@ -46,6 +46,8 @@ import DueSoonBanner from './components/DueSoonBanner.jsx';
 import NotesPage from './components/NotesPage.jsx';
 import LeadsPage from './components/LeadsPage.jsx';
 import Delegation from './components/Delegation.jsx';
+import WhatsNew from './components/WhatsNew.jsx';
+import { CURRENT, lastSeen, markSeen, unseen } from './changelog.js';
 import { useInstall } from './lib/install.js';
 import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, taskMonth, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
@@ -257,6 +259,15 @@ export default function App() {
   const railRef = useRef(null);
   // Which sidebar section is showing. 'settings' swaps the workspace for setup.
   const [section, setSection] = useState('dashboard');
+  // What this browser had been shown before this visit, read once so the
+  // page can still mark what is new after the banner is dismissed.
+  const [seenBefore] = useState(lastSeen);
+  const [newReleases, setNewReleases] = useState(() => unseen(seenBefore));
+  useEffect(() => {
+    // A first visit has nothing to compare with; start the clock from here.
+    if (!seenBefore) markSeen();
+  }, [seenBefore]);
+  const dismissNew = () => { markSeen(); setNewReleases([]); };
   const [navOpen, setNavOpen] = useState(false);
   const [notifications, setNotifications] = useState({ notifications: [], unread: 0 });
   const [notifOpen, setNotifOpen] = useState(false);
@@ -881,6 +892,7 @@ export default function App() {
 
   const goto = (key) => {
     setSection(key);
+    if (key === 'whatsnew' && newReleases.length) dismissNew();
     setSelectedDate(null);
     setDoneDay(null);
     setQuery('');
@@ -988,6 +1000,7 @@ export default function App() {
         delegation={delegation}
         leads={leadCounts}
         duplicates={stats?.duplicates || 0}
+        whatsNew={newReleases.length}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />
@@ -1046,6 +1059,19 @@ export default function App() {
             </div>
           )}
 
+          {newReleases.length > 0 && section !== 'whatsnew' && (
+            <div className="banner ok" role="status">
+              <span>
+                Updated to <strong>v{CURRENT.version}</strong>
+                {newReleases.length > 1 ? ` (${newReleases.length} versions since you last looked)` : ''}: {CURRENT.title}.
+              </span>
+              <span className="banner-actions">
+                <button className="link" onClick={() => goto('whatsnew')}>See what changed</button>
+                <button className="link" onClick={dismissNew}>Dismiss</button>
+              </span>
+            </div>
+          )}
+
           {notifOpen && (
             <NotificationCentre
               items={notifications.notifications}
@@ -1056,7 +1082,17 @@ export default function App() {
             />
           )}
 
-          {section === 'history' ? (
+          {section === 'whatsnew' ? (
+            <section className="settings-page">
+              <div className="page-head">
+                <div>
+                  <h2>What&rsquo;s new</h2>
+                  <p>Every version of the app, and what each one changed.</p>
+                </div>
+              </div>
+              <WhatsNew seenBefore={seenBefore} build={status?.diagnostics?.build} />
+            </section>
+          ) : section === 'history' ? (
             <section className="settings-page">
               <div className="page-head">
                 <div>
