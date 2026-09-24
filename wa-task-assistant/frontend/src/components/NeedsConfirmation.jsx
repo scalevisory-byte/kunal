@@ -63,8 +63,8 @@ export default function NeedsConfirmation({ tasks, onConfirm, onReject, onOpen }
 
       {shut ? null : <>
       <p className="confirm-lede">
-        Claude picked these out of your chats but said it was not sure about them.
-        They are not being reminded about until you say.
+        Claude was not sure these are tasks. They stay here, off your list and with no
+        reminders, until you say. Tap the title to see or edit it first.
       </p>
 
       <ul>
@@ -78,6 +78,12 @@ export default function NeedsConfirmation({ tasks, onConfirm, onReject, onOpen }
                 {task.chat_name && <span><Icon name="chat" size={12} /> {task.chat_name}</span>}
                 {task.due_date && <span><Icon name="clock" size={12} /> {task.due_date}</span>}
               </div>
+              {task.held?.reason === 'chat' && (
+                <p className="confirm-why">
+                  Asked because you removed {task.held.rejected} of the last{' '}
+                  {task.held.rejected + task.held.kept} tasks from this chat.
+                </p>
+              )}
               {task.source_message && (
                 <blockquote className="confirm-source">{task.source_message}</blockquote>
               )}

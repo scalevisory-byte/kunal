@@ -8,6 +8,7 @@ import { isoAtLocal } from './quickparse.js';
 import { recordUsage } from './db.js';
 import { listGroups, routeTask } from './groups.js';
 import { isRawId } from './wid.js';
+import { chatVerdicts, holdReason } from './doubt.js';
 
 let client = null;
 
@@ -82,8 +83,9 @@ const ExtractionSchema = z.object({
       confidence: z
         .enum(['high', 'medium', 'low'])
         .describe(
-          'How sure you are this is genuinely a task he must do. "low" when the ' +
-            'message is ambiguous, conversational, or might not be aimed at him.'
+          'How sure you are this is genuinely a task. "high" only when a concrete job ' +
+            'is clearly asked of him, promised by him, or written by him as a note or an ' +
+            'instruction. Anything less and he is asked before it goes on his list.'
         ),
     })
   ),
@@ -104,6 +106,17 @@ Do NOT extract:
 - purely informational updates that need no action from him
 - something already clearly completed in the same conversation
 - a duplicate of another task in the same batch (merge them into one)
+- plain conversation. Most of his chats are people talking, and talking is not a task:
+  * agreeing or acknowledging: "ok", "haan theek hai", "ji sir", "done", "received",
+    "noted", "thik che", "barabar", "sure", a thumbs-up
+  * vague intent with no job in it: "dekhte hain", "baat karte hain", "kuch karte hain",
+    "sochte hain", "aapko batata hu", "joi laiye", "call karo free ho to"
+  * catching up, opinions, news, rates, gossip, family and personal chat
+  * a question answered, a doubt cleared, a status told ("payment aa gaya", "pahuch gaya")
+  * one reply in the middle of a back-and-forth that only makes sense with the
+    messages around it
+  A task has a job in it: something specific to send, pay, file, book, check,
+  prepare, call about or decide - with enough in the message to act on it.
 
 Rules:
 - title: short and imperative, e.g. "Send GST invoice to Rakesh".
@@ -146,10 +159,17 @@ Rules:
 - priority: "high" for money, legal/statutory deadlines, travel about to happen, or an
   explicitly urgent ask; "low" for vague or nice-to-have; "medium" otherwise.
 - confidence: your own honest judgement of whether this really is a task for him.
-  Use "low" when the message is ambiguous, when it might be aimed at somebody else,
-  or when you are extracting it only because it might matter. A "low" task is held
-  back for him to confirm rather than being chased, so marking one honestly costs
-  nothing - inventing confidence you do not have is what causes wrong reminders.
+  Only "high" goes straight onto his list. "medium" and "low" are held in a box on
+  his dashboard that asks him "Is this a task?", and nothing is chased until he says
+  yes. So:
+  * "high" - a concrete job, clearly asked of him, promised by him, or written by
+    him as a note to himself or an instruction to his team.
+  * "low" - it might be a task but you are not sure: conversational, vague, part of
+    a discussion, might be aimed at somebody else, or you are extracting it only
+    because it might matter.
+  * When in doubt between the two, choose "low". Asking him costs one tap; a wrong
+    task on his list costs his trust in the whole list.
+  * When it is clearly just talk, do not extract it at all.
 - assigned_to: who has to do the work.
 
   Each message says who wrote it and where. That is the whole signal - never
@@ -400,6 +420,9 @@ export async function extractTasks(messages) {
 
   if (!parsed.tasks?.length) return [];
 
+  // Read once per batch: which chats he keeps throwing tasks out of.
+  const verdicts = chatVerdicts();
+
   return parsed.tasks
     .map((task) => {
       const source = messages[task.source_index] ?? null;
@@ -501,10 +524,10 @@ export async function extractTasks(messages) {
           task.group,
           groups
         ),
-        // The model's own report, kept as such. A task it was unsure about is
-        // created but held back for confirmation rather than being chased.
+        // Held in "Is this a task?" - not on the list, not chased - when the
+        // model was not sure, or the chat is one he keeps rejecting tasks from.
         ai_confidence: task.confidence || null,
-        needs_confirmation: task.confidence === 'low' ? 1 : 0,
+        needs_confirmation: holdReason({ confidence: task.confidence, source }, verdicts) ? 1 : 0,
         status: 'open',
         // Not a column: the caller attaches this to the created task so the
         // invoice is on the task it produced, then drops it.

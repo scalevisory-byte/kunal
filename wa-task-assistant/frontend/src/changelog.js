@@ -8,6 +8,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.15',
+    date: '2026-09-24',
+    title: 'Doubtful tasks are asked, not listed',
+    changes: [
+      'When Claude is not sure a message is a task, it goes to “Is this a task?” on the dashboard instead of your list. Yes keeps it, Not a task removes it.',
+      'Those tasks are on no list, in no figure and get no reminders until you say yes.',
+      'Claude is told that plain talk (“ok”, “haan theek hai”, “dekhte hain”, catching up) is not a task.',
+      'If you remove 3 or more tasks from one chat, and that is at least half of what you decided for it, new tasks from that chat are asked first too. The box says so.',
+      'Your own notes-to-self chat is never held.',
+    ],
+  },
+  {
     version: '1.14',
     date: '2026-09-24',
     title: 'Version history',

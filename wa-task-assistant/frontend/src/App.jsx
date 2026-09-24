@@ -357,7 +357,9 @@ export default function App() {
           api.status(),
           api.notifications().catch(() => ({ notifications: [], unread: 0 })),
         ]);
-        setTasks(taskData.tasks);
+        // A task Claude was not sure about lives only in "Is this a task?"
+        // until he says yes; it is on no list and in no figure before that.
+        setTasks(taskData.tasks.filter((t) => !t.needs_confirmation));
         setStats(taskData.stats);
         setStatus(statusData);
         setNotifications(notifData);

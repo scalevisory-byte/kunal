@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { chatVerdicts, heldBecause } from '../doubt.js';
 import { createTask, getTask, listTasks, countTasks, updateTask, deleteTask, taskStats } from '../db.js';
 import { normalizeDueDate, normalizeInstant, today } from '../dates.js';
 import { parseQuickTask, isoAtLocal } from '../quickparse.js';
@@ -276,9 +277,10 @@ function moveToDay(iso, day) {
  * matches in order, and '/:id' would otherwise take "pending" for an id.
  */
 tasksRouter.get('/pending/confirmation', (req, res) => {
+  const verdicts = chatVerdicts();
   const tasks = listTasks({ status: 'all', limit: 500 })
     .filter((t) => t.needs_confirmation)
-    .map((task) => ({ ...task, ...taskSchedule(task) }));
+    .map((task) => ({ ...task, ...taskSchedule(task), held: heldBecause(task, verdicts) }));
   res.json({ tasks });
 });
 

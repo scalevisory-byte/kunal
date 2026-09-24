@@ -1349,7 +1349,7 @@ export function taskStats() {
          COALESCE(SUM(status = 'waiting'), 0)                          AS waiting,
          COALESCE(SUM(status = 'done'), 0)                            AS done,
          COALESCE(SUM(status != 'done' AND priority = 'high'), 0)     AS high_open
-       FROM tasks WHERE archived_at IS NULL AND ${NOT_SET_ASIDE_BARE}`
+       FROM tasks WHERE archived_at IS NULL AND needs_confirmation = 0 AND ${NOT_SET_ASIDE_BARE}`
     )
     .get();
 }

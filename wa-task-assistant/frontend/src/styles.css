@@ -2695,6 +2695,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   font-size: .74rem; color: var(--muted);
 }
 .confirm-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.confirm-why { margin: 4px 0 0; font-size: .76rem; color: var(--muted); }
 .confirm-source {
   margin: 7px 0 0; padding: 6px 10px; border-left: 2px solid var(--line-2);
   font-size: .77rem; color: var(--muted); line-height: 1.5;
