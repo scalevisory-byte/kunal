@@ -118,6 +118,15 @@ const DEFAULTS = {
    * the worst kind of surprise.
    */
   onlyListedChats: false,
+  /*
+   * The master switch for every task message sent to his OWN WhatsApp: the
+   * twice-daily list, deadline reminders, follow-ups, note and lead reminders,
+   * the morning briefing and the weekly review. Asked as "jo my own number pe
+   * task reminder and task list aa rahi he usko bandh karo". Off: they still
+   * reach the bell and the browser notification. Replies to commands he types,
+   * the law digests and anything sent to somebody else are not covered here.
+   */
+  whatsappToMe: false,
   // Every WhatsApp message this app sends goes to the linked account's own
   // chat. There is no path that messages a contact, and these switches only
   // decide whether the user hears from themselves.

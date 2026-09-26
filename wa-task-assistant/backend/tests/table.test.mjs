@@ -157,7 +157,7 @@ describe('one box, one meaning', () => {
   });
 
   it('shares the row menu rather than copying it', () => {
-    assert.match(table, /import \{ RowMenu \} from '\.\/TaskItem\.jsx'/);
+    assert.match(table, /import \{ RowMenu(, AssignButton)? \} from '\.\/TaskItem\.jsx'/);
     assert.ok(!/function RowMenu/.test(table));
   });
 

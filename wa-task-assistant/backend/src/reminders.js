@@ -108,8 +108,12 @@ export async function runReminderCheck({ label = 'manual' } = {}) {
   const digest = buildDigest(tasks);
   let whatsappSent = false;
 
+  // A press of "run now" is asked for; the scheduled runs obey the switch.
+  const toMe = label === 'manual' || getSettings().whatsappToMe;
   try {
-    if (state.status === 'ready') {
+    if (!toMe) {
+      log.info(`Reminder check (${label}): WhatsApp to your own number is off, not sending the list.`);
+    } else if (state.status === 'ready') {
       await sendMessage(reminderChatId(), digest);
       whatsappSent = true;
     } else {
@@ -479,7 +483,7 @@ async function deliver(task, reminder, settings) {
    * exactly what she got before, and the one-line notice below still tells him
    * whenever the app has messaged her. Nothing here can send her more.
    */
-  const wantsWhatsApp = byKind
+  const wantsWhatsApp = settings.whatsappToMe && byKind
     && !(task.assigned_to && settings.ownCopyWhenDelegated === false);
 
   /*
@@ -500,6 +504,14 @@ async function deliver(task, reminder, settings) {
     if (out.sent) {
       told = out.to;
       log.info(`Reminded ${out.to} about "${task.title}".`);
+      // Said in the app every time, so it is never silent even with his own
+      // WhatsApp messages switched off.
+      addNotification({
+        kind: 'nudge',
+        title: `Reminded ${out.to} on WhatsApp — ${task.title}`,
+        body: dueLabel ? `Deadline: ${dueLabel}` : null,
+        task_id: task.id,
+      });
     } else if (settings.nudgeAssignee) {
       log.info(`Did not remind ${task.assigned_to}: ${out.reason}.`);
     }
@@ -534,7 +546,7 @@ async function deliver(task, reminder, settings) {
     } catch (err) {
       log.error('Reminder WhatsApp send failed:', err?.message || err);
     }
-  } else if (told && state.status === 'ready') {
+  } else if (told && settings.whatsappToMe && state.status === 'ready') {
     /*
      * His own follow-up messages are off by default (three of them per late
      * task is how a reminder becomes something you mute) - but the nudge to
@@ -581,7 +593,7 @@ async function deliverNoteReminders(nowIso, settings) {
     }
     // Same rule as every other message: the linked account's own chat, never
     // a contact's, and only when the user has switched WhatsApp on.
-    if (settings.notifyWhatsApp && state.status === 'ready') {
+    if (settings.whatsappToMe && settings.notifyWhatsApp && state.status === 'ready') {
       const text = ['📝 *NOTE REMINDER*', '', `*${heading}*`, body || null, '', 'Open WA Tasks to read it.']
         .filter((line) => line !== null)
         .join('\n');
@@ -622,7 +634,7 @@ async function deliverLeadReminders(nowIso, settings) {
      * To his own chat, like every other message this app sends. The lead's own
      * number is on the card for him to open; nothing here writes to it.
      */
-    if (settings.notifyWhatsApp && state.status === 'ready') {
+    if (settings.whatsappToMe && settings.notifyWhatsApp && state.status === 'ready') {
       const text = [
         '📇 *LEAD FOLLOW-UP*', '',
         `*${lead.name}*`,

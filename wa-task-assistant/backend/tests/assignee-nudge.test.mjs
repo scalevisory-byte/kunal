@@ -251,9 +251,11 @@ describe('nothing is sent on his behalf in silence', () => {
   it('and when his own message is not sent, he is told anyway', () => {
     // This is the case that was silent: kind 'follow_up' with
     // whatsappFollowUps off, which is the default.
-    const tail = src.slice(src.indexOf('} else if (told && state.status'));
+    const tail = src.slice(src.indexOf('} else if (told && settings.whatsappToMe && state.status'));
     assert.match(tail, /sendMessage\(\s*\n?\s*reminderChatId\(\)/, 'to his own chat, as always');
     assert.match(tail, /Reminded \*\$\{told\}\*/);
+    // And in the app every time, even with his own WhatsApp messages off.
+    assert.match(src, /addNotification\(\{\s*\n\s*kind: 'nudge',\s*\n\s*title: `Reminded \$\{out\.to\} on WhatsApp/);
     // Only when a message really went out - `told` is set from out.sent alone.
     assert.match(src, /if \(out\.sent\) \{\n\s*told = out\.to;/);
   });
@@ -305,7 +307,7 @@ describe('his own copy for work he gave away', () => {
      */
     const nudge = fs.readFileSync(new URL('../src/assignee-nudge.js', import.meta.url), 'utf8');
     assert.ok(!/ownCopyWhenDelegated/.test(nudge), 'it cannot reach the send-to-them path');
-    assert.match(src, /const wantsWhatsApp = byKind\s*\n?\s*&& !\(task\.assigned_to && settings\.ownCopyWhenDelegated === false\)/);
+    assert.match(src, /const wantsWhatsApp = settings\.whatsappToMe && byKind\s*\n?\s*&& !\(task\.assigned_to && settings\.ownCopyWhenDelegated === false\)/);
     assert.match(nudge, /const MAX_PER_TASK = 2/);
   });
 
@@ -319,7 +321,7 @@ describe('his own copy for work he gave away', () => {
   it('and he is still told each time the app messages them', () => {
     // Without this, turning the copy off would mean his staff are chased and
     // he never hears of it - which is the failure the notice exists for.
-    assert.match(src, /} else if \(told && state\.status === 'ready'\)/);
+    assert.match(src, /} else if \(told && settings\.whatsappToMe && state\.status === 'ready'\)/);
   });
 });
 

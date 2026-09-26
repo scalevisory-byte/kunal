@@ -8,6 +8,19 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.16',
+    date: '2026-09-26',
+    title: 'Quiet own number, assign from the table',
+    changes: [
+      'Task reminders and task lists no longer come to your own WhatsApp. They still reach the bell and the browser notification.',
+      'Settings → Where reminders go → “Task messages on my WhatsApp” turns them back on. It covers the twice-daily list, deadline reminders, follow-ups, note and lead reminders, the morning briefing and the weekly review.',
+      'Still sent: replies to commands you type (done 2, notes), the tax and legal digests, and messages to staff. Each time the app messages a staff member it also says so in the bell.',
+      'All Tasks → Table: the Assignee column is now the Staff button. One press, pick or type a name, Give.',
+      'On a phone, the bottom bar’s My day, Open and All now open the task list instead of staying on the dashboard.',
+      'Fixed: the table on a phone no longer makes the whole page scroll sideways.',
+    ],
+  },
+  {
     version: '1.15',
     date: '2026-09-24',
     title: 'Doubtful tasks are asked, not listed',

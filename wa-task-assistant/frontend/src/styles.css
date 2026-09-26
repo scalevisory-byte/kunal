@@ -5799,7 +5799,8 @@ button.due:hover { background: var(--raised); }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r);
   box-shadow: var(--shadow-sm); min-width: 0;
 }
-.tt-scroll { overflow-x: auto; }
+/* relative, or a hidden label in the last column escapes the frame and pushes the phone page sideways. */
+.tt-scroll { overflow-x: auto; position: relative; }
 .tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 940px; }
 .tt-table th, .tt-table td {
   padding: 8px 10px; text-align: left; vertical-align: middle;
@@ -6021,3 +6022,12 @@ button.due:hover { background: var(--raised); }
 .release ul { margin: 10px 0 0; padding-left: 20px; }
 .release li { font-size: .88rem; line-height: 1.55; margin: 3px 0; }
 :root[data-theme="dark"] .release-version { color: var(--text); }
+
+/* The Staff button in the table's Assignee column. */
+.tt-who { width: 130px; }
+.tt-who .assign { flex: none; width: 118px; }
+/* On the bottom rows it opens upward, or it hangs below the table and the
+   table's scroll frame stretches to hold it. The ⋮ menu gets the same. */
+.tt-table tbody tr:nth-last-child(-n+3):not(:nth-child(-n+3)) .menu {
+  top: auto; bottom: calc(100% + 4px);
+}

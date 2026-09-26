@@ -168,10 +168,21 @@ export default function SchedulingSettings({ onError }) {
       </Row>
 
       <Row
+        label="Task messages on my WhatsApp"
+        note={settings.whatsappToMe
+          ? 'On: the task list, reminders, follow-ups, briefing and weekly review can reach your own number, each by its own switch below.'
+          : 'Off: nothing about your tasks is sent to your own number. Reminders still come to the bell and as a browser notification. Replies to commands you type still come back.'}
+      >
+        <Toggle on={Boolean(settings.whatsappToMe)} label="Task messages on my WhatsApp"
+          onChange={(v) => save({ whatsappToMe: v })} />
+      </Row>
+
+      <Row
         label="WhatsApp — deadline reminders"
         note="The reminder at or before the due time. Your own chat only, never a contact."
       >
         <Toggle on={settings.notifyWhatsApp} label="WhatsApp deadline reminders"
+          disabled={!settings.whatsappToMe}
           onChange={(v) => save({ notifyWhatsApp: v })} />
       </Row>
 
@@ -180,7 +191,7 @@ export default function SchedulingSettings({ onError }) {
         note="The nudges after a deadline passes, until the task is done."
       >
         <Toggle on={settings.whatsappFollowUps} label="WhatsApp follow-ups"
-          disabled={!settings.followUpEnabled}
+          disabled={!settings.followUpEnabled || !settings.whatsappToMe}
           onChange={(v) => save({ whatsappFollowUps: v })} />
       </Row>
 
@@ -204,6 +215,7 @@ export default function SchedulingSettings({ onError }) {
           + 'The task stays on your dashboard, your digest and your briefing either way.'}
       >
         <Toggle on={settings.ownCopyWhenDelegated !== false} label="Also send it to me"
+          disabled={!settings.whatsappToMe}
           onChange={(v) => save({ ownCopyWhenDelegated: v })} />
       </Row>
 
@@ -217,6 +229,7 @@ export default function SchedulingSettings({ onError }) {
         note="Today's tasks and anything overdue, in one message to your own chat."
       >
         <Toggle on={settings.dailyBriefing} label="Daily briefing"
+          disabled={!settings.whatsappToMe}
           onChange={(v) => save({ dailyBriefing: v })} />
       </Row>
 
@@ -237,6 +250,7 @@ export default function SchedulingSettings({ onError }) {
         note="What you finished, what is still open, and which chats the work came from."
       >
         <Toggle on={settings.weeklySummary} label="Weekly summary"
+          disabled={!settings.whatsappToMe}
           onChange={(v) => save({ weeklySummary: v })} />
       </Row>
 

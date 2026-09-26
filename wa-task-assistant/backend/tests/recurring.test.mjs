@@ -64,9 +64,12 @@ run('nothing is created while the date is still far off', () => {
   const before = tasksNamed('Far away filing').length;
   R.materialiseDue();
   const now = tasksNamed('Far away filing').length;
-  // Either it is genuinely within a day of the 28th, or nothing was made.
+  // Either it is inside the window, or nothing was made. The window is
+  // lead_days + 1: the task is made a day before its warning so the warning
+  // can still be scheduled (materialiseDue). Without the +1 this failed on
+  // the 26th of every month.
   const soon = R.upcoming().find((u) => u.rule.id === far.id);
-  if (soon && soon.days_away <= far.lead_days) {
+  if (soon && soon.days_away <= far.lead_days + 1) {
     assert.equal(now, before + 1, 'inside the lead time it is created');
   } else {
     assert.equal(now, before, 'outside the lead time nothing is created');

@@ -194,7 +194,7 @@ export function briefingDue(now, settings) {
  */
 export async function maybeSendBriefing({ now = new Date(), force = false } = {}) {
   const settings = getSettings();
-  if (!force && !settings.dailyBriefing) return { sent: false, reason: 'off' };
+  if (!force && (!settings.dailyBriefing || !settings.whatsappToMe)) return { sent: false, reason: 'off' };
   if (!force && !briefingDue(now, settings)) return { sent: false, reason: 'not yet' };
 
   const day = localDay(now);
@@ -337,7 +337,7 @@ export function weeklyDue(now, settings) {
 /** Sent at most once a week, by exactly the mechanism the daily briefing uses. */
 export async function maybeSendWeekly({ now = new Date(), force = false } = {}) {
   const settings = getSettings();
-  if (!force && !settings.weeklySummary) return { sent: false, reason: 'off' };
+  if (!force && (!settings.weeklySummary || !settings.whatsappToMe)) return { sent: false, reason: 'off' };
   if (!force && !weeklyDue(now, settings)) return { sent: false, reason: 'not yet' };
 
   const key = localWeek(now);

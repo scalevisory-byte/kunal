@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
-import { RowMenu } from './TaskItem.jsx';
+import { RowMenu, AssignButton } from './TaskItem.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
@@ -48,7 +48,7 @@ function Title({ task, onOpen, rename }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename }) {
+function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename, people, onAssign }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -87,7 +87,11 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
           : <span className="tt-none">—</span>}
       </td>
       <td className="tt-who">
-        {task.assigned_to ? task.assigned_to : <span className="tt-none">You</span>}
+        {/* The list's own Staff button, so giving a task away from the table is
+            the same one press, and a name is still required. */}
+        {onAssign && !done
+          ? <AssignButton task={task} people={people} onAssign={onAssign} />
+          : task.assigned_to ? task.assigned_to : <span className="tt-none">You</span>}
       </td>
       <td className={`tt-due ${due?.tone ? `t-${due.tone}` : ''}`}>
         {done ? (
@@ -154,6 +158,7 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
   onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename,
+  people = [], onAssign,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
   // every column): "here be only latest pending". Due date is one press away.
@@ -258,6 +263,8 @@ export default function TaskTable({
                 onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}
                 onRename={onRename}
+                people={people}
+                onAssign={onAssign}
               />
             ))}
           </tbody>

@@ -11,9 +11,17 @@
  * deadline rebuilds it. There is no second reminder engine to test.
  */
 import assert from 'node:assert/strict';
+import { mock } from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+/*
+ * A fixed morning early in the month. The cases below build rules for "three
+ * days from today", and a rule's day must be 1-28 - so on the 26th and after
+ * they asked for a day that cannot exist and nine of them failed.
+ */
+mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-08T04:30:00Z') });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-monthly-'));
 process.env.DATA_DIR = dir;

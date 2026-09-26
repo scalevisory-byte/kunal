@@ -183,7 +183,7 @@ await run('a failed send may be retried, but only a few times', () => {
 });
 
 await run('a delivered briefing is never re-sent after a restart', async () => {
-  S.saveSettings({ dailyBriefing: true, briefingTime: '00:01' });
+  S.saveSettings({ dailyBriefing: true, whatsappToMe: true, briefingTime: '00:01' });
   const day = B.localDay();
   S.claimBriefing(day);
   S.recordBriefingSent(day, 1);
@@ -200,7 +200,7 @@ await run('nothing is sent while the briefing is switched off', async () => {
 });
 
 await run('nothing is sent before the configured hour', async () => {
-  S.saveSettings({ dailyBriefing: true, briefingTime: '23:59' });
+  S.saveSettings({ dailyBriefing: true, whatsappToMe: true, briefingTime: '23:59' });
   const result = await B.maybeSendBriefing({ now: new Date('2026-09-22T01:00:00Z') });
   assert.equal(result.sent, false);
   assert.equal(result.reason, 'not yet');

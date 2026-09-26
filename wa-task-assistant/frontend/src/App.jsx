@@ -544,6 +544,15 @@ export default function App() {
    * holds one task — the last one — because that is the mistake people actually
    * make, and a stack of undos is a second list to reason about.
    */
+  // One handler for the list and the table, so both hand work over the same way.
+  const onAssign = async (task, name, wid) => {
+    try {
+      await api.assign(task.id, name, wid);
+      refresh({ quiet: true });
+      loadPeople();
+    } catch (err) { setError(err.message); }
+  };
+
   const onNotATask = async (task) => {
     setOpenTask(null);
     await act(() => api.rejectTask(task.id));
@@ -2085,6 +2094,8 @@ export default function App() {
                         onNotATask={onNotATask}
                         onRename={(task, title) => onEdit(task, { title })}
                         onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                        people={people}
+                        onAssign={onAssign}
                       />
                     )}
 
@@ -2141,13 +2152,7 @@ export default function App() {
                         } catch (err) { setError(err.message); }
                       }}
                       people={people}
-                      onAssign={async (task, name, wid) => {
-                        try {
-                          await api.assign(task.id, name, wid);
-                          refresh({ quiet: true });
-                          loadPeople();
-                        } catch (err) { setError(err.message); }
-                      }}
+                      onAssign={onAssign}
                     />
                     )}
 
@@ -2161,7 +2166,14 @@ export default function App() {
 
         <MobileNav
           view={view}
-          onView={(v) => { setSection('dashboard'); setView(v); setSelectedDate(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          /* The dashboard is a summary with no list on it, so these open the
+             list itself, as the sidebar does - staying on the dashboard made
+             the three buttons look dead on a phone. */
+          onView={(v) => {
+            if (v === 'myday') goto('myday');
+            else { goto('all'); setView(v); }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onNewTask={() => {
             // The phone's + is the fastest road of all: the box opens focused,
             // the keyboard comes up with it, and the full form is still one
@@ -2171,7 +2183,10 @@ export default function App() {
             setQuickFocus((n) => n + 1);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          onSummary={() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          onSummary={() => {
+            if (section !== 'dashboard') goto('dashboard');
+            setTimeout(() => railRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+          }}
         />
       </div>
 
