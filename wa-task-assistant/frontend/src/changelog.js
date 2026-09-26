@@ -8,6 +8,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.17',
+    date: '2026-09-26',
+    title: 'No Priority column in the table',
+    changes: [
+      'All Tasks → Table: the Priority column is gone. Priority is still in the task drawer and the Filter.',
+    ],
+  },
+  {
     version: '1.16',
     date: '2026-09-26',
     title: 'Quiet own number, assign from the table',

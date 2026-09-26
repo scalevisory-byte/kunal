@@ -37,3 +37,10 @@ describe('the phone\'s bottom bar', () => {
     assert.ok(!/onView=\{\(v\) => \{ setSection\('dashboard'\)/.test(app));
   });
 });
+
+describe('the table\'s columns', () => {
+  it('has no Priority column ("priority yaha se hata do")', () => {
+    assert.ok(!/label: 'Priority'/.test(table));
+    assert.ok(!/tt-pri/.test(table) && !/\.tt-pri/.test(css));
+  });
+});

@@ -4,7 +4,7 @@ import { RowMenu, AssignButton } from './TaskItem.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
-  STATUSES, PRIORITIES, isDone, dueLabel, taskSource, timeLabel, receivedStamp,
+  STATUSES, isDone, dueLabel, taskSource, timeLabel, receivedStamp,
 } from '../lib/task.js';
 
 /*
@@ -29,7 +29,6 @@ const HEAD = [
   { key: 'folder', label: 'Business / Folder' },
   { key: 'assignee', label: 'Assignee' },
   { key: 'due', label: 'Due date' },
-  { key: 'priority', label: 'Priority' },
   { key: 'status', label: 'Status' },
 ];
 
@@ -102,11 +101,6 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
             {task.due_at && <small>{timeLabel(task.due_at)}</small>}
           </>
         ) : <span className="tt-none">No date</span>}
-      </td>
-      <td>
-        {task.priority
-          ? <span className={`tt-pri p-${task.priority}`}>{PRIORITIES.find((p) => p.key === task.priority)?.label || task.priority}</span>
-          : <span className="tt-none">—</span>}
       </td>
       <td>
         {/* The one place a task is finished from, in a table. A select rather

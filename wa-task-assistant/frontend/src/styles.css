@@ -5801,7 +5801,7 @@ button.due:hover { background: var(--raised); }
 }
 /* relative, or a hidden label in the last column escapes the frame and pushes the phone page sideways. */
 .tt-scroll { overflow-x: auto; position: relative; }
-.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 940px; }
+.tt-table { width: 100%; border-collapse: collapse; font-size: .86rem; min-width: 860px; }
 .tt-table th, .tt-table td {
   padding: 8px 10px; text-align: left; vertical-align: middle;
   border-bottom: 1px solid var(--line);
@@ -5866,15 +5866,6 @@ button.due:hover { background: var(--raised); }
 .tt-due small { display: block; font-size: .72rem; color: var(--muted); }
 .tt-due.t-danger { color: var(--danger); font-weight: 600; }
 .tt-due.t-warn { color: var(--warn); font-weight: 600; }
-
-/* Priority is a word with a wash behind it, never the colour alone. */
-.tt-pri {
-  display: inline-block; padding: 2px 8px; border-radius: 999px;
-  font-size: .74rem; font-weight: 600;
-}
-.tt-pri.p-high { background: var(--danger-wash); color: var(--danger); }
-.tt-pri.p-medium { background: var(--warn-wash); color: var(--warn); }
-.tt-pri.p-low { background: var(--ok-wash); color: var(--ok); }
 
 /* The app's form fields are 36px tall for a thumb; in a row read by the
    dozen that doubled the row, so this one is the height of its text. */
