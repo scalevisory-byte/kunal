@@ -5822,7 +5822,7 @@ button.due:hover { background: var(--raised); }
 .tt-rec small { display: block; font-size: .7rem; color: var(--muted); }
 .tt-due .tt-none small { display: block; font-size: .72rem; }
 .tt-pick input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
-.tt-act { width: 76px; text-align: right !important; white-space: nowrap; }
+.tt-act { width: 108px; text-align: right !important; white-space: nowrap; }
 .tt-act .row-menu { display: inline-block; vertical-align: middle; }
 /* Visible on every row: in a table the actions are a column, not a hover. */
 .tt-dismiss {
@@ -6022,3 +6022,12 @@ button.due:hover { background: var(--raised); }
 .tt-table tbody tr:nth-last-child(-n+3):not(:nth-child(-n+3)) .menu {
   top: auto; bottom: calc(100% + 4px);
 }
+
+/* One-press Done in the table: a tick, green on hover, beside the ✕. */
+.tt-done {
+  display: inline-grid; place-items: center;
+  width: 28px; height: 28px; vertical-align: middle; margin-right: 2px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: none; color: var(--ok); cursor: pointer;
+}
+.tt-done:hover { background: var(--ok-wash); border-color: var(--ok); }

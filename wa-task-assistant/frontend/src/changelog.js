@@ -8,6 +8,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.18',
+    date: '2026-09-26',
+    title: 'Mark done in one click from the table',
+    changes: [
+      'All Tasks → Table: a green ✓ on every open row marks the task done in one click. Its reminders stop.',
+      'A line at the top says “Marked … done” with Undo, in case of a wrong click.',
+    ],
+  },
+  {
     version: '1.17',
     date: '2026-09-26',
     title: 'No Priority column in the table',

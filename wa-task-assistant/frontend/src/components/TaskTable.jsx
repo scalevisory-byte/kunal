@@ -47,7 +47,7 @@ function Title({ task, onOpen, rename }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename, people, onAssign }) {
+function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename, people, onAssign }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -124,6 +124,18 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
           * thing done most often to a list read from WhatsApp. The same
           * handler as the list: it archives, and the undo bar puts it back.
           */}
+        {/* Done in one press; the Undo bar takes it back. */}
+        {onDone && !done && (
+          <button
+            type="button"
+            className="tt-done"
+            title={`Mark "${task.title}" done`}
+            aria-label={`Mark done: ${task.title}`}
+            onClick={() => onDone(task)}
+          >
+            <Icon name="check" size={15} />
+          </button>
+        )}
         {onNotATask && (
           <button
             type="button"
@@ -151,7 +163,7 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
 
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
-  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onAddUpdate, onRename,
+  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename,
   people = [], onAssign,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
@@ -257,6 +269,7 @@ export default function TaskTable({
                 onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}
                 onRename={onRename}
+                onDone={onDone}
                 people={people}
                 onAssign={onAssign}
               />

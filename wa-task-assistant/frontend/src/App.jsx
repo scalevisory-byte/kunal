@@ -460,6 +460,12 @@ export default function App() {
   const onAdd = (task) => act(() => api.createTask(task));
   const onToggle = (task) =>
     act(() => api.updateTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }));
+  // One press from the table. Finishing cancels the reminders, so a slip
+  // gets the same Undo as the ✕: it puts back the status the task had.
+  const onDone = async (task) => {
+    await act(() => api.updateTask(task.id, { status: 'done' }));
+    setUndo({ kind: 'done', id: task.id, title: task.title, from: task.status });
+  };
   const onDelete = (task) => {
     setOpenTask(null);
     return act(() => api.deleteTask(task.id));
@@ -587,6 +593,7 @@ export default function App() {
     setUndo(null);
     await act(() => {
       if (last.kind === 'moved') return api.updateTask(last.id, { group_id: last.from });
+      if (last.kind === 'done') return api.updateTask(last.id, { status: last.from || 'open' });
       // A batch goes back as a batch: one request, the same ids.
       if (last.kind === 'archived') return api.restoreMany(last.ids);
       return api.restoreTask(last.id);
@@ -1797,6 +1804,8 @@ export default function App() {
                             undo.toName
                               ? <>Moved <b>{undo.title}</b> to <b>{undo.toName}</b>.</>
                               : <>Took <b>{undo.title}</b> out of its group.</>
+                          ) : undo.kind === 'done' ? (
+                            <>Marked <b>{undo.title}</b> done.</>
                           ) : undo.kind === 'archived' ? (
                             <>Took <b>{undo.count}</b> {undo.count === 1 ? 'task' : 'tasks'} off the list.
                               {' '}They are in Work History.</>
@@ -2092,6 +2101,7 @@ export default function App() {
                         onQuickDate={onQuickDate}
                         onDelete={onDelete}
                         onNotATask={onNotATask}
+                        onDone={onDone}
                         onRename={(task, title) => onEdit(task, { title })}
                         onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                         people={people}

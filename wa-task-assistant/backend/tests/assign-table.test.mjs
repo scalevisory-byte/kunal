@@ -44,3 +44,13 @@ describe('the table\'s columns', () => {
     assert.ok(!/tt-pri/.test(table) && !/\.tt-pri/.test(css));
   });
 });
+
+describe('finishing a task from the table', () => {
+  it('is one press, on every open row, with an Undo that restores the old status', () => {
+    assert.match(table, /\{onDone && !done && \(\s*\n\s*<button\s*\n\s*type="button"\s*\n\s*className="tt-done"/);
+    assert.match(app, /const onDone = async \(task\) =>/);
+    assert.match(app, /setUndo\(\{ kind: 'done', id: task\.id, title: task\.title, from: task\.status \}\)/);
+    assert.match(app, /if \(last\.kind === 'done'\) return api\.updateTask\(last\.id, \{ status: last\.from \|\| 'open' \}\)/);
+    assert.match(app, /onDone=\{onDone\}/);
+  });
+});
