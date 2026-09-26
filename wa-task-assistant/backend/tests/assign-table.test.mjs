@@ -54,3 +54,11 @@ describe('finishing a task from the table', () => {
     assert.match(app, /onDone=\{onDone\}/);
   });
 });
+
+describe('renaming from the table', () => {
+  it('has the list\'s pencil beside every title, shown on hover and always on touch', () => {
+    assert.match(table, /className="t-rename"[\s\S]{0,120}onClick=\{rename\.start\}/);
+    assert.match(css, /\.tt-table tbody tr:hover \.t-rename,\s*\n\.tt-table tbody tr:focus-within \.t-rename \{ opacity: 1; \}/);
+    assert.match(css, /@media \(hover: none\) \{ \.t-rename \{ opacity: 1; \} \}/);
+  });
+});

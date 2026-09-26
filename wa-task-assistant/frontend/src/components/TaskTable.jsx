@@ -35,15 +35,30 @@ const HEAD = [
 function Title({ task, onOpen, rename }) {
   if (rename.editing) return <input {...rename.fieldProps} />;
   return (
-    <button
-      className="tt-title"
-      onClick={() => rename.openLater(() => onOpen(task))}
-      onDoubleClick={rename.start}
-      onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); rename.start(); } }}
-      title={rename.enabled ? 'Open · double-click or F2 to rename' : 'Open'}
-    >
-      {task.title}
-    </button>
+    <span className="t-title-wrap">
+      <button
+        className="tt-title"
+        onClick={() => rename.openLater(() => onOpen(task))}
+        onDoubleClick={rename.start}
+        onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); rename.start(); } }}
+        title={rename.enabled ? 'Open · double-click or F2 to rename' : 'Open'}
+      >
+        {task.title}
+      </button>
+      {/* The list's pencil: one press to rename, for anyone who never finds
+          the double-click. */}
+      {rename.enabled && (
+        <button
+          type="button"
+          className="t-rename"
+          aria-label={`Rename ${task.title}`}
+          title="Rename"
+          onClick={rename.start}
+        >
+          <Icon name="edit" size={14} />
+        </button>
+      )}
+    </span>
   );
 }
 

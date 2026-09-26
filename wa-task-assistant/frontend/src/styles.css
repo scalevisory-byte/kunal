@@ -5032,7 +5032,9 @@ button.due:hover { background: var(--raised); }
 .task:hover .t-rename,
 .task:focus-within .t-rename,
 .focus-list li:hover .t-rename,
-.focus-list li:focus-within .t-rename { opacity: 1; }
+.focus-list li:focus-within .t-rename,
+.tt-table tbody tr:hover .t-rename,
+.tt-table tbody tr:focus-within .t-rename { opacity: 1; }
 .t-rename:hover { color: var(--brand); }
 @media (hover: none) { .t-rename { opacity: 1; } }
 

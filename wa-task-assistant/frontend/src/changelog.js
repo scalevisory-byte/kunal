@@ -8,6 +8,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.19',
+    date: '2026-09-26',
+    title: 'Rename from the table with a pencil',
+    changes: [
+      'All Tasks → Table: a pencil ✎ beside each title (on hover; always on a phone). Click it, type the new name, press Enter.',
+      'Double-click and F2 still work too.',
+    ],
+  },
+  {
     version: '1.18',
     date: '2026-09-26',
     title: 'Mark done in one click from the table',
