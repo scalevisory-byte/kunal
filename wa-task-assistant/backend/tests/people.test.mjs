@@ -114,3 +114,42 @@ describe('old tasks are under the person too', () => {
     assert.match(list, /keep: s\.done\.length > 0/);
   });
 });
+
+describe('the chat list, WhatsApp\'s way', async () => {
+  const { chatOrder, lastActivity } = await import('../../frontend/src/lib/people.js');
+
+  it('puts the person with the newest activity first and "Added by hand" last', () => {
+    const sections = byPerson([
+      t(1, { origin: 'manual', created_at: '2026-09-29 09:00:00' }),
+      t(2, { chat_name: 'Old', chat_id: '911@c.us', created_at: '2026-09-01 09:00:00' }),
+      t(3, { chat_name: 'New', chat_id: '912@c.us', created_at: '2026-09-28 09:00:00' }),
+      t(4, { chat_name: 'Finished', chat_id: '913@c.us', status: 'done', completed_at: '2026-09-20T09:00:00Z' }),
+    ]);
+    assert.deepEqual(chatOrder(sections).map((s) => s.label), ['New', 'Finished', 'Old', 'Added by hand']);
+  });
+
+  it('previews the newest task still owed, and a finished one only when nothing is owed', () => {
+    const [s] = byPerson([
+      t(1, { ...sahil, created_at: '2026-09-01 09:00:00', title: 'older' }),
+      t(2, { ...sahil, created_at: '2026-09-28 09:00:00', title: 'newer' }),
+      t(3, { ...sahil, status: 'done', completed_at: '2026-09-29T09:00:00Z', title: 'finished' }),
+    ]);
+    assert.equal(lastActivity(s).task.title, 'newer');
+    const [only] = byPerson([t(3, { ...sahil, status: 'done', completed_at: '2026-09-29T09:00:00Z', title: 'finished' })]);
+    assert.deepEqual([lastActivity(only).task.title, lastActivity(only).done], ['finished', true]);
+  });
+
+  it('is the default layout, with the old one a remembered switch away', () => {
+    const list = read('components/TaskList.jsx');
+    assert.match(list, /localStorage\.getItem\(CHAT_LAYOUT\) === 'list' \? 'list' : 'chats'/);
+    assert.match(list, /<PersonChats sections=\{sections\} row=\{row\} \/>/);
+    const pc = read('components/PersonChats.jsx');
+    assert.match(pc, /\{current\.done\.map\(row\)\}/, 'the rows are the board\'s own TaskItem');
+  });
+
+  it('lays the rows out by the pane\'s width, not the window\'s', () => {
+    const css = read('styles.css');
+    assert.match(css, /\.pc-detail \{ container: pcdetail \/ inline-size; \}/);
+    assert.match(css, /@container pcdetail \(max-width: 900px\)/);
+  });
+});

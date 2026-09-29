@@ -4,6 +4,7 @@ import Icon from './Icon.jsx';
 import { isDone, isOverdue, isoDay, todayIso } from '../lib/task.js';
 import { parseStamp } from '../lib/derive.js';
 import { byPerson, personNote } from '../lib/people.js';
+import PersonChats from './PersonChats.jsx';
 
 /*
  * Within a day, earliest first.
@@ -290,6 +291,8 @@ function myDay(open, done) {
   ];
 }
 
+const CHAT_LAYOUT = 'wa.bychat.view';
+
 const count = (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`;
 
 export default function TaskList({
@@ -310,6 +313,18 @@ export default function TaskList({
   const [collapsed, setCollapsed] = useState({});
   const [touched, setTouched] = useState({});
   const [doneOpen, setDoneOpen] = useState({});
+  /*
+   * By Chat has two shapes: WhatsApp's (names down the left, one person on the
+   * right) and the older one band per person. Remembered, because it is a
+   * choice of layout, never of contents; both show exactly the same tasks.
+   */
+  const [chatLayout, setChatLayout] = useState(() => {
+    try { return localStorage.getItem(CHAT_LAYOUT) === 'list' ? 'list' : 'chats'; } catch { return 'chats'; }
+  });
+  const pickLayout = (value) => {
+    setChatLayout(value);
+    try { localStorage.setItem(CHAT_LAYOUT, value); } catch { /* private window */ }
+  };
   /*
    * By chat and by folder, the sections start shut.
    *
@@ -444,8 +459,29 @@ export default function TaskList({
     />
   );
 
+  const byPeople = groupBy === 'chat' && view !== 'done' && view !== 'myday';
+  const layoutSwitch = byPeople && (
+    <div className="pc-switch" role="group" aria-label="By Chat layout">
+      {[['chats', 'Chats'], ['list', 'List']].map(([key, label]) => (
+        <button key={key} className={chatLayout === key ? 'on' : ''} aria-pressed={chatLayout === key} onClick={() => pickLayout(key)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (byPeople && chatLayout === 'chats') {
+    return (
+      <>
+        {layoutSwitch}
+        <PersonChats sections={sections} row={row} />
+      </>
+    );
+  }
+
   return (
     <div className="sections">
+      {layoutSwitch}
       {sections.map((section) => {
         const shut = touched[section.key] ? collapsed[section.key] : shutByDefault;
         return (

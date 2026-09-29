@@ -6057,3 +6057,167 @@ button.due:hover { background: var(--raised); }
   background: none; color: var(--ok); cursor: pointer;
 }
 .tt-done:hover { background: var(--ok-wash); border-color: var(--ok); }
+
+/* ---------- By Chat, WhatsApp's way: names on the left, one person on the right ---------- */
+.pc-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+}
+.pc-switch button {
+  border: 0;
+  background: none;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: .82rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pc-switch button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+.sections > .pc-switch { margin: 12px 0 4px 16px; }
+
+.pc {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  min-height: 60vh;
+}
+.pc-list {
+  border-right: 1px solid var(--line);
+  position: sticky;
+  top: 72px;
+  align-self: start;
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
+  border-radius: 8px 0 0 8px;
+}
+.pc-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--muted);
+  position: sticky;
+  top: 10px;
+  z-index: 1;
+}
+.pc-find input { border: 0; background: none; font: inherit; font-size: .88rem; color: var(--text); width: 100%; outline: none; }
+.pc-list ul { list-style: none; margin: 0; padding: 0 0 8px; }
+.pc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.pc-row:hover { background: var(--raised); }
+.pc-row.on { background: var(--brand-wash); }
+.pc-row:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.pc-av {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.pc-av.group { background: var(--brand-wash); color: var(--brand); }
+.pc-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+/* A divider under the text only, as WhatsApp draws it, not under the avatar. */
+.pc-list li { position: relative; }
+.pc-list li + li::before { content: ''; position: absolute; top: 0; left: 66px; right: 0; border-top: 1px solid var(--line); }
+.pc-top, .pc-bottom { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pc-name { flex: 1; min-width: 0; font-weight: 600; font-size: .92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-when { flex: none; font-size: .72rem; color: var(--muted); }
+.pc-last {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .82rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pc-last.done svg { flex: none; color: var(--ok); }
+.pc-count {
+  flex: none;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--ok);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 600;
+  text-align: center;
+}
+.pc-none { padding: 14px; color: var(--muted); font-size: .85rem; }
+
+.pc-detail { min-width: 0; padding-bottom: 12px; }
+.pc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sunken);
+  border-radius: 0 8px 0 0;
+}
+.pc-title { display: grid; gap: 2px; min-width: 0; }
+.pc-title strong { font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-title small { color: var(--muted); font-size: .8rem; }
+.pc-back { display: none; border: 0; background: none; color: var(--text); padding: 4px; cursor: pointer; }
+.pc-back svg { transform: rotate(180deg); }
+.pc-empty { padding: 40px 20px; text-align: center; color: var(--muted); margin: 0; }
+.pc-empty.small { padding: 20px; }
+
+/*
+ * The right half is narrower than the board the row was drawn for, so the row
+ * is told by its pane, not by the window: the title keeps the first line and
+ * the deadline and buttons go under it, lined up with the title. Without this
+ * a 650px pane cut every title to "Reply...".
+ */
+.pc-detail { container: pcdetail / inline-size; }
+/* The row bleeds 12px either side for its hover; the pane keeps it inside. */
+.pc-detail .task-list { padding: 0 16px; }
+@container pcdetail (max-width: 900px) {
+  .task { flex-wrap: wrap; row-gap: 4px; }
+  .task > .t-main { flex: 1 1 calc(100% - 140px); min-width: 0; }
+  .task > .due-wrap { margin-left: 78px; }
+}
+
+/* A phone has room for one half at a time, as in WhatsApp. */
+@media (max-width: 760px) {
+  .pc { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+  .pc-list { position: static; max-height: none; border-right: 0; border-radius: 8px; }
+  .pc.has-sel .pc-list { display: none; }
+  .pc:not(.has-sel) .pc-detail { display: none; }
+  .pc-back { display: inline-flex; }
+  .pc-head { border-radius: 8px 8px 0 0; padding: 10px 12px; }
+  /* Opening a name lands on its heading, below the sticky top bar. */
+  .pc { scroll-margin-top: 120px; }
+  .pc-detail .task > .due-wrap { margin-left: 0; }
+}

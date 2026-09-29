@@ -8,6 +8,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.22',
+    date: '2026-09-29',
+    title: 'By Chat looks like WhatsApp',
+    changes: [
+      'By Chat now shows the names on the left like WhatsApp: the last task and its time under each name, and a green count of what is still pending. The newest is at the top.',
+      'Click a name to see that person’s tasks on the right: From them, Given to them, and Done.',
+      '“Search a name” at the top of the list finds a person quickly.',
+      'On a phone, the list and the person take turns; the ← arrow goes back to the list.',
+      'Prefer the old look? The “Chats · List” switch above it changes it, and the app remembers your choice.',
+    ],
+  },
+  {
     version: '1.21',
     date: '2026-09-29',
     title: 'By Chat: everything with one person',

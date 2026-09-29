@@ -103,3 +103,40 @@ export function personNote({ from, given, done = [], group, hand }) {
   if (done.length) parts.push(`${done.length} done`);
   return parts.join(' · ') || null;
 }
+
+const stamp = (value) => {
+  if (!value) return 0;
+  const s = String(value);
+  const t = new Date(s.includes('T') ? s : `${s.replace(' ', 'T')}Z`).getTime();
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/**
+ * What a chat list row shows under the name, WhatsApp's way: the last thing
+ * that happened with this person, and when. Work still owed is preferred -
+ * a task finished last week is not the news about somebody who handed you a
+ * new one this morning.
+ */
+export function lastActivity(section) {
+  const byNewest = (list, field) =>
+    [...list].sort((a, b) => stamp(b[field]) - stamp(a[field]))[0] || null;
+  const open = byNewest(section.items, 'created_at');
+  if (open) return { task: open, at: open.created_at, done: false };
+  const done = byNewest(section.done, 'completed_at');
+  return done ? { task: done, at: done.completed_at, done: true } : { task: null, at: null, done: false };
+}
+
+/**
+ * The chat list's order: most recent activity first, as WhatsApp orders its
+ * chats, so the person who just sent something is at the top. "Added by hand"
+ * is not a person and stays at the foot.
+ */
+export function chatOrder(sections) {
+  const latest = (s) => Math.max(
+    0,
+    ...s.items.map((t) => stamp(t.created_at)),
+    ...s.done.map((t) => stamp(t.completed_at)),
+  );
+  return [...sections].sort((a, b) =>
+    (a.hand - b.hand) || latest(b) - latest(a) || a.label.localeCompare(b.label));
+}
