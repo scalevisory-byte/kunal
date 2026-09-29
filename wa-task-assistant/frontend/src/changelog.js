@@ -16,6 +16,7 @@ export const CHANGELOG = [
       'Inside a person, the two halves are headed “From Sahil” and “Given to Sahil”; the heading says how many of each.',
       'A group stays its own section. A task asked for by one person and given to another shows under both.',
       'Dashboard → Jump to → By Chat now opens the page (before, it only lit up).',
+      'Old, finished tasks are under each person too, in a “Done” part you open with one click. Someone whose work is all finished still has their name, marked “all done”.',
     ],
   },
   {

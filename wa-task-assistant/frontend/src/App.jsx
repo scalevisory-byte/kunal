@@ -102,7 +102,7 @@ const PAGES = {
   },
   chat: {
     title: 'By Chat',
-    lede: 'One section per person or group: what came from them and what you gave them. Open a name to see it.',
+    lede: 'One section per person or group: what came from them, what you gave them, and their finished work under Done. Open a name to see it.',
     toolbar: true,
   },
   ai: {
@@ -946,7 +946,9 @@ export default function App() {
     if (key === 'myday') return setView('myday');
     if (key === 'done') return setView('done');
     if (key === 'all' || key === 'dashboard') return setView(key === 'dashboard' ? 'open' : 'all');
-    if (key === 'chat') return setView('open');
+    // Every task, finished ones too: each person's section keeps their old
+    // work under a Done fold (lib/people.js).
+    if (key === 'chat') return setView('all');
     if (key === 'recent') return setView('all');
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }

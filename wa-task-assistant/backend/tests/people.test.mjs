@@ -69,7 +69,7 @@ describe('the page shows the given half', () => {
   });
   it('splits a person with both kinds into From / Given to', () => {
     const list = read('components/TaskList.jsx');
-    assert.match(list, /byPerson\(open\)/);
+    assert.match(list, /byPerson\(tasks\)/);
     assert.match(list, /From \{section\.label\}/);
     assert.match(list, /Given to \{section\.label\}/);
   });
@@ -80,5 +80,37 @@ describe('every door opens the page', () => {
     const app = read('App.jsx');
     assert.match(app, /if \(key === 'chat'\) return goto\('chat'\);/);
     assert.doesNotMatch(app, /if \(key === 'chat'\) return setGroupBy\('chat'\);/);
+  });
+});
+
+describe('old tasks are under the person too', () => {
+  const done = (id, extra) => t(id, { status: 'done', ...extra });
+
+  it('puts finished work in the person\'s Done, whichever way it went, newest first', () => {
+    const sections = byPerson([
+      t(1, sahil),
+      done(2, { ...sahil, completed_at: '2026-09-01T10:00:00Z' }),
+      done(3, { origin: 'manual', assigned_to: 'Sahil Shah', assigned_to_wid: sahil.chat_id, completed_at: '2026-09-20T10:00:00Z' }),
+    ].map((x) => (x.chat_name ? { ...x, chat_name: 'Sahil Shah' } : x)));
+    const s = find(sections, 'Sahil Shah');
+    assert.deepEqual(s.items.map((x) => x.id), [1], 'the count is what is still owed');
+    assert.deepEqual(s.done.map((x) => x.id), [3, 2]);
+    assert.equal(personNote(s), '1 from them · 2 done');
+  });
+
+  it('keeps a person whose work is all finished', () => {
+    const sections = byPerson([done(1, sahil)]);
+    assert.equal(sections.length, 1);
+    assert.equal(sections[0].items.length, 0);
+    assert.equal(sections[0].done.length, 1);
+  });
+
+  it('the page loads finished tasks and does not also heap them in Completed', () => {
+    const app = read('App.jsx');
+    const list = read('components/TaskList.jsx');
+    assert.match(app, /if \(key === 'chat'\) return setView\('all'\);/);
+    assert.match(list, /groupBy === 'chat'\) sections = byChat\(tasks\)/);
+    assert.match(list, /groupBy !== 'chat' && done\.length/);
+    assert.match(list, /keep: s\.done\.length > 0/);
   });
 });

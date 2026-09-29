@@ -1,4 +1,4 @@
-import { taskChat, looksLikeWid, readableName } from './task.js';
+import { taskChat, looksLikeWid, readableName, isDone } from './task.js';
 
 /*
  * By Chat, read as "by person": one section per chat, holding the work that
@@ -20,6 +20,13 @@ import { taskChat, looksLikeWid, readableName } from './task.js';
  * A task can be in two sections - asked for by Sahil, given to Nidhi - because
  * it genuinely belongs to both conversations. Inside one section it is listed
  * once.
+ *
+ * Finished work belongs to the person too ("jo purane task he usko bhi wese kar
+ * do"): it goes in the section's `done`, whichever direction it went, newest
+ * first, so a person's history is under their name rather than in one
+ * Completed heap at the foot of the page. `from` and `given` stay what is
+ * still owed, and the heading's count is that - a person with forty finished
+ * jobs and nothing open is not a busy person.
  */
 
 const HAND = 'Added by hand';
@@ -28,6 +35,9 @@ const flat = (name) => String(name || '').toLowerCase().replace(/[^\p{L}\p{N}]+/
 
 // A WhatsApp id that names one person, never a group.
 const personWid = (wid) => (wid && /@(c\.us|lid)$/.test(wid) ? wid : null);
+
+const byFinished = (a, b) =>
+  String(b.completed_at || b.updated_at || '').localeCompare(String(a.completed_at || a.updated_at || ''));
 
 export function byPerson(tasks = []) {
   const sections = [];
@@ -40,13 +50,18 @@ export function byPerson(tasks = []) {
     if (!found) {
       found = {
         key: `p:${wid || key || sections.length}`, label: name,
-        group: Boolean(group), hand: name === HAND, from: [], given: [],
+        group: Boolean(group), hand: name === HAND, from: [], given: [], done: [],
       };
       sections.push(found);
     }
     if (wid && !byWid.has(wid)) byWid.set(wid, found);
     if (!group && key && !byName.has(key)) byName.set(key, found);
     return found;
+  };
+
+  const put = (s, list, task) => {
+    if (isDone(task)) { if (!s.done.includes(task)) s.done.push(task); }
+    else if (!s.from.includes(task) && !s.given.includes(task)) s[list].push(task);
   };
 
   for (const task of tasks) {
@@ -57,31 +72,34 @@ export function byPerson(tasks = []) {
 
     if (chat) {
       const group = Boolean(task.is_group) || /@g\.us$/.test(task.chat_id || '');
-      sectionFor({ wid: group ? task.chat_id : personWid(task.chat_id), name: chat, group })
-        .from.push(task);
+      put(sectionFor({ wid: group ? task.chat_id : personWid(task.chat_id), name: chat, group }), 'from', task);
     } else if (!assignee) {
-      sectionFor({ name: HAND }).from.push(task);
+      put(sectionFor({ name: HAND }), 'from', task);
     }
 
-    if (assignee) {
-      const s = sectionFor({ wid: personWid(task.assigned_to_wid), name: assignee });
-      if (!s.from.includes(task)) s.given.push(task);
-    }
+    if (assignee) put(sectionFor({ wid: personWid(task.assigned_to_wid), name: assignee }), 'given', task);
   }
 
   return sections
-    .map((s) => ({ ...s, items: [...s.from, ...s.given] }))
+    .map((s) => ({
+      ...s,
+      items: [...s.from, ...s.given],
+      done: s.done.sort(byFinished),
+    }))
     .sort((a, b) =>
       (a.label === HAND) - (b.label === HAND)
       || b.items.length - a.items.length
+      || b.done.length - a.done.length
       || a.label.localeCompare(b.label));
 }
 
-/** "3 from them · 1 given to them", for the section heading. */
-export function personNote({ from, given, group, hand }) {
-  if (group || hand) return null;
+/** "3 from them · 1 given to them · 12 done", for the section heading. */
+export function personNote({ from, given, done = [], group, hand }) {
   const parts = [];
-  if (from.length) parts.push(`${from.length} from them`);
-  if (given.length) parts.push(`${given.length} given to them`);
-  return parts.join(' · ');
+  if (!group && !hand) {
+    if (from.length) parts.push(`${from.length} from them`);
+    if (given.length) parts.push(`${given.length} given to them`);
+  }
+  if (done.length) parts.push(`${done.length} done`);
+  return parts.join(' · ') || null;
 }

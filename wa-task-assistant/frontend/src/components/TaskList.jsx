@@ -126,12 +126,16 @@ function byReason(open) {
  * Sections by person: what came from each chat and what was given to each
  * person, together. The rule lives in lib/people.js so it can be tested.
  */
-function byChat(open) {
-  return byPerson(open).map((s) => ({
+function byChat(tasks) {
+  return byPerson(tasks).map((s) => ({
     ...s,
     tone: 'info',
     icon: s.group ? 'chat' : s.hand ? 'edit' : 'person',
     note: personNote(s),
+    // Somebody whose work is all finished still has a section: that history
+    // is what "purane task" asks for.
+    keep: s.done.length > 0,
+    countText: s.items.length ? null : 'all done',
   }));
 }
 
@@ -305,6 +309,7 @@ export default function TaskList({
    */
   const [collapsed, setCollapsed] = useState({});
   const [touched, setTouched] = useState({});
+  const [doneOpen, setDoneOpen] = useState({});
   /*
    * By chat and by folder, the sections start shut.
    *
@@ -347,7 +352,9 @@ export default function TaskList({
   if (view === 'done') sections = byCompleted(done);
   else if (view === 'myday') sections = myDay(open, done);
   else if (groupBy === 'reason') sections = byReason(open);
-  else if (groupBy === 'chat') sections = byChat(open);
+  // Finished work too, under the person it belongs to rather than in the
+  // Completed heap below.
+  else if (groupBy === 'chat') sections = byChat(tasks);
   else if (groupBy === 'folder') sections = byFolder(open, groups);
   /*
    * Recent asks a different question from every other view: not what is most
@@ -394,7 +401,7 @@ export default function TaskList({
   // A folder with nothing in it is still a folder: the by-folder view is
   // meant to be the list of them, so those sections stay and say so.
   sections = sections.filter((s) => s.items.length || s.keep);
-  if (view !== 'myday' && view !== 'done' && done.length) {
+  if (view !== 'myday' && view !== 'done' && groupBy !== 'chat' && done.length) {
     sections.push({ key: 'done', label: 'Completed', tone: 'ok', icon: 'check', items: done });
   }
 
@@ -458,7 +465,7 @@ export default function TaskList({
                 ? <span className={`board-dot c-${section.dot}`} aria-hidden="true" />
                 : <Icon name={section.icon || 'circle'} size={17} className="section-icon" />}
               <h3>{section.label}</h3>
-              <span className="section-count">{count(section.total ?? section.items.length)}</span>
+              <span className="section-count">{section.countText || count(section.total ?? section.items.length)}</span>
               {/* What this section means, where the heading alone is not enough
                   to act on — "Stopped asking" says nothing about what to do. */}
               {section.note && <span className="section-note">{section.note}</span>}
@@ -481,8 +488,23 @@ export default function TaskList({
                 <h4 className="person-sub">Given to {section.label}</h4>
                 <ul className="task-list">{section.given.map(row)}</ul>
               </>
-            ) : !shut && (
+            ) : !shut && section.items.length > 0 && (
               <ul className="task-list">{section.items.map(row)}</ul>
+            )}
+            {!shut && section.done?.length > 0 && (
+              <>
+                {/* Shut until asked for: a person's old work is there to look
+                    back at, not to push what is still owed off the screen. */}
+                <button
+                  className="person-sub person-done"
+                  aria-expanded={Boolean(doneOpen[section.key])}
+                  onClick={() => setDoneOpen((d) => ({ ...d, [section.key]: !d[section.key] }))}
+                >
+                  Done · {section.done.length}
+                  <Icon name="chevronDown" size={14} className={`section-chevron ${doneOpen[section.key] ? 'up' : ''}`} />
+                </button>
+                {doneOpen[section.key] && <ul className="task-list">{section.done.map(row)}</ul>}
+              </>
             )}
           </section>
         );

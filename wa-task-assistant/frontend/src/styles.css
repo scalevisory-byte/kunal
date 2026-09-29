@@ -4572,6 +4572,19 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   text-transform: uppercase;
   color: var(--muted);
 }
+button.person-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+button.person-sub:hover { color: var(--text); }
 
 .section-empty {
   margin: 0;
