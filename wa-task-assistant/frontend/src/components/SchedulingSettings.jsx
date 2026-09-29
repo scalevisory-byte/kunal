@@ -199,7 +199,7 @@ export default function SchedulingSettings({ onError }) {
         label="Remind whoever the task was given to"
         note={'The only thing in the app that messages somebody else by itself. '
           + 'At most twice about one job, between 8am and 9pm, never to a group, '
-          + 'and only to a number you stored on the Staff list or when you handed '
+          + 'and only to a number you stored under Manage people or when you handed '
           + 'the work over. After two it stops and tells you instead.'}
       >
         <Toggle on={settings.nudgeAssignee} label="Remind the assignee on WhatsApp"

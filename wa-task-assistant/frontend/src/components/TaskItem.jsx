@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
+import { api } from '../api.js';
 import { useRename } from '../rename.js';
 import {
   agoLabel, dateTimeLabel, dueLabel, isDone, isOverdue, looksLikeWid, receivedStamp, taskSource,
@@ -41,6 +42,21 @@ export function AssignButton({ task, people = [], onAssign }) {
   // A shut menu forgets what was half-typed into it.
   useEffect(() => { if (!open) setName(''); }, [open]);
 
+  /*
+   * Not only staff: a CA, a party, anybody whose chat is on this WhatsApp.
+   * Typing searches the one-to-one chats the app has seen, so picking one
+   * brings the number with the name and reminders can reach that person.
+   */
+  const [contacts, setContacts] = useState([]);
+  useEffect(() => {
+    const q = name.trim();
+    if (!open || q.length < 2) { setContacts([]); return undefined; }
+    const t = setTimeout(() => {
+      api.findChats(q).then((d) => setContacts(d.chats || [])).catch(() => setContacts([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [name, open]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => !wrap.current?.contains(e.target) && setOpen(false);
@@ -75,12 +91,12 @@ export function AssignButton({ task, people = [], onAssign }) {
         type="button"
         className={`assign-btn ${held ? 'on' : ''}`}
         aria-expanded={open}
-        title={held ? `With ${held} — press to change` : 'Give this to somebody'}
+        title={held ? `With ${held} — press to change` : 'Give this to somebody: staff, a CA, a party'}
         aria-label={held ? `With ${held}` : `Give ${task.title} to somebody`}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="person" size={13} />
-        <span>{held || 'Staff'}</span>
+        <span>{held || 'Assign'}</span>
       </button>
 
       {open && (
@@ -95,11 +111,20 @@ export function AssignButton({ task, people = [], onAssign }) {
           <div className="menu-scroll">
             {people
               .filter((p) => p.name && p.name !== held)
+              .filter((p) => !name.trim() || p.name.toLowerCase().includes(name.trim().toLowerCase()))
               .slice(0, 10)
               .map((p) => (
                 <button key={p.name} role="menuitem" onClick={() => give(p.name, p.wid)}>
                   <Icon name="person" size={15} /> {p.name}
                   {p.open > 0 && <span className="menu-note">{p.open}</span>}
+                </button>
+              ))}
+            {contacts
+              .filter((c) => c.name && !people.some((p) => p.wid && p.wid === c.id))
+              .map((c) => (
+                <button key={c.id} role="menuitem" onClick={() => give(c.name, c.id)}>
+                  <Icon name="whatsapp" size={15} /> {c.name}
+                  {c.number && <span className="menu-note">{c.number}</span>}
                 </button>
               ))}
           </div>
@@ -120,7 +145,7 @@ export function AssignButton({ task, people = [], onAssign }) {
             <input
               value={name}
               autoFocus
-              placeholder="Type a name"
+              placeholder="Name: staff, CA, party…"
               aria-label="Give this task to"
               onChange={(e) => setName(e.target.value)}
             />

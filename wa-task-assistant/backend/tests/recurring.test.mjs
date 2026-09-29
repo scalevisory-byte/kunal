@@ -5,9 +5,17 @@
  * each month produces exactly one task, however often the engine ticks.
  */
 import assert from 'node:assert/strict';
+import { mock } from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+
+/*
+ * A fixed morning early in the month. Rules here are built for "today's day,
+ * capped at 28" and "within its lead time", which stop being true on the
+ * 29th-31st, and five cases failed there.
+ */
+mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-08T04:30:00Z') });
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-recurring-'));
 process.env.DATA_DIR = dir;

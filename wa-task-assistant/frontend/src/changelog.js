@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.20',
+    date: '2026-09-29',
+    title: 'Assign to anybody: staff, CA, a party',
+    changes: [
+      'The “Staff” button is now “Assign”. Type a name and your WhatsApp contacts that match show up with their number, so a task can go to your CA or a party, not only staff.',
+      'Picking a contact saves the number with the name, so Nudge and automatic reminders can reach that person.',
+      'Task allotted → “Manage people” (was Manage staff) holds everybody you give work to.',
+    ],
+  },
+  {
     version: '1.19',
     date: '2026-09-26',
     title: 'Rename from the table with a pencil',

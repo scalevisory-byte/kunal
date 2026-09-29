@@ -62,3 +62,17 @@ describe('renaming from the table', () => {
     assert.match(css, /@media \(hover: none\) \{ \.t-rename \{ opacity: 1; \} \}/);
   });
 });
+
+describe('assigning to anybody, not only staff', () => {
+  const item = fs.readFileSync(new URL('../../frontend/src/components/TaskItem.jsx', import.meta.url), 'utf8');
+  it('the button says Assign, and the field invites a CA or a party', () => {
+    assert.match(item, /<span>\{held \|\| 'Assign'\}<\/span>/);
+    assert.match(item, /placeholder="Name: staff, CA, party…"/);
+  });
+  it('typing searches the WhatsApp chats, and picking one brings its number', () => {
+    assert.match(item, /api\.findChats\(q\)/);
+    assert.match(item, /onClick=\{\(\) => give\(c\.name, c\.id\)\}/);
+    // A contact already on the people list is not offered twice.
+    assert.match(item, /!people\.some\(\(p\) => p\.wid && p\.wid === c\.id\)/);
+  });
+});

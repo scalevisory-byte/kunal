@@ -439,7 +439,7 @@ function GiveSheet({ onClose, onSaved, onError, people = [] }) {
                 <em>
                   {' — '}
                   {typed
-                    ? 'no WhatsApp chat is known for this name yet. Add it in Manage staff, or use Nudge on the row afterwards.'
+                    ? 'no WhatsApp chat is known for this name yet. Add it in Manage people, or use Nudge on the row afterwards.'
                     : 'type a name first.'}
                 </em>
               )}
@@ -909,16 +909,17 @@ function StaffList({ onError, onChanged }) {
   return (
     <section className="staff-panel">
       <button className="link staff-toggle" onClick={() => setOpen((v) => !v)}>
-        {open ? 'Hide' : 'Manage'} staff{staff.length ? ` (${staff.length})` : ''}
+        {open ? 'Hide' : 'Manage'} people{staff.length ? ` (${staff.length})` : ''}
       </button>
 
       {open && (
         <div className="staff-body">
           <p className="hint">
-            Names here are offered by the <b>Staff</b> button on every task, so you
-            do not have to type them. A name you type on a row is added here by
-            itself. Nobody is ever messaged from this list — the number is only for
-            the Nudge button, which sends one message when you press it.
+            Staff, your CA, a party: anybody you give work to. Names here are
+            offered by the <b>Assign</b> button on every task, and a name you type
+            or a WhatsApp contact you pick there is added here by itself. The number
+            is used by Nudge, and by automatic reminders only when those are
+            switched on in Settings.
           </p>
 
           <form className="add-row" onSubmit={add}>
