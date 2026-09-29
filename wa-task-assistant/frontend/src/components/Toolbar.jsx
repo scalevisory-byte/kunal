@@ -10,7 +10,7 @@ const SOURCES = [
 /** Search, grouping, and a filter popover that stays out of the way until asked. */
 export default function Toolbar({
   groupBy, onGroupBy, filters, onFilters, chats, onClearAll, selecting, onSelecting,
-  layout = 'list', onLayout = null, onCalendar = null,
+  layout = 'list', onLayout = null, onCalendar = null, onChats = null,
 }) {
   const [open, setOpen] = useState(false);
   const popover = useRef(null);
@@ -67,6 +67,17 @@ export default function Toolbar({
             {onCalendar && (
               <button onClick={onCalendar}>
                 <Icon name="calendar" size={15} /> Calendar
+              </button>
+            )}
+            {/* By Chat, the WhatsApp-style page, reached from here the way the
+                calendar is: "chat wala option yaha pe bhi de do". */}
+            {onChats && (
+              <button
+                className={layout === 'chats' ? 'active' : ''}
+                aria-pressed={layout === 'chats'}
+                onClick={onChats}
+              >
+                <Icon name="chat" size={15} /> Chats
               </button>
             )}
           </div>

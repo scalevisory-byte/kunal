@@ -153,3 +153,19 @@ describe('the chat list, WhatsApp\'s way', async () => {
     assert.match(css, /@container pcdetail \(max-width: 900px\)/);
   });
 });
+
+describe('"chat wala option yaha pe bhi de do"', () => {
+  const toolbar = read('components/Toolbar.jsx');
+  const app = read('App.jsx');
+  it('puts Chats in the List · Table · Calendar switch, opening the By Chat page', () => {
+    assert.match(toolbar, /onChats && \([\s\S]*?<Icon name="chat"[^>]*\/> Chats/);
+    assert.match(app, /onChats=\{[^}]*\(\) => goto\('chat'\)/);
+  });
+  it('keeps the switch on By Chat, with Chats lit and List / Table leading back to All Tasks', () => {
+    assert.match(app, /layout=\{section === 'chat' \? 'chats'/);
+    assert.match(app, /section === 'chat'\s*\? \(key\) => \{ goto\('all'\); pickLayout\(key\); \}/);
+  });
+  it('names the page\'s own two shapes so they are not a second "List"', () => {
+    assert.match(read('components/TaskList.jsx'), /\['chats', 'Side by side'\], \['list', 'One below another'\]/);
+  });
+});

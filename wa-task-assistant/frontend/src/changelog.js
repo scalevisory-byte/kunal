@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.25',
+    date: '2026-09-29',
+    title: 'Chats in the All Tasks switch',
+    changes: [
+      'All Tasks: the List · Table · Calendar switch now has Chats too. It opens the WhatsApp-style view (names on the left, tasks on the right).',
+      'On that page the same switch stays, with Chats lit; List or Table takes you back to All Tasks.',
+      'The page’s own switch now reads “Side by side · One below another”, so it is not a second “List”.',
+    ],
+  },
+  {
     version: '1.24',
     date: '2026-09-29',
     title: 'Table: no Status column, folder from the row',

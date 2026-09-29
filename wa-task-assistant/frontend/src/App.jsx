@@ -1971,9 +1971,15 @@ export default function App() {
                             /* Only on All Tasks, which is what he drew, and not on
                                My Day, whose rows are a ranked few rather than a
                                list to page through. */
-                            layout={tableOn ? 'table' : 'list'}
-                            onLayout={page.tabs && view !== 'myday' ? pickLayout : null}
+                            layout={section === 'chat' ? 'chats' : tableOn ? 'table' : 'list'}
+                            /* On By Chat the same switch is shown with Chats
+                               lit, and List or Table go back to All Tasks in
+                               that shape: one set of doors between the three. */
+                            onLayout={section === 'chat'
+                              ? (key) => { goto('all'); pickLayout(key); }
+                              : page.tabs && view !== 'myday' ? pickLayout : null}
                             onCalendar={() => goto('calendar')}
+                            onChats={section === 'chat' || (page.tabs && !groupId && view !== 'myday') ? () => goto('chat') : null}
                           />
                         )}
                       </div>

@@ -462,7 +462,7 @@ export default function TaskList({
   const byPeople = groupBy === 'chat' && view !== 'done' && view !== 'myday';
   const layoutSwitch = byPeople && (
     <div className="pc-switch" role="group" aria-label="By Chat layout">
-      {[['chats', 'Chats'], ['list', 'List']].map(([key, label]) => (
+      {[['chats', 'Side by side'], ['list', 'One below another']].map(([key, label]) => (
         <button key={key} className={chatLayout === key ? 'on' : ''} aria-pressed={chatLayout === key} onClick={() => pickLayout(key)}>
           {label}
         </button>
