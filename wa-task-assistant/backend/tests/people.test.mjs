@@ -1,0 +1,84 @@
+/*
+ * By Chat, read as "by person": "sahil ke 4 task he to sahil ka name open
+ * kare to o dikhe" - the work that came from Sahil AND the work given to him,
+ * under one name.
+ */
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const { byPerson, personNote } = await import('../../frontend/src/lib/people.js');
+const read = (rel) => fs.readFileSync(new URL(`../../frontend/src/${rel}`, import.meta.url), 'utf8');
+
+const t = (id, extra = {}) => ({ id, title: `t${id}`, status: 'open', origin: 'ai', ...extra });
+const sahil = { chat_id: '919800000001@c.us', chat_name: 'Sahil' };
+const find = (sections, label) => sections.find((s) => s.label === label);
+
+describe('one section per person, both directions', () => {
+  it('puts work from Sahil and work given to Sahil under Sahil', () => {
+    const sections = byPerson([
+      t(1, sahil), t(2, sahil), t(3, sahil),
+      t(4, { origin: 'manual', assigned_to: 'Sahil', assigned_to_wid: '919800000001@c.us' }),
+    ]);
+    const s = find(sections, 'Sahil');
+    assert.deepEqual(s.from.map((x) => x.id), [1, 2, 3]);
+    assert.deepEqual(s.given.map((x) => x.id), [4]);
+    assert.equal(s.items.length, 4);
+    assert.equal(personNote(s), '3 from them · 1 given to them');
+    assert.equal(find(sections, 'Added by hand'), undefined, 'a given task is not also "added by hand"');
+  });
+
+  it('matches a typed name to the chat when no number is on the task', () => {
+    const sections = byPerson([
+      t(1, { chat_id: '919800000002@c.us', chat_name: 'NIDHI BNF' }),
+      t(2, { origin: 'manual', assigned_to: 'Nidhi Bnf' }),
+    ]);
+    assert.equal(sections.length, 1);
+    assert.equal(sections[0].items.length, 2);
+  });
+
+  it('lists a task under who asked AND who it was given to', () => {
+    const sections = byPerson([t(1, { ...sahil, assigned_to: 'Nidhi' })]);
+    assert.deepEqual(find(sections, 'Sahil').from.map((x) => x.id), [1]);
+    assert.deepEqual(find(sections, 'Nidhi').given.map((x) => x.id), [1]);
+  });
+
+  it('keeps a group as its own section, never merged with a person of the same name', () => {
+    const sections = byPerson([
+      t(1, { chat_id: '1203630001@g.us', chat_name: 'Sahil', is_group: 1 }),
+      t(2, sahil),
+    ]);
+    assert.equal(sections.length, 2);
+    assert.equal(personNote(sections.find((s) => s.group)), null);
+  });
+
+  it('puts "Added by hand" last and the busiest person first', () => {
+    const sections = byPerson([
+      t(1, { origin: 'manual' }), t(2, { origin: 'manual' }), t(3, { origin: 'manual' }),
+      t(4, sahil), t(5, sahil), t(6, { chat_name: 'Vikas' }),
+    ]);
+    assert.deepEqual(sections.map((s) => s.label), ['Sahil', 'Vikas', 'Added by hand']);
+  });
+});
+
+describe('the page shows the given half', () => {
+  const app = read('App.jsx');
+  it('lets allotted work through when grouped by person, but never into the table', () => {
+    assert.match(app, /withSomebody\(task\) && !showAllotted && !personView/);
+    assert.match(app, /personView = groupBy === 'chat' && !\(layout === 'table'/);
+  });
+  it('splits a person with both kinds into From / Given to', () => {
+    const list = read('components/TaskList.jsx');
+    assert.match(list, /byPerson\(open\)/);
+    assert.match(list, /From \{section\.label\}/);
+    assert.match(list, /Given to \{section\.label\}/);
+  });
+});
+
+describe('every door opens the page', () => {
+  it('Jump to → By Chat navigates rather than grouping a dashboard with no list', () => {
+    const app = read('App.jsx');
+    assert.match(app, /if \(key === 'chat'\) return goto\('chat'\);/);
+    assert.doesNotMatch(app, /if \(key === 'chat'\) return setGroupBy\('chat'\);/);
+  });
+});

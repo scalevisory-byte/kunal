@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import TaskItem from './TaskItem.jsx';
 import Icon from './Icon.jsx';
-import { isDone, isOverdue, isoDay, taskChat, todayIso } from '../lib/task.js';
+import { isDone, isOverdue, isoDay, todayIso } from '../lib/task.js';
 import { parseStamp } from '../lib/derive.js';
+import { byPerson, personNote } from '../lib/people.js';
 
 /*
  * Within a day, earliest first.
@@ -121,17 +122,17 @@ function byReason(open) {
   ].map((c) => ({ ...c, items: open.filter(c.match).sort(byClock) }));
 }
 
-/** Sections by conversation, for working through one person or group at a time. */
+/*
+ * Sections by person: what came from each chat and what was given to each
+ * person, together. The rule lives in lib/people.js so it can be tested.
+ */
 function byChat(open) {
-  const groups = new Map();
-  for (const task of open) {
-    const name = taskChat(task) || 'Added by hand';
-    if (!groups.has(name)) groups.set(name, []);
-    groups.get(name).push(task);
-  }
-  return [...groups.entries()]
-    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-    .map(([name, items]) => ({ key: name, label: name, tone: 'info', icon: 'chat', items }));
+  return byPerson(open).map((s) => ({
+    ...s,
+    tone: 'info',
+    icon: s.group ? 'chat' : s.hand ? 'edit' : 'person',
+    note: personNote(s),
+  }));
 }
 
 /**
@@ -412,6 +413,30 @@ export default function TaskList({
     );
   }
 
+  const row = (task) => (
+    <TaskItem
+      key={task.id}
+      task={task}
+      onToggle={onToggle}
+      onOpen={onOpen}
+      onStatus={onStatus}
+      onQuickDate={onQuickDate}
+      onDelete={onDelete}
+      onNotATask={onNotATask}
+      groups={groups}
+      onMove={onMove}
+      onManageGroups={onManageGroups}
+      onNewGroup={onNewGroup}
+      onAddUpdate={onAddUpdate}
+      onRename={onRename}
+      selecting={selecting}
+      picked={Boolean(picked?.has(task.id))}
+      onPick={onPick}
+      people={people}
+      onAssign={onAssign}
+    />
+  );
+
   return (
     <div className="sections">
       {sections.map((section) => {
@@ -449,32 +474,15 @@ export default function TaskList({
                 )}
               </p>
             )}
-            {!shut && (
-              <ul className="task-list">
-                {section.items.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    onToggle={onToggle}
-                    onOpen={onOpen}
-                    onStatus={onStatus}
-                    onQuickDate={onQuickDate}
-                    onDelete={onDelete}
-                    onNotATask={onNotATask}
-                    groups={groups}
-                    onMove={onMove}
-                    onManageGroups={onManageGroups}
-                    onNewGroup={onNewGroup}
-                    onAddUpdate={onAddUpdate}
-                    onRename={onRename}
-                    selecting={selecting}
-                    picked={Boolean(picked?.has(task.id))}
-                    onPick={onPick}
-                    people={people}
-                    onAssign={onAssign}
-                  />
-                ))}
-              </ul>
+            {!shut && section.from?.length > 0 && section.given?.length > 0 ? (
+              <>
+                <h4 className="person-sub">From {section.label}</h4>
+                <ul className="task-list">{section.from.map(row)}</ul>
+                <h4 className="person-sub">Given to {section.label}</h4>
+                <ul className="task-list">{section.given.map(row)}</ul>
+              </>
+            ) : !shut && (
+              <ul className="task-list">{section.items.map(row)}</ul>
             )}
           </section>
         );

@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.21',
+    date: '2026-09-29',
+    title: 'By Chat: everything with one person',
+    changes: [
+      'By Chat now shows one section per person: the tasks that came from them and the tasks you gave them, together. Open “Sahil” and you see all of Sahil’s tasks.',
+      'Inside a person, the two halves are headed “From Sahil” and “Given to Sahil”; the heading says how many of each.',
+      'A group stays its own section. A task asked for by one person and given to another shows under both.',
+      'Dashboard → Jump to → By Chat now opens the page (before, it only lit up).',
+    ],
+  },
+  {
     version: '1.20',
     date: '2026-09-29',
     title: 'Assign to anybody: staff, CA, a party',

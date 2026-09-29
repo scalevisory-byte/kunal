@@ -419,7 +419,9 @@ run('and the board no longer has a second arrangement of them', () => {
    * like a second Allotted screen still exists.
    */
   const visible = appSrc.slice(appSrc.indexOf('const monthPool ='), appSrc.indexOf('const arrivedToday'));
-  assert.match(visible, /withSomebody\(task\) && !showAllotted\) return false/,
+  // One named exception: By Chat, where work given to a person is half of
+  // what that person's section is for (people.test.mjs).
+  assert.match(visible, /withSomebody\(task\) && !showAllotted && !personView\) return false/,
     'the gate that keeps delegated rows off the board stays');
   assert.ok(!/view === 'allotted'/.test(appSrc), 'no view nothing can set');
   assert.ok(!/view === 'received'/.test(appSrc));

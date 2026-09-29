@@ -102,7 +102,7 @@ const PAGES = {
   },
   chat: {
     title: 'By Chat',
-    lede: 'The same tasks, one section per WhatsApp chat.',
+    lede: 'One section per person or group: what came from them and what you gave them. Open a name to see it.',
     toolbar: true,
   },
   ai: {
@@ -717,6 +717,13 @@ export default function App() {
     );
   }, [allNotes, query]);
 
+  /*
+   * The list is grouped by person - never in the table, which has no groups,
+   * so a table cannot quietly fill with allotted rows the list would hide.
+   */
+  const tablePage = section === 'all' || section.startsWith('group:');
+  const personView = groupBy === 'chat' && !(layout === 'table' && tablePage && view !== 'myday');
+
   const monthPool = useMemo(() => {
     const today = todayIso();
     /*
@@ -746,7 +753,11 @@ export default function App() {
        * the same escape hatches: the toggle on the line above the list, and
        * search, which looks through everything you have.
        */
-      if (withSomebody(task) && !showAllotted) return false;
+      /*
+       * Except by person: there the work given to somebody is half of what the
+       * page is for - "Sahil ke 4 task" includes the ones handed to Sahil.
+       */
+      if (withSomebody(task) && !showAllotted && !personView) return false;
 
       if (view === 'open' && isDone(task)) return false;
       if (view === 'in_progress' && task.status !== 'in_progress') return false;
@@ -771,7 +782,7 @@ export default function App() {
 
       return matchesQuery(task, query);
     });
-  }, [tasks, view, filters, query, selectedDate, searching, doneDay, showAllotted]);
+  }, [tasks, view, filters, query, selectedDate, searching, doneDay, showAllotted, personView]);
 
   /*
    * The month scope is applied AFTER everything else, and the chips count what
@@ -952,7 +963,9 @@ export default function App() {
     setSelectedDate(null);
     if (key === 'myday') return setView('myday');
     if (key === 'done') return setView('done');
-    if (key === 'chat') return setGroupBy('chat');
+    /* A page, not a grouping of the dashboard - the dashboard has no list, so
+       grouping it lit the button and changed nothing on the screen. */
+    if (key === 'chat') return goto('chat');
     if (key === 'high') {
       setView('open');
       return setFilters({ ...EMPTY_FILTERS, priority: ['high'] });
@@ -2068,7 +2081,7 @@ export default function App() {
                         the Allotted tab" — is gone with the tab: there is one
                         Allotted screen now, and it is a page, so this line can
                         never appear over a list of the rows it is about. */}
-                    {showBoard && allottedHidden > 0 && !searching && (
+                    {showBoard && allottedHidden > 0 && !searching && !personView && (
                       <p className="dup-note">
                         <b>{allottedHidden}</b>{' '}
                         {allottedHidden === 1 ? 'task is' : 'tasks are'} with somebody else

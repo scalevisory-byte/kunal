@@ -4562,6 +4562,17 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * nothing open in it says so rather than disappearing - a folder you cannot
  * see is a folder you cannot file into.
  */
+/* By Chat: inside one person, what came from them and what was given to them. */
+.person-sub {
+  margin: 0;
+  padding: 10px 20px 4px 47px;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .section-empty {
   margin: 0;
   padding: 6px 20px 14px 47px;
