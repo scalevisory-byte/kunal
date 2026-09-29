@@ -912,6 +912,28 @@ export default function App() {
    * A figure here is a doorway, not a filter chip. Nothing is lit, nothing
    * toggles, and `goto` runs before the scope because it clears it.
    */
+  /*
+   * New Task lives in the top bar now, on every page.
+   *
+   * Asked as "upar ka hata do, new task ka option kahi aur de do, ye sab screen
+   * ke liye karo": each page opened on a title, a sentence about the page and
+   * a New Task button, so the work itself started a third of a screen down.
+   * The heading is kept for screen readers (.page-head is visually hidden in
+   * the stylesheet), and the one button that mattered moved to the bar every
+   * page shares. Pages with no list of their own - Settings, Notes, Tax
+   * updates and the rest - have nowhere to show the quick-add box, so from
+   * there it opens All Tasks with the box ready.
+   */
+  const OWN_PAGES = ['whatsnew', 'history', 'usage', 'reminders', 'board', 'groups', 'monthly',
+    'legal', 'law', 'duplicates', 'templates', 'settings'];
+  const newTask = () => {
+    const noList = OWN_PAGES.includes(section) || Boolean(page.delegation || page.leads || page.notes);
+    if (noList) { goto('all'); setQuick(true); }
+    else setQuick((v) => !v);
+    setComposing(false);
+    setQuickFocus((n) => n + 1);
+  };
+
   const goFigure = (key) => {
     goto('all');
     if (key === 'due_today') { setView('open'); return setSelectedDate(todayIso()); }
@@ -1053,7 +1075,7 @@ export default function App() {
            * unmounts with it.
            */
           onLock={authRequired ? () => { setToken(null); setNeedsAuth(true); } : null}
-          onNewTask={() => { setQuick((v) => !v); setComposing(false); }}
+          onNewTask={newTask}
           onEnablePush={onEnablePush}
           pushSupported={pushSupported()}
           pushOn={pushOn}
@@ -1425,7 +1447,7 @@ export default function App() {
                   that mean something there. */}
               {searching ? (
                 <>
-                  <div className="page-head">
+                  <div className="page-head keep">
                     <div>
                       <h2>
                         {visible.length} {visible.length === 1 ? 'result' : 'results'} for
@@ -1477,7 +1499,7 @@ export default function App() {
                   )}
                 </>
               ) : page.overview ? (
-                <div className="page-head">
+                <div className="page-head keep">
                   <div>
                     <h2>
                       {greeting()}{status?.whatsapp?.meName ? `, ${String(status.whatsapp.meName).split(' ')[0]}` : ''}!{' '}
@@ -1492,9 +1514,6 @@ export default function App() {
                       <small>{new Date().toLocaleDateString([], { weekday: 'long' })}</small>
                       <strong>{new Date().toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
                     </span>
-                    <button className="btn primary lg" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
-                      <span aria-hidden="true">+</span> New Task
-                    </button>
                   </div>
                 </div>
               ) : (
@@ -1506,16 +1525,6 @@ export default function App() {
                          list's shape; the table is one order, set by a heading. */
                       ? 'Everything you have, one row each — sort by any heading.'
                       : page.lede}</p>
-                  </div>
-                  <div className="page-head-right">
-                    {!page.calendar && (
-                      <span className="page-count">
-                        {visible.length} {visible.length === 1 ? 'task' : 'tasks'}
-                      </span>
-                    )}
-                    <button className="btn primary" onClick={() => { setQuick((v) => !v); setComposing(false); }}>
-                      <span aria-hidden="true">+</span> New Task
-                    </button>
                   </div>
                 </div>
               )}

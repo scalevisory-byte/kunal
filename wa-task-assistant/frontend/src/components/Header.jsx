@@ -103,6 +103,11 @@ export default function Header({
       </div>
 
       <div className="topbar-actions">
+        {/* The one way to add a task, on every page (a phone has the + in its
+            bottom bar instead). */}
+        <button className="btn primary topbar-new" onClick={onNewTask}>
+          <span aria-hidden="true">+</span> New task
+        </button>
         <button
           className="icon-action"
           onClick={onBell}

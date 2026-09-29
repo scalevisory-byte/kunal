@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.23',
+    date: '2026-09-29',
+    title: 'Pages start with the work',
+    changes: [
+      'Every page now opens straight on its list or content. The title and description block at the top is gone.',
+      '“+ New task” is now in the top bar, next to search, on every page. From a page without a task list (Settings, Notes, Tax updates…) it opens All Tasks with the box ready to type.',
+      'The dashboard keeps its greeting and date.',
+      'On a phone, the + in the bottom bar does the same.',
+    ],
+  },
+  {
     version: '1.22',
     date: '2026-09-29',
     title: 'By Chat looks like WhatsApp',

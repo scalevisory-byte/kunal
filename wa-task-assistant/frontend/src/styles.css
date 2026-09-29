@@ -6221,3 +6221,29 @@ button.due:hover { background: var(--raised); }
   .pc { scroll-margin-top: 120px; }
   .pc-detail .task > .due-wrap { margin-left: 0; }
 }
+
+/*
+ * Pages open on their content.
+ *
+ * Every page used to start with its title, a sentence about itself and a New
+ * Task button - a third of a laptop screen before the first task. The sidebar
+ * already says where you are, so the heading stays for screen readers only.
+ * The dashboard's greeting and the search results line are content, not
+ * labels, and keep their place (.keep).
+ */
+.page-head:not(.keep) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.topbar-new { white-space: nowrap; }
+@media (max-width: 760px) {
+  /* The bottom bar's + does this on a phone; two would crowd the top bar. */
+  .topbar-new { display: none; }
+}
