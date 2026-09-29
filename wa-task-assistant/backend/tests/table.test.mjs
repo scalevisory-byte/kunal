@@ -139,9 +139,10 @@ describe('"Showing 1-20 of N" counts the list on screen', () => {
 
 describe('one box, one meaning', () => {
   it('the leading box picks and never completes', () => {
-    // A table has a Status column, and finishing a task is that column's job.
+    // Finishing is the green ✓ in the actions column ("status hata do" took
+    // the Status column away), never the leading box.
     assert.ok(!/onToggle/.test(table), 'the table box is wired to done');
-    assert.match(table, /<select[\s\S]*?tt-status[\s\S]*?onStatus\(task, e\.target\.value\)/);
+    assert.match(table, /className="tt-done"/);
   });
 
   it('the header box speaks for this page and says so', () => {
@@ -157,7 +158,7 @@ describe('one box, one meaning', () => {
   });
 
   it('shares the row menu rather than copying it', () => {
-    assert.match(table, /import \{ RowMenu(, AssignButton)? \} from '\.\/TaskItem\.jsx'/);
+    assert.match(table, /import \{ RowMenu[^}]*\} from '\.\/TaskItem\.jsx'/);
     assert.ok(!/function RowMenu/.test(table));
   });
 

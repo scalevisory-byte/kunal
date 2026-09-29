@@ -15,7 +15,7 @@ const css = read('styles.css');
 
 describe('assigning from the table', () => {
   it('uses the list\'s own Staff button, not a copy', () => {
-    assert.match(table, /import \{ RowMenu, AssignButton \} from '\.\/TaskItem\.jsx'/);
+    assert.match(table, /import \{ RowMenu, AssignButton[^}]*\} from '\.\/TaskItem\.jsx'/);
     assert.match(table, /<AssignButton task=\{task\} people=\{people\} onAssign=\{onAssign\} \/>/);
     assert.ok(!/function AssignButton/.test(table));
   });
@@ -74,5 +74,23 @@ describe('assigning to anybody, not only staff', () => {
     assert.match(item, /onClick=\{\(\) => give\(c\.name, c\.id\)\}/);
     // A contact already on the people list is not offered twice.
     assert.match(item, /!people\.some\(\(p\) => p\.wid && p\.wid === c\.id\)/);
+  });
+});
+
+describe('"status hata do" and filing from the table', () => {
+  const table = fs.readFileSync(new URL('../../frontend/src/components/TaskTable.jsx', import.meta.url), 'utf8');
+  const appSrc = fs.readFileSync(new URL('../../frontend/src/App.jsx', import.meta.url), 'utf8');
+
+  it('has no Status column', () => {
+    assert.doesNotMatch(table, /label: 'Status'/);
+    assert.doesNotMatch(table, /tt-status/);
+  });
+
+  it('files a task from the Business / Folder cell with the list\'s own Folder button', () => {
+    assert.match(table, /import \{[^}]*GroupButton[^}]*\} from '\.\/TaskItem\.jsx'/);
+    assert.match(table, /<td className="tt-folder">[\s\S]*?<GroupButton task=\{task\}/);
+    // One handler each for the list and the table, not two copies.
+    assert.match(appSrc, /<TaskTable[\s\S]*?onMove=\{onMove\}[\s\S]*?onNewGroup=\{newGroup\}/);
+    assert.match(appSrc, /<TaskList[\s\S]*?onNewGroup=\{newGroup\}/);
   });
 });

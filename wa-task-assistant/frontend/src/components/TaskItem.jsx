@@ -165,7 +165,7 @@ export function AssignButton({ task, people = [], onAssign }) {
  * that does not get made. The same control says where a task is filed and
  * moves it.
  */
-function GroupButton({ task, groups = [], onMove, onManageGroups, onNewGroup }) {
+export function GroupButton({ task, groups = [], onMove, onManageGroups, onNewGroup }) {
   const [open, setOpen] = useState(false);
   /*
    * Making the folder from here, rather than going to Manage groups first.

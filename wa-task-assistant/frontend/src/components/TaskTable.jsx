@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
-import { RowMenu, AssignButton } from './TaskItem.jsx';
+import { RowMenu, AssignButton, GroupButton } from './TaskItem.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
-  STATUSES, isDone, dueLabel, taskSource, timeLabel, receivedStamp,
+  isDone, dueLabel, taskSource, timeLabel, receivedStamp,
 } from '../lib/task.js';
 
 /*
@@ -18,8 +18,13 @@ import {
  *
  * The leading box is SELECTION, always, and never "done". In the section list
  * the tick is both - that is why picking there is a mode you switch on - but
- * a table has a Status column, and completing a task is that column's job.
- * One box per row, one meaning per box.
+ * in a table completing a task is the green ✓ in the actions column. One box
+ * per row, one meaning per box.
+ *
+ * There is no Status column ("status hata do"): open or done is what the
+ * ✓ and the struck-through row already say, and Start / Waiting are on the
+ * ⋮ menu and in the drawer. The Business / Folder cell is the list's own
+ * Folder button, so a task is filed from here in one press.
  */
 
 const HEAD = [
@@ -29,7 +34,6 @@ const HEAD = [
   { key: 'folder', label: 'Business / Folder' },
   { key: 'assignee', label: 'Assignee' },
   { key: 'due', label: 'Due date' },
-  { key: 'status', label: 'Status' },
 ];
 
 function Title({ task, onOpen, rename }) {
@@ -62,7 +66,7 @@ function Title({ task, onOpen, rename }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename, people, onAssign }) {
+function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -96,9 +100,13 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
         )}
       </td>
       <td className="tt-folder">
-        {folder
-          ? <span className="tt-chip"><span className="dot" style={{ background: folder.color || 'var(--muted)' }} />{folder.name}</span>
-          : <span className="tt-none">—</span>}
+        {/* The list's own Folder button: pick a folder, move it, take it out,
+            or make a new one and file it there, all from the row. */}
+        {onMove && !done
+          ? <GroupButton task={task} groups={groups} onMove={onMove} onManageGroups={onManageGroups} onNewGroup={onNewGroup} />
+          : folder
+            ? <span className="tt-chip"><span className="dot" style={{ background: folder.color || 'var(--muted)' }} />{folder.name}</span>
+            : <span className="tt-none">—</span>}
       </td>
       <td className="tt-who">
         {/* The list's own Staff button, so giving a task away from the table is
@@ -116,18 +124,6 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
             {task.due_at && <small>{timeLabel(task.due_at)}</small>}
           </>
         ) : <span className="tt-none">No date</span>}
-      </td>
-      <td>
-        {/* The one place a task is finished from, in a table. A select rather
-            than a chip that cycles: four states, each named, one press. */}
-        <select
-          className={`tt-status s-${task.status}`}
-          value={task.status}
-          onChange={(e) => onStatus(task, e.target.value)}
-          aria-label={`Status of ${task.title}`}
-        >
-          {STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-        </select>
       </td>
       <td className="tt-act">
         {/*
@@ -179,7 +175,7 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
   onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename,
-  people = [], onAssign,
+  people = [], onAssign, onMove, onManageGroups, onNewGroup,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
   // every column): "here be only latest pending". Due date is one press away.
@@ -287,6 +283,10 @@ export default function TaskTable({
                 onDone={onDone}
                 people={people}
                 onAssign={onAssign}
+                groups={groups}
+                onMove={onMove}
+                onManageGroups={onManageGroups}
+                onNewGroup={onNewGroup}
               />
             ))}
           </tbody>

@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.24',
+    date: '2026-09-29',
+    title: 'Table: no Status column, folder from the row',
+    changes: [
+      'All Tasks → Table: the Status column is gone. The green ✓ still marks a task done in one click; Start and Waiting are in the ⋮ menu.',
+      'The Business / Folder column is now a button: click it to put the task in a folder, move it, take it out, or make a new folder right there.',
+      'A line at the top says where it went, with Undo.',
+    ],
+  },
+  {
     version: '1.23',
     date: '2026-09-29',
     title: 'Pages start with the work',

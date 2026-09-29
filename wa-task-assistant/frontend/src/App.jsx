@@ -462,6 +462,19 @@ export default function App() {
     act(() => api.updateTask(task.id, { status: task.status === 'done' ? 'open' : 'done' }));
   // One press from the table. Finishing cancels the reminders, so a slip
   // gets the same Undo as the ✕: it puts back the status the task had.
+  /*
+   * Filing a task into a folder, shared by the list and the table so both
+   * rows file the same way. A folder made from the row it is needed on takes
+   * the server's own colour rotation, so a new one is distinguishable without
+   * asking him to pick from a palette mid-thought.
+   */
+  const manageGroups = () => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const newGroup = async (name) => {
+    const { group } = await api.createGroup({ name });
+    await loadGroups();
+    return group;
+  };
+
   const onDone = async (task) => {
     await act(() => api.updateTask(task.id, { status: 'done' }));
     setUndo({ kind: 'done', id: task.id, title: task.title, from: task.status });
@@ -2130,6 +2143,9 @@ export default function App() {
                         onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
                         people={people}
                         onAssign={onAssign}
+                        onMove={onMove}
+                        onManageGroups={manageGroups}
+                        onNewGroup={newGroup}
                       />
                     )}
 
@@ -2159,18 +2175,8 @@ export default function App() {
                       onNotATask={onNotATask}
                       groups={groups}
                       onMove={onMove}
-                      onManageGroups={() => { setSection('groups'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                      /*
-                        * A folder made from the row it is needed on. The
-                        * colour is left to the server's own rotation, so a new
-                        * one is distinguishable from the others without asking
-                        * him to pick from a palette mid-thought.
-                        */
-                      onNewGroup={async (name) => {
-                        const { group } = await api.createGroup({ name });
-                        await loadGroups();
-                        return group;
-                      }}
+                      onManageGroups={manageGroups}
+                      onNewGroup={newGroup}
                       onOpenGroup={(id) => { goto(`group:${id}`); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       /*
                         * Two ways in, one handler. With a sentence, it is the
