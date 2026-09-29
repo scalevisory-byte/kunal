@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.26',
+    date: '2026-09-29',
+    title: 'Chats show pending tasks only',
+    changes: [
+      'By Chat now shows only tasks that are still pending. Finished tasks are no longer listed there.',
+      'A person with nothing pending drops off the chat list until something new comes from them or is given to them.',
+      'Finished tasks are still in Completed and Work History.',
+    ],
+  },
+  {
     version: '1.25',
     date: '2026-09-29',
     title: 'Chats in the All Tasks switch',

@@ -105,10 +105,11 @@ describe('old tasks are under the person too', () => {
     assert.equal(sections[0].done.length, 1);
   });
 
-  it('the page loads finished tasks and does not also heap them in Completed', () => {
+  it('the By Chat page shows pending work only, and never heaps finished work in Completed', () => {
     const app = read('App.jsx');
     const list = read('components/TaskList.jsx');
-    assert.match(app, /if \(key === 'chat'\) return setView\('all'\);/);
+    // "pending wale hi dikhne chahiye": the page opens on Open, not All.
+    assert.match(app, /if \(key === 'chat'\) return setView\('open'\);/);
     assert.match(list, /groupBy === 'chat'\) sections = byChat\(tasks\)/);
     assert.match(list, /groupBy !== 'chat' && done\.length/);
     assert.match(list, /keep: s\.done\.length > 0/);
