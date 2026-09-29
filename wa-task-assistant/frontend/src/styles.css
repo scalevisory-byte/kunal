@@ -6075,7 +6075,11 @@ button.due:hover { background: var(--raised); }
   cursor: pointer;
 }
 .pc-switch button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
-.sections > .pc-switch { margin: 12px 0 4px 16px; }
+.pc-switches { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.pc-switches .pc-switch { margin: 0; }
+.sections > .pc-switches { margin: 12px 0 4px 16px; }
+/* A count of finished work is a fact, not a call to act: grey, not green. */
+.pc-count.done { background: var(--bg-2); color: var(--text-2); }
 
 .pc {
   display: grid;

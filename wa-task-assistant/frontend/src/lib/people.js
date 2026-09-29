@@ -117,11 +117,11 @@ const stamp = (value) => {
  * a task finished last week is not the news about somebody who handed you a
  * new one this morning.
  */
-export function lastActivity(section) {
-  const byNewest = (list, field) =>
-    [...list].sort((a, b) => stamp(b[field]) - stamp(a[field]))[0] || null;
-  const open = byNewest(section.items, 'created_at');
-  if (open) return { task: open, at: open.created_at, done: false };
+export function lastActivity(section, field = 'created_at') {
+  const byNewest = (list, key) =>
+    [...list].sort((a, b) => stamp(b[key]) - stamp(a[key]))[0] || null;
+  const open = byNewest(section.items, field);
+  if (open) return { task: open, at: open[field], done: field === 'completed_at' };
   const done = byNewest(section.done, 'completed_at');
   return done ? { task: done, at: done.completed_at, done: true } : { task: null, at: null, done: false };
 }
@@ -131,12 +131,27 @@ export function lastActivity(section) {
  * chats, so the person who just sent something is at the top. "Added by hand"
  * is not a person and stays at the foot.
  */
-export function chatOrder(sections) {
+export function chatOrder(sections, field = 'created_at') {
   const latest = (s) => Math.max(
     0,
-    ...s.items.map((t) => stamp(t.created_at)),
+    ...s.items.map((t) => stamp(t[field])),
     ...s.done.map((t) => stamp(t.completed_at)),
   );
   return [...sections].sort((a, b) =>
     (a.hand - b.hand) || latest(b) - latest(a) || a.label.localeCompare(b.label));
+}
+
+/**
+ * The chat list shows one of two things, never both at once: what is still
+ * pending ("pending wale hi dikhne chahiye"), or what has been completed
+ * ("isme completed kese dikhege"). A person appears only when they have
+ * something in the half being shown.
+ */
+export function chatSections(sections, show = 'pending') {
+  if (show === 'done') {
+    return sections
+      .filter((s) => s.done.length)
+      .map((s) => ({ ...s, items: s.done, from: [], given: [], done: [] }));
+  }
+  return sections.filter((s) => s.items.length).map((s) => ({ ...s, done: [] }));
 }

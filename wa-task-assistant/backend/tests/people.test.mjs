@@ -105,14 +105,14 @@ describe('old tasks are under the person too', () => {
     assert.equal(sections[0].done.length, 1);
   });
 
-  it('the By Chat page shows pending work only, and never heaps finished work in Completed', () => {
+  it('the page loads everything but opens on Pending, never mixing the two', () => {
     const app = read('App.jsx');
     const list = read('components/TaskList.jsx');
-    // "pending wale hi dikhne chahiye": the page opens on Open, not All.
-    assert.match(app, /if \(key === 'chat'\) return setView\('open'\);/);
-    assert.match(list, /groupBy === 'chat'\) sections = byChat\(tasks\)/);
+    assert.match(app, /if \(key === 'chat'\) return setView\('all'\);/);
+    assert.match(list, /useState\('pending'\)/, 'Pending on every visit, not remembered');
+    assert.match(list, /groupBy === 'chat'\) sections = byChat\(tasks, canShowDone \? chatShow : 'pending'\)/);
     assert.match(list, /groupBy !== 'chat' && done\.length/);
-    assert.match(list, /keep: s\.done\.length > 0/);
+    assert.doesNotMatch(list, /doneOpen/, 'no Done fold inside the pending list');
   });
 });
 
@@ -143,9 +143,9 @@ describe('the chat list, WhatsApp\'s way', async () => {
   it('is the default layout, with the old one a remembered switch away', () => {
     const list = read('components/TaskList.jsx');
     assert.match(list, /localStorage\.getItem\(CHAT_LAYOUT\) === 'list' \? 'list' : 'chats'/);
-    assert.match(list, /<PersonChats sections=\{sections\} row=\{row\} \/>/);
+    assert.match(list, /<PersonChats sections=\{sections\} row=\{row\} mode=/);
     const pc = read('components/PersonChats.jsx');
-    assert.match(pc, /\{current\.done\.map\(row\)\}/, 'the rows are the board\'s own TaskItem');
+    assert.match(pc, /\{current\.items\.map\(row\)\}/, 'the rows are the board\'s own TaskItem');
   });
 
   it('lays the rows out by the pane\'s width, not the window\'s', () => {
@@ -168,5 +168,35 @@ describe('"chat wala option yaha pe bhi de do"', () => {
   });
   it('names the page\'s own two shapes so they are not a second "List"', () => {
     assert.match(read('components/TaskList.jsx'), /\['chats', 'Side by side'\], \['list', 'One below another'\]/);
+  });
+});
+
+describe('"isme completed kese dikhege": Pending · Completed', async () => {
+  const { chatSections, chatOrder, lastActivity } = await import('../../frontend/src/lib/people.js');
+  const mixed = [
+    t(1, sahil),
+    t(2, { ...sahil, status: 'done', completed_at: '2026-09-20T10:00:00Z' }),
+    t(3, { chat_id: '9111@c.us', chat_name: 'Ravi', status: 'done', completed_at: '2026-09-25T10:00:00Z' }),
+  ].map((x) => (x.chat_name === 'Sahil' ? { ...x, chat_name: 'Sahil Shah' } : x));
+
+  it('Pending lists only people with something pending, and none of their finished work', () => {
+    const s = chatSections(byPerson(mixed), 'pending');
+    assert.deepEqual(s.map((x) => x.label), ['Sahil Shah']);
+    assert.deepEqual(s[0].items.map((x) => x.id), [1]);
+    assert.equal(s[0].done.length, 0);
+  });
+
+  it('Completed lists only finished work, under the person it was for, newest first', () => {
+    const s = chatOrder(chatSections(byPerson(mixed), 'done'), 'completed_at');
+    assert.deepEqual(s.map((x) => x.label), ['Ravi', 'Sahil Shah']);
+    assert.deepEqual(s[1].items.map((x) => x.id), [2]);
+    assert.equal(lastActivity(s[0], 'completed_at').at, '2026-09-25T10:00:00Z');
+  });
+
+  it('offers the switch only where finished tasks are loaded, and keeps it when a side is empty', () => {
+    const list = read('components/TaskList.jsx');
+    assert.match(list, /const canShowDone = byPeople && view === 'all';/);
+    assert.match(list, /\['pending', 'Pending'\], \['done', 'Completed'\]/);
+    assert.match(list, /if \(!sections\.length\) \{[\s\S]*?\{layoutSwitch\}/);
   });
 });

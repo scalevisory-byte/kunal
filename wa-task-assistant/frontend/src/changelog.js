@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.27',
+    date: '2026-09-29',
+    title: 'Chats: Pending or Completed',
+    changes: [
+      'By Chat has a new switch: Pending · Completed. It always opens on Pending, so only pending tasks show.',
+      'Press Completed to see finished tasks instead, under the person they were for, newest first. The grey number beside a name is how many are completed.',
+      'Pending and completed never mix in one list.',
+    ],
+  },
+  {
     version: '1.26',
     date: '2026-09-29',
     title: 'Chats show pending tasks only',

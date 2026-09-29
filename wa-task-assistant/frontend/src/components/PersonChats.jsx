@@ -36,13 +36,15 @@ const wide = () => {
   try { return window.matchMedia('(min-width: 761px)').matches; } catch { return true; }
 };
 
-export default function PersonChats({ sections, row }) {
+export default function PersonChats({ sections, row, mode = 'pending' }) {
   const [picked, setPicked] = useState(null);
   const [find, setFind] = useState('');
-  const [showDone, setShowDone] = useState(false);
+  const done = mode === 'done';
+  // Completed reads by when the work was finished, pending by when it came in.
+  const field = done ? 'completed_at' : 'created_at';
   const root = useRef(null);
 
-  const ordered = useMemo(() => chatOrder(sections), [sections]);
+  const ordered = useMemo(() => chatOrder(sections, field), [sections, field]);
   const shown = useMemo(() => {
     const q = find.trim().toLowerCase();
     return q ? ordered.filter((s) => s.label.toLowerCase().includes(q)) : ordered;
@@ -54,7 +56,6 @@ export default function PersonChats({ sections, row }) {
 
   const open = (key) => {
     setPicked(key);
-    setShowDone(false);
     // On a phone the list is swapped for the person, so start at their name
     // rather than wherever the list had been scrolled to.
     if (!wide()) requestAnimationFrame(() => root.current?.scrollIntoView({ block: 'start' }));
@@ -78,7 +79,7 @@ export default function PersonChats({ sections, row }) {
         </label>
         <ul>
           {shown.map((s) => {
-            const last = lastActivity(s);
+            const last = lastActivity(s, field);
             return (
               <li key={s.key}>
                 <button
@@ -99,7 +100,9 @@ export default function PersonChats({ sections, row }) {
                         {last.done && <Icon name="check" size={13} />}
                         {last.task ? last.task.title : 'Nothing yet'}
                       </span>
-                      {s.items.length > 0 && <span className="pc-count" title="Still owed">{s.items.length}</span>}
+                      {s.items.length > 0 && (
+                        <span className={`pc-count ${done ? 'done' : ''}`} title={done ? 'Completed' : 'Still pending'}>{s.items.length}</span>
+                      )}
                     </span>
                   </span>
                 </button>
@@ -124,39 +127,28 @@ export default function PersonChats({ sections, row }) {
               </span>
               <span className="pc-title">
                 <strong>{current.label}</strong>
-                <small>{current.note || (current.group ? 'Group' : '')}</small>
+                <small>{done ? `${current.items.length} completed` : current.note || (current.group ? 'Group' : '')}</small>
               </span>
             </header>
 
-            {current.from.length > 0 && current.given.length > 0 ? (
+            {done ? (
+              <>
+                <h4 className="person-sub">Completed, newest first</h4>
+                <ul className="task-list">{current.items.map(row)}</ul>
+              </>
+            ) : current.from.length > 0 && current.given.length > 0 ? (
               <>
                 <h4 className="person-sub">From {current.label}</h4>
                 <ul className="task-list">{current.from.map(row)}</ul>
                 <h4 className="person-sub">Given to {current.label}</h4>
                 <ul className="task-list">{current.given.map(row)}</ul>
               </>
-            ) : current.items.length > 0 ? (
+            ) : (
               <>
                 <h4 className="person-sub">
                   {current.given.length ? `Given to ${current.label}` : current.hand ? 'Added by hand' : `From ${current.label}`}
                 </h4>
                 <ul className="task-list">{current.items.map(row)}</ul>
-              </>
-            ) : (
-              <p className="pc-empty small">Nothing owed. Everything with {current.label} is done.</p>
-            )}
-
-            {current.done.length > 0 && (
-              <>
-                <button
-                  className="person-sub person-done"
-                  aria-expanded={showDone}
-                  onClick={() => setShowDone((v) => !v)}
-                >
-                  Done · {current.done.length}
-                  <Icon name="chevronDown" size={14} className={`section-chevron ${showDone ? 'up' : ''}`} />
-                </button>
-                {showDone && <ul className="task-list">{current.done.map(row)}</ul>}
               </>
             )}
           </>

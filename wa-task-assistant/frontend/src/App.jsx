@@ -102,7 +102,7 @@ const PAGES = {
   },
   chat: {
     title: 'By Chat',
-    lede: 'One section per person or group: what is still pending from them and what you gave them. Open a name to see it.',
+    lede: 'One section per person or group: what is pending from them and what you gave them, or with Completed, what is done. Open a name to see it.',
     toolbar: true,
   },
   ai: {
@@ -982,11 +982,11 @@ export default function App() {
     if (key === 'done') return setView('done');
     if (key === 'all' || key === 'dashboard') return setView(key === 'dashboard' ? 'open' : 'all');
     /*
-     * Only what is still pending: "chat me done wale bhi aa rahe he, pending
-     * wale hi dikhne chahiye". Opening on 'all' put every person's finished
-     * work on the page, and kept people with nothing left to do in the list.
+     * Everything is loaded, but the page opens on Pending: "pending wale hi
+     * dikhne chahiye". Finished work is behind its own Completed switch
+     * ("isme completed kese dikhege"), never mixed into the pending list.
      */
-    if (key === 'chat') return setView('open');
+    if (key === 'chat') return setView('all');
     if (key === 'recent') return setView('all');
     if (key === 'ai') { setView('open'); return setFilters({ ...EMPTY_FILTERS, origin: ['ai'] }); }
     if (key === 'calendar') { setView('all'); return setSelectedDate(todayIso()); }

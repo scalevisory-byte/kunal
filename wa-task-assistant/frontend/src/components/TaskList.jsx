@@ -3,7 +3,7 @@ import TaskItem from './TaskItem.jsx';
 import Icon from './Icon.jsx';
 import { isDone, isOverdue, isoDay, todayIso } from '../lib/task.js';
 import { parseStamp } from '../lib/derive.js';
-import { byPerson, personNote } from '../lib/people.js';
+import { byPerson, personNote, chatSections } from '../lib/people.js';
 import PersonChats from './PersonChats.jsx';
 
 /*
@@ -127,16 +127,13 @@ function byReason(open) {
  * Sections by person: what came from each chat and what was given to each
  * person, together. The rule lives in lib/people.js so it can be tested.
  */
-function byChat(tasks) {
-  return byPerson(tasks).map((s) => ({
+function byChat(tasks, show) {
+  return chatSections(byPerson(tasks), show).map((s) => ({
     ...s,
     tone: 'info',
     icon: s.group ? 'chat' : s.hand ? 'edit' : 'person',
-    note: personNote(s),
-    // Somebody whose work is all finished still has a section: that history
-    // is what "purane task" asks for.
-    keep: s.done.length > 0,
-    countText: s.items.length ? null : 'all done',
+    note: show === 'done' ? null : personNote(s),
+    countText: show === 'done' ? `${s.items.length} completed` : null,
   }));
 }
 
@@ -312,7 +309,12 @@ export default function TaskList({
    */
   const [collapsed, setCollapsed] = useState({});
   const [touched, setTouched] = useState({});
-  const [doneOpen, setDoneOpen] = useState({});
+  /*
+   * Pending or Completed, on the chat view. Pending on every visit (not
+   * remembered): a list that opens on finished work is how "chat me done
+   * wale bhi aa rahe he" was asked the first time.
+   */
+  const [chatShow, setChatShow] = useState('pending');
   /*
    * By Chat has two shapes: WhatsApp's (names down the left, one person on the
    * right) and the older one band per person. Remembered, because it is a
@@ -355,6 +357,30 @@ export default function TaskList({
     );
   }
 
+  const byPeople = groupBy === 'chat' && view !== 'done' && view !== 'myday';
+  // Completed can only be offered where finished tasks are loaded (All).
+  const canShowDone = byPeople && view === 'all';
+  const layoutSwitch = byPeople && (
+    <div className="pc-switches">
+      {canShowDone && (
+        <div className="pc-switch" role="group" aria-label="Pending or completed">
+          {[['pending', 'Pending'], ['done', 'Completed']].map(([key, label]) => (
+            <button key={key} className={chatShow === key ? 'on' : ''} aria-pressed={chatShow === key} onClick={() => setChatShow(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="pc-switch" role="group" aria-label="By Chat layout">
+        {[['chats', 'Side by side'], ['list', 'One below another']].map(([key, label]) => (
+          <button key={key} className={chatLayout === key ? 'on' : ''} aria-pressed={chatLayout === key} onClick={() => pickLayout(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const open = tasks.filter((t) => !isDone(t));
   const done = tasks.filter(isDone);
 
@@ -369,7 +395,7 @@ export default function TaskList({
   else if (groupBy === 'reason') sections = byReason(open);
   // Finished work too, under the person it belongs to rather than in the
   // Completed heap below.
-  else if (groupBy === 'chat') sections = byChat(tasks);
+  else if (groupBy === 'chat') sections = byChat(tasks, canShowDone ? chatShow : 'pending');
   else if (groupBy === 'folder') sections = byFolder(open, groups);
   /*
    * Recent asks a different question from every other view: not what is most
@@ -421,17 +447,26 @@ export default function TaskList({
   }
 
   if (!sections.length) {
+    // The switches stay, or an empty Completed would leave no way back.
+    const noneDone = canShowDone && chatShow === 'done';
     return (
-      <div className="empty">
-        <strong>{query ? 'No tasks match your search.' : "You're all caught up."}</strong>
-        <p>
-          {query
-            ? 'Try a different word, or clear the filters.'
-            : view === 'all'
-              ? 'Tasks from WhatsApp appear here on their own.'
-              : 'No pending tasks for this period.'}
-        </p>
-      </div>
+      <>
+        {layoutSwitch}
+        <div className="empty">
+          <strong>
+            {query ? 'No tasks match your search.' : noneDone ? 'Nothing completed yet.' : "You're all caught up."}
+          </strong>
+          <p>
+            {query
+              ? 'Try a different word, or clear the filters.'
+              : noneDone
+                ? 'Finished tasks show here, under the person they were for.'
+                : view === 'all'
+                  ? 'Tasks from WhatsApp appear here on their own.'
+                  : 'No pending tasks for this period.'}
+          </p>
+        </div>
+      </>
     );
   }
 
@@ -459,22 +494,11 @@ export default function TaskList({
     />
   );
 
-  const byPeople = groupBy === 'chat' && view !== 'done' && view !== 'myday';
-  const layoutSwitch = byPeople && (
-    <div className="pc-switch" role="group" aria-label="By Chat layout">
-      {[['chats', 'Side by side'], ['list', 'One below another']].map(([key, label]) => (
-        <button key={key} className={chatLayout === key ? 'on' : ''} aria-pressed={chatLayout === key} onClick={() => pickLayout(key)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-
   if (byPeople && chatLayout === 'chats') {
     return (
       <>
         {layoutSwitch}
-        <PersonChats sections={sections} row={row} />
+        <PersonChats sections={sections} row={row} mode={canShowDone ? chatShow : 'pending'} />
       </>
     );
   }
@@ -526,21 +550,6 @@ export default function TaskList({
               </>
             ) : !shut && section.items.length > 0 && (
               <ul className="task-list">{section.items.map(row)}</ul>
-            )}
-            {!shut && section.done?.length > 0 && (
-              <>
-                {/* Shut until asked for: a person's old work is there to look
-                    back at, not to push what is still owed off the screen. */}
-                <button
-                  className="person-sub person-done"
-                  aria-expanded={Boolean(doneOpen[section.key])}
-                  onClick={() => setDoneOpen((d) => ({ ...d, [section.key]: !d[section.key] }))}
-                >
-                  Done · {section.done.length}
-                  <Icon name="chevronDown" size={14} className={`section-chevron ${doneOpen[section.key] ? 'up' : ''}`} />
-                </button>
-                {doneOpen[section.key] && <ul className="task-list">{section.done.map(row)}</ul>}
-              </>
             )}
           </section>
         );
