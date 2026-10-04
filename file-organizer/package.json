@@ -1,0 +1,16 @@
+{
+  "name": "file-organizer",
+  "version": "1.0.0",
+  "description": "AI agent that organizes files using Claude",
+  "type": "module",
+  "main": "organizer.js",
+  "bin": {
+    "organize": "./organizer.js"
+  },
+  "scripts": {
+    "start": "node organizer.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0"
+  }
+}
