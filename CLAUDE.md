@@ -321,6 +321,18 @@ assistant. See `salary-app/README.md`.
   11,150, PT 14,400, PF 3,600, net 19,01,078, Sunday register 44 people / 96,651. Note his own
   typed TOTAL cells are stale (CASH says PT 4,600 and deduction 10,300; the rows add to 4,800
   and 10,350) — the app matches the **rows**, not those cells.
+- **The grids were made to look like Excel** — *"MAKE LOOK LIKE EXCEL"*. Full gridlines, a
+  row-number column down the left (`.row-no`, serial per company), a grey header band, one
+  line per row, and the input IS the cell: no border or background until focus, which draws
+  an inset outline like a selected cell. **`EditableCell` takes an `auto` prop** — the
+  computed figure, shown as the placeholder — and the `<span class="hint">` under every box
+  is gone; row height went 48px → 24px, 12 rows on screen → 25.
+  Three things this broke and the fixes: `.sticky-name` got `left: 2.2rem` for the row
+  numbers, which made it **overlap the next column on every other table** (the Festivals
+  date read "ptember") — now scoped to `table.numbered`; `table.sheet` stretched every
+  column to share the width, so the Time tab's six columns were enormous — now `width: auto`
+  with the slack in `:last-child`; and `select { width: 100% }` clipped long company names —
+  now `width: auto; min-width: 100%` so the column grows to fit.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard

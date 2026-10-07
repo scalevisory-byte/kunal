@@ -23,7 +23,13 @@ const EDITABLE = {
   salary: { placeholder: '0' },
 };
 
-function EditableCell({ row, field, disabled, onCommit }) {
+/**
+ * A cell, the way a spreadsheet has one: the worked-out figure sits in it
+ * greyed, and typing replaces it with your own. Nothing is printed under the
+ * box - a second line per cell doubled every row's height and made a sheet of
+ * 85 people into something you had to scroll through twice.
+ */
+function EditableCell({ row, field, disabled, onCommit, auto }) {
   const spec = EDITABLE[field];
   const stored = row[field];
   const [draft, setDraft] = useState(stored === null || stored === undefined ? '' : String(stored));
@@ -41,7 +47,7 @@ function EditableCell({ row, field, disabled, onCommit }) {
       className={`cell-input${isOverride ? ' overridden' : ''}`}
       inputMode="decimal"
       disabled={disabled}
-      placeholder={spec.placeholder}
+      placeholder={auto ?? spec.placeholder}
       value={draft}
       title={isOverride ? 'Typed over the formula - clear the box to go back to the formula' : undefined}
       onFocus={(e) => {
@@ -94,12 +100,14 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
   const grouped = useMemo(() => {
     const out = [];
     let current = null;
+    let serial = 0;
     for (const row of filtered) {
       if (row.company_name !== current) {
         current = row.company_name;
+        serial = 0;
         out.push({ type: 'company', name: current, id: row.company_id, key: `c-${current}` });
       }
-      out.push({ type: 'row', row, key: `r-${row.id}` });
+      out.push({ type: 'row', row, serial: ++serial, key: `r-${row.id}` });
     }
     return out;
   }, [filtered]);
@@ -126,9 +134,10 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
       </div>
 
       <div className={`table-wrap${dense ? ' dense' : ''}`} ref={scroller}>
-        <table className="sheet">
+        <table className="sheet numbered">
           <thead>
             <tr>
+              <th className="row-no" title="Serial number within the company" />
               <th className="sticky-name">Employee</th>
               <th title="Working days in the month">WD</th>
               <th title="Sundays / holidays worked - paid extra at the day rate">Sun</th>
@@ -158,6 +167,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             {grouped.map((item) =>
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
+                  <td className="row-no" />
                   <td className="sticky-name" colSpan={23}>
                     <button
                       className="company-link"
@@ -172,6 +182,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
                 <Row
                   key={item.key}
                   row={item.row}
+                  serial={item.serial}
                   period={period}
                   locked={locked}
                   onPatchRow={onPatchRow}
@@ -181,7 +192,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             )}
             {!filtered.length && (
               <tr>
-                <td colSpan={23} className="empty">
+                <td colSpan={24} className="empty">
                   No employees here yet. Add them under <strong>Employees</strong>, or import a sheet
                   from <strong>Reports</strong>.
                 </td>
@@ -191,6 +202,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
           {filtered.length > 0 && (
             <tfoot>
               <tr>
+                <td className="row-no" />
                 <td className="sticky-name">Total ({totals.count})</td>
                 <td colSpan={4} />
                 <td>{rupees(totals.salary)}</td>
@@ -217,7 +229,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
   );
 }
 
-function Row({ row, period, locked, onPatchRow, onPayslip }) {
+function Row({ row, serial, period, locked, onPatchRow, onPayslip }) {
   // Recompute here rather than waiting for the round trip, so the row and the
   // totals move the moment a number is typed.
   const calc = useMemo(() => calculateRow(row, period, row.attendance), [row, period]);
@@ -225,6 +237,7 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
 
   return (
     <tr className={row.status === 'paid' ? 'paid' : undefined}>
+      <td className="row-no">{serial}</td>
       <td className="sticky-name">
         <button className="link" onClick={() => onPayslip(row)} title="Open payslip">
           {row.employee_name}
@@ -232,11 +245,23 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
         {row.error && <span className="pill error-pill" title={row.error}>save failed</span>}
       </td>
       <td className="num muted">{days(calc.working_days)}</td>
-      <td><EditableCell row={row} field="sundays_override" disabled={locked} onCommit={commit} />
-        {!row.overrides?.sundays && <span className="hint">{days(calc.sundays_worked)}</span>}
+      <td>
+        <EditableCell
+          row={row}
+          field="sundays_override"
+          disabled={locked}
+          onCommit={commit}
+          auto={days(calc.sundays_worked)}
+        />
       </td>
-      <td><EditableCell row={row} field="absent_days_override" disabled={locked} onCommit={commit} />
-        {!row.overrides?.absent_days && <span className="hint">{days(calc.absent_days)}</span>}
+      <td>
+        <EditableCell
+          row={row}
+          field="absent_days_override"
+          disabled={locked}
+          onCommit={commit}
+          auto={days(calc.absent_days)}
+        />
       </td>
       <td className="num">{days(calc.present_days)}</td>
       <td><EditableCell row={row} field="salary" disabled={locked} onCommit={commit} /></td>
@@ -244,17 +269,23 @@ function Row({ row, period, locked, onPatchRow, onPayslip }) {
       <td className="num muted">{rupees2(calc.per_hour)}</td>
       <td className="num deduct">{calc.absent_salary ? `-${rupees(calc.absent_salary)}` : '-'}</td>
       <td className="num muted">{rupees(calc.gross_after_absent)}</td>
-      <td><EditableCell row={row} field="ot_minutes_override" disabled={locked} onCommit={commit} />
-        {!row.overrides?.ot_minutes && (
-          <span className={`hint${calc.ot_minutes < 0 ? ' deduct' : ''}`}>
-            {calc.ot_minutes ? `${calc.ot_minutes > 0 ? '+' : ''}${calc.ot_minutes}` : 'from days'}
-          </span>
-        )}
+      <td className={calc.ot_minutes < 0 ? 'deduct-cell' : undefined}>
+        <EditableCell
+          row={row}
+          field="ot_minutes_override"
+          disabled={locked}
+          onCommit={commit}
+          auto={calc.ot_minutes ? `${calc.ot_minutes > 0 ? '+' : ''}${calc.ot_minutes}` : '0'}
+        />
       </td>
-      <td><EditableCell row={row} field="ot_amount_override" disabled={locked} onCommit={commit} />
-        {row.ot_amount_override === null && (
-          <span className={`hint${calc.ot_salary < 0 ? ' deduct' : ''}`}>{rupees(calc.ot_salary)}</span>
-        )}
+      <td className={calc.ot_salary < 0 ? 'deduct-cell' : undefined}>
+        <EditableCell
+          row={row}
+          field="ot_amount_override"
+          disabled={locked}
+          onCommit={commit}
+          auto={rupees(calc.ot_salary)}
+        />
       </td>
       <td><EditableCell row={row} field="addition" disabled={locked} onCommit={commit} /></td>
       <td className="deduct-cell">

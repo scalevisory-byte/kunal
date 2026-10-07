@@ -639,8 +639,13 @@ One stylesheet, no framework, and deliberately quiet — this is a sheet somebod
 an hour at a time, so the ink goes on the numbers and the names rather than on boxes round
 them.
 
-- **Hairlines, not borders.** Cards are a thin rule and some room. Table headers are small
-  caps on the page's own background with one line under them, not a coloured band.
+- **The sheets look like sheets.** Every cell is ruled on all four sides, rows are one line
+  tall, there is a row number down the left, and the header and totals rows stay put while
+  the grid scrolls. An editable cell shows the worked-out figure greyed, exactly as a
+  spreadsheet shows a formula's result; typing replaces it and the cell turns amber to say
+  so. Clearing it hands the formula back. Nothing is printed under a box — a second line per
+  cell doubled every row and made 85 people three screens long.
+- **Hairlines, not borders**, everywhere else. Cards are a thin rule and some room.
 - **Figures, not tiles.** A row of six bordered boxes is six rectangles competing with the
   numbers inside them; here the columns are separated by a hairline and the number is the
   biggest thing on the row.

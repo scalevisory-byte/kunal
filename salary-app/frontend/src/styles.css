@@ -332,41 +332,82 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
 }
 .card .table-wrap { border: none; border-radius: 0; }
 
-table.sheet { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 0.82rem; }
+/* Columns size to their contents and the table fills what is left, rather
+   than every column stretching to share the width - a sheet of six columns
+   should not look like a sheet of twenty-four. */
+table.sheet {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: auto;
+  min-width: 100%;
+  font-size: 0.82rem;
+}
 .table-wrap.dense table.sheet { font-size: 0.75rem; }
 
+/*
+ * A sheet should read like a sheet. Every cell is ruled on all four sides, the
+ * rows are one line tall, and an editable cell shows its figure rather than a
+ * box with a second line of hint under it - which is what made eighty-five
+ * people three screens long.
+ */
 table.sheet th, table.sheet td {
-  border-bottom: 1px solid var(--line-soft);
-  padding: 0.38rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 0.22rem 0.4rem;
+  height: 1.7rem;
   text-align: left;
   white-space: nowrap;
 }
-table.sheet tbody tr:last-child td { border-bottom: none; }
-table.sheet tbody tr:hover td { background: var(--line-soft); }
-table.sheet tbody tr:hover .sticky-name { background: var(--line-soft); }
-.table-wrap.dense table.sheet th, .table-wrap.dense table.sheet td { padding: 0.2rem 0.3rem; }
+table.sheet tbody tr:hover td { background: color-mix(in srgb, var(--brand) 5%, transparent); }
+table.sheet tbody tr:hover .sticky-name,
+table.sheet tbody tr:hover .row-no { background: color-mix(in srgb, var(--brand) 5%, transparent); }
+
+/* The row number down the left, the way a spreadsheet has one. */
+table.sheet .row-no {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 2.2rem;
+  min-width: 2.2rem;
+  padding: 0.22rem 0.3rem;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--line-soft);
+}
+table.sheet thead .row-no, table.sheet tfoot .row-no { z-index: 4; }
+/* Only a table that HAS a row-number column pushes its name column clear of
+   it; every other sheet still sticks its name column to the left edge. */
+table.numbered .sticky-name { left: 2.2rem; }
+.table-wrap.dense table.sheet th, .table-wrap.dense table.sheet td {
+  padding: 0.12rem 0.3rem;
+  height: 1.5rem;
+}
 
 table.sheet thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--surface);
+  background: var(--line-soft);
   border-bottom: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--text);
   font-size: 0.68rem;
   font-weight: 600;
+  text-align: center;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding-top: 0.55rem;
-  padding-bottom: 0.55rem;
+  letter-spacing: 0.04em;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  height: auto;
 }
+table.sheet thead th.sticky-name { text-align: left; }
 
 table.sheet tfoot td {
   position: sticky;
   bottom: 0;
-  background: var(--surface);
-  border-top: 1px solid var(--line);
-  border-bottom: none;
+  background: var(--line-soft);
+  border-top: 2px solid var(--line);
   font-weight: 650;
   text-align: right;
 }
@@ -376,25 +417,24 @@ table.sheet tfoot td {
   left: 0;
   z-index: 3;
   background: var(--surface);
-  min-width: 9.5rem;
-  max-width: 14rem;
+  min-width: 10rem;
+  max-width: 17rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-thead .sticky-name, tfoot .sticky-name { z-index: 4; background: var(--surface); text-align: left; }
+thead .sticky-name, tfoot .sticky-name { z-index: 4; background: var(--line-soft); text-align: left; }
 
 tr.company-row td {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
   font-weight: 650;
   color: var(--text);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom-color: var(--line);
-  padding-top: 0.9rem;
   position: sticky;
   left: 0;
 }
+tr.company-row .row-no { background: color-mix(in srgb, var(--brand) 7%, transparent); }
 tr.paid { opacity: 0.55; }
 tr.inactive { opacity: 0.45; }
 tr.subtotal td { font-weight: 650; background: var(--line-soft); }
@@ -404,7 +444,55 @@ tr.grand-row td { font-weight: 650; font-size: 1.05em; border-top: 1px solid var
 .strong { font-weight: 700; }
 .grand { font-weight: 700; color: var(--brand); text-align: right; }
 .deduct { color: var(--bad); }
+.deduct-cell .cell-input { color: var(--bad); }
+table.sheet td.num, table.sheet th.num { text-align: right; }
 .empty { text-align: center; color: var(--muted); padding: 2rem !important; white-space: normal; }
+
+table.sheet .cell-input {
+  width: 100%;
+  min-width: 3.4rem;
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 0 0.1rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+table.sheet .cell-input::placeholder { color: var(--muted); opacity: 1; }
+table.sheet .cell-input:hover:not(:disabled) { background: none; }
+table.sheet .cell-input:focus {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--brand);
+  border-radius: 2px;
+}
+table.sheet .cell-input.overridden {
+  color: var(--warn);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+}
+table.sheet .cell-input.wide { text-align: left; min-width: 7rem; }
+table.sheet .cell-input.time-input { width: 4.4rem; min-width: 0; text-align: center; }
+table.sheet .cell-input.narrow { width: 3rem; min-width: 0; }
+
+/* The slack all goes into the last column rather than being shared out, so
+   the columns that hold figures stay the width of their figures. */
+table.sheet th:last-child, table.sheet td:last-child { width: 100%; }
+table.sheet td:last-child { border-right: none; }
+table.sheet .cell-input.date { text-align: left; }
+
+/* Dropdowns inside the grid lose their chrome too. */
+table.sheet select {
+  border: none;
+  background: none;
+  border-radius: 0;
+  padding: 0 0.1rem;
+  /* Sized to what it is showing, so the column grows to fit the longest
+     company name rather than clipping it; it still fills a wider cell. */
+  width: auto;
+  min-width: 100%;
+}
+table.sheet select:hover:not(:disabled) { border: none; }
+table.sheet select:focus { box-shadow: inset 0 0 0 2px var(--brand); border-radius: 2px; }
 
 .cell-input {
   width: 4.6rem;
