@@ -6,3 +6,8 @@ data/
 *.log
 .DS_Store
 **/backend/public/
+
+# Windows server install (deploy/windows)
+.puppeteer/
+wa-task-assistant/logs/
+wa-task-assistant/deploy/windows/nssm.exe
