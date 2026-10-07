@@ -33,7 +33,11 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
     const q = query.trim().toLowerCase();
     return computed.filter(
       (r) =>
-        r.sundays_worked > 0 &&
+        // A typed amount with no Sundays behind it is how an arrear from a
+        // month already closed gets paid, so it belongs here too - the export
+        // already carried it, and leaving it off the screen made the money
+        // invisible to the one person who has to hand it over.
+        (r.sundays_worked > 0 || r.sunday_salary > 0) &&
         (!hidePaid || r.sunday_status !== 'paid') &&
         (!q ||
           r.employee_name.toLowerCase().includes(q) ||

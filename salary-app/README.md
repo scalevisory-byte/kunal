@@ -179,6 +179,38 @@ The third sheet lists **only people owed something** — someone who simply took
 a paid holiday is already paid for it in the monthly salary and is not here. Its festival
 columns come from the festivals set on the **Attendance** tab, so set those first.
 
+### Starting with a month already filled in
+
+`make-seed.mjs` normally bakes in only the employee master. Given `--month` it bakes in a
+whole month as well — the period, a payroll row each, and every attendance mark off the day
+grids — so the file opens on a month already done rather than one waiting to be typed:
+
+```bash
+node scripts/make-seed.mjs "Sep-26.xlsx:Sep-26" "Cash.xlsx:Sep-26 CASH" \
+  --month 2026-09 \
+  --register "Cash.xlsx:SEP Sunday + Festival" \
+  --festival "5:Janmashtami" --festival "25:Ganesh Visarjan"
+```
+
+`--register` layers the Sunday + Festival sheet on top, because that is the only record of a
+Sunday (`SP`) or a festival day (`HP`) that was **worked**. `--festival` names the holidays,
+since a sheet carries only their dates.
+
+Where that sheet's **Net Amount** disagrees with days × day rate — a half day worked, an
+arrear carried in from the month before — the typed figure wins and is kept as an override
+with its remark, so a hand-adjusted row comes across exactly as it was.
+
+> A register `HF` means **half the festival day was worked**. It is deliberately *not*
+> written onto the main grid: there `HF` is half a day's **absence**, so it would dock the
+> pay instead of adding to it. The half is settled through the amount instead.
+
+The seed reaches **only a browser that has stored nothing**, so it can never overwrite real
+work. Once a month has been touched in that browser, the stored copy is the only one.
+
+Checked against the real September sheets, every total reconciles: salary 20,89,000,
+deduction 11,150, PT 14,400, PF 3,600, net 19,01,078, and the Sunday register 44 people at
+96,651 — each the same figure his own rows add up to.
+
 ### Which file am I looking at?
 
 Every download of the standalone file lands as `SalarySheet (2).html`, `(3)` and so on, so

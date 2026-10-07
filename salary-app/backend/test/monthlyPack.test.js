@@ -138,6 +138,17 @@ test('the Sunday register has a column per Sunday and per festival day', async (
   assert.equal(row.getCell(columnOf(ws, '5')).value, '', 'did not work the other one');
 });
 
+test('somebody owed only an arrear is still on the register', async () => {
+  // His own sheet carries one: no Sunday, no festival, "Aug Differ.. = 2363".
+  const { payroll } = month([
+    { employee_name: 'Arrear Only', company_name: 'X', salary: 17500, sunday_salary_override: 2363 },
+  ]);
+  const wb = await buildMonthlyPack(ExcelJS, payroll, {});
+  const ws = sheetOf(wb, 'Sep-26 Sunday + Festival');
+  assert.equal(ws.getRow(3).getCell(2).value, 'Arrear Only');
+  assert.equal(ws.getRow(3).getCell(columnOf(ws, 'Sunday Salary')).value, 2363);
+});
+
 test('only people owed something are on the register', async () => {
   const holidays = [{ id: 1, day: 25, name: 'Ganesh Visarjan', code: 'PH' }];
   const { payroll } = month(

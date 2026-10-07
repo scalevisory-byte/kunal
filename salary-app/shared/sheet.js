@@ -46,12 +46,14 @@ function findSheet(wb, name) {
 const APRIL = {
   name: 3,
   day1: 4,
+  addition: null,
   salary: 38, // AL
   sundays: 35, // AI
   absent: 36, // AJ
   otMinutes: 45, // AS
   otAmount: 46, // AT
   adjustment: 47, // AU
+  deduction: null, // the pack has its own column; April folds it into AU
   esi: 50, // AX
   pf: 51, // AY
   mode: 55, // BC
@@ -106,6 +108,8 @@ export function detectLayout(ws, { headerRow } = {}) {
     pick('sundays', 'sunday');
     pick('absent', 'absent days');
     pick('adjustment', 'deduction additions');
+    pick('deduction', 'deduction');
+    pick('addition', 'addition');
     pick('otMinutes', 'ot lt in minutes');
     pick('otAmount', 'ot lt salary');
     break;
@@ -173,9 +177,10 @@ export async function parseSheet(ExcelJS, buffer, { sheetName, headerRow } = {})
     }
 
     // The pack's one column holds a pay mode on the cash sheet and a status
-    // on the others, so only something that looks like a mode is taken.
+    // on the others, so each is only taken when it looks like itself.
     const typed = text(row.getCell(at.mode));
     const mode = /^(bank|cash|gpay|cheque)$/i.test(typed) ? typed : null;
+    const status = /^(paid|hold|pending)$/i.test(typed) ? typed.toLowerCase() : null;
 
     parsed.push({
       row: r,
@@ -188,9 +193,14 @@ export async function parseSheet(ExcelJS, buffer, { sheetName, headerRow } = {})
       ot_minutes: number(row.getCell(at.otMinutes)) ?? 0,
       ot_amount: number(row.getCell(at.otAmount)),
       adjustment: number(row.getCell(at.adjustment)) ?? 0,
+      // The pack keeps the one-off deduction in a column of its own; April
+      // folded it into the signed AU, so only one of the two is ever present.
+      deduction: at.deduction ? number(row.getCell(at.deduction)) ?? 0 : 0,
+      addition: at.addition ? number(row.getCell(at.addition)) ?? 0 : 0,
       esi: number(row.getCell(at.esi)) ?? 0,
       pf: number(row.getCell(at.pf)) ?? 0,
       payment_mode: mode,
+      status,
       attendance,
     });
   }

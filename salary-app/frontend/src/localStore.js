@@ -41,10 +41,17 @@ const EMPTY = {
 };
 
 /**
- * The employee master baked in at build time (vite.config.js reads seed.json),
- * so the file opens with everybody already listed. It seeds only a browser that
- * has never stored anything - it never overwrites real data, and only the
- * master is seeded, so every month still starts with a blank attendance sheet.
+ * What is baked in at build time (vite.config.js reads seed.json), so the file
+ * opens with real data rather than empty.
+ *
+ * Always the employee master. Optionally a whole month as well - the period,
+ * its payroll rows, the attendance and the festivals - built by
+ * scripts/make-seed.mjs from the sheets that month was run on, so the file
+ * arrives with a month already done rather than needing it typed in again.
+ *
+ * It seeds **only a browser that has never stored anything**, so it can never
+ * overwrite real work; once a month has been touched here, the seed is gone
+ * for good and the stored copy is the only one.
  */
 const SEED = typeof __SEED__ === 'undefined' ? null : __SEED__;
 
@@ -55,6 +62,10 @@ const freshStore = () => {
     ...store,
     companies: structuredClone(SEED.companies || []),
     employees: structuredClone(SEED.employees || []),
+    periods: structuredClone(SEED.periods || []),
+    payroll_rows: structuredClone(SEED.payroll_rows || []),
+    attendance: structuredClone(SEED.attendance || []),
+    holidays: structuredClone(SEED.holidays || []),
     next_id: SEED.next_id || 1,
   };
 };

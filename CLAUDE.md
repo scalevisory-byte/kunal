@@ -302,6 +302,25 @@ assistant. See `salary-app/README.md`.
 - `make-seed.mjs` now takes several `<file>[:tab]` sources and merges them, because the master
   is split across the bank and cash tabs. The current seed is **85 people** from September
   across BOOKNFLY PRIVATE LIMITED / BOOKNFLY / BOOKNFLY VENTURE LLP / SCALE.
+- **The standalone now ships with a month filled in**, not just the master — Dinesh: *"DATA
+  BHAR K DO"*. `make-seed.mjs --month YYYY-MM [--register <file>[:tab]] [--festival D:Name]`
+  seeds the period, a payroll row each, every attendance mark, and the festivals; `localStore`
+  `freshStore()` carries periods/payroll_rows/attendance/holidays through. Still **only into a
+  browser that has stored nothing**, so it can never overwrite real work.
+- **A register `HF` must NOT be written onto the main grid.** On the Sunday + Festival sheet
+  it means half the festival day was *worked*; on the grid `HF` is half a day's *absence*. The
+  first attempt wrote it through and docked Vaibhav Gupta 553 — which is exactly how the
+  seeded totals came out 553 light. Now the grid is left alone and the half is settled through
+  `sunday_salary_override`, which also carries his hand-adjusted rows (AJEETKUMAR 635, JAY
+  GOSAVI/PRIYANKA/TUSHAR zeroed on hold) and the ANSARI SULEMAN arrear (2363, "Aug Differ..").
+- `SundayRegister.jsx` now lists anyone with `sunday_salary > 0` as well as `sundays_worked > 0`
+  — an arrear with no Sundays behind it was in the export but invisible on screen.
+- `parseSheet` also returns `deduction`, `addition` and `status` (the pack keeps the deduction
+  in its own column; April folded it into the signed AU).
+- **Reconciled against his real September files, every total:** salary 20,89,000, deduction
+  11,150, PT 14,400, PF 3,600, net 19,01,078, Sunday register 44 people / 96,651. Note his own
+  typed TOTAL cells are stale (CASH says PT 4,600 and deduction 10,300; the rows add to 4,800
+  and 10,350) — the app matches the **rows**, not those cells.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard
