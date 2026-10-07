@@ -146,6 +146,39 @@ is entered twice.
 > fields, correctly worked out, in a spreadsheet you can read. Check a file against the
 > portal's own template before uploading it rather than trusting it blind.
 
+### The monthly report pack
+
+**Reports → Monthly report pack** is the file that goes out each month. Three sheets, in the
+layout already in use — not the app's own export:
+
+| Sheet | What is on it |
+|---|---|
+| `Sep-26` | the salary sheet for everyone paid by bank |
+| `Sep-26 CASH` | the same sheet for everyone paid in cash |
+| `Sep-26 Sunday + Festival` | Sunday duty and festival days, settled on their own |
+
+Same marks (`P` / `A` / `HF` / `W/O` / `H/O`), same columns, and **live formulas** rather
+than typed numbers, so it can still be edited in Excel after it leaves.
+
+Where the app knows more than those five marks, nothing is flattened and no number moves:
+paid leave keeps its own `CL`/`SL`/`PL` code and counts as present, because the absent
+formula only looks for `A` and `HF`; `AD` keeps its code and the formula is widened to weigh
+it as two days. **A Sunday or a festival day that was worked shows as `W/O` or `H/O` on the
+main grid** — the pay for it is on the third sheet, so it is never counted twice.
+
+Two columns are added to the block — **OT / LT** and **Addition** — because the app has them
+and a month carrying either would otherwise lose the money silently. With both at zero, which
+is the ordinary month, every formula is the original one.
+
+> **Gross Salary is the pay for the days worked, before the deduction**, which is where the
+> sheet has always had it. The deduction, OT and addition come off in the Net, and PT is
+> charged on what is left. Checked against the real September sheets: all **85 rows** across
+> the bank and cash tabs reproduce both gross and net exactly.
+
+The third sheet lists **only people owed something** — someone who simply took a festival as
+a paid holiday is already paid for it in the monthly salary and is not here. Its festival
+columns come from the festivals set on the **Attendance** tab, so set those first.
+
 ### Which file am I looking at?
 
 Every download of the standalone file lands as `SalarySheet (2).html`, `(3)` and so on, so

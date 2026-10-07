@@ -113,6 +113,15 @@ export default function Reports({ period, payroll, onReload }) {
             </div>
 
             <div className="button-row">
+              <button
+                className="primary"
+                title="The three sheets you send out: bank salary, cash salary, and Sunday + Festival"
+                onClick={() =>
+                  grab(`/periods/${period.id}/pack.xlsx`, `Salary-Pack-${period.label}.xlsx`)
+                }
+              >
+                Monthly report pack
+              </button>
               <button onClick={() => grab(`/periods/${period.id}/export.xlsx`, `Salary-${period.label}.xlsx`)}>
                 Download Excel
               </button>
@@ -126,6 +135,14 @@ export default function Reports({ period, payroll, onReload }) {
                 Sunday register
               </button>
             </div>
+            <p className="muted small">
+              <strong>Monthly report pack</strong> is the one that goes out: three sheets in the
+              layout you already circulate — <em>{period.label.split(' ')[0].slice(0, 3)}-
+              {String(period.year).slice(2)}</em> for everyone paid by bank, the same again for
+              everyone paid in cash, and <em>Sunday + Festival</em> for the days settled apart.
+              Your marks (P / A / HF / W/O / H/O), your columns, live formulas. <strong>Download
+              Excel</strong> is the app's own fuller layout, with the hours and OT columns.
+            </p>
           </>
         ) : (
           <p className="muted">Open a month first.</p>

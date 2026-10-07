@@ -6,7 +6,8 @@ import { importSheet, listSheetNames } from '../importer.js';
 import { buildPayroll } from '../payroll.js';
 import { readPunchFile, punchesToMarks } from '../../../shared/punches.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { listEmployees, setAttendance } from '../db.js';
+import { listEmployees, listHolidays, setAttendance } from '../db.js';
+import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
 export const reportsRouter = Router();
@@ -15,6 +16,32 @@ export const reportsRouter = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 const slug = (s) => String(s).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/**
+ * The three sheets Dinesh circulates every month - bank salary, cash salary,
+ * and the Sunday + Festival register - in his own layout rather than the app's.
+ */
+reportsRouter.get('/periods/:id/pack.xlsx', async (req, res, next) => {
+  try {
+    const payroll = buildPayroll(Number(req.params.id), {
+      company_id: Number(req.query.company_id) || undefined,
+    });
+    if (!payroll) return res.status(404).json({ error: 'period not found' });
+
+    const wb = await buildMonthlyPack(ExcelJS, payroll, {
+      holidays: listHolidays(payroll.period.id),
+    });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Salary-Pack-${slug(packLabel(payroll.period))}.xlsx"`
+    );
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    next(err);
+  }
+});
 
 reportsRouter.get('/periods/:id/export.xlsx', async (req, res, next) => {
   try {

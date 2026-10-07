@@ -11,6 +11,7 @@ import {
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
 import { buildWorkbook } from '../../shared/workbook.js';
+import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { TIME_FIELDS, parseTime } from '../../shared/timesheet.js';
 
@@ -954,10 +955,20 @@ export async function file(path) {
     return new Blob([toCsv(CSV_COLUMNS[which], rows)], { type: 'text/csv;charset=utf-8' });
   }
 
-  const match = path.match(/^\/periods\/(\d+)\/(export\.xlsx|export\.csv|bank\.csv|sunday\.csv)$/);
+  const match = path.match(/^\/periods\/(\d+)\/(pack\.xlsx|export\.xlsx|export\.csv|bank\.csv|sunday\.csv)$/);
   if (!match) throw new Error(`not available offline: ${path}`);
   const payroll = buildPayroll(Number(match[1]));
   if (!payroll) throw new Error('period not found');
+
+  if (match[2] === 'pack.xlsx') {
+    const wb = await buildMonthlyPack(ExcelJS, payroll, {
+      holidays: load().holidays.filter((h) => h.period_id === payroll.period.id),
+    });
+    const buffer = await wb.xlsx.writeBuffer();
+    return new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  }
 
   if (match[2] === 'export.xlsx') {
     const wb = await buildWorkbook(ExcelJS, payroll);

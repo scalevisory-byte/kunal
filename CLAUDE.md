@@ -272,6 +272,36 @@ assistant. See `salary-app/README.md`.
   trend would have backdated today's new hires into them and taken loan instalments out of
   closed months. The trend passes `sync=false` for every month but the current one; there is
   an API test.
+- **Monthly report pack** (`shared/monthlyPack.js`, Reports → "Monthly report pack") — Dinesh
+  sent his two September files and said *"need this report every month"*. Three sheets in HIS
+  layout, not the app's: `Sep-26` (bank), `Sep-26 CASH` (split on payment_mode), and
+  `Sep-26 Sunday + Festival`. His marks (W/O, H/O), his columns, live formulas.
+  **`gridMark` maps the app's 13 marks onto his 5 without moving a number**: leave keeps
+  CL/SL/PL and counts as present (his absent formula only sees A and HF); AD keeps its code
+  and the formula gains `+COUNTIF(...,"AD")*2`; **SP/HP come out as W/O/H/O** so the Sunday
+  register is the only place that work is paid.
+- **His "Gross Salary" is BEFORE the deduction** — the app's `gross_salary` is after it. Got
+  this wrong first: every row with a deduction was out by exactly that amount. The pack's
+  Gross is `ROUND(NetDays*perDay)` = `gross_after_absent`, and OT/Addition/Deduction come off
+  in the Net. **Verified against his real September files: 85/85 rows match gross AND net.**
+  There is a test pinning it.
+- Two columns added to his block, **OT / LT** and **Addition**, because the app has them and
+  a month carrying either would lose the money silently. Both zero → his formulas exactly.
+- The register lists only people owed something; a festival merely taken off costs nothing
+  and is already in the monthly salary. **Open question put to Dinesh**: on his register the
+  festival cell says `H/O`, and his own legend reads "paid holiday mili" — but ANCHAL TIWARI
+  got that holiday and is not on the register at all, so H/O there can only mean *worked the
+  festival day and is owed an extra day*. Implemented as the app's **HP** mark. Confirm.
+- `shared/sheet.js` **reads the column positions off the header** (`detectLayout`) instead of
+  assuming April's: the pack has the name in B and dates from C, April has C and D. Falls
+  back to April's positions when no header is recognised, so the old path is untouched. Two
+  real bugs fixed with it: the **first** matching header wins (his cash tab carries the Sunday
+  register alongside, so "Salary" appears twice and the right-hand one was winning), and a
+  **TOTAL row is skipped** (its SUM carries a cached result, so it imported as somebody
+  earning the whole payroll).
+- `make-seed.mjs` now takes several `<file>[:tab]` sources and merges them, because the master
+  is split across the bank and cash tabs. The current seed is **85 people** from September
+  across BOOKNFLY PRIVATE LIMITED / BOOKNFLY / BOOKNFLY VENTURE LLP / SCALE.
 - **Not yet deployed** — `backend/Dockerfile` and `railway.json` exist but no Docker daemon
   was available to build the image. Root directory `salary-app`, volume at `/data`. The
   production path *was* verified without Docker: `npm ci --omit=dev`, the built dashboard
