@@ -12,37 +12,38 @@ Railway, and wherever the scalevisory.in domain is registered.
 
 ---
 
-## Part A: install the app (about 30 min)
+## Part A: install the app (about 20 min)
 
-1. **Install on the server** (all free):
-   - **Node.js LTS**, the Windows x64 `.msi` from https://nodejs.org. Use the defaults.
-   - **Git for Windows** from https://git-scm.com/download/win. Use the defaults.
-   - **Google Chrome**, if it is not already installed.
-   - **NSSM** from https://nssm.cc/download. Open the zip and keep `win64\nssm.exe` for step 4.
+**The one-click way.** On the server:
 
-2. **Download the app.** Open PowerShell **as Administrator** and run:
-   ```
-   cd C:\
-   git clone -b claude/new-session-5plccw https://github.com/scalevisory-byte/kunal.git wa-tasks
-   cd C:\wa-tasks\wa-task-assistant
-   ```
-   If it asks you to sign in to GitHub, sign in with the account that owns the repo.
-
-3. **Build and set up.** Keep Railway → your service → **Variables** open, because you will copy values from there:
-   ```
-   powershell -ExecutionPolicy Bypass -File deploy\windows\setup.ps1
-   ```
-   It asks for:
+1. Open this page in a browser and sign in to GitHub if asked:
+   https://github.com/scalevisory-byte/kunal/blob/claude/new-session-5plccw/wa-task-assistant/deploy/windows/install-all.ps1
+   Press **Download raw file** (the download arrow at the top right of the code).
+2. In Downloads, right-click `install-all.ps1` → **Run with PowerShell**. Say **Yes** when Windows asks for Administrator.
+3. It installs Node.js, Git, Chrome and NSSM by itself, downloads the app into `C:\wa-tasks`, builds it and makes it a Windows service. Keep Railway → your service → **Variables** open, because it asks for:
    - the data folder (press Enter for `C:\wa-tasks-data`)
    - `ANTHROPIC_API_KEY` (leave it blank to run without AI, at no cost)
    - `DASHBOARD_PASSWORD`
    - the two `VAPID` keys (leave blank if Railway has none)
+   - the Cloudflare tunnel token (leave blank for now; Part C gives you one, then run the file again)
+4. At the end it opens http://localhost:3001. The dashboard should load (empty for now).
 
-4. **Make it a service** so it starts with Windows. Copy `nssm.exe` into `C:\wa-tasks\wa-task-assistant\deploy\windows\`, then run:
+Everything it prints is saved to `C:\wa-tasks-install.log`. Running it again is safe: what is already installed or set is left alone.
+
+<details><summary>The same steps by hand</summary>
+
+1. Install Node.js 22 (x64 `.msi` from https://nodejs.org), Git for Windows, Google Chrome, and get `win64\nssm.exe` from https://nssm.cc/download.
+2. In PowerShell **as Administrator**:
+   ```
+   git clone -b claude/new-session-5plccw https://github.com/scalevisory-byte/kunal.git C:\wa-tasks
+   cd C:\wa-tasks\wa-task-assistant
+   powershell -ExecutionPolicy Bypass -File deploy\windows\setup.ps1
+   ```
+3. Copy `nssm.exe` into `deploy\windows\`, then:
    ```
    powershell -ExecutionPolicy Bypass -File deploy\windows\install-service.ps1
    ```
-   Open http://localhost:3001 on the server. The dashboard should load (empty for now).
+</details>
 
 ## Part B: bring your data across (10 min)
 
@@ -52,10 +53,10 @@ Do this in one sitting, so no tasks are lost in between.
 2. On Railway: open the service → **Settings** → remove the custom domain, or pause the service. From this point the old app stops reading WhatsApp.
 3. On the server, stop the new app, put the backup in place, and start it again:
    ```
-   nssm stop WATasks
+   Stop-Service WATasks
    del C:\wa-tasks-data\tasks.db-wal, C:\wa-tasks-data\tasks.db-shm -ErrorAction SilentlyContinue
    copy C:\Users\<you>\Downloads\tasks-2026-10-07.db C:\wa-tasks-data\tasks.db
-   nssm start WATasks
+   Start-Service WATasks
    ```
    Use the real file name. The `del` line removes two leftover files from the
    empty install; if they stayed, they could damage the restored database.
@@ -74,9 +75,10 @@ or the router.
 3. At your domain registrar (GoDaddy, Hostinger, etc.), change the nameservers
    to the two that Cloudflare shows. This can take a few hours to take effect.
 4. In Cloudflare go to **Zero Trust → Networks → Tunnels → Create a tunnel**
-   (type: Cloudflared), named `wa-tasks`. Choose **Windows**, download the
-   installer on the server, and run the `cloudflared service install …`
-   command it gives you in an Administrator PowerShell.
+   (type: Cloudflared), named `wa-tasks`. Choose **Windows** and copy the
+   `cloudflared service install …` command it shows. Run `install-all.ps1`
+   again and paste that command (or just the long token in it) when it asks
+   for the tunnel token. It installs cloudflared and the tunnel for you.
 5. Under **Public hostname**, add: subdomain `tasks`, domain `scalevisory.in`,
    service type `HTTP`, URL `localhost:3001`. Save.
 6. Open https://tasks.scalevisory.in from your phone. It is now served from your server.
@@ -89,7 +91,7 @@ When everything works, delete the Railway project. Nothing is billed after that.
 
 - **New version from me:** run, as Administrator:
   `powershell -ExecutionPolicy Bypass -File C:\wa-tasks\wa-task-assistant\deploy\windows\update.ps1`
-- **Restart:** `nssm restart WATasks`
+- **Restart:** `Restart-Service WATasks`
 - **Logs:** `C:\wa-tasks\wa-task-assistant\logs\`
 - **Data** (tasks and the WhatsApp login): `C:\wa-tasks-data\`. The app makes a
   nightly copy in `C:\wa-tasks-data\backups\`. Copy that folder somewhere else

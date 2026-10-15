@@ -12,6 +12,7 @@ const setup = read('setup.ps1');
 const service = read('install-service.ps1');
 const update = read('update.ps1');
 const guide = read('README.md');
+const all = read('install-all.ps1');
 
 describe('Windows server kit', () => {
   it('writes .env without a byte-order mark, which would break the first variable', () => {
@@ -41,5 +42,46 @@ describe('Windows server kit', () => {
 
   it('tells him to clear the WAL files before restoring a backup', () => {
     assert.match(guide, /tasks\.db-wal/);
+  });
+  it('install-all: asks for Administrator itself and keeps a log', () => {
+    assert.match(all, /-Verb RunAs/);
+    assert.match(all, /Start-Transcript/);
+  });
+
+  it('install-all: forces TLS 1.2, which Server 2019 does not offer first', () => {
+    assert.match(all, /SecurityProtocolType\]::Tls12/);
+  });
+
+  it('install-all: pins the Node major the app is tested on', () => {
+    assert.match(all, /\$NodeMajor = 22/);
+    assert.match(all, /v\$NodeMajor\.\*/);
+  });
+
+  it('install-all: reloads PATH after installing, so node and git are found', () => {
+    const node = all.indexOf("node-$v-x64.msi");
+    assert.ok(node > -1 && all.indexOf('RefreshPath', node) > node);
+  });
+
+  it('install-all: stops a running service before rebuilding, then hands over to the kit', () => {
+    const stop = all.indexOf('nssm stop WATasks');
+    const setup = all.indexOf("'setup.ps1'");
+    const service = all.indexOf("'install-service.ps1'");
+    assert.ok(stop > -1 && setup > stop && service > setup);
+  });
+
+  it('install-all: clones the branch the app is developed on', () => {
+    assert.match(all, /\$Branch = 'claude\/new-session-5plccw'/);
+    assert.match(all, /git clone -b \$Branch/);
+  });
+
+  it('every script is plain ASCII, because Windows PowerShell 5.1 misreads UTF-8 without a BOM', () => {
+    for (const [name, text] of Object.entries({ setup, service, update, all })) {
+      assert.doesNotMatch(text, /[^\x00-\x7F]/, name);
+    }
+  });
+
+  it('the guide never relies on nssm being on PATH', () => {
+    assert.doesNotMatch(guide, /^\s*nssm (stop|start|restart)/m);
+    assert.match(guide, /install-all\.ps1/);
   });
 });
