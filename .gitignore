@@ -11,3 +11,4 @@ data/
 .puppeteer/
 wa-task-assistant/logs/
 wa-task-assistant/deploy/windows/nssm.exe
+wa-task-assistant/.node/

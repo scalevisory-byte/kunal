@@ -84,4 +84,16 @@ describe('Windows server kit', () => {
     assert.doesNotMatch(guide, /^\s*nssm (stop|start|restart)/m);
     assert.match(guide, /install-all\.ps1/);
   });
+
+  it('gives the app its own Node 22 when the server has another, so nothing needs compiling', () => {
+    assert.match(setup, /\$NodeMajor = 22/);
+    assert.match(setup, /node-\$v-win-x64\.zip/);
+    assert.match(setup, /\$env:Path = \(Split-Path \$nodeExe\)/);
+    // the Node step comes before anything npm installs
+    assert.ok(setup.indexOf('$env:Path = (Split-Path $nodeExe)') < setup.indexOf('npm ci'));
+  });
+
+  it('the service runs on the same Node the packages were built with', () => {
+    assert.match(service, /Join-Path \$root '\.node\\node\.exe'/);
+  });
 });

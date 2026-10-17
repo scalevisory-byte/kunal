@@ -65,8 +65,8 @@ try {
   # --- 1. Node.js -----------------------------------------------------------
   Step "Node.js $NodeMajor"
   RefreshPath
-  $nodeOk = (Have node) -and ([int]((node -v).TrimStart('v').Split('.')[0]) -ge 20)
-  if ($nodeOk) {
+  if (Have node) {
+    # Left alone: setup.ps1 gives WA Tasks its own Node $NodeMajor if this one is different.
     Write-Host "Already installed: node $(node -v)"
   } else {
     $index = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -UseBasicParsing

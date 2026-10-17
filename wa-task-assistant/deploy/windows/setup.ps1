@@ -13,13 +13,44 @@ $frontend = Join-Path $root 'frontend'
 
 function Step($text) { Write-Host ""; Write-Host "==> $text" -ForegroundColor Cyan }
 
-# 1. Node.js 20 or newer must already be installed (nodejs.org, LTS, x64 .msi).
-Step 'Checking Node.js'
-$node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) { throw 'Node.js is not installed. Install the LTS x64 .msi from https://nodejs.org and run this again.' }
-$major = [int]((node -v).TrimStart('v').Split('.')[0])
-if ($major -lt 20) { throw "Node.js $(node -v) is too old. Install the current LTS from https://nodejs.org." }
-Write-Host "Node $(node -v) at $($node.Source)"
+# 1. Node.js 22, kept for this app alone in .node, unless the server's own
+#    Node is already 22. The database package (better-sqlite3) ships
+#    ready-made builds for 22; on a newer Node it tries to compile itself
+#    (node-gyp), which needs Visual Studio and fails on a plain server. A
+#    private copy also means whatever Node the server has for other work is
+#    never touched.
+Step 'Node.js 22'
+$NodeMajor = 22
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue'
+function MajorOf($exe) { [int]((& $exe -v).TrimStart('v').Split('.')[0]) }
+$portable = Join-Path $root '.node'
+$nodeExe = $null
+if ((Test-Path (Join-Path $portable 'node.exe')) -and (MajorOf (Join-Path $portable 'node.exe')) -eq $NodeMajor) {
+  $nodeExe = Join-Path $portable 'node.exe'
+} else {
+  $sys = Get-Command node -ErrorAction SilentlyContinue
+  if ($sys -and (MajorOf $sys.Source) -eq $NodeMajor) {
+    $nodeExe = $sys.Source
+  } else {
+    if ($sys) { Write-Host "The server has Node $(& $sys.Source -v); WA Tasks gets its own Node $NodeMajor in $portable" }
+    $index = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -UseBasicParsing
+    $v = ($index | Where-Object { $_.version -like "v$NodeMajor.*" } | Select-Object -First 1).version
+    if (-not $v) { throw "Could not find Node.js $NodeMajor on nodejs.org" }
+    $zip = Join-Path $env:TEMP "node-$v-win-x64.zip"
+    Write-Host "Downloading Node.js $v"
+    Invoke-WebRequest -Uri "https://nodejs.org/dist/$v/node-$v-win-x64.zip" -OutFile $zip -UseBasicParsing
+    $unpack = Join-Path $env:TEMP 'wa-tasks-node'
+    if (Test-Path $unpack) { Remove-Item $unpack -Recurse -Force }
+    Expand-Archive $zip $unpack -Force
+    if (Test-Path $portable) { Remove-Item $portable -Recurse -Force }
+    Move-Item (Join-Path $unpack "node-$v-win-x64") $portable
+    $nodeExe = Join-Path $portable 'node.exe'
+  }
+}
+# First on PATH for this window, so npm and the build below use this Node.
+$env:Path = (Split-Path $nodeExe) + ';' + $env:Path
+Write-Host "Node $(node -v) at $nodeExe"
 
 # 2. The browser whatsapp-web.js drives. Installed Google Chrome is preferred:
 #    it is a fixed path every Windows account (including the service account)

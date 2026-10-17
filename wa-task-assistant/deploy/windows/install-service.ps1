@@ -15,7 +15,9 @@ if (-not $nssm) { $nssm = Join-Path $PSScriptRoot 'nssm.exe' }
 if (-not (Test-Path $nssm)) { throw 'nssm.exe not found. Download it from https://nssm.cc/download and put the win64 nssm.exe in deploy\windows.' }
 if (-not (Test-Path (Join-Path $backend '.env'))) { throw 'backend\.env is missing. Run setup.ps1 first.' }
 
-$node = (Get-Command node).Source
+# The Node setup.ps1 built with: the app's own copy if it has one.
+$node = Join-Path $root '.node\node.exe'
+if (-not (Test-Path $node)) { $node = (Get-Command node).Source }
 $logs = Join-Path $root 'logs'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
 
