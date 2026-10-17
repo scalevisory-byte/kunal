@@ -1,6 +1,8 @@
 # WA Tasks - put everything on a fresh Windows server in one go.
 #
 # Download this one file, then right-click it -> "Run with PowerShell".
+# If Windows first asks "Execution Policy Change ... [Y] Yes", type Y and Enter
+# (that question is Windows' own, for this one window only).
 # It asks for Administrator itself, then:
 #   1. installs Node.js 22, Git, Google Chrome, NSSM and cloudflared
 #      (each one skipped if it is already there),

@@ -19,7 +19,7 @@ Railway, and wherever the scalevisory.in domain is registered.
 1. Open this page in a browser and sign in to GitHub if asked:
    https://github.com/scalevisory-byte/kunal/blob/claude/new-session-5plccw/wa-task-assistant/deploy/windows/install-all.ps1
    Press **Download raw file** (the download arrow at the top right of the code).
-2. In Downloads, right-click `install-all.ps1` → **Run with PowerShell**. Say **Yes** when Windows asks for Administrator.
+2. In Downloads, right-click `install-all.ps1` → **Run with PowerShell**. Say **Yes** when Windows asks for Administrator. If the blue window first shows **Execution Policy Change … [Y] Yes**, type `Y` and press Enter. That question comes from Windows' own "Run with PowerShell" command, and it only applies to this one window.
 3. It installs Node.js, Git, Chrome and NSSM by itself, downloads the app into `C:\wa-tasks`, builds it and makes it a Windows service. Keep Railway → your service → **Variables** open, because it asks for:
    - the data folder (press Enter for `C:\wa-tasks-data`)
    - `ANTHROPIC_API_KEY` (leave it blank to run without AI, at no cost)
