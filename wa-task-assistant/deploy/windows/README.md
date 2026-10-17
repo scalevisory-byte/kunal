@@ -49,6 +49,13 @@ Everything it prints is saved to `C:\wa-tasks-install.log`. Running it again is 
 
 Do this in one sitting, so no tasks are lost in between.
 
+> **If tasks.scalevisory.in already shows Railway's "Not Found / The train has
+> not arrived at the station"**, Railway has stopped the old app and its
+> Backups page cannot be opened. The data is on the Railway volume, not on
+> TSRV. Either turn the old app back on for a short while (Railway's paid
+> plan) just to download the backup, or skip this part and start the new
+> server with an empty list.
+
 1. On the **old** app (tasks.scalevisory.in): **Settings → Backups → Download**. This saves a file named like `tasks-2026-10-07.db`.
 2. On Railway: open the service → **Settings** → remove the custom domain, or pause the service. From this point the old app stops reading WhatsApp.
 3. On the server, stop the new app, put the backup in place, and start it again:
