@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { RowMenu, AssignButton, GroupButton } from './TaskItem.jsx';
 import { useRename } from '../rename.js';
@@ -66,7 +66,88 @@ function Title({ task, onOpen, rename }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
+/*
+ * Notes on a row, the way a comment sits on a cell in Excel.
+ *
+ * Asked as "lead ke andar additional details add karni he to comment ya notes
+ * ka option, jese excel me hota he". The table had no way in short of opening
+ * the drawer. Now every title carries a Note mark: it shows a count when
+ * something is written, its tooltip reads the details on hover like a cell
+ * comment, and a press opens a line under the row with the details and every
+ * note so far, and a box for the next one. The same updates the drawer and the
+ * list keep - one stream, three doors.
+ */
+function NoteMark({ task, open, onPress }) {
+  const count = task.update_count || 0;
+  const has = count > 0 || Boolean(task.description);
+  const preview = [task.description, count ? `${count} note${count === 1 ? '' : 's'}` : '']
+    .filter(Boolean).join('\n\n');
+  return (
+    <button
+      type="button"
+      className={`tt-note-mark ${has ? 'on' : ''}`}
+      aria-expanded={open}
+      aria-label={`Notes on ${task.title}`}
+      title={preview ? `${preview.slice(0, 400)}\n\nClick to read or add a note` : 'Add a note'}
+      onClick={onPress}
+    >
+      <Icon name="chat" size={13} />
+      <span>{count || (task.description ? '' : 'Note')}</span>
+    </button>
+  );
+}
+
+function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
+  const [items, setItems] = useState(null);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const box = useRef(null);
+  // Handed in rather than fetched here: the table itself never asks the
+  // server for anything, so its rows can only ever be the list on screen.
+  const load = () => Promise.resolve(onLoadNotes(task)).then((r) => setItems(r?.updates || [])).catch(() => setItems([]));
+  useEffect(() => { load(); box.current?.focus(); }, [task.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (e) => {
+    e.preventDefault();
+    const clean = text.trim();
+    if (!clean || busy) return;
+    setBusy(true);
+    try {
+      await onAddUpdate(task, clean);
+      setText('');
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="tt-notes">
+      {task.description && <p className="tt-notes-desc">{task.description}</p>}
+      {items === null ? <p className="tt-none">Loading…</p> : items.length ? (
+        <ul>
+          {items.map((u) => {
+            const at = receivedStamp(u.created_at);
+            return <li key={u.id}><span>{u.body}</span>{at && <small>{at.day} · {at.clock}</small>}</li>;
+          })}
+        </ul>
+      ) : !task.description && <p className="tt-none">Nothing written yet.</p>}
+      <form onSubmit={save}>
+        <input
+          ref={box}
+          value={text}
+          maxLength={1000}
+          placeholder="Add a note: who you spoke to, what is pending…"
+          aria-label={`New note on ${task.title}`}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
+        />
+        <button type="submit" className="btn small" disabled={busy || !text.trim()}>{busy ? 'Saving…' : 'Save'}</button>
+        <button type="button" className="link" onClick={onClose}>Close</button>
+      </form>
+    </div>
+  );
+}
+
+function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -76,7 +157,9 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
   // One rename per row, shared by the title and the menu: the menu's Rename
   // is the same edit for a thumb, which has neither F2 nor a double-click.
   const rename = useRename(task, onRename, { canEdit: !isDone(task) });
+  const [noting, setNoting] = useState(false);
   return (
+    <>
     <tr className={`${picked ? 'picked' : ''} ${isDone(task) ? 'is-done' : ''}`}>
       <td className="tt-pick">
         <input
@@ -90,7 +173,10 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
         {received ? <>{received.day}<small>{received.clock}</small></> : <span className="tt-none">—</span>}
       </td>
       <td className="tt-task">
-        <Title task={task} onOpen={onOpen} rename={rename} />
+        <span className="tt-title-line">
+          <Title task={task} onOpen={onOpen} rename={rename} />
+          {onAddUpdate && onLoadNotes && <NoteMark task={task} open={noting} onPress={() => setNoting((v) => !v)} />}
+        </span>
         {/* Who asked. A column of titles with nobody behind them is how "ye sab
             me kisne msg kiya" was asked the first time. */}
         {source && (
@@ -164,17 +250,25 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
           onStatus={onStatus}
           onQuickDate={onQuickDate}
           onDelete={onDelete}
-          onAddUpdate={(t) => onAddUpdate(t)}
+          onAddUpdate={() => setNoting(true)}
           onRename={rename.enabled ? rename.start : undefined}
         />
       </td>
     </tr>
+    {noting && (
+      <tr className="tt-note-row">
+        <td colSpan={7}>
+          <NotePanel task={task} onAddUpdate={onAddUpdate} onLoadNotes={onLoadNotes} onClose={() => setNoting(false)} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
-  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onRename,
+  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename,
   people = [], onAssign, onMove, onManageGroups, onNewGroup,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
@@ -279,6 +373,7 @@ export default function TaskTable({
                 onDelete={onDelete}
                 onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}
+                onLoadNotes={onLoadNotes}
                 onRename={onRename}
                 onDone={onDone}
                 people={people}

@@ -5123,6 +5123,9 @@ button.due:hover { background: var(--raised); }
 }
 
 .pick-give { display: flex; align-items: center; gap: 8px; }
+.pick-merge { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.pick-merge > span { font-size: .82rem; color: var(--muted); }
+.pick-merge .btn { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-give input {
   font: inherit; font-size: .85rem; padding: 5px 9px; min-width: 150px;
   color: var(--text); background: var(--card);
@@ -5860,6 +5863,28 @@ button.due:hover { background: var(--raised); }
 .tt-title:hover { color: var(--brand); }
 .tt-task small { display: block; margin-top: 2px; font-size: .74rem; color: var(--muted); }
 .tt-task small.unnamed { font-style: italic; }
+.tt-title-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tt-note-mark {
+  flex: none; display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px;
+  background: none; color: var(--muted); font: inherit; font-size: .72rem; cursor: pointer;
+  opacity: 0; transition: opacity .12s;
+}
+.tt-note-mark.on { opacity: 1; color: var(--brand); border-color: var(--brand-wash); background: var(--brand-wash); }
+.tt-table tbody tr:hover .tt-note-mark, .tt-note-mark:focus-visible, .tt-note-mark[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .tt-note-mark { opacity: 1; } }
+.tt-note-row td { background: var(--bg); padding: 10px 14px 12px 52px; }
+/* Sticky to the left edge of the table's frame: on a phone the table scrolls
+   sideways, and a note box drawn across the whole row sat off-screen. */
+.tt-notes { display: grid; gap: 8px; max-width: min(720px, calc(100vw - 64px)); position: sticky; left: 14px; }
+.tt-notes-desc { margin: 0; white-space: pre-wrap; font-size: .86rem; color: var(--text); border-left: 3px solid var(--brand-wash); padding-left: 10px; }
+.tt-notes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tt-notes li { display: flex; gap: 10px; align-items: baseline; font-size: .86rem; }
+.tt-notes li span { white-space: pre-wrap; min-width: 0; overflow-wrap: anywhere; }
+.tt-notes li small { flex: none; color: var(--muted); font-size: .72rem; }
+.tt-notes form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tt-notes input { flex: 1 1 240px; min-width: 0; font: inherit; font-size: .86rem; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
+@media (max-width: 760px) { .tt-note-row td { padding-left: 14px; } }
 .tt-task .t-title-edit { width: 100%; }
 
 .tt-chip {

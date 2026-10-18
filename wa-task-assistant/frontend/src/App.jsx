@@ -303,6 +303,7 @@ export default function App() {
   };
   // Whether the picker bar is asking who the picked rows go to.
   const [giving, setGiving] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [status, setStatus] = useState(null);
   /*
    * How the board is split into sections. Not remembered between visits: a
@@ -501,7 +502,29 @@ export default function App() {
     });
   };
 
-  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); setGiving(false); };
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); setGiving(false); setMerging(false); };
+
+  /*
+   * Several picked rows made one task: he chooses which keeps its name, the
+   * others' words go into its details and they are archived. Undo puts the
+   * others back and the details as they were.
+   */
+  const mergePicked = async (keepId) => {
+    const ids = [...picked].filter((id) => id !== keepId);
+    if (!ids.length) return;
+    try {
+      const out = await api.mergeTasks(keepId, ids);
+      const kept = tasks.find((t) => t.id === keepId);
+      setUndo({
+        kind: 'merged', id: keepId, ids: out.merged, title: kept?.title || 'the task',
+        count: out.merged.length, previousDescription: out.previousDescription,
+      });
+      stopSelecting();
+      await refresh({ quiet: true });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   /*
    * Hand everything picked to one person.
@@ -609,6 +632,10 @@ export default function App() {
       if (last.kind === 'done') return api.updateTask(last.id, { status: last.from || 'open' });
       // A batch goes back as a batch: one request, the same ids.
       if (last.kind === 'archived') return api.restoreMany(last.ids);
+      if (last.kind === 'merged') {
+        return api.restoreMany(last.ids)
+          .then(() => api.updateTask(last.id, { description: last.previousDescription || '' }));
+      }
       return api.restoreTask(last.id);
     });
   };
@@ -1823,6 +1850,27 @@ export default function App() {
                             Give to…
                           </button>
                         )}
+                        {merging ? (
+                          <div className="pick-merge" role="group" aria-label="Which task keeps its name">
+                            <span>Keep the name of:</span>
+                            {tasks.filter((t) => picked.has(t.id)).map((t) => (
+                              <button key={t.id} type="button" className="btn ghost" onClick={() => mergePicked(t.id)}>
+                                {t.title}
+                              </button>
+                            ))}
+                            <button type="button" className="link" onClick={() => setMerging(false)}>Back</button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            disabled={picked.size < 2}
+                            title={picked.size < 2 ? 'Pick two or more tasks to merge' : undefined}
+                            onClick={() => setMerging(true)}
+                          >
+                            Merge {picked.size >= 2 ? picked.size : ''}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn danger"
@@ -1846,6 +1894,9 @@ export default function App() {
                               : <>Took <b>{undo.title}</b> out of its group.</>
                           ) : undo.kind === 'done' ? (
                             <>Marked <b>{undo.title}</b> done.</>
+                          ) : undo.kind === 'merged' ? (
+                            <>Merged <b>{undo.count}</b> {undo.count === 1 ? 'task' : 'tasks'} into <b>{undo.title}</b>.
+                              {' '}Their words are in its details.</>
                           ) : undo.kind === 'archived' ? (
                             <>Took <b>{undo.count}</b> {undo.count === 1 ? 'task' : 'tasks'} off the list.
                               {' '}They are in Work History.</>
@@ -2149,7 +2200,13 @@ export default function App() {
                         onNotATask={onNotATask}
                         onDone={onDone}
                         onRename={(task, title) => onEdit(task, { title })}
-                        onAddUpdate={(task) => { setFocusProgress(task.id); setOpenTask(task); }}
+                        onAddUpdate={async (task, text) => {
+                          try {
+                            await api.addUpdate(task.id, { body: text });
+                            refresh({ quiet: true });
+                          } catch (err) { setError(err.message); throw err; }
+                        }}
+                        onLoadNotes={(task) => api.updates(task.id)}
                         people={people}
                         onAssign={onAssign}
                         onMove={onMove}

@@ -94,3 +94,29 @@ describe('"status hata do" and filing from the table', () => {
     assert.match(appSrc, /<TaskList[\s\S]*?onNewGroup=\{newGroup\}/);
   });
 });
+
+/*
+ * "Lead ke andar additional details add karni he to comment ya notes ka
+ * option, jese excel me hota he": a note from the table row, like a comment
+ * on a cell, written to the same updates stream the drawer and list keep.
+ */
+describe('notes from the table, like a comment on a cell', () => {
+  it('every title carries a Note mark that shows the count and previews on hover', () => {
+    assert.match(table, /<NoteMark task=\{task\}/);
+    assert.match(table, /title=\{preview \?/);
+  });
+
+  it('a press opens a row under it with the details, the notes so far and a box for the next', () => {
+    assert.match(table, /<tr className="tt-note-row">[\s\S]*?<NotePanel/);
+    assert.match(app, /onLoadNotes=\{\(task\) => api\.updates\(task\.id\)\}/);
+    assert.match(table, /await onAddUpdate\(task, clean\)/);
+  });
+
+  it('the table saves the note straight away instead of opening the drawer', () => {
+    assert.match(app, /<TaskTable[\s\S]*?onAddUpdate=\{async \(task, text\) => \{[\s\S]*?api\.addUpdate\(task\.id, \{ body: text \}\)/);
+  });
+
+  it('the note box stays in view when the table scrolls sideways on a phone', () => {
+    assert.match(css, /\.tt-notes \{[^}]*position: sticky; left: 14px/);
+  });
+});

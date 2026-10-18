@@ -661,6 +661,38 @@ tasksRouter.post('/bulk/archive', (req, res) => {
   res.json({ archived: archived.length, ids: archived });
 });
 
+/*
+ * Several tasks that are one job, made one by hand.
+ *
+ * Asked as "task merge ka option he?" over a lead that had arrived as two
+ * rows. The Duplicates page only offers rows the app thinks are copies, and it
+ * throws the copy's words away; here he picks the rows himself, chooses which
+ * keeps its name, and the others' titles and notes are written into that
+ * task's details before they are archived - nothing he typed is lost, and the
+ * previous details travel back so Undo can put everything as it was.
+ */
+tasksRouter.post('/merge', (req, res) => {
+  const keep = getTask(Number(req.body?.keep));
+  if (!keep || keep.archived_at) return res.status(404).json({ error: 'not found' });
+  const others = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number))]
+    .filter((id) => Number.isInteger(id) && id !== keep.id)
+    .map((id) => getTask(id))
+    .filter((t) => t && !t.archived_at);
+  if (!others.length) return res.status(400).json({ error: 'pick at least two tasks' });
+
+  const previousDescription = keep.description || '';
+  const blocks = others.map((t) => [t.title, t.description].filter(Boolean).join('\n'));
+  updateTask(keep.id, { description: [previousDescription, ...blocks].filter(Boolean).join('\n\n') });
+  const at = new Date().toISOString();
+  for (const t of others) {
+    completeTask(t.id);
+    updateTask(t.id, { archived_at: at });
+    recordEvent(t.id, EVENT.archived, `merged into task ${keep.id}`);
+  }
+  recordEvent(keep.id, EVENT.edited, `merged ${others.map((t) => `"${t.title}"`).join(', ')} into this task`);
+  res.json({ keep: keep.id, merged: others.map((t) => t.id), previousDescription });
+});
+
 /** The other half: putting a batch back, for when the selection was wrong. */
 tasksRouter.post('/bulk/restore', (req, res) => {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])

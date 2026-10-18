@@ -8,6 +8,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.33',
+    date: '2026-10-18',
+    title: 'Merge tasks, and notes on every row',
+    changes: [
+      'Merge: in All Tasks tick two or more tasks and press Merge. Choose which one keeps its name; the others\' names and details go into it, and they leave the list. Undo puts everything back.',
+      'Notes like an Excel comment: in the table, every task has a Note button next to its name. It shows how many notes there are, and holding the mouse over it shows the details. Press it to read all notes and add a new one, right there in the list.',
+    ],
+  },
+  {
     version: '1.32',
     date: '2026-10-18',
     title: 'A lead sent as several messages is one task',

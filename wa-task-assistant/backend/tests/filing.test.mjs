@@ -304,6 +304,39 @@ await run('a task with no created_at shows nothing rather than "Invalid Date"', 
 });
 
 
+/*
+ * "Task merge ka option he?" - a lead that arrived as two rows, made one by
+ * hand: the kept task gains the others' words, the others are archived, and
+ * Undo can put both halves back.
+ */
+await run('merging keeps one task and writes the others into its details', async () => {
+  const note = await call('POST', '/api/tasks', { title: 'New lead follow-up', source: 'manual' });
+  const addr = await call('POST', '/api/tasks', {
+    title: 'LAXMI TOURS AND TRAVELS', description: '1st Floor 8 Heta Complex, Adajan', source: 'manual',
+  });
+  const out = await call('POST', '/api/tasks/merge', { keep: note.body.id, ids: [addr.body.id] });
+  assert.equal(out.status, 200);
+  assert.deepEqual(out.body.merged, [addr.body.id]);
+  assert.equal(out.body.previousDescription, '');
+  const kept = DB.getTask(note.body.id);
+  assert.match(kept.description, /LAXMI TOURS AND TRAVELS\n1st Floor 8 Heta Complex/i);
+  assert.ok(DB.getTask(addr.body.id).archived_at, 'the other is archived, not deleted');
+  assert.ok(!kept.archived_at);
+});
+
+await run('merging needs two tasks and a kept one that exists', async () => {
+  const one = await call('POST', '/api/tasks', { title: 'Lonely task', source: 'manual' });
+  assert.equal((await call('POST', '/api/tasks/merge', { keep: one.body.id, ids: [one.body.id] })).status, 400);
+  assert.equal((await call('POST', '/api/tasks/merge', { keep: 999999, ids: [one.body.id] })).status, 404);
+});
+
+await run('the board offers Merge on the selection bar, with an Undo that restores both halves', async () => {
+  const app = fs.readFileSync(new URL('../../frontend/src/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /api\.mergeTasks\(keepId, ids\)/);
+  assert.match(app, /disabled=\{picked\.size < 2\}/, 'merge needs two picked');
+  assert.match(app, /last\.kind === 'merged'[\s\S]{0,200}restoreMany\(last\.ids\)[\s\S]{0,120}previousDescription/);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });
