@@ -94,6 +94,26 @@ When everything works, delete the Railway project. Nothing is billed after that.
 
 ---
 
+## Moving the data to another drive
+
+Everything the app keeps (tasks, the WhatsApp login, backups, files) is in the
+one data folder, `C:\wa-tasks-data` unless you chose another. To put it on
+another drive, for example `F:`, run this in an Administrator PowerShell:
+
+```
+Stop-Service WATasks
+robocopy C:\wa-tasks-data F:\wa-tasks-data /E /R:1 /W:1
+$f = 'C:\wa-tasks\wa-task-assistant\backend\.env'
+$t = (Get-Content $f) -replace '^DATA_DIR=.*', 'DATA_DIR=F:\wa-tasks-data'
+[IO.File]::WriteAllLines($f, $t, (New-Object Text.UTF8Encoding $false))
+Start-Service WATasks
+```
+
+The service must be stopped first: the WhatsApp login is a browser profile,
+and its files are locked while the app runs. Check the app (tasks there,
+WhatsApp connected) before deleting the old folder; rename it to
+`C:\wa-tasks-data-old` for a day or two rather than deleting it at once.
+
 ## Day-to-day
 
 - **New version from me:** run, as Administrator:
