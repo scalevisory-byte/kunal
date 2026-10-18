@@ -964,9 +964,6 @@ export function clientMessage(update, channel = 'whatsapp') {
         : `Source: ${update.source_authority || 'not recorded'}`,
       '',
       'Please let us know if you would like us to review how this applies to you.',
-      '',
-      'Regards,',
-      'Scale Visory'
     );
     return lines.join('\n');
   }
@@ -981,8 +978,7 @@ export function clientMessage(update, channel = 'whatsapp') {
   if (update.source_url) {
     lines.push('', `Source (${update.source_authority || 'source'}): ${update.source_url}`);
   }
-  lines.push('', '— Scale Visory');
-  return lines.filter((l) => l !== undefined).join('\n');
+    return lines.filter((l) => l !== undefined).join('\n');
 }
 
 /**
@@ -1021,9 +1017,6 @@ function legalMessage(update, channel = 'whatsapp') {
       '',
       'This is a note on a judgment of general interest, not advice on any particular matter.',
       'Please let us know if you would like us to look at how it applies to you.',
-      '',
-      'Regards,',
-      'Scale Visory'
     );
     return lines.join('\n');
   }
@@ -1040,7 +1033,7 @@ function legalMessage(update, channel = 'whatsapp') {
   if (update.source_url) {
     lines.push('', `Source (${update.source_authority || 'source'}): ${update.source_url}`);
   }
-  lines.push('', '_Ye ek aam jaankari hai, kisi ek maamle par salah nahi._', '— Scale Visory');
+  lines.push('', '_Ye ek aam jaankari hai, kisi ek maamle par salah nahi._');
   return lines.join('\n');
 }
 

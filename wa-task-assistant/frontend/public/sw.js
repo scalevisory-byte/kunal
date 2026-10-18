@@ -11,7 +11,7 @@
  * Bumping the name on each release is what makes that sweep do its job.
  */
 const CACHE = 'wa-tasks-2026-09-14';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

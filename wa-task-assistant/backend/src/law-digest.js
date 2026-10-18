@@ -3,7 +3,7 @@
  *
  * Five lines on WhatsApp: GST, Income Tax, PF/ESI/PT, ROC and any case law
  * worth knowing, read out of the tax and corporate-law feeds and written for a
- * Gujarat CA practice's clients rather than for a lawyer. Scale Visory work,
+ * Gujarat CA practice's clients rather than for a lawyer. the firm's work,
  * not task work - which is why it lives beside the briefing rather than inside
  * the extractor: no task is created, nothing is chased, it is a thing to read.
  *
@@ -258,8 +258,8 @@ const UpdateSchema = z.object({
   ),
 });
 
-const SYSTEM_PROMPT = `You read Indian tax and compliance articles for a CA firm (Scale Visory,
-Gujarat) whose clients are small and medium businesses, proprietors and private companies.
+const SYSTEM_PROMPT = `You read Indian tax and compliance articles for a CA firm in
+Gujarat whose clients are small and medium businesses, proprietors and private companies.
 
 Keep only what is a real development: a notification, a circular, an order, a rule change, a
 due date, a rate or threshold change, a new form, or a judgment that changes how something is

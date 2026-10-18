@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.30',
+    date: '2026-10-18',
+    title: 'ZynTask logo; Scale Visory removed',
+    changes: [
+      'New ZynTask logo: a Z whose last line turns into an orange tick. It is on the login page, at the top of the sidebar, in the browser tab and on the phone home-screen icon.',
+      '"Product by Zyntatech" under the name, on the login page and in the sidebar.',
+      'The Scale Visory logo and name are gone from the app: the login page, the sidebar and the faint mark behind the sign-in box.',
+      'Client messages made from a tax or legal update no longer end with "Scale Visory".',
+    ],
+  },
+  {
     version: '1.29',
     date: '2026-10-18',
     title: 'Your own chat is checked every 15 seconds',

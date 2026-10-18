@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import Logo from './Logo.jsx';
 import Icon from './Icon.jsx';
 
 /** Grouped so the list reads as three short lists rather than one long one. */
@@ -218,10 +219,10 @@ export default function Sidebar({
       <div className={`scrim ${open ? 'on' : ''}`} onClick={onClose} role="presentation" />
       <aside className={`sidebar ${open ? 'open' : ''}`} aria-label="Sections">
         <div className="side-brand">
-          <span className="side-mark"><Icon name="whatsapp" size={20} /></span>
+          <span className="side-mark"><Logo size={34} title="ZynTask" /></span>
           <span className="side-name">
             <strong>ZynTask</strong>
-            <small>By Zyntatech</small>
+            <small>Product by Zyntatech</small>
           </span>
         </div>
 
@@ -257,25 +258,6 @@ export default function Sidebar({
             <span className="state-dot" />
             {connected ? 'Connected via WhatsApp' : 'WhatsApp not connected'}
           </p>
-
-          {/*
-            * The parent brand, at the foot of the sidebar - where a product
-            * says whose it is without competing with its own name at the top.
-            * The white artwork, because this panel is navy.
-            *
-            * Its own file at exactly twice the 132px it draws at, rather than
-            * the sign-in screen's 760px one: a browser downscaling that far is
-            * a cheap filter on very fine type, and the taglines came out muddy.
-            * Same source image, resized properly instead of at render time.
-            */}
-          <div className="side-parent">
-            <span>A product of</span>
-            <img
-              src="/brand/scalevisory-light-sm.png"
-              alt="Scale Visory"
-              width="264" height="55"
-            />
-          </div>
         </div>
       </aside>
     </>

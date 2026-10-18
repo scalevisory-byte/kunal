@@ -18,7 +18,7 @@ import path from 'node:path';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-batch-'));
 process.env.DATA_DIR = dir;
-process.env.EXTRACTION_MODE = 'manual';
+process.env.EXTRACTION_MODE = 'ai';
 process.env.TIMEZONE = 'Asia/Kolkata';
 // Short enough to test in real time, same shape as production.
 process.env.BATCH_QUIET_SECONDS = '1';

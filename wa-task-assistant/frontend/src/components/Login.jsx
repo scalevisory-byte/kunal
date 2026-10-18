@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Icon from './Icon.jsx';
+import Logo from './Logo.jsx';
 
 /**
  * The way in, built to the mock Dinesh shared: the practice on the left, the
@@ -60,25 +61,12 @@ export default function Login({ onSubmit, hadToken, build }) {
     <div className="login-split">
       <section className="login-hero">
         <header className="hero-top">
-          {/*
-            * The real mark, from the firm's own website repo - not a type
-            * lockup standing in for it, and not something redrawn by eye.
-            * Two files because the wordmark is navy: on the dark theme's
-            * ground it would be a dark shape on a dark panel.
-            */}
           <div className="hero-logo">
-            <img
-              className="on-light"
-              src="/brand/scalevisory.png"
-              alt="Scale Visory — Accounting, Taxation, Legal. Balancing the unbalanced."
-              width="760" height="158"
-            />
-            <img
-              className="on-dark"
-              src="/brand/scalevisory-light.png"
-              alt="" aria-hidden="true"
-              width="760" height="158"
-            />
+            <Logo size={46} title="ZynTask" />
+            <span className="hero-logo-name">
+              <strong><span>Zyn</span>Task</strong>
+              <small>Product by Zyntatech</small>
+            </span>
           </div>
           <p className="hero-steps">
             Organize <span>|</span> <b>Track</b> <span>|</span> Achieve
@@ -88,7 +76,6 @@ export default function Login({ onSubmit, hadToken, build }) {
         <div className="hero-body">
           <p className="hero-eyebrow">Welcome to</p>
           <h1 className="hero-title"><span>Zyn</span>Task</h1>
-          <p className="hero-byline">Task manager · by Zyntatech</p>
           <p className="hero-head">Organize. Follow Up. Get Things Done.</p>
           <p className="hero-lead">
             Manage your WhatsApp tasks, follow-ups and communications efficiently
@@ -112,7 +99,7 @@ export default function Login({ onSubmit, hadToken, build }) {
 
         <footer className="hero-foot">
           <i />
-          <span>Scale Visory <b>|</b> Technology for a more organized tomorrow</span>
+          <span>Zyntatech <b>|</b> Technology for a more organized tomorrow</span>
         </footer>
       </section>
 

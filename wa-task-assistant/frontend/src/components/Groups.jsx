@@ -112,7 +112,7 @@ export default function Groups({ onChanged, onError }) {
 
       {groups.length === 0 && !form && (
         <p className="field-note">
-          Make one for each business — BNF, Scale Visory, Sunshine — and tasks that mention
+          Make one for each business — BNF, Sunshine, Arrohan — and tasks that mention
           it go there on their own. Each becomes its own item in the sidebar.
         </p>
       )}

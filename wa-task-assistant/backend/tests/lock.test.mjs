@@ -92,23 +92,9 @@ describe('the sign-in screen', () => {
     assert.match(block('.hero-title span') || '', /color:\s*var\(--text\)/);
   });
 
-  it('uses the firm\'s published mark, not a type lockup standing in for it', () => {
-    assert.match(login, /src="\/brand\/scalevisory\.png"/);
-    for (const file of ['scalevisory.png', 'scalevisory-light.png']) {
-      const at = new URL(`../../frontend/public/brand/${file}`, import.meta.url);
-      assert.ok(fs.existsSync(at), `${file} is missing from public/brand`);
-      /* Small enough to belong on a login screen: this is the first request. */
-      assert.ok(fs.statSync(at).size < 60_000, `${file} is too heavy for a sign-in screen`);
-    }
-  });
-
-  it('swaps to the white mark on the dark theme, by the pattern the rest uses', () => {
-    /* The navy wordmark on the dark ground is a hole in the panel. */
-    assert.match(login, /src="\/brand\/scalevisory-light\.png"/);
-    assert.match(css, /prefers-color-scheme: dark\)[\s\S]{0,200}?\.hero-logo \.on-dark \{ display: block; \}/);
-    assert.match(css, /:root\[data-theme="dark"\] \.hero-logo \.on-dark \{ display: block; \}/);
-    /* Unguarded, :not([data-theme="light"]) also matches a LIGHT default. */
-    assert.doesNotMatch(css, /\n:root:not\(\[data-theme="light"\]\) \.hero-logo/);
+  it('carries the ZynTask mark and says whose product it is', () => {
+    assert.match(login, /<Logo [^>]*title="ZynTask"/);
+    assert.match(login, /Product by Zyntatech/);
   });
 
   it('can show the password, because typing it blind is what cost the lockout', () => {
@@ -202,7 +188,7 @@ describe('the sign-in screen', () => {
   });
 
   it('draws its wallpaper from the same mark file, not a second copy of it', () => {
-    assert.match(css, /\.login-pane::after[\s\S]*?brand\/scalevisory-mark\.png/);
+    assert.match(css, /\.login-pane::after[\s\S]*?brand\/zyntask-mark\.svg/);
     /* Behind the card and unclickable: it is wallpaper, not an image. */
     assert.match(css, /\.login-pane::after[\s\S]*?pointer-events: none/);
     assert.match(css, /max-width:\s*980px\)[\s\S]*?\.login-pane::after, \.pane-script, \.pane-foot, \.pane-desk \{ display: none; \}/);
@@ -217,43 +203,40 @@ describe('the sign-in screen', () => {
 });
 
 /*
- * The parent brand inside the app, not only on the way in.
+ * ZynTask's own mark, and no other firm's.
  *
- * Asked as "andar bhi kahi pe scale visory ka logo laga do". It sits at the
- * foot of the navigation, which is where a product says whose it is without
- * arguing with its own name at the top of the same panel.
+ * Asked as "scalevisory hata do sab jagah se, zyntask ka logo bana do". The
+ * mark is drawn once, in Logo.jsx, and the home-screen icon is the same paths;
+ * a second drawing would drift from the first.
  */
-describe('Scale Visory inside the app', () => {
+describe('The ZynTask mark', () => {
   const sidebar = read('components/Sidebar.jsx');
-  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const logo = read('components/Logo.jsx');
+  const svg = fs.readFileSync(new URL('../../frontend/public/icon.svg', import.meta.url), 'utf8');
+  const pub = new URL('../../frontend/public/', import.meta.url);
 
-  it('shows the mark at the foot of the sidebar', () => {
-    assert.match(sidebar, /className="side-parent"/);
-    assert.match(sidebar, /A product of/i);
+  it('heads the sidebar, with "Product by Zyntatech" under the name', () => {
+    assert.match(sidebar, /<Logo [^>]*title="ZynTask"/);
+    assert.match(sidebar, /<small>Product by Zyntatech<\/small>/);
   });
 
-  it('uses the white artwork, because that panel is navy', () => {
-    /* The colour wordmark would be a dark shape on a dark sidebar. */
-    assert.match(sidebar, /src="\/brand\/scalevisory-light(-sm)?\.png"/);
-    assert.doesNotMatch(sidebar, /src="\/brand\/scalevisory\.png"/);
+  it('is the same drawing as the home-screen icon', () => {
+    for (const d of logo.match(/d="[^"]+"/g)) assert.ok(svg.includes(d), `icon.svg lacks ${d}`);
+    for (const f of ['icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'brand/zyntask-mark.svg']) {
+      assert.ok(fs.existsSync(new URL(f, pub)), `${f} is missing`);
+    }
   });
 
-  it('draws it from a file made for that size, not the big one squeezed down', () => {
-    /* The sidebar's width is fixed at 132px. A browser downscaling the 760px
-       sign-in asset that far is a cheap filter on very fine type, and the
-       taglines came out muddy — reported twice as "logo clear nahi he". */
-    assert.match(sidebar, /scalevisory-light-sm\.png/);
-    assert.match(sidebar, /width="264" height="55"/, 'exactly twice the 132px it draws at');
-    const at = new URL('../../frontend/public/brand/scalevisory-light-sm.png', import.meta.url);
-    assert.ok(fs.existsSync(at), 'the sidebar asset is missing');
-  });
-
-  it('stays quieter than the app\'s own name above it', () => {
-    const block = css.match(/\.side-parent img \{([^}]*)\}/)?.[1] ?? '';
-    assert.match(block, /width:\s*132px/);
-    const brand = css.match(/\.side-name strong \{([^}]*)\}/)?.[1] ?? '';
-    assert.ok(brand.includes('700'), 'the product name keeps the heavier weight');
+  it('leaves no Scale Visory name or artwork anywhere in the dashboard', () => {
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(new URL(`${e.name}/`, dir)) : [new URL(e.name, dir)]);
+    const src = new URL('../../frontend/src/', import.meta.url);
+    for (const f of [...walk(src), ...walk(pub)]) {
+      assert.doesNotMatch(f.pathname, /scale-?visory/i);
+      if (/\.(jsx?|css|html|svg|webmanifest)$/.test(f.pathname) && !f.pathname.endsWith('changelog.js')) {
+        assert.doesNotMatch(fs.readFileSync(f, 'utf8'), /scale ?visory/i, f.pathname);
+      }
+    }
   });
 });
 

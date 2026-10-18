@@ -168,10 +168,11 @@ body {
 
 .side-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
 .side-mark {
-  width: 34px; height: 34px; border-radius: 10px; flex: none;
-  display: grid; place-items: center;
-  background: var(--brand); color: var(--brand-ink);
+  width: 34px; height: 34px; border-radius: 9px; flex: none;
+  display: grid; place-items: center; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .14);
 }
+.side-mark .zt-logo { display: block; }
 .side-name { display: grid; min-width: 0; line-height: 1.2; }
 .side-name strong {
   font-family: Archivo, sans-serif; font-weight: 700;
@@ -247,23 +248,6 @@ body {
 .side-state.on { color: var(--ok); }
 .side-state.off { color: var(--warn); }
 
-/*
- * Whose product this is, at the foot of the navigation.
- *
- * Quiet on purpose: the app's own name is at the top of this panel and must
- * stay the loudest thing on it. A hairline, four small words and the mark at
- * a size you read rather than notice.
- */
-.side-parent {
-  margin-top: 14px; padding-top: 12px;
-  border-top: 1px solid var(--nav-line);
-}
-.side-parent span {
-  display: block; margin-bottom: 7px;
-  font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--nav-muted);
-}
-.side-parent img { width: 132px; height: auto; display: block; opacity: .9; }
 
 .scrim { display: none; }
 .menu-btn { display: none; }
@@ -1684,23 +1668,18 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
   display: flex; align-items: center; justify-content: space-between;
   gap: 20px; flex-wrap: wrap;
 }
-/*
- * The firm's mark, as published, at its own proportions.
- *
- * A width and `height: auto` rather than a box it has to fit: a registered
- * logo squeezed into somebody's grid is the one thing worse than not using it.
- * The white version rides the theme - the navy wordmark disappears on the dark
- * ground, and a logo nobody can see is a panel with a hole in it.
- */
-.hero-logo { min-width: 0; }
-.hero-logo img { width: clamp(250px, 25vw, 348px); height: auto; display: block; }
-.hero-logo .on-dark { display: none; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .hero-logo .on-light { display: none; }
-  :root:not([data-theme="light"]) .hero-logo .on-dark { display: block; }
+/* The ZynTask mark beside its name, the way the home-screen icon shows it. */
+.hero-logo { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hero-logo .zt-logo { flex: none; display: block; }
+.hero-logo-name { display: grid; line-height: 1.15; }
+.hero-logo-name strong {
+  font-family: Archivo, sans-serif; font-weight: 800;
+  font-size: 1.45rem; letter-spacing: -.02em; color: var(--hero-blue);
 }
-:root[data-theme="dark"] .hero-logo .on-light { display: none; }
-:root[data-theme="dark"] .hero-logo .on-dark { display: block; }
+.hero-logo-name strong span { color: var(--text); }
+.hero-logo-name small {
+  font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+}
 .hero-steps {
   margin: 0; font-size: .78rem; letter-spacing: .12em;
   text-transform: uppercase; color: var(--text-2); white-space: nowrap;
@@ -1729,10 +1708,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Not --brand-deep: it stays near-black in the dark theme, where this sits on
    a dark ground and would vanish. --text is dark on light and light on dark. */
 .hero-title span { color: var(--text); }
-.hero-byline {
-  margin: -8px 0 22px; font-size: .74rem; letter-spacing: .2em;
-  text-transform: uppercase; color: var(--muted);
-}
 .hero-head {
   font-family: Archivo, sans-serif; font-weight: 600;
   font-size: clamp(1.26rem, 2vw, 1.68rem); line-height: 1.28;
@@ -1796,8 +1771,8 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  */
 .login-pane::after {
   content: ''; position: absolute; z-index: 0; pointer-events: none;
-  right: -12%; bottom: -6%; width: 78%; aspect-ratio: 512 / 352;
-  background: url('/brand/scalevisory-mark.png') no-repeat center / contain;
+  right: -8%; bottom: -8%; width: 62%; aspect-ratio: 290 / 320;
+  background: url('/brand/zyntask-mark.svg') no-repeat center / contain;
   opacity: .06;
 }
 /*
@@ -3218,7 +3193,6 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  * The rail's mark and its decorative leaf both sat on a light surface. On navy
  * they need their own values rather than inheriting the page's.
  */
-.side-mark { background: var(--accent); color: var(--accent-ink); }
 .sidebar::after { opacity: .05; }
 
 /*

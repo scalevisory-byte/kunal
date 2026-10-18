@@ -200,7 +200,7 @@ const LegalSchema = z.object({
 });
 
 const SYSTEM_PROMPT = `You read Indian legal reporting for a firm of accountants, auditors and
-advisers (Scale Visory, Gujarat). They need to know about judgments, orders, Acts, amendments
+advisers (Gujarat). They need to know about judgments, orders, Acts, amendments
 and rules that bear on how businesses and their advisers act.
 
 Keep judgments, orders, new Acts, amendments, rules, ordinances and legal notifications. Drop
