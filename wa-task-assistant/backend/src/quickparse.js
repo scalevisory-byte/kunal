@@ -181,11 +181,20 @@ function nextDayOfMonth(day) {
  * Look for a date. Returns { date, match } so the caller can strip the phrase
  * out of the title, or null when nothing matched.
  */
+/*
+ * "Tomorrow" as it is actually typed on a phone: tommorow, tommorrow, tomorow,
+ * tomorrw, tmrw, tmr, 2moro. "Airfix gst adress change by Tommorow" got no
+ * date because only the dictionary spelling was known. Every variant needs a
+ * t, an m and an r in that order, so no ordinary word is caught.
+ */
+const TOMORROW = String.raw`t[ou]m+[ou]?r+[ou]?w+|tmrw|tmrow|tmr|tmw|2mor+o?w?`;
+
 export function findDate(text) {
   const patterns = [
+    // Before "tomorrow" on its own, or "day after tomorrow" would read as tomorrow.
+    [new RegExp(String.raw`\b(parso|parson|day after (?:${TOMORROW}))\b`, 'i'), () => isoFromOffset(2)],
     [/\b(today|aaj)\b/i, () => isoFromOffset(0)],
-    [/\b(tomorrow|tmrw|kal)\b/i, () => isoFromOffset(1)],
-    [/\b(parso|day after tomorrow)\b/i, () => isoFromOffset(2)],
+    [new RegExp(String.raw`\b(${TOMORROW}|kal)\b`, 'i'), () => isoFromOffset(1)],
     [/\bnext week\b/i, () => isoFromOffset(7)],
     [/\bin (\d{1,2}) days?\b/i, (m) => isoFromOffset(Number(m[1]))],
     [/\b(\d{4}-\d{2}-\d{2})\b/, (m) => normalizeDueDate(m[1])],
@@ -230,6 +239,12 @@ export function parseQuickTask(raw, { trigger = '' } = {}) {
     const re = new RegExp(`^${trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
     text = text.replace(re, '').trim();
   }
+
+  // "Task" on a line of its own, or "Task:" in front, is a label he puts on
+  // the note, not its title - "Task\nAirfix gst address change" is the job on
+  // the second line. "Task test 1" has no colon or line break and stays.
+  text = text.replace(/^(?:task|todo|to-do)\s*(?:[:\-–]\s*|\n\s*)/i, '').trim();
+  if (!text) return null;
 
   /*
    * Tidying the ends: punctuation left behind by a phrase that was lifted out,

@@ -215,3 +215,30 @@ describe('his own chat, whichever id WhatsApp files it under', () => {
     assert.match(src, /waitingToExtract: config\.extractionMode === 'manual' \? 0 : unprocessedCount\(\)/);
   });
 });
+
+describe('"tomorrow" as it is typed on a phone', async () => {
+  const { parseQuickTask } = await import('../src/quickparse.js');
+  const { today } = await import('../src/dates.js');
+  const plus = (n) => { const d = new Date(`${today()}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+  it('"by Tommorow" is tomorrow, and leaves the title', () => {
+    const t = parseQuickTask('Airfix gst adress change by Tommorow');
+    assert.equal(t.due_date, plus(1));
+    assert.equal(t.title, 'Airfix gst adress change');
+    for (const w of ['tommorrow', 'tomorow', 'tomorrw', 'tmrw', 'tmr']) {
+      assert.equal(parseQuickTask(`Call bank ${w}`).due_date, plus(1), w);
+    }
+  });
+
+  it('"day after tomorrow" is two days, not one', () => {
+    assert.equal(parseQuickTask('Pay rent day after tomorrow').due_date, plus(2));
+    assert.equal(parseQuickTask('Pay rent day after tommorow').due_date, plus(2));
+  });
+
+  it('a "Task" label line is not the title; "Task test 1" still is', () => {
+    assert.equal(parseQuickTask('Task\nAirfix gst address change').title, 'Airfix gst address change');
+    assert.equal(parseQuickTask('Task: call bank').title, 'call bank');
+    assert.equal(parseQuickTask('Task test 1').title, 'Task test 1');
+    assert.equal(parseQuickTask('buy tomatoes').due_date, null);
+  });
+});
