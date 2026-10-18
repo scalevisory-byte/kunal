@@ -18,7 +18,7 @@ import os from 'node:os';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-catchup-'));
 process.env.DATA_DIR = dir;
-process.env.EXTRACTION_MODE = 'manual';
+process.env.EXTRACTION_MODE = 'ai'; // catch-up feeds the AI door; manual mode routes it to his own messages only
 process.env.TIMEZONE = 'Asia/Kolkata';
 process.env.CATCH_UP_PER_CHAT = '5';
 process.env.CATCH_UP_MAX = '8';

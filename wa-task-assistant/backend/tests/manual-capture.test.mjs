@@ -139,3 +139,18 @@ describe('his own chat is also where he keeps numbers and links', () => {
     assert.ok(t.some((x) => x.includes('9898475959')));
   });
 });
+
+describe('manual mode never sends anything to the AI door', () => {
+  it('re-running stored messages does nothing in manual mode', async () => {
+    const r = await WA.reprocessStored();
+    assert.equal(r.ran, 0);
+    assert.match(r.skipped, /manual/);
+  });
+
+  it('catch-up after a reconnect goes through his own-message door in manual mode', () => {
+    const src = fs.readFileSync(new URL('../src/whatsapp.js', import.meta.url), 'utf8');
+    const body = src.slice(src.indexOf('export async function catchUp'), src.indexOf('export function loadCounters'));
+    assert.match(body, /extractionMode === 'manual' \? handleOwnMessage : handleMessage/);
+    assert.doesNotMatch(body, /await handleMessage\(message\)/);
+  });
+});

@@ -313,6 +313,8 @@ async function processBatch(batch) {
  */
 export async function reprocessStored({ limit = 500 } = {}) {
   if (flushing) return { ran: 0, batches: 0, skipped: 'a batch is already running' };
+  // Manual mode reads nobody's messages through the model, so there is nothing to re-run.
+  if (config.extractionMode === 'manual') return { ran: 0, batches: 0, skipped: 'manual mode: no AI is used' };
   const stored = unprocessedMessages({ limit });
   /*
    * The same "only listed chats" rule the listener applies, because this is a
@@ -1583,11 +1585,16 @@ export async function catchUp() {
   log.info(`Catch-up: ${take.length} message(s) missed over ${gapMinutes} min, reading them now.`);
   noteEvent('catching up', `${take.length} message(s) from ${unread.length} chat(s)`);
 
+  // The ordinary path: same blocklist, same buffer, same extractor. A message
+  // that was missed is not a different kind of message - and in manual mode
+  // the ordinary path is his own messages only. Sending catch-up through the
+  // AI door there stored other people's messages (the privacy promise of
+  // manual mode) and then tried to extract them with no key, failing on every
+  // tick: "Batch extraction failed ... Could not resolve authentication".
+  const handle = config.extractionMode === 'manual' ? handleOwnMessage : handleMessage;
   for (const message of take) {
-    // The ordinary path: same blocklist, same buffer, same extractor. A message
-    // that was missed is not a different kind of message.
     try {
-      await handleMessage(message);
+      await handle(message);
     } catch (err) {
       noteEvent('catch-up message failed', err?.message || err);
     }
