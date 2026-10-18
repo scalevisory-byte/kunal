@@ -658,6 +658,9 @@ export async function maybeSaveNote(message, chat, chatId) {
  */
 export async function handleOwnMessage(message) {
   try {
+    // Counted before anything is decided, so "Delivered by WhatsApp" says
+    // whether messages reach the app at all - in manual mode too.
+    state.rawSeen += 1;
     if (!message.fromMe) return;
     // The app's own reminders reach this listener too, and manual mode reads
     // exactly the messages he writes himself - which is what they look like.
@@ -670,15 +673,27 @@ export async function handleOwnMessage(message) {
     const body = (message.body || '').trim();
     if (!body) return;
 
-    const chat = await message.getChat();
-    const chatId = chat.id?._serialized ?? message.to;
+    // getChat() fails often enough (a fresh link still syncing, chats that will
+    // not resolve) that it must never cost the message: on his own message
+    // `message.to` is the chat, and that is enough to file the task.
+    let chat = null;
+    try {
+      chat = await message.getChat();
+    } catch (err) {
+      noteEvent('chat lookup failed', err?.message || err);
+    }
+    const chatId = chat?.id?._serialized ?? message.to;
 
     // "done 2" must close a task, not become a new one.
     if (await handleCommand(message, chatId)) return;
     // "note: ..." is something to remember, not something to do.
     if (await maybeSaveNote(message, chat, chatId)) return;
 
-    const inSelfChat = Boolean(state.me) && chatId === state.me;
+    // His own chat is addressed from himself to himself. WhatsApp may file it
+    // under his linked identity (@lid) rather than his number (@c.us), which
+    // state.me holds, so the id alone can miss it; from === to cannot.
+    const inSelfChat = (Boolean(state.me) && chatId === state.me)
+      || (Boolean(message.from) && message.to === message.from);
     const trigger = config.taskTrigger;
     const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
 
@@ -693,7 +708,7 @@ export async function handleOwnMessage(message) {
       // The clock time in a message is the deadline, not the moment to be nudged.
       due_at: parsedTime,
       // A forward keeps the original text but not its author, so record where it landed.
-      chat_name: inSelfChat ? 'Saved by you' : chat.name || null,
+      chat_name: inSelfChat ? 'Saved by you' : chat?.name || null,
       chat_id: chatId,
       source: 'whatsapp',
       origin: 'manual',

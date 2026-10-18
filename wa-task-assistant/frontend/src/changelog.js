@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.28',
+    date: '2026-10-18',
+    title: 'Runs on your own server; #task fixed',
+    changes: [
+      'WA Tasks now runs on your office server (TSRV) instead of Railway, at no hosting cost.',
+      'A "#task ..." message, or anything you send to your own chat, now becomes a task even on a newly linked WhatsApp. Before, it could be lost without a word.',
+      '"Delivered by WhatsApp" in Settings now counts messages in manual mode too, so you can see whether any are arriving.',
+    ],
+  },
+  {
     version: '1.27',
     date: '2026-09-29',
     title: 'Chats: Pending or Completed',
