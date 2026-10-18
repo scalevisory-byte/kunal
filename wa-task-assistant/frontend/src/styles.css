@@ -23,11 +23,11 @@
   --line-2:     #cbd5e1;
 
   /* Navy carries authority: headings, primary buttons, selected state. */
-  --brand:      #163a5f;
-  --brand-deep: #0b1f3a;
-  --brand-mid:  #102a43;
+  --brand:      #1f2a6e;
+  --brand-deep: #141b4d;
+  --brand-mid:  #1a2363;
   --brand-ink:  #ffffff;
-  --brand-wash: #e8eef5;
+  --brand-wash: #eceefa;
 
   /*
    * Orange is an accent and is rationed like one - the one primary action, the
@@ -40,12 +40,12 @@
   --accent-wash: #fff1e7;
 
   /* The dark rail. Its own tokens, so the page stays light in both themes. */
-  --nav-bg:        #0b1f3a;
-  --nav-bg-2:      #102a43;
-  --nav-text:      #eef3f9;
-  --nav-muted:     #93a7bd;
-  --nav-line:      #1c3a5c;
-  --nav-on-bg:     #163a5f;
+  --nav-bg:        #172057;
+  --nav-bg-2:      #1f2b72;
+  --nav-text:      #eef0fb;
+  --nav-muted:     #a7aed6;
+  --nav-line:      #2b3680;
+  --nav-on-bg:     #2a378c;
 
   /* Status colour is a signal, never decoration. */
   --danger:     #b42318;
@@ -73,11 +73,11 @@
     --band:#111a25;
     --text:#e7edf4; --text-2:#c2cede; --muted:#8798ac;
     --line:#22303f; --line-2:#33455a;
-    --brand:#6ea8dc; --brand-deep:#0b1f3a; --brand-mid:#102a43;
-    --brand-ink:#08131f; --brand-wash:#16283a;
+    --brand:#9aa6f2; --brand-deep:#141b4d; --brand-mid:#1a2363;
+    --brand-ink:#0d1130; --brand-wash:#1b2148;
     --accent:#fb923c; --accent-soft:#fdba74; --accent-ink:#2a1206; --accent-wash:#2e1c0e;
-    --nav-bg:#0a1522; --nav-bg-2:#0f1e2e; --nav-text:#e7edf4; --nav-muted:#8798ac;
-    --nav-line:#1b2b3d; --nav-on-bg:#1b3550;
+    --nav-bg:#10153a; --nav-bg-2:#171e4c; --nav-text:#e9ecfa; --nav-muted:#9aa1c9;
+    --nav-line:#252d63; --nav-on-bg:#28327a;
     --info:#7fb0f0; --info-wash:#12203a;
     --danger:#f0846f; --danger-wash:#331512;
     --warn:#e0a44e; --warn-wash:#2e2008;
@@ -91,11 +91,11 @@
   --band:#111a25;
   --text:#e7edf4; --text-2:#c2cede; --muted:#8798ac;
   --line:#22303f; --line-2:#33455a;
-  --brand:#6ea8dc; --brand-deep:#0b1f3a; --brand-mid:#102a43;
-  --brand-ink:#08131f; --brand-wash:#16283a;
+  --brand:#9aa6f2; --brand-deep:#141b4d; --brand-mid:#1a2363;
+  --brand-ink:#0d1130; --brand-wash:#1b2148;
   --accent:#fb923c; --accent-soft:#fdba74; --accent-ink:#2a1206; --accent-wash:#2e1c0e;
-  --nav-bg:#0a1522; --nav-bg-2:#0f1e2e; --nav-text:#e7edf4; --nav-muted:#8798ac;
-  --nav-line:#1b2b3d; --nav-on-bg:#1b3550;
+  --nav-bg:#10153a; --nav-bg-2:#171e4c; --nav-text:#e9ecfa; --nav-muted:#9aa1c9;
+  --nav-line:#252d63; --nav-on-bg:#28327a;
   --info:#7fb0f0; --info-wash:#12203a;
   --danger:#f0846f; --danger-wash:#331512;
   --warn:#e0a44e; --warn-wash:#2e2008;
@@ -177,7 +177,7 @@ body {
   font-family: Archivo, sans-serif; font-weight: 700;
   font-size: 1.02rem; letter-spacing: -.015em;
 }
-.side-name small { font-size: .7rem; color: var(--nav-muted); }
+.side-name small { font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; color: var(--nav-muted); }
 .side-name strong { color: var(--nav-text); }
 
 .side-nav { display: grid; gap: 2px; }
@@ -1649,17 +1649,16 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
     linear-gradient(160deg, var(--card) 0%, var(--bg-2) 100%);
   border-right: 1px solid var(--line);
   /*
-   * One lighter blue, defined here and nowhere else, because it exists for
-   * exactly one word. The palette's --brand is a deep navy; two words set in it
-   * read as one block, and the split in the name is what makes it a wordmark
-   * rather than a heading.
+   * The second half of the wordmark, in Zynta orange as ZyntaBooks sets its
+   * own. Defined here and nowhere else, because it exists for one word: the
+   * split in the name is what makes it a wordmark rather than a heading.
    */
-  --hero-blue: #2f6fb0;
+  --hero-blue: #ea580c;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .login-hero { --hero-blue: #7cb1e4; }
+  :root:not([data-theme="light"]) .login-hero { --hero-blue: #fb923c; }
 }
-:root[data-theme="dark"] .login-hero { --hero-blue: #7cb1e4; }
+:root[data-theme="dark"] .login-hero { --hero-blue: #fb923c; }
 /*
  * The logo's own geometry, oversized and nearly invisible: three diagonals at
  * the mark's angle, laid across the panel. Repeating-linear-gradient rather
@@ -1730,6 +1729,10 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* Not --brand-deep: it stays near-black in the dark theme, where this sits on
    a dark ground and would vanish. --text is dark on light and light on dark. */
 .hero-title span { color: var(--text); }
+.hero-byline {
+  margin: -8px 0 22px; font-size: .74rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted);
+}
 .hero-head {
   font-family: Archivo, sans-serif; font-weight: 600;
   font-size: clamp(1.26rem, 2vw, 1.68rem); line-height: 1.28;
@@ -3224,6 +3227,12 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  */
 .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .btn.primary:hover:not(:disabled) { background: var(--brand-mid); border-color: var(--brand-mid); }
+/* In dark the brand is a light lavender carrying dark ink, so a darker hover
+   (brand-mid) would put dark text on a dark button. Lighter instead. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn.primary:hover:not(:disabled) { background: #b3bcf6; border-color: #b3bcf6; }
+}
+:root[data-theme="dark"] .btn.primary:hover:not(:disabled) { background: #b3bcf6; border-color: #b3bcf6; }
 .btn.primary.lg { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.primary.lg:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-soft); }
 

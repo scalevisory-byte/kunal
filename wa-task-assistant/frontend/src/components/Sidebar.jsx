@@ -221,7 +221,7 @@ export default function Sidebar({
           <span className="side-mark"><Icon name="whatsapp" size={20} /></span>
           <span className="side-name">
             <strong>ZynTask</strong>
-            <small>Task management</small>
+            <small>By Zyntatech</small>
           </span>
         </div>
 

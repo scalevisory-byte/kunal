@@ -88,6 +88,7 @@ export default function Login({ onSubmit, hadToken, build }) {
         <div className="hero-body">
           <p className="hero-eyebrow">Welcome to</p>
           <h1 className="hero-title"><span>Zyn</span>Task</h1>
+          <p className="hero-byline">Task manager · by Zyntatech</p>
           <p className="hero-head">Organize. Follow Up. Get Things Done.</p>
           <p className="hero-lead">
             Manage your WhatsApp tasks, follow-ups and communications efficiently

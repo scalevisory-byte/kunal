@@ -17,6 +17,7 @@ export const CHANGELOG = [
       'A #task message now understands dates like "25 oct", "oct 25" and "5th November 2026".',
       'A phone number or a link you save in your own chat no longer becomes a task. Anything with words still does.',
       'The app is now called ZynTask: on the login page, the sidebar, the browser tab and the phone home-screen icon.',
+      'New Zynta look: navy and orange colours like ZyntaBooks, and "By Zyntatech" under the name.',
     ],
   },
   {
