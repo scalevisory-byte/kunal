@@ -154,3 +154,64 @@ describe('manual mode never sends anything to the AI door', () => {
     assert.doesNotMatch(body, /await handleMessage\(message\)/);
   });
 });
+
+/*
+ * TSRV, 18 Oct, after TASK_TRIGGER was emptied so every note to himself is a
+ * task: "Airfix gst adress change by Tommorow" made nothing. One message can be
+ * addressed from his number to his linked identity, so neither "the chat is
+ * state.me" nor "from === to" holds, and without a trigger it was dropped.
+ */
+describe('his own chat, whichever id WhatsApp files it under', () => {
+  const now = () => Math.floor(Date.now() / 1000);
+
+  it('a note from his number to his linked identity is a task', async () => {
+    WA.resetOwnPollForTests();
+    WA.state.myIds = ['919909993565@c.us', '202383321759941@lid'];
+    await WA.handleOwnMessage(own('Airfix gst adress change by tomorrow', {
+      from: '919909993565@c.us', to: '202383321759941@lid', chatFails: true,
+    }));
+    assert.ok(titles().some((t) => /Airfix gst adress change/.test(t)));
+  });
+
+  it('the poll learns his ids from the page and trusts its own "this is you"', async () => {
+    WA.state.myIds = [];
+    WA.resetOwnPollForTests(now() - 60);
+    const page = { evaluate: async () => ({
+      total: 5,
+      mine: ['919909993565@c.us', '202383321759941@lid'],
+      rows: [{
+        id: 'true_202383321759941@lid_X1', body: 'Sena GST refund follow up',
+        from: '919909993565@c.us', to: '202383321759941@lid', chat: '202383321759941@lid', self: true, t: now(),
+      }],
+    }) };
+    assert.equal(await WA.pollOwnMessages(page), 1);
+    assert.ok(titles().includes('Sena GST refund follow up'));
+    assert.deepEqual(WA.state.myIds, ['919909993565@c.us', '202383321759941@lid']);
+  });
+
+  it('still ignores an untagged message to somebody else, ids known or not', async () => {
+    WA.state.myIds = ['919909993565@c.us', '202383321759941@lid'];
+    await WA.handleOwnMessage(own('haan theek hai kal dekhte', { to: '919825011122@c.us' }));
+    assert.ok(!titles().some((t) => /dekhte/i.test(t)));
+  });
+
+  it('after a restart the poll starts just past the last message it read, at most a day back', async () => {
+    const { setMeta } = await import('../src/db.js');
+    const last = now() - 3600;
+    setMeta('own_poll_last_t', String(last));
+    WA.resetOwnPollForTests();
+    let asked = null;
+    await WA.pollOwnMessages({ evaluate: async (fn, since) => { asked = since; return { total: 0, rows: [], mine: [] }; } });
+    assert.equal(asked, last + 1);
+
+    setMeta('own_poll_last_t', String(now() - 5 * 86400));
+    WA.resetOwnPollForTests();
+    await WA.pollOwnMessages({ evaluate: async (fn, since) => { asked = since; return { total: 0, rows: [], mine: [] }; } });
+    assert.ok(asked >= now() - 86400 - 2 && asked <= now() - 86400 + 2);
+  });
+
+  it('manual mode never shows messages as "waiting to be read"', () => {
+    const src = fs.readFileSync(new URL('../src/routes/system.js', import.meta.url), 'utf8');
+    assert.match(src, /waitingToExtract: config\.extractionMode === 'manual' \? 0 : unprocessedCount\(\)/);
+  });
+});

@@ -45,7 +45,10 @@ systemRouter.get('/status', (req, res) => {
        * A number here is the answer to "why did nothing become a task?" - and
        * it is recoverable, because the messages themselves are on disk.
        */
-      waitingToExtract: unprocessedCount(),
+      // Manual mode never reads stored messages - nothing there would ever
+      // run them - so a count left over from an AI-mode spell is not
+      // "waiting", and offering to read them would offer nothing.
+      waitingToExtract: config.extractionMode === 'manual' ? 0 : unprocessedCount(),
       me: state.me,
       meName: state.meName,
       qrDataUrl: state.qrDataUrl,

@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.31',
+    date: '2026-10-18',
+    title: 'Every note to yourself becomes a task',
+    changes: [
+      'A note you send to your own chat now becomes a task even when WhatsApp files that chat under your linked ID instead of your number. Before, a note without #task could be missed.',
+      'A note you send while the server is restarting (an update, a Windows restart) is picked up when it comes back, up to a day later.',
+      'The "messages arrived but were never read" banner no longer shows in manual mode, where there is nothing to read them with.',
+    ],
+  },
+  {
     version: '1.30',
     date: '2026-10-18',
     title: 'ZynTask logo; Scale Visory removed',

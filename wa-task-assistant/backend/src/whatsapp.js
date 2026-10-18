@@ -699,7 +699,15 @@ export async function handleOwnMessage(message) {
     // His own chat is addressed from himself to himself. WhatsApp may file it
     // under his linked identity (@lid) rather than his number (@c.us), which
     // state.me holds, so the id alone can miss it; from === to cannot.
-    const inSelfChat = (Boolean(state.me) && chatId === state.me)
+    //
+    // And the two halves of one message can be filed differently: from his
+    // number, to his linked identity. So his own chat is any chat that is
+    // one of HIS ids - the number and the linked identity both, learnt from
+    // the page by the poll below - or one the page itself said was his.
+    const mine = myIds();
+    const inSelfChat = message.isSelfChat === true
+      || mine.has(chatId)
+      || mine.has(message.to)
       || (Boolean(message.from) && message.to === message.from);
     const trigger = config.taskTrigger;
     const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
@@ -740,6 +748,11 @@ export async function handleOwnMessage(message) {
   }
 }
 
+
+/** Every id WhatsApp may file him under: his number and his linked identity. */
+function myIds() {
+  return new Set([state.me, ...(state.myIds || [])].filter(Boolean));
+}
 
 /** Two letters or more once links are taken out - in any script, Gujarati and Hindi included. */
 export function hasWords(text) {
@@ -812,6 +825,28 @@ let ownPollSince = null;
 let ownPolling = false;
 let lastOwnReport = null;
 
+/*
+ * Where the poll starts after a restart: just past the last message it read,
+ * so a note written while the server was restarting (an update, a Windows
+ * reboot) is still picked up - but never more than a day back, and with
+ * nothing on record, two minutes back as before.
+ */
+const OWN_POLL_KEY = 'own_poll_last_t';
+const OWN_POLL_MAX_BACK = 24 * 3600;
+
+function ownPollStart() {
+  const now = Math.floor(Date.now() / 1000);
+  let saved = 0;
+  try { saved = Number(getMeta(OWN_POLL_KEY)) || 0; } catch { saved = 0; }
+  if (!saved) return now - 120;
+  // +1: the message at the saved second was handled before the restart.
+  return Math.max(saved + 1, now - OWN_POLL_MAX_BACK);
+}
+
+function saveOwnPollPosition(t) {
+  try { setMeta(OWN_POLL_KEY, String(t)); } catch { /* the next poll will try again */ }
+}
+
 function claimOwnMessage(id) {
   if (!id) return true;
   if (claimedOwn.has(id)) return false;
@@ -826,7 +861,7 @@ export async function pollOwnMessages(page = client?.pupPage) {
   if (ownPolling || !page) return 0;
   ownPolling = true;
   try {
-    if (ownPollSince == null) ownPollSince = Math.floor(Date.now() / 1000) - 120;
+    if (ownPollSince == null) ownPollSince = ownPollStart();
     const seen = await page.evaluate((since) => {
       const Msg = window.require?.('WAWebCollections')?.Msg;
       if (!Msg) return null;
@@ -836,11 +871,24 @@ export async function pollOwnMessages(page = client?.pupPage) {
         if (typeof w === 'string') return w;
         return w._serialized || (w.user && w.server ? `${w.user}@${w.server}` : null);
       };
+      // Who he is, both ways: the page knows his number and his linked
+      // identity, and a message to himself may name either.
+      let mine = [];
+      try {
+        const me = window.require('WAWebUserPrefsMeUser');
+        mine = [me.getMaybeMePnUser?.(), me.getMaybeMeLidUser?.()].map(wid).filter(Boolean);
+      } catch { /* an older page: the number from client.info still applies */ }
       const all = Msg.getModelsArray();
       const rows = all
         .filter((m) => m?.id?.fromMe && m.type === 'chat' && m.t >= since)
-        .map((m) => ({ id: key(m.id), body: m.body || '', from: wid(m.from), to: wid(m.to), t: m.t }));
-      return { total: all.length, rows };
+        .map((m) => {
+          const chat = wid(m.id?.remote) || wid(m.to);
+          return {
+            id: key(m.id), body: m.body || '', from: wid(m.from), to: wid(m.to), t: m.t,
+            chat, self: Boolean(chat && mine.includes(chat)),
+          };
+        });
+      return { total: all.length, rows, mine };
     }, ownPollSince);
     // Said once per change, in the connection log on the Settings page, so a
     // silent check can never again look the same as a working one.
@@ -853,9 +901,13 @@ export async function pollOwnMessages(page = client?.pupPage) {
       noteEvent('own-chat check', report);
     }
     if (!Array.isArray(rows)) return 0;
+    if (Array.isArray(seen?.mine) && seen.mine.length) state.myIds = seen.mine;
     let handled = 0;
     for (const row of rows.sort((a, b) => a.t - b.t)) {
-      if (row.t > ownPollSince) ownPollSince = row.t;
+      if (row.t > ownPollSince) {
+        ownPollSince = row.t;
+        saveOwnPollPosition(row.t);
+      }
       if (!row.id || claimedOwn.has(row.id)) continue;
       handled += 1;
       await handleOwnMessage({
@@ -865,7 +917,8 @@ export async function pollOwnMessages(page = client?.pupPage) {
         from: row.from,
         to: row.to,
         timestamp: row.t,
-        getChat: () => client.getChatById(row.to),
+        isSelfChat: row.self === true,
+        getChat: () => client.getChatById(row.chat || row.to),
       });
     }
     return handled;
