@@ -703,6 +703,11 @@ export async function handleOwnMessage(message) {
     const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
 
     if (!inSelfChat && !hasTrigger) return;
+    // His own chat is also where he parks phone numbers and links (the
+    // screenshot that showed it held a column of bare numbers). Words make a
+    // task; a number or a link on its own is something kept, not something to do.
+    // "#task 9081903590" is still a task, because then he said so.
+    if (!hasTrigger && !hasWords(body)) return;
 
     const parsed = parseQuickTask(body, { trigger: hasTrigger ? trigger : '' });
     if (!parsed) return;
@@ -733,6 +738,12 @@ export async function handleOwnMessage(message) {
   }
 }
 
+
+/** Two letters or more once links are taken out - in any script, Gujarati and Hindi included. */
+export function hasWords(text) {
+  const bare = String(text || '').replace(/https?:\/\/\S+|www\.\S+/gi, ' ');
+  return (bare.match(/\p{L}/gu) || []).length >= 2;
+}
 
 /* ---------------- when WhatsApp Web moves under the library ---------------- */
 

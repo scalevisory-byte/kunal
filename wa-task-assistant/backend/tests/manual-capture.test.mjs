@@ -121,3 +121,21 @@ describe('dates written the way he writes them', async () => {
     assert.equal(due('#task 31 nov 2099 filing').due_date, null);
   });
 });
+
+describe('his own chat is also where he keeps numbers and links', () => {
+  it('a bare number or link sent to himself is not a task', async () => {
+    WA.resetOwnPollForTests();
+    for (const body of ['9081903590', '`', 'https://maps.app.goo.gl/abc']) await WA.handleOwnMessage(own(body));
+    assert.ok(!titles().some((t) => /9081903590|maps\.app|^`$/.test(t)));
+  });
+
+  it('words in any script are a task, and #task makes even a number one', async () => {
+    await WA.handleOwnMessage(own('Sharma ko invoice bhejna'));
+    await WA.handleOwnMessage(own('બેંક જવું'));
+    await WA.handleOwnMessage(own('#task 9898475959 ko call'));
+    const t = titles();
+    assert.ok(t.includes('Sharma ko invoice bhejna'));
+    assert.ok(t.includes('બેંક જવું'));
+    assert.ok(t.some((x) => x.includes('9898475959')));
+  });
+});
