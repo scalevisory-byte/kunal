@@ -639,7 +639,7 @@ export async function maybeSaveNote(message, chat, chatId) {
       const where = chatId === reminderChatId() ? '' : ` (from ${chat?.name || 'a chat'})`;
       await sendMessage(
         reminderChatId(),
-        `📝 Saved as a note${where}. It is in WA Tasks under Notes — nothing will chase you about it.`
+        `📝 Saved as a note${where}. It is in ZynTask under Notes — nothing will chase you about it.`
       );
     } catch (err) {
       log.warn('Could not confirm the note:', err?.message || err);
@@ -1734,8 +1734,8 @@ export function startWhatsApp({ force = false } = {}) {
      * from a live one is the difference between freeing a slot and unlinking
      * the wrong thing.
      */
-    deviceName: 'WA Tasks',
-    browserName: 'WA Tasks',
+    deviceName: 'ZynTask',
+    browserName: 'ZynTask',
     puppeteer: {
       headless: true,
       executablePath: config.puppeteerExecutablePath,

@@ -141,7 +141,7 @@ export function buildBriefing(now = new Date()) {
   section('📝 NO DATE SET', undated);
 
   if (ordered.length > MAX_LISTED) {
-    lines.push(`…and ${ordered.length - MAX_LISTED} more. Open WA Tasks to see them all.`, '');
+    lines.push(`…and ${ordered.length - MAX_LISTED} more. Open ZynTask to see them all.`, '');
   }
 
   /*

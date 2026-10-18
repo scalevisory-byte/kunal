@@ -512,7 +512,7 @@ export default function StatusBar({ status, stats, overdueCount, onRefresh, onEr
       {state === 'error' && wa?.lastError && (
         <div className="status-error">
           <p>
-            <b>WA Tasks could not reach WhatsApp.</b> No new messages are being read
+            <b>ZynTask could not reach WhatsApp.</b> No new messages are being read
             until the connection comes back. It retries on its own; if it stays like
             this, re-link the phone from the QR code above.
           </p>

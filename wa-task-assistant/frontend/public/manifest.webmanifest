@@ -1,6 +1,6 @@
 {
-  "name": "WhatsApp Task Assistant",
-  "short_name": "WA Tasks",
+  "name": "ZynTask",
+  "short_name": "ZynTask",
   "description": "Tasks extracted from WhatsApp, with reminders.",
   "start_url": "/",
   "scope": "/",

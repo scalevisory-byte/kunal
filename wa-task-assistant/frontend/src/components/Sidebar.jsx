@@ -220,7 +220,7 @@ export default function Sidebar({
         <div className="side-brand">
           <span className="side-mark"><Icon name="whatsapp" size={20} /></span>
           <span className="side-name">
-            <strong>WA Tasks</strong>
+            <strong>ZynTask</strong>
             <small>Task management</small>
           </span>
         </div>

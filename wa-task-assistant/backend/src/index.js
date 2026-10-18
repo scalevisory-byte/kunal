@@ -30,7 +30,7 @@ function bootErrorPage() {
     ? 'The data volume is full. Chromium\'s cache is the usual cause; clear it from the Railway volume, or attach a larger one.'
     : 'Check the deploy logs for the full stack trace.';
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WA Tasks — did not start</title>
+<title>ZynTask — did not start</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px;
@@ -44,7 +44,7 @@ function bootErrorPage() {
   p { margin:.6rem 0; } small { opacity:.7; }
 </style>
 <main>
-  <h1>WA Tasks did not start</h1>
+  <h1>ZynTask did not start</h1>
   <p>The server is running and answering, but the application failed to load. Your tasks and your WhatsApp login are untouched.</p>
   <code>${message}</code>
   <p>${hint}</p>

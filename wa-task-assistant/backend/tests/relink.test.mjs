@@ -167,8 +167,8 @@ describe('how many pairing codes the app may ask for', () => {
  */
 describe('the linked device', () => {
   it('says which app it is, instead of posing as a browser', () => {
-    assert.match(src, /deviceName: 'WA Tasks'/);
-    assert.match(src, /browserName: 'WA Tasks'/);
+    assert.match(src, /deviceName: 'ZynTask'/);
+    assert.match(src, /browserName: 'ZynTask'/);
   });
 
   it('records the moment the link genuinely worked, and keeps it across restarts', () => {

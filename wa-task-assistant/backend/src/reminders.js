@@ -537,7 +537,7 @@ async function deliver(task, reminder, settings) {
       told ? `✔ I have also reminded ${told} on WhatsApp.` : null,
       '',
       `Reply *done ${task.id}* to close it, *snooze ${task.id} 2 hours*,`,
-      'or open WA Tasks to reschedule.',
+      'or open ZynTask to reschedule.',
     ]
       .filter(Boolean)
       .join('\n');
@@ -594,7 +594,7 @@ async function deliverNoteReminders(nowIso, settings) {
     // Same rule as every other message: the linked account's own chat, never
     // a contact's, and only when the user has switched WhatsApp on.
     if (settings.whatsappToMe && settings.notifyWhatsApp && state.status === 'ready') {
-      const text = ['📝 *NOTE REMINDER*', '', `*${heading}*`, body || null, '', 'Open WA Tasks to read it.']
+      const text = ['📝 *NOTE REMINDER*', '', `*${heading}*`, body || null, '', 'Open ZynTask to read it.']
         .filter((line) => line !== null)
         .join('\n');
       try {
@@ -640,7 +640,7 @@ async function deliverLeadReminders(nowIso, settings) {
         `*${lead.name}*`,
         where || null,
         lead.phone ? `Number: ${lead.phone}` : null,
-        '', 'Open WA Tasks to update the stage.',
+        '', 'Open ZynTask to update the stage.',
       ].filter((line) => line !== null).join('\n');
       try {
         await sendMessage(reminderChatId(), text);
