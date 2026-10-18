@@ -658,6 +658,11 @@ export async function maybeSaveNote(message, chat, chatId) {
  */
 export async function handleOwnMessage(message) {
   try {
+    normaliseMessageId(message);
+    // The same message can reach this door twice: from WhatsApp's own event
+    // and from the poll below, which exists because that event is not
+    // reliable. Whichever is first handles it; the second does nothing.
+    if (!claimOwnMessage(message.id?._serialized)) return;
     // Counted before anything is decided, so "Delivered by WhatsApp" says
     // whether messages reach the app at all - in manual mode too.
     state.rawSeen += 1;
@@ -726,6 +731,140 @@ export async function handleOwnMessage(message) {
   } catch (err) {
     log.error('handleOwnMessage:', err?.message || err);
   }
+}
+
+
+/* ---------------- when WhatsApp Web moves under the library ---------------- */
+
+/*
+ * October 2026: WhatsApp Web renamed the field that names a message key, from
+ * `_serialized` to `$1` (wwebjs/whatsapp-web.js#201845, #201862). whatsapp-web.js
+ * 1.34.7, the newest release, still reads the old name, so every chat lookup
+ * that touches a message key throws a minified "r" - which is what
+ * "handleOwnMessage: r" and "Catch-up could not list chats: r" in his log were.
+ *
+ * Two repairs, both harmless once the library catches up: a getter that puts
+ * the old name back on the key class inside the page, and the same name copied
+ * onto keys that have already crossed into Node (a getter on a prototype does
+ * not survive the trip, only the object's own `$1` does).
+ */
+export function normaliseMessageId(message) {
+  const id = message?.id;
+  if (id && typeof id === 'object' && !id._serialized && id.$1) id._serialized = id.$1;
+  return message;
+}
+
+async function installKeyShim() {
+  if (!client?.pupPage) return;
+  try {
+    const added = await client.pupPage.evaluate(() => {
+      const MsgKey = window.require?.('WAWebMsgKey');
+      const proto = MsgKey?.prototype;
+      if (!proto || '_serialized' in proto) return false;
+      Object.defineProperty(proto, '_serialized', {
+        configurable: true,
+        get() { return this.$1; },
+        set(value) {
+          Object.defineProperty(this, '_serialized', { value, writable: true, configurable: true, enumerable: true });
+        },
+      });
+      return true;
+    });
+    if (added) {
+      noteEvent('compat', 'message keys renamed by WhatsApp Web; old name restored');
+      log.info('WhatsApp Web renamed message keys ($1); compatibility shim installed.');
+    }
+  } catch (err) {
+    noteEvent('compat shim failed', err?.message || err);
+  }
+}
+
+/*
+ * His own messages, read straight from the page every 15 seconds.
+ *
+ * On TSRV the library's own "ready" never fired after a restart - the session
+ * was connected, the dashboard said so, and "Delivered by WhatsApp" stayed at
+ * 0 while he sent "#task" after "#task", because "ready" is what attaches the
+ * listener that turns WhatsApp's messages into events. Upstream reports the
+ * same: events that silently stop while the client shows CONNECTED
+ * (wwebjs/whatsapp-web.js#5765). So the messages he writes himself - the whole
+ * input in manual mode - are also read off WhatsApp Web's own message
+ * collection, which needs none of the library's wiring. Only his own text
+ * messages from the last two minutes before start onward; nobody else's.
+ */
+const OWN_POLL_MS = 15000;
+const claimedOwn = new Map();
+let ownPollTimer = null;
+let ownPollSince = null;
+let ownPolling = false;
+
+function claimOwnMessage(id) {
+  if (!id) return true;
+  if (claimedOwn.has(id)) return false;
+  claimedOwn.set(id, Date.now());
+  if (claimedOwn.size > 2000) {
+    for (const key of [...claimedOwn.keys()].slice(0, 1000)) claimedOwn.delete(key);
+  }
+  return true;
+}
+
+export async function pollOwnMessages(page = client?.pupPage) {
+  if (ownPolling || !page) return 0;
+  ownPolling = true;
+  try {
+    if (ownPollSince == null) ownPollSince = Math.floor(Date.now() / 1000) - 120;
+    const rows = await page.evaluate((since) => {
+      const Msg = window.require?.('WAWebCollections')?.Msg;
+      if (!Msg) return null;
+      const key = (k) => (k && (k._serialized || k.$1)) || null;
+      const wid = (w) => {
+        if (!w) return null;
+        if (typeof w === 'string') return w;
+        return w._serialized || (w.user && w.server ? `${w.user}@${w.server}` : null);
+      };
+      return Msg.getModelsArray()
+        .filter((m) => m?.id?.fromMe && m.type === 'chat' && m.t >= since)
+        .map((m) => ({ id: key(m.id), body: m.body || '', from: wid(m.from), to: wid(m.to), t: m.t }));
+    }, ownPollSince);
+    if (!Array.isArray(rows)) return 0;
+    let handled = 0;
+    for (const row of rows.sort((a, b) => a.t - b.t)) {
+      if (row.t > ownPollSince) ownPollSince = row.t;
+      if (!row.id || claimedOwn.has(row.id)) continue;
+      handled += 1;
+      await handleOwnMessage({
+        id: { _serialized: row.id },
+        body: row.body,
+        fromMe: true,
+        from: row.from,
+        to: row.to,
+        timestamp: row.t,
+        getChat: () => client.getChatById(row.to),
+      });
+    }
+    return handled;
+  } catch (err) {
+    noteEvent('own-message check failed', err?.message || err);
+    return 0;
+  } finally {
+    ownPolling = false;
+  }
+}
+
+function startOwnPoll() {
+  installKeyShim();
+  if (config.extractionMode !== 'manual' || ownPollTimer) return;
+  ownPollTimer = setInterval(() => {
+    if (state.status === 'ready') pollOwnMessages();
+  }, OWN_POLL_MS);
+  ownPollTimer.unref?.();
+}
+
+/** Test seam: forget what has been handled and where the poll starts. */
+export function resetOwnPollForTests(since = null) {
+  claimedOwn.clear();
+  ownPollSince = since;
+  ownPolling = false;
 }
 
 /* ---------------- the app's own messages, coming back ---------------- */
@@ -961,6 +1100,7 @@ function promoteToReady(reason = 'messages are arriving, so the connection is up
   state.qrDataUrl = null;
   noteEvent('ready', reason);
   log.info(`WhatsApp treated as ready${state.me ? ` as ${state.me}` : ''}: ${reason}.`);
+  startOwnPoll();
   runCatchUpOnce();
 }
 
@@ -998,6 +1138,7 @@ function watchForReady() {
 
 export async function handleMessage(message) {
   try {
+    normaliseMessageId(message);
     promoteToReady();
     if (IGNORED_CHAT_IDS.has(message.from)) return drop('ignoredChat');
     if (message.isStatus) return drop('status');
@@ -1633,6 +1774,7 @@ export function startWhatsApp({ force = false } = {}) {
     state.lastReadyAt = new Date().toISOString();
     log.info(`WhatsApp ready as ${state.me}`);
 
+    startOwnPoll();
     runCatchUpOnce();
 
     /*

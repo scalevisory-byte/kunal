@@ -62,3 +62,40 @@ describe('manual capture', () => {
     assert.equal(WA.state.rawSeen, before + 1);
   });
 });
+
+describe('when WhatsApp\'s own message event never fires', () => {
+  // What page.evaluate would hand back from WhatsApp Web's message collection.
+  const fakePage = (rows) => ({ evaluate: async () => rows });
+  const now = () => Math.floor(Date.now() / 1000);
+
+  it('reads his own #task straight from the page', async () => {
+    WA.resetOwnPollForTests(now() - 60);
+    const handled = await WA.pollOwnMessages(fakePage([
+      { id: 'true_919909993565@c.us_P1', body: '#task Renew Arrohan trade licence', from: '919909993565@c.us', to: '919909993565@c.us', t: now() },
+    ]));
+    assert.equal(handled, 1);
+    assert.ok(titles().includes('Renew Arrohan trade licence'));
+  });
+
+  it('never makes the same task twice when the event and the poll both see it', async () => {
+    WA.resetOwnPollForTests(now() - 60);
+    const msg = own('#task Send Zynta invoice to Patel');
+    msg.id = { $1: 'true_919909993565@c.us_DUP' };   // as WhatsApp Web now names it
+    await WA.handleOwnMessage(msg);
+    await WA.pollOwnMessages(fakePage([
+      { id: 'true_919909993565@c.us_DUP', body: '#task Send Zynta invoice to Patel', from: msg.from, to: msg.to, t: now() },
+    ]));
+    assert.equal(titles().filter((t) => t === 'Send Zynta invoice to Patel').length, 1);
+  });
+
+  it('puts the old key name back on an id that arrives with only $1', () => {
+    const m = WA.normaliseMessageId({ id: { fromMe: true, $1: 'true_x@c.us_ABC' } });
+    assert.equal(m.id._serialized, 'true_x@c.us_ABC');
+  });
+
+  it('a page that cannot answer costs nothing and throws nothing', async () => {
+    WA.resetOwnPollForTests(now() - 60);
+    assert.equal(await WA.pollOwnMessages({ evaluate: async () => { throw new Error('r'); } }), 0);
+    assert.equal(await WA.pollOwnMessages(fakePage(null)), 0);
+  });
+});
