@@ -1,12 +1,10 @@
 /**
- * The ZynTask mark: a Z whose last stroke turns into a tick - the task that
- * came in and the task that got done, in one letter.
+ * The ZynTask mark: a chat bubble with a tick in it - a WhatsApp message that
+ * became a task, and the task done.
  *
  * Drawn inline rather than loaded, so it takes no request and no second file
  * can drift from public/icon.svg (the same paths, kept in step by a test).
- * `tile` puts it on its navy square, as on the home screen; without it the
- * strokes sit straight on whatever is behind them, which on the navy sidebar
- * is the square already.
+ * `tile` puts it on its navy square, as on the home screen.
  */
 export default function Logo({ size = 34, tile = true, title }) {
   return (
@@ -18,10 +16,8 @@ export default function Logo({ size = 34, tile = true, title }) {
       aria-hidden={title ? undefined : 'true'}
     >
       {tile && <rect width="512" height="512" rx="116" fill="#1f2a6e" />}
-      <g fill="none" strokeWidth="54" strokeLinecap="round" strokeLinejoin="round" transform="translate(-5 -12)">
-        <path d="M144 140H354L150 352H230" stroke="#fff" />
-        <path d="M230 352L280 402L380 290" stroke="#ea580c" />
-      </g>
+      <path d="M256 104c-96 0-168 62-168 140 0 42 21 79 55 104l-15 62 70-34c18 5 37 8 58 8 96 0 168-62 168-140S352 104 256 104z" fill="#fff" />
+      <path d="M182 246l52 52 98-104" fill="none" stroke="#ea580c" strokeWidth="44" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

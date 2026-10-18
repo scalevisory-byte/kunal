@@ -1771,7 +1771,7 @@ button.chip.ghost:hover { border-color: var(--brand); color: var(--brand); }
  */
 .login-pane::after {
   content: ''; position: absolute; z-index: 0; pointer-events: none;
-  right: -8%; bottom: -8%; width: 62%; aspect-ratio: 290 / 320;
+  right: -8%; bottom: -8%; width: 62%; aspect-ratio: 352 / 328;
   background: url('/brand/zyntask-mark.svg') no-repeat center / contain;
   opacity: .06;
 }
