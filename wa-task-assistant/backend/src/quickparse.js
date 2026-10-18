@@ -139,6 +139,25 @@ function isoFromOffset(days) {
   return base.toISOString().slice(0, 10);
 }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH_RE = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+
+/** "25", "oct" -> the next 25 October (this year, or next year once it has passed). */
+function monthDate(day, monthWord, yearText) {
+  const month = MONTHS.indexOf(monthWord.slice(0, 3).toLowerCase());
+  if (month < 0 || day < 1 || day > 31) return null;
+  const now = new Date(`${today()}T00:00:00Z`);
+  let year = yearText ? Number(yearText) : now.getUTCFullYear();
+  let candidate = new Date(Date.UTC(year, month, day));
+  if (candidate.getUTCDate() !== day) return null; // 31 Nov
+  if (!yearText && candidate < now) {
+    year += 1;
+    candidate = new Date(Date.UTC(year, month, day));
+    if (candidate.getUTCDate() !== day) return null;
+  }
+  return candidate.toISOString().slice(0, 10);
+}
+
 /** Days ahead to the next occurrence of a weekday (never today - "Friday" said on Friday means next Friday). */
 function daysToWeekday(target) {
   const todayDow = new Date(`${today()}T00:00:00Z`).getUTCDay();
@@ -180,6 +199,11 @@ export function findDate(text) {
       const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       return normalizeDueDate(iso);
     }],
+    // "25 oct", "25th October 2026", "oct 25" - the way a date is usually typed
+    [new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(${MONTH_RE})(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i'),
+      (m) => monthDate(Number(m[1]), m[2], m[3])],
+    [new RegExp(`\\b(${MONTH_RE})\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i'),
+      (m) => monthDate(Number(m[2]), m[1], m[3])],
     [/\b(\d{1,2})(?:st|nd|rd|th)\b/i, (m) => nextDayOfMonth(Number(m[1]))],
     [new RegExp(`\\b(${Object.keys(DAY_NAMES).join('|')})\\b`, 'i'),
       (m) => isoFromOffset(daysToWeekday(DAY_NAMES[m[1].toLowerCase()]))],

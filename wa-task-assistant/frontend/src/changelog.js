@@ -14,6 +14,7 @@ export const CHANGELOG = [
     changes: [
       'The app now reads your own WhatsApp messages every 15 seconds, so a #task arrives even when WhatsApp does not announce it.',
       'Settings → "What the connection has done" now says when this check started and what it found, so you can see it working.',
+      'A #task message now understands dates like "25 oct", "oct 25" and "5th November 2026".',
     ],
   },
   {

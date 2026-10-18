@@ -99,3 +99,25 @@ describe('when WhatsApp\'s own message event never fires', () => {
     assert.equal(await WA.pollOwnMessages(fakePage(null)), 0);
   });
 });
+
+describe('dates written the way he writes them', async () => {
+  const { parseQuickTask } = await import('../src/quickparse.js');
+  const due = (s) => parseQuickTask(s, { trigger: '#task' });
+
+  it('reads "25 oct 2099" and "oct 25 2099" and takes them out of the title', () => {
+    assert.equal(due('#task Sharma ko invoice bhejna 25 oct 2099').due_date, '2099-10-25');
+    assert.equal(due('#task Sharma ko invoice bhejna 25 oct 2099').title, 'Sharma ko invoice bhejna');
+    assert.equal(due('#task Pay rent oct 25 2099').due_date, '2099-10-25');
+    assert.equal(due('#task Audit 5th November 2099').due_date, '2099-11-05');
+  });
+
+  it('a month without a year is the next one to come, never one already gone', () => {
+    const d = due('#task Renew licence 1 jan').due_date;
+    assert.ok(d && d.endsWith('-01-01') && d >= new Date().toISOString().slice(0, 10));
+  });
+
+  it('a month word with no day is not a date', () => {
+    assert.equal(due('#task May se pehle meeting').due_date, null);
+    assert.equal(due('#task 31 nov 2099 filing').due_date, null);
+  });
+});
