@@ -242,3 +242,65 @@ describe('"tomorrow" as it is typed on a phone', async () => {
     assert.equal(parseQuickTask('buy tomatoes').due_date, null);
   });
 });
+
+/*
+ * "This is a single lead": a forwarded number, a forwarded address and his own
+ * "New lead follow-up", sent to himself in the same minute, made two tasks -
+ * the address dated Nov 1 from its "1st Floor" - and the number was lost.
+ */
+describe('a lead sent as several messages is one task', () => {
+  const at = (t, body, extra = {}) => ({ ...own(body), timestamp: t, ...extra });
+  const row = (title) => db.prepare('SELECT * FROM tasks WHERE title = ?').get(title);
+
+  it('forwards before a note become that note\'s details', async () => {
+    WA.resetOwnPollForTests();
+    const t = Math.floor(Date.now() / 1000);
+    await WA.handleOwnMessage(at(t, '7043767616', { isForwarded: true }));
+    await WA.handleOwnMessage(at(t, 'LAXMI TOURS AND TRAVELS\n1st Floor 8 Heta Complex,\nNr LP Savani School, H.P Road,\nAdajan', { isForwarded: true }));
+    await WA.handleOwnMessage(at(t + 20, 'New lead follow-up'));
+    const task = row('New lead follow-up');
+    assert.ok(task, 'the note is the task');
+    assert.match(task.description, /7043767616/);
+    assert.match(task.description, /LAXMI TOURS/);
+    assert.equal(task.due_date, null, '"1st Floor" is not a date');
+    assert.ok(!titles().some((x) => /LAXMI/.test(x)), 'the address is not a task of its own');
+  });
+
+  it('a forward sent just after the note joins it too', async () => {
+    WA.resetOwnPollForTests();
+    const t = Math.floor(Date.now() / 1000);
+    await WA.handleOwnMessage(at(t, 'Shah Traders quotation follow up'));
+    await WA.handleOwnMessage(at(t + 30, '9898012345', { isForwarded: true }));
+    assert.match(row('Shah Traders quotation follow up').description, /9898012345/);
+  });
+
+  it('notes typed one after another stay separate tasks', async () => {
+    WA.resetOwnPollForTests();
+    const t = Math.floor(Date.now() / 1000);
+    await WA.handleOwnMessage(at(t, 'Bmd visit for Sep salary'));
+    await WA.handleOwnMessage(at(t + 5, 'Devangbhai cibil score'));
+    assert.ok(row('Bmd visit for Sep salary'));
+    assert.ok(row('Devangbhai cibil score'));
+  });
+
+  it('a forward with no note becomes a task of its own; a lone number does not', async () => {
+    WA.resetOwnPollForTests();
+    const t = Math.floor(Date.now() / 1000);
+    await WA.handleOwnMessage(at(t, 'Renew Gumasta licence for Arrohan', { isForwarded: true }));
+    await WA.handleOwnMessage(at(t, '9909000000', { isForwarded: true }));
+    const made = WA.flushMaterial({ all: true });
+    assert.equal(made.title, 'Renew Gumasta licence for Arrohan');
+    assert.match(made.description, /9909000000/);
+
+    WA.resetOwnPollForTests();
+    await WA.handleOwnMessage(at(t, '9909111111', { isForwarded: true }));
+    assert.equal(WA.flushMaterial({ all: true }), null);
+  });
+
+  it('a bare "15th" is a date only when framed as one', async () => {
+    const { parseQuickTask } = await import('../src/quickparse.js');
+    assert.equal(parseQuickTask('LAXMI TOURS 1st Floor 8 Heta').due_date, null);
+    assert.ok(parseQuickTask('Pay rent by 15th').due_date.endsWith('-15'));
+    assert.ok(parseQuickTask('GST 20th tak').due_date.endsWith('-20'));
+  });
+});

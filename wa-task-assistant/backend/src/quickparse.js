@@ -213,7 +213,11 @@ export function findDate(text) {
       (m) => monthDate(Number(m[1]), m[2], m[3])],
     [new RegExp(`\\b(${MONTH_RE})\\s*(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i'),
       (m) => monthDate(Number(m[2]), m[1], m[3])],
-    [/\b(\d{1,2})(?:st|nd|rd|th)\b/i, (m) => nextDayOfMonth(Number(m[1]))],
+    // A bare "15th" is a date only when it is framed as one - "by 15th",
+    // "15th tak". On its own it was reading addresses: "1st Floor, Heta
+    // Complex" became a task due on the 1st of next month.
+    [/\b(?:(?:by|on|till|until|before|upto|due)\s+(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)|(\d{1,2})(?:st|nd|rd|th)\s+(?:ko|tak|tk|tarikh|tareekh|date|tak me))\b/i,
+      (m) => nextDayOfMonth(Number(m[1] || m[2]))],
     [new RegExp(`\\b(${Object.keys(DAY_NAMES).join('|')})\\b`, 'i'),
       (m) => isoFromOffset(daysToWeekday(DAY_NAMES[m[1].toLowerCase()]))],
   ];

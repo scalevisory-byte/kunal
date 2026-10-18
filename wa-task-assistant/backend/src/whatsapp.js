@@ -713,38 +713,118 @@ export async function handleOwnMessage(message) {
     const hasTrigger = trigger && body.toLowerCase().startsWith(trigger.toLowerCase());
 
     if (!inSelfChat && !hasTrigger) return;
-    // His own chat is also where he parks phone numbers and links (the
-    // screenshot that showed it held a column of bare numbers). Words make a
-    // task; a number or a link on its own is something kept, not something to do.
-    // "#task 9081903590" is still a task, because then he said so.
-    if (!hasTrigger && !hasWords(body)) return;
+
+    /*
+     * Several messages, one job. A lead arrives in his own chat as a forwarded
+     * number, a forwarded address and then his own line, "New lead follow-up",
+     * all in the same minute - and that was three rows, the address one even
+     * dated "Nov 1" from its "1st Floor". So in his own chat a forward, or a
+     * bare number or link, is material rather than a task: it joins the note
+     * he types within two minutes of it, before or after, as that task's
+     * details. Material with no note to join becomes a task of its own after
+     * the two minutes, as a forward always did; a lone number still does not.
+     * Notes typed one after another stay separate tasks - only material is
+     * gathered, never his own lines.
+     */
+    const t = Number(message.timestamp) || Math.floor(Date.now() / 1000);
+    if (inSelfChat && !hasTrigger && (message.isForwarded === true || !hasWords(body))) {
+      if (lastNote && t - lastNote.t <= BUNDLE_WINDOW_S && t >= lastNote.t && appendDetails(lastNote.id, body)) return;
+      pendingMaterial.push({ body, t, chatId, chat, inSelfChat });
+      armMaterialFlush();
+      return;
+    }
 
     const parsed = parseQuickTask(body, { trigger: hasTrigger ? trigger : '' });
     if (!parsed) return;
 
-    const { remind_at: parsedTime, ...rest } = parsed;
-    const created = createTask({
-      ...rest,
-      // The clock time in a message is the deadline, not the moment to be nudged.
-      due_at: parsedTime,
-      // A forward keeps the original text but not its author, so record where it landed.
-      chat_name: inSelfChat ? 'Saved by you' : chat?.name || null,
-      chat_id: chatId,
-      source: 'whatsapp',
-      origin: 'manual',
-      status: 'open',
-    });
-    recordEvent(created.id, EVENT.created, 'from your own message');
-    if (created.due_at || created.due_date) {
-      recordEvent(created.id, EVENT.deadlineSet, created.due_at || created.due_date);
+    // Material gathered in the two minutes before this note is its details;
+    // anything older was its own job and goes first.
+    let details = [];
+    if (inSelfChat && pendingMaterial.length) {
+      const stale = pendingMaterial.filter((m) => t - m.t > BUNDLE_WINDOW_S);
+      details = pendingMaterial.filter((m) => t - m.t <= BUNDLE_WINDOW_S).map((m) => m.body);
+      pendingMaterial = stale;
+      flushMaterial();
     }
-    planTask(created);
-
-    state.lastMessageAt = new Date().toISOString();
-    state.lastExtractionAt = new Date().toISOString();
-    log.info(`Task captured: "${parsed.title}"${parsed.due_date ? ` (due ${parsed.due_date})` : ''}`);
+    if (details.length) {
+      parsed.description = [parsed.description, ...details].filter(Boolean).join('\n\n');
+    }
+    const created = createOwnTask(parsed, { chatId, chat, inSelfChat });
+    if (inSelfChat) lastNote = { id: created.id, t };
   } catch (err) {
     log.error('handleOwnMessage:', err?.message || err);
+  }
+}
+
+const BUNDLE_WINDOW_S = 120;
+let pendingMaterial = [];
+let materialTimer = null;
+let lastNote = null;
+
+function createOwnTask(parsed, { chatId, chat, inSelfChat }) {
+  const { remind_at: parsedTime, ...rest } = parsed;
+  const created = createTask({
+    ...rest,
+    // The clock time in a message is the deadline, not the moment to be nudged.
+    due_at: parsedTime,
+    // A forward keeps the original text but not its author, so record where it landed.
+    chat_name: inSelfChat ? 'Saved by you' : chat?.name || null,
+    chat_id: chatId,
+    source: 'whatsapp',
+    origin: 'manual',
+    status: 'open',
+  });
+  recordEvent(created.id, EVENT.created, 'from your own message');
+  if (created.due_at || created.due_date) {
+    recordEvent(created.id, EVENT.deadlineSet, created.due_at || created.due_date);
+  }
+  planTask(created);
+  state.lastMessageAt = new Date().toISOString();
+  state.lastExtractionAt = new Date().toISOString();
+  log.info(`Task captured: "${parsed.title}"${parsed.due_date ? ` (due ${parsed.due_date})` : ''}`);
+  return created;
+}
+
+/** Material sent just after a note joins that note's task as details. */
+function appendDetails(taskId, body) {
+  const task = getTask(taskId);
+  if (!task || task.status === 'done' || task.archived_at) return false;
+  updateTask(taskId, { description: [task.description, body].filter(Boolean).join('\n\n') });
+  return true;
+}
+
+function armMaterialFlush() {
+  if (materialTimer) return;
+  materialTimer = setTimeout(() => {
+    materialTimer = null;
+    flushMaterial({ all: true });
+  }, BUNDLE_WINDOW_S * 1000);
+  materialTimer.unref?.();
+}
+
+/**
+ * Material no note claimed becomes one task: its first piece with words is
+ * the title, the rest the details. Numbers and links alone stay unsaved, as
+ * they always were. `all` flushes everything; otherwise only what is past
+ * the window.
+ */
+export function flushMaterial({ all = false } = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  const due = all ? pendingMaterial : pendingMaterial.filter((m) => now - m.t > BUNDLE_WINDOW_S);
+  if (!due.length) return null;
+  pendingMaterial = pendingMaterial.filter((m) => !due.includes(m));
+  if (!pendingMaterial.length && materialTimer) { clearTimeout(materialTimer); materialTimer = null; }
+  try {
+    const lead = due.find((m) => hasWords(m.body));
+    if (!lead) return null;
+    const parsed = parseQuickTask(lead.body);
+    if (!parsed) return null;
+    const rest = due.filter((m) => m !== lead).map((m) => m.body);
+    parsed.description = [parsed.description, ...rest].filter(Boolean).join('\n\n') || null;
+    return createOwnTask(parsed, lead);
+  } catch (err) {
+    log.error('Saving forwarded messages failed:', err?.message || err);
+    return null;
   }
 }
 
@@ -885,7 +965,7 @@ export async function pollOwnMessages(page = client?.pupPage) {
           const chat = wid(m.id?.remote) || wid(m.to);
           return {
             id: key(m.id), body: m.body || '', from: wid(m.from), to: wid(m.to), t: m.t,
-            chat, self: Boolean(chat && mine.includes(chat)),
+            chat, self: Boolean(chat && mine.includes(chat)), fwd: Boolean(m.isForwarded),
           };
         });
       return { total: all.length, rows, mine };
@@ -918,6 +998,7 @@ export async function pollOwnMessages(page = client?.pupPage) {
         to: row.to,
         timestamp: row.t,
         isSelfChat: row.self === true,
+        isForwarded: row.fwd === true,
         getChat: () => client.getChatById(row.chat || row.to),
       });
     }
@@ -948,6 +1029,9 @@ function startOwnPoll() {
 /** Test seam: forget what has been handled and where the poll starts. */
 export function resetOwnPollForTests(since = null) {
   claimedOwn.clear();
+  pendingMaterial = [];
+  lastNote = null;
+  if (materialTimer) { clearTimeout(materialTimer); materialTimer = null; }
   ownPollSince = since;
   lastOwnReport = null;
   ownPolling = false;

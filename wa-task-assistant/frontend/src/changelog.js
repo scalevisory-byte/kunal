@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.32',
+    date: '2026-10-18',
+    title: 'A lead sent as several messages is one task',
+    changes: [
+      'Forward a number and an address to your own chat and type your note ("New lead follow-up") within 2 minutes, before or after: it becomes ONE task, with the number and address inside it as details.',
+      'Notes you type one after another still become separate tasks. Only forwards and bare numbers or links are joined to a note.',
+      'A forward with no note becomes a task on its own after 2 minutes, as before. A number on its own still does not.',
+      '"1st Floor" in an address is no longer read as a date. "by 15th" or "20th tak" still is.',
+    ],
+  },
+  {
     version: '1.31',
     date: '2026-10-18',
     title: 'Every note to yourself becomes a task',
