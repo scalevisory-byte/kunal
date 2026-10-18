@@ -8,6 +8,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.29',
+    date: '2026-10-18',
+    title: 'Your own chat is checked every 15 seconds',
+    changes: [
+      'The app now reads your own WhatsApp messages every 15 seconds, so a #task arrives even when WhatsApp does not announce it.',
+      'Settings → "What the connection has done" now says when this check started and what it found, so you can see it working.',
+    ],
+  },
+  {
     version: '1.28',
     date: '2026-10-18',
     title: 'Runs on your own server; #task fixed',

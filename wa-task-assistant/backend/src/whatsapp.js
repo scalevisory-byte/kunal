@@ -797,6 +797,7 @@ const claimedOwn = new Map();
 let ownPollTimer = null;
 let ownPollSince = null;
 let ownPolling = false;
+let lastOwnReport = null;
 
 function claimOwnMessage(id) {
   if (!id) return true;
@@ -813,7 +814,7 @@ export async function pollOwnMessages(page = client?.pupPage) {
   ownPolling = true;
   try {
     if (ownPollSince == null) ownPollSince = Math.floor(Date.now() / 1000) - 120;
-    const rows = await page.evaluate((since) => {
+    const seen = await page.evaluate((since) => {
       const Msg = window.require?.('WAWebCollections')?.Msg;
       if (!Msg) return null;
       const key = (k) => (k && (k._serialized || k.$1)) || null;
@@ -822,10 +823,22 @@ export async function pollOwnMessages(page = client?.pupPage) {
         if (typeof w === 'string') return w;
         return w._serialized || (w.user && w.server ? `${w.user}@${w.server}` : null);
       };
-      return Msg.getModelsArray()
+      const all = Msg.getModelsArray();
+      const rows = all
         .filter((m) => m?.id?.fromMe && m.type === 'chat' && m.t >= since)
         .map((m) => ({ id: key(m.id), body: m.body || '', from: wid(m.from), to: wid(m.to), t: m.t }));
+      return { total: all.length, rows };
     }, ownPollSince);
+    // Said once per change, in the connection log on the Settings page, so a
+    // silent check can never again look the same as a working one.
+    const rows = Array.isArray(seen) ? seen : seen?.rows;
+    const report = !Array.isArray(rows)
+      ? 'WhatsApp Web message list not found'
+      : `${seen.total ?? rows.length} messages loaded, ${rows.length} of yours since the check began`;
+    if (report !== lastOwnReport) {
+      lastOwnReport = report;
+      noteEvent('own-chat check', report);
+    }
     if (!Array.isArray(rows)) return 0;
     let handled = 0;
     for (const row of rows.sort((a, b) => a.t - b.t)) {
@@ -844,7 +857,12 @@ export async function pollOwnMessages(page = client?.pupPage) {
     }
     return handled;
   } catch (err) {
-    noteEvent('own-message check failed', err?.message || err);
+    const report = `failed: ${err?.message || err}`;
+    if (report !== lastOwnReport) {
+      lastOwnReport = report;
+      noteEvent('own-chat check', report);
+      log.warn(`Own-chat check ${report}`);
+    }
     return 0;
   } finally {
     ownPolling = false;
@@ -854,6 +872,7 @@ export async function pollOwnMessages(page = client?.pupPage) {
 function startOwnPoll() {
   installKeyShim();
   if (config.extractionMode !== 'manual' || ownPollTimer) return;
+  noteEvent('own-chat check', `started: reading your own messages every ${OWN_POLL_MS / 1000} s`);
   ownPollTimer = setInterval(() => {
     if (state.status === 'ready') pollOwnMessages();
   }, OWN_POLL_MS);
@@ -864,6 +883,7 @@ function startOwnPoll() {
 export function resetOwnPollForTests(since = null) {
   claimedOwn.clear();
   ownPollSince = since;
+  lastOwnReport = null;
   ownPolling = false;
 }
 
