@@ -120,3 +120,34 @@ describe('notes from the table, like a comment on a cell', () => {
     assert.match(css, /\.tt-notes \{[^}]*position: sticky; left: 14px/);
   });
 });
+
+/*
+ * "Make it like excel view / space saving": one line per row, a hairline
+ * round every cell, fixed column widths, a row number, and the chat in its
+ * own column instead of a second line under the title.
+ */
+describe('the table reads like a sheet', () => {
+  it('rows are one line: fixed layout, a 30px cell, nothing wraps', () => {
+    assert.match(css, /\.tt-table \{ table-layout: fixed;/);
+    assert.match(css, /\.tt-table th, \.tt-table td \{\s*\n\s*padding: 0 8px; height: 30px; border: 1px solid var\(--line\);\s*\n\s*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
+  });
+
+  it('the checkbox does not inherit the 36px field height that doubled the row', () => {
+    assert.match(css, /\.tt-table \.tt-pick input \{[^}]*min-height: 0/);
+  });
+
+  it('each row is numbered, and the chat has a column of its own', () => {
+    assert.match(table, /<td className="tt-num">\{num\}<\/td>/);
+    assert.match(table, /num=\{shown\.from \+ i\}/);
+    assert.match(table, /\{ key: 'from', label: 'From' \}/);
+    assert.doesNotMatch(table, /<small className=\{source\.unnamed/);
+  });
+
+  it('the note row spans every column, however many there are', () => {
+    assert.match(table, /<td colSpan=\{HEAD\.length \+ 3\}>/);
+  });
+
+  it('the whole title is on its tooltip, since the cell cuts it', () => {
+    assert.match(table, /title=\{`\$\{task\.title\}\\n\\n/);
+  });
+});

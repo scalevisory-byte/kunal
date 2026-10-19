@@ -37,6 +37,12 @@ describe('a sort never floats the blanks to the top', () => {
     assert.deepEqual(ids(sortRows(filed, 'folder', 'asc', { folderOf: (r) => names[r.group_id] })), [3, 2, 1]);
   });
 
+  it('sorts by who it came from, a task with no chat last', () => {
+    const chats = [t(1, { c: 'Zeta' }), t(2), t(3, { c: 'alpha' })];
+    assert.deepEqual(ids(sortRows(chats, 'from', 'asc', { sourceOf: (r) => r.c })), [3, 1, 2]);
+    assert.deepEqual(ids(sortRows(chats, 'from', 'desc', { sourceOf: (r) => r.c })), [1, 3, 2]);
+  });
+
   it('keeps the board order for ties, so a heading press does not reshuffle a day', () => {
     const same = [t(5, { due_date: '2026-09-20' }), t(2, { due_date: '2026-09-20' }), t(9, { due_date: '2026-09-20' })];
     assert.deepEqual(ids(sortRows(same, 'due', 'asc')), [5, 2, 9]);

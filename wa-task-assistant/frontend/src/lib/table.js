@@ -20,6 +20,7 @@ const deadline = (task) => task.due_at || (task.due_date ? `${task.due_date}T23:
  */
 const COLUMNS = {
   task: (t) => (t.title || '').toLowerCase() || null,
+  from: (t, ctx) => (ctx.sourceOf?.(t) || '').toLowerCase() || null,
   folder: (t, ctx) => (ctx.folderOf?.(t) || '').toLowerCase() || null,
   assignee: (t) => (t.assigned_to || '').toLowerCase() || null,
   due: (t) => deadline(t),

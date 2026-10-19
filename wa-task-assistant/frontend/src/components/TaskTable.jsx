@@ -31,6 +31,9 @@ const HEAD = [
   // When it came in, first - the same column the list leads with.
   { key: 'added', label: 'Received' },
   { key: 'task', label: 'Task' },
+  // Who asked, in a column of its own rather than a second line under every
+  // title: one line per row is what lets a page hold twice the rows.
+  { key: 'from', label: 'From' },
   { key: 'folder', label: 'Business / Folder' },
   { key: 'assignee', label: 'Assignee' },
   { key: 'due', label: 'Due date' },
@@ -45,7 +48,8 @@ function Title({ task, onOpen, rename }) {
         onClick={() => rename.openLater(() => onOpen(task))}
         onDoubleClick={rename.start}
         onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); rename.start(); } }}
-        title={rename.enabled ? 'Open · double-click or F2 to rename' : 'Open'}
+        // The title is cut to one line, so the whole of it is on the tooltip.
+        title={`${task.title}\n\n${rename.enabled ? 'Open · double-click or F2 to rename' : 'Open'}`}
       >
         {task.title}
       </button>
@@ -147,7 +151,7 @@ function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
   );
 }
 
-function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
+function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -169,21 +173,22 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
           aria-label={`Select ${task.title}`}
         />
       </td>
+      {/* Excel's row number: where you are on the page, and a way to say
+          "row 14" about a task. */}
+      <td className="tt-num">{num}</td>
       <td className="tt-rec">
-        {received ? <>{received.day}<small>{received.clock}</small></> : <span className="tt-none">—</span>}
+        {received ? <>{received.day} <small>{received.clock}</small></> : <span className="tt-none">—</span>}
       </td>
       <td className="tt-task">
         <span className="tt-title-line">
           <Title task={task} onOpen={onOpen} rename={rename} />
           {onAddUpdate && onLoadNotes && <NoteMark task={task} open={noting} onPress={() => setNoting((v) => !v)} />}
         </span>
-        {/* Who asked. A column of titles with nobody behind them is how "ye sab
-            me kisne msg kiya" was asked the first time. */}
-        {source && (
-          <small className={source.unnamed ? 'unnamed' : ''} title={source.id || undefined}>
-            {source.label}
-          </small>
-        )}
+      </td>
+      {/* Who asked. A column of titles with nobody behind them is how "ye sab
+          me kisne msg kiya" was asked the first time. */}
+      <td className={`tt-from ${source?.unnamed ? 'unnamed' : ''}`} title={source ? (source.id || source.label) : undefined}>
+        {source ? source.label : <span className="tt-none">—</span>}
       </td>
       <td className="tt-folder">
         {/* The list's own Folder button: pick a folder, move it, take it out,
@@ -203,11 +208,11 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
       </td>
       <td className={`tt-due ${due?.tone ? `t-${due.tone}` : ''}`}>
         {done ? (
-          <span className="tt-none">Done{finished && <small>{finished.day}</small>}</span>
+          <span className="tt-none">Done{finished && <small> {finished.day}</small>}</span>
         ) : due ? (
           <>
             {due.text}
-            {task.due_at && <small>{timeLabel(task.due_at)}</small>}
+            {task.due_at && <small> {timeLabel(task.due_at)}</small>}
           </>
         ) : <span className="tt-none">No date</span>}
       </td>
@@ -257,7 +262,7 @@ function Row({ task, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDe
     </tr>
     {noting && (
       <tr className="tt-note-row">
-        <td colSpan={7}>
+        <td colSpan={HEAD.length + 3}>
           <NotePanel task={task} onAddUpdate={onAddUpdate} onLoadNotes={onLoadNotes} onClose={() => setNoting(false)} />
         </td>
       </tr>
@@ -283,7 +288,10 @@ export default function TaskTable({
   const folderOf = (t) => (t.group_id ? folders.get(t.group_id) : null);
 
   const sorted = useMemo(
-    () => sortRows(tasks, sort.key, sort.dir, { folderOf: (t) => folderOf(t)?.name }),
+    () => sortRows(tasks, sort.key, sort.dir, {
+      folderOf: (t) => folderOf(t)?.name,
+      sourceOf: (t) => taskSource(t)?.label,
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tasks, sort, folders],
   );
@@ -345,10 +353,11 @@ export default function TaskTable({
                   title={`The ${onPage.length} on this page`}
                 />
               </th>
+              <th className="tt-num" title="Row number">#</th>
               {HEAD.map((h) => {
                 const on = sort.key === h.key;
                 return (
-                  <th key={h.key} aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <th key={h.key} className={`tt-h-${h.key}`} aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
                     <button className={`tt-sort ${on ? 'on' : ''}`} onClick={() => press(h.key)}>
                       {h.label}
                       <Icon name="chevronDown" size={13} className={on && sort.dir === 'asc' ? 'up' : ''} />
@@ -360,10 +369,11 @@ export default function TaskTable({
             </tr>
           </thead>
           <tbody>
-            {shown.rows.map((task) => (
+            {shown.rows.map((task, i) => (
               <Row
                 key={task.id}
                 task={task}
+                num={shown.from + i}
                 folder={folderOf(task)}
                 picked={Boolean(picked?.has(task.id))}
                 onPick={onPick}

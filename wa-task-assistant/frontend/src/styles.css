@@ -6062,6 +6062,98 @@ button.due:hover { background: var(--raised); }
 }
 .tt-done:hover { background: var(--ok-wash); border-color: var(--ok); }
 
+/*
+ * Excel's density: "make it like excel view / space saving".
+ *
+ * Every row was two or three lines tall - the date over its time, the title
+ * over the chat, the deadline over its clock - and padded for a thumb, so a
+ * laptop screen held about nine tasks. Now each row is ONE line: the date and
+ * time sit side by side, the chat has a column of its own, a long title is
+ * cut with an ellipsis (the whole of it is on the tooltip, and the drawer),
+ * and every cell has a hairline on all four sides like a sheet. Fixed column
+ * widths, as a spreadsheet has, so the columns line up down the page however
+ * long a title is.
+ *
+ * The controls in the cells stay the list's own (Folder, Assign, ✓, ✕, ⋮);
+ * only their chrome is lighter: flat until hovered, the height of the text.
+ */
+.tt-table { table-layout: fixed; min-width: 960px; font-size: .8rem; }
+.tt-table th, .tt-table td {
+  padding: 0 8px; height: 30px; border: 1px solid var(--line);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tt-table tr > :first-child { border-left: 0; }
+.tt-table tr > :last-child { border-right: 0; }
+.tt-table thead th { border-top: 0; height: 28px; font-size: .72rem; }
+.tt-table tbody tr:last-child td { border-bottom: 0; }
+.tt-table tbody tr:nth-child(even):not(.picked):not(:hover) { background: color-mix(in srgb, var(--raised) 45%, transparent); }
+/* A cell holding a menu must not clip it: the Folder and Assign pickers and
+   the ⋮ hang out of their cells. */
+.tt-table td.tt-folder, .tt-table td.tt-who, .tt-table td.tt-act, .tt-table td.tt-task { overflow: visible; }
+
+.tt-table .tt-pick { width: 32px; padding: 0 0 0 8px; }
+/* The app's fields are 36px for a thumb; a checkbox that tall was the whole
+   height of the row. */
+.tt-table .tt-pick input { width: 14px; height: 14px; min-height: 0; margin: 0; display: block; }
+.tt-table .tt-num {
+  width: 38px; padding: 0 6px; text-align: right; color: var(--muted);
+  font-family: "IBM Plex Mono", monospace; font-size: .7rem; background: var(--raised);
+}
+.tt-table .tt-h-added { width: 116px; }
+.tt-table .tt-h-from { width: 110px; }
+.tt-table .tt-h-folder { width: 112px; }
+.tt-table .tt-h-assignee { width: 104px; }
+.tt-table .tt-h-due { width: 134px; }
+.tt-table th.tt-act { width: 84px; }
+
+/* Plain figures rather than the list's mono: tabular figures still line the
+   times up, and "Yesterday 10:45 PM" fits a column half as wide. */
+.tt-table .tt-rec { width: auto; font-family: inherit; font-size: .76rem; font-variant-numeric: tabular-nums; }
+.tt-table .tt-rec small, .tt-table .tt-due small { display: inline; font-size: inherit; }
+.tt-table .tt-rec small { color: var(--muted); }
+.tt-table .tt-due { padding: 0 6px; }
+.tt-table .tt-due small { color: inherit; opacity: .8; font-weight: 400; font-size: .74rem; }
+
+/* The title takes what the fixed columns leave, on one line. */
+.tt-table .tt-task { min-width: 0; }
+.tt-table .tt-title-line { gap: 4px; }
+.tt-table .t-title-wrap { min-width: 0; flex: 0 1 auto; }
+.tt-table .tt-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 28px; font-weight: 500; }
+.tt-table .tt-note-mark { padding: 0 5px; font-size: .68rem; line-height: 18px; }
+.tt-table .t-rename { padding: 1px 3px; }
+.tt-table .t-title-edit { height: 24px; padding: 0 6px; font-size: .8rem; }
+/* The pencil and an empty Note mark take no room until the row is reached,
+   so the title gets the width they would have held empty. A touch screen has
+   no hover, so there both always show. */
+@media (hover: hover) {
+  .tt-table .t-rename, .tt-table .tt-note-mark:not(.on) { display: none; }
+  .tt-table tbody tr:hover .t-rename, .tt-table tbody tr:focus-within .t-rename { display: inline-block; }
+  .tt-table tbody tr:hover .tt-note-mark, .tt-table tbody tr:focus-within .tt-note-mark,
+  .tt-table .tt-note-mark[aria-expanded="true"] { display: inline-flex; }
+}
+.tt-from { color: var(--text-2); }
+.tt-from.unnamed { font-style: italic; color: var(--muted); }
+
+/* Folder and Assign: the same buttons, flat, the full width of the cell. */
+.tt-table .tt-who, .tt-table .tt-folder { width: auto; padding: 0 3px; }
+.tt-table .tt-who .assign, .tt-table .tt-folder .assign { width: 100%; }
+.tt-table .assign-btn {
+  width: 100%; max-width: none; min-height: 0; height: 24px; justify-content: flex-start;
+  border-color: transparent; border-radius: 4px; background: none; padding: 0 5px; font-size: .74rem;
+}
+.tt-table .assign-btn:hover, .tt-table .assign-btn[aria-expanded="true"] { border-color: var(--line-2); background: var(--card); }
+.tt-table .assign-btn.on { border-color: transparent; }
+.tt-table .tt-chip { padding: 0 6px; font-size: .72rem; }
+
+/* The row's actions, sized to a 30px row. */
+.tt-table .tt-act { width: auto; padding: 0 4px; }
+.tt-table .tt-done, .tt-table .tt-dismiss { width: 24px; height: 24px; padding: 0; border-radius: 4px; }
+.tt-table .tt-done { border-color: transparent; }
+.tt-table .tt-done:hover { border-color: var(--ok); }
+.tt-table .row-menu-btn { width: 24px; height: 24px; padding: 0; }
+.tt-table .tt-note-row td { height: auto; white-space: normal; overflow: visible; padding: 8px 14px 10px 78px; }
+@media (max-width: 760px) { .tt-table .tt-note-row td { padding-left: 14px; } }
+
 /* ---------- By Chat, WhatsApp's way: names on the left, one person on the right ---------- */
 .pc-switch {
   display: inline-flex;

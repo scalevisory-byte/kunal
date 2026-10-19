@@ -8,6 +8,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.34',
+    date: '2026-10-19',
+    title: 'The table looks like Excel and fits twice as many tasks',
+    changes: [
+      'Every row in the table is now one thin line, with grid lines around each cell like a spreadsheet. A screen holds about twice as many tasks.',
+      'Rows are numbered (#) down the left, like Excel.',
+      'The chat a task came from has its own "From" column, and you can sort by it.',
+      'Received and Due show the date and time on one line. A long task name is cut with "…"; hold the mouse over it to read all of it.',
+      'Folder and Assign in each row are flat until you point at them. The pencil and Note appear when you point at a row, so the name gets the room.',
+    ],
+  },
+  {
     version: '1.33',
     date: '2026-10-18',
     title: 'Merge tasks, and notes on every row',
