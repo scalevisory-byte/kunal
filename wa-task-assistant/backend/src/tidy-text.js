@@ -68,7 +68,16 @@ function words() {
   if (dictionary) return dictionary;
   const valid = new Set();
   const byFirst = new Map();
-  const text = fs.readFileSync(new URL('./data/english-words.txt', import.meta.url), 'utf8');
+  /*
+   * Never fatal: this runs inside createTask, and a missing list must cost the
+   * spelling fixes, not the task. Case and acronyms still apply without it.
+   */
+  let text = '';
+  try {
+    text = fs.readFileSync(new URL('./wordlist/english-words.txt', import.meta.url), 'utf8');
+  } catch (err) {
+    console.warn('Spelling list not readable; typos will not be fixed:', err?.message || err);
+  }
   const offer = (w) => {
     if (!byFirst.has(w[0])) byFirst.set(w[0], []);
     byFirst.get(w[0]).push(w);

@@ -98,3 +98,14 @@ describe('where it applies', () => {
     assert.equal(DB.getTask(id).title, 'nidhi regstartion');
   });
 });
+
+describe('the word list ships', () => {
+  it('sits outside any data/ folder, which .gitignore leaves out of every commit', () => {
+    const list = new URL('../src/wordlist/english-words.txt', import.meta.url);
+    assert.ok(fs.existsSync(list));
+    const ignore = fs.readFileSync(new URL('../../../.gitignore', import.meta.url), 'utf8');
+    assert.match(ignore, /^data\//m, 'if this rule ever goes, this case can go with it');
+    assert.doesNotMatch(list.pathname, /\/data\//);
+    assert.ok(fs.statSync(list).size > 500_000, 'the whole list, not a stub');
+  });
+});
