@@ -6153,6 +6153,19 @@ button.due:hover { background: var(--raised); }
 /* Started / Waiting beside the title: a word, not a box, so a column of them
    reads like a status column without spending one. */
 .tt-table .tt-state { font-size: .62rem; line-height: 1; }
+/* Steps beside Note: the same mark, green once every step is ticked. */
+.tt-table .tt-steps-mark.all { color: var(--ok); background: var(--ok-wash); border-color: var(--ok-wash); }
+.tt-steps { max-width: min(560px, calc(100vw - 64px)); }
+.tt-steps .field { margin: 0; }
+.tt-steps > .link { justify-self: start; }
+/* The note panel's own rules (a grid of baseline rows, padded text fields)
+   would otherwise reach the checklist inside it: a padded checkbox doubled
+   every step and pushed its bin onto a second line. */
+.tt-steps .checklist { display: block; }
+.tt-steps .checklist li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.tt-steps .checklist label { align-items: center; }
+.tt-steps .checklist input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; }
+.tt-notes li .tt-to-step { flex: none; font-size: .72rem; }
 .tt-from { color: var(--text-2); }
 .tt-from.unnamed { font-style: italic; color: var(--muted); }
 

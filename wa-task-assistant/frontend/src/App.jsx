@@ -2229,6 +2229,18 @@ export default function App() {
                           } catch (err) { setError(err.message); throw err; }
                         }}
                         onLoadNotes={(task) => api.updates(task.id)}
+                        onStepsChanged={() => refresh({ quiet: true })}
+                        onNoteToStep={async (task, note) => {
+                          // A move, not a copy: the step is added first, so a
+                          // failure in between leaves the words in both places
+                          // rather than in neither.
+                          try {
+                            await api.addSubtask(task.id, note.body);
+                            await api.deleteUpdate(task.id, note.id);
+                            refresh({ quiet: true });
+                          } catch (err) { setError(err.message); }
+                        }}
+                        onError={(err) => setError(err.message)}
                         people={people}
                         onAssign={onAssign}
                         onMove={onMove}

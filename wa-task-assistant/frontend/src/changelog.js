@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.37',
+    date: '2026-10-28',
+    title: 'Steps (checklist) next to Notes',
+    changes: [
+      'In the table, every task now has a Steps button next to Note. Press it to write the things still to do on that task, one per line, and tick each one when it is done.',
+      'The task shows how many steps are done, like 1/3. It turns green when all are ticked.',
+      'Already wrote a to-do as a note ("Need to check Sep and Oct billing")? Open the notes and press "Make it a step" next to it. It moves into the checklist.',
+      'Ticking every step does not mark the task done. Press ✓ yourself when it is finished.',
+    ],
+  },
+  {
     version: '1.36',
     date: '2026-10-28',
     title: 'An In progress tab, and Waiting',

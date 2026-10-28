@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { RowMenu, AssignButton, GroupButton } from './TaskItem.jsx';
 import DeadlineButton from './DeadlineButton.jsx';
+import Checklist from './Checklist.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
@@ -126,7 +127,35 @@ function NoteMark({ task, open, onPress }) {
   );
 }
 
-function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
+/*
+ * Steps on a row, beside the notes.
+ *
+ * Asked as "jese notes ka option he wese option do uska bhi", over SENA's
+ * notes reading "Need to check sep and oct billing", "Need to check FD
+ * portal" - things still to do, written where things already done go. A note
+ * is what happened; a step is what is left, ticked off one at a time. The
+ * checklist already existed, two folds deep in the drawer; this is the same
+ * one (`Checklist`), a press away, with its count on the row.
+ */
+function StepsMark({ task, open, onPress }) {
+  const total = task.subtask_progress?.total || 0;
+  const done = task.subtask_progress?.done || 0;
+  return (
+    <button
+      type="button"
+      className={`tt-note-mark tt-steps-mark ${total ? 'on' : ''} ${total && done === total ? 'all' : ''}`}
+      aria-expanded={open}
+      aria-label={`Checklist on ${task.title}`}
+      title={total ? `${done} of ${total} steps done · click to tick or add` : 'Add steps still to do'}
+      onClick={onPress}
+    >
+      <Icon name="check" size={13} />
+      <span>{total ? `${done}/${total}` : 'Steps'}</span>
+    </button>
+  );
+}
+
+function NotePanel({ task, onAddUpdate, onLoadNotes, onToStep, onClose }) {
   const [items, setItems] = useState(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -155,7 +184,24 @@ function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
         <ul>
           {items.map((u) => {
             const at = receivedStamp(u.created_at);
-            return <li key={u.id}><span>{u.body}</span>{at && <small>{at.day} · {at.clock}</small>}</li>;
+            return (
+              <li key={u.id}>
+                <span>{u.body}</span>
+                {at && <small>{at.day} · {at.clock}</small>}
+                {/* A note that is really something still to do ("Need to
+                    check…") moves into the checklist in one press. */}
+                {onToStep && u.body && u.body.length <= 200 && (
+                  <button
+                    type="button"
+                    className="link tt-to-step"
+                    title="Move this note into the checklist as a step to tick"
+                    onClick={async () => { await onToStep(task, u); await load(); }}
+                  >
+                    Make it a step
+                  </button>
+                )}
+              </li>
+            );
           })}
         </ul>
       ) : !task.description && <p className="tt-none">Nothing written yet.</p>}
@@ -176,7 +222,7 @@ function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
   );
 }
 
-function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDeadline, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
+function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDeadline, onStepsChanged, onNoteToStep, onError, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -186,7 +232,9 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
   // One rename per row, shared by the title and the menu: the menu's Rename
   // is the same edit for a thumb, which has neither F2 nor a double-click.
   const rename = useRename(task, onRename, { canEdit: !isDone(task) });
-  const [noting, setNoting] = useState(false);
+  // One panel under the row at a time: its notes, or its steps.
+  const [panel, setPanel] = useState(null);
+  const toggle = (which) => setPanel((now) => (now === which ? null : which));
   return (
     <>
     <tr className={`${picked ? 'picked' : ''} ${isDone(task) ? 'is-done' : ''}`}>
@@ -219,7 +267,8 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
               {task.status === 'waiting' ? 'Waiting' : 'Started'}
             </span>
           )}
-          {onAddUpdate && onLoadNotes && <NoteMark task={task} open={noting} onPress={() => setNoting((v) => !v)} />}
+          {onAddUpdate && onLoadNotes && <NoteMark task={task} open={panel === 'notes'} onPress={() => toggle('notes')} />}
+          {onStepsChanged && <StepsMark task={task} open={panel === 'steps'} onPress={() => toggle('steps')} />}
         </span>
       </td>
       {/* Who asked. A column of titles with nobody behind them is how "ye sab
@@ -316,15 +365,28 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
           onStatus={onStatus}
           onQuickDate={onQuickDate}
           onDelete={onDelete}
-          onAddUpdate={() => setNoting(true)}
+          onAddUpdate={() => setPanel('notes')}
           onRename={rename.enabled ? rename.start : undefined}
         />
       </td>
     </tr>
-    {noting && (
+    {panel && (
       <tr className="tt-note-row">
         <td colSpan={HEAD.length + 3}>
-          <NotePanel task={task} onAddUpdate={onAddUpdate} onLoadNotes={onLoadNotes} onClose={() => setNoting(false)} />
+          {panel === 'notes' ? (
+            <NotePanel
+              task={task}
+              onAddUpdate={onAddUpdate}
+              onLoadNotes={onLoadNotes}
+              onToStep={onNoteToStep}
+              onClose={() => setPanel(null)}
+            />
+          ) : (
+            <div className="tt-notes tt-steps">
+              <Checklist task={task} onChanged={onStepsChanged} onError={onError} />
+              <button type="button" className="link" onClick={() => setPanel(null)}>Close</button>
+            </div>
+          )}
         </td>
       </tr>
     )}
@@ -334,7 +396,7 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
 
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
-  onRetry, onOpen, onStatus, onQuickDate, onDeadline, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename,
+  onRetry, onOpen, onStatus, onQuickDate, onDeadline, onStepsChanged, onNoteToStep, onError, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename,
   people = [], onAssign, onMove, onManageGroups, onNewGroup,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
@@ -442,6 +504,9 @@ export default function TaskTable({
                 onStatus={onStatus}
                 onQuickDate={onQuickDate}
                 onDeadline={onDeadline}
+                onStepsChanged={onStepsChanged}
+                onNoteToStep={onNoteToStep}
+                onError={onError}
                 onDelete={onDelete}
                 onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}

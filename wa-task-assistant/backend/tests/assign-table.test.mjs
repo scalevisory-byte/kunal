@@ -221,3 +221,29 @@ describe('In progress: its own tab, Started and Waiting on the row', () => {
     assert.match(css, /\.segment\.tabs button \{ flex: none; white-space: nowrap; \}/);
   });
 });
+
+/*
+ * "Jese notes ka option he wese option do uska bhi": steps (the checklist)
+ * from the table row, beside the notes, with the count on the row.
+ */
+describe('steps on a row, like notes', () => {
+  it('a Steps mark sits beside Note and carries done/total', () => {
+    assert.match(table, /<NoteMark task=\{task\} open=\{panel === 'notes'\}[\s\S]*?<StepsMark task=\{task\} open=\{panel === 'steps'\}/);
+    assert.match(table, /\{total \? `\$\{done\}\/\$\{total\}` : 'Steps'\}/);
+  });
+
+  it('it opens the one Checklist component, not a second copy of it', () => {
+    assert.match(table, /import Checklist from '\.\/Checklist\.jsx';/);
+    assert.match(table, /<Checklist task=\{task\} onChanged=\{onStepsChanged\} onError=\{onError\} \/>/);
+    assert.doesNotMatch(table, /api\./, 'the table still fetches nothing of its own');
+  });
+
+  it('a note that is really a to-do moves into the checklist: added first, then removed', () => {
+    assert.match(table, /Make it a step/);
+    assert.match(app, /onNoteToStep=\{async \(task, note\) => \{[\s\S]*?await api\.addSubtask\(task\.id, note\.body\);\s*\n\s*await api\.deleteUpdate\(task\.id, note\.id\);/);
+  });
+
+  it('the panel keeps checkboxes the size of checkboxes', () => {
+    assert.match(css, /\.tt-steps \.checklist input\[type="checkbox"\] \{[^}]*padding: 0;/);
+  });
+});
