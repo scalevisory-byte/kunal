@@ -655,6 +655,15 @@ export default function App() {
     onEdit(task, when === null
       ? { due_date: '', due_at: '' }
       : { due_date: typeof when === 'number' ? isoDay(when) : when });
+  /*
+   * A deadline at a moment, from the table's Due cell: a day and a clock,
+   * written as both halves (the day is derived from the moment unless the
+   * caller says otherwise). The server rebuilds the reminder ladder from it.
+   */
+  const onDeadline = (task, day, clock = '18:00') =>
+    onEdit(task, day
+      ? { due_date: day, due_at: new Date(`${day}T${clock}:00`).toISOString() }
+      : { due_date: '', due_at: '' });
   /** Pushing a deadline back restarts the reminder and follow-up cycle. */
   const onSnoozeTask = (task, minutes) =>
     act(() => api.rescheduleTask(task.id, {
@@ -2196,6 +2205,7 @@ export default function App() {
                         onOpen={setOpenTask}
                         onStatus={(task, next) => onEdit(task, { status: next })}
                         onQuickDate={onQuickDate}
+                        onDeadline={onDeadline}
                         onDelete={onDelete}
                         onNotATask={onNotATask}
                         onDone={onDone}

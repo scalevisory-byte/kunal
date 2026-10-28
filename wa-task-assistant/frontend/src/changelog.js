@@ -8,6 +8,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.35',
+    date: '2026-10-28',
+    title: 'Set the due date and follow-ups straight from the table',
+    changes: [
+      'In the table, click the Due date of any task ("Set date" when it has none). Pick In 1 hour, Today 6pm, Tomorrow 11am, Tomorrow 6pm, or your own date and time.',
+      'Setting a due date turns on reminders for that task: one before the time, one at it, then follow-ups after it until you tick it done.',
+      'Point at the Due date to see the next reminder and the next follow-up. After a follow-up it shows ↻1/3, and "stopped" once the app has stopped asking.',
+      'Task allotted has the same In 1 hour and Tomorrow 11am choices.',
+    ],
+  },
+  {
     version: '1.34',
     date: '2026-10-19',
     title: 'The table looks like Excel and fits twice as many tasks',

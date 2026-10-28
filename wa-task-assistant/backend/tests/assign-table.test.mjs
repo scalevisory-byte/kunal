@@ -151,3 +151,37 @@ describe('the table reads like a sheet', () => {
     assert.match(table, /title=\{`\$\{task\.title\}\\n\\n/);
   });
 });
+
+/*
+ * "Due date and followup engine kese add karna he": the Due cell read "No
+ * date" and could not be pressed, and the deadline is the one thing that
+ * starts reminders and follow-ups. It is the shared deadline control now.
+ */
+describe('the Due cell sets the deadline, which starts the follow-up engine', () => {
+  const shared = fs.readFileSync(new URL('../../frontend/src/components/DeadlineButton.jsx', import.meta.url), 'utf8');
+  const deleg = fs.readFileSync(new URL('../../frontend/src/components/Delegation.jsx', import.meta.url), 'utf8');
+
+  it('the table and Task allotted use one control, not two copies', () => {
+    assert.match(table, /import DeadlineButton from '\.\/DeadlineButton\.jsx'/);
+    assert.match(deleg, /import DeadlineButton from '\.\/DeadlineButton\.jsx'/);
+    assert.doesNotMatch(deleg, /function DeadlineButton/);
+    assert.match(table, /<td className=\{`tt-due[\s\S]*?<DeadlineButton[\s\S]*?onDeadline=\{onDeadline\}/);
+  });
+
+  it('offers a call-back in an hour and tomorrow morning, and a date and time', () => {
+    assert.match(shared, /onClick=\{\(\) => inHours\(1\)\}>In 1 hour</);
+    assert.match(shared, /set\(dayAfter\(1\), '11:00'\)\}>Tomorrow, 11am</);
+    assert.match(shared, /type="date"[\s\S]*?type="time"/);
+  });
+
+  it('writes both halves of the deadline, so the server rebuilds the ladder', () => {
+    assert.match(app, /const onDeadline = \(task, day, clock = '18:00'\) =>[\s\S]*?due_date: day, due_at: new Date\(`\$\{day\}T\$\{clock\}:00`\)\.toISOString\(\)[\s\S]*?\{ due_date: '', due_at: '' \}/);
+    assert.match(app, /<TaskTable[\s\S]*?onDeadline=\{onDeadline\}/);
+  });
+
+  it('says what the engine will do on the cell: nothing without a deadline, the next follow-up with one', () => {
+    assert.match(table, /No deadline, so nothing is chased/);
+    assert.match(table, /Next follow-up: /);
+    assert.match(table, /Stopped asking after/);
+  });
+});

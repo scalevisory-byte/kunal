@@ -210,7 +210,8 @@ describe('nothing is chased automatically without a deadline', () => {
       'finished work needs no deadline and is not counted');
     assert.match(src, /undated > 0 &&/, 'and the line is not shown when it is not true');
     // The way out is on the row, not on another page.
-    assert.match(src, /function DeadlineButton/);
+    assert.match(src, /import DeadlineButton from '\.\/DeadlineButton\.jsx'/);
+    assert.match(src, /<DeadlineButton\b/);
     assert.match(src, /Set a deadline/);
   });
 

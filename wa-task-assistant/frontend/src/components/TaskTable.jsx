@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { RowMenu, AssignButton, GroupButton } from './TaskItem.jsx';
+import DeadlineButton from './DeadlineButton.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
@@ -38,6 +39,30 @@ const HEAD = [
   { key: 'assignee', label: 'Assignee' },
   { key: 'due', label: 'Due date' },
 ];
+
+/*
+ * What the follow-up engine will do for this task, in a sentence - the
+ * tooltip on the Due cell. The engine's rule is the deadline: none, nothing
+ * is chased; one, a reminder before it and at it, then follow-ups until the
+ * task is done or the follow-ups run out.
+ */
+function chaseNote(task) {
+  if (!task.due_at && !task.due_date) {
+    return 'No deadline, so nothing is chased. Pick a time: you get a reminder then, and follow-ups after it until you tick it done.';
+  }
+  const at = (iso) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const lines = [];
+  if (task.needs_attention) {
+    lines.push(`Stopped asking after ${task.follow_up_count} follow-ups. Set a new time to start again.`);
+  } else {
+    if (task.next_reminder_at) lines.push(`Next reminder: ${at(task.next_reminder_at)}`);
+    if (task.next_follow_up_at) lines.push(`Next follow-up: ${at(task.next_follow_up_at)}`);
+    if (task.follow_up_count > 0) lines.push(`Follow-up ${task.follow_up_count} of ${task.follow_up_max} sent`);
+    lines.push('Follow-ups continue after the deadline until you tick it done.');
+  }
+  lines.push('Click to change.');
+  return lines.join('\n');
+}
 
 function Title({ task, onOpen, rename }) {
   if (rename.editing) return <input {...rename.fieldProps} />;
@@ -151,7 +176,7 @@ function NotePanel({ task, onAddUpdate, onLoadNotes, onClose }) {
   );
 }
 
-function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
+function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate, onDeadline, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename, people, onAssign, groups, onMove, onManageGroups, onNewGroup }) {
   const done = isDone(task);
   // A finished task is not late: it is done, and when it was done is the fact.
   const due = done ? null : dueLabel(task.due_date);
@@ -209,6 +234,30 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
       <td className={`tt-due ${due?.tone ? `t-${due.tone}` : ''}`}>
         {done ? (
           <span className="tt-none">Done{finished && <small> {finished.day}</small>}</span>
+        ) : onDeadline ? (
+          /*
+           * The deadline is the switch for the follow-up engine, so the cell
+           * that shows it is the control that sets it: "due date and followup
+           * engine kese add karna he", asked over thirty rows reading "No date"
+           * that nothing could press.
+           */
+          <DeadlineButton
+            task={task}
+            onDeadline={onDeadline}
+            className="tt-deadline"
+            title={chaseNote(task)}
+            label={due ? (
+              <>
+                {due.text}
+                {task.due_at && <small> {timeLabel(task.due_at)}</small>}
+                {task.needs_attention
+                  ? <small className="tt-chase"> · stopped</small>
+                  : task.follow_up_count > 0 && (
+                    <small className="tt-chase"> · ↻{task.follow_up_count}/{task.follow_up_max}</small>
+                  )}
+              </>
+            ) : 'Set date'}
+          />
         ) : due ? (
           <>
             {due.text}
@@ -273,7 +322,7 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
 
 export default function TaskTable({
   tasks, loading, error, groups = [], picked, onPick, onPickMany, scope = '',
-  onRetry, onOpen, onStatus, onQuickDate, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename,
+  onRetry, onOpen, onStatus, onQuickDate, onDeadline, onDelete, onNotATask, onDone, onAddUpdate, onLoadNotes, onRename,
   people = [], onAssign, onMove, onManageGroups, onNewGroup,
 }) {
   // Newest first, and finished work below all of it (sortRows does that for
@@ -380,6 +429,7 @@ export default function TaskTable({
                 onOpen={onOpen}
                 onStatus={onStatus}
                 onQuickDate={onQuickDate}
+                onDeadline={onDeadline}
                 onDelete={onDelete}
                 onNotATask={onNotATask}
                 onAddUpdate={onAddUpdate}
