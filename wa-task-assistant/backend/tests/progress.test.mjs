@@ -98,7 +98,7 @@ await run('an empty update is refused rather than stored', () => {
   assert.equal(P.updatesFor(t.id).length, 0);
 });
 
-await run('an update never touches the deadline or the status', async () => {
+await run('an update never touches the deadline, or a status already set', async () => {
   const due = new Date(Date.now() + 4 * 3600_000).toISOString();
   const t = DB.createTask({ title: 'Send the notice', due_at: due, status: 'in_progress' });
   await call('POST', `/api/tasks/${t.id}/updates`, { body: 'lawyer ne draft bheja', stage: 'Draft received' });
@@ -106,6 +106,32 @@ await run('an update never touches the deadline or the status', async () => {
   assert.equal(after.due_at, due, 'writing a note is not rescheduling');
   assert.equal(after.status, 'in_progress');
   assert.equal(after.stage, 'Draft received');
+});
+
+/*
+ * The one status a note does change: open -> in progress. "Jo task under
+ * progress he usko alag tab" - he writes down every call, so the first note is
+ * when a task stops being untouched. Anything he set himself is left alone.
+ */
+await run('the first note on an open task starts it, and says so in the record', async () => {
+  const due = new Date(Date.now() + 4 * 3600_000).toISOString();
+  const t = DB.createTask({ title: 'Call Monika about the sheet', due_at: due });
+  assert.equal(DB.getTask(t.id).status, 'open');
+  const res = await call('POST', `/api/tasks/${t.id}/updates`, { body: 'spoke to her, sheet pending' });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.task.status, 'in_progress', 'the response carries the new status');
+  assert.equal(DB.getTask(t.id).due_at, due, 'and still not a reschedule');
+  const moved = E.eventsForTask(t.id).filter((e) => e.kind === 'status changed').map((e) => e.detail);
+  assert.deepEqual(moved, ['open → in_progress (first note)']);
+});
+
+await run('a note leaves waiting and done exactly as they were', async () => {
+  for (const status of ['waiting', 'done']) {
+    const t = DB.createTask({ title: `Already ${status}`, status });
+    await call('POST', `/api/tasks/${t.id}/updates`, { body: 'news' });
+    assert.equal(DB.getTask(t.id).status, status);
+    assert.equal(E.eventsForTask(t.id).filter((e) => e.kind === 'status changed').length, 0);
+  }
 });
 
 await run('the move between stages is in the permanent record', async () => {

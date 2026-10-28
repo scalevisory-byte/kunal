@@ -8,6 +8,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.36',
+    date: '2026-10-28',
+    title: 'An In progress tab, and Waiting',
+    changes: [
+      'New In progress tab, between Open and All: every task you have started, with its count on the tab.',
+      'Writing the first note on a task moves it to In progress by itself. You do not have to press anything else.',
+      'When your part is done and you are waiting on someone (the bank, a CA, a client), use ⋮ → Waiting on someone. It stays in In progress, marked WAITING, and its reminders keep running.',
+      'In the table, a started task shows STARTED next to its name and a waiting one shows WAITING. Tasks not started yet show nothing.',
+      'From ⋮ you can move a task back: Back to in progress, or Back to open.',
+    ],
+  },
+  {
     version: '1.35',
     date: '2026-10-28',
     title: 'Set the due date and follow-ups straight from the table',

@@ -639,6 +639,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
   margin-bottom: 2px;
 }
 .tabs button { padding: 6px 15px; font-size: .82rem; }
+/* Six tabs do not fit a phone: the strip scrolls inside itself rather than
+   pushing the page sideways, and no label breaks over two lines. */
+.segment.tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.segment.tabs::-webkit-scrollbar { display: none; }
+.segment.tabs button { flex: none; white-space: nowrap; }
 .toolbar .segment button { font-size: .78rem; padding: 5px 11px; min-height: 26px; }
 .toolbar .btn { font-size: .8rem; padding: 6px 12px; min-height: 30px; }
 
@@ -6145,6 +6150,9 @@ button.due:hover { background: var(--raised); }
 .tt-table .deadline-btn.none { color: var(--muted); border-style: solid; border-color: transparent; }
 .tt-table tbody tr:hover .deadline-btn.none { border-style: dashed; border-color: var(--line-2); }
 .tt-table .tt-chase { opacity: .8; font-weight: 400; }
+/* Started / Waiting beside the title: a word, not a box, so a column of them
+   reads like a status column without spending one. */
+.tt-table .tt-state { font-size: .62rem; line-height: 1; }
 .tt-from { color: var(--text-2); }
 .tt-from.unnamed { font-style: italic; color: var(--muted); }
 

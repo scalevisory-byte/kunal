@@ -5,7 +5,7 @@ import DeadlineButton from './DeadlineButton.jsx';
 import { useRename } from '../rename.js';
 import { sortRows, pageOf, pageList, PAGE_SIZES } from '../lib/table.js';
 import {
-  isDone, dueLabel, taskSource, timeLabel, receivedStamp,
+  isDone, isStarted, dueLabel, taskSource, timeLabel, receivedStamp,
 } from '../lib/task.js';
 
 /*
@@ -207,6 +207,18 @@ function Row({ task, num, folder, picked, onPick, onOpen, onStatus, onQuickDate,
       <td className="tt-task">
         <span className="tt-title-line">
           <Title task={task} onOpen={onOpen} rename={rename} />
+          {/* Where it stands, in the row: started, or done on his side and
+              waiting on somebody. An untouched task carries nothing. */}
+          {!done && isStarted(task) && (
+            <span
+              className={`state-chip tt-state ${task.status === 'waiting' ? 'waiting' : ''}`}
+              title={task.status === 'waiting'
+                ? `Waiting${task.waiting_for ? ` on ${task.waiting_for}` : ' on someone'} · ⋮ → Back to in progress`
+                : 'Started · ⋮ → Waiting on someone'}
+            >
+              {task.status === 'waiting' ? 'Waiting' : 'Started'}
+            </span>
+          )}
           {onAddUpdate && onLoadNotes && <NoteMark task={task} open={noting} onPress={() => setNoting((v) => !v)} />}
         </span>
       </td>

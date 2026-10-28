@@ -185,3 +185,39 @@ describe('the Due cell sets the deadline, which starts the follow-up engine', ()
     assert.match(table, /Stopped asking after/);
   });
 });
+
+/*
+ * "Jo task under progress he usko alag tab": an In progress tab beside Open,
+ * the first note starting a task (pinned in progress.test.mjs), and Waiting
+ * as the second half of the same tab.
+ */
+describe('In progress: its own tab, Started and Waiting on the row', () => {
+  const lib = fs.readFileSync(new URL('../../frontend/src/lib/task.js', import.meta.url), 'utf8');
+  const derive = fs.readFileSync(new URL('../../frontend/src/lib/derive.js', import.meta.url), 'utf8');
+  const item = fs.readFileSync(new URL('../../frontend/src/components/TaskItem.jsx', import.meta.url), 'utf8');
+
+  it('one rule decides it: started or waiting', () => {
+    assert.match(lib, /export const isStarted = \(task\) => task\.status === 'in_progress' \|\| task\.status === 'waiting';/);
+  });
+
+  it('the tab sits between Open and All, and its badge and its list use that rule', () => {
+    assert.match(app, /\{ key: 'open', label: 'Open' \},[\s\S]*?\{ key: 'in_progress', label: 'In progress', count: summary\.counts\.inProgress \},[\s\S]*?\{ key: 'all', label: 'All' \}/);
+    assert.match(app, /if \(view === 'in_progress' && !isStarted\(task\)\) return false;/);
+    assert.match(derive, /inProgress: open\.filter\(isStarted\)\.length/);
+  });
+
+  it('the ⋮ menu moves a task along: Start, Waiting on someone, back again', () => {
+    assert.match(item, /task\.status === 'open' && \([\s\S]*?onStatus\(task, 'in_progress'\)[\s\S]*?Start/);
+    assert.match(item, /task\.status === 'in_progress' && \([\s\S]*?onStatus\(task, 'waiting'\)[\s\S]*?Waiting on someone/);
+    assert.match(item, /task\.status === 'waiting' && \([\s\S]*?onStatus\(task, 'in_progress'\)[\s\S]*?Back to in progress/);
+  });
+
+  it('the table row says Started or Waiting, and an untouched task says nothing', () => {
+    assert.match(table, /\{!done && isStarted\(task\) && \([\s\S]*?\{task\.status === 'waiting' \? 'Waiting' : 'Started'\}/);
+  });
+
+  it('six tabs scroll inside their strip on a phone instead of pushing the page sideways', () => {
+    assert.match(css, /\.segment\.tabs \{ max-width: 100%; overflow-x: auto;/);
+    assert.match(css, /\.segment\.tabs button \{ flex: none; white-space: nowrap; \}/);
+  });
+});

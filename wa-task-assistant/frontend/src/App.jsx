@@ -49,7 +49,7 @@ import Delegation from './components/Delegation.jsx';
 import WhatsNew from './components/WhatsNew.jsx';
 import { CURRENT, lastSeen, markSeen, unseen } from './changelog.js';
 import { useInstall } from './lib/install.js';
-import { isAllotted, isDone, isOverdue, isoDay, matchesQuery, taskChat, taskMonth, todayIso } from './lib/task.js';
+import { isAllotted, isDone, isOverdue, isStarted, isoDay, matchesQuery, taskChat, taskMonth, todayIso } from './lib/task.js';
 import { getTheme, setTheme } from './lib/theme.js';
 import { chatCounts, greeting, onDay, summarise } from './lib/derive.js';
 import { needsAttention } from './lib/schedule.js';
@@ -809,7 +809,8 @@ export default function App() {
       if (withSomebody(task) && !showAllotted && !personView) return false;
 
       if (view === 'open' && isDone(task)) return false;
-      if (view === 'in_progress' && task.status !== 'in_progress') return false;
+      // Started and not finished: being worked on, or waiting on somebody.
+      if (view === 'in_progress' && !isStarted(task)) return false;
       if (view === 'overdue' && !isOverdue(task)) return false;
       if (view === 'done' && !isDone(task)) return false;
       // Completed, narrowed to one day it was actually closed on.
@@ -1969,6 +1970,17 @@ export default function App() {
                             {[
                               { key: 'myday', label: 'My Day' },
                               { key: 'open', label: 'Open' },
+                              /*
+                               * Work under way, apart from the pile.
+                               *
+                               * Asked as "jo task under progress he usko alag
+                               * tab". A task gets here by Start on the ⋮, by
+                               * Waiting, or by its first note - writing down a
+                               * call is starting the work. The badge is the same
+                               * count the list holds (`isStarted` over the
+                               * board's tasks).
+                               */
+                              { key: 'in_progress', label: 'In progress', count: summary.counts.inProgress },
                               { key: 'all', label: 'All' },
                               /*
                                * The two sides of work that is not only his.

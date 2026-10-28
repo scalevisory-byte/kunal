@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import express from 'express';
-import { getTask, createTask } from '../db.js';
+import { getTask, createTask, updateTask } from '../db.js';
 import { normalizeDueDate, normalizeInstant } from '../dates.js';
 import {
   subtasksFor, addSubtask, updateSubtask, deleteSubtask, reorderSubtasks, addSubtasks,
@@ -95,6 +95,18 @@ subtaskRouter.post('/:id/updates', requireTask, (req, res) => {
       recordEvent(req.task.id, EVENT.stageChanged, update.stage || 'no stage');
     } else {
       recordEvent(req.task.id, EVENT.progressNoted);
+    }
+    /*
+     * Writing down what happened is starting the work.
+     *
+     * Asked as "jo task under progress he usko alag tab": he notes every call
+     * and visit, so the first note is the moment a task stops being untouched.
+     * Only `open` moves - a task already started, waiting on somebody or done
+     * keeps the status he gave it, because a note is news, not a decision.
+     */
+    if (req.task.status === 'open') {
+      updateTask(req.task.id, { status: 'in_progress' });
+      recordEvent(req.task.id, EVENT.statusChanged, 'open → in_progress (first note)');
     }
     res.status(201).json({
       update,

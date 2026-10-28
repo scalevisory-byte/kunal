@@ -1,4 +1,4 @@
-import { isDone, isOverdue, isoDay, taskChat, todayIso } from './task.js';
+import { isDone, isOverdue, isStarted, isoDay, taskChat, todayIso } from './task.js';
 
 /** SQLite writes "YYYY-MM-DD HH:MM:SS" in UTC with no marker; Date needs one. */
 export function parseStamp(value) {
@@ -49,7 +49,9 @@ export function summarise(tasks) {
     open,
     counts: {
       open: open.length,
-      inProgress: open.filter((t) => t.status === 'in_progress').length,
+      // Started and not finished, waiting on somebody included: the same
+      // rule as the In progress tab, so its badge and its list agree.
+      inProgress: open.filter(isStarted).length,
       overdue: overdue.length,
       done: tasks.filter(isDone).length,
       dueToday: dueToday.length,

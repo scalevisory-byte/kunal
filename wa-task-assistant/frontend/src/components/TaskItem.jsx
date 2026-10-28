@@ -400,12 +400,25 @@ export function RowMenu({ task, onOpen, onStatus, onQuickDate, onDelete, onAddUp
       </button>
       {open && (
         <div className="menu" role="menu">
-          {task.status !== 'in_progress' && !isDone(task) && (
+          {task.status === 'open' && (
             <button role="menuitem" onClick={run(() => onStatus(task, 'in_progress'))}>
               <Icon name="play" size={15} /> Start
             </button>
           )}
+          {/* Done on his side, now with somebody else - the bank, a CA, a
+              client. Still owed, still reminded; the In progress tab says
+              which of its rows are waiting. */}
           {task.status === 'in_progress' && (
+            <button role="menuitem" onClick={run(() => onStatus(task, 'waiting'))}>
+              <Icon name="clock" size={15} /> Waiting on someone
+            </button>
+          )}
+          {task.status === 'waiting' && (
+            <button role="menuitem" onClick={run(() => onStatus(task, 'in_progress'))}>
+              <Icon name="play" size={15} /> Back to in progress
+            </button>
+          )}
+          {(task.status === 'in_progress' || task.status === 'waiting') && (
             <button role="menuitem" onClick={run(() => onStatus(task, 'open'))}>
               <Icon name="circle" size={15} /> Back to open
             </button>

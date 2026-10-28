@@ -14,6 +14,13 @@ export const todayIso = () => new Date().toLocaleDateString('en-CA');
 export const isoDay = (offset = 0) =>
   new Date(Date.now() + offset * dayMs).toLocaleDateString('en-CA');
 
+/**
+ * Work that has been started and is not finished: being done, or done on his
+ * side and waiting on somebody else. The In progress tab, its count and the
+ * table's status mark all read this one rule.
+ */
+export const isStarted = (task) => task.status === 'in_progress' || task.status === 'waiting';
+
 export const STATUSES = [
   { key: 'open', label: 'Open' },
   { key: 'in_progress', label: 'In progress' },
