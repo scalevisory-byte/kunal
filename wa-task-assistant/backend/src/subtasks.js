@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { tidyText } from './tidy-text.js';
 
 /**
  * A checklist inside one task.
@@ -39,7 +40,7 @@ export function subtaskProgressFor(taskIds) {
 }
 
 export function addSubtask(taskId, title) {
-  const clean = String(title || '').trim();
+  const clean = tidyText(String(title || '')).trim();
   if (!clean) throw new Error('a checklist item needs a title');
   const next = db
     .prepare(`SELECT COALESCE(MAX(position), 0) + 1 AS n FROM subtasks WHERE task_id = ?`)

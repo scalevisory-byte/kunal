@@ -8,6 +8,19 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.38',
+    date: '2026-10-28',
+    title: 'Task names and notes are written properly by themselves',
+    changes: [
+      'Common spelling mistakes are fixed as you write them: "documnet" becomes document, "Regstartion" registration, "Rebewal" renewal, "agaienst" against, "SUBMITED" submitted, "Tommorow" tomorrow.',
+      'Every task name, note and step starts with a capital. GST, TDS, BNF, ICICI, CA, PAN, OD, FD and similar are always in capitals. A note typed in ALL CAPS is put into normal case.',
+      '"It return" becomes "IT return", "Followup" becomes "Follow-up" and "q2" becomes "Q2".',
+      'Names and Hindi or Gujarati words are never changed. A word is only fixed when the app is sure what you meant, so a name like Vikas or Daman stays as it is.',
+      'Tasks already on your list were fixed once when this version started. The old name is kept in each task\'s history.',
+      'If you rename a task yourself, it stays exactly as you typed it.',
+    ],
+  },
+  {
     version: '1.37',
     date: '2026-10-28',
     title: 'Steps (checklist) next to Notes',

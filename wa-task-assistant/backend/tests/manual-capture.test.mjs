@@ -170,7 +170,8 @@ describe('his own chat, whichever id WhatsApp files it under', () => {
     await WA.handleOwnMessage(own('Airfix gst adress change by tomorrow', {
       from: '919909993565@c.us', to: '202383321759941@lid', chatFails: true,
     }));
-    assert.ok(titles().some((t) => /Airfix gst adress change/.test(t)));
+    // Tidied on the way in (tidy-text.js): GST in capitals, the typo fixed.
+    assert.ok(titles().some((t) => /Airfix GST address change/.test(t)));
   });
 
   it('the poll learns his ids from the page and trusts its own "this is you"', async () => {
@@ -185,7 +186,7 @@ describe('his own chat, whichever id WhatsApp files it under', () => {
       }],
     }) };
     assert.equal(await WA.pollOwnMessages(page), 1);
-    assert.ok(titles().includes('Sena GST refund follow up'));
+    assert.ok(titles().includes('Sena GST refund follow-up'));
     assert.deepEqual(WA.state.myIds, ['919909993565@c.us', '202383321759941@lid']);
   });
 
@@ -261,7 +262,8 @@ describe('a lead sent as several messages is one task', () => {
     const task = row('New lead follow-up');
     assert.ok(task, 'the note is the task');
     assert.match(task.description, /7043767616/);
-    assert.match(task.description, /LAXMI TOURS/);
+    // The shouted name is put into readable case; the ordinal stays small.
+    assert.match(task.description, /Laxmi Tours and Travels\n1st Floor/);
     assert.equal(task.due_date, null, '"1st Floor" is not a date');
     assert.ok(!titles().some((x) => /LAXMI/.test(x)), 'the address is not a task of its own');
   });
@@ -271,7 +273,7 @@ describe('a lead sent as several messages is one task', () => {
     const t = Math.floor(Date.now() / 1000);
     await WA.handleOwnMessage(at(t, 'Shah Traders quotation follow up'));
     await WA.handleOwnMessage(at(t + 30, '9898012345', { isForwarded: true }));
-    assert.match(row('Shah Traders quotation follow up').description, /9898012345/);
+    assert.match(row('Shah Traders quotation follow-up').description, /9898012345/);
   });
 
   it('notes typed one after another stay separate tasks', async () => {

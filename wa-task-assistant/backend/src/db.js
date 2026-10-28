@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { config } from './config.js';
-import { unshout } from './titlecase.js';
+import { tidyText } from './tidy-text.js';
 import { log } from './logger.js';
 import { numberOrNull } from './dates.js';
 import { patternWouldDrop } from './blocklist.js';
@@ -997,11 +997,11 @@ function dayOfInstant(iso, tz = config.timezone) {
 
 export function createTask(input) {
   const row = {
-    // A shouted title is put into readable case here rather than at each caller,
-    // so the hand-typed form, a quickparse and a monthly rule all get it. See
-    // titlecase.js for why only the case is touched and not the spelling.
-    title: unshout(input.title),
-    description: input.description ?? null,
+    // Tidied here rather than at each caller, so the hand-typed form, a
+    // quickparse, a WhatsApp note and a monthly rule all get it: readable case
+    // and the plain typos fixed. See tidy-text.js for how narrow that is.
+    title: tidyText(input.title),
+    description: tidyText(input.description) ?? null,
     contact: input.contact ?? null,
     chat_name: input.chat_name ?? null,
     chat_id: input.chat_id ?? null,

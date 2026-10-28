@@ -18,7 +18,7 @@
  * Anything here survives; anything with a digit or a hyphen (GSTR-3B, Q1, A2G)
  * survives too. Everything else is a word that was shouted.
  */
-const ACRONYMS = new Set([
+export const ACRONYMS = new Set([
   'gst', 'gstr', 'tds', 'tcs', 'pan', 'tan', 'noc', 'jv', 'hr', 'ca', 'cs',
   'itr', 'pf', 'esi', 'msme', 'kyc', 'emi', 'neft', 'rtgs', 'imps', 'upi',
   'llp', 'pvt', 'ltd', 'inr', 'ay', 'fy', 'b2b', 'b2c', 'dp', 'adv', 'idmc',

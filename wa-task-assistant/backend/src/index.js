@@ -169,6 +169,18 @@ try {
     log.warn('Could not seed the watch list:', err?.message || err);
   }
 
+  /*
+   * Names, details, notes and steps already on the list, tidied once: the
+   * typos and the stray capitals, by the same narrow rule new ones get.
+   */
+  try {
+    const { tidyExistingOnce } = await import('./tidy-existing.js');
+    const r = tidyExistingOnce();
+    if (r.ran) log.info(`Tidied spelling and case: ${r.tasks} tasks, ${r.notes} notes, ${r.steps} steps.`);
+  } catch (err) {
+    log.warn('Could not tidy existing task names:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;

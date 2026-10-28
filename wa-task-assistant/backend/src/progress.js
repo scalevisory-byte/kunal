@@ -1,4 +1,5 @@
 import { db } from './db.js';
+import { tidyText } from './tidy-text.js';
 
 /**
  * What is actually happening on a task.
@@ -68,7 +69,7 @@ export function updateCountFor(taskIds) {
  * case - most updates are news, not progress - and it keeps the current one.
  */
 export function addUpdate(taskId, { body, stage } = {}) {
-  const text = clean(body, 1000);
+  const text = clean(tidyText(body), 1000);
   const nextStage = stage === undefined || stage === null ? null : clean(stage, 40);
   if (!text && !nextStage) throw new Error('an update needs something in it');
 

@@ -262,7 +262,8 @@ describe('the handover message', () => {
 
     const handover = handoverText(task);
     assert.match(handover, /this one is with you/i);
-    assert.match(handover, /File pvt ltd UK GSTR 3B with RCM/);
+    // The name as the list shows it: tidied on the way in, so PVT LTD.
+    assert.match(handover, /File pvt ltd UK GSTR 3B with RCM/i);
     // "A quick update please" about work nobody has been told about yet reads
     // as a reproach for not having done it.
     assert.ok(!/quick update/i.test(handover));

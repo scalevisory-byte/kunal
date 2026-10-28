@@ -67,7 +67,8 @@ await run('updates read newest first, and every one is kept', () => {
   P.addUpdate(t.id, { body: 'first' });
   P.addUpdate(t.id, { body: 'second' });
   P.addUpdate(t.id, { body: 'third' });
-  assert.deepEqual(P.updatesFor(t.id).map((u) => u.body), ['third', 'second', 'first']);
+  // A note starts with a capital (tidy-text.js), so they read back as Third…
+  assert.deepEqual(P.updatesFor(t.id).map((u) => u.body), ['Third', 'Second', 'First']);
 });
 
 await run('a stage moves the task and is remembered on the update that moved it', () => {
@@ -157,7 +158,7 @@ await run('the list carries the last update, so a row need not fetch its own', a
   P.addUpdate(t.id, { body: 'newest thing said' });
   const res = await call('GET', '/api/tasks?status=all&limit=500');
   const row = res.body.tasks.find((x) => x.id === t.id);
-  assert.equal(row.latest_update.body, 'newest thing said');
+  assert.equal(row.latest_update.body, 'Newest thing said');
   assert.equal(row.update_count, 2);
 });
 
@@ -190,7 +191,7 @@ await run('an update can be removed, and takes nothing else with it', async () =
   P.addUpdate(t.id, { body: 'right' });
   const res = await call('DELETE', `/api/tasks/${t.id}/updates/${bad.id}`);
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.updates.map((u) => u.body), ['right']);
+  assert.deepEqual(res.body.updates.map((u) => u.body), ['Right']);
   assert.ok(DB.getTask(t.id), 'the task is untouched');
 });
 
