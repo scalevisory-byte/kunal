@@ -63,13 +63,29 @@ function lockoutRemaining(ip) {
   return left > 0 ? left : 0;
 }
 
-function recordFailure(ip) {
+/*
+ * Five DIFFERENT wrong passwords lock an address out; the same wrong one sent
+ * again is not another guess.
+ *
+ * The dashboard fires three to six requests at once on every load and polls
+ * every thirty seconds, all carrying whatever password the browser saved. One
+ * stale password - changed on the server, or saved by an older install of the
+ * same address - therefore spent all five attempts in the first second and
+ * locked the device out before a key was pressed. Reported as "Too many wrong
+ * passwords, locked out for about 6 minutes" over a dashboard of zeros. An
+ * attacker gains nothing from repeating a guess, so counting each distinct
+ * wrong password once costs the lock nothing. Only a digest is kept.
+ */
+function recordFailure(ip, token = '') {
   const now = Date.now();
   let rec = attempts.get(ip);
   if (!rec || now - rec.firstFailureAt > WINDOW_MS) {
-    rec = { failures: 0, firstFailureAt: now, lockedUntil: 0 };
+    rec = { failures: 0, firstFailureAt: now, lockedUntil: 0, tried: new Set() };
     attempts.set(ip, rec);
   }
+  const digest = crypto.createHash('sha256').update(String(token)).digest('hex');
+  if (rec.tried.has(digest)) return rec;
+  rec.tried.add(digest);
   rec.failures += 1;
   if (rec.failures >= MAX_FAILURES) {
     rec.lockedUntil = now + LOCKOUT_MS;
@@ -132,7 +148,11 @@ export function requireAuth(req, res, next) {
   // wrong password counts - which is still every attempt an attacker can make.
   if (!token) return res.status(401).json({ error: 'unauthorized' });
 
-  const rec = recordFailure(ip);
+  const prev = attempts.get(ip);
+  const before = prev?.failures || 0;
+  const rec = recordFailure(ip, token);
+  // A repeat of a password already refused is not logged again either.
+  if (rec === prev && rec.failures === before) return res.status(401).json({ error: 'unauthorized' });
   log.warn(`Auth: failed attempt from ${ip} (${rec.failures}/${MAX_FAILURES}) on ${req.method} ${req.originalUrl}`);
   return res.status(401).json({ error: 'unauthorized' });
 }

@@ -41,7 +41,7 @@ const POINTS = [
   { icon: 'shield', title: 'Secure & Reliable', note: 'Your data is safe with us' },
 ];
 
-export default function Login({ onSubmit, hadToken, build }) {
+export default function Login({ onSubmit, hadToken, lockedMins = 0, build }) {
   const [password, setPassword] = useState('');
   /*
    * Which name is being tried. Past the end of the list there is no photograph,
@@ -120,9 +120,11 @@ export default function Login({ onSubmit, hadToken, build }) {
 
           <h2>Welcome Back</h2>
           <p className={`login-sub ${rejected ? 'bad' : ''}`}>
-            {rejected
-              ? 'That password was rejected. Try again.'
-              : 'Enter the dashboard password to continue.'}
+            {lockedMins > 0
+              ? `Too many wrong passwords. Try again in about ${lockedMins} minute${lockedMins === 1 ? '' : 's'}.`
+              : rejected
+                ? 'That password was rejected. Try again.'
+                : 'Enter the dashboard password to continue.'}
           </p>
 
           <form

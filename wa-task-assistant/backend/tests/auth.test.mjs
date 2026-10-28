@@ -78,15 +78,15 @@ console.log('\nlocking out guesses, and only guesses');
 
 run('five wrong passwords lock the address out', () => {
   resetAuthAttempts();
-  for (let i = 0; i < 5; i += 1) assert.equal(call('wrong').status, 401);
-  const locked = call('wrong');
+  for (let i = 0; i < 5; i += 1) assert.equal(call(`wrong${i}`).status, 401);
+  const locked = call('wrong-again');
   assert.equal(locked.status, 429);
   assert.ok(locked.body.retryAfterSeconds > 0, 'it says how long to wait');
 });
 
 run('the lockout holds even against the right password', () => {
   resetAuthAttempts();
-  for (let i = 0; i < 5; i += 1) call('wrong');
+  for (let i = 0; i < 5; i += 1) call(`wrong${i}`);
   // Otherwise the limit is no limit: an attacker who guesses right walks in.
   assert.equal(call('correct-horse').status, 429);
 });
@@ -98,21 +98,38 @@ run('requests carrying no token never count towards it', () => {
   // Nothing has been spent, so the real password still works...
   assert.equal(call('correct-horse').passed, true);
   // ...and a genuine guessing run still has its full allowance.
-  for (let i = 0; i < 5; i += 1) assert.equal(call('wrong').status, 401);
-  assert.equal(call('wrong').status, 429);
+  for (let i = 0; i < 5; i += 1) assert.equal(call(`wrong${i}`).status, 401);
+  assert.equal(call('wrong-again').status, 429);
+});
+
+/*
+ * "Too many wrong passwords, locked out for about 6 minutes", over a dashboard
+ * that had not been touched: a stale password saved in the browser, sent by
+ * every one of the three to six requests a page load fires and again by every
+ * thirty-second poll. Repeating one guess is not guessing.
+ */
+run('the same wrong password sent again and again is one failure, not a lockout', () => {
+  resetAuthAttempts();
+  for (let i = 0; i < 50; i += 1) assert.equal(call('old-saved-password').status, 401);
+  assert.equal(call('correct-horse').passed, true, 'the owner still gets in');
+  // And four more different guesses on top of that stale one still lock.
+  resetAuthAttempts();
+  for (let i = 0; i < 20; i += 1) call('old-saved-password');
+  for (let i = 0; i < 4; i += 1) assert.equal(call(`guess${i}`).status, 401);
+  assert.equal(call('guess-five').status, 429);
 });
 
 run('a success clears the failures behind it', () => {
   resetAuthAttempts();
-  for (let i = 0; i < 4; i += 1) call('wrong');
+  for (let i = 0; i < 4; i += 1) call(`wrong${i}`);
   assert.equal(call('correct-horse').passed, true);
   // Back to a full allowance rather than one attempt from a lockout.
-  for (let i = 0; i < 5; i += 1) assert.equal(call('wrong').status, 401);
+  for (let i = 0; i < 5; i += 1) assert.equal(call(`wrong${i}`).status, 401);
 });
 
 run('addresses are locked out separately', () => {
   resetAuthAttempts();
-  for (let i = 0; i < 6; i += 1) call('wrong', '10.0.0.1');
+  for (let i = 0; i < 6; i += 1) call(`wrong${i}`, '10.0.0.1');
   assert.equal(call('wrong', '10.0.0.1').status, 429);
   assert.equal(call('correct-horse', '10.0.0.2').passed, true);
 });

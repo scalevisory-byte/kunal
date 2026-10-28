@@ -38,10 +38,31 @@ export function setToken(token, { remember = true } = {}) {
 }
 
 export class UnauthorizedError extends Error {
-  constructor() {
+  constructor(hadToken = false) {
     super('unauthorized');
     this.name = 'UnauthorizedError';
+    // A password was sent and refused, as opposed to none sent yet.
+    this.hadToken = hadToken;
   }
+}
+
+/*
+ * A refused password is forgotten on the spot.
+ *
+ * The dashboard polls every thirty seconds, and it used to go on sending the
+ * stored password after the server had refused it - so a password changed on
+ * the server, or one saved in this browser from an older install, cost one of
+ * the five attempts every half minute while the login screen sat waiting.
+ * Five polls later the device was locked out for fifteen minutes before
+ * anybody had typed anything, and then again the moment the lock lifted.
+ * Reported as "Too many wrong passwords. Locked out for about 6 minutes" over
+ * a dashboard of zeros. A request with no password is never counted.
+ */
+function refused(sent) {
+  // Judged by what THIS request carried: the first refusal of a page load
+  // clears the store before the others come back.
+  if (sent && getToken() === sent) setToken(null);
+  return new UnauthorizedError(Boolean(sent));
 }
 
 /**
@@ -75,7 +96,7 @@ async function request(path, options = {}) {
     throw new Error('Could not reach the server. It may be restarting — try again in a moment.');
   }
 
-  if (response.status === 401) throw new UnauthorizedError();
+  if (response.status === 401) throw refused(token);
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
     if (response.status === 429) {
@@ -235,7 +256,7 @@ export const api = {
     } catch {
       throw new Error('Could not reach the server. It may be restarting — try again in a moment.');
     }
-    if (response.status === 401) throw new UnauthorizedError();
+    if (response.status === 401) throw refused(token);
     if (!response.ok) {
       const detail = await response.json().catch(() => ({}));
       throw new Error(detail.error || `Upload failed (${response.status})`);
@@ -249,7 +270,7 @@ export const api = {
     const response = await fetch(`/api/attachments/${attachment.id}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (response.status === 401) throw new UnauthorizedError();
+    if (response.status === 401) throw refused(token);
     if (!response.ok) throw new Error(`Could not open that file (${response.status})`);
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -322,7 +343,7 @@ export const api = {
     const response = await fetch(`/api/backups/${encodeURIComponent(name)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (response.status === 401) throw new UnauthorizedError();
+    if (response.status === 401) throw refused(token);
     if (!response.ok) throw new Error(`Could not download that copy (${response.status})`);
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
@@ -407,7 +428,7 @@ export const api = {
     const response = await fetch(`/api/history/export${query ? `?${query}` : ''}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (response.status === 401) throw new UnauthorizedError();
+    if (response.status === 401) throw refused(token);
     if (!response.ok) throw new Error(`Export failed (${response.status})`);
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);

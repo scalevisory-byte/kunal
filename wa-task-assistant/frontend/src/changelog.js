@@ -8,6 +8,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.39',
+    date: '2026-10-28',
+    title: 'No more lock-outs from an old saved password',
+    changes: [
+      'If this browser had an old password saved, the app kept sending it every 30 seconds, and after a few tries the device was locked out for 15 minutes before you typed anything. Now an old password is forgotten the first time it is refused, and you see the sign-in page.',
+      'The same wrong password sent again is counted once, not five times. Five different wrong passwords still lock the device for 15 minutes, as before.',
+      'When the device is locked, the sign-in page says how many minutes to wait, instead of showing an empty dashboard.',
+    ],
+  },
+  {
     version: '1.38',
     date: '2026-10-28',
     title: 'Task names and notes are written properly by themselves',

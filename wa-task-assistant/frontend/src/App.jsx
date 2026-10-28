@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, getToken, setToken, UnauthorizedError, LockedOutError } from './api.js';
+import { api, setToken, UnauthorizedError, LockedOutError } from './api.js';
 import { enablePush, pushAlreadyEnabled, pushSupported } from './push.js';
 import TaskList from './components/TaskList.jsx';
 import TaskTable from './components/TaskTable.jsx';
@@ -77,6 +77,9 @@ const EMPTY_FILTERS = { status: [], priority: [], origin: [], chat: null, group:
  * says is hidden is precisely what is hidden, and it is the same number the
  * sidebar badges beside Task allotted.
  */
+/* Why the login screen is up: nothing yet, a password refused, or a lockout. */
+const NO_AUTH_NOTE = { rejected: false, lockedMins: 0 };
+
 const withSomebody = (task) => isAllotted(task) && !isDone(task);
 
 /**
@@ -345,6 +348,8 @@ export default function App() {
   // The last task taken off the list, so one press puts it back.
   const [undo, setUndo] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
+  // Why the login screen is up: a password refused, or the device locked out.
+  const [authNote, setAuthNote] = useState(NO_AUTH_NOTE);
   const [loading, setLoading] = useState(true);
   const [pushOn, setPushOn] = useState(false);
   const install = useInstall();
@@ -368,10 +373,19 @@ export default function App() {
         setError('');
       } catch (err) {
         if (err instanceof UnauthorizedError) {
+          // A first load with nothing saved is not a rejection; keep saying
+          // "rejected" only when a password was actually sent and refused.
+          setAuthNote((n) => ({ rejected: err.hadToken || n.rejected, lockedMins: 0 }));
           setNeedsAuth(true);
         } else if (err instanceof LockedOutError) {
-          const mins = Math.max(1, Math.ceil(err.retryAfterSeconds / 60));
-          setError(`Too many wrong passwords. This device is locked out for about ${mins} minute${mins === 1 ? '' : 's'}.`);
+          /*
+           * Locked out: back to the login screen, saying how long, and nothing
+           * saved left to send - a dashboard of zeros under a red line is not
+           * a place anybody can do anything from.
+           */
+          setToken(null);
+          setAuthNote({ rejected: true, lockedMins: Math.max(1, Math.ceil(err.retryAfterSeconds / 60)) });
+          setNeedsAuth(true);
         } else {
           setError(err.message);
         }
@@ -448,10 +462,13 @@ export default function App() {
         await fn();
         await refresh({ quiet: true });
       } catch (err) {
-        if (err instanceof UnauthorizedError) setNeedsAuth(true);
-        else if (err instanceof LockedOutError) {
-          const mins = Math.max(1, Math.ceil(err.retryAfterSeconds / 60));
-          setError(`Too many wrong passwords. This device is locked out for about ${mins} minute${mins === 1 ? '' : 's'}.`);
+        if (err instanceof UnauthorizedError) {
+          setAuthNote((n) => ({ rejected: err.hadToken || n.rejected, lockedMins: 0 }));
+          setNeedsAuth(true);
+        } else if (err instanceof LockedOutError) {
+          setToken(null);
+          setAuthNote({ rejected: true, lockedMins: Math.max(1, Math.ceil(err.retryAfterSeconds / 60)) });
+          setNeedsAuth(true);
         } else setError(err.message);
       }
     },
@@ -1087,10 +1104,12 @@ export default function App() {
         onSubmit={(password, opts) => {
           /* `remember` decides localStorage or sessionStorage - see api.js. */
           setToken(password, opts);
+          setAuthNote(NO_AUTH_NOTE);
           setNeedsAuth(false);
           refresh();
         }}
-        hadToken={Boolean(getToken())}
+        hadToken={authNote.rejected}
+        lockedMins={authNote.lockedMins}
         build={build}
       />
     );
@@ -1127,7 +1146,7 @@ export default function App() {
            * and nothing on the board outlives that, because the whole board
            * unmounts with it.
            */
-          onLock={authRequired ? () => { setToken(null); setNeedsAuth(true); } : null}
+          onLock={authRequired ? () => { setToken(null); setNeedsAuth(true); setAuthNote(NO_AUTH_NOTE); } : null}
           onNewTask={newTask}
           onEnablePush={onEnablePush}
           pushSupported={pushSupported()}
