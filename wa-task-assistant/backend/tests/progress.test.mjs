@@ -231,6 +231,33 @@ await run('the morning briefing carries the stage too', () => {
   assert.match(text || '', /With the bank/);
 });
 
+/*
+ * "In progress me kuch nahi aa raha": every note written before v1.36 left its
+ * task open, so the tab opened empty. Once, the same rule is applied to them.
+ */
+await run('open tasks that already had notes are started once, and nothing else moves', () => {
+  const noted = DB.createTask({ title: 'Cosmos bank renewal' });
+  P.addUpdate(noted.id, { body: 'all documents submitted to bank' });
+  const bare = DB.createTask({ title: 'Untouched since' });
+  const waiting = DB.createTask({ title: 'With the CA', status: 'waiting' });
+  P.addUpdate(waiting.id, { body: 'sent to CA' });
+  const done = DB.createTask({ title: 'Finished one', status: 'done' });
+  P.addUpdate(done.id, { body: 'filed' });
+
+  const first = P.startNotedOnce();
+  assert.equal(first.ran, true);
+  assert.ok(first.started.includes(noted.id));
+  assert.equal(DB.getTask(noted.id).status, 'in_progress');
+  assert.equal(DB.getTask(bare.id).status, 'open', 'no note, not started');
+  assert.equal(DB.getTask(waiting.id).status, 'waiting');
+  assert.equal(DB.getTask(done.id).status, 'done');
+
+  // Once only: put back to Open by hand, it stays Open.
+  DB.updateTask(noted.id, { status: 'open' });
+  assert.equal(P.startNotedOnce().ran, false);
+  assert.equal(DB.getTask(noted.id).status, 'open');
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 server.close();
 fs.rmSync(dir, { recursive: true, force: true });

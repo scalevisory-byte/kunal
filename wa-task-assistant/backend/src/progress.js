@@ -106,3 +106,34 @@ export const knownStages = (limit = 12) =>
     )
     .all(limit)
     .map((r) => r.name);
+
+/**
+ * Tasks with notes written before the first note started the work, started.
+ *
+ * Since v1.36 a note on an open task moves it to in progress (routes/extras.js).
+ * Every note written before that left its task open, so the In progress tab
+ * opened empty over a list full of tasks he was plainly working on - reported
+ * as "in progress me kuch nahi aa raha". Once, the same rule is applied to
+ * what is already there: an open, unarchived task with at least one note is
+ * started, and its history says why. A marker in `meta` keeps it to once, so
+ * a task he moves back to Open afterwards stays there.
+ */
+const STARTED_MARKER = 'started_from_notes_v1';
+
+export function startNotedOnce() {
+  if (db.prepare(`SELECT value FROM meta WHERE key = ?`).get(STARTED_MARKER)) return { ran: false, started: [] };
+  const started = db.transaction(() => {
+    const ids = db.prepare(
+      `SELECT t.id FROM tasks t
+        WHERE t.status = 'open' AND t.archived_at IS NULL
+          AND EXISTS (SELECT 1 FROM task_updates u WHERE u.task_id = t.id)`
+    ).all().map((r) => r.id);
+    const move = db.prepare(`UPDATE tasks SET status = 'in_progress', updated_at = datetime('now') WHERE id = ?`);
+    for (const id of ids) move.run(id);
+    db.prepare(
+      `INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    ).run(STARTED_MARKER, new Date().toISOString());
+    return ids;
+  })();
+  return { ran: true, started };
+}

@@ -8,6 +8,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.40',
+    date: '2026-10-29',
+    title: 'Tasks you already wrote notes on are now In progress',
+    changes: [
+      'The In progress tab was empty because your notes were written before v1.36, when a note did not yet start a task. Every open task that already has a note has now been moved to In progress, once.',
+      'Each moved task\'s history says so. If you want one back in Open, use ⋮ → Back to open and it will stay there.',
+    ],
+  },
+  {
     version: '1.39',
     date: '2026-10-28',
     title: 'No more lock-outs from an old saved password',

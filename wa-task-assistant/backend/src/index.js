@@ -181,6 +181,17 @@ try {
     log.warn('Could not tidy existing task names:', err?.message || err);
   }
 
+  /* Tasks with notes from before a note started the work: started, once. */
+  try {
+    const { startNotedOnce } = await import('./progress.js');
+    const { EVENT, recordEvent } = await import('./task-events.js');
+    const r = startNotedOnce();
+    for (const id of r.started) recordEvent(id, EVENT.statusChanged, 'open → in_progress (had notes already)');
+    if (r.ran) log.info(`Moved ${r.started.length} tasks with notes to In progress.`);
+  } catch (err) {
+    log.warn('Could not start tasks that already have notes:', err?.message || err);
+  }
+
   reportBoot(log);
   handler = createServer();
   shutdownApp = shutdown;
