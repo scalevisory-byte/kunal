@@ -24,6 +24,11 @@ const SECTIONS = [
       ['department', 'Department', 'text'],
       ['joined_on', 'Joined on', 'date'],
       ['left_on', 'Left on', 'date', 'leave empty while they are still with you'],
+      // Only for somebody who does not work the office's usual day. A night
+      // shift judged against 09:30 would read as late every single day, and
+      // under the late/early concession that would cost them money.
+      ['shift_in', 'Shift starts', 'text', "leave empty for the office's usual day"],
+      ['shift_out', 'Shift ends', 'text', 'e.g. 06:00 for a night shift'],
     ],
   },
   {

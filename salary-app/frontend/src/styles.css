@@ -1186,3 +1186,8 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 }
 .public.punch section { margin-top: 1.4rem; }
 .public.punch .jobs li { padding: 0.6rem 0; }
+
+/* The late/early policy panel: a heading with its switch pushed to the right. */
+.late-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.late-head h3 { margin: 0 0 0.2rem; }
+.late-head p { margin: 0; max-width: 46rem; }

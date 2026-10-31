@@ -435,6 +435,7 @@ function Shell() {
             rows={visibleRows}
             locked={locked}
             onSave={saveAttendance}
+            onPatchPeriod={patchPeriod}
           />
         )}
 

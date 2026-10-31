@@ -79,6 +79,8 @@ reportsRouter.get('/periods/:id/export.csv', (req, res) => {
     ['Medical', 'earned_medical'], ['Special Allowance', 'earned_special'],
     ['Hours Worked', 'worked_hours'], ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
     ['Addition', 'addition'], ['Deduction', 'deduction'],
+    ['Late Mins', 'late_minutes'], ['Early Mins', 'early_minutes'],
+    ['Late/Early Charged', 'late_salary'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
     ['Net Payable', 'net_salary'],

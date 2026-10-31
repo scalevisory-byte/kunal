@@ -169,6 +169,13 @@ db.exec(`
     hours_per_day REAL NOT NULL DEFAULT 9,
     pt_threshold  REAL NOT NULL DEFAULT 12000,
     pt_amount     REAL NOT NULL DEFAULT 200,
+    -- The late/early rule this month is paid on. 'hours' is the long-standing
+    -- behaviour and the default: nothing is charged for lateness as such.
+    late_policy             TEXT NOT NULL DEFAULT 'hours',
+    late_concession_minutes INTEGER NOT NULL DEFAULT 300,
+    late_grace_minutes      INTEGER NOT NULL DEFAULT 0,
+    shift_in                TEXT NOT NULL DEFAULT '09:30',
+    shift_out               TEXT NOT NULL DEFAULT '18:30',
     locked        INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (year, month)
@@ -394,6 +401,40 @@ for (const column of ['pf_mode', 'esi_mode']) {
   }
 }
 
+/*
+ * A person's own shift. Different shifts are normal, and a night-shift worker
+ * judged against the office's 09:30 would read as five hours late every day.
+ * Null means "the office's usual day".
+ */
+for (const column of ['shift_in', 'shift_out']) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated employees: added ${column} for their own shift.`);
+  }
+}
+
+/*
+ * The late/early policy, per month. `late_policy` defaults to 'hours' - what
+ * this app has always done, where a late arrival only costs money if it made
+ * the day short - so the migration cannot move a single rupee. 'concession'
+ * switches on Dinesh's own rule: late and early minutes pooled for the month,
+ * the first 300 free, the excess charged. Kept per period so a changed rule
+ * never rewrites a month already paid.
+ */
+const periodLateColumns = [
+  ["late_policy", "TEXT NOT NULL DEFAULT 'hours'"],
+  ['late_concession_minutes', 'INTEGER NOT NULL DEFAULT 300'],
+  ['late_grace_minutes', 'INTEGER NOT NULL DEFAULT 0'],
+  ['shift_in', "TEXT NOT NULL DEFAULT '09:30'"],
+  ['shift_out', "TEXT NOT NULL DEFAULT '18:30'"],
+];
+for (const [column, type] of periodLateColumns) {
+  if (!db.prepare(`PRAGMA table_info(periods)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE periods ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated periods: added ${column} for the late/early policy.`);
+  }
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -462,6 +503,8 @@ const EMPLOYEE_FIELDS = [
   'reports_to_id',
   'pf_mode',
   'esi_mode',
+  'shift_in',
+  'shift_out',
   'basic',
   'hra',
   'conveyance',
@@ -554,6 +597,9 @@ export function createEmployee(input) {
     reports_to_id: Number(input.reports_to_id) || null,
     pf_mode: input.pf_mode === 'auto' ? 'auto' : 'fixed',
     esi_mode: input.esi_mode === 'auto' ? 'auto' : 'fixed',
+    // Null means "the office's usual day", which is what almost everybody works.
+    shift_in: input.shift_in || null,
+    shift_out: input.shift_out || null,
     basic: Number(input.basic) || 0,
     hra: Number(input.hra) || 0,
     conveyance: Number(input.conveyance) || 0,
@@ -774,7 +820,18 @@ export function updatePeriod(id, patch) {
   const fields = [];
   const values = [];
   // working_days is deliberately absent: it is fixed at 26 and not editable.
-  for (const key of ['label', 'hours_per_day', 'pt_threshold', 'pt_amount', 'locked']) {
+  for (const key of [
+    'label',
+    'hours_per_day',
+    'pt_threshold',
+    'pt_amount',
+    'late_policy',
+    'late_concession_minutes',
+    'late_grace_minutes',
+    'shift_in',
+    'shift_out',
+    'locked',
+  ]) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(key === 'locked' ? (patch[key] ? 1 : 0) : patch[key]);
@@ -805,6 +862,9 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               -- the salary breakup, and the master salary it was typed against
               e.basic, e.hra, e.conveyance, e.medical, e.monthly_salary,
               e.pf_mode, e.esi_mode,
+              -- their own shift, so the late/early line is judged against the
+              -- hours they actually work, not the office's default
+              e.shift_in, e.shift_out,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
@@ -820,6 +880,8 @@ export function getPayrollRow(id) {
     db
       .prepare(
         `SELECT p.*, e.name AS employee_name, e.code AS employee_code, e.designation,
+                e.basic, e.hra, e.conveyance, e.medical, e.monthly_salary,
+                e.pf_mode, e.esi_mode, e.shift_in, e.shift_out,
                 e.company_id, c.name AS company_name
          FROM payroll_rows p
          JOIN employees e ON e.id = p.employee_id

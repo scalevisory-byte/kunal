@@ -12,7 +12,7 @@ import {
   parseTime,
 } from '../../../shared/timesheet.js';
 import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
-import { readStandardTimes } from '../standardTimes.js';
+import { shiftOfMonth } from '../standardTimes.js';
 
 /**
  * The month at a glance, on one screen.
@@ -154,8 +154,10 @@ export default function Dashboard({
    */
   const roll = useMemo(() => {
     if (!period) return null;
-    const standard = readStandardTimes();
-    const grace = 15;
+    const standard = shiftOfMonth(period);
+    // The month's own grace, so the roll call calls somebody late exactly when
+    // the payroll would charge them for it.
+    const grace = standard.grace;
 
     const out = {
       present: [], absent: [], leave: [], halfDay: [], holiday: [], sunday: [],
@@ -379,8 +381,10 @@ export default function Dashboard({
    * anything for people whose hours are being recorded.
    */
   const monthly = useMemo(() => {
-    const standard = readStandardTimes();
-    const grace = 15;
+    const standard = shiftOfMonth(period);
+    // The month's own grace, so the roll call calls somebody late exactly when
+    // the payroll would charge them for it.
+    const grace = standard.grace;
 
     return rows.map((row) => {
       const marks = Object.values(row.attendance || {});

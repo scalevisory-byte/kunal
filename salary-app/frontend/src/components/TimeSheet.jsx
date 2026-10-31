@@ -12,6 +12,7 @@ import {
 } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
+import LatePolicy from './LatePolicy.jsx';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -31,7 +32,7 @@ import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
 /** Marks the times are allowed to overwrite - everything else is deliberate. */
 const AUTO_MARKS = new Set(['', 'P', 'A', 'HF']);
 
-export default function TimeSheet({ period, rows, onSave, locked }) {
+export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked }) {
   const total = daysInMonth(period.year, period.month);
   const today = new Date();
   const isThisMonth = today.getFullYear() === period.year && today.getMonth() + 1 === period.month;
@@ -170,6 +171,9 @@ export default function TimeSheet({ period, rows, onSave, locked }) {
 
   return (
     <section className="stack">
+      {onPatchPeriod && (
+        <LatePolicy period={period} rows={rows} onPatch={onPatchPeriod} locked={locked} />
+      )}
       <div className="toolbar">
         <div className="sub-tabs toolbar">
           <button className={view === 'day' ? 'active' : undefined} onClick={() => setView('day')}>

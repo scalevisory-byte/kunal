@@ -45,6 +45,12 @@ const CALC_COLUMNS = [
   { head: 'OT/LT Salary', get: (r) => r.ot_salary, money: MONEY0 },
   { head: 'Addition', get: (r) => r.addition, money: MONEY0 },
   { head: 'Deduction', get: (r) => r.deduction, money: MONEY0 },
+  // Late and early minutes, and what they cost. The minutes are always
+  // reported; the charge is zero unless the month runs on that policy, so a
+  // blank column is a real answer and not a missing one.
+  { head: 'Late Mins', get: (r) => r.late_minutes || 0 },
+  { head: 'Early Mins', get: (r) => r.early_minutes || 0 },
+  { head: 'Late/Early Charged', get: (r) => r.late_salary || 0, money: MONEY0, total: 'late_salary' },
   { head: 'Gross Salary', get: (r) => r.gross_salary, money: MONEY0, total: 'gross_salary' },
   { head: 'PT', get: (r) => r.pt, money: MONEY0, total: 'pt' },
   { head: 'ESI', get: (r) => r.esi, money: MONEY0, total: 'esi' },

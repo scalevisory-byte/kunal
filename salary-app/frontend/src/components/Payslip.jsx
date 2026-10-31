@@ -13,7 +13,9 @@ export default function Payslip({ period, row, onClose }) {
   // inside the gross everywhere else in the app, so it is added back into what
   // was earned and then listed with the other deductions - shown both ways at
   // once, and still balancing.
-  const earned = calc.gross_salary + calc.deduction;
+  // The late/early charge is inside the gross too, and gets the same treatment,
+  // so "earned less deductions" still balances to the rupee.
+  const earned = calc.gross_salary + calc.deduction + (calc.late_salary || 0);
 
   /*
    * With a salary structure set, the slip lists Basic, HRA and the rest as
@@ -45,6 +47,10 @@ export default function Payslip({ period, row, onClose }) {
     ['ESI', calc.esi],
     ['PF', calc.pf],
     ['Loan / advance', calc.loan_deduction],
+    [
+      `Late / early (${calc.late_chargeable_minutes} min past ${calc.late_concession_minutes} free)`,
+      calc.late_salary,
+    ],
     [row.remark ? `Deducted: ${row.remark}` : 'Other deductions', calc.deduction],
   ].filter(([, amount]) => Number(amount) !== 0);
 

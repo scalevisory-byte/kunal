@@ -248,8 +248,28 @@ function buildPayroll(periodId, { sync = true } = {}) {
       const emp = employeeOf(row.employee_id);
       if (!emp) return null;
       const marks = attendanceFor(periodId, row.employee_id);
+      /*
+       * What the engine needs off the master, exactly as the server's
+       * listPayrollRows joins it: the salary breakup and the salary it was
+       * typed against, the PF/ESI modes, and the person's own shift. Without
+       * these the standalone file would quietly ignore a breakup, deduct a
+       * fixed PF for somebody set to auto, and judge a night shift against
+       * the office's 09:30.
+       */
+      const fromMaster = {
+        basic: emp.basic ?? 0,
+        hra: emp.hra ?? 0,
+        conveyance: emp.conveyance ?? 0,
+        medical: emp.medical ?? 0,
+        monthly_salary: emp.monthly_salary ?? 0,
+        pf_mode: emp.pf_mode || 'fixed',
+        esi_mode: emp.esi_mode || 'fixed',
+        shift_in: emp.shift_in || null,
+        shift_out: emp.shift_out || null,
+      };
       return {
         ...row,
+        ...fromMaster,
         employee_name: emp.name,
         employee_code: emp.code,
         designation: emp.designation,
@@ -275,7 +295,11 @@ function buildPayroll(periodId, { sync = true } = {}) {
           ot_amount: row.ot_amount_override !== null,
           sunday_salary: row.sunday_salary_override !== null,
         },
-        ...calculateRow({ ...row, loan_deduction: loans.get(row.employee_id) || 0 }, period, marks),
+        ...calculateRow(
+          { ...row, ...fromMaster, loan_deduction: loans.get(row.employee_id) || 0 },
+          period,
+          marks,
+        ),
       };
     })
     .filter(Boolean);
@@ -334,7 +358,17 @@ export async function handle(method, path, body) {
       currency: 'INR',
       codes: ATTENDANCE_CODES,
       standalone: true,
-      defaults: { working_days: STANDARD_WORKING_DAYS, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 },
+      defaults: {
+        working_days: STANDARD_WORKING_DAYS,
+        hours_per_day: 9,
+        pt_threshold: 12000,
+        pt_amount: 200,
+        late_policy: 'hours',
+        late_concession_minutes: 300,
+        late_grace_minutes: 0,
+        shift_in: '09:30',
+        shift_out: '18:30',
+      },
     };
   }
 
@@ -621,6 +655,14 @@ export async function handle(method, path, body) {
       hours_per_day: Number(body.hours_per_day) || 9,
       pt_threshold: body.pt_threshold === undefined ? 12000 : Number(body.pt_threshold),
       pt_amount: body.pt_amount === undefined ? 200 : Number(body.pt_amount),
+      // The late/early rule, per month. 'hours' is the default and charges
+      // nothing for lateness as such - exactly as the server has it.
+      late_policy: body.late_policy === 'concession' ? 'concession' : 'hours',
+      late_concession_minutes:
+        body.late_concession_minutes === undefined ? 300 : Number(body.late_concession_minutes),
+      late_grace_minutes: Number(body.late_grace_minutes) || 0,
+      shift_in: body.shift_in || '09:30',
+      shift_out: body.shift_out || '18:30',
       locked: 0,
     };
     db.periods.push(period);
@@ -709,7 +751,18 @@ export async function handle(method, path, body) {
       if (method === 'GET') return period;
       if (method === 'PATCH') {
         // working_days is deliberately absent: it is fixed at 26.
-        for (const key of ['label', 'hours_per_day', 'pt_threshold', 'pt_amount', 'locked']) {
+        for (const key of [
+          'label',
+          'hours_per_day',
+          'pt_threshold',
+          'pt_amount',
+          'late_policy',
+          'late_concession_minutes',
+          'late_grace_minutes',
+          'shift_in',
+          'shift_out',
+          'locked',
+        ]) {
           if (key in (body || {})) period[key] = key === 'locked' ? (body[key] ? 1 : 0) : body[key];
         }
         save();
@@ -1131,6 +1184,8 @@ export async function file(path) {
     ['Salary', 'salary'], ['Salary/Day', 'per_day'], ['Absent Salary', 'absent_salary'],
     ['Hours Worked', 'worked_hours'], ['OT/LT Minutes', 'ot_minutes'], ['OT/LT Salary', 'ot_salary'],
     ['Addition', 'addition'], ['Deduction', 'deduction'],
+    ['Late Mins', 'late_minutes'], ['Early Mins', 'early_minutes'],
+    ['Late/Early Charged', 'late_salary'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
     ['Net Payable', 'net_salary'],

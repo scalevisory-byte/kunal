@@ -1,4 +1,5 @@
-import { TIME_FIELDS, formatTime, parseTime } from '../../shared/timesheet.js';
+import { TIME_FIELDS, TIME_RULES, formatTime, parseTime } from '../../shared/timesheet.js';
+import { onConcession, readLateRules } from '../../shared/lateEarly.js';
 
 /**
  * The office's usual day, as set on the Time tab.
@@ -39,4 +40,27 @@ export function writeStandardTimes(times) {
     // Nothing to do - the timings just will not be remembered.
   }
   return tidy;
+}
+
+/**
+ * The day the month is actually judged against.
+ *
+ * The stored timings above are a convenience and live in the browser. Once the
+ * late/early concession is in play they are no longer only a convenience - a
+ * minute late is money - so the month's own `shift_in`/`shift_out` win, and the
+ * browser's copy is only the fallback. The grace follows the month too, so the
+ * dashboard calls somebody late exactly when the payroll would charge them.
+ */
+export function shiftOfMonth(period) {
+  const stored = readStandardTimes();
+  const rules = readLateRules(period || {});
+  return {
+    in_time: parseTime(period?.shift_in) !== null ? period.shift_in : stored.in_time,
+    out_time: parseTime(period?.shift_out) !== null ? period.shift_out : stored.out_time,
+    lunch_out: stored.lunch_out,
+    lunch_in: stored.lunch_in,
+    // On the default policy nothing is charged for lateness, so the roll call
+    // keeps the usual quarter-hour grace rather than flagging every minute.
+    grace: onConcession(period || {}) ? rules.grace_minutes : TIME_RULES.graceMinutes,
+  };
 }

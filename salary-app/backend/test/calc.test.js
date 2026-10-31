@@ -285,7 +285,15 @@ test('totals add up across rows', () => {
  * would read as "no HRA" rather than "not split"), and a handful describe
  * rather than measure.
  */
-const DESCRIBES = new Set(['pf_mode', 'esi_mode', 'pf_on', 'esi_eligible']);
+const DESCRIBES = new Set([
+  'pf_mode',
+  'esi_mode',
+  'pf_on',
+  'esi_eligible',
+  'late_policy',
+  'shift_in',
+  'shift_out',
+]);
 
 const assertNoNaN = (row) => {
   for (const [key, value] of Object.entries(row)) {

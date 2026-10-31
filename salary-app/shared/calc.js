@@ -19,7 +19,9 @@
  *                        (negative = late / short hours, positive = overtime)
  *   AT OT/LT Salary      =AR*AS
  *   AU Deduction/Additions  entered by hand, as an addition and a deduction
- *   AV Gross Salary      =ROUND(AO+AT+AU,0)
+ *   -- Late/early      the month's late and early minutes past the concession,
+ *                      priced at AR. Zero unless the period runs on that policy.
+ *   AV Gross Salary      =ROUND(AO+AT+AU,0), less the late/early charge
  *   AW PT                =IF(AV>12000,200,0) - on the month's gross
  *   AX ESI               entered
  *   AY PF                entered
@@ -49,6 +51,7 @@ import { monthTotals } from './timesheet.js';
  */
 import { earnedStructure } from './structure.js';
 import { esiFor, isAuto, pfFor } from './contributions.js';
+import { lateEarlyLine, onConcession } from './lateEarly.js';
 
 export const ATTENDANCE_CODES = {
   P: { label: 'Present', absent: 0, sunday: 0, paid: true },
@@ -204,7 +207,32 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // AS: the month's short/extra minutes. Marking days adds these up; a number
   // typed on the salary sheet overrides the total, the way the sheet has it.
   const minutesFromDays = minutesFromAttendance(attendance);
-  const otMinutes = isSet(row.ot_minutes_override) ? num(row.ot_minutes_override) : minutesFromDays;
+  /*
+   * Late and early minutes, pooled for the month against the concession - only
+   * when the period is set to that policy. On the default policy the line is
+   * still worked out (so the app can say what switching would cost) but it is
+   * worth nothing, and not one rupee in this function moves.
+   */
+  const concessionMode = onConcession(period);
+  const lateEarly = lateEarlyLine(attendance, {
+    employee: row,
+    rules: period,
+    per_minute: perMinute,
+  });
+  const lateSalary = concessionMode ? lateEarly.amount : 0;
+  /*
+   * Under the concession policy the hours-shortfall is NOT charged as well -
+   * a person half an hour late is already half an hour short, and taking both
+   * would charge the same half hour twice. Overtime still pays. A number typed
+   * over the column wins either way, as it does everywhere else.
+   */
+  const chargedMinutes =
+    concessionMode && !isSet(row.ot_minutes_override)
+      ? Math.max(0, minutesFromDays)
+      : isSet(row.ot_minutes_override)
+        ? num(row.ot_minutes_override)
+        : minutesFromDays;
+  const otMinutes = chargedMinutes;
   const otSalary = isSet(row.ot_amount_override) // AT
     ? num(row.ot_amount_override)
     : perMinute * otMinutes;
@@ -217,7 +245,7 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const addition = num(row.addition);
   const deduction = num(row.deduction);
   const adjustment = num(row.adjustment) + addition - deduction;
-  const grossSalary = round0(grossAfterAbsent + otSalary + adjustment); // AV
+  const grossSalary = round0(grossAfterAbsent + otSalary + adjustment - lateSalary); // AV
 
   // AW: professional tax goes on what the month actually pays - the gross, after
   // absences, overtime and adjustments - not on the salary on the master. So a
@@ -291,6 +319,21 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ot_minutes: round2(otMinutes),
     ot_minutes_from_days: minutesFromDays,
     ot_salary: round2(otSalary),
+    // The late/early line. Always reported, only charged on the concession
+    // policy - `late_salary` is 0 on the default one, by design.
+    late_policy: concessionMode ? 'concession' : 'hours',
+    late_minutes: lateEarly.late_minutes,
+    early_minutes: lateEarly.early_minutes,
+    late_total_minutes: lateEarly.total_minutes,
+    late_days: lateEarly.late_days,
+    early_days: lateEarly.early_days,
+    late_concession_minutes: lateEarly.allowed,
+    late_concession_left: lateEarly.left,
+    late_chargeable_minutes: lateEarly.chargeable,
+    late_computed: lateEarly.amount,
+    late_salary: round2(lateSalary),
+    shift_in: lateEarly.shift_in,
+    shift_out: lateEarly.shift_out,
     addition: round2(addition),
     deduction: round2(deduction),
     adjustment: round2(adjustment),
@@ -320,6 +363,7 @@ export function totalRows(rows = []) {
     'salary',
     'absent_salary',
     'ot_salary',
+    'late_salary',
     'addition',
     'deduction',
     'adjustment',
