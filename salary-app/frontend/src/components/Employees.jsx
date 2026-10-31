@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
+import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
@@ -32,6 +33,8 @@ export default function Employees({
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
   const [reportFor, setReportFor] = useState(null);
+  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
+  const [showTemplate, setShowTemplate] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -42,6 +45,28 @@ export default function Employees({
         (!q || e.name.toLowerCase().includes(q) || (e.company_name || '').toLowerCase().includes(q))
     );
   }, [employees, query, showInactive, companyId]);
+
+  /**
+   * Splitting a salary into Basic/HRA for everyone ticked.
+   *
+   * Each person is split from THEIR OWN salary, so one call cannot give two
+   * people the same basic. The total is untouched in every case - the split
+   * only describes the money already being paid.
+   */
+  const applyStructure = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const chosen = filtered.filter((e) => picked.has(e.id));
+      for (const employee of chosen) {
+        await onPatch(employee.id, applyTemplate(employee.monthly_salary, template));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -259,7 +284,72 @@ export default function Employees({
             </button>
             <button disabled={busy} onClick={() => applyReligion('')}>Clear</button>
             <span className="grow" />
+            <button className="ghost" onClick={() => setShowTemplate((v) => !v)}>
+              {showTemplate ? 'Hide the split' : 'Split their salary'}
+            </button>
+            <span className="grow" />
             <button className="ghost" onClick={() => setPicked(new Set())}>Deselect</button>
+          </div>
+        )}
+
+        {picked.size > 0 && showTemplate && (
+          <div className="bulk-bar wrap">
+            <strong>Basic / HRA for {picked.size}</strong>
+            <label>
+              Basic %
+              <input
+                type="number"
+                value={template.basicPercent}
+                onChange={(e) => setTemplate({ ...template, basicPercent: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              HRA, % of basic
+              <input
+                type="number"
+                value={template.hraPercentOfBasic}
+                onChange={(e) => setTemplate({ ...template, hraPercentOfBasic: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Conveyance ₹
+              <input
+                type="number"
+                value={template.conveyance}
+                onChange={(e) => setTemplate({ ...template, conveyance: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              Medical ₹
+              <input
+                type="number"
+                value={template.medical}
+                onChange={(e) => setTemplate({ ...template, medical: Number(e.target.value) })}
+              />
+            </label>
+            <button className="primary" disabled={busy} onClick={applyStructure}>
+              {busy ? 'Saving…' : `Apply to ${picked.size}`}
+            </button>
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await onBulkPatch([...picked], { basic: 0, hra: 0, conveyance: 0, medical: 0 });
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Clear
+            </button>
+            <span className="note muted small">
+              Each person is split from their own salary — the total never moves, so nobody&apos;s
+              pay changes. HRA is {template.hraPercentOfBasic}% of basic because Vadodara and
+              Surat are not metros for the exemption.
+            </span>
           </div>
         )}
 

@@ -380,6 +380,51 @@ Three things it is careful about:
 An unmarked day is paid as a working day, so the report says how many are still unmarked
 before anybody files it.
 
+### Salary structure — Basic, HRA and the rest
+
+A salary was one number, which is all the sheet needed. An offer letter, a payslip, a Form 16
+and the PF return are all written against a breakup instead: PF is charged on Basic, HRA
+carries a tax exemption, and nobody can read "20000" and know either.
+
+**Employees → a name → Salary structure** sets one. Basic, HRA, Conveyance and Medical are
+typed; **Special allowance is not** — it is whatever is left of the salary.
+
+#### The rule that makes it safe to add to a payroll already running
+
+> **The breakup never changes what anybody is paid.**
+
+`monthly_salary` stays the master total. Because Special is derived rather than stored, the
+parts cannot drift away from it, and a month's gross, net, PT and deductions come out exactly
+as they did before any of this existed — setting a breakup only changes how the same money is
+*described*. There is a test asserting a month calculates identically with and without one,
+and it was checked against the real October data: all 115 rows byte-identical, net ₹14,48,366
+before and after.
+
+Components that add up to **more** than the salary are an error, named with the amount over —
+never a negative allowance.
+
+#### On a payslip
+
+With a structure set, the slip lists each component **as the month earned it** — already
+pro-rated for the days absent, which the table above it states — and they add up to the gross
+to the rupee, because Special absorbs the rounding. Without one it reads as it always has:
+the month's salary, less the days absent. The Excel export and the monthly CSV gained the
+same five columns, blank for anybody with no structure (zero would read as "no HRA").
+
+#### For 114 people at once
+
+Tick everyone and use **Split their salary**: Basic %, HRA as a % of Basic, and flat
+conveyance and medical. Each person is split from **their own** salary, so one click cannot
+give two people the same Basic. HRA defaults to 40% of Basic, not 50% — Vadodara and Surat
+are not metros for that exemption. A small salary gets a trimmed allowance rather than a
+negative Special.
+
+#### PF is reported, never changed
+
+The panel says what PF *would* be at 12% of Basic (capped at ₹15,000 of wages) next to what
+is actually being deducted, and offers a button to match them. It never does it on its own:
+that moves somebody's take-home, and is a decision rather than a calculation.
+
 ### One person's own report
 
 **Employees → report**, next to any name. One person down the months rather than one month

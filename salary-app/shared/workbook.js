@@ -30,6 +30,13 @@ const CALC_COLUMNS = [
   { head: 'Salary', get: (r) => r.salary, money: MONEY0, total: 'salary' },
   { head: 'Absent Salary', get: (r) => r.absent_salary, money: MONEY0 },
   { head: 'Gross Salary', get: (r) => r.gross_after_absent, money: MONEY0 },
+  // The breakup, as this month earned it. Blank for anybody with no structure
+  // set, which is the honest answer - zero would read as "no HRA".
+  { head: 'Basic', get: (r) => r.earned_basic ?? '', money: MONEY0 },
+  { head: 'HRA', get: (r) => r.earned_hra ?? '', money: MONEY0 },
+  { head: 'Conveyance', get: (r) => r.earned_conveyance ?? '', money: MONEY0 },
+  { head: 'Medical', get: (r) => r.earned_medical ?? '', money: MONEY0 },
+  { head: 'Special Allowance', get: (r) => r.earned_special ?? '', money: MONEY0 },
   { head: 'Salary / Day', get: (r) => r.per_day, money: MONEY },
   { head: 'Salary / Hour', get: (r) => r.per_hour, money: MONEY },
   { head: 'Salary / Minutes', get: (r) => r.per_minute, money: MONEY },

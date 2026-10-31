@@ -281,7 +281,43 @@ test('totals add up across rows', () => {
 
 test('a zero salary produces zeroes, not NaN', () => {
   const r = calculateRow({ salary: 0 }, {});
-  for (const value of Object.values(r)) assert.ok(Number.isFinite(value), 'every field is a number');
+  for (const [key, value] of Object.entries(r)) {
+    // The salary breakup is null when nobody has set one, which is not the
+    // same thing as zero: zero would read as "no HRA" rather than "not split".
+    const allowed = Number.isFinite(value) || (key.startsWith('earned_') && value === null);
+    assert.ok(allowed, `${key} is ${value}`);
+  }
   assert.equal(r.net_salary, 0);
   assert.equal(r.final_payable, 0);
+});
+
+test('a zero salary with a breakup set is still all numbers, never NaN', () => {
+  const r = calculateRow({ salary: 0, monthly_salary: 0, basic: 0, hra: 0 }, {});
+  for (const [key, value] of Object.entries(r)) {
+    const allowed = Number.isFinite(value) || (key.startsWith('earned_') && value === null);
+    assert.ok(allowed, `${key} is ${value}`);
+  }
+});
+
+test('a breakup changes how the month is described, never what it pays', () => {
+  const attendance = { 5: 'A', 6: 'A', 12: 'SP' };
+  const plain = calculateRow({ salary: 20000, pf: 1800, esi: 150 }, {}, attendance);
+  const split = calculateRow(
+    { salary: 20000, monthly_salary: 20000, basic: 10000, hra: 4000, conveyance: 1600, medical: 1250, pf: 1800, esi: 150 },
+    {},
+    attendance
+  );
+
+  for (const key of [
+    'gross_after_absent', 'gross_salary', 'net_salary', 'pt', 'pf', 'esi',
+    'absent_salary', 'present_days', 'per_day', 'sunday_salary', 'final_payable',
+  ]) {
+    assert.equal(split[key], plain[key], `${key} moved when a breakup was set`);
+  }
+
+  // And the breakup adds up to the gross it describes, to the rupee.
+  const lines = split.earned_basic + split.earned_hra + split.earned_conveyance
+    + split.earned_medical + split.earned_special;
+  assert.equal(lines, Math.round(split.gross_after_absent));
+  assert.equal(plain.earned_basic, null);
 });

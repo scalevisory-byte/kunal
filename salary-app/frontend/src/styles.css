@@ -1158,3 +1158,18 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 
 /* A report is wider than a form. */
 .modal.wide { max-width: min(1100px, 96vw); }
+
+/* ---------- the salary breakup ---------- */
+
+.structure {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.7rem 0.85rem;
+  margin: 0 0 1rem;
+  background: var(--surface);
+}
+.structure input.computed { background: var(--line-soft); color: var(--muted); cursor: default; }
+.structure .banner { margin: 0.6rem 0 0; }
+
+.bulk-bar.wrap { flex-wrap: wrap; }
+.bulk-bar .note { flex-basis: 100%; }

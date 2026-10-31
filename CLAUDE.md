@@ -191,6 +191,31 @@ assistant. See `salary-app/README.md`.
   nothing marked reads as a dash, never 100%. Payroll rows carry the person as
   `employee_name`/`employee_code`, so the report accepts both spellings — it rendered blank
   name and code columns until it did.
+- **Salary structure — Basic / HRA** (`shared/structure.js`, `SalaryStructure.jsx`) — Dinesh:
+  *"salary structure basic hra banavo"*. `employees` gained `basic`, `hra`, `conveyance`,
+  `medical`; **special allowance is deliberately NOT stored** — it is whatever is left of
+  `monthly_salary`, so the parts can never drift from the total.
+  **The rule the whole design hangs on: the breakup never changes what anybody is paid.**
+  `calculateRow` derives the earned components from `gross_after_absent`, which was already
+  computed from the single salary figure, and nothing downstream reads them — so gross, net,
+  PT and every deduction are untouched. Verified on the real October data: all 115 rows
+  byte-identical before and after, net ₹14,48,366 both ways, and there is a calc test
+  asserting a month comes out the same with and without a structure.
+  Components exceeding the salary are an error naming the amount over, never a negative
+  allowance. The earned lines are pro-rated and **special absorbs the rounding**, so a
+  payslip's lines always sum to its own gross to the rupee (there is a test over awkward
+  salaries × absences). The Excel export and monthly CSV gained the five columns, blank where
+  no structure is set — zero would read as "no HRA".
+  **Bulk split** in Employees (tick, then "Split their salary"): Basic %, HRA % of basic, flat
+  conveyance/medical, each person split from **their own** salary. HRA defaults to 40% of
+  basic, not 50% — Vadodara and Surat are not metros for the exemption.
+  **PF is reported, never changed:** the panel says what 12% of basic would be against what is
+  actually deducted, with a button to match them, because changing it moves take-home and is a
+  decision rather than a calculation.
+  Two bugs found by running it: `listPayrollRows` did not select the new columns, so the
+  payslip showed one line however the structure was set; and the components were scaled by the
+  *month's* salary rather than the master they were typed against, which would have made a
+  breakup vanish in a month whose salary was edited.
 - **One person's own report** (`shared/employeeReport.js`, "report" beside any name in
   Employees) — Dinesh: *"Per employee report / absent present / leaves / salary / monthwise
   report"*. One person **down the months** rather than one month across the staff: headline

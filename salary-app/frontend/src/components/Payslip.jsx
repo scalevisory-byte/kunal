@@ -15,11 +15,29 @@ export default function Payslip({ period, row, onClose }) {
   // once, and still balancing.
   const earned = calc.gross_salary + calc.deduction;
 
+  /*
+   * With a salary structure set, the slip lists Basic, HRA and the rest as
+   * this month EARNED them - already pro-rated for the days absent, which the
+   * table above states - and they add up to the gross exactly.
+   *
+   * Without one, it reads as it always has: the month's salary, less the days
+   * absent. Both shapes end at the same gross; the breakup only describes it.
+   */
+  const broken = calc.earned_basic !== null && calc.earned_basic !== undefined;
+  const structureLines = broken
+    ? [
+        ['Basic', calc.earned_basic],
+        ['HRA', calc.earned_hra],
+        ['Conveyance', calc.earned_conveyance],
+        ['Medical', calc.earned_medical],
+        ['Special allowance', calc.earned_special],
+      ]
+    : [['Salary for the month', calc.salary], ['Less: absent days', -calc.absent_salary]];
+
   const earnings = [
-    ['Salary for the month', calc.salary],
+    ...structureLines,
     ['Overtime / short hours', calc.ot_salary],
     [row.remark ? `Added: ${row.remark}` : 'Other additions', calc.addition],
-    ['Less: absent days', -calc.absent_salary],
   ].filter(([, amount]) => Number(amount) !== 0);
 
   const deductions = [
@@ -69,6 +87,12 @@ export default function Payslip({ period, row, onClose }) {
               <tr className="subtotal"><td>Gross salary</td><td className="num">{rupees(earned)}</td></tr>
             </tbody>
           </table>
+          {broken && calc.absent_days > 0 ? (
+            <p className="muted small">
+              Every line above is after {days(calc.absent_days)} day
+              {calc.absent_days === 1 ? '' : 's'} absent.
+            </p>
+          ) : null}
 
           <table className="sheet">
             <thead><tr><th>Deductions</th><th>Amount</th></tr></thead>

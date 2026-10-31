@@ -47,6 +47,8 @@ import { monthTotals } from './timesheet.js';
  *
  * Order here is the order the pickers and the legend show them in.
  */
+import { earnedStructure } from './structure.js';
+
 export const ATTENDANCE_CODES = {
   P: { label: 'Present', absent: 0, sunday: 0, paid: true },
   A: { label: 'Absent', absent: 1, sunday: 0, paid: false },
@@ -233,9 +235,24 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ? num(row.sunday_salary_override)
     : sundaysWorked * perDay;
 
+  /*
+   * The salary broken into Basic, HRA and the rest, as this month earned it.
+   *
+   * Presentational only, and deliberately so: it is derived from
+   * `grossAfterAbsent`, which was already worked out above from the single
+   * salary figure. Nothing below it reads this, so a breakup cannot move a
+   * gross, a net, a PT or a deduction by a rupee. Null until somebody sets one.
+   */
+  const earned = earnedStructure(row, { salary, gross_after_absent: grossAfterAbsent });
+
   return {
     working_days: workingDays,
     sundays_worked: round2(sundaysWorked),
+    earned_basic: earned ? earned.basic : null,
+    earned_hra: earned ? earned.hra : null,
+    earned_conveyance: earned ? earned.conveyance : null,
+    earned_medical: earned ? earned.medical : null,
+    earned_special: earned ? earned.special : null,
     absent_days: round2(absentDays),
     present_days: presentDays,
     salary: round2(salary),

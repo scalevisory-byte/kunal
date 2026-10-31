@@ -42,6 +42,13 @@ db.exec(`
     bank_account   TEXT,
     ifsc           TEXT,
     -- Yearly leave entitlement, counted against the CL/SL/PL marks
+    -- The salary breakup. Special allowance is deliberately NOT stored: it is
+    -- whatever is left of monthly_salary, so the parts can never drift from
+    -- the total and adding a breakup cannot change anybody's pay.
+    basic          REAL NOT NULL DEFAULT 0,
+    hra            REAL NOT NULL DEFAULT 0,
+    conveyance     REAL NOT NULL DEFAULT 0,
+    medical        REAL NOT NULL DEFAULT 0,
     cl_quota       REAL NOT NULL DEFAULT 0,
     sl_quota       REAL NOT NULL DEFAULT 0,
     pl_quota       REAL NOT NULL DEFAULT 0,
@@ -272,6 +279,13 @@ for (const column of ['cl_quota', 'sl_quota', 'pl_quota']) {
   }
 }
 
+for (const column of ['basic', 'hra', 'conveyance', 'medical']) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} REAL NOT NULL DEFAULT 0`);
+    log.info(`Migrated employees: added ${column} for the salary breakup.`);
+  }
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -337,6 +351,10 @@ export function deleteCompany(id) {
 /* ---------------- employees ---------------- */
 
 const EMPLOYEE_FIELDS = [
+  'basic',
+  'hra',
+  'conveyance',
+  'medical',
   'company_id',
   'code',
   'name',
@@ -422,6 +440,10 @@ export function createEmployee(input) {
     bank_name: input.bank_name || null,
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
+    basic: Number(input.basic) || 0,
+    hra: Number(input.hra) || 0,
+    conveyance: Number(input.conveyance) || 0,
+    medical: Number(input.medical) || 0,
     cl_quota: Number(input.cl_quota) || 0,
     sl_quota: Number(input.sl_quota) || 0,
     pl_quota: Number(input.pl_quota) || 0,
@@ -535,6 +557,8 @@ export function listPayrollRows(periodId, { company_id } = {}) {
       `SELECT p.*, e.name AS employee_name, e.code AS employee_code, e.designation,
               e.religion, e.department, e.uan, e.esic_no, e.pf_no, e.pan,
               e.bank_name, e.bank_account, e.ifsc,
+              -- the salary breakup, and the master salary it was typed against
+              e.basic, e.hra, e.conveyance, e.medical, e.monthly_salary,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
