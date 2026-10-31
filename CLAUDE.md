@@ -339,6 +339,96 @@ assistant. See `salary-app/README.md`.
   served from `backend/public`, auth on, and the SQLite data surviving a restart on the
   same DATA_DIR.
 
+## Third project — recruitment software (`/recruitment-app/`)
+
+Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") — a 7-step engine for
+ZYNTA Placement Services: create vacancy → distribute → candidate applies → CV → test →
+selection pipeline → placement and fee. Three decisions he made before anything was built:
+
+- **"Bilkul alag, khaali se shuru"** — a separate system starting empty. The ZYNTA CRM keeps
+  running alongside and shares no database with this. (The CRM already holds the lead /
+  requirement / fee side and **84 candidates**; what the spec adds is the candidate-facing
+  and pipeline side.)
+- **"Node + SQLite, salary-app jaisa"** — this repo's stack and conventions. He was told the
+  public apply link still needs hosting and chose it anyway, so `backend/Dockerfile` +
+  `railway.json` ship with it.
+- **"Mera test system embed karo"** — his own test system in an iframe, not one built here.
+  **URL still to be supplied** (`TEST_EMBED_URL`); blank means the test step is not offered.
+
+### What it does
+
+Node 20 + Express + better-sqlite3, React 18 + Vite, plain CSS. Seven tables: vacancies,
+candidates, applications, tests, interviews, followups, placements. `shared/` is
+dependency-free and imported by both sides, so the browser scores a candidate and words a
+message with the exact code the server uses. See `recruitment-app/README.md`.
+
+- **`shared/match.js`** — weights skills 34, experience 24, location 18, salary 14,
+  education 10. The parsers read what people actually type: `1-3 yrs`, `3.6 LPA`, `fresher`,
+  `₹10-18k/month`, `Bhayli, Vadodara`. A factor the vacancy does not ask for **cannot be
+  failed**; a factor the candidate has not stated scores **half, not zero** — "not said" is
+  not "no". Four parser bugs were found by the smoke test and fixed: `norm()` stripped the
+  hyphen so `1-3 yrs` gave a minimum of 3; a same-city-different-area address scored 50%;
+  `10-18k` read the low end as ₹10; `3.6 LPA` returned 0 because `l\b` does not match "lpa".
+  A fifth came out of the tests: `toSkills` did not split on `/` or the word "and", so
+  "Tally / Busy and Excel" was one skill nobody had — it now splits on both, with word
+  boundaries so Android and "demand planning" survive.
+- **Nothing moves on its own.** The match score orders a queue and a test score is one more
+  thing to weigh; neither shortlists and neither rejects. Every pipeline move is a person
+  choosing it. There is no auto-advance and no auto-reject anywhere, and there is a test
+  asserting a recorded test result leaves the stage alone.
+- **The candidate pays nothing, ever.** Nothing on the public side takes or asks for money.
+- **Two surfaces, one wall.** Unauthenticated: `/api/public/*` (read a *published* advert,
+  apply, attach a CV, post a test result) and `/files/resume/:id`. Everything else needs the
+  `APP_PASSWORD` bearer token. The public side cannot list or read a candidate, cannot see a
+  stage or a match score, and **never receives the client company's name** — `publicVacancy`
+  substitutes `public_company` ("A textile manufacturer"). There are tests asserting the
+  client's name is absent from the share pack, the advert, the apply response and even the
+  candidate's own WhatsApp message.
+- **CVs live on disk** under `DATA_DIR/resumes`, never in the database and never in a page.
+  The uploaded filename is thrown away (it is user input and this is a path); the row keeps
+  a generated name. A recruiter reads one through a **signed link that expires** — the
+  candidate id is part of what is signed, so a signature cannot be replayed for somebody
+  else's CV. Deleting a candidate deletes the file. The candidate CSV says `yes`/blank and
+  never carries the path or the file.
+- **Applying is name + mobile only.** Everything else is optional: an application that is
+  too much work is one that does not arrive. The **mobile number is the identity** (last 10
+  digits, unique index), so a second application tops up the same person rather than making
+  a third row — and `upsertCandidate` **never overwrites a filled field with a blank one**,
+  so a quick apply cannot wipe the salary and CV a fuller one gave last month. A newer CV
+  is the exception: that one does replace.
+- **Short-lived signed tokens** (`backend/src/tokens.js`) carry the public side's two
+  privileges: attaching a CV after a quick apply, and the test system posting a score back.
+  A token is purpose-scoped, so an upload token cannot be used as a test-result token.
+- **A crude per-IP rate limit** on apply and upload. Not a real limiter — it is there so one
+  bored person with a loop cannot fill the candidate table overnight.
+- **Drag a card and the message appears**, bottom right, with a `wa.me` link. There is **no
+  WhatsApp API in here, by design**: an agency auto-messaging strangers is how a number gets
+  blocked, and these messages want a human eye. Every message is text plus a link that opens
+  WhatsApp on Dinesh's own number, and he presses send. `shared/messages.js` holds every
+  word; a rejection is written to keep the person on the books, because next month there is
+  another job.
+- **Editing a vacancy re-scores everyone on it** — the old numbers were measured against the
+  old requirement. There is a test.
+- Scheduling an interview **writes its own follow-up** for that day: an interview nobody is
+  reminded about is an interview that gets missed.
+- `feeFor` had a dead ternary (`basis === 'monthly' ? amount : amount`). Now `ctc` is always
+  the annual figure and `monthly` charges on a twelfth, so **100% monthly and 8.33% annual
+  are the same money by two routes**, and the basis is stored on the placement so a past one
+  keeps what it was charged on.
+- The dashboard is Overview / Pipeline (board + list) / Vacancies / Candidates / Interviews /
+  Follow-ups / Placements / Reports. The candidate sees only `/apply/REQ-003` and `/jobs`,
+  told apart by path — no router, because there are two public paths and the rest is tabs.
+- 42 tests green; driven in a real browser end to end (apply → pipeline → share) with zero
+  console errors.
+- **Not yet deployed** — root directory `recruitment-app`, volume at `/data`. No Docker
+  daemon to build the image; the production path was exercised without it.
+
+### Still to settle with Dinesh
+The test system's embed URL and what it posts back; the agency WhatsApp number for the
+digest; the real fee model (percentage, basis, GST, replacement window — the defaults are
+8.33% of annual CTC + 18% GST, 90 days); and where this is hosted, so `PUBLIC_URL` can be
+set and the apply links actually work.
+
 ## Alternative architecture considered (not being built, for reference)
 Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (official, business-number-only) → Google Gemini for extraction → MongoDB for storage → BullMQ + Redis for reminder job scheduling → Meta API sends reminder back. This is the "message a bot to log a task" model (active input) vs. the current build's "ambient, reads all your chats" model (passive). We are continuing with the passive/personal-WhatsApp approach already built, not this one, unless Dinesh says otherwise.
 
@@ -346,6 +436,8 @@ Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (officia
 - `whatsapp-web.js` is an unofficial library (automates a WhatsApp Web session via Puppeteer/Chromium). It's the standard approach for reading a personal account programmatically, but keep usage passive (reading + occasional self-reminders) — no mass-sending or scraping other people's data — to avoid any account risk.
 - Single WhatsApp Business number used across all of Dinesh's ventures is `9909993565` — this personal-WhatsApp task assistant is a separate, distinct thing from that number/setup.
 - Dashboard auth is one shared secret (`DASHBOARD_PASSWORD`), which suits a single user. It is not multi-user auth, and messages/tasks sit unencrypted in SQLite. Leaving it unset disables auth entirely — only do that locally.
+- The recruitment app is the one project here with a **deliberately public URL**, so `APP_PASSWORD` unset is not merely sloppy there — it exposes every candidate's phone number, salary and CV to anyone who finds the address. Its CVs are strangers' personal data: keep them on disk behind expiring signed links, keep them out of exports, and never commit a database or a `resumes/` folder.
+- Do not commit Dinesh's real data in any of these projects: `salary-app/frontend/seed.json` is git-ignored because it carries real salaries, and the same goes for any candidate or payroll database.
 
 ## Immediate next steps (in order)
 1. Deploy to Railway: root directory `wa-task-assistant`, volume at `/data`, and the variables listed in the README (`ANTHROPIC_API_KEY`, `DATA_DIR=/data`, `DASHBOARD_PASSWORD`, VAPID keys).
