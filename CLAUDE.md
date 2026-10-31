@@ -251,6 +251,22 @@ assistant. See `salary-app/README.md`.
   80.8% for the same person) because the footer was worked out off `payable_days`, which
   counts an unmarked day as worked. Both now do the single-month sum — days attended over days
   expected — and a test pins that they match.
+- **Employee record: manager, documents, history** — Dinesh pasted a "Core HRMS Modules"
+  list whose module 1 (Employee Management) named three things the app did not have.
+  **Reporting manager**: `employees.reports_to_id` points at another employee, so an org line
+  is a join and not a name that goes stale; the record lists direct reports too, and
+  `wouldLoop()` refuses self-reference and any cycle, because a chart that cannot be walked is
+  worse than none. **Documents/KYC**: `employee_documents` plus `backend/src/documents.js`,
+  the same shape as candidate CVs — file on disk under `DATA_DIR/documents`, row holds only a
+  generated name, uploaded filename discarded, read back through an expiring signed link; the
+  API strips `file_path` from every response and there is a test for it. `shared/documents.js`
+  lists the kinds and which four count as KYC, so the record can say what is still missing and
+  flag anything past an expiry date. **History**: `employee_history`, append-only, written by
+  `updateEmployee` for a tracked field list (salary, designation, department, company, manager,
+  PF/ESI mode, joining date, status). Values are stored **readably** — a company and a manager
+  by name, not an id — a patch setting a field to the value it already had records nothing,
+  and a free note can be added with no field change. All three need the server; the standalone
+  build says so rather than showing an empty box.
 - **Onboarding a new joiner** (`shared/onboarding.js`, `OnboardingChecklist.jsx`) — "Add to
   payroll" needs only a name and a salary, and then the PF return will not file for want of a
   UAN and the transfer fails for want of an IFSC. **Employees → "Still to finish"** lists

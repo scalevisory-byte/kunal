@@ -643,3 +643,117 @@ test("a report can be narrowed to one year, and totals follow", async () => {
 test('a report for somebody who does not exist is a 404, not an empty page', async () => {
   assert.equal((await api('GET', '/api/employees/999999/report')).status, 404);
 });
+
+/* ---------------- employee management: manager, history, documents ---------------- */
+
+let managerId;
+
+test('a reporting manager is another employee, and a loop is refused', async () => {
+  const boss = await api('POST', '/api/employees', {
+    company_id: (await api('GET', '/api/employees')).body.employees[0].company_id,
+    name: 'Dinesh Parmar',
+    monthly_salary: 100000,
+  });
+  managerId = boss.body.id;
+
+  const set = await api('PATCH', `/api/employees/${employeeId}`, { reports_to_id: managerId });
+  assert.equal(set.status, 200);
+  assert.equal(set.body.reports_to_id, managerId);
+
+  // The manager's own record lists the people under them.
+  const record = await api('GET', `/api/employees/${managerId}/record`);
+  assert.ok(record.body.reports.some((r) => r.id === employeeId));
+
+  // Nobody reports to themselves.
+  const self = await api('PATCH', `/api/employees/${managerId}`, { reports_to_id: managerId });
+  assert.equal(self.status, 400);
+  assert.match(self.body.error, /circle back/i);
+
+  // And nobody reports to somebody who already reports to them.
+  const loop = await api('PATCH', `/api/employees/${managerId}`, { reports_to_id: employeeId });
+  assert.equal(loop.status, 400);
+});
+
+test('a salary or designation change is written into the history', async () => {
+  const before = (await api('GET', `/api/employees/${employeeId}/record`)).body.history.length;
+
+  await api('PATCH', `/api/employees/${employeeId}`, { monthly_salary: 25000, designation: 'Senior Accountant' });
+  const { history } = (await api('GET', `/api/employees/${employeeId}/record`)).body;
+  assert.equal(history.length, before + 2);
+
+  const salary = history.find((h) => h.field === 'monthly_salary');
+  assert.equal(salary.to_value, '25000');
+  assert.ok(salary.label, 'the timeline needs a readable label');
+
+  // The manager change earlier was recorded by name, not by id.
+  const manager = history.find((h) => h.field === 'reports_to_id');
+  assert.equal(manager.to_value, 'Dinesh Parmar');
+});
+
+test('setting a field to the value it already had records nothing', async () => {
+  const before = (await api('GET', `/api/employees/${employeeId}/record`)).body.history.length;
+  await api('PATCH', `/api/employees/${employeeId}`, { monthly_salary: 25000 });
+  const after = (await api('GET', `/api/employees/${employeeId}/record`)).body.history.length;
+  assert.equal(after, before);
+});
+
+test('a note can be put on the record without changing a field', async () => {
+  const added = await api('POST', `/api/employees/${employeeId}/history`, { note: 'Moved to the Surat office' });
+  assert.equal(added.status, 201);
+  assert.ok(added.body.history.some((h) => h.note === 'Moved to the Surat office'));
+  assert.equal((await api('POST', `/api/employees/${employeeId}/history`, { note: '  ' })).status, 400);
+});
+
+test('a document goes on disk, and the row never carries the path', async () => {
+  const form = new FormData();
+  form.set('document', new Blob([Buffer.from('%PDF-1.4 pan card')], { type: 'application/pdf' }), 'PAN Rohit.pdf');
+  form.set('kind', 'pan');
+  form.set('number', 'ABCDE1234F');
+  const res = await fetch(`${base}/api/employees/${employeeId}/documents`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${process.env.APP_PASSWORD}` },
+    body: form,
+  });
+  assert.equal(res.status, 201);
+  const { document } = await res.json();
+  assert.equal(document.kind, 'pan');
+  assert.equal(document.file_name, 'PAN Rohit.pdf');
+  assert.equal(document.file_path, undefined, 'the path on disk must not reach the page');
+  assert.ok(document.link.url.startsWith('/files/document/'));
+
+  // The signed link works with no password, and a tampered one does not.
+  const open = await fetch(`${base}${document.link.url}`);
+  assert.equal(open.status, 200);
+  assert.match(await open.text(), /pan card/);
+  const url = new URL(document.link.url, base);
+  assert.equal(
+    (await fetch(`${base}/files/document/${document.id}?exp=${url.searchParams.get('exp')}&sig=nope`)).status,
+    403
+  );
+
+  // And the record knows what is still missing.
+  const { document_status } = (await api('GET', `/api/employees/${employeeId}/record`)).body;
+  assert.ok(!document_status.missing_kyc.includes('pan'));
+  assert.ok(document_status.missing_kyc.includes('aadhaar'));
+  assert.equal(document_status.complete, false);
+});
+
+test('only a real document format is accepted', async () => {
+  const form = new FormData();
+  form.set('document', new Blob([Buffer.from('#!/bin/sh')], { type: 'application/x-sh' }), 'x.sh');
+  const res = await fetch(`${base}/api/employees/${employeeId}/documents`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${process.env.APP_PASSWORD}` },
+    body: form,
+  });
+  assert.equal(res.status, 400);
+});
+
+test('deleting a document takes the file with it', async () => {
+  const { documents } = (await api('GET', `/api/employees/${employeeId}/record`)).body;
+  const doc = documents[0];
+  assert.equal((await api('DELETE', `/api/employees/${employeeId}/documents/${doc.id}`)).status, 204);
+  assert.equal((await fetch(`${base}${doc.link.url}`)).status, 404);
+  // Somebody else's document id cannot be deleted through this employee.
+  assert.equal((await api('DELETE', `/api/employees/${managerId}/documents/${doc.id}`)).status, 404);
+});

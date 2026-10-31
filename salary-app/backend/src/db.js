@@ -60,6 +60,9 @@ db.exec(`
     pf_mode        TEXT NOT NULL DEFAULT 'fixed',
     esi_mode       TEXT NOT NULL DEFAULT 'fixed',
     payment_mode   TEXT NOT NULL DEFAULT 'Bank',
+    -- Who this person reports to. Another employee, so an org chart is a join
+    -- rather than a free-text name that goes stale the day somebody leaves.
+    reports_to_id  INTEGER REFERENCES employees(id) ON DELETE SET NULL,
     joined_on      TEXT,
     left_on        TEXT,
     active         INTEGER NOT NULL DEFAULT 1,
@@ -69,6 +72,36 @@ db.exec(`
 
   -- One payroll month. Each period freezes its own divisors so re-running an
   -- old month never picks up today's settings.
+  -- Every change worth remembering about a person: what their salary was in
+  -- March, when they were promoted, when they left. Append-only, because the
+  -- point of a history is that it cannot be edited into something else.
+  CREATE TABLE IF NOT EXISTS employee_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    field       TEXT NOT NULL,
+    from_value  TEXT,
+    to_value    TEXT,
+    note        TEXT,
+    changed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_history_employee ON employee_history(employee_id, changed_at);
+
+  -- The paper behind the KYC numbers. The file itself lives on disk; this
+  -- row only ever holds a generated filename.
+  CREATE TABLE IF NOT EXISTS employee_documents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'other',
+    file_path   TEXT NOT NULL,
+    file_name   TEXT,
+    number      TEXT,
+    issued_on   TEXT,
+    expires_on  TEXT,
+    notes       TEXT,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_documents_employee ON employee_documents(employee_id);
+
   CREATE TABLE IF NOT EXISTS periods (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     year          INTEGER NOT NULL,
@@ -290,6 +323,11 @@ for (const column of ['basic', 'hra', 'conveyance', 'medical']) {
   }
 }
 
+if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'reports_to_id')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN reports_to_id INTEGER REFERENCES employees(id) ON DELETE SET NULL`);
+  log.info('Migrated employees: added reports_to_id.');
+}
+
 // Existing staff default to 'fixed', so the migration cannot move a deduction.
 for (const column of ['pf_mode', 'esi_mode']) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
@@ -363,6 +401,7 @@ export function deleteCompany(id) {
 /* ---------------- employees ---------------- */
 
 const EMPLOYEE_FIELDS = [
+  'reports_to_id',
   'pf_mode',
   'esi_mode',
   'basic',
@@ -454,6 +493,7 @@ export function createEmployee(input) {
     bank_name: input.bank_name || null,
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
+    reports_to_id: Number(input.reports_to_id) || null,
     pf_mode: input.pf_mode === 'auto' ? 'auto' : 'fixed',
     esi_mode: input.esi_mode === 'auto' ? 'auto' : 'fixed',
     basic: Number(input.basic) || 0,
@@ -483,21 +523,152 @@ export function createEmployee(input) {
   return getEmployee(info.lastInsertRowid);
 }
 
+/**
+ * The changes worth keeping a record of. Not every field: a corrected spelling
+ * or a new phone number is housekeeping, while a salary, a designation or a
+ * departure is something somebody will ask about a year later.
+ */
+export const TRACKED_FIELDS = {
+  monthly_salary: 'Salary',
+  designation: 'Designation',
+  department: 'Department',
+  company_id: 'Company',
+  reports_to_id: 'Reports to',
+  basic: 'Basic',
+  hra: 'HRA',
+  pf_mode: 'PF',
+  esi_mode: 'ESI',
+  active: 'Status',
+  left_on: 'Left on',
+  joined_on: 'Joining date',
+};
+
+/** Readable in the timeline rather than an id nobody can place. */
+const historyValue = (field, value) => {
+  if (value === null || value === undefined || value === '') return '';
+  if (field === 'company_id') {
+    return db.prepare(`SELECT name FROM companies WHERE id = ?`).get(Number(value))?.name || String(value);
+  }
+  if (field === 'reports_to_id') {
+    return db.prepare(`SELECT name FROM employees WHERE id = ?`).get(Number(value))?.name || String(value);
+  }
+  if (field === 'active') return Number(value) ? 'Active' : 'Left';
+  return String(value);
+};
+
+export const listEmployeeHistory = (employeeId) =>
+  db
+    .prepare(`SELECT * FROM employee_history WHERE employee_id = ? ORDER BY changed_at DESC, id DESC`)
+    .all(employeeId)
+    .map((row) => ({ ...row, label: TRACKED_FIELDS[row.field] || row.field }));
+
+export function recordHistory(employeeId, field, from, to, note) {
+  return db
+    .prepare(
+      `INSERT INTO employee_history (employee_id, field, from_value, to_value, note)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(employeeId, field, historyValue(field, from), historyValue(field, to), note || null)
+    .lastInsertRowid;
+}
+
+/**
+ * Nobody may report to themselves, or to somebody who already reports to them.
+ * A loop here would hang any walk up the chain, and an org chart that cannot be
+ * drawn is worse than none.
+ */
+export function wouldLoop(employeeId, managerId) {
+  if (!managerId) return false;
+  if (Number(managerId) === Number(employeeId)) return true;
+  const seen = new Set([Number(employeeId)]);
+  let at = Number(managerId);
+  while (at) {
+    if (seen.has(at)) return true;
+    seen.add(at);
+    at = db.prepare(`SELECT reports_to_id FROM employees WHERE id = ?`).get(at)?.reports_to_id || 0;
+  }
+  return false;
+}
+
 export function updateEmployee(id, patch) {
+  const before = getEmployee(id);
+  if (!before) return null;
+
+  if ('reports_to_id' in patch) {
+    const manager = patch.reports_to_id ? Number(patch.reports_to_id) : null;
+    if (manager && wouldLoop(id, manager)) {
+      throw new Error('That would make the reporting line circle back on itself.');
+    }
+  }
+
   const fields = [];
   const values = [];
   for (const key of EMPLOYEE_FIELDS) {
     if (!(key in patch)) continue;
     let value = patch[key];
     if (key === 'active') value = value ? 1 : 0;
+    if (key === 'reports_to_id') value = Number(value) || null;
     if (value === '') value = null;
     fields.push(`${key} = ?`);
     values.push(value);
   }
-  if (!fields.length) return getEmployee(id);
+  if (!fields.length) return before;
   db.prepare(`UPDATE employees SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
-  return getEmployee(id);
+  const after = getEmployee(id);
+
+  // Recorded after the fact, from what actually changed, so a patch that sets
+  // a field to the value it already had leaves no entry.
+  for (const field of Object.keys(TRACKED_FIELDS)) {
+    if (!(field in patch)) continue;
+    const from = before[field];
+    const to = after[field];
+    if (String(from ?? '') === String(to ?? '')) continue;
+    recordHistory(id, field, from, to, patch.history_note);
+  }
+  return after;
 }
+
+/* ---------------- employee documents ---------------- */
+
+export const listDocuments = (employeeId) =>
+  db
+    .prepare(`SELECT * FROM employee_documents WHERE employee_id = ? ORDER BY uploaded_at DESC, id DESC`)
+    .all(employeeId);
+
+export const getDocument = (id) =>
+  db.prepare(`SELECT * FROM employee_documents WHERE id = ?`).get(id) || null;
+
+export function addDocument(employeeId, values) {
+  const id = db
+    .prepare(
+      `INSERT INTO employee_documents (employee_id, kind, file_path, file_name, number, issued_on, expires_on, notes)
+       VALUES (@employee_id, @kind, @file_path, @file_name, @number, @issued_on, @expires_on, @notes)`
+    )
+    .run({
+      employee_id: employeeId,
+      kind: values.kind || 'other',
+      file_path: values.file_path,
+      file_name: values.file_name || null,
+      number: values.number || null,
+      issued_on: values.issued_on || null,
+      expires_on: values.expires_on || null,
+      notes: values.notes || null,
+    }).lastInsertRowid;
+  return getDocument(id);
+}
+
+export const deleteDocument = (id) =>
+  db.prepare(`DELETE FROM employee_documents WHERE id = ?`).run(id).changes > 0;
+
+/** Who reports to this person, for the team view. */
+export const listDirectReports = (employeeId) =>
+  db
+    .prepare(
+      `SELECT e.id, e.name, e.designation, e.department, c.name AS company_name
+       FROM employees e JOIN companies c ON c.id = e.company_id
+       WHERE e.reports_to_id = ? AND e.active = 1 ORDER BY e.name`
+    )
+    .all(employeeId);
 
 export function deleteEmployee(id) {
   return db.prepare(`DELETE FROM employees WHERE id = ?`).run(id).changes > 0;

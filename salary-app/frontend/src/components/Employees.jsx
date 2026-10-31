@@ -600,6 +600,7 @@ export default function Employees({
           <EmployeeProfile
             employee={employee}
             companies={companies}
+            employees={employees}
             onPatch={onPatch}
             onClose={() => setProfileFor(null)}
           />

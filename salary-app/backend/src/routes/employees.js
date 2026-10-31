@@ -1,12 +1,22 @@
 import { Router } from 'express';
 import {
+  addDocument,
   createEmployee,
+  deleteDocument,
   deleteEmployee,
+  getDocument,
   getEmployee,
+  listDirectReports,
+  listDocuments,
+  listEmployeeHistory,
   listEmployees,
   listPeriods,
+  recordHistory,
   updateEmployee,
 } from '../db.js';
+import fs from 'node:fs';
+import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
+import { documentStatus } from '../../../shared/documents.js';
 import { buildPayroll } from '../payroll.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 
@@ -67,9 +77,70 @@ employeesRouter.get('/:id/report', (req, res) => {
 });
 
 employeesRouter.patch('/:id', (req, res) => {
-  const employee = updateEmployee(Number(req.params.id), req.body || {});
+  try {
+    const employee = updateEmployee(Number(req.params.id), req.body || {});
+    if (!employee) return res.status(404).json({ error: 'not found' });
+    res.json(employee);
+  } catch (err) {
+    // A reporting loop is the one thing a patch can be refused for.
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- the record behind the record ---------------- */
+
+/** Everything the profile drawer needs beyond the employee row itself. */
+employeesRouter.get('/:id/record', (req, res) => {
+  const employee = getEmployee(Number(req.params.id));
   if (!employee) return res.status(404).json({ error: 'not found' });
-  res.json(employee);
+  const documents = listDocuments(employee.id);
+  res.json({
+    employee,
+    documents: documents.map((doc) => ({ ...doc, file_path: undefined, link: documentLink(doc) })),
+    document_status: documentStatus(documents),
+    history: listEmployeeHistory(employee.id),
+    reports: listDirectReports(employee.id),
+  });
+});
+
+/** A note on the record - "promoted", "moved to Surat" - with no field change. */
+employeesRouter.post('/:id/history', (req, res) => {
+  const employee = getEmployee(Number(req.params.id));
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  const note = String(req.body?.note || '').trim();
+  if (!note) return res.status(400).json({ error: 'a note needs something in it' });
+  recordHistory(employee.id, 'note', null, null, note);
+  res.status(201).json({ history: listEmployeeHistory(employee.id) });
+});
+
+employeesRouter.post('/:id/documents', uploadDocument, (req, res) => {
+  const employee = getEmployee(Number(req.params.id));
+  if (!employee) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(404).json({ error: 'not found' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'no file was uploaded' });
+
+  const doc = addDocument(employee.id, {
+    kind: req.body?.kind,
+    file_path: req.file.filename,
+    file_name: req.file.originalname,
+    number: req.body?.number,
+    issued_on: req.body?.issued_on,
+    expires_on: req.body?.expires_on,
+    notes: req.body?.notes,
+  });
+  res.status(201).json({ document: { ...doc, file_path: undefined, link: documentLink(doc) } });
+});
+
+employeesRouter.delete('/:id/documents/:documentId', (req, res) => {
+  const doc = getDocument(Number(req.params.documentId));
+  if (!doc || doc.employee_id !== Number(req.params.id)) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  deleteDocumentFile(doc);
+  deleteDocument(doc.id);
+  res.status(204).end();
 });
 
 employeesRouter.delete('/:id', (req, res) => {

@@ -490,6 +490,34 @@ so building a year's report cannot backdate today's new hires into closed months
 loan instalment into a month already paid — that is the salary sheet's job, not a report's.
 There is an API test for it.
 
+### The employee record: manager, documents, history
+
+Three things a record needs that fields alone do not cover.
+
+**Reporting manager.** `reports_to_id` points at another employee, so an org line is a join
+rather than a typed name that goes stale the day somebody leaves. Their record also lists who
+reports to *them*. A loop is refused — nobody reports to themselves, and nobody reports to
+somebody already under them — because an org chart that cannot be walked is worse than none.
+
+**Documents and KYC.** The KYC *numbers* already lived on the record; the paper behind them
+did not. PAN card, Aadhaar, photograph, bank proof, offer letter, appointment letter,
+qualifications, previous payslip. The file goes on disk under `DATA_DIR/documents`, the row
+holds only a generated filename, the uploaded name is discarded (it is user input and this is
+a path), and it is read back through a link that expires — the same shape as a candidate CV,
+for stronger reasons: an Aadhaar card is the one document somebody can be impersonated with.
+The record says which of the four KYC documents are still missing, and flags any that have
+passed an expiry date.
+
+**History.** A salary, designation, department, company, manager, PF/ESI mode, joining date or
+status change writes itself into `employee_history` — append-only, because the point of a
+history is that it cannot be edited into something else. Values are stored readably (a company
+and a manager by name, not an id), a patch that sets a field to the value it already had
+records nothing, and a free note can be added with no field change at all ("promoted", "moved
+to Surat", "warning issued").
+
+All three need the server. The single-file build says so plainly rather than showing an empty
+box — a PAN card is a file, and a file cannot live in a browser.
+
 ### Onboarding a new joiner
 
 Adding somebody to the payroll needs a name and a salary. Then the month ends, and the PF

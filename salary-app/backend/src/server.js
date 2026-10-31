@@ -7,6 +7,8 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { requireAuth } from './auth.js';
 import { getCandidate } from './hiring.js';
+import { getDocument } from './db.js';
+import { documentFile, documentLinkValid } from './documents.js';
 import { resumeFile, resumeLinkValid } from './resumes.js';
 import { hiringRouter } from './routes/hiring.js';
 import { publicRouter } from './routes/public.js';
@@ -54,6 +56,22 @@ export function createServer() {
     const file = resumeFile(candidate);
     if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
     res.download(file, candidate.resume_name || path.basename(file));
+  });
+
+  /**
+   * An employee document, through the same kind of expiring signature a CV
+   * uses. A browser cannot put a bearer token on an <img src> or a download
+   * click, which is the whole reason these links are signed instead.
+   */
+  app.get('/files/document/:id', (req, res) => {
+    const doc = getDocument(Number(req.params.id));
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    if (!documentLinkValid(doc, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the record again.' });
+    }
+    const file = documentFile(doc);
+    if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
+    res.download(file, doc.file_name || path.basename(file));
   });
 
   app.get('/api/config', requireAuth, (req, res) =>

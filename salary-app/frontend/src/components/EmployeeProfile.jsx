@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
 import Contributions from './Contributions.jsx';
+import EmployeeRecord from './EmployeeRecord.jsx';
 
 /**
  * One employee's full record.
@@ -68,7 +69,7 @@ function complain(field, value) {
   return '';
 }
 
-export default function EmployeeProfile({ employee, companies, onPatch, onClose }) {
+export default function EmployeeProfile({ employee, companies, employees: allEmployees = [], onPatch, onClose }) {
   const [draft, setDraft] = useState(employee);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -155,6 +156,24 @@ export default function EmployeeProfile({ employee, companies, onPatch, onClose 
         {error && <p className="error">{error}</p>}
 
         <OnboardingChecklist employee={draft} />
+
+        <EmployeeRecord
+          employee={draft}
+          employees={allEmployees}
+          onPatch={async (id, patch) => {
+            setDraft({ ...draft, ...patch });
+            setSaving(true);
+            setError('');
+            try {
+              await onPatch(id, patch);
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setSaving(false);
+            }
+          }}
+          onError={(err) => setError(err.message)}
+        />
 
         <SalaryStructure
           employee={draft}
