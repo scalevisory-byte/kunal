@@ -407,3 +407,13 @@ test('the public apply form cannot be hammered', async () => {
   }
   assert.ok(limited, 'the apply endpoint accepted an unbounded flood');
 });
+
+test('approving attendance needs the password; an employee punch link does not', async () => {
+  // This file runs with APP_PASSWORD set, so it is where the wall is tested.
+  assert.equal((await fetch(`${base}/api/attendance/requests`)).status, 401);
+  assert.equal((await fetch(`${base}/api/attendance/offices`)).status, 401);
+  assert.equal((await fetch(`${base}/api/attendance/punches`)).status, 401);
+
+  // A punch link is reachable without one, and is refused when it is nonsense.
+  assert.equal((await open('GET', '/api/punch/not-a-real-token')).status, 403);
+});

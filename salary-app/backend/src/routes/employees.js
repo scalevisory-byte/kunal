@@ -17,6 +17,8 @@ import {
 import fs from 'node:fs';
 import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
 import { documentStatus } from '../../../shared/documents.js';
+import { punchLink } from './punch.js';
+import { config } from '../config.js';
 import { buildPayroll } from '../payroll.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 
@@ -100,6 +102,32 @@ employeesRouter.get('/:id/record', (req, res) => {
     document_status: documentStatus(documents),
     history: listEmployeeHistory(employee.id),
     reports: listDirectReports(employee.id),
+  });
+});
+
+/**
+ * The employee's own punch link, to send them.
+ *
+ * Asking for it mints a fresh one, which is also how a link is revoked after a
+ * phone is lost: issue a new one and the old is no better than a guess... which
+ * it is not, so say so rather than implying otherwise. A token stays valid
+ * until it expires; a genuinely lost phone means changing LINK_SECRET.
+ */
+employeesRouter.get('/:id/punch-link', (req, res) => {
+  const employee = getEmployee(Number(req.params.id));
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  if (!employee.active) return res.status(400).json({ error: 'they have left' });
+
+  const path = punchLink(employee);
+  const base = config.publicUrl || '';
+  res.json({
+    employee_id: employee.id,
+    name: employee.name,
+    path,
+    url: base ? `${base}${path}` : null,
+    enabled: config.punchEnabled,
+    // Said plainly rather than implied: this link IS the identity.
+    warning: 'Anybody holding this link can punch as this person. Send it to them only.',
   });
 });
 

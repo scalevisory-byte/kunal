@@ -8,6 +8,7 @@ import path from 'node:path';
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-test-'));
 process.env.APP_PASSWORD = '';
 process.env.SERVE_FRONTEND = 'false';
+process.env.PUNCH_ENABLED = 'true';
 
 const { createServer } = await import('../src/server.js');
 
@@ -24,6 +25,14 @@ const api = async (method, url, body) => {
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : null };
 };
+
+/**
+ * This file runs with APP_PASSWORD empty, so there is no token to send and
+ * `open` is the same call as `api`. It is named separately where the point of
+ * the test is that a surface is reachable WITHOUT a password - the wall itself
+ * is tested in hiring.test.js, which runs with auth on.
+ */
+const open = api;
 
 let periodId;
 let employeeId;
@@ -757,3 +766,162 @@ test('deleting a document takes the file with it', async () => {
   // Somebody else's document id cannot be deleted through this employee.
   assert.equal((await api('DELETE', `/api/employees/${managerId}/documents/${doc.id}`)).status, 404);
 });
+
+/* ---------------- attendance: punching from a phone, and approvals ---------------- */
+
+const alkapuri = { name: 'Alkapuri office', lat: 22.3072, lng: 73.1812, radius_m: 200 };
+let punchToken;
+
+test('an office location is where a punch counts as being at work', async () => {
+  const created = await api('POST', '/api/attendance/offices', alkapuri);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.radius_m, 200);
+
+  // Latitude and longitude are not optional - an office nowhere fences nothing.
+  assert.equal((await api('POST', '/api/attendance/offices', { name: 'Nowhere' })).status, 400);
+});
+
+test('a punch link identifies one person and carries no password', async () => {
+  // The office asks for the link through the employees route.
+  const link = await api('GET', `/api/employees/${employeeId}/punch-link`);
+  assert.equal(link.status, 200);
+  punchToken = link.body.path.split('/').pop();
+
+  const page = await open('GET', `/api/punch/${punchToken}`);
+  assert.equal(page.status, 200);
+  assert.equal(page.body.employee.id, employeeId);
+  assert.equal(page.body.next, 'in');
+  // What a punch link may NOT see. Checked as keys rather than as a substring
+  // search - "company_name" contains "pan", which is not a leaked PAN.
+  const shown = Object.keys(page.body.employee);
+  for (const secret of ['monthly_salary', 'basic', 'hra', 'pan', 'aadhaar', 'uan', 'bank_account', 'pf', 'esi']) {
+    assert.ok(!shown.includes(secret), `a punch link exposed ${secret}`);
+  }
+  assert.deepEqual(shown.sort(), ['code', 'company_name', 'designation', 'id', 'name']);
+  assert.equal(JSON.stringify(page.body).includes('"net_salary"'), false);
+
+  assert.equal((await open('GET', '/api/punch/not-a-token')).status, 403);
+  // And the office is warned that the link is the identity.
+  assert.match(link.body.warning, /Anybody holding this link/);
+});
+
+test('punching in at the office records it and lands on the grid', async () => {
+  const res = await open('POST', `/api/punch/${punchToken}/punch`, {
+    kind: 'in',
+    lat: 22.3073,
+    lng: 73.1813,
+    accuracy: 15,
+  });
+  assert.equal(res.status, 201);
+  assert.equal(res.body.inside, true);
+  assert.match(res.body.where, /at Alkapuri office/);
+  assert.equal(res.body.next, 'out', 'the phone offers the other button next');
+  assert.ok(res.body.day.in_time, 'the day carries a clock time');
+});
+
+test('a punch away from the office is recorded and flagged, never refused', async () => {
+  const res = await open('POST', `/api/punch/${punchToken}/punch`, {
+    kind: 'out',
+    lat: 22.3400,
+    lng: 73.2100,
+    accuracy: 20,
+  });
+  assert.equal(res.status, 201, 'refusing it would leave them with no attendance at all');
+  assert.equal(res.body.inside, false);
+  assert.match(res.body.where, /from Alkapuri office/);
+
+  const log = await api('GET', `/api/attendance/punches?employee_id=${employeeId}`);
+  assert.ok(log.body.punches.some((p) => p.inside_fence === false));
+});
+
+test('a punch with no location is refused while location is required', async () => {
+  const res = await open('POST', `/api/punch/${punchToken}/punch`, { kind: 'in' });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /location/i);
+});
+
+test('a request is raised by the employee and writes nothing on its own', async () => {
+  const before = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 9,
+    kind: 'missing_punch',
+    in_time: '09:30',
+    out_time: '18:30',
+    reason: 'Machine did not read my finger',
+  });
+  assert.equal(raised.status, 201);
+  assert.equal(raised.body.status, 'pending');
+
+  // Nothing on the grid has moved.
+  const after = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  assert.deepEqual(after, before, 'a pending request must not touch attendance');
+
+  // A request with no reason is refused - the office has to decide on something.
+  const thin = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 10,
+    kind: 'missing_punch',
+    in_time: '09:30',
+  });
+  assert.equal(thin.status, 400);
+});
+
+test('a punch link cannot raise a request in somebody else name', async () => {
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    employee_id: managerId,
+    period_id: periodId,
+    day: 11,
+    kind: 'correction',
+    code: 'CL',
+    reason: 'trying it on',
+  });
+  assert.equal(raised.status, 201);
+  // The id came from the token, not the body.
+  assert.equal(raised.body.employee_id, employeeId);
+});
+
+test('approving is what writes the attendance, and only once', async () => {
+  const pending = (await api('GET', '/api/attendance/requests?status=pending')).body.requests;
+  const missing = pending.find((r) => r.kind === 'missing_punch' && r.day === 9);
+  assert.ok(missing, 'the request should be waiting');
+
+  const decided = await api('POST', `/api/attendance/requests/${missing.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+  assert.equal(decided.body.status, 'approved');
+  assert.equal(decided.body.decided_by, 'Dinesh');
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const mine = grid.employees.find((e) => e.employee_id === employeeId);
+  const day = mine.attendance[9];
+  assert.ok(day, 'the approved day is on the grid now');
+  assert.equal(day.in_time, '09:30');
+
+  // And it cannot be decided twice.
+  const again = await api('POST', `/api/attendance/requests/${missing.id}/decide`, { approve: false });
+  assert.equal(again.status, 400);
+  assert.match(again.body.error, /already approved/);
+});
+
+test('rejecting writes nothing beyond the decision', async () => {
+  const pending = (await api('GET', '/api/attendance/requests?status=pending')).body.requests;
+  const correction = pending.find((r) => r.kind === 'correction');
+  assert.ok(correction);
+
+  const before = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const decided = await api('POST', `/api/attendance/requests/${correction.id}/decide`, {
+    approve: false,
+    note: 'He was not in that day',
+  });
+  assert.equal(decided.body.status, 'rejected');
+  assert.equal(decided.body.decision_note, 'He was not in that day');
+
+  const after = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  assert.deepEqual(after, before, 'a rejection must not touch attendance');
+});
+
+

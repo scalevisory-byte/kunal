@@ -12,6 +12,8 @@ import { documentFile, documentLinkValid } from './documents.js';
 import { resumeFile, resumeLinkValid } from './resumes.js';
 import { hiringRouter } from './routes/hiring.js';
 import { publicRouter } from './routes/public.js';
+import { attendanceSelfRouter } from './routes/attendanceSelf.js';
+import { punchRouter } from './routes/punch.js';
 import { companiesRouter } from './routes/companies.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
@@ -46,6 +48,14 @@ export function createServer() {
    * payroll side stays entirely behind the password.
    */
   app.use('/api/public', publicRouter);
+  /*
+   * An employee's own punch page. No password - a hundred and fifteen people
+   * are not going to be given logins - but the token in the link says who they
+   * are, and it can do only three things: punch as that person, see their own
+   * punches, and raise a request. It cannot read anybody else, cannot see a
+   * salary, and cannot approve anything.
+   */
+  app.use('/api/punch', punchRouter);
 
   app.get('/files/resume/:id', (req, res) => {
     const candidate = getCandidate(Number(req.params.id));
@@ -94,6 +104,7 @@ export function createServer() {
   app.use('/api/loans', requireAuth, loansRouter);
   app.use('/api/periods', requireAuth, periodsRouter);
   app.use('/api/hiring', requireAuth, hiringRouter);
+  app.use('/api/attendance', requireAuth, attendanceSelfRouter);
   app.use('/api', requireAuth, reportsRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.

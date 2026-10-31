@@ -61,4 +61,13 @@ export const config = {
 
   // The office's own number, for the "send today's list to myself" link.
   officeWhatsapp: (process.env.OFFICE_WHATSAPP || '').replace(/\D/g, ''),
+
+  /* ---- punching from a phone (HRMS module 2) ---- */
+
+  // Off until somebody turns it on. A punch link is a door into the building.
+  punchEnabled: process.env.PUNCH_ENABLED === 'true',
+  punchRequireLocation: process.env.PUNCH_REQUIRE_LOCATION !== 'false',
+  // Record-and-flag rather than refuse: see shared/punchClock.js for why.
+  punchAllowOutside: process.env.PUNCH_ALLOW_OUTSIDE !== 'false',
+  punchFenceMetres: num(process.env.PUNCH_FENCE_METRES, 200),
 };

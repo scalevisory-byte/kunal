@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { STANDALONE, api, download, downloadBackup, restoreBackup } from '../api.js';
 import AttendanceReport from './AttendanceReport.jsx';
+import AttendanceRequests from './AttendanceRequests.jsx';
 import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import Statutory from './Statutory.jsx';
@@ -187,6 +188,7 @@ export default function Reports({ period, payroll, onReload }) {
 
       <Statutory period={period} />
 
+      <AttendanceRequests period={period} onReload={onReload} onError={(err) => window.alert(err.message)} />
       {payroll && <AttendanceReport payroll={payroll} />}
       {period && <MonthlyStatusImport period={period} onReload={onReload} />}
       {period && <PunchImport period={period} onReload={onReload} />}

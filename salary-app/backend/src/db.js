@@ -102,6 +102,64 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_documents_employee ON employee_documents(employee_id);
 
+  -- Where a punch counts as being at work. One or more per company; a punch
+  -- is measured against the nearest.
+  CREATE TABLE IF NOT EXISTS office_locations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    lat        REAL NOT NULL,
+    lng        REAL NOT NULL,
+    radius_m   INTEGER NOT NULL DEFAULT 200,
+    active     INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Every tap of in or out from a phone. Append-only: the day is derived from
+  -- these, so editing one would make the grid and the log disagree.
+  CREATE TABLE IF NOT EXISTS punch_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id  INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    at           TEXT NOT NULL,
+    day          TEXT NOT NULL,
+    kind         TEXT NOT NULL DEFAULT 'in',
+    lat          REAL,
+    lng          REAL,
+    accuracy_m   REAL,
+    office_id    INTEGER REFERENCES office_locations(id) ON DELETE SET NULL,
+    distance_m   INTEGER,
+    -- NULL means "not known", which is not the same as "outside".
+    inside_fence INTEGER,
+    located      INTEGER NOT NULL DEFAULT 0,
+    note         TEXT,
+    source       TEXT NOT NULL DEFAULT 'phone',
+    ip           TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_punch_day ON punch_events(employee_id, day);
+
+  -- Missing punch and correction requests. A request never writes attendance;
+  -- approving it does.
+  CREATE TABLE IF NOT EXISTS attendance_requests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+    day         INTEGER NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'missing_punch',
+    code        TEXT,
+    in_time     TEXT,
+    lunch_out   TEXT,
+    lunch_in    TEXT,
+    out_time    TEXT,
+    reason      TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    decided_by  TEXT,
+    decided_at  TEXT,
+    decision_note TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_request_status ON attendance_requests(status, created_at);
+
   CREATE TABLE IF NOT EXISTS periods (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     year          INTEGER NOT NULL,

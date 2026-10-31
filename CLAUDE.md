@@ -276,6 +276,35 @@ assistant. See `salary-app/README.md`.
   or a payslip; only joining date and monthly salary count as required, a Cash payment mode
   skips the bank step entirely, and a shape warning only fires once something has been typed
   (blank is "not yet", never "wrong").
+- **Punching from a phone, and attendance approvals** (`shared/punchClock.js`,
+  `shared/attendanceRequests.js`, `backend/src/attendanceSelf.js`, `PunchPage.jsx`,
+  `AttendanceRequests.jsx`) — module 2 of Dinesh's HRMS list named four things the app lacked:
+  mobile attendance, GPS punch, web restrictions and correction approval. (Late/early,
+  overtime and employee-wise reports already existed.)
+  **The employee's side has no password** — 115 people are not getting logins, so a signed
+  token in a personal link *is* the identity (`GET /employees/:id/punch-link`, purpose-scoped
+  `punch` token, long-lived because somebody bookmarks it). What it can do is deliberately
+  small: punch as that one person, see their own punches and requests, raise a request. A test
+  asserts the page exposes only id/name/code/company/designation — no salary, no PAN, nobody
+  else. The employee id comes from the **token, never the body**, with a test that a punch link
+  cannot raise a request in somebody else's name. **Said plainly in the UI and the README: a
+  link can be forwarded and a phone handed over; the fence narrows it and the log makes it
+  visible, and that is the honest limit — not a claim to have stopped buddy punching.**
+  **A punch outside the fence is recorded and flagged, NEVER refused** — refusing leaves
+  somebody genuinely at a client's office with no attendance at all, and it gets retyped that
+  evening with no record. `PUNCH_ALLOW_OUTSIDE=false` makes it strict, deliberately. A GPS fix
+  vaguer than 500 m gives `inside_fence: null` — "not known", which is not `false`. A missing
+  point gives `distance_m: null`, never 0, because zero would read as "standing in the office".
+  Punches roll up into the day's `in_time`/`out_time` — the same columns the Time tab writes
+  and the sheet pays from — first punch in, last punch out, exactly as the biometric import.
+  Nothing invents a departure: never-punched-out is a flag, not a guess.
+  **A request never writes attendance; an approval does.** Nothing auto-approves, a pending
+  request changes nobody's pay, a rejection writes nothing beyond the decision, nothing is
+  decided twice or into a locked month, and approving writes only the fields the request named
+  (the same merge rule `setAttendance` follows, so approving "in at 9:30" cannot blank a typed
+  lunch). Tests for each sentence, plus an end-to-end API test: punch in at the office, punch
+  out 4.7 km away, raise a request, approve it, see it on the grid.
+  Punching is **off** until `PUNCH_ENABLED=true`. Needs the server; standalone says so.
 - **The machine's Monthly Status report** (`shared/monthlyStatus.js`, Reports) — Dinesh sent
   `MonthlyStatus_BasicReport.xls`, the *other* report these devices produce: a month-wide grid,
   one sheet per company (BNF / BNFV / Default / SCALE), 114 people, the machine's own verdict

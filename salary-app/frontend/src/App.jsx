@@ -7,6 +7,7 @@ import Festivals from './components/Festivals.jsx';
 import Apply from './components/hiring/Apply.jsx';
 import Hiring from './components/hiring/Hiring.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
+import PunchPage from './components/PunchPage.jsx';
 import Leave from './components/Leave.jsx';
 import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
@@ -63,6 +64,9 @@ export default function App() {
     const applying = window.location.pathname.match(/^\/apply\/([^/]+)/);
     if (applying) return <Apply ref_no={decodeURIComponent(applying[1])} />;
     if (/^\/jobs\/?$/.test(window.location.pathname)) return <Jobs />;
+    // An employee's own punch link. No password - the token is the identity.
+    const punching = window.location.pathname.match(/^\/punch\/([^/]+)/);
+    if (punching) return <PunchPage token={decodeURIComponent(punching[1])} />;
   }
   return <Shell />;
 }

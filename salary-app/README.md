@@ -536,6 +536,61 @@ flagged once something has been typed — blank is "not yet", never "wrong".
 This is also where somebody hired on the **Hiring** tab lands: *Add to payroll* carries their
 phone, email and date of birth across, and the checklist names the rest.
 
+### Punching from a phone, and attendance approvals
+
+The biometric machine stays the main source. This is for the people it cannot see — somebody
+at a client's office, a driver, a site supervisor, or a day the device was down.
+
+#### The employee's side
+
+Each person gets a **personal link** (Employees → their record, or
+`GET /api/employees/:id/punch-link`). No password: a hundred and fifteen people are not going
+to be given logins, so the signed token in the link *is* the identity. What it can do is
+deliberately small — punch as that one person, see their own punches and requests, and raise a
+request. It cannot read anybody else, cannot see a salary, and cannot approve anything.
+
+> A link can be forwarded and a phone can be handed over. The geofence narrows that and the
+> log makes it visible. **That is the honest limit of punching from a phone** — it is not a
+> claim to have stopped buddy punching.
+
+The page is one big button, today's punches, and a way to say "the machine missed me".
+
+#### Where a punch counts
+
+**Reports → Punching and approvals → Where punching counts** holds office locations: a name, a
+latitude and longitude ("use where I am" fills them), and a radius. A punch is measured against
+the nearest one.
+
+**A punch outside the fence is recorded and flagged, never refused.** Refusing it leaves
+somebody genuinely at a client's office with no attendance at all, and somebody retypes it that
+evening with no record of what happened. A flag can be looked at; a missing row cannot. It can
+be made strict with `PUNCH_ALLOW_OUTSIDE=false`, deliberately.
+
+A GPS fix vaguer than 500 m is treated as **"location not known"** rather than as evidence of
+being anywhere — `inside_fence` is `null`, which is not the same as `false`.
+
+Punches roll up into the day's `in_time` and `out_time` — the same columns the Time tab writes
+and the salary sheet already pays from — so a phone punch, a biometric import and a typed time
+are worth the same money. The first punch is the arrival and the last the departure, exactly as
+the biometric import does. Nothing invents a departure: somebody who never punched out has the
+day flagged, not guessed at.
+
+Punching is **off** until `PUNCH_ENABLED=true`. A punch link is a door into the building.
+
+#### Missing punches and corrections
+
+An employee raises a **missing punch** (I was here, the machine has no record), a **wrong
+mark** (absent when it was leave), or a **regularisation** (both). A reason is required,
+because the office has to decide on something.
+
+> **A request never writes attendance. An approval does.**
+
+Nothing is auto-approved however reasonable it looks, a pending request changes nobody's pay,
+a rejection writes nothing beyond the decision, and nothing can be decided twice or into a
+locked month. Approving writes only the fields the request named — approving "in at 9:30" does
+not blank a lunch somebody else typed, the same merge rule `setAttendance` already follows.
+There are tests for every one of those sentences.
+
 ### The machine's Monthly Status report
 
 **Reports → Monthly status from the attendance machine** takes the other report these

@@ -1173,3 +1173,16 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 
 .bulk-bar.wrap { flex-wrap: wrap; }
 .bulk-bar .note { flex-basis: 100%; }
+
+/* ---------- the employee's punch page ---------- */
+
+.public.punch { max-width: 26rem; }
+.punch-button {
+  width: 100%;
+  font-size: 1.3rem;
+  padding: 1.4rem 1rem;
+  border-radius: var(--radius);
+  letter-spacing: 0.02em;
+}
+.public.punch section { margin-top: 1.4rem; }
+.public.punch .jobs li { padding: 0.6rem 0; }
