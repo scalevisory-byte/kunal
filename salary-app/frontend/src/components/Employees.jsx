@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
@@ -87,6 +88,8 @@ export default function Employees({
           <option key={name} value={name} />
         ))}
       </datalist>
+
+      <OnboardingQueue employees={filtered} onOpen={(emp) => setProfileFor(emp.id)} />
 
       <div className="card">
         <h2>Add employee</h2>
@@ -458,5 +461,47 @@ export default function Employees({
         );
       })()}
     </section>
+  );
+}
+
+/**
+ * Who is on the payroll but not finished. Everything here is a gap that only
+ * bites later - at the PF return, or at the bank transfer - so it is worth a
+ * card near the top rather than a surprise at month end.
+ */
+function OnboardingQueue({ employees, onOpen }) {
+  const open = openOnboarding(employees || []);
+  if (!open.length) return null;
+
+  return (
+    <div className="card">
+      <h2>Still to finish</h2>
+      <p className="muted small">
+        On the payroll, record not complete. Nothing is blocked — these are the gaps that bite
+        at the PF return or the bank transfer. Click a name to fill them in.
+      </p>
+      <div className="lines">
+        {open.slice(0, 12).map(({ employee, status }) => (
+          <div key={employee.id}>
+            <span className="what">
+              <button className="link" onClick={() => onOpen(employee)}>
+                {employee.name}
+              </button>
+              <span className="muted small">
+                {' '}
+                — {status.missing.slice(0, 4).join(', ')}
+                {status.missing.length > 4 ? ` and ${status.missing.length - 4} more` : ''}
+              </span>
+            </span>
+            <span className="small muted num">
+              {status.done}/{status.total}
+            </span>
+          </div>
+        ))}
+      </div>
+      {open.length > 12 ? (
+        <p className="muted small">and {open.length - 12} more.</p>
+      ) : null}
+    </div>
   );
 }

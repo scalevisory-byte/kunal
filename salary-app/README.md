@@ -353,6 +353,51 @@ the machine and a day typed in are worth exactly the same.
 This is a file import, not a live link. A real-time feed needs a server the machine can
 reach, which is a different piece of work.
 
+### The absent / present report
+
+**Reports → Absent / present report**, in two shapes, because the phrase means both
+depending on the day:
+
+- **Month summary** — one line per person: present, half days, absent, CL/SL/PL, unpaid
+  leave, holidays, Sundays off and Sundays worked, days at work, **days lost**, **payable
+  days**, days still unmarked, and attendance %.
+- **Day by day** — the muster roll, person against day, with the weekday on each column.
+  This is the one that gets printed and signed.
+
+Both export to CSV with a BOM, so Excel opens Gujarati names correctly.
+
+Three things it is careful about:
+
+- **Days lost is in days of pay, not a count of marks.** A half day costs 0.5 and an `AD`
+  costs 2, so counting marks would understate it.
+- **Attendance % is out of the days somebody was expected**, not out of the calendar. A
+  Sunday off is not a day anyone failed to attend. A month with nothing marked reads as a
+  dash, never as 100%.
+- **Payable days is the figure the salary sheet actually charges**, not a second calculation —
+  so a number typed over the formula shows here too, marked ✎, and the report and the payslip
+  can never quietly disagree.
+
+An unmarked day is paid as a working day, so the report says how many are still unmarked
+before anybody files it.
+
+### Onboarding a new joiner
+
+Adding somebody to the payroll needs a name and a salary. Then the month ends, and the PF
+return will not file because there is no UAN and the transfer fails because there is no IFSC.
+
+So **Employees → Still to finish** lists everyone on the payroll whose record is not complete,
+newest joiner first, and each employee's record opens with a **joining checklist**: who they
+are, the job, statutory numbers, where the salary goes, leave entitlement — each saying *what
+breaks without it*, because a checklist that does not say why gets ignored.
+
+It is a checklist, not a gate. Nothing blocks a save, a payslip or a payroll run. Only the
+joining date and the monthly salary are treated as genuinely required, and somebody whose
+payment mode is Cash is never chased for bank details. A number that is the wrong shape is
+flagged once something has been typed — blank is "not yet", never "wrong".
+
+This is also where somebody hired on the **Hiring** tab lands: *Add to payroll* carries their
+phone, email and date of birth across, and the checklist names the rest.
+
 ### The machine's Monthly Status report
 
 **Reports → Monthly status from the attendance machine** takes the other report these

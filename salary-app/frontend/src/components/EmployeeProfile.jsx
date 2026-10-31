@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import OnboardingChecklist from './OnboardingChecklist.jsx';
 
 /**
  * One employee's full record.
@@ -150,6 +151,8 @@ export default function EmployeeProfile({ employee, companies, onPatch, onClose 
         </div>
 
         {error && <p className="error">{error}</p>}
+
+        <OnboardingChecklist employee={draft} />
 
         <div className="form-grid">
           <label>

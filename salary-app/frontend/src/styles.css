@@ -1139,3 +1139,19 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
   .panel { width: 100%; }
   .figures { gap: 0 1rem; }
 }
+
+/* ---------- the joining checklist ---------- */
+
+.onboarding {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: 7px;
+  padding: 0.6rem 0.75rem;
+  margin: 0 0 1rem;
+  background: var(--surface);
+}
+.onboarding .bar { flex: 1; min-width: 4rem; height: 4px; background: var(--line-soft); border-radius: 2px; overflow: hidden; }
+.onboarding .bar i { display: block; height: 100%; background: var(--brand); }
+.onboarding .step { padding: 0.3rem 0; border-top: 1px solid var(--line-soft); }
+.onboarding .step:first-of-type { border-top: none; }
+.onboarding .why { font-size: 0.72rem; }

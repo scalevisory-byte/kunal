@@ -179,6 +179,27 @@ assistant. See `salary-app/README.md`.
      a file against the portal template rather than trusting it.**
   Self-service and approval workflows are **not possible in the standalone file** and need
   the server; everything above works offline.
+- **Absent / present report** (`shared/attendanceReport.js`, Reports) — asked for by name.
+  Two shapes: a **month summary** (one line per person — P/HF/A/CL/SL/PL/UL, holidays,
+  Sundays off and worked, days at work, days lost, payable days, unmarked days, attendance %)
+  and a **day-by-day muster** (person against day, weekday on each column), both exporting to
+  CSV with a BOM. It **computes nothing of its own** — it counts the same marks the salary
+  sheet is paid from, and `payable_days` is the sheet's own figure (shown with ✎ when typed
+  over the formula), so the report and the payslip cannot disagree. Three deliberate choices:
+  **days lost is in days of pay** (HF costs 0.5, AD costs 2), **attendance % is out of days
+  expected** not the calendar (a Sunday off is not a failure to attend), and a month with
+  nothing marked reads as a dash, never 100%. Payroll rows carry the person as
+  `employee_name`/`employee_code`, so the report accepts both spellings — it rendered blank
+  name and code columns until it did.
+- **Onboarding a new joiner** (`shared/onboarding.js`, `OnboardingChecklist.jsx`) — "Add to
+  payroll" needs only a name and a salary, and then the PF return will not file for want of a
+  UAN and the transfer fails for want of an IFSC. **Employees → "Still to finish"** lists
+  everyone unfinished, newest joiner first; each employee record opens with a five-step
+  checklist (who they are / the job / statutory numbers / bank / leave quota), each step
+  saying **what breaks without it**. It is a checklist, **not a gate** — nothing blocks a save
+  or a payslip; only joining date and monthly salary count as required, a Cash payment mode
+  skips the bank step entirely, and a shape warning only fires once something has been typed
+  (blank is "not yet", never "wrong").
 - **The machine's Monthly Status report** (`shared/monthlyStatus.js`, Reports) — Dinesh sent
   `MonthlyStatus_BasicReport.xls`, the *other* report these devices produce: a month-wide grid,
   one sheet per company (BNF / BNFV / Default / SCALE), 114 people, the machine's own verdict

@@ -90,7 +90,7 @@ const isSet = (v) => v !== null && v !== undefined && v !== '';
  * with minutes attached (`{ code: 'P', minutes: -30 }`). Both shapes are read,
  * so an import that only knows codes still works.
  */
-const codeOf = (entry) =>
+export const codeOf = (entry) =>
   String((entry && typeof entry === 'object' ? entry.code : entry) || '').trim().toUpperCase();
 
 const minutesOf = (entry) => (entry && typeof entry === 'object' ? num(entry.minutes) : 0);
