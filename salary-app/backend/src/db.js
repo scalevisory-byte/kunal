@@ -442,6 +442,84 @@ for (const column of ['sunday_status', 'sunday_mode']) {
   }
 }
 
+
+db.exec(`
+  /* The audit trail. */
+  -- Append-only, and deliberately dumb: a row, a field, what it was, what it
+  -- became. It is written by the write paths rather than by a trigger, so the
+  -- entry can say who and why - a trigger knows neither.
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    at          TEXT NOT NULL DEFAULT (datetime('now')),
+    who         TEXT,
+    action      TEXT NOT NULL,          -- created | changed | deleted | approved | ...
+    entity      TEXT NOT NULL,          -- the table or thing acted on
+    entity_id   INTEGER,
+    label       TEXT,                   -- readable: a name, not just an id
+    field       TEXT,
+    from_value  TEXT,
+    to_value    TEXT,
+    note        TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id, at);
+  CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+`);
+
+/**
+ * Write one line of the trail. Never throws into the caller's path: a write
+ * that succeeded must not be reported as failed because its audit line did not
+ * fit, and a trail that can fail a save is a trail somebody turns off.
+ */
+export function audit(entry = {}) {
+  try {
+    return db
+      .prepare(
+        `INSERT INTO audit_log (who, action, entity, entity_id, label, field, from_value, to_value, note)
+         VALUES (@who, @action, @entity, @entity_id, @label, @field, @from_value, @to_value, @note)`
+      )
+      .run({
+        who: entry.who || null,
+        action: String(entry.action || 'changed'),
+        entity: String(entry.entity || 'unknown'),
+        entity_id: entry.entity_id === undefined ? null : Number(entry.entity_id) || null,
+        label: entry.label || null,
+        field: entry.field || null,
+        from_value: entry.from_value === undefined || entry.from_value === null ? null : String(entry.from_value),
+        to_value: entry.to_value === undefined || entry.to_value === null ? null : String(entry.to_value),
+        note: entry.note || null,
+      }).lastInsertRowid;
+  } catch (err) {
+    log.error(`Could not write the audit line: ${err.message}`);
+    return null;
+  }
+}
+
+export function listAudit({ entity, entity_id, who, since, limit = 200 } = {}) {
+  const where = [];
+  const params = [];
+  if (entity) {
+    where.push('entity = ?');
+    params.push(entity);
+  }
+  if (entity_id) {
+    where.push('entity_id = ?');
+    params.push(Number(entity_id));
+  }
+  if (who) {
+    where.push('who LIKE ?');
+    params.push(`%${who}%`);
+  }
+  if (since) {
+    where.push('at >= ?');
+    params.push(since);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db
+    .prepare(`SELECT * FROM audit_log ${clause} ORDER BY at DESC, id DESC LIMIT ?`)
+    .all(...params, Math.min(1000, Math.max(1, Number(limit) || 200)));
+}
+
+
 const strayPeriods = db
   .prepare(`UPDATE periods SET working_days = ? WHERE working_days IS NOT ?`)
   .run(STANDARD_WORKING_DAYS, STANDARD_WORKING_DAYS).changes;
@@ -837,8 +915,25 @@ export function updatePeriod(id, patch) {
     values.push(key === 'locked' ? (patch[key] ? 1 : 0) : patch[key]);
   }
   if (!fields.length) return getPeriod(id);
+  const before = getPeriod(id);
   db.prepare(`UPDATE periods SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
-  return getPeriod(id);
+  const after = getPeriod(id);
+  // Closing a month, moving the PT slab or switching the late/early rule all
+  // change what somebody is paid, so each one goes on the trail by name.
+  for (const key of Object.keys(patch)) {
+    if (!before || !after || String(before[key] ?? '') === String(after[key] ?? '')) continue;
+    audit({
+      who: patch.by,
+      action: key === 'locked' ? (after.locked ? 'closed' : 'reopened') : 'changed',
+      entity: 'periods',
+      entity_id: id,
+      label: after.label,
+      field: key,
+      from_value: before[key],
+      to_value: after[key],
+    });
+  }
+  return after;
 }
 
 export function deletePeriod(id) {
@@ -938,9 +1033,36 @@ export function updatePayrollRow(id, patch) {
     values.push(value);
   }
   if (!fields.length) return getPayrollRow(id);
+  const before = getPayrollRow(id);
   fields.push(`updated_at = datetime('now')`);
   db.prepare(`UPDATE payroll_rows SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
-  return getPayrollRow(id);
+  const after = getPayrollRow(id);
+
+  /*
+   * The salary sheet's own trail. One line per column that actually moved -
+   * typing a figure and typing it again does not count as a change - so the
+   * trail answers "who put 2,363 in Suleman's Sunday pay" without filling up
+   * with lines that say nothing happened.
+   */
+  if (before && after) {
+    for (const key of PAYROLL_FIELDS) {
+      if (!(key in patch)) continue;
+      const was = before[key];
+      const now = after[key];
+      if (String(was ?? '') === String(now ?? '')) continue;
+      audit({
+        who: patch.by,
+        action: 'changed',
+        entity: 'payroll_rows',
+        entity_id: id,
+        label: `${before.employee_name}, ${before.company_name || ''}`.trim().replace(/,$/, ''),
+        field: key,
+        from_value: was === null || was === undefined ? '(formula)' : was,
+        to_value: now === null || now === undefined ? '(formula)' : now,
+      });
+    }
+  }
+  return after;
 }
 
 /**
@@ -1270,9 +1392,24 @@ export const setAttendance = db.transaction((periodId, entries) => {
                    lunch_in = excluded.lunch_in, out_time = excluded.out_time`
   );
   const existing = db.prepare(
-    `SELECT in_time, lunch_out, lunch_in, out_time FROM attendance
+    `SELECT code, in_time, lunch_out, lunch_in, out_time FROM attendance
      WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
+  /*
+   * The attendance trail. A mark REPLACED by a different mark is recorded; a
+   * blank day being filled in is not. That is the line worth drawing: "Mark
+   * everyone Present" and the punch import only ever fill blanks, so they stay
+   * out of the trail, while a correction - somebody's absence turned into a
+   * paid leave after the fact - is exactly what anybody would come looking for.
+   * Names are looked up once, not per mark: a bulk change is two thousand rows.
+   */
+  const names = new Map();
+  const nameOf = (id) => {
+    if (!names.has(id)) names.set(id, db.prepare(`SELECT name FROM employees WHERE id = ?`).get(id)?.name || `#${id}`);
+    return names.get(id);
+  };
+  const monthLabel = db.prepare(`SELECT label FROM periods WHERE id = ?`).get(periodId)?.label || `period ${periodId}`;
+  const changes = [];
   const remove = db.prepare(
     `DELETE FROM attendance WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
@@ -1297,12 +1434,27 @@ export const setAttendance = db.transaction((periodId, entries) => {
     const anyTime = TIME_COLUMNS.some((c) => times[c]);
 
     // A day with no mark, no minutes and no times has nothing left to record.
+    const was = stored?.code || '';
+    if (was && was !== code) {
+      changes.push({
+        who: entry.by || null,
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: employeeId,
+        label: `${nameOf(employeeId)}, ${monthLabel} day ${day}`,
+        field: 'code',
+        from_value: was,
+        to_value: code || '(cleared)',
+      });
+    }
+
     if (code || minutes || anyTime) {
       upsert.run({ period_id: periodId, employee_id: employeeId, day, code, minutes, ...times });
     } else {
       remove.run(periodId, employeeId, day);
     }
   }
+  for (const change of changes) audit(change);
   return entries.length;
 });
 

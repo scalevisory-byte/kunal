@@ -18,6 +18,7 @@ import { companiesRouter } from './routes/companies.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
 import { employeesRouter } from './routes/employees.js';
+import { peopleRouter } from './routes/people.js';
 import { periodsRouter } from './routes/periods.js';
 import { reportsRouter } from './routes/reports.js';
 import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
@@ -102,6 +103,7 @@ export function createServer() {
   app.use('/api/employees', requireAuth, employeesRouter);
   app.use('/api/leave', requireAuth, leaveRouter);
   app.use('/api/loans', requireAuth, loansRouter);
+  app.use('/api/people', requireAuth, peopleRouter);
   app.use('/api/periods', requireAuth, periodsRouter);
   app.use('/api/hiring', requireAuth, hiringRouter);
   app.use('/api/attendance', requireAuth, attendanceSelfRouter);

@@ -61,6 +61,10 @@ test('hiring needs the password; the apply page does not; payroll is never publi
   // The payroll side has no public door at all.
   assert.equal((await fetch(`${base}/api/employees`)).status, 401);
   assert.equal((await fetch(`${base}/api/periods`)).status, 401);
+  // Nor do the people registers: warnings, salaries, claims and the trail.
+  for (const path of ['notes', 'appraisals', 'assets', 'claims', 'exits', 'audit']) {
+    assert.equal((await fetch(`${base}/api/people/${path}`)).status, 401, path);
+  }
   assert.equal((await open('GET', '/api/public/vacancies')).status, 200);
 });
 
