@@ -353,6 +353,48 @@ the machine and a day typed in are worth exactly the same.
 This is a file import, not a live link. A real-time feed needs a server the machine can
 reach, which is a different piece of work.
 
+### The machine's Monthly Status report
+
+**Reports → Monthly status from the attendance machine** takes the other report these
+devices produce: not the punch log but a month-wide grid, one sheet per company, one row per
+person and one column per day, carrying the machine's own verdict. There is nothing to map —
+the shape is read off the file's own header — and it opens the legacy `.xls` these devices
+still export, which the punch importer could not (ExcelJS reads only `.xlsx`; this path uses
+SheetJS on the server).
+
+| In the report | Becomes | Why it matters |
+|---|---|---|
+| `P` | `P` | |
+| `A` | `A` | |
+| `WO` | `S` | the weekly off |
+| `WOP` | `SP` | **worked the weekly off** — this is what the Sunday register pays from |
+| `H` / `HP` | `PH` / `HP` | holiday, and worked on a holiday |
+| `L` | `PL` | paid leave by default; change it before writing if it should be CL/SL/UL |
+
+#### A day with no record is not a day everybody was absent
+
+The report writes `A` for both, and that single ambiguity is worth more than everything else
+in this importer. In the October 2026 export every one of **114 people reads `A` from the
+23rd to the 31st** — the device stopped syncing on the 22nd. Written through, that is 912
+absences nobody earned and eight days off each of their payslips.
+
+So a day on which *nobody at all* is marked present, on leave or on a holiday, **and**
+somebody is marked absent, is treated as "the machine has no record" and left alone. Both
+halves are needed: a Sunday carrying only `WO` is a fully known day off, not a gap, and still
+gets marked. The skipped days are named in the dry run and can be forced in with a tick, but
+it has to be asked for.
+
+The dry run also names anybody absent on *every* day the machine does have — usually somebody
+never enrolled on the device, or who has left — because docking a month's pay on that basis
+is the same mistake in a smaller box. Thirty-four people in the October file.
+
+Matching is on the machine's **Code** first and the name second, and whoever does not match is
+listed rather than guessed at. A sheet for a different month than the open one is skipped and
+said so. "Only fill days that are still blank" leaves anything typed by hand alone.
+
+The single-file build reads `.xlsx` only and says so: a legacy `.xls` has to be re-saved in
+Excel first, or imported on the server version.
+
 ### Short hours, by the minute
 
 The same day menu sets that day's **short hours** — presets for 15, 30, 40, 45, 60, 90 and

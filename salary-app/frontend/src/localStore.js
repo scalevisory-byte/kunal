@@ -10,6 +10,13 @@ import {
 } from '../../shared/calc.js';
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
+import {
+  DEFAULT_MARK_MAP,
+  isLegacyXls,
+  monthlyStatusToMarks,
+  readMonthlyStatus,
+  sheetsFromExcelJS,
+} from '../../shared/monthlyStatus.js';
 import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
@@ -949,6 +956,75 @@ export async function upload(path, formData) {
     }
     save();
     return { sheet, parsed: parsed.length, skipped, created, updated, rowsWritten, attendanceMarks: marks.length };
+  }
+
+  /* the machine's Monthly Status report */
+  const monthly = path.match(/^\/periods\/(\d+)\/monthly-status$/);
+  if (monthly) {
+    const db = load();
+    const period = periodOf(Number(monthly[1]));
+    if (!period) throw new HttpError(404, 'period not found');
+    if (period.locked) throw new HttpError(409, 'period is locked');
+
+    // ExcelJS cannot open the legacy .xls these machines still export. Saying
+    // so beats failing with something about a corrupt zip.
+    if (isLegacyXls(new Uint8Array(buffer))) {
+      throw new Error(
+        'This is an old .xls file, which this single-file version cannot open. ' +
+          'Open it in Excel and save it as .xlsx, then try again.'
+      );
+    }
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const sheets = readMonthlyStatus(sheetsFromExcelJS(wb));
+    if (sheets.every((sheet) => sheet.error)) {
+      throw new Error('no day-by-day grid was found in that file');
+    }
+
+    const existing = {};
+    for (const row of db.attendance.filter((a) => a.period_id === period.id)) {
+      if (row.code) existing[`${row.employee_id}:${row.day}`] = row.code;
+    }
+
+    const result = monthlyStatusToMarks({
+      sheets,
+      employees: db.employees,
+      period,
+      markMap: { ...DEFAULT_MARK_MAP, ...JSON.parse(formData.get('mark_map') || '{}') },
+      includeEmptyDays: formData.get('include_empty_days') === 'true',
+      onlyBlank: formData.get('only_blank') === 'true',
+      existing,
+    });
+
+    const dryRun = formData.get('dry_run') === 'true';
+    if (!dryRun && result.entries.length) {
+      syncRows(period.id);
+      for (const entry of result.entries) {
+        const index = db.attendance.findIndex(
+          (a) => a.period_id === period.id && a.employee_id === entry.employee_id && a.day === entry.day
+        );
+        // Only the mark comes from this report. Hours somebody typed on the
+        // Time tab are not in it and must survive.
+        const record = { ...(index >= 0 ? db.attendance[index] : {}), period_id: period.id, ...entry };
+        if (index >= 0) db.attendance[index] = record;
+        else db.attendance.push(record);
+      }
+      save();
+    }
+
+    return {
+      ...result,
+      entries: undefined,
+      months: sheets.filter((sheet) => !sheet.error).map((sheet) => ({
+        sheet: sheet.name,
+        month: sheet.month,
+        year: sheet.year,
+      })),
+      period: { month: period.month, year: period.year },
+      dryRun,
+      written: dryRun ? 0 : result.entries.length,
+    };
   }
 
   throw new Error(`not available offline: ${path}`);

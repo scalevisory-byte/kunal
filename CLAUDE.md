@@ -179,6 +179,27 @@ assistant. See `salary-app/README.md`.
      a file against the portal template rather than trusting it.**
   Self-service and approval workflows are **not possible in the standalone file** and need
   the server; everything above works offline.
+- **The machine's Monthly Status report** (`shared/monthlyStatus.js`, Reports) — Dinesh sent
+  `MonthlyStatus_BasicReport.xls`, the *other* report these devices produce: a month-wide grid,
+  one sheet per company (BNF / BNFV / Default / SCALE), 114 people, the machine's own verdict
+  per day. No column mapping — the shape is read off the file's own header. It opens the
+  **legacy `.xls`** these devices still export, which the punch importer could not: ExcelJS
+  reads only `.xlsx`, so the server path uses **SheetJS**. `WOP` → the app's **SP**, which is
+  what the Sunday register pays from; reading it as plain presence would quietly stop those
+  people being paid.
+  **The thing this module exists to get right:** a day the machine has no record of looks
+  exactly like a day everybody was absent — the report writes `A` for both. In his October file
+  **all 114 people read `A` from the 23rd to the 31st** because the device stopped syncing on
+  the 22nd; writing that through is **912 absences nobody earned**, eight days off every
+  payslip. So a day where nobody at all is present *and* somebody is absent is treated as "no
+  record" and left alone; it is named in the dry run and can be forced in with a tick. Both
+  halves of that rule are needed — a Sunday carrying only `WO` is a known day off, not a gap,
+  and still gets marked. The dry run also names anyone absent on *every* day the machine does
+  have (34 people in his file — almost certainly never enrolled, or left).
+  Merged cells bite differently in each reader: ExcelJS repeats a merged value into every cell
+  it covers, SheetJS leaves the repeats blank, so "Company:" read as the company name until the
+  extractor learned to skip anything that still reads as the label. Standalone reads `.xlsx`
+  only and says so.
 - **Biometric punches import** from `Reports`: `shared/punches.js` reads any export shape
   (the caller maps the columns; header row is auto-detected), groups rows by person and day
   (earliest punch = in, latest = out), and turns them into P/A/HF plus short-hour minutes.
@@ -339,95 +360,78 @@ assistant. See `salary-app/README.md`.
   served from `backend/public`, auth on, and the SQLite data surviving a restart on the
   same DATA_DIR.
 
-## Third project — recruitment software (`/recruitment-app/`)
+## Hiring — HRMS module 5, inside `/salary-app/`
 
-Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") — a 7-step engine for
-ZYNTA Placement Services: create vacancy → distribute → candidate applies → CV → test →
-selection pipeline → placement and fee. Three decisions he made before anything was built:
+Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") and it was first built as
+a separate `recruitment-app` for ZYNTA Placement Services. He then said: **"its not for
+placement service / its with hrms / own company dashboard."** So it was moved into salary-app
+as the fifth HRMS module, hiring for **his own companies**, and the standalone app was deleted
+(the engine files were `git mv`'d, so the history is intact).
 
-- **"Bilkul alag, khaali se shuru"** — a separate system starting empty. The ZYNTA CRM keeps
-  running alongside and shares no database with this. (The CRM already holds the lead /
-  requirement / fee side and **84 candidates**; what the spec adds is the candidate-facing
-  and pipeline side.)
-- **"Node + SQLite, salary-app jaisa"** — this repo's stack and conventions. He was told the
-  public apply link still needs hosting and chose it anyway, so `backend/Dockerfile` +
-  `railway.json` ship with it.
-- **"Mera test system embed karo"** — his own test system in an iframe, not one built here.
-  **URL still to be supplied** (`TEST_EMBED_URL`); blank means the test step is not offered.
+Three decisions he made before any of it was built, which still hold:
+- **"Bilkul alag, khaali se shuru"** — starts empty, shares no database with the ZYNTA CRM,
+  which keeps running alongside. (The CRM holds the lead/requirement/fee side and **84
+  candidates**; this is the employment side.)
+- **"Node + SQLite, salary-app jaisa"** — which it now literally is.
+- **"Mera test system embed karo"** — his own test system in an iframe. **URL still to be
+  supplied** (`TEST_EMBED_URL`); blank means the test step is not offered.
 
-### What it does
+### What changed when it became an HRMS module
+- A vacancy belongs to a **`company_id`** that already exists here, and is refused without one.
+  There is no client and no anonymity — BOOKNFLY is named on the advert, because a candidate
+  who does not know who is hiring does not turn up. What stays inside is `internal_notes` and
+  `reports_to`, with tests asserting neither reaches the advert, the share text or the
+  candidate's own message.
+- **The placement fee, GST and replacement window are gone entirely.** In their place:
+  **`hireApplication`** turns the person who joined into an **employee row** on the opening's
+  company, carrying phone/email/dob across, so they land on the salary sheet, the attendance
+  grid and the PF/ESI registers without being typed twice. `applications.employee_id` links
+  them.
+- That handover is **a button, not a side effect of reaching "Joined"**, and it refuses
+  without a monthly salary — a wrong number here is a wrong payslip at month end. Hiring the
+  same person twice does not make a second employee. There are tests for all of this.
+- `shared/hiringMessages.js` (was `messages.js`) names the company in every message. Selection
+  says to bring PAN/Aadhaar/bank passbook, because payroll will need them.
 
-Node 20 + Express + better-sqlite3, React 18 + Vite, plain CSS. Seven tables: vacancies,
-candidates, applications, tests, interviews, followups, placements. `shared/` is
-dependency-free and imported by both sides, so the browser scores a candidate and words a
-message with the exact code the server uses. See `recruitment-app/README.md`.
-
-- **`shared/match.js`** — weights skills 34, experience 24, location 18, salary 14,
-  education 10. The parsers read what people actually type: `1-3 yrs`, `3.6 LPA`, `fresher`,
-  `₹10-18k/month`, `Bhayli, Vadodara`. A factor the vacancy does not ask for **cannot be
-  failed**; a factor the candidate has not stated scores **half, not zero** — "not said" is
-  not "no". Four parser bugs were found by the smoke test and fixed: `norm()` stripped the
-  hyphen so `1-3 yrs` gave a minimum of 3; a same-city-different-area address scored 50%;
-  `10-18k` read the low end as ₹10; `3.6 LPA` returned 0 because `l\b` does not match "lpa".
-  A fifth came out of the tests: `toSkills` did not split on `/` or the word "and", so
-  "Tally / Busy and Excel" was one skill nobody had — it now splits on both, with word
-  boundaries so Android and "demand planning" survive.
+### What carried over unchanged
+- **`shared/match.js`** — weights skills 34, experience 24, location 18, salary 14, education
+  10. Parsers read what people type: `1-3 yrs`, `3.6 LPA`, `fresher`, `₹10-18k/month`,
+  `Bhayli, Vadodara`. A factor the vacancy does not ask for **cannot be failed**; one the
+  candidate has not stated scores **half, not zero** — "not said" is not "no". Five parser bugs
+  were found and fixed by tests: `norm()` stripped the hyphen so `1-3 yrs` gave a minimum of 3;
+  same-city-different-area scored 50%; `10-18k` read the low end as ₹10; `3.6 LPA` returned 0
+  because `l\b` does not match "lpa"; and `toSkills` did not split on `/` or the word "and",
+  so "Tally / Busy and Excel" was one skill nobody had (it now splits on both, with word
+  boundaries so Android and "demand planning" survive).
 - **Nothing moves on its own.** The match score orders a queue and a test score is one more
-  thing to weigh; neither shortlists and neither rejects. Every pipeline move is a person
-  choosing it. There is no auto-advance and no auto-reject anywhere, and there is a test
-  asserting a recorded test result leaves the stage alone.
-- **The candidate pays nothing, ever.** Nothing on the public side takes or asks for money.
-- **Two surfaces, one wall.** Unauthenticated: `/api/public/*` (read a *published* advert,
-  apply, attach a CV, post a test result) and `/files/resume/:id`. Everything else needs the
-  `APP_PASSWORD` bearer token. The public side cannot list or read a candidate, cannot see a
-  stage or a match score, and **never receives the client company's name** — `publicVacancy`
-  substitutes `public_company` ("A textile manufacturer"). There are tests asserting the
-  client's name is absent from the share pack, the advert, the apply response and even the
-  candidate's own WhatsApp message.
-- **CVs live on disk** under `DATA_DIR/resumes`, never in the database and never in a page.
-  The uploaded filename is thrown away (it is user input and this is a path); the row keeps
-  a generated name. A recruiter reads one through a **signed link that expires** — the
-  candidate id is part of what is signed, so a signature cannot be replayed for somebody
-  else's CV. Deleting a candidate deletes the file. The candidate CSV says `yes`/blank and
-  never carries the path or the file.
-- **Applying is name + mobile only.** Everything else is optional: an application that is
-  too much work is one that does not arrive. The **mobile number is the identity** (last 10
-  digits, unique index), so a second application tops up the same person rather than making
-  a third row — and `upsertCandidate` **never overwrites a filled field with a blank one**,
-  so a quick apply cannot wipe the salary and CV a fuller one gave last month. A newer CV
-  is the exception: that one does replace.
-- **Short-lived signed tokens** (`backend/src/tokens.js`) carry the public side's two
-  privileges: attaching a CV after a quick apply, and the test system posting a score back.
-  A token is purpose-scoped, so an upload token cannot be used as a test-result token.
-- **A crude per-IP rate limit** on apply and upload. Not a real limiter — it is there so one
-  bored person with a loop cannot fill the candidate table overnight.
-- **Drag a card and the message appears**, bottom right, with a `wa.me` link. There is **no
-  WhatsApp API in here, by design**: an agency auto-messaging strangers is how a number gets
-  blocked, and these messages want a human eye. Every message is text plus a link that opens
-  WhatsApp on Dinesh's own number, and he presses send. `shared/messages.js` holds every
-  word; a rejection is written to keep the person on the books, because next month there is
-  another job.
-- **Editing a vacancy re-scores everyone on it** — the old numbers were measured against the
-  old requirement. There is a test.
-- Scheduling an interview **writes its own follow-up** for that day: an interview nobody is
-  reminded about is an interview that gets missed.
-- `feeFor` had a dead ternary (`basis === 'monthly' ? amount : amount`). Now `ctc` is always
-  the annual figure and `monthly` charges on a twelfth, so **100% monthly and 8.33% annual
-  are the same money by two routes**, and the basis is stored on the placement so a past one
-  keeps what it was charged on.
-- The dashboard is Overview / Pipeline (board + list) / Vacancies / Candidates / Interviews /
-  Follow-ups / Placements / Reports. The candidate sees only `/apply/REQ-003` and `/jobs`,
-  told apart by path — no router, because there are two public paths and the rest is tabs.
-- 42 tests green; driven in a real browser end to end (apply → pipeline → share) with zero
-  console errors.
-- **Not yet deployed** — root directory `recruitment-app`, volume at `/data`. No Docker
-  daemon to build the image; the production path was exercised without it.
+  thing to weigh. There is no auto-advance and no auto-reject anywhere, and a test asserts a
+  recorded test result leaves the stage alone.
+- **The candidate pays nothing, ever.** Nothing public takes or asks for money.
+- **Two unauthenticated surfaces, and only two:** `/api/public/*` (read a *published* opening,
+  apply, attach a CV, post a test result) and `/files/resume/:id`. **The payroll side has no
+  public door at all** — there is a test asserting `/api/employees` and `/api/periods` 401
+  without a token. The public router 404s unknown paths rather than falling through to the
+  authenticated `/api` catch-all, which answered "unauthorized" and sent people hunting for a
+  password that was never the problem.
+- **CVs on disk** under `DATA_DIR/resumes`, never in the database or a page or an export. The
+  uploaded filename is discarded (user input, and this is a path). Read through a **signed link
+  bound to that candidate id** so a signature cannot be replayed for somebody else's CV.
+  Deleting a candidate deletes the file.
+- **Applying is name + mobile only.** The mobile number is the identity (last 10 digits, unique
+  index), so a second application tops up the same person; `upsertCandidate` never overwrites a
+  filled field with a blank one. A newer CV is the one exception.
+- Short-lived **purpose-scoped tokens** (`backend/src/tokens.js`) for attaching a CV later and
+  for the test system posting back. A crude per-IP rate limit on apply and upload.
+- Dragging a card produces the WhatsApp message in the corner. **No WhatsApp API, by design** —
+  an employer auto-messaging strangers is how a number gets blocked.
+- Tabs: Overview / Pipeline (board + list) / Openings / Candidates / Interviews / Follow-ups.
+  The candidate sees `/apply/JOB-003` and `/jobs`, told apart by path — no router.
+- **Hiring needs the server.** The single-file build says so plainly: an apply link and a CV
+  cannot live in a file on a laptop.
 
 ### Still to settle with Dinesh
-The test system's embed URL and what it posts back; the agency WhatsApp number for the
-digest; the real fee model (percentage, basis, GST, replacement window — the defaults are
-8.33% of annual CTC + 18% GST, 90 days); and where this is hosted, so `PUBLIC_URL` can be
-set and the apply links actually work.
+The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
+and where this is hosted, so `PUBLIC_URL` can be set and the apply links actually work.
 
 ## Alternative architecture considered (not being built, for reference)
 Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (official, business-number-only) → Google Gemini for extraction → MongoDB for storage → BullMQ + Redis for reminder job scheduling → Meta API sends reminder back. This is the "message a bot to log a task" model (active input) vs. the current build's "ambient, reads all your chats" model (passive). We are continuing with the passive/personal-WhatsApp approach already built, not this one, unless Dinesh says otherwise.

@@ -5,8 +5,15 @@ import { buildWorkbook } from '../../../shared/workbook.js';
 import { importSheet, listSheetNames } from '../importer.js';
 import { buildPayroll } from '../payroll.js';
 import { readPunchFile, punchesToMarks } from '../../../shared/punches.js';
+import {
+  DEFAULT_MARK_MAP,
+  monthlyStatusToMarks,
+  readMonthlyStatus,
+  sheetsFromSheetJS,
+} from '../../../shared/monthlyStatus.js';
+import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { listEmployees, listHolidays, setAttendance } from '../db.js';
+import { listAttendance, listEmployees, listHolidays, setAttendance } from '../db.js';
 import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
@@ -215,6 +222,64 @@ reportsRouter.post('/periods/:id/punches', upload.single('file'), async (req, re
     if (!dryRun && result.entries.length) setAttendance(payroll.period.id, result.entries);
 
     res.json({ ...result, dryRun, written: dryRun ? 0 : result.entries.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------- the machine's Monthly Status report ---------------- */
+
+/**
+ * A different shape from punches.js: a month-wide grid, one sheet per company,
+ * carrying the machine's own verdict for each day. Read with SheetJS because
+ * these devices still export the legacy .xls that ExcelJS cannot open.
+ *
+ * Two steps, same as the punch import: look first, write second.
+ */
+reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (req, res, next) => {
+  const payroll = buildPayroll(Number(req.params.id), { sync: false });
+  if (!payroll) return res.status(404).json({ error: 'period not found' });
+  if (payroll.period.locked) return res.status(409).json({ error: 'period is locked' });
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+
+  try {
+    const sheets = readMonthlyStatus(sheetsFromSheetJS(XLSX, req.file.buffer));
+    if (sheets.every((s) => s.error)) {
+      return res.status(400).json({
+        error: 'no day-by-day grid was found in that file',
+        sheetErrors: sheets.map((s) => ({ sheet: s.name, error: s.error })),
+      });
+    }
+
+    // What the grid already holds, so "only fill the blanks" can mean it.
+    const existing = {};
+    for (const row of listAttendance(payroll.period.id)) {
+      if (row.code) existing[`${row.employee_id}:${row.day}`] = row.code;
+    }
+
+    const result = monthlyStatusToMarks({
+      sheets,
+      employees: listEmployees(),
+      period: payroll.period,
+      markMap: { ...DEFAULT_MARK_MAP, ...JSON.parse(req.body.mark_map || '{}') },
+      includeEmptyDays: req.body.include_empty_days === 'true',
+      onlyBlank: req.body.only_blank === 'true',
+      existing,
+    });
+
+    const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
+    if (!dryRun && result.entries.length) setAttendance(payroll.period.id, result.entries);
+
+    res.json({
+      ...result,
+      // The whole entry list is a few thousand rows; the dashboard only needs
+      // to know what it adds up to.
+      entries: undefined,
+      months: sheets.filter((s) => !s.error).map((s) => ({ sheet: s.name, month: s.month, year: s.year })),
+      period: { month: payroll.period.month, year: payroll.period.year },
+      dryRun,
+      written: dryRun ? 0 : result.entries.length,
+    });
   } catch (err) {
     next(err);
   }
