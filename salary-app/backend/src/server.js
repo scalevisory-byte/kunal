@@ -6,6 +6,10 @@ import cors from 'cors';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { requireAuth } from './auth.js';
+import { getCandidate } from './hiring.js';
+import { resumeFile, resumeLinkValid } from './resumes.js';
+import { hiringRouter } from './routes/hiring.js';
+import { publicRouter } from './routes/public.js';
 import { companiesRouter } from './routes/companies.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
@@ -20,11 +24,37 @@ const frontendDir = path.resolve(here, '../public');
 export function createServer() {
   const app = express();
 
+  // Anything in front of this terminates TLS, so req.ip has to come off the
+  // forwarded header for the apply form's rate limit to mean anything.
+  app.set('trust proxy', true);
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
   // Unauthenticated: lets a load balancer or Railway health check reach the app.
   app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+  /*
+   * The hiring module has the only two unauthenticated surfaces in this app:
+   *
+   *   /api/public  - a candidate reading a published opening and applying,
+   *   /files       - one CV, through a signature that expires.
+   *
+   * Neither can reach an employee, a salary sheet or an attendance row. The
+   * payroll side stays entirely behind the password.
+   */
+  app.use('/api/public', publicRouter);
+
+  app.get('/files/resume/:id', (req, res) => {
+    const candidate = getCandidate(Number(req.params.id));
+    if (!candidate) return res.status(404).json({ error: 'not found' });
+    if (!resumeLinkValid(candidate, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the candidate again.' });
+    }
+    const file = resumeFile(candidate);
+    if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
+    res.download(file, candidate.resume_name || path.basename(file));
+  });
 
   app.get('/api/config', requireAuth, (req, res) =>
     res.json({
@@ -45,12 +75,17 @@ export function createServer() {
   app.use('/api/leave', requireAuth, leaveRouter);
   app.use('/api/loans', requireAuth, loansRouter);
   app.use('/api/periods', requireAuth, periodsRouter);
+  app.use('/api/hiring', requireAuth, hiringRouter);
   app.use('/api', requireAuth, reportsRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.
   if (config.serveFrontend && fs.existsSync(path.join(frontendDir, 'index.html'))) {
     app.use(express.static(frontendDir));
-    app.get(/^(?!\/api\/).*/, (req, res) => res.sendFile(path.join(frontendDir, 'index.html')));
+    // Not an API call and not a file download: it is the app's own routing, so
+    // /apply/JOB-003 has to reach index.html rather than a 404.
+    app.get(/^(?!\/(api|files)\/).*/, (req, res) =>
+      res.sendFile(path.join(frontendDir, 'index.html'))
+    );
     log.info(`Serving dashboard from ${frontendDir}`);
   }
 

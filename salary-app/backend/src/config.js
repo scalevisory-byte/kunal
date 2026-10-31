@@ -12,6 +12,10 @@ const num = (v, fallback) => {
 const dataDir = path.resolve(process.env.DATA_DIR || './data');
 fs.mkdirSync(dataDir, { recursive: true });
 
+// Candidates' CVs. On disk, never in the database and never in a page.
+const resumeDir = path.join(dataDir, 'resumes');
+fs.mkdirSync(resumeDir, { recursive: true });
+
 export const config = {
   port: num(process.env.PORT, 3002),
   corsOrigin: process.env.CORS_ORIGIN
@@ -34,4 +38,27 @@ export const config = {
 
   currency: process.env.CURRENCY || 'INR',
   timezone: process.env.TIMEZONE || 'Asia/Kolkata',
+
+  /* ---- hiring (HRMS module 5) ---- */
+
+  // CVs go here; a row keeps only the filename.
+  resumeDir,
+  maxResumeBytes: num(process.env.MAX_RESUME_MB, 5) * 1024 * 1024,
+  resumeLinkMinutes: num(process.env.RESUME_LINK_MINUTES, 10),
+
+  // Signs CV download links and the tokens the public apply page uses.
+  // Generated per boot when unset, which breaks outstanding links on restart.
+  linkSecret: process.env.LINK_SECRET || '',
+
+  // Where the apply page is reachable, for the links that get shared. Without
+  // it the advert still works, it just asks people to reply with a CV.
+  publicUrl: (process.env.PUBLIC_URL || '').replace(/\/+$/, ''),
+
+  // Dinesh's own test system, dropped into an iframe after somebody applies.
+  // Blank means the test step is simply not offered.
+  testEmbedUrl: process.env.TEST_EMBED_URL || '',
+  testPassPercent: num(process.env.TEST_PASS_PERCENT, 50),
+
+  // The office's own number, for the "send today's list to myself" link.
+  officeWhatsapp: (process.env.OFFICE_WHATSAPP || '').replace(/\D/g, ''),
 };

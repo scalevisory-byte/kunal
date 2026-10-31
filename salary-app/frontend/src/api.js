@@ -61,6 +61,21 @@ export const api = {
   put: (path, body) => request('PUT', path, body),
   del: (path) => request('DELETE', path),
 
+  /**
+   * The candidate's side of hiring, which has no password to send. Only
+   * exists on the server build - the standalone file has no public URL.
+   */
+  public: {
+    get: (path) => request('GET', `/public${path}`),
+    post: (path, body) => request('POST', `/public${path}`, body),
+    async upload(path, formData) {
+      const res = await fetch(`/api/public${path}`, { method: 'POST', body: formData });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      return data;
+    },
+  },
+
   /** Multipart upload for the spreadsheet importer. */
   async upload(path, formData) {
     if (STANDALONE) return (await localStore()).upload(path, formData);

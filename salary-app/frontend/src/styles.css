@@ -958,3 +958,184 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
   .table-wrap { max-height: 65vh; }
   .sticky-name { min-width: 7.5rem; }
 }
+
+/* ======================================================================
+ * Hiring (HRMS module 5)
+ *
+ * Same hairlines and same quiet as the rest of the app. Two surfaces live
+ * down here: the office's board, which is dense because it is a queue being
+ * read, and the candidate's apply page, which is roomy because somebody is
+ * filling in a form on a phone, probably once.
+ * ====================================================================== */
+
+.hiring .spacer { flex: 1; }
+.right { text-align: right; }
+.band { font-variant-numeric: tabular-nums; font-weight: 600; }
+.band.strong { color: var(--good); }
+.band.good { color: var(--brand); }
+.band.low { color: var(--muted); }
+.age.fresh { color: var(--good); }
+.age.warm { color: var(--warn); }
+.age.stale { color: var(--bad); }
+.age.none { color: var(--muted); }
+
+.chip.active, .chip.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.tabs button.on { color: var(--text); border-bottom-color: var(--brand); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.7rem; }
+label.field { display: flex; flex-direction: column; gap: 0.22rem; font-size: 0.74rem; color: var(--muted); }
+label.field input, label.field select, label.field textarea { width: 100%; font-size: 0.85rem; color: var(--text); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; align-items: start; }
+.cards .card { margin: 0; }
+.scroll { overflow-x: auto; }
+
+.figures { display: flex; flex-wrap: wrap; gap: 0 1.6rem; }
+.figure { padding: 0.3rem 0; min-width: 7rem; }
+.figure .n { font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; display: block; text-align: left; }
+.figure .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.figure button.n { border: none; background: none; padding: 0; cursor: pointer; color: var(--brand); }
+
+.lines > * { padding: 0.45rem 0; border-top: 1px solid var(--line-soft); display: flex; gap: 0.6rem; align-items: baseline; }
+.lines > *:first-child { border-top: none; }
+.lines .what { flex: 1; }
+
+.name-cell { font-weight: 550; }
+.name-cell button { border: none; background: none; padding: 0; font: inherit; font-weight: 550; color: var(--text); cursor: pointer; text-align: left; }
+.name-cell button:hover { color: var(--brand); text-decoration: underline; }
+
+.tag { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: var(--line-soft); color: var(--muted); white-space: nowrap; }
+.tag.draft { color: var(--warn); }
+.tag.published { color: var(--good); }
+.tag.closed, .tag.on-hold { color: var(--muted); }
+
+/* ---------- the pipeline board ---------- */
+
+.board { display: flex; gap: 0.7rem; overflow-x: auto; padding-bottom: 0.5rem; align-items: stretch; }
+.column {
+  min-width: 15rem;
+  flex: 1 0 15rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+}
+.column > header {
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.column > header .t { font-size: 0.76rem; font-weight: 650; }
+.column > header .n { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.column .stack { padding: 0.45rem; display: flex; flex-direction: column; gap: 0.45rem; min-height: 4rem; }
+.column.over .stack { background: var(--brand-soft); }
+
+.pcard {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  background: var(--surface);
+  cursor: grab;
+  font-size: 0.8rem;
+}
+.pcard:hover { border-color: var(--muted); }
+.pcard .who { font-weight: 600; display: flex; gap: 0.4rem; align-items: baseline; }
+.pcard .who .band { margin-left: auto; font-size: 0.74rem; }
+.pcard .job { color: var(--muted); font-size: 0.74rem; }
+.pcard .meta { display: flex; gap: 0.5rem; font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+.pcard .hint { font-size: 0.7rem; color: var(--muted); }
+
+/* ---------- side panels ---------- */
+
+.backdrop { position: fixed; inset: 0; background: rgba(10, 12, 16, 0.4); z-index: 60; display: flex; justify-content: flex-end; }
+.panel {
+  background: var(--bg);
+  width: min(560px, 100%);
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  padding: 1rem 1.1rem 4rem;
+}
+.panel > header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  padding: 0.2rem 0 0.6rem;
+  margin: -0.2rem 0 0.9rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.panel .close { margin-left: auto; }
+
+.factor { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; padding: 0.22rem 0; }
+.factor .f-name { width: 5.5rem; color: var(--muted); }
+.factor .bar { flex: 1; height: 5px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
+.factor .bar i { display: block; height: 100%; background: var(--brand); }
+.factor .f-note { width: 9rem; color: var(--muted); font-size: 0.72rem; text-align: right; }
+
+.timeline { list-style: none; margin: 0; padding: 0; font-size: 0.78rem; }
+.timeline li { padding: 0.3rem 0 0.3rem 0.8rem; border-left: 2px solid var(--line); position: relative; }
+.timeline li::before { content: ''; position: absolute; left: -4px; top: 0.65rem; width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+
+.copy-box { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; min-height: 9rem; white-space: pre-wrap; }
+
+.banner { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 7px; padding: 0.5rem 0.7rem; font-size: 0.8rem; margin-bottom: 0.8rem; background: var(--surface); }
+.banner.bad { border-left-color: var(--bad); }
+.banner.good { border-left-color: var(--good); }
+
+.toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 0.5rem 0.9rem; border-radius: 999px; font-size: 0.8rem; z-index: 90; }
+
+/* ---------- the message a stage move produced ---------- */
+
+.notify-bar {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 80;
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem;
+  box-shadow: 0 8px 28px rgba(10, 12, 16, 0.14);
+}
+.notify-bar .who { font-size: 0.85rem; margin-bottom: 0.25rem; }
+.notify-bar .preview { font-size: 0.76rem; color: var(--muted); margin: 0 0 0.6rem; }
+
+/* ---------- the candidate's side ---------- */
+
+.public { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.1rem 5rem; }
+.public header { position: static; background: none; backdrop-filter: none; border: none; padding: 0 0 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.public .brand { font-size: 0.76rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.public h1 { font-size: 1.5rem; display: block; letter-spacing: -0.02em; }
+.public .where { color: var(--muted); font-size: 0.92rem; }
+.public .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.8rem 1.4rem; margin: 1.1rem 0; }
+.public .facts .k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.public .facts .v { font-size: 0.92rem; font-weight: 550; }
+.public section { border-top: 1px solid var(--line); padding: 1.1rem 0 0; margin: 1.1rem 0 0; }
+.public section p { white-space: pre-wrap; margin: 0.3rem 0; }
+.public form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.8rem; }
+.public form .wide { grid-column: 1 / -1; }
+.public form input, .public form select, .public form textarea { font-size: 1rem; padding: 0.55rem 0.6rem; }
+.public form button { font-size: 1rem; padding: 0.7rem 1rem; }
+.public .done { text-align: center; padding: 3rem 1rem; }
+.public .done .big { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.public .note { font-size: 0.78rem; color: var(--muted); }
+.public .jobs { list-style: none; padding: 0; margin: 0; }
+.public .jobs li { border-top: 1px solid var(--line); padding: 0.9rem 0; }
+.public .jobs li:first-child { border-top: none; }
+.public .jobs a { color: inherit; text-decoration: none; display: block; }
+.public .jobs a:hover .t { color: var(--brand); text-decoration: underline; }
+.public .jobs .t { font-size: 1rem; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .panel { width: 100%; }
+  .figures { gap: 0 1rem; }
+}

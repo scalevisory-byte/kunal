@@ -4,6 +4,9 @@ import Attendance from './components/Attendance.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
 import Festivals from './components/Festivals.jsx';
+import Apply from './components/hiring/Apply.jsx';
+import Hiring from './components/hiring/Hiring.jsx';
+import Jobs from './components/hiring/Jobs.jsx';
 import Leave from './components/Leave.jsx';
 import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
@@ -23,6 +26,7 @@ const TABS = [
   ['leave', 'Leave'],
   ['loans', 'Loans'],
   ['employees', 'Employees'],
+  ['hiring', 'Hiring'],
   ['reports', 'Reports'],
 ];
 
@@ -46,7 +50,24 @@ const BUILT_ON = (() => {
 })();
 const COMPANY_KEY = 'salary-app-company';
 
+/**
+ * Two surfaces in one bundle, told apart by the path. /apply/JOB-003 and /jobs
+ * are the candidate's side and have no password; everything else is the
+ * office's and does. No router: there are two public paths and the rest is tabs.
+ *
+ * Only on the server build - the single-file build is opened from a file:// URL
+ * by one person and has no public address to hand out.
+ */
 export default function App() {
+  if (!STANDALONE) {
+    const applying = window.location.pathname.match(/^\/apply\/([^/]+)/);
+    if (applying) return <Apply ref_no={decodeURIComponent(applying[1])} />;
+    if (/^\/jobs\/?$/.test(window.location.pathname)) return <Jobs />;
+  }
+  return <Shell />;
+}
+
+function Shell() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -353,7 +374,7 @@ export default function App() {
       )}
 
       <main>
-        {!period && tab !== 'employees' && tab !== 'dashboard' && (
+        {!period && !['employees', 'dashboard', 'hiring'].includes(tab) && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
             employees, or import last month's sheet from <strong>Reports</strong>.
@@ -456,6 +477,28 @@ export default function App() {
             onDeleteCompany={masterAction((id) => api.del(`/companies/${id}`))}
           />
         )}
+
+        {tab === 'hiring' &&
+          (STANDALONE ? (
+            <div className="card">
+              <h2>Hiring</h2>
+              <p className="muted small">
+                Hiring needs the server version of this app, not this single file. A candidate
+                has to be able to open an apply link, and a CV has to live somewhere other than
+                this browser — neither works from a file on your laptop.
+              </p>
+              <p className="muted small">
+                Everything else on this file keeps working exactly as it does now.
+              </p>
+            </div>
+          ) : (
+            <Hiring
+              companies={companies}
+              companyId={companyId}
+              onEmployeesChanged={loadAll}
+              onError={handle}
+            />
+          ))}
 
         {tab === 'reports' && <Reports period={period} payroll={payroll} onReload={loadAll} />}
       </main>
