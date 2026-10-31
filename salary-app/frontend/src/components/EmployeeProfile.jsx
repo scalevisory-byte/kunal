@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
+import Contributions from './Contributions.jsx';
 
 /**
  * One employee's full record.
@@ -170,6 +171,19 @@ export default function EmployeeProfile({ employee, companies, onPatch, onClose 
             }
           }}
         />
+
+        <Contributions employee={draft} onPatch={async (id, patch) => {
+          setDraft({ ...draft, ...patch });
+          setSaving(true);
+          setError('');
+          try {
+            await onPatch(id, patch);
+          } catch (err) {
+            setError(err.message);
+          } finally {
+            setSaving(false);
+          }
+        }} />
 
         <div className="form-grid">
           <label>

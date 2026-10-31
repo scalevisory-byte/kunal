@@ -68,6 +68,23 @@ export default function Employees({
     }
   };
 
+  /**
+   * Switching PF and ESI between the typed amount and the worked-out one for
+   * everybody ticked. It is confirmed first, because unlike the salary split
+   * this one really does change what people take home.
+   */
+  const applyModes = async (mode) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onBulkPatch([...picked], { pf_mode: mode, esi_mode: mode });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
@@ -287,6 +304,35 @@ export default function Employees({
             <button className="ghost" onClick={() => setShowTemplate((v) => !v)}>
               {showTemplate ? 'Hide the split' : 'Split their salary'}
             </button>
+            <label>
+              PF / ESI
+              <select
+                value=""
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const mode = e.target.value;
+                  const count = picked.size;
+                  const what = mode === 'auto' ? 'work PF and ESI out from the rules' : 'go back to the typed amounts';
+                  if (
+                    !window.confirm(
+                      `Set ${count} ${count === 1 ? 'person' : 'people'} to ${what}?\n\n` +
+                        (mode === 'auto'
+                          ? 'This changes what is deducted, and so what they take home. Open one record first if you want to see the figures.'
+                          : 'Deductions go back to the amount typed on each record.')
+                    )
+                  ) {
+                    e.target.value = '';
+                    return;
+                  }
+                  applyModes(mode);
+                  e.target.value = '';
+                }}
+              >
+                <option value="">Leave as is</option>
+                <option value="auto">Work it out</option>
+                <option value="fixed">Fixed amounts</option>
+              </select>
+            </label>
             <span className="grow" />
             <button className="ghost" onClick={() => setPicked(new Set())}>Deselect</button>
           </div>

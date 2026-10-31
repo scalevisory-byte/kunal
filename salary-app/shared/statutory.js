@@ -43,7 +43,15 @@ export function pfRegister(rows, settings = {}) {
     .filter((row) => row.pf > 0 || row.uan)
     .map((row) => {
       const gross = round0(row.gross_salary);
-      const pfWages = Math.min(gross, wageCeiling);
+      /*
+       * EPF wages are Basic, where a salary has been broken up - that is what
+       * the law charges on, and `calculateRow` has already worked the month's
+       * earned Basic out. Without a breakup there is no Basic, so it falls
+       * back to the gross, which is what this register has always reported.
+       */
+      const onBasic = row.earned_basic !== null && row.earned_basic !== undefined;
+      const wageBase = round0(onBasic ? row.earned_basic : gross);
+      const pfWages = Math.min(wageBase, wageCeiling);
       const employee = round0(row.pf);
       const employer = round0((pfWages * employerRate) / 100);
       const pension = round0((pfWages * pensionRate) / 100);
@@ -53,6 +61,12 @@ export function pfRegister(rows, settings = {}) {
         company: row.company_name,
         gross_wages: gross,
         epf_wages: pfWages,
+        // Named so a mismatch is visible rather than rejected at the portal:
+        // a deduction that is not 12% of the wages reported is the commonest
+        // reason an ECR bounces.
+        wages_on: onBasic ? 'basic' : 'gross',
+        expected_employee: round0((pfWages * PF_DEFAULTS.employeeRate) / 100),
+        mismatch: employee !== round0((pfWages * PF_DEFAULTS.employeeRate) / 100),
         eps_wages: pfWages,
         edli_wages: pfWages,
         employee_share: employee,

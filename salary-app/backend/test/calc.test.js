@@ -279,24 +279,76 @@ test('totals add up across rows', () => {
   assert.equal(t.net_salary, 19800 + 28000);
 });
 
-test('a zero salary produces zeroes, not NaN', () => {
-  const r = calculateRow({ salary: 0 }, {});
-  for (const [key, value] of Object.entries(r)) {
-    // The salary breakup is null when nobody has set one, which is not the
-    // same thing as zero: zero would read as "no HRA" rather than "not split".
+/**
+ * Every field a row carries is either a finite number, or one of the few that
+ * deliberately are not: the breakup is null when nobody has set one (zero
+ * would read as "no HRA" rather than "not split"), and a handful describe
+ * rather than measure.
+ */
+const DESCRIBES = new Set(['pf_mode', 'esi_mode', 'pf_on', 'esi_eligible']);
+
+const assertNoNaN = (row) => {
+  for (const [key, value] of Object.entries(row)) {
+    if (DESCRIBES.has(key)) {
+      assert.ok(typeof value === 'string' || typeof value === 'boolean', `${key} is ${value}`);
+      continue;
+    }
     const allowed = Number.isFinite(value) || (key.startsWith('earned_') && value === null);
     assert.ok(allowed, `${key} is ${value}`);
   }
+};
+
+test('a zero salary produces zeroes, not NaN', () => {
+  const r = calculateRow({ salary: 0 }, {});
+  assertNoNaN(r);
   assert.equal(r.net_salary, 0);
   assert.equal(r.final_payable, 0);
 });
 
 test('a zero salary with a breakup set is still all numbers, never NaN', () => {
-  const r = calculateRow({ salary: 0, monthly_salary: 0, basic: 0, hra: 0 }, {});
-  for (const [key, value] of Object.entries(r)) {
-    const allowed = Number.isFinite(value) || (key.startsWith('earned_') && value === null);
-    assert.ok(allowed, `${key} is ${value}`);
-  }
+  assertNoNaN(calculateRow({ salary: 0, monthly_salary: 0, basic: 0, hra: 0 }, {}));
+});
+
+test('nobody is switched to a worked-out PF or ESI by existing', () => {
+  // The whole safety of this: a row that says nothing about modes deducts
+  // exactly what was typed, as it always has.
+  const r = calculateRow({ salary: 20000, pf: 1800, esi: 150 }, {});
+  assert.equal(r.pf, 1800);
+  assert.equal(r.esi, 150);
+  assert.equal(r.pf_mode, 'fixed');
+  assert.equal(r.esi_mode, 'fixed');
+  // And it still reports what the rule would give, without applying it.
+  assert.equal(r.pf_computed, 1800, '12% of the 15,000 ceiling, with no Basic set');
+  assert.equal(r.esi_computed, 150);
+  assertNoNaN(r);
+});
+
+test('auto charges PF on Basic and ESI on the gross', () => {
+  const r = calculateRow(
+    {
+      salary: 20000, monthly_salary: 20000, basic: 10000, hra: 4000,
+      pf: 1800, esi: 999, pf_mode: 'auto', esi_mode: 'auto',
+    },
+    {}
+  );
+  assert.equal(r.pf, 1200, '12% of 10,000 Basic');
+  assert.equal(r.pf_on, 'basic');
+  assert.equal(r.esi, 150, '0.75% of a 20,000 gross');
+  // The employer side rides along, for the CTC.
+  assert.equal(r.pf_employer, 1200);
+  assert.ok(r.pf_employer_cost > r.pf_employer);
+  assert.equal(r.esi_employer, 650);
+  // And the net follows the smaller PF.
+  assert.equal(r.net_salary, r.gross_salary - r.pt - r.pf - r.esi - r.loan_deduction);
+});
+
+test('somebody over the ESI wage limit has none deducted on auto', () => {
+  const r = calculateRow(
+    { salary: 30000, monthly_salary: 30000, basic: 15000, esi: 150, esi_mode: 'auto' },
+    {}
+  );
+  assert.equal(r.esi, 0);
+  assert.equal(r.esi_eligible, false);
 });
 
 test('a breakup changes how the month is described, never what it pays', () => {

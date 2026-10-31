@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateRow } from '../../shared/calc.js';
-import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
+import { CSV_COLUMNS, pfRegister, statutoryReport, toCsv } from '../../shared/statutory.js';
 
 /** A month, calculated the way buildPayroll would hand it over. */
 function month(people) {
@@ -139,4 +139,35 @@ test('every register turns into a CSV with its own columns', () => {
   // A name with a comma in it must not break the row.
   const tricky = toCsv(CSV_COLUMNS.pt, [{ name: 'Patel, Rakesh', company: 'BNF', gross: 1, pt: 200 }]);
   assert.match(tricky, /"Patel, Rakesh"/);
+});
+
+test('EPF wages are Basic once a salary is broken up, and the gross before', () => {
+  const row = {
+    employee_name: 'ROHIT', company_name: 'BNF', uan: '100200300400',
+    gross_salary: 20000, absent_days: 0, pf: 1200, earned_basic: 10000,
+  };
+  const [onBasic] = pfRegister([row]);
+  assert.equal(onBasic.epf_wages, 10000);
+  assert.equal(onBasic.wages_on, 'basic');
+  assert.equal(onBasic.gross_wages, 20000, 'gross wages still report the gross');
+  assert.equal(onBasic.mismatch, false, '1,200 is 12% of 10,000');
+
+  const [onGross] = pfRegister([{ ...row, earned_basic: null, pf: 1800 }]);
+  assert.equal(onGross.epf_wages, 15000, 'no Basic, so the gross capped at the ceiling');
+  assert.equal(onGross.wages_on, 'gross');
+  assert.equal(onGross.mismatch, false);
+});
+
+test('a deduction that is not 12% of the wages reported is named, not hidden', () => {
+  // The commonest reason an ECR file bounces at the portal.
+  const [row] = pfRegister([
+    {
+      employee_name: 'ROHIT', company_name: 'BNF', uan: '100200300400',
+      gross_salary: 20000, absent_days: 0, pf: 1800, earned_basic: 10000,
+    },
+  ]);
+  assert.equal(row.epf_wages, 10000);
+  assert.equal(row.expected_employee, 1200);
+  assert.equal(row.employee_share, 1800);
+  assert.equal(row.mismatch, true);
 });

@@ -48,6 +48,7 @@ import { monthTotals } from './timesheet.js';
  * Order here is the order the pickers and the legend show them in.
  */
 import { earnedStructure } from './structure.js';
+import { esiFor, isAuto, pfFor } from './contributions.js';
 
 export const ATTENDANCE_CODES = {
   P: { label: 'Present', absent: 0, sunday: 0, paid: true },
@@ -225,8 +226,30 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // its own register, and adding it would move exactly two people in the April
   // sheet.
   const pt = grossSalary > ptThreshold ? ptAmount : 0;
-  const esi = num(row.esi); // AX
-  const pf = num(row.pf); // AY
+
+  /*
+   * The salary broken into Basic, HRA and the rest, as this month earned it.
+   * Derived from `grossAfterAbsent`, so a breakup never moves a gross.
+   * Null until somebody sets one.
+   */
+  const earned = earnedStructure(row, { salary, gross_after_absent: grossAfterAbsent });
+
+  /*
+   * ESI and PF. Both default to the amount typed on the employee - which is
+   * what this app has always deducted - and only work themselves out when
+   * somebody has chosen `auto` for that person. PF is then charged on the
+   * earned Basic, which is what the law charges it on, and ESI on the month's
+   * gross if it is under the wage limit.
+   *
+   * The figures are always computed, even on `fixed`, so the app can say what
+   * the rule would give without applying it.
+   */
+  const workedOut = {
+    pf: pfFor({ wages_basic: earned ? earned.basic : null, fallback: grossAfterAbsent }),
+    esi: esiFor({ gross: grossSalary }),
+  };
+  const esi = isAuto(row.esi_mode) ? workedOut.esi.employee : num(row.esi); // AX
+  const pf = isAuto(row.pf_mode) ? workedOut.pf.employee : num(row.pf); // AY
   // This month's instalment against a loan or advance, posted on the ledger.
   const loan = num(row.loan_deduction);
   const netSalary = round0(grossSalary - pt - esi - pf - loan); // AZ
@@ -235,19 +258,23 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ? num(row.sunday_salary_override)
     : sundaysWorked * perDay;
 
-  /*
-   * The salary broken into Basic, HRA and the rest, as this month earned it.
-   *
-   * Presentational only, and deliberately so: it is derived from
-   * `grossAfterAbsent`, which was already worked out above from the single
-   * salary figure. Nothing below it reads this, so a breakup cannot move a
-   * gross, a net, a PT or a deduction by a rupee. Null until somebody sets one.
-   */
-  const earned = earnedStructure(row, { salary, gross_after_absent: grossAfterAbsent });
-
   return {
     working_days: workingDays,
     sundays_worked: round2(sundaysWorked),
+    // What the rules give, whether or not they are being applied. The employer
+    // side is here because a CTC is the only way to see what a hire costs.
+    pf_mode: isAuto(row.pf_mode) ? 'auto' : 'fixed',
+    esi_mode: isAuto(row.esi_mode) ? 'auto' : 'fixed',
+    pf_wages: workedOut.pf.wages,
+    pf_on: workedOut.pf.on,
+    pf_computed: workedOut.pf.employee,
+    pf_employer: workedOut.pf.employer,
+    pf_employer_cost: workedOut.pf.employer_cost,
+    pf_pension: workedOut.pf.pension,
+    esi_wages: workedOut.esi.wages,
+    esi_eligible: workedOut.esi.eligible,
+    esi_computed: workedOut.esi.employee,
+    esi_employer: workedOut.esi.eligible ? workedOut.esi.employer : 0,
     earned_basic: earned ? earned.basic : null,
     earned_hra: earned ? earned.hra : null,
     earned_conveyance: earned ? earned.conveyance : null,

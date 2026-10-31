@@ -425,6 +425,48 @@ The panel says what PF *would* be at 12% of Basic (capped at ₹15,000 of wages)
 is actually being deducted, and offers a button to match them. It never does it on its own:
 that moves somebody's take-home, and is a decision rather than a calculation.
 
+### PF, ESI and professional tax
+
+PF and ESI used to be numbers typed against each employee, which the app simply deducted.
+That was honest while a salary was one figure — there was nothing to work PF out *of*. Now
+that a salary has a Basic, there is.
+
+**Employees → a name → PF, ESI and professional tax** shows, per person: what each is charged
+on, what the rule gives, what is actually being deducted, and a switch between the two.
+
+| | Rule |
+|---|---|
+| **PF** | 12% of **Basic**, capped at ₹15,000 of wages. With no breakup set there is no Basic to charge, so it falls back to the gross — which is what this app has always reported. |
+| **ESI** | 0.75% of gross while gross is **≤ ₹21,000**; nothing above it. Shares round **up** to the next rupee, which is the ESIC's own rule. |
+| **PT** | Gujarat: nil to ₹12,000, ₹200 above. Held as a slab list, so another state is a line of data. A period's own threshold and amount still win, so no month already paid moves. |
+
+#### Nothing switches itself on
+
+Every employee starts on **Fixed amount** — deducting exactly the number already typed, as
+before. Only choosing **Work it out**, per person or in bulk, changes a deduction. Working a
+figure out is a calculation; changing what lands in somebody's bank account is a decision.
+
+The panel says what switching would cost **before** it is switched: *"would deduct ₹1,215 more
+in a full month — they would take home ₹1,215 less"*. The bulk switch confirms first, because
+unlike the salary split this one really does move money.
+
+Checked against the real October data: with everybody left on Fixed, all 115 rows are
+byte-identical and the month's net is ₹14,48,366 before and after. Switching one person to
+Work it out moved the month by exactly their ₹872 and nobody else's figure by a rupee.
+
+#### The employer's side
+
+The panel also gives PF employer (12%, split EPS 8.33% / EPF, plus EDLI and admin at 0.5%
+each) and ESI employer at 3.25%, and totals what the person actually costs a month — the only
+way to see a real CTC.
+
+#### The PF register
+
+EPF wages on the register are now **Basic** where a breakup exists, which is what the law
+charges on; the gross is still reported as gross wages. A deduction that is **not** 12% of the
+wages reported is flagged on the row, because that mismatch is the commonest reason an ECR
+file bounces at the portal.
+
 ### One person's own report
 
 **Employees → report**, next to any name. One person down the months rather than one month

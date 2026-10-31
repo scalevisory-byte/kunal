@@ -216,6 +216,26 @@ assistant. See `salary-app/README.md`.
   payslip showed one line however the structure was set; and the components were scaled by the
   *month's* salary rather than the master they were typed against, which would have made a
   breakup vanish in a month whose salary was edited.
+- **PF, ESI and PT computed** (`shared/contributions.js`, `Contributions.jsx`) — Dinesh:
+  *"Pf esic pt"*. PF and ESI were numbers typed per employee that the app just deducted;
+  with a Basic now available they can be derived. **PF** = 12% of earned Basic capped at
+  ₹15,000 wages (falls back to gross when no breakup is set — what the app always reported);
+  **ESI** = 0.75% of gross while ≤ ₹21,000, shares rounded **up**, which is the ESIC's own
+  rule; **PT** = Gujarat slabs (nil to 12,000, then 200) held as a list so another state is
+  data, with a period's own threshold/amount still winning so no paid month moves.
+  **Nothing switches itself on.** `employees.pf_mode`/`esi_mode` default to `'fixed'` —
+  deduct the typed number, exactly as before — and only `'auto'` applies the rule. The panel
+  states what switching would cost before it is switched, and the bulk switch confirms,
+  because unlike the salary split this one really moves money. Verified on the real October
+  data: everybody on fixed → all 115 rows byte-identical, net ₹14,48,366 both ways; switching
+  one person to auto moved the month by exactly their ₹872.
+  `calculateRow` also returns the **employer side** (PF 12% split EPS 8.33%, plus EDLI and
+  admin at 0.5% each; ESI 3.25%) so a real CTC is visible.
+  The **PF register** now reports EPF wages as Basic where a breakup exists, and flags a row
+  where the deduction is not 12% of the wages reported — the commonest reason an ECR bounces.
+  **One bug worth remembering:** the preview read *"they would take home ₹1,215 more"* when
+  switching a ₹0 PF to ₹1,080 — the sign was inverted. A test now pins that a bigger deduction
+  cannot increase take-home.
 - **One person's own report** (`shared/employeeReport.js`, "report" beside any name in
   Employees) — Dinesh: *"Per employee report / absent present / leaves / salary / monthwise
   report"*. One person **down the months** rather than one month across the staff: headline

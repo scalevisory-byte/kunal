@@ -55,6 +55,10 @@ db.exec(`
     monthly_salary REAL NOT NULL DEFAULT 0,
     pf             REAL NOT NULL DEFAULT 0,
     esi            REAL NOT NULL DEFAULT 0,
+    -- 'fixed' deducts the amount above, exactly as before; 'auto' works it out
+    -- from the rules each month. Everybody starts on 'fixed' on purpose.
+    pf_mode        TEXT NOT NULL DEFAULT 'fixed',
+    esi_mode       TEXT NOT NULL DEFAULT 'fixed',
     payment_mode   TEXT NOT NULL DEFAULT 'Bank',
     joined_on      TEXT,
     left_on        TEXT,
@@ -286,6 +290,14 @@ for (const column of ['basic', 'hra', 'conveyance', 'medical']) {
   }
 }
 
+// Existing staff default to 'fixed', so the migration cannot move a deduction.
+for (const column of ['pf_mode', 'esi_mode']) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT NOT NULL DEFAULT 'fixed'`);
+    log.info(`Migrated employees: added ${column}, defaulting to the typed amount.`);
+  }
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -351,6 +363,8 @@ export function deleteCompany(id) {
 /* ---------------- employees ---------------- */
 
 const EMPLOYEE_FIELDS = [
+  'pf_mode',
+  'esi_mode',
   'basic',
   'hra',
   'conveyance',
@@ -440,6 +454,8 @@ export function createEmployee(input) {
     bank_name: input.bank_name || null,
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
+    pf_mode: input.pf_mode === 'auto' ? 'auto' : 'fixed',
+    esi_mode: input.esi_mode === 'auto' ? 'auto' : 'fixed',
     basic: Number(input.basic) || 0,
     hra: Number(input.hra) || 0,
     conveyance: Number(input.conveyance) || 0,
@@ -559,6 +575,7 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               e.bank_name, e.bank_account, e.ifsc,
               -- the salary breakup, and the master salary it was typed against
               e.basic, e.hra, e.conveyance, e.medical, e.monthly_salary,
+              e.pf_mode, e.esi_mode,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
