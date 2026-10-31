@@ -191,6 +191,21 @@ assistant. See `salary-app/README.md`.
   nothing marked reads as a dash, never 100%. Payroll rows carry the person as
   `employee_name`/`employee_code`, so the report accepts both spellings — it rendered blank
   name and code columns until it did.
+- **One person's own report** (`shared/employeeReport.js`, "report" beside any name in
+  Employees) — Dinesh: *"Per employee report / absent present / leaves / salary / monthwise
+  report"*. One person **down the months** rather than one month across the staff: headline
+  figures, leave against quota (CL/SL/PL taken and left, unpaid leave shown with no quota
+  because it was taken anyway and docked), then month by month — present, absent, leave, days
+  lost, payable days, attendance %, gross, PF/ESI/PT, loan, net and Sunday pay — with a year
+  picker, Print and CSV. It **assembles, it does not recalculate**: every figure came out of
+  `calculateRow`. Sunday pay sits beside the net, never added in.
+  `GET /employees/:id/report` loads every month with **`sync: false`** — the same trap as the
+  dashboard's trend: reading a year would otherwise backdate today's new hires into closed
+  months and post loan instalments into months already paid. There is an API test.
+  **One real bug it surfaced:** the month row and the footer disagreed on one page (73.7% vs
+  80.8% for the same person) because the footer was worked out off `payable_days`, which
+  counts an unmarked day as worked. Both now do the single-month sum — days attended over days
+  expected — and a test pins that they match.
 - **Onboarding a new joiner** (`shared/onboarding.js`, `OnboardingChecklist.jsx`) — "Add to
   payroll" needs only a name and a salary, and then the PF return will not file for want of a
   UAN and the transfer fails for want of an IFSC. **Employees → "Still to finish"** lists

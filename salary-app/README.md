@@ -380,6 +380,29 @@ Three things it is careful about:
 An unmarked day is paid as a working day, so the report says how many are still unmarked
 before anybody files it.
 
+### One person's own report
+
+**Employees → report**, next to any name. One person down the months rather than one month
+across the staff — which is what gets printed for a loan application, an appraisal, a
+resignation, or when somebody asks why last month was short.
+
+- the year's headline: months paid, net paid, average a month, payable days, days lost,
+  attendance;
+- **leave** against the quota — CL/SL/PL taken and left, plus unpaid leave, which has no
+  quota because it was taken anyway and docked;
+- **month by month** — present, absent, leave, days lost, payable days, attendance %, gross,
+  PF, ESI, PT, loan, net and Sunday pay, with a totals row;
+- a year picker, Print, and CSV.
+
+It assembles, it does not recalculate: every figure came out of `calculateRow`, so a month
+here and that month's payslip cannot disagree. **Sunday pay sits beside the net and is never
+added into it**, the same rule as everywhere else.
+
+Reading a report never touches the months it reads. Every month is loaded with `sync: false`,
+so building a year's report cannot backdate today's new hires into closed months or post a
+loan instalment into a month already paid — that is the salary sheet's job, not a report's.
+There is an API test for it.
+
 ### Onboarding a new joiner
 
 Adding somebody to the payroll needs a name and a salary. Then the month ends, and the PF

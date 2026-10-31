@@ -1155,3 +1155,6 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 .onboarding .step { padding: 0.3rem 0; border-top: 1px solid var(--line-soft); }
 .onboarding .step:first-of-type { border-top: none; }
 .onboarding .why { font-size: 0.72rem; }
+
+/* A report is wider than a form. */
+.modal.wide { max-width: min(1100px, 96vw); }

@@ -603,3 +603,43 @@ test('auth is enforced when a password is set', async () => {
     config.appPassword = '';
   }
 });
+
+/* ---------------- one person's own report ---------------- */
+
+test("an employee's report reads their months without touching them", async () => {
+  // A second month, so the report has something to run down.
+  const second = await api('POST', '/api/periods', { year: 2027, month: 1 });
+  assert.equal(second.status, 201);
+
+  const before = (await api('GET', `/api/periods/${periodId}/payroll?sync=false`)).body.rows.length;
+
+  const report = await api('GET', `/api/employees/${employeeId}/report`);
+  assert.equal(report.status, 200);
+  assert.equal(report.body.employee.id, employeeId);
+  assert.ok(report.body.months.length >= 2, 'both months should be in the report');
+  assert.deepEqual(
+    report.body.months.map((m) => `${m.year}-${m.month}`).sort(),
+    [...report.body.months.map((m) => `${m.year}-${m.month}`)].sort(),
+    'months come back in order'
+  );
+  assert.ok(report.body.years.includes(2027));
+
+  // Reading a report must not sync rows into a month somebody has closed, or
+  // post a loan instalment there - that is the salary sheet's job, not a
+  // report's.
+  const after = (await api('GET', `/api/periods/${periodId}/payroll?sync=false`)).body.rows.length;
+  assert.equal(after, before);
+});
+
+test("a report can be narrowed to one year, and totals follow", async () => {
+  const all = (await api('GET', `/api/employees/${employeeId}/report`)).body;
+  const one = (await api('GET', `/api/employees/${employeeId}/report?year=2027`)).body;
+  assert.equal(one.year, 2027);
+  assert.ok(one.months.every((m) => m.year === 2027));
+  assert.ok(one.months.length < all.months.length);
+  assert.equal(one.totals.months, one.months.length);
+});
+
+test('a report for somebody who does not exist is a 404, not an empty page', async () => {
+  assert.equal((await api('GET', '/api/employees/999999/report')).status, 404);
+});

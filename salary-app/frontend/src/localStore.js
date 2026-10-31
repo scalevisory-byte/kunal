@@ -20,6 +20,7 @@ import {
 import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
+import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, parseTime } from '../../shared/timesheet.js';
 
 /**
@@ -551,6 +552,31 @@ export async function handle(method, path, body) {
   if (parts[0] === 'employees' && parts[1]) {
     const employee = employeeOf(Number(parts[1]));
     if (!employee) throw new HttpError(404, 'not found');
+
+    /* one person down the months */
+    if (parts[2] === 'report' && method === 'GET') {
+      const params = new URLSearchParams(path.split('?')[1] || '');
+      const year = Number(params.get('year')) || null;
+      const months = db.periods
+        .filter((period) => !year || period.year === year)
+        .sort((a, b) => a.year - b.year || a.month - b.month)
+        .map((period) => {
+          // sync: false, for the same reason the server does it - reading a
+          // past month must not backdate a new hire or post a loan instalment
+          // into a month already paid.
+          const payroll = buildPayroll(period.id, { sync: false });
+          const row = payroll?.rows.find((r) => r.employee_id === employee.id);
+          return row ? { period: payroll.period, row } : null;
+        })
+        .filter(Boolean);
+
+      return {
+        ...employeeReport({ employee, months }),
+        years: [...new Set(db.periods.map((p) => p.year))].sort((a, b) => b - a),
+        year,
+      };
+    }
+
     if (method === 'PATCH') {
       for (const key of EMPLOYEE_FIELDS) {
         if (!(key in (body || {}))) continue;

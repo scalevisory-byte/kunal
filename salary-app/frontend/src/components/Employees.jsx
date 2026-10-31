@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { openOnboarding } from '../../../shared/onboarding.js';
+import EmployeeReport from './EmployeeReport.jsx';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
@@ -30,6 +31,7 @@ export default function Employees({
   const [bulkReligion, setBulkReligion] = useState('');
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
+  const [reportFor, setReportFor] = useState(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -312,6 +314,13 @@ export default function Employees({
                       {emp.name}
                     </button>
                     {!emp.bank_account && <span className="pill todo" title="No bank details yet">bank?</span>}
+                    <button
+                      className="ghost tiny"
+                      title="Their own report — attendance, leave and pay, month by month"
+                      onClick={() => setReportFor(emp.id)}
+                    >
+                      report
+                    </button>
                   </td>
                   <td>
                     <select
@@ -460,6 +469,14 @@ export default function Employees({
           />
         );
       })()}
+
+      {reportFor && (
+        <EmployeeReport
+          employeeId={reportFor}
+          onClose={() => setReportFor(null)}
+          onError={(err) => setError(err.message)}
+        />
+      )}
     </section>
   );
 }
