@@ -11,6 +11,7 @@ import {
 import { buildPayroll } from './payroll.js';
 import { log } from './logger.js';
 import { settlement } from '../../shared/settlement.js';
+import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
 
 // The trail itself lives in db.js, because the payroll write paths there write
 // to it too and db.js cannot import this file without a cycle.
@@ -100,6 +101,58 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_assets_employee ON assets(employee_id, returned_on);
 
+  /*
+   * Every handover, not just the current one.
+   *
+   * The assets table above holds who has it NOW, which is what every screen
+   * asks. It does not hold who had it before: issuing to a second person used
+   * to overwrite the first, so "asset history" had nothing behind it. This is
+   * the log - append-only, written by the same calls that move the asset, and
+   * never read back to work out the current holder. The two answer different
+   * questions, so they cannot drift.
+   */
+  CREATE TABLE IF NOT EXISTS asset_handovers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id      INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    employee_id   INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+    -- Kept as text as well, so a handover slip still reads correctly after
+    -- somebody has left and their row is gone.
+    employee_name TEXT,
+    issued_on     TEXT,
+    issued_by     TEXT,
+    returned_on   TEXT,
+    returned_by   TEXT,
+    condition_out TEXT,
+    condition_in  TEXT,
+    note          TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_handover_asset ON asset_handovers(asset_id, issued_on);
+  CREATE INDEX IF NOT EXISTS idx_handover_open ON asset_handovers(asset_id, returned_on);
+
+  /*
+   * A stock take. One row per asset actually looked at, grouped by a round.
+   *
+   * What was NOT found is worked out from the absence of a row rather than
+   * stored, so an asset added halfway through a round is simply not yet
+   * verified rather than silently counted as missing.
+   */
+  CREATE TABLE IF NOT EXISTS asset_verifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id    INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    round       TEXT NOT NULL,
+    found       INTEGER NOT NULL DEFAULT 1,
+    verified_on TEXT NOT NULL,
+    verified_by TEXT,
+    held_by     TEXT,                    -- who had it when it was checked
+    note        TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    -- One verdict per asset per round. Checking it again replaces the verdict
+    -- rather than leaving two that disagree.
+    UNIQUE (asset_id, round)
+  );
+  CREATE INDEX IF NOT EXISTS idx_verify_round ON asset_verifications(round, verified_on);
+
   /* ---------------- leaving ---------------- */
   CREATE TABLE IF NOT EXISTS employee_exits (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,6 +202,53 @@ db.exec(`
  * ================================================================= */
 
 /** The kinds of asset the pickers offer. Free text still works. */
+/*
+ * The asset register grew up.
+ *
+ * `code` is the human asset ID that goes on the label - a database id means
+ * nothing written on a laptop. The purchase side (date, vendor, invoice,
+ * warranty) was one `value` field doing two jobs: "what it cost" and "what it
+ * is worth". `purchase_cost` is what it cost, and nothing else; a current
+ * valuation is a different question nobody has asked for yet.
+ */
+const ASSET_COLUMNS = [
+  ['code', 'TEXT'],
+  ['branch_id', 'INTEGER REFERENCES branches(id) ON DELETE SET NULL'],
+  ['purchase_cost', 'REAL NOT NULL DEFAULT 0'],
+  ['purchase_date', 'TEXT'],
+  ['vendor', 'TEXT'],
+  ['invoice_no', 'TEXT'],
+  ['warranty_until', 'TEXT'],
+  // An asset that is gone keeps its row and its code, because an old service
+  // bill and a signed handover slip still refer to it.
+  ['written_off_on', 'TEXT'],
+  ['written_off_why', 'TEXT'],
+];
+
+const assetColumns = () => db.prepare(`PRAGMA table_info(assets)`).all().map((c) => c.name);
+
+for (const [column, type] of ASSET_COLUMNS) {
+  if (!assetColumns().includes(column)) {
+    db.exec(`ALTER TABLE assets ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated assets: added ${column}.`);
+  }
+}
+
+// `value` meant the purchase cost everywhere it was used, so move it across
+// and take the old column away - a column that must never be written again is
+// exactly how two numbers end up disagreeing.
+if (assetColumns().includes('value')) {
+  db.exec(`UPDATE assets SET purchase_cost = value WHERE purchase_cost = 0 AND value <> 0`);
+  db.exec(`ALTER TABLE assets DROP COLUMN value`);
+  log.info('Migrated assets: value became purchase_cost.');
+}
+
+// One asset code, used once. Partial, because most rows carry no code yet.
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_code ON assets(code) WHERE code IS NOT NULL`);
+
+/** Today, as the app writes dates everywhere: YYYY-MM-DD. */
+const dayNow = () => new Date().toISOString().slice(0, 10);
+
 export const ASSET_KINDS = [
   'Laptop',
   'Desktop',
@@ -438,15 +538,21 @@ export function deleteAppraisal(id, by) {
 export const getAsset = (id) =>
   db
     .prepare(
-      `SELECT a.*, e.name AS employee_name, c.name AS company_name
+      `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name
        FROM assets a
        LEFT JOIN employees e ON e.id = a.employee_id
        LEFT JOIN companies c ON c.id = a.company_id
+       LEFT JOIN branches br ON br.id = a.branch_id
        WHERE a.id = ?`
     )
     .get(id) || null;
 
-export function listAssets({ employee_id, company_id, out } = {}) {
+export const getAssetByCode = (code) => {
+  const row = db.prepare(`SELECT id FROM assets WHERE code = ?`).get(tidyCode(code));
+  return row ? getAsset(row.id) : null;
+};
+
+export function listAssets({ employee_id, company_id, branch_id, out, written_off = false, round } = {}) {
   const where = [];
   const params = [];
   if (employee_id) {
@@ -457,51 +563,160 @@ export function listAssets({ employee_id, company_id, out } = {}) {
     where.push('a.company_id = ?');
     params.push(Number(company_id));
   }
+  if (branch_id) {
+    where.push('a.branch_id = ?');
+    params.push(Number(branch_id));
+  }
   // "Out" means issued to somebody and not back yet.
   if (out) where.push('a.employee_id IS NOT NULL AND a.returned_on IS NULL');
+  // Written-off assets keep their row and their code; they are just not on the
+  // register any more unless asked for.
+  if (!written_off) where.push('a.written_off_on IS NULL');
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  // When a round is named, each asset carries that round's verdict - which is
+  // how "what was not found" is worked out: no row means not checked yet.
+  const verification = round
+    ? `(SELECT v.found FROM asset_verifications v WHERE v.asset_id = a.id AND v.round = ?) AS verified_found,
+       (SELECT v.verified_on FROM asset_verifications v WHERE v.asset_id = a.id AND v.round = ?) AS verified_on,`
+    : '';
+  const roundParams = round ? [round, round] : [];
+
   return db
     .prepare(
-      `SELECT a.*, e.name AS employee_name, c.name AS company_name
+      `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name,
+              ${verification}
+              (SELECT COUNT(*) FROM asset_handovers h WHERE h.asset_id = a.id) AS handovers
        FROM assets a
        LEFT JOIN employees e ON e.id = a.employee_id
        LEFT JOIN companies c ON c.id = a.company_id
+       LEFT JOIN branches br ON br.id = a.branch_id
        ${clause}
-       ORDER BY (a.employee_id IS NOT NULL AND a.returned_on IS NULL) DESC, a.kind, a.label`
+       ORDER BY (a.employee_id IS NOT NULL AND a.returned_on IS NULL) DESC, a.kind, a.code, a.label`
     )
-    .all(...params);
+    .all(...roundParams, ...params)
+    .map((row) => ({
+      ...row,
+      verified_found: round ? (row.verified_found === null ? null : Boolean(row.verified_found)) : undefined,
+      warranty_left_days: daysUntil(row.warranty_until),
+    }));
 }
+
+/** Days until a date, or null. Negative means it has passed. */
+function daysUntil(date) {
+  if (!date) return null;
+  const then = new Date(date);
+  if (Number.isNaN(then.getTime())) return null;
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  return Math.round((then - today) / (24 * 60 * 60 * 1000));
+}
+
+/** Every code in use, including written-off ones - a number is never reused. */
+const codesInUse = () =>
+  db.prepare(`SELECT code FROM assets WHERE code IS NOT NULL`).all().map((r) => r.code);
 
 export function createAsset(input = {}) {
   const label = String(input.label || '').trim();
   if (!label) throw new Error('give the asset a name');
+  const companyId = Number(input.company_id) || null;
+  const company = companyId
+    ? db.prepare(`SELECT name FROM companies WHERE id = ?`).get(companyId)?.name
+    : null;
+  const kind = input.kind || 'Other';
+
+  /*
+   * The code. Typed if somebody typed one - an office with stickers already on
+   * the laptops should keep them - and worked out if not.
+   */
+  let code = null;
+  if (input.code) {
+    const problem = codeProblem(input.code);
+    if (problem) throw new Error(problem);
+    code = tidyCode(input.code);
+    if (db.prepare(`SELECT 1 FROM assets WHERE code = ?`).get(code)) {
+      throw new Error(`${code} is already on something else`);
+    }
+  } else {
+    code = nextCode(company || 'GEN', kind, codesInUse());
+  }
+
   const info = db
     .prepare(
-      `INSERT INTO assets (company_id, kind, label, identifier, value, employee_id, issued_on, returned_on, condition, note)
-       VALUES (@company_id, @kind, @label, @identifier, @value, @employee_id, @issued_on, @returned_on, @condition, @note)`
+      `INSERT INTO assets (code, company_id, branch_id, kind, label, identifier, purchase_cost,
+                           purchase_date, vendor, invoice_no, warranty_until,
+                           employee_id, issued_on, returned_on, condition, note)
+       VALUES (@code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
+               @purchase_date, @vendor, @invoice_no, @warranty_until,
+               @employee_id, @issued_on, @returned_on, @condition, @note)`
     )
     .run({
-      company_id: Number(input.company_id) || null,
-      kind: input.kind || 'Other',
+      code,
+      company_id: companyId,
+      branch_id: Number(input.branch_id) || null,
+      kind,
       label,
       identifier: input.identifier || null,
-      value: Number(input.value) || 0,
+      purchase_cost: Number(input.purchase_cost ?? input.value) || 0,
+      purchase_date: input.purchase_date || null,
+      vendor: input.vendor || null,
+      invoice_no: input.invoice_no || null,
+      warranty_until: input.warranty_until || null,
       employee_id: Number(input.employee_id) || null,
       issued_on: input.issued_on || null,
       returned_on: input.returned_on || null,
       condition: input.condition || null,
       note: input.note || null,
     });
-  audit({ who: input.by, action: 'created', entity: 'assets', entity_id: info.lastInsertRowid, label });
-  return getAsset(info.lastInsertRowid);
+  const id = info.lastInsertRowid;
+  audit({ who: input.by, action: 'created', entity: 'assets', entity_id: id, label: `${code} ${label}` });
+
+  // Created already with somebody: that is a handover, so log it as one.
+  if (Number(input.employee_id)) {
+    logHandover(id, {
+      employee_id: Number(input.employee_id),
+      issued_on: input.issued_on || dayNow(),
+      issued_by: input.by,
+      condition_out: input.condition,
+    });
+  }
+  return getAsset(id);
 }
+
+const ASSET_FIELDS = [
+  'company_id',
+  'branch_id',
+  'kind',
+  'label',
+  'identifier',
+  'purchase_cost',
+  'purchase_date',
+  'vendor',
+  'invoice_no',
+  'warranty_until',
+  'employee_id',
+  'issued_on',
+  'returned_on',
+  'condition',
+  'note',
+];
 
 export function updateAsset(id, patch = {}) {
   const before = getAsset(id);
   if (!before) throw new Error('not found');
+
   const fields = [];
   const values = [];
-  for (const key of ['company_id', 'kind', 'label', 'identifier', 'value', 'employee_id', 'issued_on', 'returned_on', 'condition', 'note']) {
+  // The code can be changed, but never onto one already in use.
+  if ('code' in patch) {
+    const problem = codeProblem(patch.code);
+    if (problem) throw new Error(problem);
+    const code = tidyCode(patch.code);
+    const clash = db.prepare(`SELECT id FROM assets WHERE code = ? AND id <> ?`).get(code, id);
+    if (clash) throw new Error(`${code} is already on something else`);
+    fields.push('code = ?');
+    values.push(code);
+  }
+  for (const key of ASSET_FIELDS) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(patch[key] === '' ? null : patch[key]);
@@ -509,13 +724,14 @@ export function updateAsset(id, patch = {}) {
   if (!fields.length) return before;
   db.prepare(`UPDATE assets SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
   const after = getAsset(id);
+
   if (before.employee_id !== after.employee_id || before.returned_on !== after.returned_on) {
     audit({
       who: patch.by,
       action: after.returned_on && !before.returned_on ? 'returned' : 'issued',
       entity: 'assets',
       entity_id: id,
-      label: before.label,
+      label: `${before.code || ''} ${before.label}`.trim(),
       from_value: before.employee_name || 'the office',
       to_value: after.returned_on ? 'the office' : after.employee_name || 'the office',
     });
@@ -523,32 +739,277 @@ export function updateAsset(id, patch = {}) {
   return after;
 }
 
-/** Hand it over. Issuing to somebody else clears the previous return date. */
-export function issueAsset(id, { employee_id, issued_on, by } = {}) {
-  const employee = getEmployee(employee_id);
-  if (!employee) throw new Error('employee not found');
-  return updateAsset(id, {
-    employee_id: employee.id,
-    issued_on: issued_on || new Date().toISOString().slice(0, 10),
-    returned_on: '',
-    by,
-  });
+/* ---------------- handovers, and their history ---------------- */
+
+/** The open handover row for an asset, if it is out with somebody. */
+const openHandover = (assetId) =>
+  db
+    .prepare(
+      `SELECT * FROM asset_handovers WHERE asset_id = ? AND returned_on IS NULL
+       ORDER BY id DESC LIMIT 1`
+    )
+    .get(assetId) || null;
+
+function logHandover(assetId, { employee_id, issued_on, issued_by, condition_out, note } = {}) {
+  const name = employee_id ? getEmployee(employee_id)?.name || null : null;
+  db.prepare(
+    `INSERT INTO asset_handovers (asset_id, employee_id, employee_name, issued_on, issued_by, condition_out, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(assetId, employee_id || null, name, issued_on || dayNow(), issued_by || null, condition_out || null, note || null);
 }
 
-export function returnAsset(id, { returned_on, condition, by } = {}) {
+/**
+ * Hand it over.
+ *
+ * Issuing to somebody while it is already out with somebody else closes the
+ * first handover rather than losing it - which is what used to happen, and is
+ * why asset history had nothing behind it.
+ */
+export function issueAsset(id, { employee_id, issued_on, condition, note, by } = {}) {
+  const asset = getAsset(id);
+  if (!asset) throw new Error('not found');
+  if (asset.written_off_on) throw new Error('that asset is written off');
+  const employee = getEmployee(employee_id);
+  if (!employee) throw new Error('employee not found');
+
+  const open = openHandover(id);
+  if (open) {
+    if (open.employee_id === employee.id) return asset;
+    db.prepare(
+      `UPDATE asset_handovers SET returned_on = ?, returned_by = ?, condition_in = ? WHERE id = ?`
+    ).run(issued_on || dayNow(), by || null, 'passed on directly', open.id);
+  }
+
+  logHandover(id, {
+    employee_id: employee.id,
+    issued_on: issued_on || dayNow(),
+    issued_by: by,
+    condition_out: condition,
+    note,
+  });
   return updateAsset(id, {
-    returned_on: returned_on || new Date().toISOString().slice(0, 10),
+    employee_id: employee.id,
+    issued_on: issued_on || dayNow(),
+    returned_on: '',
     condition: condition || undefined,
     by,
   });
 }
 
+export function returnAsset(id, { returned_on, condition, note, by } = {}) {
+  const asset = getAsset(id);
+  if (!asset) throw new Error('not found');
+  const open = openHandover(id);
+  if (open) {
+    db.prepare(
+      `UPDATE asset_handovers SET returned_on = ?, returned_by = ?, condition_in = ?, note = COALESCE(?, note)
+       WHERE id = ?`
+    ).run(returned_on || dayNow(), by || null, condition || null, note || null, open.id);
+  }
+  return updateAsset(id, {
+    returned_on: returned_on || dayNow(),
+    condition: condition || undefined,
+    by,
+  });
+}
+
+export const listHandovers = ({ asset_id, employee_id, open } = {}) => {
+  const where = [];
+  const params = [];
+  if (asset_id) {
+    where.push('h.asset_id = ?');
+    params.push(Number(asset_id));
+  }
+  if (employee_id) {
+    where.push('h.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (open) where.push('h.returned_on IS NULL');
+  return db
+    .prepare(
+      `SELECT h.*, a.code, a.label, a.kind, a.purchase_cost, c.name AS company_name
+       FROM asset_handovers h
+       JOIN assets a ON a.id = h.asset_id
+       LEFT JOIN companies c ON c.id = a.company_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY h.issued_on DESC, h.id DESC`
+    )
+    .all(...params);
+};
+
+/**
+ * Writing one off. The row and the code stay - an old service bill and a signed
+ * handover slip still refer to them - and anything still out is brought back
+ * first, so nobody is left holding something that no longer exists.
+ */
+export function writeOffAsset(id, { on, why, by } = {}) {
+  const asset = getAsset(id);
+  if (!asset) throw new Error('not found');
+  if (asset.written_off_on) return asset;
+  if (!String(why || '').trim()) throw new Error('say why it is being written off');
+  if (asset.employee_id && !asset.returned_on) {
+    returnAsset(id, { returned_on: on || dayNow(), condition: 'written off', by });
+  }
+  db.prepare(`UPDATE assets SET written_off_on = ?, written_off_why = ? WHERE id = ?`).run(
+    on || dayNow(),
+    String(why).trim(),
+    id
+  );
+  audit({
+    who: by,
+    action: 'written off',
+    entity: 'assets',
+    entity_id: id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    note: String(why).trim(),
+  });
+  return getAsset(id);
+}
+
 export function deleteAsset(id, by) {
   const before = getAsset(id);
   if (!before) return false;
+  // Anything with a history is written off, not deleted: deleting takes the
+  // handovers and the service record with it.
+  const handovers = db.prepare(`SELECT COUNT(*) AS n FROM asset_handovers WHERE asset_id = ?`).get(id).n;
+  if (handovers) {
+    throw new Error('this asset has been issued to somebody - write it off instead of deleting it');
+  }
   const gone = db.prepare(`DELETE FROM assets WHERE id = ?`).run(id).changes > 0;
-  if (gone) audit({ who: by, action: 'deleted', entity: 'assets', entity_id: id, label: before.label });
+  if (gone) {
+    audit({ who: by, action: 'deleted', entity: 'assets', entity_id: id, label: `${before.code || ''} ${before.label}`.trim() });
+  }
   return gone;
+}
+
+/* ---------------- a stock take ---------------- */
+
+/**
+ * Record one asset as seen, or not seen, in a round.
+ *
+ * Checking the same asset twice replaces the verdict rather than leaving two
+ * that disagree.
+ */
+export function verifyAsset(id, { round, found = true, note, by, on } = {}) {
+  const asset = getAsset(id);
+  if (!asset) throw new Error('not found');
+  const label = String(round || '').trim();
+  if (!label) throw new Error('which round is this?');
+  db.prepare(
+    `INSERT INTO asset_verifications (asset_id, round, found, verified_on, verified_by, held_by, note)
+     VALUES (@asset_id, @round, @found, @verified_on, @verified_by, @held_by, @note)
+     ON CONFLICT(asset_id, round) DO UPDATE SET
+       found = excluded.found, verified_on = excluded.verified_on,
+       verified_by = excluded.verified_by, held_by = excluded.held_by, note = excluded.note`
+  ).run({
+    asset_id: id,
+    round: label,
+    found: found ? 1 : 0,
+    verified_on: on || dayNow(),
+    verified_by: by || null,
+    held_by: asset.employee_name || null,
+    note: note || null,
+  });
+  audit({
+    who: by,
+    action: found ? 'verified' : 'not found',
+    entity: 'assets',
+    entity_id: id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    note: label,
+  });
+  return getAsset(id);
+}
+
+export const listRounds = () =>
+  db
+    .prepare(
+      `SELECT round, COUNT(*) AS checked, SUM(found) AS found,
+              MIN(verified_on) AS started, MAX(verified_on) AS last
+       FROM asset_verifications GROUP BY round ORDER BY MAX(verified_on) DESC`
+    )
+    .all()
+    .map((r) => ({ ...r, missing: r.checked - r.found }));
+
+/**
+ * How a round is going: what was found, what was not, and what has not been
+ * looked at yet. The third is the one that matters - "not checked" is not
+ * "missing", and treating it as such is how a stock take invents losses.
+ */
+export function roundProgress(round) {
+  const assets = listAssets({ round });
+  const found = assets.filter((a) => a.verified_found === true);
+  const missing = assets.filter((a) => a.verified_found === false);
+  const todo = assets.filter((a) => a.verified_found === null);
+  return {
+    round,
+    total: assets.length,
+    found: found.length,
+    missing: missing.length,
+    not_checked: todo.length,
+    missing_value: missing.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0),
+    missing_assets: missing,
+    not_checked_assets: todo,
+  };
+}
+
+/* ---------------- one asset's whole life ---------------- */
+
+/**
+ * The timeline: bought, issued, returned, checked, written off — assembled from
+ * the rows that already hold each of those, in date order. Nothing here is
+ * stored twice.
+ */
+export function assetHistory(id) {
+  const asset = getAsset(id);
+  if (!asset) return null;
+  const events = [];
+
+  if (asset.purchase_date || asset.created_at) {
+    events.push({
+      on: asset.purchase_date || String(asset.created_at).slice(0, 10),
+      what: asset.purchase_date ? 'Bought' : 'Added to the register',
+      detail: [asset.vendor, asset.invoice_no].filter(Boolean).join(', ') || null,
+      amount: Number(asset.purchase_cost) || 0,
+    });
+  }
+
+  for (const h of listHandovers({ asset_id: id }).reverse()) {
+    events.push({
+      on: h.issued_on,
+      what: 'Issued',
+      who: h.employee_name,
+      detail: h.condition_out || null,
+      by: h.issued_by,
+    });
+    if (h.returned_on) {
+      events.push({
+        on: h.returned_on,
+        what: 'Returned',
+        who: h.employee_name,
+        detail: h.condition_in || null,
+        by: h.returned_by,
+      });
+    }
+  }
+
+  for (const v of db
+    .prepare(`SELECT * FROM asset_verifications WHERE asset_id = ? ORDER BY verified_on`)
+    .all(id)) {
+    events.push({
+      on: v.verified_on,
+      what: v.found ? 'Verified' : 'Not found',
+      detail: [v.round, v.note].filter(Boolean).join(' — ') || null,
+      by: v.verified_by,
+    });
+  }
+
+  if (asset.written_off_on) {
+    events.push({ on: asset.written_off_on, what: 'Written off', detail: asset.written_off_why });
+  }
+
+  events.sort((a, b) => String(a.on).localeCompare(String(b.on)));
+  return { asset, events };
 }
 
 /* ================================================================= *
@@ -893,7 +1354,7 @@ export function fullAndFinal(employeeId) {
       leave: { quotas: leave.quotas, taken: leave.taken },
       loan_outstanding: loans.reduce((sum, l) => sum + (Number(l.outstanding) || 0), 0),
       claims,
-      assets: assets.map((a) => ({ label: a.label, value: a.value })),
+      assets: assets.map((a) => ({ label: `${a.code || ''} ${a.label}`.trim(), value: a.purchase_cost })),
       extras: exit.extras,
     }),
     loans,
@@ -987,7 +1448,6 @@ export const TICKET_CATEGORIES = [
   'Other',
 ];
 
-const dayNow = () => new Date().toISOString().slice(0, 10);
 
 /* ---------------- tasks ---------------- */
 

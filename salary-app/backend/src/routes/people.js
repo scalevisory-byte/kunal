@@ -3,6 +3,9 @@ import { digest } from '../../../shared/digest.js';
 import { buildPayroll } from '../payroll.js';
 import { listPeriods } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
+import { getEmployee } from '../db.js';
+import { barcodeSvg } from '../../../shared/barcode.js';
+import { handoverCsv, handoverSlip, registerCsv, registerTotals } from '../../../shared/assetReport.js';
 import {
   ASSET_KINDS,
   CLAIM_KINDS,
@@ -32,8 +35,16 @@ import {
   listAllAppraisals,
   listAllNotes,
   listAppraisals,
+  assetHistory,
+  getAsset,
+  getAssetByCode,
   listAssets,
   listAudit,
+  listHandovers,
+  listRounds,
+  roundProgress,
+  verifyAsset,
+  writeOffAsset,
   listClaims,
   listExits,
   listNotes,
@@ -173,13 +184,77 @@ peopleRouter.delete('/appraisals/:id', (req, res) => {
 /* ---------------- assets ---------------- */
 
 peopleRouter.get('/assets', (req, res) => {
+  const assets = listAssets({
+    employee_id: Number(req.query.employee_id) || undefined,
+    company_id: Number(req.query.company_id) || undefined,
+    branch_id: Number(req.query.branch_id) || undefined,
+    out: req.query.out === 'true',
+    written_off: req.query.written_off === 'true',
+    round: req.query.round || undefined,
+  });
+  res.json({ assets, totals: registerTotals(assets), kinds: ASSET_KINDS });
+});
+
+/** Scanning a label. The code off a barcode scanner lands here. */
+peopleRouter.get('/assets/by-code/:code', (req, res) => {
+  const asset = getAssetByCode(req.params.code);
+  if (!asset) return res.status(404).json({ error: `nothing on the register with the code ${req.params.code}` });
+  res.json(asset);
+});
+
+peopleRouter.get('/assets/register.csv', (req, res) => {
+  const assets = listAssets({
+    company_id: Number(req.query.company_id) || undefined,
+    written_off: req.query.written_off === 'true',
+  });
+  res.type('text/csv').attachment('asset-register.csv').send(registerCsv(assets));
+});
+
+peopleRouter.get('/assets/handovers.csv', (req, res) => {
+  const handovers = listHandovers({
+    employee_id: Number(req.query.employee_id) || undefined,
+    open: req.query.open === 'true',
+  });
+  res.type('text/csv').attachment('asset-handovers.csv').send(handoverCsv(handovers));
+});
+
+peopleRouter.get('/assets/handovers', (req, res) => {
   res.json({
-    assets: listAssets({
+    handovers: listHandovers({
+      asset_id: Number(req.query.asset_id) || undefined,
       employee_id: Number(req.query.employee_id) || undefined,
-      company_id: Number(req.query.company_id) || undefined,
-      out: req.query.out === 'true',
+      open: req.query.open === 'true',
     }),
   });
+});
+
+/** One person's slip, to print and have signed. */
+peopleRouter.get('/assets/slip/:employeeId', (req, res) => {
+  const employee = getEmployee(Number(req.params.employeeId));
+  if (!employee) return res.status(404).json({ error: 'employee not found' });
+  res.json(
+    handoverSlip({
+      employee,
+      company: employee.company_name,
+      handovers: listHandovers({ employee_id: employee.id }),
+    })
+  );
+});
+
+/** The label, as an SVG the browser can print. */
+peopleRouter.get('/assets/:id/label.svg', (req, res) => {
+  const asset = getAsset(Number(req.params.id));
+  if (!asset) return res.status(404).json({ error: 'not found' });
+  if (!asset.code) return res.status(400).json({ error: 'that asset has no code to print' });
+  const svg = barcodeSvg(asset.code, { heightMm: Number(req.query.h) || 12 });
+  if (!svg) return res.status(400).json({ error: 'that code cannot be made into a barcode' });
+  res.type('image/svg+xml').send(svg);
+});
+
+peopleRouter.get('/assets/:id/history', (req, res) => {
+  const found = assetHistory(Number(req.params.id));
+  if (!found) return res.status(404).json({ error: 'not found' });
+  res.json(found);
 });
 
 peopleRouter.post('/assets', (req, res) => {
@@ -214,8 +289,38 @@ peopleRouter.post('/assets/:id/return', (req, res) => {
   }
 });
 
+peopleRouter.post('/assets/:id/write-off', (req, res) => {
+  try {
+    res.json(writeOffAsset(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/assets/:id/verify', (req, res) => {
+  try {
+    res.json(verifyAsset(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
 peopleRouter.delete('/assets/:id', (req, res) => {
-  res.json({ deleted: deleteAsset(Number(req.params.id), who(req)) });
+  try {
+    res.json({ deleted: deleteAsset(Number(req.params.id), who(req)) });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/* ---------------- the stock take ---------------- */
+
+peopleRouter.get('/rounds', (_req, res) => {
+  res.json({ rounds: listRounds() });
+});
+
+peopleRouter.get('/rounds/:round', (req, res) => {
+  res.json(roundProgress(req.params.round));
 });
 
 /* ---------------- expense claims ---------------- */
