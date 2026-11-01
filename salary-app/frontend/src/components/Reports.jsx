@@ -137,6 +137,19 @@ export default function Reports({ period, payroll, onReload }) {
               <button onClick={() => grab(`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`)}>
                 Sunday register
               </button>
+              {/*
+                * These two do not belong to a month - the leave register is a
+                * year and the staff list is right now - so they sit beside the
+                * month's files rather than inside them.
+                */}
+              {!STANDALONE && (
+                <>
+                  <button onClick={() => grab(`/leave.csv?year=${period.year}`, `Leave-${period.year}.csv`)}>
+                    Leave register ({period.year})
+                  </button>
+                  <button onClick={() => grab('/employees.csv', 'Employees.csv')}>Staff list</button>
+                </>
+              )}
             </div>
             <p className="muted small">
               <strong>Monthly report pack</strong> is the one that goes out: three sheets in the

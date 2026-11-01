@@ -58,10 +58,18 @@ export function digest(input = {}) {
   } = input;
 
   const lines = [];
+  const items = [];
   let count = 0;
 
-  const add = (line, n = 1) => {
+  /*
+   * Each line carries a `kind`, so a caller can take only the part it needs.
+   * The dashboard wants the queues waiting on a decision and NOT the payroll
+   * lines, which its own "Needs attention" list already says - two cards
+   * repeating each other is how a dashboard stops being read.
+   */
+  const add = (line, n = 1, kind = 'queue') => {
     lines.push(line);
+    items.push({ kind, text: line.replace(/^•\s*/, '') });
     count += n;
   };
 
@@ -117,9 +125,9 @@ export function digest(input = {}) {
   if (period && rows.length) {
     const unmarked = rows.filter((row) => !Object.keys(row.attendance || {}).length);
     if (unmarked.length === rows.length) {
-      add(`• ${period.label}: nothing marked yet for anybody`);
+      add(`• ${period.label}: nothing marked yet for anybody`, 1, 'payroll');
     } else if (unmarked.length) {
-      add(`• ${period.label}: ${plural(unmarked.length, 'person', 'people')} with no attendance at all`);
+      add(`• ${period.label}: ${plural(unmarked.length, 'person', 'people')} with no attendance at all`, 1, 'payroll');
     }
 
     const unpaid = rows.filter((row) => String(row.status || '').toLowerCase() !== 'paid');
@@ -128,13 +136,15 @@ export function digest(input = {}) {
       add(
         `• ${period.label}: ${plural(unpaid.length, 'salary', 'salaries')} unpaid, ₹${Math.round(
           total
-        ).toLocaleString('en-IN')}`
+        ).toLocaleString('en-IN')}`,
+        1,
+        'payroll'
       );
     }
 
     const missing = rows.filter((row) => !row.uan || !row.esic_no);
     if (missing.length) {
-      add(`• ${plural(missing.length, 'person', 'people')} still without a UAN or ESIC number`, 0);
+      add(`• ${plural(missing.length, 'person', 'people')} still without a UAN or ESIC number`, 0, 'payroll');
     }
   }
 
@@ -162,7 +172,11 @@ export function digest(input = {}) {
 
   return {
     lines,
+    items,
     count,
+    // How many of them are queues waiting on a decision, which is what the
+    // dashboard tile counts.
+    waiting: items.filter((i) => i.kind === 'queue').length,
     heading,
     // Lines only, so a caller can put its own subject on it.
     text: lines.length ? lines.join('\n') : 'Nothing waiting.',

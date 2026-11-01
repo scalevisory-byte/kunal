@@ -13,7 +13,7 @@ import {
 } from '../../../shared/monthlyStatus.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { listAttendance, listEmployees, listHolidays, setAttendance } from '../db.js';
+import { leaveSummary, listAttendance, listEmployees, listHolidays, setAttendance } from '../db.js';
 import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
@@ -314,4 +314,106 @@ reportsRouter.post('/import', upload.single('file'), async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+/* ---------------- the three files that were missing ---------------- */
+
+const csvEscape = (v) => {
+  const text = v === null || v === undefined ? '' : String(v);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** A BOM, so Excel opens it with the rupee signs and the names intact. */
+const sendCsv = (res, name, columns, rows) => {
+  const lines = [columns.map(([head]) => csvEscape(head)).join(',')];
+  for (const row of rows) lines.push(columns.map(([, get]) => csvEscape(get(row))).join(','));
+  res.type('text/csv').attachment(name).send(`\ufeff${lines.join('\n')}`);
+};
+
+/**
+ * The leave register as a file. It was on screen only, which is no use to
+ * anybody who has to send it to an auditor.
+ *
+ * Taken off `leaveSummary`, which counts the CL/SL/PL marks across the year's
+ * months - so this cannot disagree with the Leave tab or with the grid.
+ */
+reportsRouter.get('/leave.csv', (req, res) => {
+  const year = Number(req.query.year) || new Date().getFullYear();
+  const rows = leaveSummary(year);
+  sendCsv(res, `leave-${year}.csv`, [
+    ['Company', (r) => r.company_name || ''],
+    ['Employee', (r) => r.name],
+    ['Department', (r) => r.department || ''],
+    ['CL allowed', (r) => r.quotas.CL],
+    ['CL taken', (r) => r.taken.CL],
+    ['CL left', (r) => r.quotas.CL - r.taken.CL],
+    ['SL allowed', (r) => r.quotas.SL],
+    ['SL taken', (r) => r.taken.SL],
+    ['SL left', (r) => r.quotas.SL - r.taken.SL],
+    ['PL allowed', (r) => r.quotas.PL],
+    ['PL taken', (r) => r.taken.PL],
+    ['PL left', (r) => r.quotas.PL - r.taken.PL],
+    // Unpaid leave has no quota: it was taken anyway and docked, which is the
+    // whole point of the mark.
+    ['Unpaid leave taken', (r) => r.taken.UL],
+    [
+      'Over entitlement',
+      (r) =>
+        ['CL', 'SL', 'PL']
+          .filter((code) => r.taken[code] > r.quotas[code])
+          .map((code) => `${code} by ${r.taken[code] - r.quotas[code]}`)
+          .join('; '),
+    ],
+  ], rows);
+});
+
+/**
+ * The staff list as a file. A per-employee report existed; the list itself
+ * could not be exported at all.
+ *
+ * Salaries are on it, because this is behind the password and HR's whole job
+ * involves them. The statutory identifiers are on it because the commonest use
+ * of this file is finding out who is missing one.
+ */
+reportsRouter.get('/employees.csv', (req, res) => {
+  const rows = listEmployees({
+    company_id: Number(req.query.company_id) || undefined,
+    active: req.query.active === undefined ? undefined : req.query.active !== 'false',
+  });
+  sendCsv(res, 'employees.csv', [
+    ['Company', (e) => e.company_name || ''],
+    ['Branch', (e) => e.branch_name || ''],
+    ['Code', (e) => e.code || ''],
+    ['Name', (e) => e.name],
+    ['Designation', (e) => e.designation || ''],
+    ['Department', (e) => e.department || ''],
+    ['Joined', (e) => e.joined_on || ''],
+    ['Left', (e) => e.left_on || ''],
+    ['Status', (e) => (e.active ? 'Working' : 'Left')],
+    ['Born', (e) => e.dob || ''],
+    ['Phone', (e) => e.phone || ''],
+    ['Email', (e) => e.email || ''],
+    ['Monthly salary', (e) => Math.round(Number(e.monthly_salary) || 0)],
+    ['Basic', (e) => Math.round(Number(e.basic) || 0) || ''],
+    ['HRA', (e) => Math.round(Number(e.hra) || 0) || ''],
+    ['PF deducted', (e) => Math.round(Number(e.pf) || 0)],
+    ['PF mode', (e) => e.pf_mode || ''],
+    ['ESI deducted', (e) => Math.round(Number(e.esi) || 0)],
+    ['ESI mode', (e) => e.esi_mode || ''],
+    ['PAN', (e) => e.pan || ''],
+    ['Aadhaar', (e) => e.aadhaar || ''],
+    ['UAN', (e) => e.uan || ''],
+    ['ESIC number', (e) => e.esic_no || ''],
+    ['Bank', (e) => e.bank_name || ''],
+    ['Account', (e) => e.bank_account || ''],
+    ['IFSC', (e) => e.ifsc || ''],
+    ['Payment mode', (e) => e.payment_mode || ''],
+    ['CL', (e) => e.cl_quota || 0],
+    ['SL', (e) => e.sl_quota || 0],
+    ['PL', (e) => e.pl_quota || 0],
+    ['Shift', (e) => (e.shift_in ? `${e.shift_in}-${e.shift_out || ''}` : '')],
+    // Blank means "the company's day off", which is almost everybody.
+    ['Own weekly off', (e) => e.weekly_off || ''],
+    ['Religion', (e) => e.religion || ''],
+  ], rows);
 });

@@ -104,3 +104,21 @@ test('an unsettled exit and an asset still out with a leaver are both named', ()
   assert.match(d.text, /1 asset still out with somebody who has left: Dell Latitude \(Anchal Tiwari\)/);
   assert.equal(d.count, 2);
 });
+
+
+test('each line says what kind it is, so a caller can take only its part', () => {
+  const d = digest({
+    requests: [{ status: 'pending', employee_name: 'Riya Pal' }],
+    claims: [{ status: 'pending', employee_name: 'Vaibhav Gupta', amount: 1450 }],
+    period: { label: 'November 2026' },
+    rows: [{ employee_name: 'A', attendance: {}, status: '', net_salary: 100, uan: '', esic_no: '' }],
+    today: '2026-11-01',
+  });
+  const kinds = d.items.map((i) => i.kind);
+  assert.equal(kinds.filter((k) => k === 'queue').length, 2, 'the request and the claim');
+  assert.ok(kinds.includes('payroll'), 'and the month lines are marked apart');
+  assert.equal(d.waiting, 2, 'which is what the dashboard tile counts');
+  // The text still reads as a sentence, with the bullet taken off.
+  assert.ok(d.items.every((i) => !i.text.startsWith('\u2022')), 'the bullet is taken off the item text');
+  assert.equal(d.lines.length, d.items.length, 'and nothing is lost either way');
+});

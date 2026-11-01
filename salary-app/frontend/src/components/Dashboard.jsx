@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from '../api.js';
+import { STANDALONE, api } from '../api.js';
 import { LEAVE_TYPES, calculateRow, totalRows } from '../../../shared/calc.js';
 import { statutoryReport } from '../../../shared/statutory.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
@@ -38,6 +38,14 @@ export default function Dashboard({
 }) {
   const [leave, setLeave] = useState([]);
   const [history, setHistory] = useState([]); // the last few months, for the trend
+  /*
+   * The three things the brief asks this page for that it did not have: pending
+   * approvals, an asset summary and maintenance alerts. All three are already
+   * worked out elsewhere - the digest counts the queues, the maintenance engine
+   * sorts the alerts - so this fetches and shows, and computes nothing itself.
+   */
+  const [waiting, setWaiting] = useState(null);
+  const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
   const [showPresent, setShowPresent] = useState(false);
 
@@ -54,6 +62,26 @@ export default function Dashboard({
       cancelled = true;
     };
   }, [period?.id, period?.year]);
+
+  /*
+   * Both of these are nice-to-haves on this page: the standalone build has
+   * neither, and if either cannot be read the rest of the dashboard stands.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    if (STANDALONE) return undefined;
+    api
+      .get('/people/digest')
+      .then((body) => !cancelled && setWaiting(body))
+      .catch(() => !cancelled && setWaiting(null));
+    api
+      .get('/people/maintenance')
+      .then((body) => !cancelled && setAssets(body))
+      .catch(() => !cancelled && setAssets(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [period?.id]);
 
   /**
    * The months either side of this one, so the trend and the comparison have
@@ -522,7 +550,7 @@ export default function Dashboard({
     money.pendingCount > 0 && {
       key: 'pending',
       tone: 'warn',
-      text: `${money.pendingCount} salaries still to pay — ${rupees(money.pending)}`,
+      text: `${money.pendingCount} ${money.pendingCount === 1 ? 'salary' : 'salaries'} still to pay — ${rupees(money.pending)}`,
       go: 'sheet',
     },
     sunday.unpaidCount > 0 && {
@@ -591,6 +619,14 @@ export default function Dashboard({
       go: 'sheet',
     },
   ].filter(Boolean);
+
+  /*
+   * Only the lines waiting on a decision. The digest also carries the month's
+   * unpaid salaries and missing UANs, which the "Needs attention" list below
+   * already says - and two cards repeating each other is how a dashboard stops
+   * being read.
+   */
+  const queues = (waiting?.items || []).filter((item) => item.kind === 'queue');
 
   const now = new Date();
   // Nothing at all on this day is a different thing from a day with a few gaps
@@ -798,6 +834,101 @@ export default function Dashboard({
           </>
         )}
       </div>
+
+      {/*
+       * Each of these only appears when it has something to say. A card reading
+       * "0 waiting" is noise, and a dashboard full of zeroes is one nobody
+       * reads.
+       */}
+      {queues.length > 0 && (
+        <div className="card">
+          <div className="late-head">
+            <div>
+              <h2>Waiting on somebody</h2>
+              <p className="muted small">
+                Approvals, payments and answers that somebody has to decide. The month's own
+                figures are under <em>Needs attention</em> below rather than repeated here.
+              </p>
+            </div>
+            <button className="ghost tiny" onClick={() => onGo('people')}>
+              open People
+            </button>
+          </div>
+          <ul className="alerts">
+            {queues.map((item) => (
+              <li key={item.text}>{item.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {assets?.totals?.assets > 0 && (
+        <div className="card">
+          <div className="late-head">
+            <div>
+              <h2>Assets</h2>
+              <p className="muted small">
+                What is on the register, and what it has cost to buy and to keep.
+              </p>
+            </div>
+            <button className="ghost tiny" onClick={() => onGo('people')}>
+              open Assets
+            </button>
+          </div>
+          <div className="figures">
+            <div className="figure">
+              <span className="k">On the register</span>
+              <span className="n">{assets.totals.assets}</span>
+            </div>
+            <div className="figure">
+              <span className="k">Serviced at least once</span>
+              <span className="n">{assets.totals.serviced}</span>
+            </div>
+            <div className="figure">
+              <span className="k">Cost to buy</span>
+              <span className="n">{rupees(assets.totals.purchase)}</span>
+            </div>
+            <div className="figure">
+              <span className="k">Cost to keep</span>
+              <span className="n">{rupees(assets.totals.service)}</span>
+            </div>
+          </div>
+
+          {(assets.alerts.overdue.length > 0 ||
+            assets.alerts.soon.length > 0 ||
+            assets.alerts.amc_gone.length > 0 ||
+            assets.totals.costing_more_than_bought.length > 0) && (
+            <ul className="alerts">
+              {assets.alerts.overdue.length > 0 && (
+                <li>
+                  <strong>{assets.alerts.overdue.length} overdue a service</strong> —{' '}
+                  {assets.alerts.overdue.slice(0, 4).map((a) => a.code).join(', ')}
+                </li>
+              )}
+              {assets.alerts.soon.length > 0 && (
+                <li>
+                  {assets.alerts.soon.length} due within a month —{' '}
+                  {assets.alerts.soon.slice(0, 4).map((a) => a.code).join(', ')}
+                </li>
+              )}
+              {assets.alerts.amc_gone.length > 0 && (
+                <li>
+                  {assets.alerts.amc_gone.length} with a lapsed AMC —{' '}
+                  {assets.alerts.amc_gone.slice(0, 4).map((a) => a.code).join(', ')}
+                </li>
+              )}
+              {assets.totals.costing_more_than_bought.length > 0 && (
+                <li>
+                  {assets.totals.costing_more_than_bought.length} ha
+                  {assets.totals.costing_more_than_bought.length === 1 ? 's' : 've'} cost more to
+                  keep than to buy —{' '}
+                  {assets.totals.costing_more_than_bought.slice(0, 4).map((a) => a.code).join(', ')}
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
 
       {alerts.length > 0 && (
         <div className="card">

@@ -556,7 +556,15 @@ function Shell() {
         {tab === 'reports' && <Reports period={period} payroll={payroll} onReload={loadAll} />}
 
         {tab === 'admin' && (
-          <Admin me={me} companies={companies} onError={handle} onReload={loadAll} />
+          <Admin
+            me={me}
+            companies={companies}
+            period={period}
+            locked={locked}
+            onPatchPeriod={patchPeriod}
+            onError={handle}
+            onReload={loadAll}
+          />
         )}
       </main>
 

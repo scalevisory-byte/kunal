@@ -3,11 +3,13 @@ import { STANDALONE } from '../../api.js';
 import Backups from './Backups.jsx';
 import Branches from './Branches.jsx';
 import Logins from './Logins.jsx';
+import Settings from './Settings.jsx';
 import Users from './Users.jsx';
 
 const PANELS = [
   ['users', 'Logins'],
   ['branches', 'Branches'],
+  ['settings', 'Month settings'],
   ['backups', 'Backups'],
   ['logins', 'Sign-ins'],
 ];
@@ -19,7 +21,7 @@ const PANELS = [
  * the server refuses these calls by role whoever asks, so hiding the tab is the
  * second line of defence and not the first.
  */
-export default function Admin({ me, companies, onError, onReload }) {
+export default function Admin({ me, companies, period, locked, onPatchPeriod, onError, onReload }) {
   const [panel, setPanel] = useState('users');
 
   if (STANDALONE) {
@@ -59,6 +61,7 @@ export default function Admin({ me, companies, onError, onReload }) {
 
       {panel === 'users' && <Users me={me} onError={onError} />}
       {panel === 'branches' && <Branches companies={companies} onError={onError} onReload={onReload} />}
+      {panel === 'settings' && <Settings period={period} locked={locked} onPatch={onPatchPeriod} />}
       {panel === 'backups' && <Backups onError={onError} />}
       {panel === 'logins' && <Logins onError={onError} />}
     </section>
