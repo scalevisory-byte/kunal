@@ -1375,3 +1375,93 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   .viz-row .viz-track { grid-column: 1 / -1; }
   .viz-row-note { display: none; }
 }
+
+/* ---------- the dashboard's headline band ---------- */
+
+/*
+ * The five figures somebody opens the page for. They are deliberately the only
+ * thing on the page with a filled block of colour on it: everything else is a
+ * hairline, so the eye lands here first and nowhere else competes.
+ */
+.kpi-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.9rem;
+}
+
+.kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+  font: inherit;
+  padding: 0.95rem 1.05rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.kpi:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--line));
+  transform: translateY(-1px);
+  background: var(--surface);
+}
+
+.kpi-icon {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.kpi-body { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+
+.kpi-label {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--muted);
+}
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 640;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  color: var(--text);
+}
+.kpi-caption {
+  font-size: 0.74rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * A card's title gets a rule under it, so a long page reads as a stack of
+ * panels rather than one unbroken column of text. Dashboard only - the data
+ * tabs are dense on purpose and a rule per card would be noise there.
+ */
+.dashboard .card > h2 {
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.dashboard .card > h2 > button.tiny { margin-left: auto; }
+/* Two cards carry a title AND a sentence of explanation, so the rule goes
+   under the pair - a rule between a heading and its own caption would read as
+   two separate things. */
+.dashboard .card > .late-head {
+  padding-bottom: 0.7rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.dashboard .card > .late-head h2 { border-bottom: none; padding-bottom: 0; margin-bottom: 0.2rem; }

@@ -660,8 +660,88 @@ export default function Dashboard({
     });
   }
 
+  /*
+   * The five figures somebody opens this page to see. Everything below is the
+   * detail behind one of them, so they sit on their own band at the top rather
+   * than being found halfway down a card.
+   *
+   * Each one is a figure already computed below - this reads them, it does not
+   * work anything out - and each one opens where it came from.
+   */
+  // The same figure the By company table prints, over whatever is on screen -
+  // days present out of days that carry any mark. A month with nothing marked
+  // reads as a dash, never 100%.
+  const attendedRate = presentRate(rows);
+  const kpis = [
+    {
+      key: 'present',
+      icon: 'people',
+      tone: 'present',
+      label: 'In today',
+      value: nothingMarked ? '—' : `${roll.present.length}/${rows.length}`,
+      caption: nothingMarked
+        ? 'nothing marked for this day'
+        : `${roll.absent.length} absent · ${roll.leave.length} on leave`,
+      to: 'attendance',
+    },
+    {
+      key: 'net',
+      icon: 'rupee',
+      tone: 'paid',
+      label: 'Net payable',
+      value: rupees(totals.net_salary),
+      caption: `${rows.length} on the payroll`,
+      to: 'sheet',
+    },
+    {
+      key: 'pending',
+      icon: 'clock',
+      tone: money.pending > 0 ? 'absent' : 'present',
+      label: 'Still to pay',
+      value: rupees(money.pending),
+      caption: money.pending > 0 ? `${money.pendingCount} people` : 'everybody is paid',
+      to: 'sheet',
+    },
+    {
+      key: 'rate',
+      icon: 'calendar',
+      tone: 'leave',
+      label: 'Attendance',
+      value: attendedRate === '-' ? '—' : attendedRate,
+      caption:
+        attendedRate === '-'
+          ? 'nothing marked yet'
+          : `${attendance.absent} days absent this month`,
+      to: 'reports',
+    },
+    {
+      key: 'attention',
+      icon: 'alert',
+      tone: alerts.length ? 'half' : 'present',
+      label: 'Needs attention',
+      value: alerts.length + queues.length,
+      caption: alerts.length + queues.length === 0 ? 'nothing waiting' : 'things to deal with',
+      to: 'people',
+    },
+  ];
+
   return (
     <section className="stack dashboard">
+      <div className="kpi-band">
+        {kpis.map((k) => (
+          <button key={k.key} className="kpi" onClick={() => onGo(k.to)} title={`Open ${k.to}`}>
+            <span className="kpi-icon" style={{ background: `var(--viz-${k.tone})` }}>
+              <Glyph name={k.icon} />
+            </span>
+            <span className="kpi-body">
+              <span className="kpi-label">{k.label}</span>
+              <span className="kpi-value">{k.value}</span>
+              <span className="kpi-caption">{k.caption}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div className="card roll-call">
         <h2 className="roll-head">
           <button
@@ -1600,5 +1680,36 @@ function BarRows({ rows, note }) {
         </div>
       ))}
     </div>
+  );
+}
+
+
+/*
+ * Five line icons for the headline band. Drawn rather than taken from a font
+ * or an emoji: an emoji renders in its own colours on top of the chip and
+ * looks stuck on, and a whole icon library is 100 KB for five shapes.
+ */
+const GLYPHS = {
+  people: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21a7 7 0 0 1 14 0M17.5 11.5a3 3 0 1 0 0-6M19 21a6 6 0 0 0-3-5.2',
+  rupee: 'M7 4h10M7 9h10M15.5 4c0 3-2.2 5-5.5 5H7l8 11',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2.2',
+  calendar: 'M4 8h16M7 3v3M17 3v3M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM8 13h2M14 13h2M8 17h2M14 17h2',
+  alert: 'M12 3 2.5 20h19L12 3ZM12 10v4.5M12 17.6v.1',
+};
+
+function Glyph({ name }) {
+  const d = GLYPHS[name];
+  if (!d) return null;
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+      <path
+        d={d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
