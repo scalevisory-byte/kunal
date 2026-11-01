@@ -11,8 +11,13 @@ import { api } from '../api.js';
  */
 const BLANK_MAPPING = { employee: '', date: '', inTime: '', outTime: '', matchBy: 'name' };
 
+/**
+ * The half-day line is left out on purpose: `punchesToMarks` works it out from
+ * the month's own hours per day, so an eight-hour month breaks at four without
+ * anybody retyping it. It is filled in below from the open period so the box
+ * still shows and can still be overridden.
+ */
 const DEFAULT_RULES = {
-  halfDayHours: 4.5,
   graceMinutes: 15,
   countShortHours: true,
 };
@@ -22,7 +27,10 @@ export default function PunchImport({ period, onReload }) {
   const [read, setRead] = useState(null);
   const [sheet, setSheet] = useState('');
   const [mapping, setMapping] = useState(BLANK_MAPPING);
-  const [rules, setRules] = useState(DEFAULT_RULES);
+  const [rules, setRules] = useState({
+    ...DEFAULT_RULES,
+    halfDayHours: (Number(period?.hours_per_day) || 9) / 2,
+  });
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');

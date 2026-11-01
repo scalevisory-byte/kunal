@@ -486,6 +486,103 @@ assistant. See `salary-app/README.md`.
   served from `backend/public`, auth on, and the SQLite data surviving a restart on the
   same DATA_DIR.
 
+- **Late in, early out, and the 300-minute concession** (`shared/lateEarly.js`,
+  `LatePolicy.jsx` on the Time tab) — Dinesh asked for this twice, calling it
+  "particularly important": *"300-minute monthly late/early concession"*, *"late arrival —
+  automatic late-minute calculation"*, *"early departure — automatic minute calculation"*.
+  Every minute late in and left early is counted, pooled for the month, the first 300 free,
+  the excess charged at the minute rate.
+  **The thing this hangs on: it never charges the same minutes twice.** The app already
+  deducts short hours (`out − in − lunch` against expected), and somebody half an hour late
+  is already half an hour short there. So the two are **alternatives**: a period runs on
+  `late_policy = 'hours'` (the long-standing behaviour, the default) or `'concession'`, where
+  the hours-shortfall is no longer charged and only overtime pays. `calculateRow` picks one.
+  `late_policy` defaults to `'hours'` on every existing and new month, so the migration
+  cannot move a rupee — and the line is **still computed** on the default policy so the panel
+  can price a switch before it is made. Held per month, so a rule changed in November never
+  rewrites October. A day nobody clocked is "not known", never "on time"; a half day, leave,
+  a holiday or an absence is never judged late; `employees.shift_in/shift_out` let a night
+  shift be judged against its own hours instead of reading as five hours late every day.
+  Daily grace is **0** by default: a monthly pool plus 15 min × 26 days gives away a second
+  allowance nobody decided on.
+- **The half-day line now follows the configured day** — half of the month's `hours_per_day`,
+  not a fixed 4½. His list said "half day: based on configured working hours"; 4.5 was only
+  right because the default day is nine. `shared/timesheet.js` and `shared/punches.js` derive
+  it from the same figure, so a typed day and a machine-read day stay identical.
+- **Weekly off** (`shared/weeklyOff.js`, `WeeklyOff.jsx` under Leave) — `companies.weekly_off`
+  and `employees.weekly_off` hold a JSON policy; alternate Saturdays are supported because
+  that is how much of Gujarat works and cannot be said as "every Saturday". **It cannot move
+  money:** `S` still means the weekly off and `SP` still means it was worked; only which
+  squares the grid treats as off days changes, so "Mark everyone Present" and a date range
+  hit the right days. The column header still shades Sundays (a calendar fact); each *cell*
+  follows that person's policy.
+- **Sandwich leave** (`shared/sandwich.js`, `SandwichLeave.jsx`) — a day off caught between
+  two absences. **A tool, not a setting:** nothing is stored, the panel finds the days, prices
+  them and marks them on a click, because it is the harshest rule in the app. A run of off
+  days goes together or not at all; a day actually worked (SP/HP) is never docked; a day at
+  the very edge of the month is named and left alone (the other side is in another month);
+  only A/UL close the sandwich by default, with CL/SL/PL available as the labelled harsher
+  reading. It writes **UL**, not A, so absences are not inflated by days the rule docked.
+- **Leave application and approval** reuse the `attendance_requests` queue rather than a
+  parallel one — one list, one UI, one rule (*a request never writes attendance; an approval
+  does*). A `leave` kind plus a nullable `to_day` makes a fortnight **one request and one
+  decision**; approving writes every day in one transaction, so a half-approved fortnight
+  cannot exist. Clock times are not repeated across a span. Raised from the employee's punch
+  link, where the token is the identity.
+
+## The People tab — `/salary-app/`, `backend/src/people.js` + `shared/settlement.js`
+
+Dinesh's "Advanced HR Features" list, plus the two he named first ("warning and appreciation
+records", "appraisal and increment history"). Nine panels under one tab, all needing the
+server (the single-file build says so). Two rules hold across every one:
+**nothing decides itself**, and **money reaches the payroll only through one call that names
+the month it comes out of**.
+
+- `employee_notes` — warnings and appreciations on one list (same record, opposite signs).
+  A warning carries its formality and **when it was acknowledged**.
+- `appraisals` — a **proposal until applied**. Measured against what they are on now, so an
+  increment can't be worked off a stale figure. Applying writes the salary via
+  `updateEmployee`, so it lands in `employee_history`; applying twice gives no second rise;
+  an applied increment can't be edited or deleted.
+- `assets` — nobody against it means **in the office**, not lost. What is out sorts first.
+- `expense_claims` — raise / approve / **pay into a named month** as an addition on that row,
+  added to whatever is there. Can't pay an unapproved claim, can't decide twice, can't pay
+  twice (a double click cannot pay a petrol bill twice).
+- `staff_tasks` — office work assigned to staff, **not** the WhatsApp task assistant.
+  `overdue` is computed on read. A done task can't be deleted, only dropped; the phone can
+  tick off but never drop (dropping work somebody gave you is the office's call).
+- `tickets` + `ticket_replies` — **answering is not closing** (the employee decides whether
+  the answer settled it, and replying puts it back to open), and **waiting means waiting on
+  us**.
+- `employee_exits` + `shared/settlement.js` — the F&F **assembles, never recalculates**: the
+  final month's net is the payslip's own figure, read with `sync: false`. It adds leave
+  encashment (**PL only** by default — CL/SL lapse), gratuity (15 days/year on 26 days, on
+  Basic where set, **reported with its rule even when not due**; the Act's part-year rounding
+  is stated as "7 years 9 months, counted as 8" because otherwise it reads as a
+  contradiction), and notice **either way round** by exit type. **An unreturned asset is
+  named and valued, never deducted** — docked and then found in a drawer cannot be undone.
+  Settled once, after which the dates stop moving.
+- `shared/digest.js` + `GET /api/people/digest` — the honest half of "Notifications". It
+  works out *what* to say and **does not send**, stating why: WhatsApp has no legitimate API
+  for a personal number and the task assistant already holds a session (a second one risks
+  the number), email needs SMTP credentials, push needs keys and a service worker. Copy it,
+  or point a cron at `?format=text`. A quiet day says "Nothing waiting".
+- `audit_log` (in `db.js`, because the payroll write paths write to it and `db.js` cannot
+  import `people.js`) — **a corrected attendance mark is recorded, a blank day being filled
+  in is not**, so "Mark everyone Present" and the punch import stay out of it while an
+  absence turned into sick leave is kept. A figure typed over the sheet is recorded by name
+  and column; the same figure again is not a change; an override handed back reads
+  `(formula)`, never 0. Closing a month and switching the late/early rule are on it.
+  **`who` is a name typed on a form, not an authenticated identity** — one shared password,
+  no accounts, and the UI says so.
+- **Bug worth remembering:** the punch link's rate limiter used one counter per link across
+  routes with different limits, so 20 punches starved the 5-per-minute ticket route. Each
+  route now has its own bucket.
+- **Bug worth remembering:** the standalone build never merged the master's
+  `basic/hra/pf_mode/esi_mode` into the row it calculated (read side) *and* its
+  `EMPLOYEE_FIELDS` omitted them (write side) — so the salary-breakup and PF/ESI panels
+  looked as if they worked there and silently did nothing. Both halves fixed.
+
 ## Hiring — HRMS module 5, inside `/salary-app/`
 
 Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") and it was first built as
@@ -558,6 +655,23 @@ Three decisions he made before any of it was built, which still hold:
 ### Still to settle with Dinesh
 The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
 and where this is hosted, so `PUBLIC_URL` can be set and the apply links actually work.
+
+## Open questions put to Dinesh and still unanswered
+1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
+   pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
+   take April's PT from 10,000 to 10,400. Not assumed either way.
+2. **`H/O` on his Sunday + Festival register** — implemented as the app's **HP** (worked the
+   festival, owed an extra day), because ANCHAL TIWARI had the holiday and is not on the
+   register at all. Confirm.
+3. **The biometric file's 34 always-absent people** — absent on every day the October machine
+   file has a record for. Almost certainly never enrolled, or already left. Named in the dry
+   run rather than written through.
+4. **Whether to turn the late/early concession on, and from which month.** It is off on every
+   month; the panel prices it first. His own figure is 300 minutes.
+5. **Whether paid leave should close a sandwich.** Default is absence only (A/UL); CL/SL/PL
+   is available as the harsher reading.
+6. **Which channel the reminder digest should go out on**, and its credentials — the text is
+   ready and the endpoint is there; nothing sends it yet.
 
 ## Alternative architecture considered (not being built, for reference)
 Dinesh shared a diagram of a different pattern: Meta WhatsApp Cloud API (official, business-number-only) → Google Gemini for extraction → MongoDB for storage → BullMQ + Redis for reminder job scheduling → Meta API sends reminder back. This is the "message a bot to log a task" model (active input) vs. the current build's "ambient, reads all your chats" model (passive). We are continuing with the passive/personal-WhatsApp approach already built, not this one, unless Dinesh says otherwise.

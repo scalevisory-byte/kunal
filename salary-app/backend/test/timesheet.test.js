@@ -146,3 +146,25 @@ test('late in and early out are judged against the usual day, with the same grac
   assert.equal(isEarlyOut({}, standard), false);
   assert.equal(isLateIn({ in_time: '11:00' }, {}), false, 'no standard, no judgement');
 });
+
+test('the half-day line follows the configured day, not a fixed four and a half', () => {
+  const times = { in_time: '09:30', out_time: '13:50' }; // 4h 20m
+  // A nine-hour day breaks at 4½, so 4h20m is a half day.
+  assert.equal(timesToDay(times, { hoursPerDay: 9 }).code, 'HF');
+  // An eight-hour day breaks at 4, so the same hours are a full day's presence.
+  assert.equal(timesToDay(times, { hoursPerDay: 8 }).code, 'P');
+  // And a ten-hour day breaks at 5.
+  assert.equal(timesToDay({ in_time: '09:30', out_time: '14:15' }, { hoursPerDay: 10 }).code, 'HF');
+});
+
+test('a caller can still name the half-day line outright', () => {
+  const times = { in_time: '09:30', out_time: '13:50' };
+  assert.equal(timesToDay(times, { hoursPerDay: 9, rules: { halfDayHours: 4 } }).code, 'P');
+});
+
+test('the grace still applies on a day of any length', () => {
+  // Eight-hour day, ten minutes short: inside the grace, so nothing is charged.
+  const day = timesToDay({ in_time: '09:30', out_time: '17:20' }, { hoursPerDay: 8 });
+  assert.equal(day.code, 'P');
+  assert.equal(day.minutes, 0);
+});

@@ -31,9 +31,18 @@ export const TIME_LABELS = {
  *                  late never turns into money
  */
 export const TIME_RULES = {
+  // Half of the default nine-hour day. `timesToDay` derives it from the month's
+  // own hours per day instead; this stands for callers that have no month to
+  // hand, such as the punch importer's own defaults.
   halfDayHours: 4.5,
   graceMinutes: 15,
 };
+
+/**
+ * Everything in TIME_RULES except the half-day line, which `timesToDay` works
+ * out from the day's own hours instead of taking the constant.
+ */
+const { halfDayHours: _fixedHalfDay, ...TIME_RULES_WITHOUT_HALF } = TIME_RULES;
 
 /** A day longer than this is almost certainly a typo, not a night shift. */
 const MAX_DAY_MINUTES = 16 * 60;
@@ -181,9 +190,17 @@ export const hasTimes = (times = {}) => TIME_FIELDS.some((f) => parseTime(times[
  *   code     'P' or 'HF', or '' when there is nothing to say
  */
 export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
-  const settings = { ...TIME_RULES, ...(rules || {}) };
+  const hours = Number(hoursPerDay) || 9;
+  /*
+   * The half-day line follows the configured day: half of whatever the month's
+   * hours per day are, unless the caller names a figure. Dinesh's own list asks
+   * for exactly this - "half day: based on configured working hours" - and the
+   * fixed 4½ hours was only right because the default day is nine. An eight-hour
+   * day now breaks at four, not at four and a half.
+   */
+  const settings = { halfDayHours: hours / 2, ...TIME_RULES_WITHOUT_HALF, ...(rules || {}) };
   const read = readTimes(times);
-  const expected = Math.round((Number(hoursPerDay) || 9) * 60);
+  const expected = Math.round(hours * 60);
 
   if (read.worked === null) {
     return { ...read, expected, diff: null, minutes: 0, code: '' };

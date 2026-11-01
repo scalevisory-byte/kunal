@@ -169,8 +169,12 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
  *   entries feed straight into setAttendance.
  */
 export function punchesToMarks({ rows, mapping, rules, employees, period }) {
-  const settings = { ...DEFAULT_RULES, ...(rules || {}) };
-  const fullDayMinutes = (Number(period.hours_per_day) || 9) * 60;
+  const hoursPerDay = Number(period.hours_per_day) || 9;
+  // The half-day line follows the configured day - half of the month's hours -
+  // unless the import names one, exactly as the Time tab does it. The two must
+  // agree: a day read off the machine and a day typed by hand are the same day.
+  const settings = { ...DEFAULT_RULES, halfDayHours: hoursPerDay / 2, ...(rules || {}) };
+  const fullDayMinutes = hoursPerDay * 60;
   const halfDayMinutes = Number(settings.halfDayHours) * 60;
 
   // Employees can be matched on the name or on the code they carry in the

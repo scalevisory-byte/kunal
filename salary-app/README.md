@@ -664,6 +664,102 @@ Anyone who has taken more paid leave than was due shows a negative balance and i
 in the warning at the top; those days are still being paid, so mark them **Unpaid Leave**
 instead if they should not be.
 
+### Leave: applying for it, and getting it approved
+
+An employee asks from **their own punch link** — no password, because a hundred people are
+not getting logins. A leave application is the one request that covers a run of days:
+`22–25` is **one request and one decision**, not fourteen, and approving writes the mark on
+every day it covers in a single transaction, so a half-approved fortnight cannot exist.
+
+The rule is the same one the whole approval queue runs on: **a request never writes
+attendance; an approval does.** A pending application has changed nobody's pay, a rejection
+writes nothing beyond the decision, and nothing is decided twice.
+
+A last day before the first is refused as a typo rather than silently covering nothing, and
+a date range on a kind that cannot span one (a missing punch, say) is refused rather than
+quietly dropped.
+
+### The day off need not be Sunday
+
+**Leave → The day off.** The app assumed Sunday everywhere, which is right for most of the
+staff and wrong for the rest — a driver off on Thursday, an office on alternate Saturdays
+(which is how much of Gujarat works, and cannot be said as "every Saturday" or "no
+Saturday"). A company sets the house rule; anybody on different days carries their own.
+
+**It cannot move money.** `S` still means the weekly off and `SP` still means it was worked,
+which is what the Sunday register pays from, and the salary engine counts marks and never
+asks what day of the week it is. What changes is which squares the grid treats as off days,
+so **Mark everyone Present** puts `S` on the right days and a date range skips the right
+ones. The column headers still mark Sundays, which is a calendar fact; each cell follows
+that person's own policy.
+
+### Sandwich leave
+
+**Leave → Sandwich leave.** A day off caught between two days of absence: away on Saturday
+and again on Monday is three days away, and many employers deduct the Sunday in between.
+
+It is **a tool, not a setting**. Nothing is stored and nothing happens on its own — the
+panel finds the days, says what each costs, and marks them on a click. That is deliberate:
+it is the harshest rule in the app, taking a day's pay for a day nobody was due to work, so
+it is a decision each month rather than a switch somebody left on. The marks it writes are
+the record.
+
+Four things it gets right:
+
+- **A run of off days goes together or not at all** — a Saturday-and-Sunday weekend, or a
+  Sunday against a festival holiday, is one piece of filling.
+- **A day actually worked is never docked.** `SP` and `HP` are paid extra; they cannot also
+  be deducted.
+- **A day off at the very edge of the month is left alone and named.** The day on the other
+  side is in another month, which the panel cannot see — so it says so rather than guessing.
+- **Only unpaid absence closes the sandwich by default.** Counting CL/SL/PL as absence is
+  available and labelled as the harsher reading: docking a Sunday between two days of leave
+  somebody had earned is a different decision from docking one between two days of
+  unexplained absence.
+
+It writes **UL**, not `A` — the same day's pay, but counted apart, so a month's absences are
+not inflated by days the rule docked rather than days somebody failed to turn up.
+
+### Late in, early out, and the 300-minute concession
+
+**Time → Late and early.** Dinesh's own policy: every minute late in and every minute left
+early is counted, pooled for the month, the first **300 are free**, and the excess comes off
+the pay at the minute rate.
+
+**It is off until somebody turns it on.** A month runs on one of two rules:
+
+| Rule | What it charges |
+| --- | --- |
+| **Hours only** (the default) | Nothing for lateness as such. A late arrival costs money only if it made the day short of its hours — which is what this app has always done. |
+| **Pool late and early minutes** | Late and early minutes pooled for the month, 300 free, the rest charged. The hours-shortfall is then **not** charged as well. |
+
+That second sentence is the point: somebody half an hour late is already half an hour short
+on the hours rule, so charging the lateness *as well* would take the same half hour twice.
+The two rules are alternatives, never additions.
+
+The panel states what switching would cost **before** it is switched — the figure is real,
+not an estimate, because every row carries what the rule would charge whether or not it is
+being applied. It is held per month, so a rule turned on in November never rewrites a
+payslip already paid in October.
+
+Three more things:
+
+- **A day nobody clocked is not a late day.** No in-time means *not known*, which is not
+  *on time* and not *late*.
+- **A half day, leave, a holiday or an absence is never judged late.** It was not a full day
+  at the office.
+- **Somebody on other hours carries their own shift** (on their employee record). A night
+  shift judged against the office's 09:30 would read as five hours late every single day.
+
+The daily grace is **zero** by default. A monthly pool of five hours plus a quarter of an
+hour forgiven on each of 26 days would give away another six and a half hours nobody decided
+on.
+
+The half-day line follows the configured day — half of the month's hours per day — so an
+eight-hour month breaks at four, not at four and a half. The Time tab and the biometric
+import use the same figure, because a day typed by hand and a day read off the machine have
+to be worth the same.
+
 ### Where it differs from the spreadsheet, on purpose
 
 - **Every month is 26 working days, fixed.** February and a 31-day month divide by the
@@ -696,6 +792,140 @@ and Sunday pay exactly. The two that differ are rows where someone typed a net s
   slip in the sheet. This app does not reproduce that.
 
 Both are worth a look before the next payroll run.
+
+## The People tab
+
+Everything about somebody that is not pay and not attendance. Nine panels, all of which
+**need the server** — a warning on a record, a claim somebody else approves and a trail that
+outlives one browser are not things a single file on a laptop can hold, and the single-file
+build says so rather than showing empty boxes.
+
+Two rules hold across all of them:
+
+- **Nothing decides itself.** A claim is approved by somebody, an increment is applied by
+  somebody, a settlement is marked paid once. A pending row changes nobody's pay, and a row
+  that was never approved can never be paid.
+- **Money reaches the payroll only through one call that names the month it comes out of.**
+
+### On the record — warnings and appreciations
+
+One list, because they are the same record with opposite signs and a person's file should
+read in one order whichever kind it is. A warning carries how formal it was (verbal, written,
+final) and **when it was acknowledged**, because a warning the person never saw is not much
+of a warning.
+
+### Appraisals and increments
+
+An appraisal is **a proposal until somebody applies it**. Filling the form in changes nobody's
+pay; *Apply the increment* is a separate button that writes the new salary onto the master —
+which lands in the employee's own change history like any other salary change. It is measured
+against what they are on **now**, so an increment can never be worked out off a stale figure.
+
+Applying twice does not give a second rise. An applied increment cannot be edited or deleted
+afterwards: somebody was paid on it.
+
+### Assets — laptop, ID card, SIM
+
+An asset with nobody against it reads **in the office**, which is not the same as lost. What
+is out and with whom sorts to the top, because that is the one question the register exists to
+answer, and the exit settlement reads the same list.
+
+### Expense claims — travel, food, petrol
+
+Three steps, kept apart on purpose. **Raising** records what was spent. **Approving** says it
+is a real expense. **Paying** says which month it comes out of, and posts it as an addition on
+that person's salary-sheet row — on top of whatever addition is already there, never replacing
+it.
+
+A claim cannot be paid without being approved, a decided claim is not decided again, and
+paying it twice is refused, so a double click cannot pay a petrol bill twice. A paid claim
+stays on the record.
+
+### Tasks
+
+Work given to somebody, with a date it is wanted by. **Not** the same thing as the WhatsApp
+task assistant, which reads Dinesh's own messages — this is office work assigned to staff, and
+each person sees their own on the link they punch from and ticks it off there.
+
+"Overdue" is worked out on read rather than stored, so a list left open overnight is right in
+the morning. A task that was done cannot be deleted — drop it instead — and the trail carries
+every turn, so done-then-reopened is a history rather than a rewrite. A task cannot be
+*dropped* from the phone at all: dropping work somebody gave you is the office's decision.
+
+### Helpdesk
+
+What staff have asked for or complained about, raised from their own link. Two rules:
+
+- **Answering is not closing.** The office replying moves a ticket to *answered*; whether the
+  answer settled it is the employee's call, and them replying puts it back to *open*. A
+  helpdesk that closes its own tickets measures nothing.
+- **Waiting means waiting on us.** The list leads with the ones where nobody in the office has
+  spoken since the employee did.
+
+### Leaving — resignation, notice, full and final
+
+The settlement is **assembled, not stored**. The final month's net is the figure the payslip
+prints (read without syncing, so settling somebody cannot backdate a hire into a closed month
+or post another loan instalment), the leave balance is counted off the marks, the loan
+outstanding comes off the ledger. What this adds is the arithmetic that only happens once:
+
+- **Leave encashment** — privilege leave only by default, because CL and SL lapse at the end
+  of the year and paying them out would hand over days nobody had a claim to. The panel shows
+  what lapses next to what is paid out, so it is on the page rather than a rule somebody has
+  to know.
+- **Gratuity** — 15 days' wages per completed year on a 26-day month, on Basic where a breakup
+  is set and on the monthly salary where none is, which it states. Reported **with its rule and
+  its eligibility even when it is not due**, rather than left off the page. The Act counts a
+  part-year over six months as a full year, which reads as a contradiction next to the plain
+  service length, so the note says both figures: *"7 years 9 months of service, counted as 8"*.
+- **Notice, either way round** — somebody who resigns and leaves early owes the shortfall; an
+  employer who terminates without notice owes it instead. Which way is decided by the exit
+  type, not by who filled the form in. A retirement or a contract simply ending owes nothing.
+
+**An unreturned laptop is named and valued, never deducted.** Docking it off a final payment
+that then turns out to be in a drawer cannot be undone once the money has gone.
+
+Setting a last working day also marks the person inactive, which is what every other tab
+reads — but that is not the same as paying them. Once the settlement is marked paid, the dates
+behind it stop moving and the record cannot be deleted.
+
+### Reminders
+
+Everything waiting on a decision, a payment or an answer, as text. **It works out what to say;
+it does not send**, and the page says why rather than implying plumbing that is not there:
+
+- **WhatsApp** has no legitimate API for a personal number, and the task assistant already
+  holds a linked session. A second session on the same number risks the number, so the right
+  shape is for *that* app to fetch this text.
+- **Email** needs an SMTP account and its password — a decision about credentials, not code.
+- **Phone notifications** need push keys and a service worker. The task assistant has those;
+  this app does not.
+
+What works today: copy it into WhatsApp, or point anything on a schedule at
+`GET /api/people/digest?format=text`, which returns it as plain text (with the dashboard
+password in an `Authorization: Bearer` header, like every other call).
+
+A quiet day says *Nothing waiting* rather than padding, and a missing UAN is reported without
+counting as a job for today.
+
+### Trail — who changed what, and when
+
+Deliberately plain, and deliberately honest about one thing: **`who` is a name typed on a
+form, not somebody the app authenticated.** This build has one shared password and no user
+accounts, so a trail that implied otherwise would be worse than no trail.
+
+What it records and what it does not is the useful part:
+
+- **A corrected attendance mark is on it; a blank day being filled in is not.** So "Mark
+  everyone Present" and the biometric import stay out of it, while an absence turned into sick
+  leave after the fact — exactly what somebody comes looking for — is kept.
+- **A figure typed over the salary sheet is on it**, by name and column. Typing the same figure
+  again is not a change, and an override handed back to the formula records `(formula)` rather
+  than reading as zero.
+- **Closing a month and switching the late/early rule are on it**, because both change what
+  people are paid.
+
+Every line is readable without a join: a name, not an id.
 
 ### Additions and deductions
 
