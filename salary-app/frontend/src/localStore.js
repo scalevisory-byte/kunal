@@ -370,6 +370,18 @@ export async function handle(method, path, body) {
   const [, ...parts] = path.split('?')[0].split('/');
   const route = `${method} /${parts.join('/')}`;
 
+  /*
+   * There is nobody to sign in as: this file is the whole installation and it
+   * lives on one laptop. But App.jsx asks for the sign-in state before it will
+   * load anything at all, so a 404 here left the page showing "No months yet"
+   * with every tab empty - the file looked broken rather than offline. So the
+   * question is answered honestly: nothing is guarding this, and nobody is
+   * signed in.
+   */
+  if (route === 'GET /auth/state') {
+    return { needs_setup: false, open: true, roles: [], signed_in: null };
+  }
+
   /* config */
   if (route === 'GET /config') {
     return {
