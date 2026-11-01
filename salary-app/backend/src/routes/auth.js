@@ -9,6 +9,7 @@ import {
   getUser,
   listLogins,
   listUsers,
+  noteFirstSignIn,
   setPassword,
   signIn,
   updateUser,
@@ -69,9 +70,11 @@ authRouter.get('/state', (req, res) => {
 /** The first admin. Only possible while there are no users at all. */
 authRouter.post('/setup', (req, res) => {
   try {
-    const user = createFirstAdmin(req.body || {});
-    const token = makeSession(user.id);
-    setSessionCookie(res, token);
+    const created = createFirstAdmin(req.body || {});
+    // Creating it signs you in, so it is a sign-in and goes on the record like
+    // one - otherwise the login list reads "never" for somebody plainly here.
+    const user = noteFirstSignIn(created.id, where(req));
+    setSessionCookie(res, makeSession(user.id));
     log.info(`First admin created: ${user.username}`);
     res.status(201).json({ user });
   } catch (err) {

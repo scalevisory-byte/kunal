@@ -1235,3 +1235,12 @@ pre.digest {
   border: 1px solid var(--line); border-radius: 4px; background: var(--line-soft);
   font-size: 0.78rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 }
+
+/* Sign-in: the setup / sign-in / dashboard-password switch under the button. */
+.login-switch { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+button.link {
+  border: none; background: none; padding: 0; color: var(--brand);
+  font-size: 0.79rem; cursor: pointer; text-align: left; text-decoration: underline;
+}
+.login-card label.block { margin: 0.4rem 0; }
+.login-card input { width: 100%; }

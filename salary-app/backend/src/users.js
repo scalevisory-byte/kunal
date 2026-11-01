@@ -336,6 +336,18 @@ export function listLogins({ limit = 200, ok } = {}) {
  * This is the one unauthenticated write in the whole office side. It closes the
  * moment it is used, so it cannot be used twice.
  */
+/**
+ * Creating the first admin signs them in, so record it as a sign-in. Without
+ * this the login list says "never" for somebody who is plainly looking at it.
+ */
+export function noteFirstSignIn(id, { ip, agent } = {}) {
+  const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id);
+  if (!row) throw new Error('not found');
+  db.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`).run(id);
+  recordLogin({ username: row.username, user_id: id, ok: true, reason: 'first admin created', ip, agent });
+  return getUser(id);
+}
+
 export function createFirstAdmin(input = {}) {
   if (countUsers() > 0) throw new Error('there are already logins - ask an admin to add you');
   return createUser({ ...input, role: 'admin' });

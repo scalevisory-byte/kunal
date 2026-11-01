@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { STANDALONE, api } from '../api.js';
 import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
 import Contributions from './Contributions.jsx';
@@ -20,6 +21,9 @@ const SECTIONS = [
     title: 'Employment',
     fields: [
       ['code', 'Employee code', 'text', 'the code the attendance machine uses'],
+      // A branch is optional. Blank means "not in a branch", which is where
+      // everybody starts and is a perfectly normal answer.
+      ['branch_id', 'Branch', 'branch', 'leave empty if the company has only one place'],
       ['designation', 'Designation', 'text'],
       ['department', 'Department', 'text'],
       ['joined_on', 'Joined on', 'date'],
@@ -78,6 +82,26 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
   const [draft, setDraft] = useState(employee);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Branches of this person's company only - a Surat branch of SCALE is not
+  // somewhere a BOOKNFLY employee can be put.
+  const [branches, setBranches] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (STANDALONE || !employee.company_id) return;
+      try {
+        const { branches: list } = await api.get(`/companies/branches?company_id=${employee.company_id}`);
+        if (alive) setBranches(list);
+      } catch {
+        // No branches is the normal case, and a failure here must not stop
+        // the rest of the record saving.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [employee.company_id]);
 
   useEffect(() => setDraft(employee), [employee]);
 
@@ -113,6 +137,22 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
             onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
             onBlur={(e) => commit(field, e.target.value)}
           />
+        ) : kind === 'branch' ? (
+          <select
+            value={value || ''}
+            onChange={(e) => {
+              setDraft({ ...draft, [field]: e.target.value });
+              commit(field, e.target.value);
+            }}
+          >
+            <option value="">{branches.length ? 'Not in a branch' : 'No branches set up'}</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+                {b.city && b.city !== b.name ? ` — ${b.city}` : ''}
+              </option>
+            ))}
+          </select>
         ) : kind === 'select' ? (
           <select
             value={value}

@@ -1,6 +1,9 @@
 # BOOKNFLY HRMS — Project status
 
 Audit date: **1 November 2026**
+Revised: **1 November 2026**, after Phases 1 and 2 were approved and built. The audit below
+is kept as the record of what was found; the two notes marked **Since the audit** say what
+has changed.
 Audited: `/salary-app` (the HRMS). `/wa-task-assistant` is a separate project and is out of scope.
 Method: source inspection, the full test suite (425 tests, all passing), and the running app
 driven in a browser on desktop and at phone width. Nothing was changed.
@@ -149,7 +152,13 @@ asset ownership cost, and duplicate service cost entries have nothing to test.
 | Asset handover report | ❌ Missing |
 | Maintenance and service cost report | ❌ Missing |
 
-### 9. Admin — **the weakest module**
+### 9. Admin — **was the weakest module; now built**
+
+> **Since the audit.** Real logins (scrypt + a signed session cookie), three roles enforced
+> on the server, branches beneath a company, a daily `VACUUM INTO` backup with a written
+> restore, and a sign-in log that keeps the refusals. The table below is what was found at
+> audit time.
+
 
 | Brief asks for | Status |
 |---|---|
@@ -211,16 +220,15 @@ Attendance or People; wide tables scroll inside their own frame. No console erro
 
 Ranked by how much it matters.
 
-1. **Admin and security.** One shared password, no users, no roles, no audit of *who*
-   logged in. `APP_PASSWORD` unset leaves everything open. On a public URL this exposes
-   every salary, PAN, Aadhaar and bank account.
-2. **GPS punching does not affect attendance** (BUG-1). It writes a time and nothing else.
+1. ~~**Admin and security.**~~ **Done** — see the note under module 9.
+2. ~~**GPS punching does not affect attendance**~~ **Fixed** — see BUG-1.
 3. **Asset maintenance** — absent entirely, including the cost reporting the brief asks for.
+   **This is now the largest gap.**
 4. **Asset register depth** — no asset code, purchase date, vendor, warranty, QR or
    verification.
 5. **Branch** — not modelled.
-6. **Backup and recovery on the server** — none. The single-file build has backup/restore;
-   the server has no export, no scheduled dump and no documented restore.
+6. ~~**Backup and recovery on the server**~~ **Done** — a daily `VACUUM INTO`, kept for a
+   fortnight, downloadable, with a restore procedure in the README.
 7. **Not deployed.** `Dockerfile` and `railway.json` exist but the image has never been
    built (no Docker daemon available). The app has never run anywhere but a laptop.
 8. **Selfie and device verification** — absent.
@@ -252,12 +260,12 @@ here needs removing — but none of it needs further work either, and it is all 
 | Question | Finding |
 |---|---|
 | Multiple employees | ✅ Fine. 115 rows verified; SQLite with WAL is comfortable to a few thousand |
-| Multiple branches | ⚠️ Companies only. Needs a decision, not necessarily new tables |
-| Secure login | ❌ **Not suitable as configured.** One shared secret; unset = open; no roles |
+| Multiple branches | ✅ **Done since the audit.** Branches beneath a company, as Dinesh chose |
+| Secure login | ✅ **Done since the audit.** Real logins, three roles enforced server-side, refuses to start open |
 | Reliable data storage | ✅ SQLite + `better-sqlite3`, WAL on, foreign keys on, migrations guarded by `PRAGMA table_info` |
 | Mobile usage | ✅ Verified at phone width, no horizontal scroll, no framework |
 | Future expansion | ✅ Good. `shared/` is dependency-free and imported by both server and browser, so they cannot drift. 425 tests |
-| Backup and recovery | ❌ Nothing on the server |
+| Backup and recovery | ✅ **Done since the audit.** Daily copy, downloadable, documented restore |
 
 **Recommended technical work — only what is necessary:**
 

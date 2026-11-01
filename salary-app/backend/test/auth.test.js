@@ -115,6 +115,9 @@ test('the first admin can be made, and is signed in straight away', async () => 
   assert.equal(res.status, 201);
   assert.equal(res.body.user.role, 'admin');
   assert.ok(String(res.cookie).includes('HttpOnly'), 'the cookie is not readable from script');
+  // Creating it IS signing in, so it is recorded as one rather than leaving the
+  // login list saying "never" for somebody plainly looking at it.
+  assert.ok(res.body.user.last_login_at, 'the first admin has signed in');
   admin = await login('dinesh', 'a-real-password');
 });
 

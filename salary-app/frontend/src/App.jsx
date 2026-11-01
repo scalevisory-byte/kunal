@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AuthError, STANDALONE, api, clearToken, getToken, setToken } from './api.js';
+import { AuthError, STANDALONE, api, clearToken } from './api.js';
 import Attendance from './components/Attendance.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
@@ -17,6 +17,7 @@ import Reports from './components/Reports.jsx';
 import SalarySheet from './components/SalarySheet.jsx';
 import SundayRegister from './components/SundayRegister.jsx';
 import TimeSheet from './components/TimeSheet.jsx';
+import Admin from './components/admin/Admin.jsx';
 import People from './components/people/People.jsx';
 
 const TABS = [
@@ -31,6 +32,7 @@ const TABS = [
   ['hiring', 'Hiring'],
   ['people', 'People'],
   ['reports', 'Reports'],
+  ['admin', 'Admin'],
 ];
 
 const PERIOD_KEY = 'salary-app-period';
@@ -76,7 +78,10 @@ export default function App() {
 function Shell() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
-  const [authError, setAuthError] = useState('');
+  // Who is signed in, and what their role carries. Used to hide what they
+  // cannot do - the server refuses it regardless, so this is courtesy rather
+  // than the control.
+  const [me, setMe] = useState(null);
 
   const [tab, setTab] = useState('dashboard');
   const [periods, setPeriods] = useState([]);
@@ -142,11 +147,12 @@ function Shell() {
     }
   }, [handle, loadMaster, loadPayroll, loadPeriods, periodId]);
 
-  // First load: a 401 sends us to the password screen instead of an error.
+  // First load: a 401 sends us to the sign-in screen instead of an error.
   useEffect(() => {
     (async () => {
       try {
-        await api.get('/config');
+        const [, state] = await Promise.all([api.get('/config'), api.get('/auth/state')]);
+        setMe(state.signed_in);
         setAuthed(true);
       } catch (err) {
         if (!(err instanceof AuthError)) setError(err.message);
@@ -280,24 +286,40 @@ function Shell() {
   if (!authed && !STANDALONE) {
     return (
       <Login
-        error={authError}
-        onSubmit={async (password) => {
-          setToken(password);
+        onSignedIn={async () => {
+          /*
+           * Read the actor back off /auth/state rather than trusting what the
+           * login call returned. The login response is a user row and carries
+           * no `via`, so taking it at face value made somebody signed in with a
+           * username read as being here on the API key - which the audit-trail
+           * page then said out loud.
+           */
           try {
-            await api.get('/config');
-            setAuthed(true);
-            setAuthError('');
-          } catch (err) {
-            clearToken();
-            setAuthError(err instanceof AuthError ? 'Wrong password' : err.message);
+            const state = await api.get('/auth/state');
+            setMe(state.signed_in);
+          } catch {
+            // Signed in but could not read the state back: carry on rather
+            // than bouncing them to the login screen they just used.
           }
+          setAuthed(true);
         }}
+        onError={(err) => setError(err.message)}
       />
     );
   }
 
   const period = periods.find((p) => p.id === periodId) || null;
   const locked = !!period?.locked;
+
+  /*
+   * Admin is hidden from everybody else. Courtesy rather than the control - the
+   * server refuses those calls by role whoever asks - but a tab that only ever
+   * says "this is not yours" is a tab worth not showing. The single-file build
+   * has no server to sign in to, so it keeps it and explains itself inside.
+   */
+  const visibleTabs = TABS.filter(
+    ([key]) => key !== 'admin' || STANDALONE || me?.abilities?.includes('admin')
+  );
 
   // A company that has been deleted must not keep filtering everything away.
   const activeCompany = companies.find((c) => c.id === companyId) || null;
@@ -353,20 +375,27 @@ function Shell() {
         </div>
 
         <nav className="tabs">
-          {TABS.map(([key, label]) => (
+          {visibleTabs.map(([key, label]) => (
             <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
               {label}
             </button>
           ))}
-          {!STANDALONE && getToken() && (
+          {!STANDALONE && (
             <button
               className="ghost"
-              onClick={() => {
+              title={me ? `${me.name} — ${me.role}` : 'Sign out'}
+              onClick={async () => {
+                try {
+                  await api.post('/auth/logout', {});
+                } catch {
+                  // Signing out locally still matters even if that call failed.
+                }
                 clearToken();
+                setMe(null);
                 setAuthed(false);
               }}
             >
-              Sign out
+              {me?.name ? `Sign out (${me.name})` : 'Sign out'}
             </button>
           )}
         </nav>
@@ -518,12 +547,17 @@ function Shell() {
             employees={employees}
             companies={companies}
             period={period}
+            me={me}
             onError={handle}
             onReload={loadAll}
           />
         )}
 
         {tab === 'reports' && <Reports period={period} payroll={payroll} onReload={loadAll} />}
+
+        {tab === 'admin' && (
+          <Admin me={me} companies={companies} onError={handle} onReload={loadAll} />
+        )}
       </main>
 
       {payslip && period && (

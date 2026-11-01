@@ -1,5 +1,10 @@
 # Pending work list
 
+> **Updated 1 November 2026.** Phase 1 (items 1–3, 6) and Phase 2 (items 4, 5, 7, 8, 23) are
+> **done**. A fifth attendance bug was found while fixing the first four and is recorded in
+> BUGS_AND_IMPROVEMENTS.md. Items 9–22 (assets, maintenance, the dashboard tiles and the
+> missing reports) and item 24 (deploy) are what remain of the Essential list.
+
 Status key: **Complete** · **Partial** · **Missing** · **Bug** · **Not verified**
 Priority key: **Essential** (must develop) · **Useful** (if required) · **Future** (later)
 
@@ -9,14 +14,14 @@ Priority key: **Essential** (must develop) · **Useful** (if required) · **Futu
 
 | No. | Module | Feature | Status | Pending work | Priority |
 |---|---|---|---|---|---|
-| 1 | Attendance | GPS punch writes no attendance mark | **Bug** | A punch stores a clock time with `code: ''` and `minutes: 0`. A blank mark is paid in full, so a month attended entirely by phone pays everybody as present with no hours effect. Set the mark and the minutes on write, the way the biometric import already does | Essential |
-| 2 | Attendance | Short-hour minutes are computed only in the browser | **Bug** | The server never derives minutes from clock times. The Time tab shows "−32m" for a punched day while the salary sheet charges ₹0. Move the derivation into `setAttendance` so every write path agrees | Essential |
-| 3 | Attendance | Approving a missing-punch request pays nothing | **Bug** | `entryFor` sends times but no minutes, so an approved correction records the hours and not the money. Fixed by item 2 | Essential |
-| 4 | Admin | Login with real users | **Missing** | One shared password today. Needs a `users` table, hashed passwords (scrypt from `node:crypto`), a signed session cookie, and a change-password screen | Essential |
-| 5 | Admin | Roles and permissions | **Missing** | Three roles are enough: **Admin** (everything), **HR** (everything but payroll amounts and settings), **Viewer** (read-only reports). Enforce on the server, not only by hiding buttons | Essential |
-| 6 | Admin | Refuse to run wide open | **Bug** | `APP_PASSWORD` unset disables auth silently. The server should refuse to start unless `ALLOW_OPEN=true` is set deliberately | Essential |
-| 7 | Admin | Branch management | **Missing** | Decide first (see DEVELOPMENT_PLAN §2): rename companies to branches, or add branches beneath a company. Do not build both | Essential |
-| 8 | Employee | Branch allocation | **Partial** | Follows item 7 | Essential |
+| 1 | Attendance | GPS punch writes no attendance mark | **Bug — FIXED** | A punch stores a clock time with `code: ''` and `minutes: 0`. A blank mark is paid in full, so a month attended entirely by phone pays everybody as present with no hours effect. Set the mark and the minutes on write, the way the biometric import already does | Essential |
+| 2 | Attendance | Short-hour minutes are computed only in the browser | **Bug — FIXED** | The server never derives minutes from clock times. The Time tab shows "−32m" for a punched day while the salary sheet charges ₹0. Move the derivation into `setAttendance` so every write path agrees | Essential |
+| 3 | Attendance | Approving a missing-punch request pays nothing | **Bug — FIXED** | `entryFor` sends times but no minutes, so an approved correction records the hours and not the money. Fixed by item 2 | Essential |
+| 4 | Admin | Login with real users | **FIXED** | One shared password today. Needs a `users` table, hashed passwords (scrypt from `node:crypto`), a signed session cookie, and a change-password screen | Essential |
+| 5 | Admin | Roles and permissions | **FIXED** | Three roles are enough: **Admin** (everything), **HR** (everything but payroll amounts and settings), **Viewer** (read-only reports). Enforce on the server, not only by hiding buttons | Essential |
+| 6 | Admin | Refuse to run wide open | **Bug — FIXED** | `APP_PASSWORD` unset disables auth silently. The server should refuse to start unless `ALLOW_OPEN=true` is set deliberately | Essential |
+| 7 | Admin | Branch management | **FIXED** | Decide first (see DEVELOPMENT_PLAN §2): rename companies to branches, or add branches beneath a company. Do not build both | Essential |
+| 8 | Employee | Branch allocation | **FIXED** | Follows item 7 | Essential |
 | 9 | Asset | Asset ID | **Missing** | A human code (`BNF-LAP-014`) with a per-company series, unique, printed on the label | Essential |
 | 10 | Asset | Purchase details | **Partial** | Only `value` exists. Add purchase date, vendor, invoice number, warranty-until | Essential |
 | 11 | Asset | Barcode / QR generation | **Missing** | QR carrying the asset code, rendered as inline SVG and printable as a sheet of labels. No paid service, no large library | Essential |
@@ -31,7 +36,7 @@ Priority key: **Essential** (must develop) · **Useful** (if required) · **Futu
 | 20 | Reports | Asset register file | **Missing** | CSV / Excel of the register with purchase and cost columns | Essential |
 | 21 | Reports | Asset handover report | **Missing** | Who holds what, since when; and a handover slip per employee to sign | Essential |
 | 22 | Reports | Maintenance and service cost report | **Missing** | Follows items 14–16 | Essential |
-| 23 | Technical | Server backup and restore | **Missing** | Nightly `VACUUM INTO` to the data volume, retention, and a written restore procedure. The single-file build already has its own backup | Essential |
+| 23 | Technical | Server backup and restore | **FIXED** | Nightly `VACUUM INTO` to the data volume, retention, and a written restore procedure. The single-file build already has its own backup | Essential |
 | 24 | Technical | Deploy it | **Not verified** | `Dockerfile` and `railway.json` exist but the image has never been built. Nothing has ever run outside a laptop | Essential |
 
 ---

@@ -994,6 +994,125 @@ and lift the month's PT from 10,000 to 10,400.
 
 ---
 
+## Signing in, roles and branches
+
+### Logins
+
+The app used to have one shared password and no users: everybody who had it could do
+everything, and the audit trail had to admit that *who* was a name typed on a form.
+
+Now there are real logins. On a fresh installation the sign-in screen offers to make the
+**first admin**, and that door closes the moment it is used. A wrong username and a wrong
+password give the identical answer — anything else tells a stranger which logins exist.
+
+Passwords are scrypt-hashed (`node:crypto`, no new dependency) and the session is a signed
+HttpOnly cookie. The session secret lives in the database rather than an environment
+variable, so a restart does not sign everybody out of an app nobody configured.
+
+### The three roles
+
+| Role | Can |
+| --- | --- |
+| **Admin** | Everything, including logins, branches, a month's settings and closing a month. |
+| **HR** | Employees, attendance, leave, payroll and assets — **salaries included**. Cannot change settings or logins. |
+| **Viewer** | Can look at everything and change nothing. |
+
+Dinesh's decision was that **HR sees salaries**. So the line between Admin and HR is not
+what they can *see*, it is what they can change about the installation itself: HR runs
+payroll, Admin decides the rules payroll runs on. Concretely, these are admin-only:
+
+- a month's PT slab, hours per day, late/early policy and concession, and shift times
+- closing and reopening a month, and deleting one
+- adding, renaming or deleting a company or a branch
+- logins, roles and the sign-in log
+
+**It is enforced on the server, not by hiding buttons.** A Viewer who knows the address
+still cannot write; HR who knows the address still cannot move the PT slab. The Admin tab is
+hidden from everybody else as a courtesy, not as the control. A role is read fresh from the
+database on every request, so demoting somebody or switching their login off takes effect at
+once rather than when their cookie runs out.
+
+Company *reads* are deliberately open to anybody signed in — the company list is needed on
+every screen, and locking it would break the filter and the employee form for HR.
+
+The **last active admin** cannot be demoted, switched off or deleted. There would be nobody
+left who could make one.
+
+### The dashboard password is now a machine key
+
+`APP_PASSWORD` still works as a Bearer token, which is how anything on a schedule fetches
+the reminder digest. It is full access and it leaves no name behind, so the audit trail
+records it as **the API key** rather than inventing a person — and the Trail page says so to
+anybody reading the app that way. Once you have a login, use the login: your own name goes
+on what you change.
+
+### Who signed in
+
+**Admin → Sign-ins** lists every attempt with the time, the username, the address and the
+browser — **including the refusals**. The refusals are the point: one wrong password is
+somebody's thumb, ten in a minute is somebody trying passwords, and that is only visible
+because the failures are kept.
+
+### Branches, beneath a company
+
+Asked for as *"branches under a company"*. The salary already runs across three or four
+separate companies (BOOKNFLY PRIVATE LIMITED, BOOKNFLY, BOOKNFLY VENTURE LLP, SCALE), so a
+branch is a place *inside* one of them — Vadodara, Surat. Companies are untouched; this is a
+second, optional level.
+
+- **Nobody has to be in a branch.** Everybody starts with none, and that is a real answer
+  rather than a gap.
+- Two companies can each have a Vadodara. One company cannot have two.
+- A branch can be **closed** without being deleted.
+- **Deleting a branch never takes its people.** They go branchless and stay on their
+  company's payroll, because a mistyped name must not be able to remove fourteen employees.
+  Deleting a *company* still takes its branches, as it always took its employees.
+- A move between branches lands in the employee's own change history.
+
+Set up branches in **Admin → Branches**, then pick one on each employee's record. The branch
+rides onto the salary sheet and the staff list can be narrowed to it.
+
+### Backups
+
+There were none on the server at all. Now there is **one complete copy a day**, kept for a
+fortnight, in `DATA_DIR/backups`, written with SQLite's own `VACUUM INTO` — a whole,
+consistent file even while the app is being used. The first runs a minute after boot, so a
+fresh deployment has one before anybody has had time to break anything. A failed backup is
+logged and never takes the app down.
+
+`BACKUP_ENABLED=false` turns it off, `BACKUP_HOURS` and `BACKUP_KEEP` change the rhythm and
+how many are kept.
+
+**Where this protects you, and where it does not** — because a backup nobody can restore is
+theatre:
+
+- **A bad deploy, a dropped table, a wrong delete** — covered. The copies are right there.
+- **Losing the volume itself** — *not* covered, because the copies are on it. Download one
+  now and again from **Admin → Backups** and keep it somewhere else.
+
+#### Restoring a backup
+
+There is deliberately no button for this: restoring replaces everything, and it should take
+a considered minute at a terminal rather than one mis-click.
+
+1. Stop the app.
+2. In the data folder, move the current `salary.db` aside — do not delete it yet.
+3. Copy the chosen `backups/salary-YYYY-MM-DD.db` to `salary.db`.
+4. Remove `salary.db-wal` and `salary.db-shm` if they are there. They belong to the old
+   file, and leaving them beside a restored one is how a restore ends up half-applied.
+5. Start the app and check one month's totals against a payslip you already have.
+
+#### Taking a backup off the machine
+
+The download button in **Admin → Backups** is the simplest route. For something automatic,
+the same file is available to the machine key:
+
+```
+curl -H "Authorization: Bearer $APP_PASSWORD" \
+     -o salary-backup.db \
+     https://your-app/api/auth/backups/salary-2026-11-01.db
+```
+
 ## Two ways to run it
 
 **As a single HTML file** — no server, no install, no deploy. Build it once:

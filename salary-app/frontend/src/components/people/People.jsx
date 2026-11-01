@@ -32,7 +32,7 @@ const PANELS = [
  * approves and a trail that outlives one browser are not things a single file
  * on a laptop can hold, and pretending otherwise would lose the record.
  */
-export default function People({ employees, companies, period, onError, onReload }) {
+export default function People({ employees, companies, period, me, onError, onReload }) {
   const [panel, setPanel] = useState('records');
 
   if (STANDALONE) {
@@ -51,7 +51,7 @@ export default function People({ employees, companies, period, onError, onReload
     );
   }
 
-  const props = { employees, companies, period, onError, onReload };
+  const props = { employees, companies, period, me, onError, onReload };
 
   return (
     <section className="stack">

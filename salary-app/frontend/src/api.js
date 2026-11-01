@@ -42,10 +42,18 @@ async function request(method, path, body) {
   const res = await fetch(`/api${path}`, {
     method,
     headers,
+    // The session is a cookie. Same-origin fetch sends it by default, but
+    // saying so means a reverse proxy or a tool that copies these calls does
+    // not have to guess.
+    credentials: 'same-origin',
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  if (res.status === 401) throw new AuthError('Wrong password');
+  // 401 means "we do not know who you are" and goes back to the sign-in
+  // screen. 403 means "we know, and your role may not" - a very different
+  // thing, and signing somebody out for it would be baffling, so it falls
+  // through to the normal error below and shows the server's own sentence.
+  if (res.status === 401) throw new AuthError('Sign in again');
   if (res.status === 204) return null;
 
   const text = await res.text();
