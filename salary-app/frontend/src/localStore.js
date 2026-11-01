@@ -9,6 +9,13 @@ import {
   totalRows,
 } from '../../shared/calc.js';
 import { parseSheet, listSheetNames } from '../../shared/sheet.js';
+
+/**
+ * Marks the clock times may overwrite. Everything else - leave, a holiday, a
+ * Sunday - was a deliberate decision and keeps its mark. Same set as the
+ * server's AUTO_MARKS and the Time tab's.
+ */
+const AUTO_TIME_MARKS = new Set(['', 'P', 'A', 'HF']);
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
 import {
   DEFAULT_MARK_MAP,
@@ -21,7 +28,7 @@ import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
-import { TIME_FIELDS, parseTime } from '../../shared/timesheet.js';
+import { TIME_FIELDS, parseTime, timesToDay } from '../../shared/timesheet.js';
 
 /**
  * The standalone build's data layer.
@@ -850,19 +857,23 @@ export async function handle(method, path, body) {
             }
           }
         }
+        const hoursPerDay = Number(period.hours_per_day) || 9;
         for (const entry of entries) {
           const employeeId = Number(entry.employee_id);
           const day = Number(entry.day);
-          const code = String(entry.code || '').trim().toUpperCase();
-          const minutes = Number(entry.minutes) || 0;
           if (!employeeId || !day) continue;
           const index = db.attendance.findIndex(
             (a) => a.period_id === period.id && a.employee_id === employeeId && a.day === day
           );
-          // Each time is only touched by an entry that names it, so marking
-          // somebody Present on the grid never wipes the hours typed on the
-          // Time tab, and an import that knows nothing about lunch leaves the
-          // lunch alone. Naming one with an empty value clears it.
+          /*
+           * EVERY column is only touched by an entry that names it, so marking
+           * somebody Present on the grid never wipes the hours typed on the
+           * Time tab, and an import that knows nothing about lunch leaves the
+           * lunch alone. Naming one with an empty value clears it.
+           *
+           * Word for word the server's rule - see `setAttendance` in
+           * backend/src/db.js. The two have drifted before and it cost twice.
+           */
           const stored = index >= 0 ? db.attendance[index] : null;
           const times = {};
           for (const field of TIME_FIELDS) {
@@ -870,6 +881,24 @@ export async function handle(method, path, body) {
             times[field] = value === undefined || value === null ? '' : String(value);
           }
           const anyTime = TIME_FIELDS.some((f) => times[f]);
+
+          let code =
+            'code' in entry
+              ? String(entry.code || '').trim().toUpperCase()
+              : String(stored?.code || '').trim().toUpperCase();
+          let minutes = 'minutes' in entry ? Number(entry.minutes) || 0 : Number(stored?.minutes) || 0;
+
+          // Clock times become money here too, so hours are worth the same in
+          // the file as they are on the server.
+          if (anyTime && !('minutes' in entry)) {
+            const judged = timesToDay(times, { hoursPerDay });
+            minutes = judged.minutes;
+            if (!('code' in entry) && AUTO_TIME_MARKS.has(code)) {
+              if (judged.code) code = judged.code;
+              else if (times.in_time) code = 'P';
+            }
+          }
+
           if (code || minutes || anyTime) {
             const record = { period_id: period.id, employee_id: employeeId, day, code, minutes, ...times };
             if (index >= 0) db.attendance[index] = record;

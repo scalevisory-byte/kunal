@@ -28,6 +28,10 @@ export const config = {
   // Single shared secret, same pattern as the task assistant. Unset = no auth,
   // which is fine locally and not fine on a public URL.
   appPassword: process.env.APP_PASSWORD || '',
+  // Running with no password has to be asked for. It is right on a laptop and
+  // never right on an address anybody else can reach, and it used to be the
+  // silent default.
+  allowOpen: String(process.env.ALLOW_OPEN || '').toLowerCase() === 'true',
 
   // Defaults for a newly created month. Every period stores its own copy, so
   // changing these never rewrites a month that has already been paid.

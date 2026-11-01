@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
+import { timesToDay } from '../../shared/timesheet.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -1375,6 +1376,13 @@ export function listReligions() {
 /** The clock-time columns on an attendance row, in the order they happen. */
 const TIME_COLUMNS = ['in_time', 'lunch_out', 'lunch_in', 'out_time'];
 
+/**
+ * Marks the clock times are allowed to overwrite. Everything else - leave, a
+ * holiday, a Sunday - was a deliberate decision and keeps its mark; the hours
+ * are still recorded against it. The same set the Time tab uses.
+ */
+const AUTO_MARKS = new Set(['', 'P', 'A', 'HF']);
+
 export function listAttendance(periodId, { company_id } = {}) {
   const params = [periodId];
   let filter = '';
@@ -1421,9 +1429,13 @@ export const setAttendance = db.transaction((periodId, entries) => {
                    lunch_in = excluded.lunch_in, out_time = excluded.out_time`
   );
   const existing = db.prepare(
-    `SELECT code, in_time, lunch_out, lunch_in, out_time FROM attendance
+    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time FROM attendance
      WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
+  // The month's own hours, so the half-day line and the shortfall are judged
+  // against the day this month is actually paid on.
+  const hoursPerDay =
+    Number(db.prepare(`SELECT hours_per_day FROM periods WHERE id = ?`).get(periodId)?.hours_per_day) || 9;
   /*
    * The attendance trail. A mark REPLACED by a different mark is recorded; a
    * blank day being filled in is not. That is the line worth drawing: "Mark
@@ -1445,15 +1457,20 @@ export const setAttendance = db.transaction((periodId, entries) => {
   for (const entry of entries) {
     const employeeId = Number(entry.employee_id);
     const day = Number(entry.day);
-    const code = String(entry.code || '').trim().toUpperCase();
-    const minutes = Number(entry.minutes) || 0;
     if (!employeeId || !day) continue;
 
-    // The grid saves marks, the Time tab saves clock times and the punch import
-    // saves in and out, all through here. Each time column is only touched by
-    // an entry that actually names it, so marking somebody Present never wipes
-    // their hours and an import that knows nothing about lunch leaves the
-    // lunch that was typed. Naming one with an empty value clears it.
+    /*
+     * The grid saves marks, the Time tab saves clock times and the punch import
+     * saves in and out, all through here. EVERY column is only touched by an
+     * entry that actually names it, so marking somebody Present never wipes
+     * their hours and an import that knows nothing about lunch leaves the lunch
+     * that was typed. Naming one with an empty value clears it.
+     *
+     * `code` and `minutes` were once outside that rule, and it cost: a punch
+     * names only a time, so `code` arrived as '' and the upsert wrote it - a
+     * punch on a day marked Paid Holiday or Casual Leave silently cleared the
+     * mark, taking the leave off the register with it.
+     */
     const stored = existing.get(periodId, employeeId, day);
     const times = {};
     for (const column of TIME_COLUMNS) {
@@ -1461,6 +1478,41 @@ export const setAttendance = db.transaction((periodId, entries) => {
       times[column] = value === undefined || value === null || value === '' ? null : String(value);
     }
     const anyTime = TIME_COLUMNS.some((c) => times[c]);
+
+    let code =
+      'code' in entry
+        ? String(entry.code || '').trim().toUpperCase()
+        : String(stored?.code || '').trim().toUpperCase();
+    let minutes = 'minutes' in entry ? Number(entry.minutes) || 0 : Number(stored?.minutes) || 0;
+
+    /*
+     * Clock times become money HERE, not in the browser.
+     *
+     * The rule used to live only in the Time tab, so hours typed there were
+     * paid and the identical hours arriving from a phone punch or an approved
+     * missing-punch request were not - the Time tab would show "-32m" for a day
+     * the salary sheet charged nothing for. Any caller that names times and
+     * does not work out the minutes itself now gets them worked out here, from
+     * the same `timesToDay` the Time tab uses.
+     *
+     * A caller that DOES name minutes (the grid, the biometric importer) is
+     * left alone: it has already applied the rule and may have its own.
+     */
+    if (anyTime && !('minutes' in entry)) {
+      const judged = timesToDay(times, { hoursPerDay });
+      minutes = judged.minutes;
+      /*
+       * The mark is only set from the hours when the day is blank or carries a
+       * plain P/A/HF - leave, a holiday or a Sunday keeps its own mark and just
+       * records what was worked, which is the rule the Time tab already
+       * followed. And a day punched in but never out is marked Present with no
+       * minutes: somebody was here, and nothing invents a departure.
+       */
+      if (!('code' in entry) && AUTO_MARKS.has(code)) {
+        if (judged.code) code = judged.code;
+        else if (times.in_time) code = 'P';
+      }
+    }
 
     // A day with no mark, no minutes and no times has nothing left to record.
     const was = stored?.code || '';

@@ -1,7 +1,13 @@
 # Bugs and improvements
 
 Every bug below was **reproduced during this audit**, not inferred. The evidence is given so
-you can check it yourself. Nothing was fixed — the brief says audit only.
+you can check it yourself.
+
+> **Update, 1 November 2026 — Phase 1 is done and approved.** BUG-1 through BUG-5 are
+> **fixed**, all in `setAttendance`, with 14 new tests and a before/after on the real
+> 85-person September month that came back byte-identical. BUG-5 was found while fixing the
+> others and is the worst of the five. The sections below are kept as the record of what was
+> wrong; each now carries its fix.
 
 ---
 
@@ -38,6 +44,11 @@ What it should do: the same as the biometric import — set `P` or `HF` from the
 set the minutes — while keeping the existing rule that a day already marked as leave, a
 holiday or a Sunday keeps its own mark.
 
+**FIXED.** `setAttendance` now works out the mark and the minutes from the day's merged
+clock times, so a punch marks the day `P` (or `HF` under the half-day line). A day punched
+in but never out is marked `P` with no minutes — somebody was here, and nothing invents a
+departure. Test: *a GPS punch marks the day, instead of leaving a blank that is paid in full*.
+
 ---
 
 ### BUG-2 — Working hours become money only when the Time tab is the thing that wrote them
@@ -73,6 +84,13 @@ What it should do: derive the mark and the minutes in `setAttendance`, from the 
 minutes itself. The browser then stops being the only place the rule lives, and BUG-1 and
 BUG-3 are fixed by the same change.
 
+**FIXED.** The derivation moved out of the browser and into `setAttendance`, which runs it
+whenever an entry names clock times and does not name minutes itself. A caller that does name
+minutes — the grid, the biometric importer — is left alone, because it has already applied
+the rule. Test: *the same hours pay the same money whichever route wrote them*, which drives
+the Time tab, the raw API and an approved request and asserts all three land on −32 minutes
+and the same `ot_salary`.
+
 ---
 
 ### BUG-3 — Approving a missing-punch request records the hours but not the money
@@ -88,6 +106,9 @@ differently from one whose day the office typed on the Time tab. Same hours, dif
 and nothing on screen says why.
 
 Fixed by BUG-2.
+
+**FIXED** by the same change. `entryFor` still names only the fields the request named —
+that rule was right — and the server now fills in the minutes.
 
 ---
 
@@ -106,6 +127,37 @@ salary, PAN, Aadhaar, bank account and CV to anyone with the address.
 
 What it should do: refuse to start unless either a password is set or `ALLOW_OPEN=true` is
 passed deliberately, and print a loud line in the log when it is open.
+
+**FIXED.** The server refuses to start unless a password is set or `ALLOW_OPEN=true` is
+passed deliberately, and when it is open it says so on every boot instead of warning once.
+Three tests in `backend/test/startup.test.js`.
+
+---
+
+### BUG-5 — Any write that does not name a code WIPES the stored mark
+
+**Severity: the highest of the five. It destroys data somebody deliberately entered.**
+
+Found while fixing the others. `setAttendance` is documented as "each time column is only
+touched by an entry that actually names it" — but `code` and `minutes` were never given that
+treatment. A punch names only a time, so `code` arrived as `''` and the upsert wrote it.
+
+Reproduced:
+
+```
+after marking PH         : {"code": "PH", "minutes": 0, "in_time": "", ...}
+after a punch (time only): {"code": "",   "minutes": 0, "in_time": "09:40", ...}
+
+CL then a punch          : {"code": "",   "minutes": 0, "in_time": "09:40", ...}
+```
+
+So a punch on a day marked **Paid Holiday** cleared the holiday, and a punch on a day marked
+**Casual Leave** cleared the leave — which also takes that day off the leave register, so the
+balance silently gains a day back. Nothing on screen said anything had happened.
+
+**FIXED.** `code` and `minutes` now merge per field exactly as the times do: an entry only
+touches them when it names them, and naming one empty still clears it. Four tests, including
+one that marks CL, punches over it, and asserts the leave register still counts the day.
 
 ---
 
