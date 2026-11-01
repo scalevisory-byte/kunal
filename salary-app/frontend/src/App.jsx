@@ -339,7 +339,7 @@ function Shell() {
     <div className="app">
       <header>
         <h1>
-          Salary Sheet
+          BOOKNFLY HRMS
           <span className="built" title="When this file was built. Every download lands as SalarySheet (2), (3)… so this is how to tell which one you have open.">
             {BUILT_ON}
           </span>

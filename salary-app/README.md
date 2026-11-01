@@ -1265,7 +1265,7 @@ node scripts/make-seed.mjs ../../Salary_Sheet_2627.xlsx April
 npm run build:standalone
 ```
 
-That writes `frontend/dist-standalone/Salary-Sheet.html` (~1 MB).
+That writes `frontend/dist-standalone/BOOKNFLY-HRMS.html` (~1 MB).
 
 `make-seed.mjs` reads the employee master out of a salary sheet — companies, names,
 salaries, PF/ESI, pay mode — into `seed.json`, which the build inlines. Only the master
