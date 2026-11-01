@@ -636,6 +636,30 @@ export default function Dashboard({
   const monthHasToday = now.getFullYear() === period.year && now.getMonth() + 1 === period.month;
   const isToday = monthHasToday && now.getDate() === shownDay;
 
+  /*
+   * The bar carries four colours. A fifth payment mode does NOT start the four
+   * again - two rows in the same colour read as the same thing - so anything
+   * past the fourth is added up as "Other" and the table below names them.
+   */
+  const COLOURED_MODES = 4;
+  const ranked = [...byMode].sort((a, b) => b.amount - a.amount);
+  const rest = ranked.slice(COLOURED_MODES);
+  const modeBars = ranked.slice(0, COLOURED_MODES).map((mode, i) => ({
+    label: mode.mode,
+    value: mode.amount,
+    tone: `s${i + 1}`,
+    text: rupees(mode.amount),
+  }));
+  if (rest.length) {
+    const other = rest.reduce((sum, m) => sum + m.amount, 0);
+    modeBars.push({
+      label: `Other (${rest.length})`,
+      value: other,
+      tone: 'none',
+      text: rupees(other),
+    });
+  }
+
   return (
     <section className="stack dashboard">
       <div className="card roll-call">
@@ -715,6 +739,17 @@ export default function Dashboard({
             to="attendance"
           />
         </div>
+
+        <SegBar
+          parts={[
+            { label: 'Present', value: roll.present.length, tone: 'present' },
+            { label: 'Half day', value: roll.halfDay.length, tone: 'half' },
+            { label: 'On leave', value: roll.leave.length, tone: 'leave' },
+            { label: 'Absent', value: roll.absent.length, tone: 'absent' },
+            { label: 'Not marked', value: roll.unmarked.length, tone: 'none' },
+          ]}
+          unit=" people"
+        />
 
         {nothingMarked ? (
           <div className="nothing-yet">
@@ -1015,6 +1050,19 @@ export default function Dashboard({
           />
         </div>
 
+        <SegBar
+          parts={[
+            { label: 'Paid', value: money.paid, tone: 'paid', text: rupees(money.paid) },
+            {
+              label: 'Still to pay',
+              value: money.pending,
+              tone: 'none',
+              text: rupees(money.pending),
+            },
+          ]}
+          empty="Nothing to pay this month yet."
+        />
+
         {previous ? (
           <p className="compare small">
             <span className="muted">Against {previous.label}:</span>
@@ -1184,6 +1232,9 @@ export default function Dashboard({
           <h2>
             How it goes out <button className="ghost tiny" onClick={() => onGo('sheet')}>open</button>
           </h2>
+          <SegBar
+            parts={modeBars}
+          />
           {rows.length ? (
             <table className="sheet">
               <thead>
@@ -1238,6 +1289,17 @@ export default function Dashboard({
 
       <div className="card">
         <h2>By company</h2>
+        <BarRows
+          rows={companies
+            .map((c) => ({
+              label: c.name,
+              value: c.totals.net_salary,
+              text: rupees(c.totals.net_salary),
+              staff: c.totals.count,
+            }))
+            .sort((a, b) => b.value - a.value)}
+          note={(r) => `${r.staff} on the payroll`}
+        />
         <div className="table-wrap">
           <table className="sheet">
             <thead>
@@ -1470,4 +1532,73 @@ function Stat({ label, value, sub, strong, plain, go, to }) {
     );
   }
   return <div className={`stat${strong ? ' strong' : ''}`}>{body}</div>;
+}
+
+/*
+ * ---- the two shapes this page draws ----
+ *
+ * No charting library: these are a handful of divs, which is the whole of what
+ * either one needs and keeps the single-file build small enough to email.
+ *
+ * Both follow the same rules. Every segment carries its own written label and
+ * figure, so colour is never the only thing saying what a piece is - which is
+ * also the relief the light-mode palette needs, since two of its hues sit under
+ * 3:1 against white. A 2px gap of the page's own background separates segments
+ * rather than a border, hovering any piece names it, and the table underneath
+ * is still the authority. Neither shape computes anything: it is handed the
+ * same figures the cards above print.
+ */
+
+/** Parts of one whole, as a bar. Anything under 2% still gets a sliver. */
+function SegBar({ parts, unit = '', empty }) {
+  const shown = parts.filter((p) => p.value > 0);
+  const total = shown.reduce((sum, p) => sum + p.value, 0);
+  if (!total) return empty ? <p className="muted small">{empty}</p> : null;
+
+  return (
+    <div className="viz">
+      <div className="viz-bar">
+        {shown.map((p) => (
+          <span
+            key={p.label}
+            className="viz-seg"
+            style={{
+              flexGrow: Math.max(p.value / total, 0.02),
+              background: `var(--viz-${p.tone})`,
+            }}
+            title={`${p.label}: ${p.text || p.value}${unit} — ${Math.round((p.value / total) * 100)}%`}
+          />
+        ))}
+      </div>
+      <p className="viz-legend">
+        {shown.map((p) => (
+          <span key={p.label} className="viz-key">
+            <i className="viz-dot" style={{ background: `var(--viz-${p.tone})` }} />
+            {p.label}
+            <strong>{p.text || p.value}</strong>
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
+
+/** One measure across a few named rows, longest first. */
+function BarRows({ rows, note }) {
+  const top = Math.max(...rows.map((r) => r.value), 0);
+  if (!rows.length || top <= 0) return null;
+  return (
+    <div className="viz-rows">
+      {rows.map((r) => (
+        <div className="viz-row" key={r.label} title={`${r.label}: ${r.text}`}>
+          <span className="viz-row-name">{r.label}</span>
+          <span className="viz-track">
+            <span className="viz-fill" style={{ width: `${(r.value / top) * 100}%` }} />
+          </span>
+          <span className="viz-row-value num">{r.text}</span>
+          {note && <span className="viz-row-note muted small">{note(r)}</span>}
+        </div>
+      ))}
+    </div>
+  );
 }

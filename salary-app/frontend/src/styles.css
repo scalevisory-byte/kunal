@@ -21,6 +21,25 @@
   --warn: #9a6400;
   --radius: 10px;
   --shadow: none;
+
+  /*
+   * The chart colours. Not the UI's own good/bad/warn: those were picked to be
+   * read as text and two of them fall outside the band a filled block needs.
+   * These five were checked as a set - light enough apart for red-green and
+   * blue-yellow colour blindness, and far enough apart in plain sight. Every
+   * segment is labelled in words as well, which is what carries the two that
+   * sit under 3:1 against white.
+   */
+  --viz-present: #1baf7a;
+  --viz-half: #eda100;
+  --viz-leave: #2a78d6;
+  --viz-absent: #e34948;
+  --viz-paid: #2a78d6;
+  --viz-none: #d8d8d3;
+  --viz-s1: #2a78d6;
+  --viz-s2: #eb6834;
+  --viz-s3: #1baf7a;
+  --viz-s4: #eda100;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +55,18 @@
     --good: #4ec78d;
     --bad: #f0776a;
     --warn: #e0a34a;
+
+    /* The same five hues, stepped for the dark surface - not flipped. */
+    --viz-present: #199e70;
+    --viz-half: #c98500;
+    --viz-leave: #3987e5;
+    --viz-absent: #e66767;
+    --viz-paid: #3987e5;
+    --viz-none: #2f3741;
+    --viz-s1: #3987e5;
+    --viz-s2: #d95926;
+    --viz-s3: #199e70;
+    --viz-s4: #c98500;
   }
 }
 
@@ -1264,4 +1295,83 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 @media print {
   .no-print, nav, .toolbar, .sub-tabs { display: none !important; }
   .slip { border: none; max-width: none; }
+}
+
+
+/* ---------- the dashboard's two chart shapes ---------- */
+
+.viz { margin: 0.9rem 0 0.2rem; }
+
+/*
+ * The gap is the page's own background rather than a border, so segments are
+ * separated without a line of its own weight being drawn between them.
+ */
+.viz-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  width: 100%;
+}
+
+.viz-seg {
+  display: block;
+  min-width: 3px;
+  border-radius: 2px;
+}
+.viz-seg:first-child { border-radius: 4px 2px 2px 4px; }
+.viz-seg:last-child { border-radius: 2px 4px 4px 2px; }
+.viz-seg:only-child { border-radius: 4px; }
+
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.1rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.viz-key { display: inline-flex; align-items: center; gap: 0.35rem; }
+.viz-key strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.viz-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.viz-rows { display: grid; gap: 0.45rem; margin: 0.8rem 0 1rem; }
+
+.viz-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 14rem) 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.viz-row-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viz-row-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.viz-row-note { white-space: nowrap; }
+
+.viz-track {
+  height: 10px;
+  background: var(--line-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.viz-fill {
+  display: block;
+  height: 100%;
+  background: var(--viz-s1);
+  border-radius: 4px;
+  min-width: 3px;
+}
+
+@media (max-width: 680px) {
+  .viz-row { grid-template-columns: 1fr auto; }
+  .viz-row .viz-track { grid-column: 1 / -1; }
+  .viz-row-note { display: none; }
 }
