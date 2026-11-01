@@ -19,6 +19,7 @@ import SundayRegister from './components/SundayRegister.jsx';
 import TimeSheet from './components/TimeSheet.jsx';
 import Admin from './components/admin/Admin.jsx';
 import People from './components/people/People.jsx';
+import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
 
 /* key, what it is called, its icon */
@@ -31,6 +32,7 @@ const TABS = [
   ['leave', 'Leave', 'leave'],
   ['loans', 'Loans', 'loans'],
   ['employees', 'Employees', 'employees'],
+  ['assets', 'Assets', 'asset'],
   ['hiring', 'Hiring', 'hiring'],
   ['people', 'People', 'person'],
   ['reports', 'Reports', 'reports'],
@@ -608,6 +610,17 @@ function Shell() {
 
         {tab === 'people' && (
           <People
+            employees={employees}
+            companies={companies}
+            period={period}
+            me={me}
+            onError={handle}
+            onReload={loadAll}
+          />
+        )}
+
+        {tab === 'assets' && (
+          <AssetsTab
             employees={employees}
             companies={companies}
             period={period}

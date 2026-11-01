@@ -4,6 +4,7 @@ import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
+import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
 
 const KINDS = ['Laptop', 'Desktop', 'Mobile', 'SIM card', 'ID card', 'Access card', 'Vehicle', 'Tools', 'Furniture', 'Other'];
@@ -138,6 +139,15 @@ export default function Assets({ employees, companies, onError }) {
       <section className="stack">
         <Tabs view={view} setView={setView} />
         <HandoverSlips onError={onError} />
+      </section>
+    );
+  }
+
+  if (view === 'maintenance') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <Maintenance employees={employees} companies={companies} onError={onError} />
       </section>
     );
   }
@@ -420,7 +430,14 @@ export default function Assets({ employees, companies, onError }) {
 function Tabs({ view, setView }) {
   return (
     <div className="sub-tabs toolbar">
-      {[['register', 'Register'], ['slips', 'Who holds what'], ['stock', 'Stock take']].map(([key, text]) => (
+      {/* Maintenance is a fourth view rather than a tab above these three:
+          two rows of tabs over one table is one row too many. */}
+      {[
+        ['register', 'Register'],
+        ['slips', 'Who holds what'],
+        ['stock', 'Stock take'],
+        ['maintenance', 'Maintenance'],
+      ].map(([key, text]) => (
         <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
           {text}
         </button>

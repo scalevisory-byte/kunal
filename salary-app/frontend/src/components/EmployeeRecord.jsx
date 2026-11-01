@@ -13,6 +13,7 @@ const when = (value) => String(value || '').replace('T', ' ').slice(0, 16);
  */
 export default function EmployeeRecord({ employee, employees, onPatch, onError }) {
   const [record, setRecord] = useState(null);
+  const [held, setHeld] = useState([]);
   const [kind, setKind] = useState('pan');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
@@ -22,6 +23,13 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
     if (STANDALONE) return;
     try {
       setRecord(await api.get(`/employees/${employee.id}/record`));
+      /*
+       * What this person is holding. Read from the register rather than kept
+       * on the employee row: the register is where an asset's holder lives,
+       * and two places holding the same answer is how they come to disagree.
+       */
+      const { assets } = await api.get(`/people/assets?employee_id=${employee.id}`);
+      setHeld(assets || []);
     } catch (err) {
       onError(err);
     }
@@ -106,6 +114,47 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
           </p>
         ) : (
           <p className="muted small">Nobody reports to them.</p>
+        )}
+      </div>
+
+      {/*
+        * What they were handed. The asset register is the authority and this
+        * only reads it, so the two cannot drift. Nothing here issues or takes
+        * anything back - that belongs on the register, where the handover is
+        * logged and a slip can be printed.
+        */}
+      <div className="structure">
+        <h3 style={{ margin: '0 0 0.5rem' }}>
+          What they hold{held.length ? ` — ${held.length}` : ''}
+        </h3>
+        {held.length ? (
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th className="sticky-name">Code</th>
+                <th>What</th>
+                <th>Serial</th>
+                <th>Since</th>
+              </tr>
+            </thead>
+            <tbody>
+              {held.map((asset) => (
+                <tr key={asset.id}>
+                  <td className="sticky-name">{asset.code || '—'}</td>
+                  <td>
+                    {asset.kind}
+                    {asset.name ? ` — ${asset.name}` : ''}
+                  </td>
+                  <td className="muted">{asset.identifier || '—'}</td>
+                  <td className="muted">{asset.issued_on || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted small">
+            Nothing issued to them. Hand something over from the <strong>Assets</strong> tab.
+          </p>
         )}
       </div>
 
