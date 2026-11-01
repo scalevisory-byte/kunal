@@ -58,7 +58,18 @@ async function request(method, path, body) {
 
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const err = new Error(data?.error || `Request failed (${res.status})`);
+    err.status = res.status;
+    /*
+     * Anything else the server sent with the refusal comes with it. The
+     * duplicate-service check answers 409 with the row it resembles, and the
+     * screen needs that row to show what it is asking about - a bare message
+     * would make it a refusal rather than a question.
+     */
+    if (data && typeof data === 'object') Object.assign(err, data, { message: err.message });
+    throw err;
+  }
   return data;
 }
 

@@ -5,6 +5,7 @@ import Assets from './Assets.jsx';
 import Claims from './Claims.jsx';
 import Helpdesk from './Helpdesk.jsx';
 import Leaving from './Leaving.jsx';
+import Maintenance from './Maintenance.jsx';
 import Records from './Records.jsx';
 import Reminders from './Reminders.jsx';
 import Tasks from './Tasks.jsx';
@@ -14,6 +15,7 @@ const PANELS = [
   ['records', 'On the record'],
   ['appraisals', 'Appraisals'],
   ['assets', 'Assets'],
+  ['maintenance', 'Maintenance'],
   ['claims', 'Claims'],
   ['tasks', 'Tasks'],
   ['helpdesk', 'Helpdesk'],
@@ -66,6 +68,7 @@ export default function People({ employees, companies, period, me, onError, onRe
       {panel === 'records' && <Records {...props} />}
       {panel === 'appraisals' && <Appraisals {...props} />}
       {panel === 'assets' && <Assets {...props} />}
+      {panel === 'maintenance' && <Maintenance {...props} />}
       {panel === 'claims' && <Claims {...props} />}
       {panel === 'tasks' && <Tasks {...props} />}
       {panel === 'helpdesk' && <Helpdesk {...props} />}

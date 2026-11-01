@@ -7,6 +7,13 @@ import { getEmployee } from '../db.js';
 import { barcodeSvg } from '../../../shared/barcode.js';
 import { handoverCsv, handoverSlip, registerCsv, registerTotals } from '../../../shared/assetReport.js';
 import {
+  SERVICE_KINDS,
+  maintenanceAlerts,
+  maintenanceTotals,
+  ownershipCsv,
+  servicesCsv,
+} from '../../../shared/maintenance.js';
+import {
   ASSET_KINDS,
   CLAIM_KINDS,
   CLAIM_STATUSES,
@@ -36,13 +43,18 @@ import {
   listAllNotes,
   listAppraisals,
   assetHistory,
+  assetsWithOwnership,
+  deleteService,
   getAsset,
   getAssetByCode,
   listAssets,
   listAudit,
   listHandovers,
   listRounds,
+  listServices,
+  logService,
   roundProgress,
+  updateService,
   verifyAsset,
   writeOffAsset,
   listClaims,
@@ -311,6 +323,81 @@ peopleRouter.delete('/assets/:id', (req, res) => {
   } catch (err) {
     bad(res, err);
   }
+});
+
+/* ---------------- maintenance ---------------- */
+
+/** The register with each asset's running cost worked out, plus what is due. */
+peopleRouter.get('/maintenance', (req, res) => {
+  const assets = assetsWithOwnership({
+    company_id: Number(req.query.company_id) || undefined,
+    written_off: req.query.written_off === 'true',
+  });
+  res.json({
+    assets,
+    totals: maintenanceTotals(assets),
+    alerts: maintenanceAlerts(assets),
+    kinds: SERVICE_KINDS,
+  });
+});
+
+peopleRouter.get('/maintenance/services', (req, res) => {
+  res.json({
+    services: listServices({
+      asset_id: Number(req.query.asset_id) || undefined,
+      company_id: Number(req.query.company_id) || undefined,
+      from: req.query.from || undefined,
+      to: req.query.to || undefined,
+    }),
+  });
+});
+
+peopleRouter.get('/maintenance/services.csv', (req, res) => {
+  const services = listServices({
+    company_id: Number(req.query.company_id) || undefined,
+    from: req.query.from || undefined,
+    to: req.query.to || undefined,
+    limit: 2000,
+  });
+  res.type('text/csv').attachment('asset-services.csv').send(servicesCsv(services));
+});
+
+peopleRouter.get('/maintenance/ownership.csv', (req, res) => {
+  const assets = assetsWithOwnership({
+    company_id: Number(req.query.company_id) || undefined,
+    written_off: true,
+  });
+  res.type('text/csv').attachment('asset-cost-of-ownership.csv').send(ownershipCsv(assets));
+});
+
+/**
+ * Record a service.
+ *
+ * A duplicate comes back as 409 with the row it resembles, so the browser can
+ * ask rather than refuse - two identical repairs on one day do happen, and a
+ * system that will not record the truth gets worked around.
+ */
+peopleRouter.post('/assets/:id/services', (req, res) => {
+  try {
+    res.status(201).json(logService(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    if (err.duplicate) {
+      return res.status(409).json({ error: err.message, duplicate: err.duplicate });
+    }
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/maintenance/services/:id', (req, res) => {
+  try {
+    res.json(updateService(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/maintenance/services/:id', (req, res) => {
+  res.json({ deleted: deleteService(Number(req.params.id), who(req)) });
 });
 
 /* ---------------- the stock take ---------------- */

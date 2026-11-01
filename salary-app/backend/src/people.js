@@ -12,6 +12,7 @@ import { buildPayroll } from './payroll.js';
 import { log } from './logger.js';
 import { settlement } from '../../shared/settlement.js';
 import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
+import { looksDuplicate, ownership } from '../../shared/maintenance.js';
 
 // The trail itself lives in db.js, because the payroll write paths there write
 // to it too and db.js cannot import this file without a cycle.
@@ -153,6 +154,34 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_verify_round ON asset_verifications(round, verified_on);
 
+  /*
+   * What was done to an asset, when, by whom, and what it cost.
+   *
+   * next_service_on is whatever the person doing the work said, not a date
+   * this app works out - "service it again in six months" is a judgement, and
+   * guessing one produces reminders nobody asked for and nobody trusts.
+   */
+  CREATE TABLE IF NOT EXISTS asset_services (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id        INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    serviced_on     TEXT NOT NULL,
+    kind            TEXT NOT NULL DEFAULT 'Service',
+    work            TEXT,
+    vendor          TEXT,
+    invoice_no      TEXT,
+    cost            REAL NOT NULL DEFAULT 0,
+    -- Work done under warranty or an AMC still goes on the record, at whatever
+    -- it actually cost (often nothing): an asset serviced four times for free
+    -- is still an asset serviced four times.
+    under_warranty  INTEGER NOT NULL DEFAULT 0,
+    next_service_on TEXT,
+    note            TEXT,
+    logged_by       TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_service_asset ON asset_services(asset_id, serviced_on);
+  CREATE INDEX IF NOT EXISTS idx_service_due ON asset_services(next_service_on);
+
   /* ---------------- leaving ---------------- */
   CREATE TABLE IF NOT EXISTS employee_exits (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,6 +248,11 @@ const ASSET_COLUMNS = [
   ['vendor', 'TEXT'],
   ['invoice_no', 'TEXT'],
   ['warranty_until', 'TEXT'],
+  // An AMC is a separate contract from the warranty and runs out on its own
+  // date, so it is its own column rather than being folded in.
+  ['amc_until', 'TEXT'],
+  ['amc_vendor', 'TEXT'],
+  ['amc_cost', 'REAL'],
   // An asset that is gone keeps its row and its code, because an old service
   // bill and a signed handover slip still refer to it.
   ['written_off_on', 'TEXT'],
@@ -644,9 +678,11 @@ export function createAsset(input = {}) {
     .prepare(
       `INSERT INTO assets (code, company_id, branch_id, kind, label, identifier, purchase_cost,
                            purchase_date, vendor, invoice_no, warranty_until,
+                           amc_until, amc_vendor, amc_cost,
                            employee_id, issued_on, returned_on, condition, note)
        VALUES (@code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
                @purchase_date, @vendor, @invoice_no, @warranty_until,
+               @amc_until, @amc_vendor, @amc_cost,
                @employee_id, @issued_on, @returned_on, @condition, @note)`
     )
     .run({
@@ -661,6 +697,9 @@ export function createAsset(input = {}) {
       vendor: input.vendor || null,
       invoice_no: input.invoice_no || null,
       warranty_until: input.warranty_until || null,
+      amc_until: input.amc_until || null,
+      amc_vendor: input.amc_vendor || null,
+      amc_cost: input.amc_cost === undefined || input.amc_cost === '' ? null : Number(input.amc_cost) || 0,
       employee_id: Number(input.employee_id) || null,
       issued_on: input.issued_on || null,
       returned_on: input.returned_on || null,
@@ -693,6 +732,9 @@ const ASSET_FIELDS = [
   'vendor',
   'invoice_no',
   'warranty_until',
+  'amc_until',
+  'amc_vendor',
+  'amc_cost',
   'employee_id',
   'issued_on',
   'returned_on',
@@ -957,6 +999,183 @@ export function roundProgress(round) {
   };
 }
 
+/* ---------------- maintenance ---------------- */
+
+export function getService(id) {
+  const row = db
+    .prepare(
+      `SELECT s.*, a.code, a.label, a.kind AS asset_kind, c.name AS company_name
+       FROM asset_services s
+       JOIN assets a ON a.id = s.asset_id
+       LEFT JOIN companies c ON c.id = a.company_id
+       WHERE s.id = ?`
+    )
+    .get(id);
+  // Same shape as listServices: SQLite stores a flag as 0/1 and the two used to
+  // disagree, so the POST echo said 1 where the list said true.
+  return row ? { ...row, under_warranty: Boolean(row.under_warranty) } : null;
+}
+
+export function listServices({ asset_id, company_id, from, to, limit = 500 } = {}) {
+  const where = [];
+  const params = [];
+  if (asset_id) {
+    where.push('s.asset_id = ?');
+    params.push(Number(asset_id));
+  }
+  if (company_id) {
+    where.push('a.company_id = ?');
+    params.push(Number(company_id));
+  }
+  if (from) {
+    where.push('s.serviced_on >= ?');
+    params.push(from);
+  }
+  if (to) {
+    where.push('s.serviced_on <= ?');
+    params.push(to);
+  }
+  return db
+    .prepare(
+      `SELECT s.*, a.code, a.label,
+              -- Aliased, and it matters: SELECT s.*, a.kind silently replaced
+              -- the SERVICE's kind (Repair, Parts) with the ASSET's kind
+              -- (Laptop), so the timeline read "Laptop" where it meant "Repair".
+              a.kind AS asset_kind,
+              c.name AS company_name
+       FROM asset_services s
+       JOIN assets a ON a.id = s.asset_id
+       LEFT JOIN companies c ON c.id = a.company_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY s.serviced_on DESC, s.id DESC
+       LIMIT ?`
+    )
+    .all(...params, Math.min(2000, Number(limit) || 500))
+    .map((row) => ({ ...row, under_warranty: Boolean(row.under_warranty) }));
+}
+
+/**
+ * Record a service.
+ *
+ * `force` is how a genuine second bill on the same day for the same amount gets
+ * through: the duplicate check asks rather than refuses, because two identical
+ * ₹500 repairs on one day do happen and a system that will not record the truth
+ * gets worked around.
+ */
+export function logService(assetId, input = {}) {
+  const asset = getAsset(assetId);
+  if (!asset) throw new Error('asset not found');
+  const on = String(input.serviced_on || '').trim() || dayNow();
+  const cost = Number(input.cost) || 0;
+  if (cost < 0) throw new Error('a cost is not a negative number');
+
+  if (!input.force) {
+    const twin = looksDuplicate({ serviced_on: on, cost }, listServices({ asset_id: assetId }));
+    if (twin) {
+      const err = new Error(
+        `${asset.code} already has a ${cost ? `\u20b9${Math.round(cost).toLocaleString('en-IN')}` : 'no-cost'} service on ${on}` +
+          `${twin.work ? ` (${twin.work})` : ''}. Add it anyway?`
+      );
+      err.duplicate = twin;
+      throw err;
+    }
+  }
+
+  const info = db
+    .prepare(
+      `INSERT INTO asset_services (asset_id, serviced_on, kind, work, vendor, invoice_no, cost,
+                                   under_warranty, next_service_on, note, logged_by)
+       VALUES (@asset_id, @serviced_on, @kind, @work, @vendor, @invoice_no, @cost,
+               @under_warranty, @next_service_on, @note, @logged_by)`
+    )
+    .run({
+      asset_id: asset.id,
+      serviced_on: on,
+      kind: input.kind || 'Service',
+      work: input.work || null,
+      vendor: input.vendor || null,
+      invoice_no: input.invoice_no || null,
+      cost,
+      under_warranty: input.under_warranty ? 1 : 0,
+      next_service_on: input.next_service_on || null,
+      note: input.note || null,
+      logged_by: input.by || null,
+    });
+
+  audit({
+    who: input.by,
+    action: 'serviced',
+    entity: 'assets',
+    entity_id: asset.id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    to_value: cost,
+    note: [input.kind, input.work, input.vendor].filter(Boolean).join(' - ') || null,
+  });
+  return getService(info.lastInsertRowid);
+}
+
+export function updateService(id, patch = {}) {
+  const before = getService(id);
+  if (!before) throw new Error('not found');
+  const fields = [];
+  const values = [];
+  for (const key of ['serviced_on', 'kind', 'work', 'vendor', 'invoice_no', 'cost', 'under_warranty', 'next_service_on', 'note']) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`);
+    values.push(key === 'under_warranty' ? (patch[key] ? 1 : 0) : patch[key] === '' ? null : patch[key]);
+  }
+  if (!fields.length) return before;
+  db.prepare(`UPDATE asset_services SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  audit({
+    who: patch.by,
+    action: 'changed',
+    entity: 'assets',
+    entity_id: before.asset_id,
+    label: `${before.code || ''} ${before.label}`.trim(),
+    field: 'service',
+    from_value: before.cost,
+    to_value: patch.cost ?? before.cost,
+  });
+  return getService(id);
+}
+
+export function deleteService(id, by) {
+  const before = getService(id);
+  if (!before) return false;
+  const gone = db.prepare(`DELETE FROM asset_services WHERE id = ?`).run(id).changes > 0;
+  if (gone) {
+    audit({
+      who: by,
+      action: 'service removed',
+      entity: 'assets',
+      entity_id: before.asset_id,
+      label: `${before.code || ''} ${before.label}`.trim(),
+      from_value: before.cost,
+      note: before.serviced_on,
+    });
+  }
+  return gone;
+}
+
+/**
+ * The register with each asset's running cost worked out, plus what is due.
+ *
+ * Services are fetched once and grouped, rather than a query per asset: a
+ * register of a few hundred things is read on every visit to the page.
+ */
+export function assetsWithOwnership(opts = {}) {
+  const assets = listAssets(opts);
+  const byAsset = new Map();
+  for (const service of listServices({ company_id: opts.company_id, limit: 2000 })) {
+    if (!byAsset.has(service.asset_id)) byAsset.set(service.asset_id, []);
+    byAsset.get(service.asset_id).push(service);
+  }
+  return assets.map((asset) => {
+    const services = byAsset.get(asset.id) || [];
+    return { ...asset, services, ownership: ownership(asset, services) };
+  });
+}
+
 /* ---------------- one asset's whole life ---------------- */
 
 /**
@@ -995,6 +1214,18 @@ export function assetHistory(id) {
         by: h.returned_by,
       });
     }
+  }
+
+  for (const service of listServices({ asset_id: id }).reverse()) {
+    events.push({
+      on: service.serviced_on,
+      what: service.kind || 'Serviced',
+      detail: [service.work, service.vendor, service.under_warranty ? 'under warranty' : null]
+        .filter(Boolean)
+        .join(', ') || null,
+      amount: Number(service.cost) || 0,
+      by: service.logged_by,
+    });
   }
 
   for (const v of db
