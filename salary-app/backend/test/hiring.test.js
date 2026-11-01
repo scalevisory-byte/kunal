@@ -421,3 +421,20 @@ test('approving attendance needs the password; an employee punch link does not',
   // A punch link is reachable without one, and is refused when it is nonsense.
   assert.equal((await open('GET', '/api/punch/not-a-real-token')).status, 403);
 });
+
+/*
+ * The other half of the embedded test, which only this file can check: with no
+ * TEST_EMBED_URL set, the apply page must not go looking for a test at all.
+ * The flow when one IS configured is in hiringTest.test.js, which needs its own
+ * process to set the variable before config is read.
+ */
+test('with no test system linked, the apply page is not offered one', async () => {
+  assert.equal((await open('GET', '/api/public/config')).body.test_configured, false);
+
+  // uploadToken is a real, live token from the application above - so a 404
+  // here is "there is no test", not "that link is no good", which is the
+  // difference between a candidate waiting and a candidate moving on.
+  const asked = await open('GET', `/api/public/test/${uploadToken}`);
+  assert.equal(asked.status, 404);
+  assert.match(asked.body.error, /no test is set up/i);
+});
