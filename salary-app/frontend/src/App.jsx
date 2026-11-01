@@ -344,34 +344,45 @@ function Shell() {
             {BUILT_ON}
           </span>
         </h1>
-        <PeriodBar
-          periods={periods}
-          period={period}
-          onSelect={setPeriodId}
-          onCreate={createPeriod}
-          onPatch={patchPeriod}
-          onSync={syncPeriod}
-          onDelete={deletePeriod}
-        />
-        <div className="company-bar">
-          <span className="muted small">Company</span>
-          <button
-            className={!activeCompany ? 'active' : undefined}
-            onClick={() => pickCompany(null)}
-          >
-            All
-          </button>
-          {companies.map((c) => (
-            <button
-              key={c.id}
-              className={activeCompany?.id === c.id ? 'active' : undefined}
-              onClick={() => pickCompany(c.id)}
-              title={`Show only ${c.name}`}
+        {/*
+          * The month and the company filter share one line. The companies were
+          * a row of chips, which is five of them across two lines on a phone
+          * before a single figure - and the names are long. A picker is one
+          * control, and the list scrolls as far as it needs to.
+          *
+          * Renaming and deleting a company stays on the Employees tab, where
+          * it always was; this is only the filter.
+          */}
+        <div className="top-row">
+          <PeriodBar
+            periods={periods}
+            period={period}
+            onSelect={setPeriodId}
+            onCreate={createPeriod}
+            onPatch={patchPeriod}
+            onSync={syncPeriod}
+            onDelete={deletePeriod}
+          />
+          <label className="company-pick" title="Show one company, or all of them">
+            Company
+            <select
+              value={activeCompany?.id || ''}
+              onChange={(e) => pickCompany(Number(e.target.value) || null)}
             >
-              {c.name}
-              <span className="muted"> {c.employee_count}</span>
-            </button>
-          ))}
+              {/*
+                * No total beside "All": the per-company counts are of people on
+                * the master, and the month can carry somebody who has since
+                * left - a total that reads 84 beside a payroll of 85 looks
+                * like an error rather than the two true things it is.
+                */}
+              <option value="">All companies</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.employee_count})
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <nav className="tabs">

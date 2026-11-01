@@ -1536,3 +1536,19 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   /* The last tile sits on its own row; let it have the width. */
   .kpi-band > .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
+
+
+/* The month picker and the company filter on one line. */
+.top-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+.company-pick {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  color: var(--muted);
+  min-width: 0;
+}
+.company-pick select { max-width: 16rem; }
+@media (max-width: 820px) {
+  .company-pick select { max-width: 11rem; }
+}
