@@ -1,9 +1,41 @@
 import { useState } from 'react';
 import { MONTHS } from '../format.js';
 
+/*
+ * What a month calculates with - the hours in a day, the PT slab, the lock,
+ * Delete month - is set once and then not touched again, but it was sitting
+ * across the top of every screen. On a phone that is the entire first screen
+ * before a single figure: Dinesh sent a photograph of it.
+ *
+ * So it folds away behind one button, and the choice is remembered. Only the
+ * month picker stays out, because which month you are in is not a setting -
+ * it is the first thing you need to know.
+ */
+const SETTINGS_KEY = 'salary-app-month-settings-open';
+const rememberedOpen = () => {
+  try {
+    return localStorage.getItem(SETTINGS_KEY) === 'yes';
+  } catch {
+    return false;
+  }
+};
+
 /** Month picker plus the settings that month calculates with. */
 export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch, onSync, onDelete }) {
   const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useState(rememberedOpen);
+
+  const toggleSettings = () => {
+    setSettings((was) => {
+      const now = !was;
+      try {
+        localStorage.setItem(SETTINGS_KEY, now ? 'yes' : 'no');
+      } catch {
+        // A browser that will not remember it is not a reason to refuse it.
+      }
+      return now;
+    });
+  };
   const now = new Date();
   const [form, setForm] = useState({
     year: now.getFullYear(),
@@ -40,9 +72,20 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
         ))}
       </select>
 
-      <button onClick={() => setOpen((v) => !v)}>{open ? 'Cancel' : 'New month'}</button>
+      <button
+        className={settings ? 'active' : undefined}
+        onClick={toggleSettings}
+        aria-expanded={settings}
+        title={settings ? 'Hide the month settings' : 'Working days, hours, PT, lock, delete'}
+      >
+        {settings ? 'Hide settings' : 'Settings'}
+      </button>
 
-      {period && (
+      {settings && (
+        <button onClick={() => setOpen((v) => !v)}>{open ? 'Cancel' : 'New month'}</button>
+      )}
+
+      {period && settings && (
         <>
           <span
             className="fixed-setting"
