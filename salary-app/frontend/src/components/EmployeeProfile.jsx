@@ -39,10 +39,45 @@ const SECTIONS = [
     title: 'Personal',
     fields: [
       ['dob', 'Date of birth', 'date'],
-      ['gender', 'Gender', 'select', '', ['', 'Male', 'Female', 'Other']],
-      ['phone', 'Phone', 'tel'],
+      ['gender', 'Sex', 'select', '', ['', 'Male', 'Female', 'Other']],
+      [
+        'marital_status',
+        'Married',
+        'select',
+        '',
+        ['', 'Single', 'Married', 'Widowed', 'Divorced'],
+      ],
+      ['blood_group', 'Blood group', 'text', 'e.g. B+'],
+      ['phone', 'Mobile', 'tel'],
+      ['phone_alt', 'Second mobile', 'tel', 'a brother, a landline - somewhere else to try'],
       ['email', 'Email', 'email'],
       ['address', 'Address', 'textarea'],
+    ],
+  },
+  {
+    /*
+     * A PF Form 2 asks for the father's or husband's name and an ESIC
+     * registration asks for the family, so these are not decoration: they are
+     * what the forms want. The mother's name is also what a bank asks for.
+     */
+    title: 'Family',
+    fields: [
+      ['father_name', "Father's name", 'text'],
+      ['mother_name', "Mother's name", 'text'],
+      ['spouse_name', "Spouse's name", 'text', 'leave empty if unmarried'],
+    ],
+  },
+  {
+    /*
+     * The one set of fields nobody misses until the day somebody needs them.
+     * Deliberately three boxes rather than one: a number with no name beside
+     * it, found on a day something has gone wrong, is not much use.
+     */
+    title: 'Emergency contact',
+    fields: [
+      ['emergency_name', 'Who to call', 'text'],
+      ['emergency_phone', 'Their number', 'tel'],
+      ['emergency_relation', 'Relation', 'text', 'father, wife, brother…'],
     ],
   },
   {

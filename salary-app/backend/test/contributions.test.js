@@ -1,15 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  MODES,
   PT_SLABS_GUJARAT,
   contributionsFor,
   esiContributionPeriod,
   esiFor,
   isAuto,
+  isNone,
   pfFor,
   ptFor,
   wouldChange,
 } from '../../shared/contributions.js';
+import { calculateRow } from '../../shared/calc.js';
+import { pfRegister } from '../../shared/statutory.js';
 
 /* ---------------- PF ---------------- */
 
@@ -188,4 +192,73 @@ test('a bigger deduction means a SMALLER take-home, and the sign says so', () =>
   );
   assert.ok(less.take_home > 0, 'deducting less leaves more in hand');
   assert.equal(less.take_home, 1800 - 1080 - 135);
+});
+
+/*
+ * "PF does not apply to this person" is a third answer, and a different one
+ * from a fixed deduction of zero: the first says they are outside the scheme,
+ * the second says they are in it and deducting nothing this month. The
+ * register has to be able to tell them apart.
+ *
+ * The danger in adding it is that it quietly becomes somebody's mode and
+ * changes their take-home, so the first thing pinned here is that nothing
+ * reaches it without being chosen.
+ */
+test('"does not apply" is its own mode, and nothing lands on it by itself', () => {
+  assert.equal(isNone(undefined), false, 'a row that has never been touched is fixed');
+  assert.equal(isNone(''), false);
+  assert.equal(isNone('fixed'), false);
+  assert.equal(isNone('auto'), false);
+  assert.equal(isNone('none'), true);
+  assert.ok(MODES.some((m) => m.key === 'none'), 'the panel cannot offer what MODES does not list');
+});
+
+test('on "does not apply" nothing is deducted, whatever is typed against them', () => {
+  const base = {
+    monthly_salary: 20000,
+    pf: 1800,
+    esi: 150,
+    attendance: {},
+  };
+  const period = { working_days: 26, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 };
+
+  const asBefore = calculateRow({ ...base }, period);
+  const exempt = calculateRow({ ...base, pf_mode: 'none', esi_mode: 'none' }, period);
+
+  assert.equal(asBefore.pf, 1800);
+  assert.equal(asBefore.esi, 150);
+  assert.equal(exempt.pf, 0);
+  assert.equal(exempt.esi, 0);
+  assert.equal(exempt.pf_mode, 'none');
+  assert.equal(exempt.esi_mode, 'none');
+
+  // And the money goes the right way: deducting nothing pays MORE, never less.
+  assert.equal(exempt.net_salary, asBefore.net_salary + 1800 + 150);
+});
+
+test('somebody exempt is left off the register, old UAN or not', () => {
+  const month = [
+    {
+      employee_name: 'On PF',
+      company_name: 'X',
+      uan: '100200300400',
+      pf: 1800,
+      pf_mode: 'fixed',
+      gross_salary: 20000,
+      earned_basic: 12000,
+    },
+    {
+      employee_name: 'Not on PF any more',
+      company_name: 'X',
+      // The number is still on their record; the mode is what decides.
+      uan: '100200300401',
+      pf: 0,
+      pf_mode: 'none',
+      gross_salary: 20000,
+      earned_basic: 12000,
+    },
+  ];
+  const register = pfRegister(month);
+  assert.equal(register.length, 1);
+  assert.equal(register[0].name, 'On PF');
 });

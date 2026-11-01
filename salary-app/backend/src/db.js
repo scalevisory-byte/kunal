@@ -345,10 +345,22 @@ if (!employeeColumns.includes('religion')) {
   log.info('Migrated employees: added religion.');
 }
 
+/*
+ * The personal half of a joining form. Dinesh listed these by name: a PF
+ * Form 2 and an ESIC registration both ask for a father's or husband's name
+ * and the marital status, and an emergency contact is the one field nobody
+ * misses until the day it is needed.
+ *
+ * All free text and all nullable. Not one of them is read by the salary
+ * engine, so adding them cannot move a rupee.
+ */
 for (const column of [
   'department', 'dob', 'gender', 'phone', 'email', 'address',
   'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
   'bank_name', 'bank_account', 'ifsc',
+  'father_name', 'mother_name', 'spouse_name', 'marital_status',
+  'phone_alt', 'emergency_name', 'emergency_phone', 'emergency_relation',
+  'blood_group',
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
@@ -656,9 +668,18 @@ const EMPLOYEE_FIELDS = [
   'department',
   'dob',
   'gender',
+  'marital_status',
+  'father_name',
+  'mother_name',
+  'spouse_name',
+  'blood_group',
   'phone',
+  'phone_alt',
   'email',
   'address',
+  'emergency_name',
+  'emergency_phone',
+  'emergency_relation',
   'pan',
   'aadhaar',
   'uan',
@@ -817,8 +838,17 @@ export function createEmployee(input) {
     dob: input.dob || null,
     gender: input.gender || null,
     phone: input.phone || null,
+    marital_status: input.marital_status || null,
+    father_name: input.father_name || null,
+    mother_name: input.mother_name || null,
+    spouse_name: input.spouse_name || null,
+    blood_group: input.blood_group || null,
+    phone_alt: input.phone_alt || null,
     email: input.email || null,
     address: input.address || null,
+    emergency_name: input.emergency_name || null,
+    emergency_phone: input.emergency_phone || null,
+    emergency_relation: input.emergency_relation || null,
     pan: input.pan || null,
     aadhaar: input.aadhaar || null,
     uan: input.uan || null,
@@ -828,8 +858,11 @@ export function createEmployee(input) {
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
     reports_to_id: Number(input.reports_to_id) || null,
-    pf_mode: input.pf_mode === 'auto' ? 'auto' : 'fixed',
-    esi_mode: input.esi_mode === 'auto' ? 'auto' : 'fixed',
+    // 'none' means PF (or ESI) does not apply to this person at all: nothing
+    // is deducted and they are left off the register. 'fixed' stays the
+    // default, so an existing row and a new one behave exactly as before.
+    pf_mode: ['auto', 'none'].includes(input.pf_mode) ? input.pf_mode : 'fixed',
+    esi_mode: ['auto', 'none'].includes(input.esi_mode) ? input.esi_mode : 'fixed',
     // Null means "the office's usual day", which is what almost everybody works.
     shift_in: input.shift_in || null,
     shift_out: input.shift_out || null,

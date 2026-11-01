@@ -50,7 +50,7 @@ import { monthTotals } from './timesheet.js';
  * Order here is the order the pickers and the legend show them in.
  */
 import { earnedStructure } from './structure.js';
-import { esiFor, isAuto, pfFor } from './contributions.js';
+import { esiFor, isAuto, isNone, pfFor } from './contributions.js';
 import { lateEarlyLine, onConcession } from './lateEarly.js';
 
 export const ATTENDANCE_CODES = {
@@ -276,8 +276,16 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     pf: pfFor({ wages_basic: earned ? earned.basic : null, fallback: grossAfterAbsent }),
     esi: esiFor({ gross: grossSalary }),
   };
-  const esi = isAuto(row.esi_mode) ? workedOut.esi.employee : num(row.esi); // AX
-  const pf = isAuto(row.pf_mode) ? workedOut.pf.employee : num(row.pf); // AY
+  /*
+   * Three modes, and only one of them is the default.
+   *   fixed - deduct the number typed against this person (what it always did)
+   *   auto  - work it out from the rule
+   *   none  - the scheme does not apply to them: deduct nothing, report nothing
+   * `none` has to be chosen per person; a row that has never been touched is
+   * `fixed`, so this cannot move anybody's pay by itself.
+   */
+  const esi = isNone(row.esi_mode) ? 0 : isAuto(row.esi_mode) ? workedOut.esi.employee : num(row.esi); // AX
+  const pf = isNone(row.pf_mode) ? 0 : isAuto(row.pf_mode) ? workedOut.pf.employee : num(row.pf); // AY
   // This month's instalment against a loan or advance, posted on the ledger.
   const loan = num(row.loan_deduction);
   const netSalary = round0(grossSalary - pt - esi - pf - loan); // AZ
@@ -291,8 +299,8 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     sundays_worked: round2(sundaysWorked),
     // What the rules give, whether or not they are being applied. The employer
     // side is here because a CTC is the only way to see what a hire costs.
-    pf_mode: isAuto(row.pf_mode) ? 'auto' : 'fixed',
-    esi_mode: isAuto(row.esi_mode) ? 'auto' : 'fixed',
+    pf_mode: isNone(row.pf_mode) ? 'none' : isAuto(row.pf_mode) ? 'auto' : 'fixed',
+    esi_mode: isNone(row.esi_mode) ? 'none' : isAuto(row.esi_mode) ? 'auto' : 'fixed',
     pf_wages: workedOut.pf.wages,
     pf_on: workedOut.pf.on,
     pf_computed: workedOut.pf.employee,

@@ -36,9 +36,9 @@ export const STEPS = [
   {
     key: 'identity',
     title: 'Who they are',
-    fields: ['name', 'dob', 'gender', 'phone'],
+    fields: ['name', 'dob', 'gender', 'marital_status', 'phone', 'emergency_name', 'emergency_phone'],
     required: ['name', 'phone'],
-    why: 'The birthday card on the dashboard and anything you ever have to post to them.',
+    why: 'The birthday card on the dashboard, anything you ever have to post to them, and somebody to ring on the day something goes wrong.',
   },
   {
     key: 'employment',
@@ -50,9 +50,9 @@ export const STEPS = [
   {
     key: 'statutory',
     title: 'Statutory numbers',
-    fields: ['pan', 'aadhaar', 'uan', 'esic_no'],
+    fields: ['pan', 'aadhaar', 'uan', 'esic_no', 'father_name'],
     required: [],
-    why: 'The PF and ESI returns are filed per person. A missing UAN or ESIC number is named on the register and stops that line filing.',
+    why: "The PF and ESI returns are filed per person. A missing UAN or ESIC number is named on the register and stops that line filing, and a PF Form 2 asks for the father's or husband's name.",
   },
   {
     key: 'bank',
@@ -71,11 +71,18 @@ export const STEPS = [
 ];
 
 const FIELD_LABELS = {
-  name: 'Name',
+  name: 'Full name',
   dob: 'Date of birth',
-  gender: 'Gender',
+  gender: 'Sex',
+  marital_status: 'Married or single',
+  father_name: "Father's name",
+  mother_name: "Mother's name",
+  spouse_name: "Spouse's name",
   phone: 'Mobile',
+  phone_alt: 'Second mobile',
   email: 'Email',
+  emergency_name: 'Emergency contact',
+  emergency_phone: 'Emergency number',
   designation: 'Designation',
   department: 'Department',
   joined_on: 'Joining date',

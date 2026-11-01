@@ -34,9 +34,24 @@ const round0 = (n) => Math.round(num(n));
 export const MODES = [
   { key: 'fixed', label: 'Fixed amount', hint: 'deduct exactly what is typed, as before' },
   { key: 'auto', label: 'Work it out', hint: 'calculate it from the rules each month' },
+  {
+    key: 'none',
+    label: 'Does not apply',
+    hint: 'outside the scheme - nothing deducted, and left off the register',
+  },
 ];
 
 export const isAuto = (mode) => String(mode || 'fixed') === 'auto';
+
+/**
+ * PF or ESI does not apply to this person at all.
+ *
+ * Different from a fixed deduction of zero, which is somebody the scheme
+ * covers who happens to be deducting nothing this month: `none` means they are
+ * outside it, so they are left off the register rather than reported with a
+ * blank. Nothing moves anybody onto it - it is chosen, per person.
+ */
+export const isNone = (mode) => String(mode || 'fixed') === 'none';
 
 /* ---------------- provident fund ---------------- */
 

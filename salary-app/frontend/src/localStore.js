@@ -354,7 +354,10 @@ const ROW_FIELDS = [
  */
 const EMPLOYEE_FIELDS = [
   'company_id', 'code', 'name', 'designation', 'religion', 'department',
-  'dob', 'gender', 'phone', 'email', 'address',
+  'dob', 'gender', 'marital_status', 'blood_group',
+  'father_name', 'mother_name', 'spouse_name',
+  'phone', 'phone_alt', 'email', 'address',
+  'emergency_name', 'emergency_phone', 'emergency_relation',
   'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
   'bank_name', 'bank_account', 'ifsc',
   'cl_quota', 'sl_quota', 'pl_quota',

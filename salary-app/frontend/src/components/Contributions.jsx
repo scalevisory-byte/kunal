@@ -1,4 +1,4 @@
-import { MODES, esiFor, isAuto, pfFor, ptFor } from '../../../shared/contributions.js';
+import { MODES, esiFor, isAuto, isNone, pfFor, ptFor } from '../../../shared/contributions.js';
 import { salaryStructure } from '../../../shared/structure.js';
 
 const inr = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
@@ -24,6 +24,8 @@ export default function Contributions({ employee, onPatch }) {
 
   const pfAuto = isAuto(employee.pf_mode);
   const esiAuto = isAuto(employee.esi_mode);
+  const pfNone = isNone(employee.pf_mode);
+  const esiNone = isNone(employee.esi_mode);
   const pfTyped = Math.round(Number(employee.pf) || 0);
   const esiTyped = Math.round(Number(employee.esi) || 0);
 
@@ -61,10 +63,10 @@ export default function Contributions({ employee, onPatch }) {
               <td className="num">{inr(pf.wages)}</td>
               <td className="num">{inr(pf.employee)}</td>
               <td className="num">
-                <strong>{inr(pfAuto ? pf.employee : pfTyped)}</strong>
+                <strong>{pfNone ? '—' : inr(pfAuto ? pf.employee : pfTyped)}</strong>
               </td>
               <td>
-                <select value={pfAuto ? 'auto' : 'fixed'} onChange={(e) => onPatch(employee.id, { pf_mode: e.target.value })}>
+                <select value={employee.pf_mode || 'fixed'} onChange={(e) => onPatch(employee.id, { pf_mode: e.target.value })}>
                   {MODES.map((m) => (
                     <option key={m.key} value={m.key}>{m.label}</option>
                   ))}
@@ -83,10 +85,10 @@ export default function Contributions({ employee, onPatch }) {
               <td className="num">{esi.eligible ? inr(esi.wages) : '—'}</td>
               <td className="num">{inr(esi.employee)}</td>
               <td className="num">
-                <strong>{inr(esiAuto ? esi.employee : esiTyped)}</strong>
+                <strong>{esiNone ? '—' : inr(esiAuto ? esi.employee : esiTyped)}</strong>
               </td>
               <td>
-                <select value={esiAuto ? 'auto' : 'fixed'} onChange={(e) => onPatch(employee.id, { esi_mode: e.target.value })}>
+                <select value={employee.esi_mode || 'fixed'} onChange={(e) => onPatch(employee.id, { esi_mode: e.target.value })}>
                   {MODES.map((m) => (
                     <option key={m.key} value={m.key}>{m.label}</option>
                   ))}

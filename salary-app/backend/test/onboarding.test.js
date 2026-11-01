@@ -7,7 +7,13 @@ const complete = {
   name: 'Rohit Shah',
   dob: '1999-04-12',
   gender: 'Male',
+  // The joining-form half Dinesh asked for: who the forms want named, and
+  // somebody to ring on a bad day.
+  marital_status: 'Married',
+  father_name: 'Mahesh Shah',
   phone: '9876543210',
+  emergency_name: 'Nisha Shah',
+  emergency_phone: '9876500000',
   designation: 'Accountant',
   department: 'Accounts',
   joined_on: '2026-11-10',

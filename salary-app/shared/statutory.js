@@ -40,7 +40,9 @@ export function pfRegister(rows, settings = {}) {
   const { wageCeiling, employerRate, pensionRate } = { ...PF_DEFAULTS, ...settings };
 
   return rows
-    .filter((row) => row.pf > 0 || row.uan)
+    // Somebody marked "PF does not apply" is left off entirely, even if an
+    // old UAN is still on their record: the register says who is covered.
+    .filter((row) => row.pf_mode !== 'none' && (row.pf > 0 || row.uan))
     .map((row) => {
       const gross = round0(row.gross_salary);
       /*
@@ -87,7 +89,11 @@ export function esiRegister(rows, settings = {}) {
   const { wageLimit, employeeRate, employerRate } = { ...ESI_DEFAULTS, ...settings };
 
   return rows
-    .filter((row) => row.esi > 0 || (row.esic_no && row.gross_salary <= wageLimit))
+    .filter(
+      (row) =>
+        row.esi_mode !== 'none' &&
+        (row.esi > 0 || (row.esic_no && row.gross_salary <= wageLimit))
+    )
     .map((row) => {
       const wages = round0(row.gross_salary);
       const employee = row.esi > 0 ? round0(row.esi) : round0((wages * employeeRate) / 100);
