@@ -5,7 +5,23 @@ import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
-const BLANK = { name: '', company_id: '', monthly_salary: '', pf: '', esi: '', payment_mode: 'Bank', code: '', designation: '', religion: '' };
+const BLANK = {
+  name: '',
+  company_id: '',
+  monthly_salary: '',
+  pf: '',
+  esi: '',
+  payment_mode: 'Bank',
+  code: '',
+  designation: '',
+  religion: '',
+  // Where the salary goes. Asked for here rather than only on the record,
+  // because a bank transfer needs all three and the day somebody is added is
+  // the day the passbook is in front of you.
+  bank_name: '',
+  bank_account: '',
+  ifsc: '',
+};
 
 /** The employee master: who gets paid, and what their monthly salary is. */
 export default function Employees({
@@ -89,7 +105,7 @@ export default function Employees({
     e.preventDefault();
     setError('');
     try {
-      await onCreate({
+      const made = await onCreate({
         ...form,
         company_id: Number(form.company_id),
         monthly_salary: Number(form.monthly_salary) || 0,
@@ -97,6 +113,13 @@ export default function Employees({
         esi: Number(form.esi) || 0,
       });
       setForm({ ...BLANK, company_id: form.company_id });
+      /*
+       * A document cannot be attached to somebody who does not exist yet - the
+       * file is stored against an employee id. So the row is made first and
+       * their record opens straight away, on the same click: the PAN card and
+       * the passbook photo go on there, with the rest of the joining form.
+       */
+      if (made?.id) setProfileFor(made.id);
     } catch (err) {
       setError(err.message);
     }
@@ -181,6 +204,33 @@ export default function Employees({
               <option>Cheque</option>
             </select>
           </label>
+          {/* Cash in hand needs no account, and asking for one is noise. */}
+          {form.payment_mode !== 'Cash' && (
+            <>
+              <label>
+                Bank
+                <input
+                  value={form.bank_name}
+                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+                />
+              </label>
+              <label>
+                Account number
+                <input
+                  value={form.bank_account}
+                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
+                />
+              </label>
+              <label>
+                IFSC
+                <input
+                  placeholder="SBIN0001234"
+                  value={form.ifsc}
+                  onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })}
+                />
+              </label>
+            </>
+          )}
           <label title="Decides which festivals are a paid holiday for this person">
             Religion
             <input
@@ -200,6 +250,11 @@ export default function Employees({
           that day as normal. To fill it in for a lot of people at once, tick them in the list
           below and use <strong>Set religion to</strong>. The box takes anything you type; the
           suggestions are only suggestions.
+        </p>
+        <p className="muted small">
+          <strong>Documents</strong> — PAN card, Aadhaar, photograph, cancelled cheque — attach to
+          the person, so their record opens the moment you press <strong>Add</strong> and the
+          upload box is waiting there. The rest of the joining form is on the same screen.
         </p>
         <p className="muted small">
           A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry

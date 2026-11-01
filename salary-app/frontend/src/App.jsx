@@ -271,11 +271,15 @@ function Shell() {
     }
   };
 
+  // Hands back whatever the call returned, so a caller that needs the row it
+  // just created - "Add employee", which then opens that person's record to
+  // attach their documents - has it.
   const masterAction = (fn) => async (...args) => {
     try {
-      await fn(...args);
+      const made = await fn(...args);
       await loadMaster();
       await loadPayroll(periodId);
+      return made;
     } catch (err) {
       handle(err);
       throw err;
