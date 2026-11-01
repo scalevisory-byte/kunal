@@ -26,7 +26,13 @@ export const employeesRouter = Router();
 
 employeesRouter.get('/', (req, res) => {
   const active = req.query.active === undefined ? undefined : req.query.active !== 'false';
-  res.json({ employees: listEmployees({ company_id: Number(req.query.company_id) || undefined, active }) });
+  res.json({
+    employees: listEmployees({
+      company_id: Number(req.query.company_id) || undefined,
+      branch_id: Number(req.query.branch_id) || undefined,
+      active,
+    }),
+  });
 });
 
 employeesRouter.post('/', (req, res) => {

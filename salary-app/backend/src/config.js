@@ -32,6 +32,18 @@ export const config = {
   // never right on an address anybody else can reach, and it used to be the
   // silent default.
   allowOpen: String(process.env.ALLOW_OPEN || '').toLowerCase() === 'true',
+  // A Secure cookie on a plain-http address is one the browser silently drops,
+  // which reads to everybody as "the login is broken". So it is off unless the
+  // deployment says it is behind https.
+  secureCookies: String(process.env.SECURE_COOKIES || '').toLowerCase() === 'true',
+
+  // Backups: a full SQLite copy into DATA_DIR/backups, on by default because
+  // the alternative was none at all. A copy on the same volume survives a bad
+  // deploy and a wrong delete; it does not survive losing the volume, which
+  // the README says out loud.
+  backupEnabled: String(process.env.BACKUP_ENABLED || 'true').toLowerCase() !== 'false',
+  backupHours: num(process.env.BACKUP_HOURS, 24),
+  backupKeep: num(process.env.BACKUP_KEEP, 14),
 
   // Defaults for a newly created month. Every period stores its own copy, so
   // changing these never rewrites a month that has already been paid.

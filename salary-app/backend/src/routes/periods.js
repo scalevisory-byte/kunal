@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireAbility } from '../auth.js';
 import {
   applyHoliday,
   clearAttendance,
@@ -44,13 +45,43 @@ periodsRouter.get('/:id', (req, res) => {
   res.json(period);
 });
 
-periodsRouter.patch('/:id', (req, res) => {
-  const period = updatePeriod(Number(req.params.id), req.body || {});
+/**
+ * A month's own settings are the rules payroll runs on - the PT slab, the hours
+ * per day, the late/early policy and its concession, the shift, and whether the
+ * month is closed. Those are an admin's to change; HR runs the month inside
+ * them. The month's label is housekeeping, so it is not on the list.
+ */
+const ADMIN_PERIOD_FIELDS = [
+  'pt_threshold',
+  'pt_amount',
+  'hours_per_day',
+  'late_policy',
+  'late_concession_minutes',
+  'late_grace_minutes',
+  'shift_in',
+  'shift_out',
+  'locked',
+];
+
+const adminOnlyFields = (req, res, next) => {
+  const named = ADMIN_PERIOD_FIELDS.filter((f) => f in (req.body || {}));
+  if (!named.length || req.actor?.abilities?.includes('admin')) return next();
+  return res.status(403).json({
+    error: `${named.join(', ')} ${named.length === 1 ? 'is' : 'are'} an admin\u2019s to change`,
+    need: 'admin',
+    role: req.actor?.role,
+  });
+};
+
+periodsRouter.patch('/:id', adminOnlyFields, (req, res) => {
+  const by = req.actor?.via === 'session' ? req.actor.name : req.body?.by || req.actor?.name || null;
+  const period = updatePeriod(Number(req.params.id), { ...(req.body || {}), by });
   if (!period) return res.status(404).json({ error: 'not found' });
   res.json(period);
 });
 
-periodsRouter.delete('/:id', (req, res) => {
+// Deleting a month takes its payroll and its attendance with it.
+periodsRouter.delete('/:id', requireAbility('admin'), (req, res) => {
   if (!deletePeriod(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
   res.status(204).end();
 });
@@ -81,7 +112,10 @@ periodsRouter.patch('/:id/rows/:rowId', (req, res) => {
   const period = getPeriod(Number(req.params.id));
   if (!period) return res.status(404).json({ error: 'period not found' });
   if (period.locked) return res.status(409).json({ error: 'period is locked' });
-  const row = updatePayrollRow(Number(req.params.rowId), req.body || {});
+  // Whose change this was, for the audit trail. The signed-in user wins over
+  // anything the body claims.
+  const by = req.actor?.via === 'session' ? req.actor.name : req.body?.by || req.actor?.name || null;
+  const row = updatePayrollRow(Number(req.params.rowId), { ...(req.body || {}), by });
   if (!row) return res.status(404).json({ error: 'row not found' });
   res.json(row);
 });
@@ -135,7 +169,10 @@ periodsRouter.post('/:id/attendance', (req, res) => {
       }
     }
   }
-  res.json({ saved: setAttendance(period.id, entries) });
+  // Every entry carries whoever made the change, so a corrected mark lands on
+  // the audit trail under a name the server checked rather than one typed in.
+  const by = req.actor?.via === 'session' ? req.actor.name : req.actor?.name || null;
+  res.json({ saved: setAttendance(period.id, entries.map((e) => ({ by, ...e }))) });
 });
 
 periodsRouter.delete('/:id/attendance', (req, res) => {

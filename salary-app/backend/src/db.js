@@ -439,6 +439,41 @@ for (const [column, type] of periodLateColumns) {
 }
 
 /*
+ * Branches, beneath a company.
+ *
+ * Dinesh's answer when asked what "branch" meant here: *"branches under a
+ * company"*, because the salary is already run across three or four separate
+ * companies (BOOKNFLY PRIVATE LIMITED, BOOKNFLY, BOOKNFLY VENTURE LLP, SCALE)
+ * and a branch is a place inside one of them - Vadodara, Surat.
+ *
+ * So companies stay exactly as they are and this is a second, optional level.
+ * `branch_id` is nullable on purpose: nobody has to be in a branch, and every
+ * existing employee carries null, so nothing that already works changes.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS branches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    city       TEXT,
+    address    TEXT,
+    phone      TEXT,
+    active     INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    -- Two branches of the same company cannot share a name. Two different
+    -- companies each having a "Surat" is normal.
+    UNIQUE (company_id, name)
+  );
+  CREATE INDEX IF NOT EXISTS idx_branch_company ON branches(company_id, sort_order);
+`);
+
+if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'branch_id')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`);
+  log.info('Migrated employees: added branch_id (null = not in a branch).');
+}
+
+/*
  * Which day of the week is the day off, as JSON. Null means Sunday, which is
  * what the app has always assumed and is right for most of the staff. A company
  * sets the house rule; a person can carry their own (a driver off on Thursday).
@@ -613,6 +648,7 @@ const EMPLOYEE_FIELDS = [
   'conveyance',
   'medical',
   'company_id',
+  'branch_id',
   'code',
   'name',
   'designation',
@@ -644,12 +680,16 @@ const EMPLOYEE_FIELDS = [
   'sort_order',
 ];
 
-export function listEmployees({ company_id, active } = {}) {
+export function listEmployees({ company_id, branch_id, active } = {}) {
   const where = [];
   const params = [];
   if (company_id) {
     where.push('e.company_id = ?');
     params.push(company_id);
+  }
+  if (branch_id) {
+    where.push('e.branch_id = ?');
+    params.push(branch_id);
   }
   if (active !== undefined) {
     where.push('e.active = ?');
@@ -657,20 +697,108 @@ export function listEmployees({ company_id, active } = {}) {
   }
   return db
     .prepare(
-      `SELECT e.*, c.name AS company_name
-       FROM employees e JOIN companies c ON c.id = e.company_id
+      `SELECT e.*, c.name AS company_name, b.name AS branch_name
+       FROM employees e
+       JOIN companies c ON c.id = e.company_id
+       LEFT JOIN branches b ON b.id = e.branch_id
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY c.sort_order, c.name, e.sort_order, e.name`
+       ORDER BY c.sort_order, c.name, b.sort_order, b.name, e.sort_order, e.name`
     )
     .all(...params);
+}
+
+/* ---------------- branches ---------------- */
+
+export function listBranches({ company_id, active } = {}) {
+  const where = [];
+  const params = [];
+  if (company_id) {
+    where.push('b.company_id = ?');
+    params.push(company_id);
+  }
+  if (active !== undefined) {
+    where.push('b.active = ?');
+    params.push(active ? 1 : 0);
+  }
+  return db
+    .prepare(
+      `SELECT b.*, c.name AS company_name,
+              (SELECT COUNT(*) FROM employees e WHERE e.branch_id = b.id AND e.active = 1) AS people
+       FROM branches b JOIN companies c ON c.id = b.company_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY c.sort_order, c.name, b.sort_order, b.name`
+    )
+    .all(...params);
+}
+
+export const getBranch = (id) =>
+  db
+    .prepare(
+      `SELECT b.*, c.name AS company_name FROM branches b
+       JOIN companies c ON c.id = b.company_id WHERE b.id = ?`
+    )
+    .get(id) || null;
+
+export function createBranch(input = {}) {
+  const companyId = Number(input.company_id);
+  const name = String(input.name || '').trim();
+  if (!companyId) throw new Error('a branch belongs to a company');
+  if (!db.prepare(`SELECT 1 FROM companies WHERE id = ?`).get(companyId)) {
+    throw new Error('company not found');
+  }
+  if (!name) throw new Error('give the branch a name');
+  if (db.prepare(`SELECT 1 FROM branches WHERE company_id = ? AND name = ?`).get(companyId, name)) {
+    throw new Error(`that company already has a branch called ${name}`);
+  }
+  const id = db
+    .prepare(
+      `INSERT INTO branches (company_id, name, city, address, phone, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(companyId, name, input.city || null, input.address || null, input.phone || null, Number(input.sort_order) || 0)
+    .lastInsertRowid;
+  return getBranch(id);
+}
+
+export function updateBranch(id, patch = {}) {
+  const before = getBranch(id);
+  if (!before) throw new Error('not found');
+  const fields = [];
+  const values = [];
+  for (const key of ['name', 'city', 'address', 'phone', 'sort_order', 'active']) {
+    if (!(key in patch)) continue;
+    if (key === 'name' && !String(patch.name || '').trim()) throw new Error('give the branch a name');
+    fields.push(`${key} = ?`);
+    values.push(key === 'active' ? (patch[key] ? 1 : 0) : patch[key] === '' ? null : patch[key]);
+  }
+  if (!fields.length) return before;
+  db.prepare(`UPDATE branches SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  return getBranch(id);
+}
+
+/**
+ * Deleting a branch does NOT delete its people - `branch_id` goes null and they
+ * stay on their company's payroll. A mistyped branch name must never be able to
+ * take fourteen employees with it.
+ */
+export function deleteBranch(id) {
+  const branch = getBranch(id);
+  if (!branch) return false;
+  const moved = db.prepare(`UPDATE employees SET branch_id = NULL WHERE branch_id = ?`).run(id).changes;
+  db.prepare(`DELETE FROM branches WHERE id = ?`).run(id);
+  if (moved) log.info(`Branch "${branch.name}" removed; ${moved} employee(s) left in ${branch.company_name}.`);
+  return true;
 }
 
 export function getEmployee(id) {
   return (
     db
       .prepare(
-        `SELECT e.*, c.name AS company_name
-         FROM employees e JOIN companies c ON c.id = e.company_id WHERE e.id = ?`
+        `SELECT e.*, c.name AS company_name, b.name AS branch_name
+         FROM employees e
+         JOIN companies c ON c.id = e.company_id
+         LEFT JOIN branches b ON b.id = e.branch_id
+         WHERE e.id = ?`
       )
       .get(id) || null
   );
@@ -679,6 +807,8 @@ export function getEmployee(id) {
 export function createEmployee(input) {
   const row = {
     company_id: Number(input.company_id),
+    // Null means "not in a branch", which is where everybody starts.
+    branch_id: Number(input.branch_id) || null,
     code: input.code || null,
     name: String(input.name || '').trim(),
     designation: input.designation || null,
@@ -739,6 +869,7 @@ export function createEmployee(input) {
  */
 export const TRACKED_FIELDS = {
   monthly_salary: 'Salary',
+  branch_id: 'Branch',
   designation: 'Designation',
   department: 'Department',
   company_id: 'Company',
@@ -990,10 +1121,12 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               -- the weekly off, theirs then the company's, so the grid knows
               -- which squares were never working days for this person
               e.weekly_off, c.weekly_off AS company_weekly_off,
+              e.branch_id, b.name AS branch_name,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id
        JOIN companies c ON c.id = e.company_id
+       LEFT JOIN branches b ON b.id = e.branch_id
        WHERE p.period_id = ? ${filter}
        ORDER BY c.sort_order, c.name, e.sort_order, e.name`
     )

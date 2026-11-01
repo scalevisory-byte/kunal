@@ -5,7 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { requireAuth } from './auth.js';
+import { requireAdminForChanges, requireAuth, requireWriteForChanges } from './auth.js';
 import { getCandidate } from './hiring.js';
 import { getDocument } from './db.js';
 import { documentFile, documentLinkValid } from './documents.js';
@@ -18,6 +18,7 @@ import { companiesRouter } from './routes/companies.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
 import { employeesRouter } from './routes/employees.js';
+import { authRouter } from './routes/auth.js';
 import { peopleRouter } from './routes/people.js';
 import { periodsRouter } from './routes/periods.js';
 import { reportsRouter } from './routes/reports.js';
@@ -99,15 +100,35 @@ export function createServer() {
     })
   );
 
-  app.use('/api/companies', requireAuth, companiesRouter);
-  app.use('/api/employees', requireAuth, employeesRouter);
-  app.use('/api/leave', requireAuth, leaveRouter);
-  app.use('/api/loans', requireAuth, loansRouter);
-  app.use('/api/people', requireAuth, peopleRouter);
-  app.use('/api/periods', requireAuth, periodsRouter);
-  app.use('/api/hiring', requireAuth, hiringRouter);
-  app.use('/api/attendance', requireAuth, attendanceSelfRouter);
-  app.use('/api', requireAuth, reportsRouter);
+  /*
+   * Signing in. `state`, `setup` and `login` are reachable without a session -
+   * they have to be - and the router guards everything else itself.
+   */
+  app.use('/api/auth', authRouter);
+
+  /*
+   * The office side. `requireAuth` says who is asking;
+   * `requireWriteForChanges` then refuses anything that is not a plain read
+   * unless the role carries `write`. It is one line rather than a tag on every
+   * route, so it cannot be forgotten on a route added later - a Viewer who
+   * knows the URL still cannot write, which is the only version of this that
+   * means anything.
+   *
+   * Companies carry the branch structure, so changing them is an admin's -
+   * though everybody signed in can READ the list, because the company filter
+   * and the employee form need it on every screen. Everything else -
+   * employees, attendance, leave, payroll figures, assets, the registers,
+   * hiring - is HR's work, salaries included.
+   */
+  app.use('/api/companies', requireAuth, requireAdminForChanges, companiesRouter);
+  app.use('/api/employees', requireAuth, requireWriteForChanges, employeesRouter);
+  app.use('/api/leave', requireAuth, requireWriteForChanges, leaveRouter);
+  app.use('/api/loans', requireAuth, requireWriteForChanges, loansRouter);
+  app.use('/api/people', requireAuth, requireWriteForChanges, peopleRouter);
+  app.use('/api/periods', requireAuth, requireWriteForChanges, periodsRouter);
+  app.use('/api/hiring', requireAuth, requireWriteForChanges, hiringRouter);
+  app.use('/api/attendance', requireAuth, requireWriteForChanges, attendanceSelfRouter);
+  app.use('/api', requireAuth, requireWriteForChanges, reportsRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.
   if (config.serveFrontend && fs.existsSync(path.join(frontendDir, 'index.html'))) {

@@ -63,7 +63,20 @@ import {
 export const peopleRouter = Router();
 
 const bad = (res, err) => res.status(400).json({ error: err.message });
-const who = (req) => req.body?.by || req.get('x-acted-by') || null;
+/**
+ * Whose name goes on the record.
+ *
+ * The signed-in user wins, because that is somebody the server actually
+ * checked. A typed name is only the fallback, for the API key and for an
+ * installation running open - and in those two cases the trail says so
+ * ("the API key", "nobody (open)") rather than inventing a person.
+ */
+const who = (req) =>
+  (req.actor?.via === 'session' ? req.actor.name : null) ||
+  req.body?.by ||
+  req.get('x-acted-by') ||
+  req.actor?.name ||
+  null;
 
 /* ---------------- what the pickers offer ---------------- */
 
