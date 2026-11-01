@@ -10,6 +10,7 @@ import {
   SERVICE_KINDS,
   maintenanceAlerts,
   maintenanceTotals,
+  spendReport,
   ownershipCsv,
   servicesCsv,
 } from '../../../shared/maintenance.js';
@@ -333,10 +334,20 @@ peopleRouter.get('/maintenance', (req, res) => {
     company_id: Number(req.query.company_id) || undefined,
     written_off: req.query.written_off === 'true',
   });
+  /*
+   * The spend side comes with it rather than as a second call: the panel asks
+   * both questions on one screen - what is due, and what it is all costing -
+   * and the services are already in hand to answer the first.
+   */
+  const services = listServices({
+    company_id: Number(req.query.company_id) || undefined,
+    limit: 5000,
+  });
   res.json({
     assets,
     totals: maintenanceTotals(assets),
     alerts: maintenanceAlerts(assets),
+    spend: spendReport(assets, services, { year: req.query.year || 'all' }),
     kinds: SERVICE_KINDS,
   });
 });

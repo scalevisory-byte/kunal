@@ -24,6 +24,7 @@ import {
   maintenanceAlerts,
   maintenanceTotals,
   ownership,
+  spendReport,
 } from '../../shared/maintenance.js';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-maint-'));
@@ -370,4 +371,77 @@ test('deleting an asset takes its services with it, which is why it refuses to',
   assert.equal((await api('DELETE', `/api/people/assets/${spare.body.id}`)).body.deleted, true);
   const { body } = await api('GET', `/api/people/maintenance/services?asset_id=${spare.body.id}`);
   assert.equal(body.services.length, 0, 'gone with it');
+});
+
+/*
+ * What the kit costs to keep. The register already said what one asset had
+ * cost; what was missing is the office's own question - how much is going out
+ * on the things nobody is holding, and on which of them.
+ */
+const SPEND_ASSETS = [
+  { id: 1, code: 'BPL-PC-001', kind: 'Desktop', purchase_cost: 46000, amc_cost: 3000, employee_id: null },
+  { id: 2, code: 'BPL-LAP-001', kind: 'Laptop', purchase_cost: 42000, employee_id: 7, employee_name: 'ALPESH' },
+  { id: 3, code: 'BPL-SIM-001', kind: 'SIM card', purchase_cost: 0, employee_id: null },
+  { id: 4, code: 'BPL-OLD-001', kind: 'Printer', purchase_cost: 9000, employee_id: null, written_off_on: '2026-01-05' },
+];
+const SPEND_SERVICES = [
+  { asset_id: 1, cost: 2500, serviced_on: '2026-03-04' },
+  { asset_id: 1, cost: 1800, serviced_on: '2025-11-20' },
+  { asset_id: 2, cost: 900, serviced_on: '2026-06-01' },
+  { asset_id: 1, cost: 400, serviced_on: '' },
+  { asset_id: 3, cost: 300, serviced_on: '2026-02-02' },
+  // Written off: it is not the office's running cost any more.
+  { asset_id: 4, cost: 5000, serviced_on: '2026-04-01' },
+];
+
+test('the office kit is counted on its own, and a written-off asset is not counted at all', () => {
+  const r = spendReport(SPEND_ASSETS, SPEND_SERVICES);
+  assert.equal(r.totals.assets, 3, 'the written-off printer is off the register');
+  assert.equal(r.totals.service, 5900, '2500 + 1800 + 900 + 400 + 300, and not the printer');
+
+  // Nobody holding it is the whole meaning of "general".
+  assert.equal(r.office.assets, 2);
+  assert.equal(r.office.service, 5000, 'the desktop and the SIM, not ALPESH’s laptop');
+});
+
+test('AMC sits beside the repairs, never inside them', () => {
+  const r = spendReport(SPEND_ASSETS, SPEND_SERVICES);
+  const pc = r.items.find((i) => i.code === 'BPL-PC-001');
+  assert.equal(pc.service, 4700, 'repairs only');
+  assert.equal(pc.amc, 3000);
+  assert.equal(pc.upkeep, 7700, 'and the two together is what it costs to keep');
+  // A year of one AMC and no breakdowns must not read as a year of repairs.
+  assert.equal(r.totals.service + r.totals.amc, r.totals.upkeep);
+});
+
+test('a year comes off the date the work was done, and an undated bill is not dropped', () => {
+  assert.deepEqual(
+    spendReport(SPEND_ASSETS, SPEND_SERVICES).years,
+    [
+      { year: '2026', cost: 3700, times: 3 },
+      { year: '2025', cost: 1800, times: 1 },
+    ]
+  );
+  // The 400 with no date is held apart rather than dated today or lost.
+  assert.equal(spendReport(SPEND_ASSETS, SPEND_SERVICES).undated, 400);
+
+  const only2026 = spendReport(SPEND_ASSETS, SPEND_SERVICES, { year: '2026' });
+  assert.equal(only2026.totals.service, 3700);
+  // The AMC is a standing cost and is reported whichever year is asked for.
+  assert.equal(only2026.totals.amc, 3000);
+});
+
+test('a share is null, not infinity, for kit that cost nothing to get', () => {
+  const r = spendReport(SPEND_ASSETS, SPEND_SERVICES);
+  const sim = r.items.find((i) => i.code === 'BPL-SIM-001');
+  assert.equal(sim.purchase, 0);
+  assert.equal(sim.service, 300);
+  assert.equal(sim.share, null);
+
+  // And one that has cost more to keep than to buy reads over 100.
+  const dear = spendReport(
+    [{ id: 9, code: 'X', kind: 'Mobile', purchase_cost: 9500, employee_id: null }],
+    [{ asset_id: 9, cost: 10800, serviced_on: '2026-05-05' }]
+  );
+  assert.ok(dear.items[0].share > 100, `expected over 100, got ${dear.items[0].share}`);
 });

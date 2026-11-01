@@ -24,26 +24,31 @@ export default function Maintenance({ companies, onError }) {
   const [assets, setAssets] = useState([]);
   const [totals, setTotals] = useState({});
   const [alerts, setAlerts] = useState({});
+  const [spend, setSpend] = useState(null);
+  // 'all' or a four-digit year. Held here rather than in the URL because this
+  // is a question somebody asks and then moves on from.
+  const [year, setYear] = useState('all');
   const [view, setView] = useState('due');
   const [query, setQuery] = useState('');
   const [logging, setLogging] = useState(null);
   const [said, setSaid] = useState('');
 
-  const load = async () => {
+  const load = async (forYear = year) => {
     try {
-      const body = await api.get('/people/maintenance');
+      const body = await api.get(`/people/maintenance?year=${encodeURIComponent(forYear)}`);
       setAssets(body.assets);
       setTotals(body.totals);
       setAlerts(body.alerts);
+      setSpend(body.spend);
     } catch (err) {
       onError(err);
     }
   };
 
   useEffect(() => {
-    load();
+    load(year);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [year]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -77,6 +82,136 @@ export default function Maintenance({ companies, onError }) {
           <span className="n">{totals.services || 0}</span>
         </div>
       </div>
+
+      {spend && (
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>
+            What it is costing
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              style={{ marginLeft: '0.6rem' }}
+            >
+              <option value="all">Since the beginning</option>
+              {spend.years.map((y) => (
+                <option key={y.year} value={y.year}>
+                  {y.year}
+                </option>
+              ))}
+            </select>
+          </h3>
+
+          {/*
+           * The office's own kit on its own line. "General asset" means exactly
+           * this: nobody is holding it, so nobody is responsible for it, and
+           * what it costs to keep is a running office expense rather than
+           * something that belongs to a person.
+           */}
+          <div className="figures">
+            <div className="figure">
+              <span className="k">Office kit, nobody holding it</span>
+              <span className="n">{spend.office.assets}</span>
+            </div>
+            <div className="figure">
+              <span className="k">Repairs on it</span>
+              <span className="n">{rupees(spend.office.service)}</span>
+            </div>
+            <div className="figure">
+              <span className="k">AMC on it</span>
+              <span className="n">{rupees(spend.office.amc)}</span>
+            </div>
+            <div className="figure">
+              <span className="k">Costing in all</span>
+              <span className="n">{rupees(spend.office.upkeep)}</span>
+            </div>
+          </div>
+
+          {spend.years.length > 1 && (
+            <table className="sheet" style={{ marginTop: '0.8rem' }}>
+              <thead>
+                <tr>
+                  <th className="sticky-name">Year</th>
+                  <th>Services</th>
+                  <th>Spent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spend.years.map((y) => (
+                  <tr key={y.year}>
+                    <td className="sticky-name">{y.year}</td>
+                    <td className="num">{y.times}</td>
+                    <td className="num">{rupees(y.cost)}</td>
+                  </tr>
+                ))}
+                {spend.undated > 0 && (
+                  <tr>
+                    <td className="sticky-name muted">No date on the bill</td>
+                    <td className="num muted">—</td>
+                    <td className="num muted">{rupees(spend.undated)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          <table className="sheet" style={{ marginTop: '0.8rem' }}>
+            <thead>
+              <tr>
+                <th className="sticky-name">What</th>
+                <th>Where it is</th>
+                <th>Bought for</th>
+                <th>Repairs</th>
+                <th>AMC</th>
+                <th>Upkeep</th>
+                <th title="Upkeep as a share of what it cost to buy">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {spend.items
+                .filter((r) => r.upkeep > 0)
+                .map((r) => (
+                  <tr key={r.id}>
+                    <td className="sticky-name">
+                      {r.code}
+                      <div className="muted small">
+                        {r.kind}
+                        {r.label ? ` — ${r.label}` : ''}
+                      </div>
+                    </td>
+                    <td className={r.general ? 'muted' : undefined}>
+                      {r.general ? 'in the office' : r.holder}
+                    </td>
+                    <td className="num muted">{r.purchase ? rupees(r.purchase) : '—'}</td>
+                    <td className="num">
+                      {r.service ? rupees(r.service) : '—'}
+                      {r.times > 0 && <span className="muted small"> ×{r.times}</span>}
+                    </td>
+                    <td className="num muted">{r.amc ? rupees(r.amc) : '—'}</td>
+                    <td className="num grand">{rupees(r.upkeep)}</td>
+                    <td className={`num${r.share !== null && r.share >= 100 ? ' bad' : ''}`}>
+                      {r.share === null ? '—' : `${r.share}%`}
+                    </td>
+                  </tr>
+                ))}
+              {!spend.items.some((r) => r.upkeep > 0) && (
+                <tr>
+                  <td colSpan={7} className="empty">
+                    Nothing has been spent on keeping anything
+                    {year === 'all' ? ' yet' : ` in ${year}`}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <p className="muted small">
+            <strong>AMC is counted beside repairs, never inside them.</strong> A contract is
+            money committed for the year whether or not anything breaks; a repair bill is money
+            already gone. A share at or over 100% means keeping it has cost more than buying it
+            did — usually the moment to replace rather than repair again.
+          </p>
+        </div>
+      )}
 
       {(alerts.overdue?.length || alerts.soon?.length || alerts.amc_gone?.length || totals.costing_more_than_bought?.length) > 0 && (
         <ul className="alerts">

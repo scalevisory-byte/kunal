@@ -220,3 +220,114 @@ export function maintenanceTotals(assets = []) {
     ),
   };
 }
+
+/**
+ * What the kit is costing to keep, and on what.
+ *
+ * Three questions get asked about an office printer and they are different
+ * questions: what has it cost in all, what is it costing this year, and is it
+ * costing more than it would cost to replace it. So this reports them apart
+ * rather than as one number.
+ *
+ * Two deliberate choices:
+ *
+ * **AMC is counted beside service spend, never inside it.** A contract is money
+ * committed for a year whether or not anything breaks; a repair bill is money
+ * already gone. Folding them together would make a year with one AMC and no
+ * breakdowns look like a year of repairs.
+ *
+ * **A year comes off the date the work was done**, not the date it was typed
+ * in, so a bill entered late still lands in the year it belongs to. Work with
+ * no date lands in `undated` rather than being quietly dropped or dated today.
+ */
+export function spendReport(assets = [], services = [], { year } = {}) {
+  const live = assets.filter((a) => !a.written_off_on);
+  const byId = new Map(live.map((a) => [a.id, a]));
+
+  const inYear = (s) => {
+    const y = String(s.serviced_on || '').slice(0, 4);
+    return !year || year === 'all' ? true : y === String(year);
+  };
+
+  const mine = services.filter((s) => byId.has(s.asset_id) && inYear(s));
+
+  const years = new Map();
+  let undated = 0;
+  for (const s of services.filter((s) => byId.has(s.asset_id))) {
+    const y = String(s.serviced_on || '').slice(0, 4);
+    if (!/^\d{4}$/.test(y)) {
+      undated += num(s.cost);
+      continue;
+    }
+    const at = years.get(y) || { year: y, cost: 0, times: 0 };
+    at.cost += num(s.cost);
+    at.times += 1;
+    years.set(y, at);
+  }
+
+  const perAsset = new Map();
+  for (const s of mine) {
+    const at = perAsset.get(s.asset_id) || { cost: 0, times: 0 };
+    at.cost += num(s.cost);
+    at.times += 1;
+    perAsset.set(s.asset_id, at);
+  }
+
+  const kinds = new Map();
+  const items = live.map((asset) => {
+    const spend = perAsset.get(asset.id) || { cost: 0, times: 0 };
+    const amc = round0(asset.amc_cost);
+    const purchase = round0(asset.purchase_cost);
+    const row = {
+      id: asset.id,
+      code: asset.code || '',
+      kind: asset.kind || '',
+      label: asset.label || asset.name || '',
+      // Nobody against it means it is the office's own, not that it is lost.
+      general: !asset.employee_id,
+      holder: asset.employee_name || '',
+      purchase,
+      service: round0(spend.cost),
+      times: spend.times,
+      amc,
+      amc_vendor: asset.amc_vendor || '',
+      upkeep: round0(spend.cost + amc),
+      // Null rather than a divide by zero: plenty of kit cost nothing to get.
+      share: purchase > 0 ? Math.round(((spend.cost + amc) / purchase) * 1000) / 10 : null,
+    };
+    const k = kinds.get(row.kind) || { kind: row.kind, count: 0, purchase: 0, upkeep: 0 };
+    k.count += 1;
+    k.purchase += row.purchase;
+    k.upkeep += row.upkeep;
+    kinds.set(row.kind, k);
+    return row;
+  });
+
+  const sum = (list, field) => list.reduce((n, r) => n + r[field], 0);
+  const general = items.filter((r) => r.general);
+
+  return {
+    year: year || 'all',
+    years: [...years.values()].sort((a, b) => b.year.localeCompare(a.year)),
+    undated: round0(undated),
+    items: items.sort((a, b) => b.upkeep - a.upkeep),
+    kinds: [...kinds.values()].sort((a, b) => b.upkeep - a.upkeep),
+    totals: {
+      assets: items.length,
+      purchase: sum(items, 'purchase'),
+      service: sum(items, 'service'),
+      amc: sum(items, 'amc'),
+      upkeep: sum(items, 'upkeep'),
+      times: sum(items, 'times'),
+    },
+    // The office's own kit, counted on its own: the printer and the furniture
+    // nobody is holding are exactly what "general asset" means.
+    office: {
+      assets: general.length,
+      purchase: sum(general, 'purchase'),
+      service: sum(general, 'service'),
+      amc: sum(general, 'amc'),
+      upkeep: sum(general, 'upkeep'),
+    },
+  };
+}
