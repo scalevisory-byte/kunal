@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import {
   REQUEST_KINDS,
   canDecide,
+  daysOf,
   describe as describeRequest,
+  entriesFor,
   entryFor,
+  spans,
   sortForReview,
   validateRequest,
 } from '../../shared/attendanceRequests.js';
@@ -89,4 +92,93 @@ test('the one waiting longest is the one at the top', () => {
     { id: 2, status: 'pending', created_at: '2026-10-02' },
   ]);
   assert.deepEqual(sorted.map((r) => r.id), [2, 1, 3]);
+});
+
+/* ================================================================= *
+ * A leave application: the one request that covers a run of days
+ * ================================================================= */
+
+test('a leave application covers a run of days; everything else is one day', () => {
+  assert.deepEqual(daysOf({ kind: 'leave', day: 12, to_day: 15 }), [12, 13, 14, 15]);
+  assert.deepEqual(daysOf({ kind: 'leave', day: 12 }), [12], 'one day is still one day');
+  assert.deepEqual(daysOf({ kind: 'missing_punch', day: 12, to_day: 15 }), [12]);
+  assert.equal(spans('leave'), true);
+  assert.equal(spans('correction'), false);
+});
+
+test('a last day before the first is read as a typo, never as covering nothing', () => {
+  assert.deepEqual(daysOf({ kind: 'leave', day: 15, to_day: 12 }), [15]);
+  const { ok, problems } = validateRequest({
+    kind: 'leave',
+    period_id: 1,
+    day: 15,
+    to_day: 12,
+    code: 'CL',
+    reason: 'family',
+  });
+  assert.equal(ok, false);
+  assert.match(problems.join(' '), /last day is before the first/);
+});
+
+test('a span on a kind that cannot span is refused rather than quietly dropped', () => {
+  const { ok, problems } = validateRequest({
+    kind: 'missing_punch',
+    period_id: 1,
+    day: 3,
+    to_day: 8,
+    in_time: '09:30',
+    reason: 'machine was down',
+  });
+  assert.equal(ok, false);
+  assert.match(problems.join(' '), /covers one day/);
+});
+
+test('a leave application has to say which kind of leave', () => {
+  const bad = validateRequest({ kind: 'leave', period_id: 1, day: 3, reason: 'family wedding' });
+  assert.equal(bad.ok, false);
+  assert.match(bad.problems.join(' '), /pick what the day should be/);
+
+  const good = validateRequest({
+    kind: 'leave',
+    period_id: 1,
+    day: 3,
+    to_day: 5,
+    code: 'CL',
+    reason: 'family wedding',
+  });
+  assert.equal(good.ok, true);
+});
+
+test('approving a leave application writes the mark on every day it covers', () => {
+  const entries = entriesFor({
+    kind: 'leave',
+    employee_id: 7,
+    day: 12,
+    to_day: 14,
+    code: 'PL',
+  });
+  assert.equal(entries.length, 3);
+  assert.deepEqual(
+    entries.map((e) => e.day),
+    [12, 13, 14],
+  );
+  assert.ok(entries.every((e) => e.code === 'PL' && e.employee_id === 7));
+});
+
+test('clock times are not repeated across a span - "in at 9:30" for a fortnight is nonsense', () => {
+  const entries = entriesFor({
+    kind: 'leave',
+    employee_id: 7,
+    day: 12,
+    to_day: 14,
+    code: 'SL',
+    in_time: '09:30',
+  });
+  assert.ok(entries.every((e) => e.in_time === undefined));
+});
+
+test('the one-line summary says how many days a leave application is for', () => {
+  const line = describeRequest({ kind: 'leave', day: 12, to_day: 15, code: 'CL' });
+  assert.match(line, /days 12–15 \(4 days\)/);
+  assert.match(line, /Casual Leave/);
 });

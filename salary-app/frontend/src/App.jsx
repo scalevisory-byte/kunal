@@ -454,7 +454,13 @@ function Shell() {
           <Leave
             periods={periods}
             employees={employees}
+            companies={companies}
+            period={period}
+            payrollRows={visibleRows}
+            locked={locked}
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
+            onPatchCompany={masterAction((id, patch) => api.patch(`/companies/${id}`, patch))}
+            onSaveAttendance={saveAttendance}
           />
         )}
 

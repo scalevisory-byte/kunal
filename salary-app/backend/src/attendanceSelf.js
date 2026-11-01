@@ -2,7 +2,7 @@ import { db, getEmployee, getPeriod, listEmployees, setAttendance } from './db.j
 import { config } from './config.js';
 import { log } from './logger.js';
 import { judgePunch, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
-import { canDecide, entryFor, validateRequest } from '../../shared/attendanceRequests.js';
+import { canDecide, daysOf, entriesFor, validateRequest } from '../../shared/attendanceRequests.js';
 
 /*
  * The employee's own side of attendance: punching from a phone, and asking for
@@ -198,13 +198,16 @@ export function createRequest(body) {
   const id = db
     .prepare(
       `INSERT INTO attendance_requests
-        (employee_id, period_id, day, kind, code, in_time, lunch_out, lunch_in, out_time, reason)
-       VALUES (@employee_id, @period_id, @day, @kind, @code, @in_time, @lunch_out, @lunch_in, @out_time, @reason)`
+        (employee_id, period_id, day, to_day, kind, code, in_time, lunch_out, lunch_in, out_time, reason)
+       VALUES (@employee_id, @period_id, @day, @to_day, @kind, @code, @in_time, @lunch_out, @lunch_in, @out_time, @reason)`
     )
     .run({
       employee_id: Number(body.employee_id),
       period_id: Number(body.period_id),
       day: Number(body.day),
+      // A leave application can run across days; everything else is one day,
+      // and a to_day on one of those is refused by validateRequest above.
+      to_day: body.to_day === undefined || body.to_day === null || body.to_day === '' ? null : Number(body.to_day),
       kind: body.kind,
       code: body.code || null,
       in_time: body.in_time || null,
@@ -227,8 +230,16 @@ export function decideRequest(id, { approve, by = 'office', note } = {}) {
   if (!may.ok) throw new Error(may.reason);
 
   if (approve) {
-    setAttendance(request.period_id, [entryFor(request)]);
-    log.info(`Attendance request ${id} approved by ${by}`);
+    // One entry per day the request covers - a fortnight of leave is one
+    // decision, and the grid is written in one transaction so a half-approved
+    // fortnight cannot exist.
+    const entries = entriesFor(request).map((entry) => ({ ...entry, by }));
+    setAttendance(request.period_id, entries);
+    const days = daysOf(request);
+    log.info(
+      `Attendance request ${id} approved by ${by}` +
+        (days.length > 1 ? ` (days ${days[0]}-${days[days.length - 1]})` : '')
+    );
   }
 
   db.prepare(

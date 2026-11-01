@@ -266,6 +266,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         esi_mode: emp.esi_mode || 'fixed',
         shift_in: emp.shift_in || null,
         shift_out: emp.shift_out || null,
+        weekly_off: emp.weekly_off || null,
       };
       return {
         ...row,
@@ -284,6 +285,7 @@ function buildPayroll(periodId, { sync = true } = {}) {
         ifsc: emp.ifsc || null,
         company_id: emp.company_id,
         company_name: companyOf(emp.company_id)?.name || '',
+        company_weekly_off: companyOf(emp.company_id)?.weekly_off || null,
         attendance: marks,
         mark_counts: countMarks(marks),
         sunday_days: sundayDaysFromAttendance(marks),
@@ -336,12 +338,21 @@ const ROW_FIELDS = [
   'payment_mode', 'status', 'sunday_status', 'sunday_mode', 'remark',
 ];
 
+/*
+ * Everything the server's own EMPLOYEE_FIELDS carries, and for the same reason:
+ * a field missing here cannot be saved in the single-file build at all. The
+ * salary breakup, the PF/ESI modes, the shift and the weekly off were all absent
+ * once, which made those panels look as if they worked and then quietly dropped
+ * what was typed.
+ */
 const EMPLOYEE_FIELDS = [
   'company_id', 'code', 'name', 'designation', 'religion', 'department',
   'dob', 'gender', 'phone', 'email', 'address',
   'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
   'bank_name', 'bank_account', 'ifsc',
   'cl_quota', 'sl_quota', 'pl_quota',
+  'basic', 'hra', 'conveyance', 'medical',
+  'pf_mode', 'esi_mode', 'shift_in', 'shift_out', 'weekly_off', 'reports_to_id',
   'monthly_salary', 'pf', 'esi', 'payment_mode', 'joined_on', 'left_on',
   'active', 'sort_order',
 ];
@@ -525,7 +536,8 @@ export async function handle(method, path, body) {
     const company = companyOf(Number(parts[1]));
     if (!company) throw new HttpError(404, 'not found');
     if (method === 'PATCH') {
-      for (const key of ['name', 'sort_order']) if (key in (body || {})) company[key] = body[key];
+      for (const key of ['name', 'sort_order', 'weekly_off'])
+        if (key in (body || {})) company[key] = body[key] === '' ? null : body[key];
       save();
       return company;
     }

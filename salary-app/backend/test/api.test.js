@@ -907,6 +907,49 @@ test('approving is what writes the attendance, and only once', async () => {
   assert.match(again.body.error, /already approved/);
 });
 
+test('a leave application is one request over many days, and one decision', async () => {
+  const before = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 22,
+    to_day: 25,
+    kind: 'leave',
+    code: 'CL',
+    reason: 'Family wedding in Rajkot',
+  });
+  assert.equal(raised.status, 201);
+  assert.equal(raised.body.to_day, 25);
+  assert.equal(raised.body.status, 'pending');
+
+  const pendingGrid = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  assert.deepEqual(pendingGrid, before, 'four days of leave asked for and nothing written');
+
+  const decided = await api('POST', `/api/attendance/requests/${raised.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const mine = grid.employees.find((e) => e.employee_id === employeeId);
+  for (const day of [22, 23, 24, 25]) {
+    assert.equal(mine.attendance[day]?.code, 'CL', `day ${day} should be casual leave`);
+  }
+  assert.notEqual(mine.attendance[26]?.code, 'CL', 'and the day after is untouched');
+});
+
+test('a leave application cannot be raised without saying which kind of leave', async () => {
+  const thin = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 20,
+    to_day: 21,
+    kind: 'leave',
+    reason: 'need two days',
+  });
+  assert.equal(thin.status, 400);
+});
+
 test('rejecting writes nothing beyond the decision', async () => {
   const pending = (await api('GET', '/api/attendance/requests?status=pending')).body.requests;
   const correction = pending.find((r) => r.kind === 'correction');

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
+import SandwichLeave from './SandwichLeave.jsx';
+import WeeklyOff from './WeeklyOff.jsx';
 
 /**
  * The leave register for a calendar year.
@@ -11,7 +13,20 @@ import { days } from '../format.js';
  * register and the grid can never disagree. Entitlement is set per employee;
  * anyone over it is flagged, because those days should have been unpaid.
  */
-export default function Leave({ periods, employees, onPatch }) {
+export default function Leave({
+  periods,
+  employees,
+  companies = [],
+  period,
+  // The month's calculated rows, for the sandwich tool. Named apart from the
+  // `rows` below, which are this year's leave balances.
+  payrollRows = [],
+  onPatch,
+  onPatchCompany,
+  onSaveAttendance,
+  locked,
+}) {
+  const [view, setView] = useState('balances');
   const [year, setYear] = useState(() => periods[0]?.year || new Date().getFullYear());
   const [rows, setRows] = useState([]);
   const [query, setQuery] = useState('');
@@ -72,8 +87,37 @@ export default function Leave({ periods, employees, onPatch }) {
 
   const overCount = rows.filter((r) => over(r).length > 0).length;
 
+  if (view === 'weekly') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        <WeeklyOff
+          companies={companies}
+          employees={employees}
+          onPatchCompany={onPatchCompany}
+          onPatchEmployee={onPatch}
+          locked={locked}
+        />
+      </section>
+    );
+  }
+
+  if (view === 'sandwich') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        {period && payrollRows.length ? (
+          <SandwichLeave period={period} rows={payrollRows} onSave={onSaveAttendance} locked={locked} />
+        ) : (
+          <p className="muted small">Open a month to look for sandwiched days.</p>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section className="stack">
+      <LeaveTabs view={view} setView={setView} />
       <div className="card">
         <div className="toolbar">
           <label className="inline-num">
@@ -196,5 +240,22 @@ export default function Leave({ periods, employees, onPatch }) {
         </p>
       </div>
     </section>
+  );
+}
+
+/** The three things the Leave tab answers: balances, the day off, the rule. */
+function LeaveTabs({ view, setView }) {
+  return (
+    <div className="sub-tabs toolbar">
+      {[
+        ['balances', 'Balances'],
+        ['weekly', 'The day off'],
+        ['sandwich', 'Sandwich leave'],
+      ].map(([key, label]) => (
+        <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

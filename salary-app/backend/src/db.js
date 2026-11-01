@@ -145,6 +145,8 @@ db.exec(`
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
     day         INTEGER NOT NULL,
+    -- Only a leave application spans days; null everywhere else.
+    to_day      INTEGER,
     kind        TEXT NOT NULL DEFAULT 'missing_punch',
     code        TEXT,
     in_time     TEXT,
@@ -435,6 +437,27 @@ for (const [column, type] of periodLateColumns) {
   }
 }
 
+/*
+ * Which day of the week is the day off, as JSON. Null means Sunday, which is
+ * what the app has always assumed and is right for most of the staff. A company
+ * sets the house rule; a person can carry their own (a driver off on Thursday).
+ * It changes which squares the grid treats as off days, not what any mark is
+ * worth - the salary engine counts marks and never asks what day it is.
+ */
+if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'weekly_off')) {
+  db.exec(`ALTER TABLE companies ADD COLUMN weekly_off TEXT`);
+  log.info('Migrated companies: added weekly_off.');
+}
+if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'weekly_off')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN weekly_off TEXT`);
+  log.info('Migrated employees: added weekly_off, for anybody not off on the company day.');
+}
+
+if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'to_day')) {
+  db.exec(`ALTER TABLE attendance_requests ADD COLUMN to_day INTEGER`);
+  log.info('Migrated attendance_requests: added to_day, so a leave application can cover a run of days.');
+}
+
 for (const column of ['sunday_status', 'sunday_mode']) {
   if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} TEXT`);
@@ -561,10 +584,10 @@ export function upsertCompany(name, sortOrder = 0) {
 export function updateCompany(id, patch) {
   const fields = [];
   const values = [];
-  for (const key of ['name', 'sort_order']) {
+  for (const key of ['name', 'sort_order', 'weekly_off']) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
-    values.push(patch[key]);
+    values.push(patch[key] === '' ? null : patch[key]);
   }
   if (!fields.length) return db.prepare(`SELECT * FROM companies WHERE id = ?`).get(id);
   db.prepare(`UPDATE companies SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
@@ -583,6 +606,7 @@ const EMPLOYEE_FIELDS = [
   'esi_mode',
   'shift_in',
   'shift_out',
+  'weekly_off',
   'basic',
   'hra',
   'conveyance',
@@ -678,6 +702,8 @@ export function createEmployee(input) {
     // Null means "the office's usual day", which is what almost everybody works.
     shift_in: input.shift_in || null,
     shift_out: input.shift_out || null,
+    // Null means "the company's day off", which is almost everybody.
+    weekly_off: input.weekly_off || null,
     basic: Number(input.basic) || 0,
     hra: Number(input.hra) || 0,
     conveyance: Number(input.conveyance) || 0,
@@ -960,6 +986,9 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               -- their own shift, so the late/early line is judged against the
               -- hours they actually work, not the office's default
               e.shift_in, e.shift_out,
+              -- the weekly off, theirs then the company's, so the grid knows
+              -- which squares were never working days for this person
+              e.weekly_off, c.weekly_off AS company_weekly_off,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
        JOIN employees e ON e.id = p.employee_id

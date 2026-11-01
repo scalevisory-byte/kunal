@@ -7,6 +7,7 @@ import {
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
+import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
 
 /**
  * The day-by-day grid from the left of the sheet.
@@ -103,6 +104,23 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     queueSave(next);
   };
 
+  /*
+   * Was this day ever a working day for this person?
+   *
+   * The app assumed Sunday everywhere, which is right for most of the staff and
+   * wrong for the rest - a driver off on Thursday, an office on alternate
+   * Saturdays. Their own weekly off wins, then their company's, then Sunday.
+   * Only *which* days are off moves: `S` still means the weekly off and `SP`
+   * still means it was worked, which is what the Sunday register pays from.
+   */
+  const offFor = (row, day) =>
+    isWeeklyOff(
+      period.year,
+      period.month,
+      day,
+      policyFor(row, { weekly_off: row?.company_weekly_off })
+    );
+
   /** Mark a whole row, skipping days that already carry a mark. */
   const fillRow = (row, code) => {
     if (locked) return;
@@ -110,7 +128,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     for (const day of dayList) {
       const entry = entryOf(row, day);
       if (entry.code) continue;
-      if (code === 'S' && !isSunday(period.year, period.month, day)) continue;
+      if (code === 'S' && !offFor(row, day)) continue;
       next[`${row.employee_id}:${day}`] = { ...entry, code };
     }
     setDraft(next);
@@ -133,7 +151,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
     const next = { ...draft };
     let changed = 0;
     for (let day = start; day <= end; day++) {
-      if (isSunday(period.year, period.month, day) !== sundayMark) continue;
+      if (offFor(row, day) !== sundayMark) continue;
       const entry = entryOf(row, day);
       if (entry.code === code) continue;
       next[`${row.employee_id}:${day}`] = { ...entry, code };
@@ -212,7 +230,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         if (entry.code) continue;
         next[`${row.employee_id}:${day}`] = {
           ...entry,
-          code: isSunday(period.year, period.month, day) ? 'S' : 'P',
+          code: offFor(row, day) ? 'S' : 'P',
         };
       }
     }
@@ -276,7 +294,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
                     const entry = entryOf(row, d);
                     const open = picker?.employeeId === row.employee_id && picker?.day === d;
                     return (
-                      <td key={d} className={`mark${isSunday(period.year, period.month, d) ? ' sunday' : ''}`}>
+                      <td key={d} className={`mark${offFor(row, d) ? ' sunday' : ''}`}>
                         <button
                           type="button"
                           className={`mark-cell code-${entry.code || 'none'}${open ? ' open' : ''}`}
@@ -456,10 +474,13 @@ function RangeMarker({ codes, row, period, entryOf, onApply, onClose }) {
   const monthName = new Date(period.year, period.month - 1, 1).toLocaleString('en-IN', { month: 'long' });
   const sundayMark = codes[code]?.sunday > 0 || code === 'S';
 
+  // Their own weekly off, same as the grid - a Thursday-off driver's range must
+  // skip Thursdays, not Sundays.
+  const policy = policyFor(row, { weekly_off: row?.company_weekly_off });
   const [start, end] = from <= to ? [from, to] : [to, from];
   const affected = [];
   for (let day = start; day <= end; day++) {
-    if (isSunday(period.year, period.month, day) !== sundayMark) continue;
+    if (isWeeklyOff(period.year, period.month, day, policy) !== sundayMark) continue;
     affected.push(day);
   }
   const changing = affected.filter((day) => entryOf(row, day).code !== code);
