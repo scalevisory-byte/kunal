@@ -1465,3 +1465,23 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   border-bottom: 1px solid var(--line-soft);
 }
 .dashboard .card > .late-head h2 { border-bottom: none; padding-bottom: 0; margin-bottom: 0.2rem; }
+
+/* A card that opens something says so: the pointer, and the same lift the
+   headline tiles use. The cursor is only on the card's own surface - a
+   button inside it keeps its own. */
+.dashboard .card[data-go] {
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.dashboard .card[data-go]:hover {
+  border-color: color-mix(in srgb, var(--text) 18%, var(--line));
+  transform: translateY(-1px);
+}
+.dashboard .card[data-go] input,
+.dashboard .card[data-go] select,
+.dashboard .card[data-go] textarea { cursor: auto; }
+
+/* The alert rows go to different places from each other, so the whole row is
+   the target rather than the "open" at the end of it. */
+.dashboard .alerts li { cursor: pointer; }
+.dashboard .alerts li:hover { background: var(--line-soft); }

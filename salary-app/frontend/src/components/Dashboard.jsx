@@ -681,8 +681,28 @@ export default function Dashboard({
     },
   ];
 
+  /*
+   * Every card opens the tab it is about, clicked anywhere on it.
+   *
+   * One listener on the page rather than a handler per card, and the card
+   * stays a <div>: these hold buttons, lists, a table and a set of bars, and a
+   * button inside a button is invalid HTML that stops the inner one working.
+   * So anything that started on a control of its own is left alone - that
+   * control has its own job, usually a more specific one - and dragging out a
+   * selection to copy a figure is not a click either.
+   *
+   * Each card also keeps its own "open" button, which is what a keyboard
+   * reaches; clicking the card is the mouse shortcut on top of it.
+   */
+  const openCard = (e) => {
+    if (e.target.closest('button, a, input, select, textarea, label')) return;
+    if (window.getSelection?.()?.toString()) return;
+    const card = e.target.closest('.card[data-go]');
+    if (card?.dataset.go) onGo(card.dataset.go);
+  };
+
   return (
-    <section className="stack dashboard">
+    <section className="stack dashboard" onClick={openCard}>
       <div className="kpi-band">
         {kpis.map((k) => (
           <button key={k.key} className="kpi" onClick={() => onGo(k.to)} title={`Open ${k.to}`}>
@@ -698,7 +718,7 @@ export default function Dashboard({
         ))}
       </div>
 
-      <div className="card roll-call">
+      <div className="card roll-call" data-go="attendance">
         <h2 className="roll-head">
           <button
             className="ghost"
@@ -912,7 +932,7 @@ export default function Dashboard({
        * reads.
        */}
       {queues.length > 0 && (
-        <div className="card">
+        <div className="card" data-go="people">
           <div className="late-head">
             <div>
               <h2>Waiting on somebody</h2>
@@ -934,7 +954,7 @@ export default function Dashboard({
       )}
 
       {assets?.totals?.assets > 0 && (
-        <div className="card">
+        <div className="card" data-go="people">
           <div className="late-head">
             <div>
               <h2>Assets</h2>
@@ -1006,7 +1026,9 @@ export default function Dashboard({
           <h2>Needs attention</h2>
           <ul className="alerts">
             {alerts.map((alert) => (
-              <li key={alert.key} className={alert.tone}>
+              /* Each row goes somewhere different, so the row is the target
+                 rather than only the word at the end of it. */
+              <li key={alert.key} className={alert.tone} onClick={() => onGo(alert.go)}>
                 <span>{alert.text}</span>
                 <button className="ghost tiny" onClick={() => onGo(alert.go)}>
                   open
@@ -1017,7 +1039,7 @@ export default function Dashboard({
         </div>
       )}
 
-      <div className="card dates-card">
+      <div className="card dates-card" data-go="employees">
         <h2>
           New joinees, birthdays &amp; anniversaries — {MONTHS[period.month - 1]} {period.year}
           <button className="ghost tiny" onClick={() => onGo('employees')}>open Employees</button>
@@ -1064,7 +1086,7 @@ export default function Dashboard({
         )}
       </div>
 
-      <div className="card">
+      <div className="card" data-go="sheet">
         <h2>
           {period.label} — the month
           {companyName && <span className="muted"> · {companyName}</span>}
@@ -1116,14 +1138,17 @@ export default function Dashboard({
       </div>
 
       {trend.length > 1 && (
-        <div className="card">
-          <h2>Days lost, last {trend.length} months</h2>
+        <div className="card" data-go="attendance">
+          <h2>
+            Days lost, last {trend.length} months
+            <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
+          </h2>
           <Trend trend={trend} current={period.id} onPeriod={onPeriod} />
         </div>
       )}
 
       <div className="dash-grid">
-        <div className="card">
+        <div className="card" data-go="attendance">
           <h2>
             Attendance <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
           </h2>
@@ -1139,7 +1164,7 @@ export default function Dashboard({
           </p>
         </div>
 
-        <div className="card">
+        <div className="card" data-go="time">
           <h2>
             Hours <button className="ghost tiny" onClick={() => onGo('time')}>open</button>
           </h2>
@@ -1164,7 +1189,7 @@ export default function Dashboard({
           )}
         </div>
 
-        <div className="card">
+        <div className="card" data-go="sunday">
           <h2>
             Sunday duty <button className="ghost tiny" onClick={() => onGo('sunday')}>open</button>
           </h2>
@@ -1178,7 +1203,7 @@ export default function Dashboard({
           </p>
         </div>
 
-        <div className="card">
+        <div className="card" data-go="reports">
           <h2>
             Statutory <button className="ghost tiny" onClick={() => onGo('reports')}>open</button>
           </h2>
@@ -1196,7 +1221,7 @@ export default function Dashboard({
       </div>
 
       <div className="dash-grid">
-        <div className="card wide">
+        <div className="card wide" data-go="attendance">
           <h2>
             Who stands out this month{' '}
             <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
@@ -1270,7 +1295,7 @@ export default function Dashboard({
           )}
         </div>
 
-        <div className="card">
+        <div className="card" data-go="reports">
           <h2>
             Filing <button className="ghost tiny" onClick={() => onGo('reports')}>open</button>
           </h2>
@@ -1292,8 +1317,11 @@ export default function Dashboard({
         </div>
       </div>
 
-      <div className="card">
-        <h2>By company</h2>
+      <div className="card" data-go="employees">
+        <h2>
+          By company
+          <button className="ghost tiny" onClick={() => onGo('employees')}>open</button>
+        </h2>
         <BarRows
           rows={companies
             .map((c) => ({
