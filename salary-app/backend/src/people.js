@@ -827,7 +827,11 @@ export const listHandovers = ({ asset_id, employee_id, open } = {}) => {
   if (open) where.push('h.returned_on IS NULL');
   return db
     .prepare(
-      `SELECT h.*, a.code, a.label, a.kind, a.purchase_cost, c.name AS company_name
+      `SELECT h.*, a.code, a.label, a.kind, a.purchase_cost,
+              -- The serial is what identifies the actual object on a document
+              -- somebody signs, so the slip needs it.
+              a.identifier,
+              c.name AS company_name
        FROM asset_handovers h
        JOIN assets a ON a.id = h.asset_id
        LEFT JOIN companies c ON c.id = a.company_id

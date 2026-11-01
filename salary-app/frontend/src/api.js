@@ -111,8 +111,8 @@ export async function download(path, filename) {
     const headers = {};
     const token = getToken();
     if (token) headers.authorization = `Bearer ${token}`;
-    const res = await fetch(`/api${path}`, { headers });
-    if (res.status === 401) throw new AuthError('Wrong password');
+    const res = await fetch(`/api${path}`, { headers, credentials: 'same-origin' });
+    if (res.status === 401) throw new AuthError('Sign in again');
     if (!res.ok) throw new Error(`Download failed (${res.status})`);
     blob = await res.blob();
   }

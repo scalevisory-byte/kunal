@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
-import { api } from '../../api.js';
+import { useEffect, useMemo, useState } from 'react';
+import { api, download } from '../../api.js';
+import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
+import AssetHistory from './AssetHistory.jsx';
+import HandoverSlips from './HandoverSlips.jsx';
+import StockTake from './StockTake.jsx';
 
 const KINDS = ['Laptop', 'Desktop', 'Mobile', 'SIM card', 'ID card', 'Access card', 'Vehicle', 'Tools', 'Furniture', 'Other'];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -8,117 +12,239 @@ const today = () => new Date().toISOString().slice(0, 10);
 /**
  * The asset register: laptops, ID cards, SIMs, tools.
  *
- * An asset with nobody against it is **in the office**, which is not the same
- * as lost - the list says so rather than leaving a blank to be read either way.
- * What is out and with whom is the one question this exists to answer, so those
- * rows sort to the top and the exit settlement reads the same list.
+ * Two things the page insists on saying in words rather than leaving blank. An
+ * asset with nobody against it is **in the office** — not lost. And what is
+ * **out of the building** gets its own figure, because an asset in the office is
+ * somewhere you can go and look.
  */
 export default function Assets({ employees, companies, onError }) {
   const [assets, setAssets] = useState([]);
-  const [outOnly, setOutOnly] = useState(false);
+  const [totals, setTotals] = useState({});
+  const [view, setView] = useState('register');
+  const [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  const [history, setHistory] = useState(null);
+  const [said, setSaid] = useState('');
   const [draft, setDraft] = useState({
     company_id: '',
+    branch_id: '',
     kind: 'Laptop',
     label: '',
     identifier: '',
-    value: '',
-    employee_id: '',
-    issued_on: today(),
+    purchase_cost: '',
+    purchase_date: today(),
+    vendor: '',
+    invoice_no: '',
+    warranty_until: '',
+    code: '',
   });
+  const [branches, setBranches] = useState([]);
 
-  const load = async (out = outOnly) => {
+  const load = async () => {
     try {
-      const { assets: list } = await api.get(`/people/assets${out ? '?out=true' : ''}`);
-      setAssets(list);
+      const body = await api.get(`/people/assets${filter === 'gone' ? '?written_off=true' : ''}`);
+      setAssets(body.assets);
+      setTotals(body.totals);
     } catch (err) {
       onError(err);
     }
   };
 
   useEffect(() => {
-    load(outOnly);
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outOnly]);
+  }, [filter]);
 
-  const save = async () => {
-    if (!draft.label.trim()) return;
+  useEffect(() => {
+    (async () => {
+      if (!draft.company_id) return setBranches([]);
+      try {
+        const { branches: list } = await api.get(`/companies/branches?company_id=${draft.company_id}`);
+        setBranches(list);
+      } catch {
+        setBranches([]);
+      }
+    })();
+  }, [draft.company_id]);
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return assets.filter((a) => {
+      if (filter === 'out' && !isOut(a)) return false;
+      if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
+      if (!q) return true;
+      return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [assets, filter, query]);
+
+  const act = async (call) => {
     try {
+      await call();
+      setSaid('');
+      load();
+    } catch (err) {
+      setSaid(err.message);
+    }
+  };
+
+  const add = () =>
+    act(async () => {
       await api.post('/people/assets', draft);
-      setDraft({ ...draft, label: '', identifier: '', value: '' });
+      setDraft({ ...draft, label: '', identifier: '', purchase_cost: '', invoice_no: '', code: '' });
       setAdding(false);
-      load();
-    } catch (err) {
-      onError(err);
-    }
-  };
+    });
 
-  const issue = async (asset, employeeId) => {
-    if (!employeeId) return;
-    try {
-      await api.post(`/people/assets/${asset.id}/issue`, { employee_id: Number(employeeId) });
-      load();
-    } catch (err) {
-      onError(err);
-    }
-  };
+  const issue = (asset, employeeId) =>
+    employeeId && act(() => api.post(`/people/assets/${asset.id}/issue`, { employee_id: Number(employeeId) }));
 
-  const back = async (asset) => {
+  const back = (asset) => {
     const condition = window.prompt(
-      `${asset.label} back from ${asset.employee_name}. What condition is it in? (leave empty for fine)`,
+      `${asset.code} ${asset.label} back from ${asset.employee_name}. What condition is it in? (leave empty for fine)`,
       ''
     );
     if (condition === null) return;
-    try {
-      await api.post(`/people/assets/${asset.id}/return`, { condition: condition || undefined });
-      load();
-    } catch (err) {
-      onError(err);
-    }
+    return act(() => api.post(`/people/assets/${asset.id}/return`, { condition: condition || undefined }));
   };
 
-  const remove = async (asset) => {
-    if (!window.confirm(`Remove ${asset.label} from the register?`)) return;
-    try {
-      await api.del(`/people/assets/${asset.id}`);
-      load();
-    } catch (err) {
-      onError(err);
-    }
+  const writeOff = (asset) => {
+    const why = window.prompt(
+      `Write off ${asset.code} ${asset.label}? It keeps its code and its history, and leaves the register.\n\nWhy?`,
+      ''
+    );
+    if (!why) return;
+    return act(() => api.post(`/people/assets/${asset.id}/write-off`, { why }));
   };
 
-  const out = assets.filter((a) => a.employee_id && !a.returned_on);
-  const outValue = out.reduce((sum, a) => sum + (Number(a.value) || 0), 0);
+  const remove = (asset) =>
+    window.confirm(`Remove ${asset.code} ${asset.label} from the register?`) &&
+    act(() => api.del(`/people/assets/${asset.id}`));
+
+  const label = (asset) => window.open(`/api/people/assets/${asset.id}/label.svg?h=14`, '_blank');
+
+  if (view === 'stock') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <StockTake onError={onError} />
+      </section>
+    );
+  }
+
+  if (view === 'slips') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <HandoverSlips onError={onError} />
+      </section>
+    );
+  }
 
   return (
     <section className="stack">
+      <Tabs view={view} setView={setView} />
+
       <div className="figures">
         <div className="figure">
           <span className="k">On the register</span>
-          <span className="n">{assets.length}</span>
+          <span className="n">{totals.count || 0}</span>
         </div>
         <div className="figure">
           <span className="k">Out with staff</span>
-          <span className="n">{out.length}</span>
+          <span className="n">{totals.out || 0}</span>
         </div>
         <div className="figure">
-          <span className="k">Worth</span>
-          <span className="n">{rupees(outValue)}</span>
+          <span className="k">Worth, out of the building</span>
+          <span className="n">{rupees(totals.out_value || 0)}</span>
+        </div>
+        <div className="figure">
+          <span className="k">Bought, in all</span>
+          <span className="n">{rupees(totals.cost || 0)}</span>
         </div>
       </div>
 
+      {(totals.warranty_gone?.length > 0 || totals.warranty_soon?.length > 0) && (
+        <ul className="alerts">
+          {totals.warranty_soon?.length > 0 && (
+            <li>
+              {totals.warranty_soon.length} warrant{totals.warranty_soon.length === 1 ? 'y runs' : 'ies run'} out
+              within a month: {totals.warranty_soon.map((a) => a.code).join(', ')}
+            </li>
+          )}
+          {totals.warranty_gone?.length > 0 && (
+            <li>
+              {totals.warranty_gone.length} out of warranty: {totals.warranty_gone.slice(0, 6).map((a) => a.code).join(', ')}
+              {totals.warranty_gone.length > 6 ? ' and more' : ''}
+            </li>
+          )}
+        </ul>
+      )}
+
       <div className="toolbar">
-        <label className="inline">
-          <input type="checkbox" checked={outOnly} onChange={(e) => setOutOnly(e.target.checked)} /> Only what is out
-        </label>
+        <div className="sub-tabs toolbar">
+          {[['all', 'Everything'], ['out', 'Out with staff'], ['office', 'In the office'], ['gone', 'Written off']].map(
+            ([key, text]) => (
+              <button key={key} className={filter === key ? 'active' : undefined} onClick={() => setFilter(key)}>
+                {text}
+              </button>
+            )
+          )}
+        </div>
+        <input
+          className="search"
+          placeholder="Code, name, serial, who has it"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Add an asset'}
+        </button>
+        {/*
+          * Fetched rather than linked, so the download carries whatever
+          * identifies this browser - a link works on a session cookie and
+          * 401s for somebody here on the API key.
+          */}
+        <button
+          className="ghost"
+          onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}
+        >
+          Register (CSV)
+        </button>
+        <button
+          className="ghost"
+          onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch((err) => setSaid(err.message))}
+        >
+          Handovers (CSV)
         </button>
       </div>
 
       {adding && (
         <div className="card">
           <div className="form-grid">
+            <label>
+              Company
+              <select value={draft.company_id} onChange={(e) => setDraft({ ...draft, company_id: e.target.value, branch_id: '' })}>
+                <option value="">Pick a company</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Branch
+              <select value={draft.branch_id} onChange={(e) => setDraft({ ...draft, branch_id: e.target.value })}>
+                <option value="">{branches.length ? 'Not in a branch' : 'No branches'}</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               What
               <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
@@ -132,7 +258,6 @@ export default function Assets({ employees, companies, onError }) {
             <label>
               Which one
               <input
-                type="text"
                 value={draft.label}
                 placeholder="Dell Latitude 3420"
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })}
@@ -140,97 +265,120 @@ export default function Assets({ employees, companies, onError }) {
             </label>
             <label>
               Serial / number
-              <input
-                type="text"
-                value={draft.identifier}
-                placeholder="serial, IMEI, SIM number"
-                onChange={(e) => setDraft({ ...draft, identifier: e.target.value })}
-              />
+              <input value={draft.identifier} onChange={(e) => setDraft({ ...draft, identifier: e.target.value })} />
             </label>
             <label>
-              Worth
+              What it cost
               <input
                 type="number"
-                value={draft.value}
-                onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+                value={draft.purchase_cost}
+                onChange={(e) => setDraft({ ...draft, purchase_cost: e.target.value })}
               />
             </label>
             <label>
-              Company
-              <select
-                value={draft.company_id}
-                onChange={(e) => setDraft({ ...draft, company_id: e.target.value })}
-              >
-                <option value="">—</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              Bought on
+              <input
+                type="date"
+                value={draft.purchase_date}
+                onChange={(e) => setDraft({ ...draft, purchase_date: e.target.value })}
+              />
             </label>
             <label>
-              Issue it to
-              <select
-                value={draft.employee_id}
-                onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}
-              >
-                <option value="">Nobody yet — keep it in the office</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
+              From
+              <input
+                value={draft.vendor}
+                placeholder="vendor"
+                onChange={(e) => setDraft({ ...draft, vendor: e.target.value })}
+              />
+            </label>
+            <label>
+              Invoice
+              <input value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} />
+            </label>
+            <label>
+              Warranty until
+              <input
+                type="date"
+                value={draft.warranty_until}
+                onChange={(e) => setDraft({ ...draft, warranty_until: e.target.value })}
+              />
+            </label>
+            <label>
+              Code
+              <input
+                value={draft.code}
+                placeholder="worked out for you"
+                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+              />
             </label>
           </div>
-          <button onClick={save} disabled={!draft.label.trim()}>
+          <p className="muted small">
+            Leave the code empty and it is worked out — <code>BPL-LAP-014</code>, which is whose it
+            is, what it is and which one. Type one if the sticker is already on it.
+          </p>
+          <button onClick={add} disabled={!draft.label.trim()}>
             Add it
           </button>
         </div>
       )}
 
-      {!assets.length ? (
-        <p className="muted small">Nothing on the register yet.</p>
+      {said && <p className="error">{said}</p>}
+
+      {!shown.length ? (
+        <p className="muted small">Nothing here.</p>
       ) : (
         <table className="sheet">
           <thead>
             <tr>
+              <th>Code</th>
               <th>What</th>
-              <th>Which</th>
               <th>Serial</th>
-              <th className="num">Worth</th>
+              <th className="num">Cost</th>
               <th>Where it is</th>
               <th>Since</th>
+              <th>Warranty</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {assets.map((asset) => {
-              const isOut = asset.employee_id && !asset.returned_on;
+            {shown.map((asset) => {
+              const out = isOut(asset);
               return (
                 <tr key={asset.id}>
-                  <td>{asset.kind}</td>
-                  <td className="sticky-name">{asset.label}</td>
-                  <td className="muted small">{asset.identifier || '—'}</td>
-                  <td className="num">{asset.value ? rupees(asset.value) : '—'}</td>
                   <td>
-                    {isOut ? (
-                      <strong>{asset.employee_name}</strong>
-                    ) : (
-                      <span className="muted">
-                        in the office
-                        {asset.returned_on ? ` since ${asset.returned_on}` : ''}
-                        {asset.condition ? ` — ${asset.condition}` : ''}
+                    <button className="link" onClick={() => setHistory(asset)}>
+                      {asset.code || '—'}
+                    </button>
+                  </td>
+                  <td className="sticky-name">
+                    {asset.kind} — {asset.label}
+                    {asset.branch_name && <div className="muted small">{asset.branch_name}</div>}
+                  </td>
+                  <td className="muted small">{asset.identifier || '—'}</td>
+                  <td className="num">{asset.purchase_cost ? rupees(asset.purchase_cost) : '—'}</td>
+                  <td>
+                    {out ? <strong>{asset.employee_name}</strong> : <span className="muted">{whereItIs(asset)}</span>}
+                    {asset.condition && !out && <div className="muted small">{asset.condition}</div>}
+                  </td>
+                  <td className="muted small">{out ? asset.issued_on || '—' : asset.returned_on || '—'}</td>
+                  <td className="muted small">
+                    {asset.warranty_until ? (
+                      <span className={asset.warranty_left_days < 0 ? 'overdue' : undefined}>
+                        {asset.warranty_until}
                       </span>
+                    ) : (
+                      '—'
                     )}
                   </td>
-                  <td className="muted small">{isOut ? asset.issued_on || '—' : '—'}</td>
                   <td>
-                    {isOut ? (
-                      <button className="ghost small" onClick={() => back(asset)}>
-                        take it back
-                      </button>
+                    {asset.written_off_on ? (
+                      <span className="muted small">written off {asset.written_off_on}</span>
+                    ) : out ? (
+                      <>
+                        <button className="ghost small" onClick={() => back(asset)}>
+                          take it back
+                        </button>{' '}
+                      </>
                     ) : (
                       <select value="" onChange={(e) => issue(asset, e.target.value)}>
                         <option value="">issue to…</option>
@@ -241,9 +389,21 @@ export default function Assets({ employees, companies, onError }) {
                         ))}
                       </select>
                     )}{' '}
-                    <button className="ghost small" onClick={() => remove(asset)}>
-                      remove
-                    </button>
+                    {asset.code && !asset.written_off_on && (
+                      <button className="ghost small" onClick={() => label(asset)}>
+                        label
+                      </button>
+                    )}{' '}
+                    {!asset.written_off_on &&
+                      (asset.handovers ? (
+                        <button className="ghost small" onClick={() => writeOff(asset)}>
+                          write off
+                        </button>
+                      ) : (
+                        <button className="ghost small" onClick={() => remove(asset)}>
+                          remove
+                        </button>
+                      ))}
                   </td>
                 </tr>
               );
@@ -251,6 +411,20 @@ export default function Assets({ employees, companies, onError }) {
           </tbody>
         </table>
       )}
+
+      {history && <AssetHistory asset={history} onClose={() => setHistory(null)} onError={onError} />}
     </section>
+  );
+}
+
+function Tabs({ view, setView }) {
+  return (
+    <div className="sub-tabs toolbar">
+      {[['register', 'Register'], ['slips', 'Who holds what'], ['stock', 'Stock take']].map(([key, text]) => (
+        <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
+          {text}
+        </button>
+      ))}
+    </div>
   );
 }

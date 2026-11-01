@@ -349,6 +349,8 @@ test('a handover slip lists only what somebody still has, and what they are sign
   assert.equal(body.company, 'BOOKNFLY PRIVATE LIMITED');
   assert.equal(body.items.length, 1, 'the written-off one is not on it');
   assert.equal(body.items[0].code, 'BPL-LAP-001');
+  // The serial identifies the actual object on a document somebody signs.
+  assert.equal(body.items[0].serial, 'SN-884421');
   assert.equal(body.total, 42000);
   assert.match(body.undertaking, /return them/);
 
