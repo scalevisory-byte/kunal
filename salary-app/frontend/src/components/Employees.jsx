@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
-import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
+import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import { rupees } from '../format.js';
 
@@ -21,6 +21,12 @@ const BLANK = {
   bank_name: '',
   bank_account: '',
   ifsc: '',
+  // The salary breakup. Blank is a real answer - "no structure yet" - and the
+  // app pays exactly the same either way.
+  basic: '',
+  hra: '',
+  conveyance: '',
+  medical: '',
 };
 
 /** The employee master: who gets paid, and what their monthly salary is. */
@@ -101,6 +107,15 @@ export default function Employees({
     }
   };
 
+  /* What the four boxes currently add up to, and what is left over. */
+  const addSplit = salaryStructure({
+    monthly_salary: Number(form.monthly_salary) || 0,
+    basic: Number(form.basic) || 0,
+    hra: Number(form.hra) || 0,
+    conveyance: Number(form.conveyance) || 0,
+    medical: Number(form.medical) || 0,
+  });
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
@@ -111,6 +126,10 @@ export default function Employees({
         monthly_salary: Number(form.monthly_salary) || 0,
         pf: Number(form.pf) || 0,
         esi: Number(form.esi) || 0,
+        basic: Number(form.basic) || 0,
+        hra: Number(form.hra) || 0,
+        conveyance: Number(form.conveyance) || 0,
+        medical: Number(form.medical) || 0,
       });
       setForm({ ...BLANK, company_id: form.company_id });
       /*
@@ -242,6 +261,93 @@ export default function Employees({
           </label>
           <button className="primary" type="submit">Add</button>
         </form>
+
+        {/*
+         * The breakup, on the same form. It is worth saying out loud that it
+         * changes nothing about what this person is paid: Basic, HRA and the
+         * rest are a division of the salary already typed above, and gross,
+         * net, PT and every deduction come out identical with or without
+         * them. What it buys is a payslip that shows lines, and PF charged on
+         * Basic rather than on the whole gross.
+         *
+         * Blank is a real answer. Most people will leave it and split later,
+         * or in bulk further down the page.
+         */}
+        <div className="split-add">
+          <div className="row">
+            <strong className="small">Salary structure</strong>
+            <button
+              type="button"
+              className="ghost tiny"
+              disabled={!(Number(form.monthly_salary) > 0)}
+              title={`Basic ${DEFAULT_TEMPLATE.basicPercent}%, HRA ${DEFAULT_TEMPLATE.hraPercentOfBasic}% of Basic, conveyance ${DEFAULT_TEMPLATE.conveyance}, medical ${DEFAULT_TEMPLATE.medical}`}
+              onClick={() => setForm({ ...form, ...applyTemplate(Number(form.monthly_salary)) })}
+            >
+              Use the usual split
+            </button>
+            {(form.basic || form.hra || form.conveyance || form.medical) && (
+              <button
+                type="button"
+                className="ghost tiny"
+                onClick={() =>
+                  setForm({ ...form, basic: '', hra: '', conveyance: '', medical: '' })
+                }
+              >
+                clear it
+              </button>
+            )}
+          </div>
+          <div className="form-grid">
+            <label>
+              Basic
+              <input
+                inputMode="decimal"
+                value={form.basic}
+                onChange={(e) => setForm({ ...form, basic: e.target.value })}
+              />
+            </label>
+            <label>
+              HRA
+              <input
+                inputMode="decimal"
+                value={form.hra}
+                onChange={(e) => setForm({ ...form, hra: e.target.value })}
+              />
+            </label>
+            <label>
+              Conveyance
+              <input
+                inputMode="decimal"
+                value={form.conveyance}
+                onChange={(e) => setForm({ ...form, conveyance: e.target.value })}
+              />
+            </label>
+            <label>
+              Medical
+              <input
+                inputMode="decimal"
+                value={form.medical}
+                onChange={(e) => setForm({ ...form, medical: e.target.value })}
+              />
+            </label>
+            <label title="Whatever is left of the salary. Never typed, so the parts cannot drift from the total.">
+              Special allowance
+              <input value={addSplit.set ? rupees(addSplit.special) : ''} readOnly disabled />
+            </label>
+          </div>
+          {addSplit.over ? (
+            <p className="error">
+              The parts come to {rupees(addSplit.named)}, which is {rupees(addSplit.overBy)} more
+              than the salary. Lower one of them.
+            </p>
+          ) : (
+            <p className="muted small">
+              Optional, and it does <strong>not</strong> change what they are paid — it only
+              divides the salary above into lines on the payslip. Leave it blank and the payslip
+              shows one figure.
+            </p>
+          )}
+        </div>
         {error && <p className="error">{error}</p>}
         <p className="muted small">
           <strong>Religion</strong> decides which festivals count as a paid holiday for someone.

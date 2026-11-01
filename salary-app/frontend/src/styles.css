@@ -1697,3 +1697,13 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   .page > header h1.here { grid-column: 2; }
   .page > header .top-row { grid-column: 1 / -1; }
 }
+
+/* The salary breakup sits under the add form, set apart by a hairline rather
+   than a card of its own: it belongs to the form above it, and it is optional. */
+.split-add {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line-soft);
+}
+.split-add .row { align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+.split-add input[readonly] { font-variant-numeric: tabular-nums; }
