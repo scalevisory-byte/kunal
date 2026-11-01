@@ -132,6 +132,9 @@ test('gratuity is 15 days per completed year on a 26-day month', () => {
   assert.equal(g.years, 8);
   assert.equal(g.amount, Math.round((20000 * 15 * 8) / 26));
   assert.equal(g.on, 'basic');
+  // The Act's rounding reads as a contradiction unless it is said out loud:
+  // 7 years 10 months is paid for 8, and the note says both figures.
+  assert.match(g.note, /7 years 9 months of service, counted as 8/);
 });
 
 test('under five years it is reported as not due, with the service length', () => {
@@ -139,6 +142,7 @@ test('under five years it is reported as not due, with the service length', () =
   assert.equal(g.eligible, false);
   assert.equal(g.amount, 0);
   assert.match(g.note, /under the 5 the Act asks for/);
+  assert.match(g.note, /2 years 9 months of service/);
 });
 
 test('with no breakup set the monthly salary stands in, and it says so', () => {

@@ -1191,3 +1191,31 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 .late-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .late-head h3 { margin: 0 0 0.2rem; }
 .late-head p { margin: 0; max-width: 46rem; }
+
+/* ---------------- the people registers ---------------- */
+
+/* Two lists side by side - what to pay against what to recover - falling to one
+   column on a phone, because a settlement is read on one. */
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; align-items: start; }
+@media (max-width: 760px) { .two-up { grid-template-columns: 1fr; } }
+
+/* A checkbox and its words on one line, rather than stacked like a form field. */
+label.inline {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  flex-direction: row; font-size: 0.79rem; color: var(--muted);
+}
+label.block { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); margin: 0.5rem 0; }
+
+button.small { font-size: 0.72rem; padding: 0.15rem 0.4rem; }
+
+/* Where a record stands. One accent each, and nothing shouts. */
+.pill.warning     { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.pill.appreciation{ color: var(--good, var(--brand)); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.pill.pending     { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.pill.approved    { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.pill.rejected    { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.pill.paid        { color: var(--muted); }
+
+/* The audit trail reads as a log, so it is set tight and monospaced where it
+   carries values rather than words. */
+.trail td.val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }

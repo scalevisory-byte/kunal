@@ -17,6 +17,7 @@ import Reports from './components/Reports.jsx';
 import SalarySheet from './components/SalarySheet.jsx';
 import SundayRegister from './components/SundayRegister.jsx';
 import TimeSheet from './components/TimeSheet.jsx';
+import People from './components/people/People.jsx';
 
 const TABS = [
   ['dashboard', 'Dashboard'],
@@ -28,6 +29,7 @@ const TABS = [
   ['loans', 'Loans'],
   ['employees', 'Employees'],
   ['hiring', 'Hiring'],
+  ['people', 'People'],
   ['reports', 'Reports'],
 ];
 
@@ -504,6 +506,16 @@ function Shell() {
               onError={handle}
             />
           ))}
+
+        {tab === 'people' && (
+          <People
+            employees={employees}
+            companies={companies}
+            period={period}
+            onError={handle}
+            onReload={loadAll}
+          />
+        )}
 
         {tab === 'reports' && <Reports period={period} payroll={payroll} onReload={loadAll} />}
       </main>

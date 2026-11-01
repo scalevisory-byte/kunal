@@ -189,13 +189,21 @@ export function gratuityOf({ basic, monthly_salary, service, rules } = {}) {
     wages: round0(wages),
     on: num(basic) > 0 ? 'basic' : 'monthly salary',
     amount,
-    note:
-      service?.known !== true
-        ? 'no joining date, so the service length is not known'
-        : eligible
-          ? `${years} completed ${years === 1 ? 'year' : 'years'} of service`
-          : `${years} ${years === 1 ? 'year' : 'years'} of service, under the ${settings.gratuity_years} the Act asks for`,
+    // Said carefully, because the Act's rounding reads as a contradiction next
+    // to the plain service length: somebody at 7 years 6 months is paid for 8.
+    note: noteFor(service, years, eligible, settings),
   };
+}
+
+function noteFor(service, years, eligible, settings) {
+  if (service?.known !== true) return 'no joining date, so the service length is not known';
+  const served = `${service.years} ${service.years === 1 ? 'year' : 'years'}${
+    service.months ? ` ${service.months} ${service.months === 1 ? 'month' : 'months'}` : ''
+  } of service`;
+  const rounded =
+    years > service.years ? `, counted as ${years} (a part year over six months counts as one)` : '';
+  if (eligible) return `${served}${rounded}`;
+  return `${served}${rounded}, under the ${settings.gratuity_years} the Act asks for`;
 }
 
 /**
