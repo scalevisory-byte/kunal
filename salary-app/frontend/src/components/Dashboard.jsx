@@ -12,6 +12,7 @@ import {
   parseTime,
 } from '../../../shared/timesheet.js';
 import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
+import Glyph from '../icons.jsx';
 import { shiftOfMonth } from '../standardTimes.js';
 
 /**
@@ -1626,36 +1627,5 @@ function BarRows({ rows, note }) {
         </div>
       ))}
     </div>
-  );
-}
-
-
-/*
- * Five line icons for the headline band. Drawn rather than taken from a font
- * or an emoji: an emoji renders in its own colours on top of the chip and
- * looks stuck on, and a whole icon library is 100 KB for five shapes.
- */
-const GLYPHS = {
-  people: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM2 21a7 7 0 0 1 14 0M17.5 11.5a3 3 0 1 0 0-6M19 21a6 6 0 0 0-3-5.2',
-  rupee: 'M7 4h10M7 9h10M15.5 4c0 3-2.2 5-5.5 5H7l8 11',
-  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2.2',
-  calendar: 'M4 8h16M7 3v3M17 3v3M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM8 13h2M14 13h2M8 17h2M14 17h2',
-  alert: 'M12 3 2.5 20h19L12 3ZM12 10v4.5M12 17.6v.1',
-};
-
-function Glyph({ name }) {
-  const d = GLYPHS[name];
-  if (!d) return null;
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
-      <path
-        d={d}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

@@ -19,20 +19,22 @@ import SundayRegister from './components/SundayRegister.jsx';
 import TimeSheet from './components/TimeSheet.jsx';
 import Admin from './components/admin/Admin.jsx';
 import People from './components/people/People.jsx';
+import Glyph from './icons.jsx';
 
+/* key, what it is called, its icon */
 const TABS = [
-  ['dashboard', 'Dashboard'],
-  ['sheet', 'Salary sheet'],
-  ['attendance', 'Attendance'],
-  ['time', 'Time'],
-  ['sunday', 'Sunday'],
-  ['leave', 'Leave'],
-  ['loans', 'Loans'],
-  ['employees', 'Employees'],
-  ['hiring', 'Hiring'],
-  ['people', 'People'],
-  ['reports', 'Reports'],
-  ['admin', 'Admin'],
+  ['dashboard', 'Dashboard', 'dashboard'],
+  ['sheet', 'Salary sheet', 'sheet'],
+  ['attendance', 'Attendance', 'attendance'],
+  ['time', 'Time', 'clock'],
+  ['sunday', 'Sunday', 'sunday'],
+  ['leave', 'Leave', 'leave'],
+  ['loans', 'Loans', 'loans'],
+  ['employees', 'Employees', 'employees'],
+  ['hiring', 'Hiring', 'hiring'],
+  ['people', 'People', 'person'],
+  ['reports', 'Reports', 'reports'],
+  ['admin', 'Admin', 'admin'],
 ];
 
 const PERIOD_KEY = 'salary-app-period';
@@ -77,6 +79,9 @@ export default function App() {
 
 function Shell() {
   const [ready, setReady] = useState(false);
+  // Declared with the rest: this sits above two early returns, and a hook
+  // after one of those is React error #310.
+  const [navOpen, setNavOpen] = useState(false);
   const [authed, setAuthed] = useState(false);
   // Who is signed in, and what their role carries. Used to hide what they
   // cannot do - the server refuses it regardless, so this is courtesy rather
@@ -336,14 +341,84 @@ function Shell() {
     : [];
 
   return (
-    <div className="app">
-      <header>
-        <h1>
-          BOOKNFLY HRMS
-          <span className="built" title="When this file was built. Every download lands as SalarySheet (2), (3)… so this is how to tell which one you have open.">
-            {BUILT_ON}
+    <div className={`app${navOpen ? ' nav-open' : ''}`}>
+      {/*
+        * The modules live down the side, not across the top. Twelve of them
+        * wrapped onto three lines on a phone and pushed every figure off the
+        * screen; down the side they are one list, and the top of the page is
+        * left for what this month is.
+        *
+        * On a phone the list slides in over the page and closes on the way
+        * out, so it costs nothing until it is asked for.
+        */}
+      <aside className="sidebar">
+        <div className="side-brand">
+          <span className="side-mark">BH</span>
+          <span className="side-name">
+            BOOKNFLY <strong>HRMS</strong>
+            <span className="built" title="When this file was built.">{BUILT_ON}</span>
           </span>
-        </h1>
+          <button
+            className="ghost side-close"
+            onClick={() => setNavOpen(false)}
+            title="Close the menu"
+          >
+            <Glyph name="close" size={16} />
+          </button>
+        </div>
+
+        <nav className="side-nav">
+          {visibleTabs.map(([key, label, icon]) => (
+            <button
+              key={key}
+              className={tab === key ? 'active' : undefined}
+              onClick={() => {
+                setTab(key);
+                setNavOpen(false);
+              }}
+            >
+              <Glyph name={icon} size={16} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {!STANDALONE && (
+          <div className="side-foot">
+            <button
+              className="ghost"
+              title={me ? `${me.name} — ${me.role}` : 'Sign out'}
+              onClick={async () => {
+                try {
+                  await api.post('/auth/logout', {});
+                } catch {
+                  // Signing out locally still matters even if that call failed.
+                }
+                clearToken();
+                setMe(null);
+                setAuthed(false);
+              }}
+            >
+              {me?.name ? `Sign out (${me.name})` : 'Sign out'}
+            </button>
+          </div>
+        )}
+      </aside>
+
+      {/* Tapping the page behind the menu closes it, as it should. */}
+      <div className="side-scrim" onClick={() => setNavOpen(false)} />
+
+      <div className="page">
+        <header>
+        <button
+          className="ghost side-open"
+          onClick={() => setNavOpen(true)}
+          title="Menu"
+          aria-label="Menu"
+        >
+          <Glyph name="menu" size={18} />
+        </button>
+        <h1 className="here">{visibleTabs.find(([k]) => k === tab)?.[1] || 'Dashboard'}</h1>
         {/*
           * The month and the company filter share one line. The companies were
           * a row of chips, which is five of them across two lines on a phone
@@ -384,32 +459,6 @@ function Shell() {
             </select>
           </label>
         </div>
-
-        <nav className="tabs">
-          {visibleTabs.map(([key, label]) => (
-            <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
-              {label}
-            </button>
-          ))}
-          {!STANDALONE && (
-            <button
-              className="ghost"
-              title={me ? `${me.name} — ${me.role}` : 'Sign out'}
-              onClick={async () => {
-                try {
-                  await api.post('/auth/logout', {});
-                } catch {
-                  // Signing out locally still matters even if that call failed.
-                }
-                clearToken();
-                setMe(null);
-                setAuthed(false);
-              }}
-            >
-              {me?.name ? `Sign out (${me.name})` : 'Sign out'}
-            </button>
-          )}
-        </nav>
       </header>
 
       {error && (
@@ -578,6 +627,7 @@ function Shell() {
           />
         )}
       </main>
+      </div>
 
       {payslip && period && (
         <Payslip
