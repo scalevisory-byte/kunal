@@ -1,9 +1,11 @@
 # Pending work list
 
-> **Updated 1 November 2026.** Phase 1 (items 1–3, 6) and Phase 2 (items 4, 5, 7, 8, 23) are
-> **done**. A fifth attendance bug was found while fixing the first four and is recorded in
-> BUGS_AND_IMPROVEMENTS.md. Items 9–22 (assets, maintenance, the dashboard tiles and the
-> missing reports) and item 24 (deploy) are what remain of the Essential list.
+> **Updated 1 November 2026.** Phases 1–5 are **done**: items 1–23 and 25, 26, 30. A fifth
+> attendance bug was found while fixing the first four and is recorded in
+> BUGS_AND_IMPROVEMENTS.md. **Item 24 — actually deploying it — is the only Essential item
+> left.** Of the Useful list, the birthdays card (27) needs data entry rather than code, and
+> selfie (28), device checks (29), the login audit (31, done) and asset photographs (32)
+> remain optional. 556 tests pass.
 
 Status key: **Complete** · **Partial** · **Missing** · **Bug** · **Not verified**
 Priority key: **Essential** (must develop) · **Useful** (if required) · **Future** (later)
@@ -22,20 +24,20 @@ Priority key: **Essential** (must develop) · **Useful** (if required) · **Futu
 | 6 | Admin | Refuse to run wide open | **Bug — FIXED** | `APP_PASSWORD` unset disables auth silently. The server should refuse to start unless `ALLOW_OPEN=true` is set deliberately | Essential |
 | 7 | Admin | Branch management | **FIXED** | Decide first (see DEVELOPMENT_PLAN §2): rename companies to branches, or add branches beneath a company. Do not build both | Essential |
 | 8 | Employee | Branch allocation | **FIXED** | Follows item 7 | Essential |
-| 9 | Asset | Asset ID | **Missing** | A human code (`BNF-LAP-014`) with a per-company series, unique, printed on the label | Essential |
-| 10 | Asset | Purchase details | **Partial** | Only `value` exists. Add purchase date, vendor, invoice number, warranty-until | Essential |
-| 11 | Asset | Barcode / QR generation | **Missing** | QR carrying the asset code, rendered as inline SVG and printable as a sheet of labels. No paid service, no large library | Essential |
-| 12 | Asset | Asset verification | **Missing** | A stock-take: scan or tick down a list, record who verified and when, report what was not found | Essential |
-| 13 | Asset | Asset-wise history view | **Partial** | Issue and return are on the audit trail; one asset's own timeline is not shown anywhere | Essential |
-| 14 | Maintenance | Maintenance records | **Missing** | One table: asset, date, what was done, vendor, cost, next service date | Essential |
-| 15 | Maintenance | Service cost and total cost of ownership | **Missing** | Purchase cost + all service cost per asset, with a guard against the same service being entered twice (same asset, same date, same amount) | Essential |
-| 16 | Maintenance | AMC and warranty | **Missing** | Dates on the asset; a flag when either is within 30 days or expired | Essential |
-| 17 | Maintenance | Maintenance reminders | **Missing** | Next-service dates due or overdue, on the dashboard and in the existing reminder digest. No new sending channel | Essential |
-| 18 | Dashboard | Pending approvals | **Missing** | The counts already exist in People → Reminders. Surface them as a tile that opens the right tab | Essential |
-| 19 | Dashboard | Asset and maintenance summary | **Missing** | Follows items 9–17 | Essential |
-| 20 | Reports | Asset register file | **Missing** | CSV / Excel of the register with purchase and cost columns | Essential |
-| 21 | Reports | Asset handover report | **Missing** | Who holds what, since when; and a handover slip per employee to sign | Essential |
-| 22 | Reports | Maintenance and service cost report | **Missing** | Follows items 14–16 | Essential |
+| 9 | Asset | Asset ID | **FIXED** | A human code (`BNF-LAP-014`) with a per-company series, unique, printed on the label | Essential |
+| 10 | Asset | Purchase details | **FIXED** | Only `value` exists. Add purchase date, vendor, invoice number, warranty-until | Essential |
+| 11 | Asset | Barcode / QR generation | **FIXED** | QR carrying the asset code, rendered as inline SVG and printable as a sheet of labels. No paid service, no large library | Essential |
+| 12 | Asset | Asset verification | **FIXED** | A stock-take: scan or tick down a list, record who verified and when, report what was not found | Essential |
+| 13 | Asset | Asset-wise history view | **FIXED** | Issue and return are on the audit trail; one asset's own timeline is not shown anywhere | Essential |
+| 14 | Maintenance | Maintenance records | **FIXED** | One table: asset, date, what was done, vendor, cost, next service date | Essential |
+| 15 | Maintenance | Service cost and total cost of ownership | **FIXED** | Purchase cost + all service cost per asset, with a guard against the same service being entered twice (same asset, same date, same amount) | Essential |
+| 16 | Maintenance | AMC and warranty | **FIXED** | Dates on the asset; a flag when either is within 30 days or expired | Essential |
+| 17 | Maintenance | Maintenance reminders | **FIXED** | Next-service dates due or overdue, on the dashboard and in the existing reminder digest. No new sending channel | Essential |
+| 18 | Dashboard | Pending approvals | **FIXED** | The counts already exist in People → Reminders. Surface them as a tile that opens the right tab | Essential |
+| 19 | Dashboard | Asset and maintenance summary | **FIXED** | Follows items 9–17 | Essential |
+| 20 | Reports | Asset register file | **FIXED** | CSV / Excel of the register with purchase and cost columns | Essential |
+| 21 | Reports | Asset handover report | **FIXED** | Who holds what, since when; and a handover slip per employee to sign | Essential |
+| 22 | Reports | Maintenance and service cost report | **FIXED** | Follows items 14–16 | Essential |
 | 23 | Technical | Server backup and restore | **FIXED** | Nightly `VACUUM INTO` to the data volume, retention, and a written restore procedure. The single-file build already has its own backup | Essential |
 | 24 | Technical | Deploy it | **Not verified** | `Dockerfile` and `railway.json` exist but the image has never been built. Nothing has ever run outside a laptop | Essential |
 
@@ -45,12 +47,12 @@ Priority key: **Essential** (must develop) · **Useful** (if required) · **Futu
 
 | No. | Module | Feature | Status | Pending work | Priority |
 |---|---|---|---|---|---|
-| 25 | Reports | Leave report as a file | **Partial** | On screen only. Add CSV and print, like the attendance report | Useful |
-| 26 | Reports | Employee master export | **Partial** | A per-employee report exists; the staff list cannot be exported | Useful |
+| 25 | Reports | Leave report as a file | **FIXED** | On screen only. Add CSV and print, like the attendance report | Useful |
+| 26 | Reports | Employee master export | **FIXED** | A per-employee report exists; the staff list cannot be exported | Useful |
 | 27 | Dashboard | Birthdays and anniversaries | **Partial** | The card works but `dob` and `joined_on` are blank for most staff. The fix is data entry, not code — the card already says how many people have neither | Useful |
 | 28 | Attendance | Selfie capture | **Missing** | Camera in the browser, image to disk beside the punch, shown next to it. Note honestly that it raises the cost of a forwarded link but does not stop it | Useful |
 | 29 | Attendance | Device verification | **Missing** | Remember the first device a link is used from and flag a new one. It is a flag, not a lock — a new phone is normal | Useful |
-| 30 | Admin | Settings screen | **Partial** | Per-month settings are scattered across tabs. One screen for shift times, concession, PT slab, hours per day | Useful |
+| 30 | Admin | Settings screen | **FIXED** | Per-month settings are scattered across tabs. One screen for shift times, concession, PT slab, hours per day | Useful |
 | 31 | Admin | Login audit | **Missing** | Who signed in, when, from where. Follows items 4–5 | Useful |
 | 32 | Asset | Asset photographs | **Missing** | Same pattern as employee documents — file on disk, expiring signed link | Useful |
 | 33 | Payroll | TDS | **Missing** | Nobody has asked for it and no salary here is near the threshold. Build only when somebody crosses it | Useful |
@@ -86,16 +88,23 @@ These become testable after items 14–15.
 
 ## 5. Counts
 
+As found at audit time:
+
 | Status | Count |
 |---|---|
 | Complete | 34 features across modules 1–5 |
 | Partial | 13 |
 | Missing | 19 |
-| Bug (confirmed, reproduced) | 4 |
+| Bug (confirmed, reproduced) | 4, and a 5th found while fixing them |
 | Not verified | 1 (deployment — the image has never been built) |
 
-| Priority | Items |
-|---|---|
-| Essential | 24 |
-| Useful | 9 |
-| Future | 6 |
+Where it stands now:
+
+| Priority | Done | Left |
+|---|---|---|
+| Essential | 23 of 24 | **deploying it** |
+| Useful | 3 of 9 | selfie, device checks, asset photos, TDS, birthdays data |
+| Future | 0 of 6 | all still deliberately parked |
+
+The three cost checks the brief asked for can now be run, and are:
+service cost, total cost of ownership, and duplicate service entries.

@@ -1113,6 +1113,145 @@ curl -H "Authorization: Bearer $APP_PASSWORD" \
      https://your-app/api/auth/backups/salary-2026-11-01.db
 ```
 
+## Assets
+
+### The code on the label
+
+A database id means nothing written on a laptop: two companies both have a 47 and nobody
+can read it back to you over the phone. So every asset gets a code —
+
+```
+BPL-LAP-014
+ │   │   └── which one, in that series
+ │   └────── what it is
+ └────────── whose it is
+```
+
+The series runs per company and per kind, and it reads the **highest number already used**
+rather than counting rows — so **a number is never reused**. An old service bill and a
+signed handover slip still refer to 002, and giving 002 to a second laptop makes both
+histories wrong.
+
+An office that already has stickers on its laptops can type its own code instead; it is
+tidied (uppercased, spaces out) rather than rejected.
+
+### The label
+
+Each asset prints a **Code 128 barcode** as an SVG sized in millimetres, with the code
+written underneath. It scans with any phone barcode app and with the cheap USB scanners an
+office already has — which is what the stock take uses.
+
+**Why a barcode and not a QR code.** A QR code needs Reed-Solomon error correction over a
+finite field: a few hundred lines that are easy to get subtly wrong and that should come
+from a library thousands of people have scanned. Code 128 is a lookup table and a weighted
+checksum — small enough to read, test and trust. There is a test asserting every one of the
+107 patterns is exactly 11 modules wide (13 for the stop) with no duplicates, because a
+single mistyped digit would give a barcode that looks perfect and scans as nothing. If a QR
+code is specifically wanted, that should be a small library rather than this file growing
+one.
+
+### Buying it, and what it cost
+
+`value` used to be one field doing two jobs — "what it cost" and "what it is worth". It is
+now **`purchase_cost`** and nothing else, alongside the purchase date, the vendor, the
+invoice number, the warranty date and the AMC. A current valuation is a different question,
+and nobody has asked for it.
+
+### Handovers, and their history
+
+Issuing to a second person used to overwrite the first, so "asset history" had nothing
+behind it. There is now a handover log: every issue and every return, kept.
+
+- Passing something **straight to somebody else** closes the first handover and records that
+  that is what happened, rather than losing it.
+- Issuing to the person who already has it does nothing.
+- The log is never read to work out who has it now — the register holds that. The two answer
+  different questions, so they cannot drift.
+
+### One asset's whole life
+
+Click a code: bought → issued → returned → issued → serviced → verified → written off, in
+date order, with the amounts. Assembled from the rows that already hold each of those, so
+nothing is stored twice and nothing can disagree with the register.
+
+### Who holds what, and a slip to sign
+
+One line per person with what they hold and what it is worth, and a printable slip. The slip
+lists only what they **still** have — a returned laptop has no business on a document they
+are putting their name to — and carries the undertaking above the signature, because the
+point of signing is agreeing to something specific. The serial is on it: that is what
+identifies the actual object.
+
+### The stock take
+
+**The distinction the whole feature exists for: "not checked" is not "missing".** Three
+figures, never two:
+
+| | |
+| --- | --- |
+| **Found** | somebody looked at it |
+| **Not found** | somebody looked for it and it was not there |
+| **Not checked yet** | nobody has looked |
+
+Counting the third as the second is how a stock take invents losses, and how somebody ends
+up being asked to pay for a laptop that is in a drawer. So "not found" comes from a verdict
+somebody actually recorded, and an asset bought halfway through a round is simply not looked
+at yet.
+
+Scan or type a code to tick it off. Checking the same asset again **replaces** the verdict
+rather than leaving two that disagree. The missing list says what it is worth and then says
+plainly that nothing is deducted from anybody on the strength of it.
+
+### Writing off, not deleting
+
+Anything that has ever been issued cannot be deleted — that would take its handovers and its
+service record with it. Writing it off **brings it back first**, so nobody is left holding
+something that no longer exists, and it keeps its row and its code while leaving the
+register. A written-off code is never handed to the next asset.
+
+## Asset maintenance
+
+### Duplicates are caught when they are typed
+
+The same service entered twice — **same asset, same date, same amount** — is the commonest
+way an asset's running cost comes out wrong. Catching it in a report means somebody has
+already closed a month on a wrong figure, so the check runs before the save.
+
+It **asks** rather than refuses. Two identical ₹500 repairs on one day do happen, and a
+system that will not record the truth gets worked around: the screen shows the service it
+resembles and the button becomes *Add it anyway*.
+
+The note is deliberately **not** part of the test — that is where somebody types "battery"
+one time and "Battery replacement" the next for the identical bill.
+
+### Total cost of ownership keeps its parts
+
+"This laptop has cost ₹45,500" and "₹42,000 of that was buying it" are different sentences
+and both get asked, so purchase and service are added for the total **and** reported
+separately, with service as a share of purchase.
+
+- An asset that cost nothing to acquire — a SIM, a gifted desk — gets no percentage rather
+  than a divide by zero.
+- The register names anything that has **cost more to keep than to buy**. That is usually the
+  moment to replace rather than repair again.
+- Work done free under warranty still goes on the record at what it actually cost. An asset
+  serviced four times for nothing is still an asset serviced four times.
+
+### Nothing is invented
+
+`next_service_on` is whatever the person doing the work said. A date this app worked out
+would produce reminders nobody asked for and nobody trusts, so **no date means not
+scheduled**, never overdue.
+
+Warranty and AMC are separate contracts with separate dates, and a lapsed AMC is its own
+alert — it needs something different doing about it than a service due next week.
+
+### What it reports
+
+Two files, both with a BOM: the **service log** (one line per service, with the asset's kind
+and the work's kind kept apart) and **cost of ownership** (one line per asset, purchase and
+service and total). Services also ride onto each asset's own timeline.
+
 ## Two ways to run it
 
 **As a single HTML file** — no server, no install, no deploy. Build it once:

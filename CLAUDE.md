@@ -583,6 +583,54 @@ the month it comes out of**.
   `EMPLOYEE_FIELDS` omitted them (write side) — so the salary-breakup and PF/ESI panels
   looked as if they worked there and silently did nothing. Both halves fixed.
 
+## Assets and maintenance — `/salary-app/` (Phases 3 and 4 of the audit plan)
+
+The audit found the register was a name, a serial, one number and the current holder, and
+that half of "handover" did not exist. `shared/assetCode.js`, `shared/barcode.js`,
+`shared/assetReport.js`, `shared/maintenance.js`, plus the tables in `backend/src/people.js`.
+
+- **`BPL-LAP-014`** — company prefix, kind prefix, running number. The series reads the
+  **highest number already used**, not a count, so **a number is never reused**: an old
+  service bill and a signed handover slip still refer to 002. A typed code is tidied, not
+  rejected, for an office that already has stickers on its laptops.
+- **Code 128, not QR, and the reason is in `shared/barcode.js`:** a QR code needs
+  Reed-Solomon over a finite field — hundreds of lines that are easy to get subtly wrong and
+  should come from a library thousands of people have scanned. Code 128 is a table plus a
+  weighted checksum. There is a test that all 107 patterns are 11 modules wide (13 for the
+  stop) with no duplicates, because one mistyped digit gives a barcode that looks perfect and
+  scans as nothing. **If QR is ever wanted, use a small library — do not grow one here.**
+- **`value` became `purchase_cost`** (migrated and the old column dropped — a column that
+  must never be written again is how two numbers end up disagreeing), alongside purchase
+  date, vendor, invoice, warranty, and the AMC as its own contract with its own date.
+- **`asset_handovers` is the log**, append-only, written by the same calls that move the
+  asset and **never read to work out the current holder** (the register holds that). The two
+  answer different questions, so they cannot drift. Passing something straight to somebody
+  else closes the first handover rather than losing it.
+- **The stock take's whole reason for existing: "not checked" is not "missing".** Three
+  figures, never two. "Not found" comes only from a verdict somebody recorded; an asset
+  bought mid-round is simply not looked at yet. Counting the third as the second invents
+  losses and gets somebody asked to pay for a laptop that is in a drawer. Re-checking
+  replaces the verdict rather than leaving two that disagree.
+- **Written off, not deleted** — anything ever issued refuses deletion (that would take its
+  handovers and services with it). Writing off brings it back first, so nobody is left
+  holding something that no longer exists, and it keeps its row and code.
+- **The maintenance duplicate check runs before the save and ASKS** (409 carrying the row it
+  resembles, button becomes "Add it anyway"), because two identical repairs on one day happen
+  and a system that will not record the truth gets worked around. Same asset + same date +
+  same amount; **deliberately not the note**, which is where "battery" and "Battery
+  replacement" mean the same bill.
+- **`next_service_on` is never computed** — only what the person doing the work said. No date
+  means not scheduled, never overdue.
+- The register names anything that has **cost more to keep than to buy**; free warranty work
+  still counts as a service at ₹0.
+- **Two bugs worth remembering, both from `SELECT s.*` plus a join:** `a.kind` silently
+  replaced the *service's* kind (Repair) with the *asset's* kind (Laptop) so the timeline read
+  "Laptop"; and `getService` returned SQLite's 0/1 for `under_warranty` where `listServices`
+  returned true/false, so a POST echo and a list disagreed about one row.
+- **And a trap hit twice:** a backtick inside an SQL comment that sits inside a JS template
+  literal closes the literal. `db.exec(\`… -- see \`foo\` …\`)` is a syntax error. Never put
+  backticks in a comment inside a template string.
+
 ## Hiring — HRMS module 5, inside `/salary-app/`
 
 Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") and it was first built as
