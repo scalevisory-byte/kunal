@@ -143,8 +143,7 @@ export default function Dashboard({
     const unpaid = worked.filter((r) => r.sunday_status !== 'paid');
     return {
       people: worked.length,
-      amount: worked.reduce((s, r) => s + r.sunday_salary, 0),
-      unpaid: unpaid.reduce((s, r) => s + r.sunday_salary, 0),
+      days: worked.reduce((s, r) => s + r.sundays_worked, 0),
       unpaidCount: unpaid.length,
     };
   }, [rows]);
@@ -481,24 +480,6 @@ export default function Dashboard({
     };
   }, [monthly, rows]);
 
-  /** What is going out by which route, for the person doing the paying. */
-  const byMode = useMemo(() => {
-    const modes = new Map();
-    for (const row of rows) {
-      // Modes come in from the sheet however they were typed - Gpay and GPAY
-      // are one route, not two - so they are grouped case-insensitively.
-      const typed = (row.payment_mode || '').trim();
-      const key = typed.toLowerCase() || 'not set';
-      const mode = typed || 'Not set';
-      const at = modes.get(key) || { mode, count: 0, amount: 0, paid: 0 };
-      at.count++;
-      at.amount += row.final_payable;
-      if (row.status === 'paid') at.paid += row.final_payable;
-      modes.set(key, at);
-    }
-    return [...modes.values()].sort((a, b) => b.amount - a.amount);
-  }, [rows]);
-
   /**
    * What has to be paid over, and roughly when. The dates are the ordinary
    * ones for a Gujarat employer - PF and ESI by the 15th of the following
@@ -512,14 +493,9 @@ export default function Dashboard({
       : { year: period.year, month: period.month + 1 };
     const by = (day) => `${day} ${MONTHS[next.month - 1].slice(0, 3)} ${next.year}`;
     return [
-      {
-        label: 'PF',
-        note: `employee ${rupees(totals.pf)} + employer share`,
-        amount: totals.pf,
-        due: by(15),
-      },
-      { label: 'ESI', note: 'employee + employer share', amount: totals.esi, due: by(15) },
-      { label: 'Professional tax', note: 'per company', amount: totals.pt, due: by(15) },
+      { label: 'PF', note: 'employee + employer share', due: by(15) },
+      { label: 'ESI', note: 'employee + employer share', due: by(15) },
+      { label: 'Professional tax', note: 'per company', due: by(15) },
     ];
   }, [period, totals]);
 
@@ -550,13 +526,13 @@ export default function Dashboard({
     money.pendingCount > 0 && {
       key: 'pending',
       tone: 'warn',
-      text: `${money.pendingCount} ${money.pendingCount === 1 ? 'salary' : 'salaries'} still to pay — ${rupees(money.pending)}`,
+      text: `${money.pendingCount} ${money.pendingCount === 1 ? 'salary' : 'salaries'} still to pay`,
       go: 'sheet',
     },
     sunday.unpaidCount > 0 && {
       key: 'sunday',
       tone: 'warn',
-      text: `${sunday.unpaidCount} Sunday payments still to make — ${rupees(sunday.unpaid)}`,
+      text: `${sunday.unpaidCount} Sunday payments still to make`,
       go: 'sunday',
     },
     unmarkedPeople.length > 0 &&
@@ -612,7 +588,7 @@ export default function Dashboard({
     money.holdCount > 0 && {
       key: 'hold',
       tone: 'warn',
-      text: `${money.holdCount} on hold — ${rupees(money.hold)}${naming(
+      text: `${money.holdCount} on hold${naming(
         rows.filter((r) => r.status === 'hold'),
         (r) => r.employee_name
       )}`,
@@ -635,30 +611,6 @@ export default function Dashboard({
   const nothingMarked = rows.length > 0 && roll.unmarked.length === rows.length;
   const monthHasToday = now.getFullYear() === period.year && now.getMonth() + 1 === period.month;
   const isToday = monthHasToday && now.getDate() === shownDay;
-
-  /*
-   * The bar carries four colours. A fifth payment mode does NOT start the four
-   * again - two rows in the same colour read as the same thing - so anything
-   * past the fourth is added up as "Other" and the table below names them.
-   */
-  const COLOURED_MODES = 4;
-  const ranked = [...byMode].sort((a, b) => b.amount - a.amount);
-  const rest = ranked.slice(COLOURED_MODES);
-  const modeBars = ranked.slice(0, COLOURED_MODES).map((mode, i) => ({
-    label: mode.mode,
-    value: mode.amount,
-    tone: `s${i + 1}`,
-    text: rupees(mode.amount),
-  }));
-  if (rest.length) {
-    const other = rest.reduce((sum, m) => sum + m.amount, 0);
-    modeBars.push({
-      label: `Other (${rest.length})`,
-      value: other,
-      tone: 'none',
-      text: rupees(other),
-    });
-  }
 
   /*
    * The five figures somebody opens this page to see. Everything below is the
@@ -685,22 +637,26 @@ export default function Dashboard({
       to: 'attendance',
     },
     {
-      key: 'net',
-      icon: 'rupee',
+      key: 'staff',
+      icon: 'people',
       tone: 'paid',
-      label: 'Net payable',
-      value: rupees(totals.net_salary),
-      caption: `${rows.length} on the payroll`,
-      to: 'sheet',
+      label: 'On the payroll',
+      value: rows.length,
+      caption: `${companies.length} ${companies.length === 1 ? 'company' : 'companies'}`,
+      to: 'employees',
     },
     {
-      key: 'pending',
+      key: 'hours',
       icon: 'clock',
-      tone: money.pending > 0 ? 'absent' : 'present',
-      label: 'Still to pay',
-      value: rupees(money.pending),
-      caption: money.pending > 0 ? `${money.pendingCount} people` : 'everybody is paid',
-      to: 'sheet',
+      tone: attendance.hours.short > attendance.hours.overtime ? 'half' : 'present',
+      label: 'Hours worked',
+      value: attendance.hours.days ? formatDuration(attendance.hours.worked) : '—',
+      caption: attendance.hours.days
+        ? `${formatDuration(attendance.hours.short)} short · ${formatDuration(
+            attendance.hours.overtime
+          )} over`
+        : 'no clock times yet',
+      to: 'time',
     },
     {
       key: 'rate',
@@ -1110,44 +1066,40 @@ export default function Dashboard({
 
       <div className="card">
         <h2>
-          {period.label} — the money
+          {period.label} — the month
           {companyName && <span className="muted"> · {companyName}</span>}
           {period.locked ? <span className="pill locked"> Locked</span> : null}
+          <button className="ghost tiny" onClick={() => onGo('sheet')}>
+            open the salary sheet
+          </button>
         </h2>
 
         <div className="stat-row">
           <Stat label="Staff" value={rows.length} plain go={onGo} to="employees" />
-          <Stat label="Gross" value={totals.gross_salary} go={onGo} to="sheet" />
-          <Stat label="Deductions" value={money.deductions} go={onGo} to="sheet" />
-          <Stat label="Net payable" value={totals.net_salary} strong go={onGo} to="sheet" />
-          <Stat label="Paid" value={money.paid} sub={`${money.paidCount} of ${rows.length}`} go={onGo} to="sheet" />
-          <Stat
-            label="Still to pay"
-            value={money.pending}
-            sub={`${money.pendingCount} people`}
-            go={onGo}
-            to="sheet"
-          />
+          <Stat label="Salaries paid" value={`${money.paidCount} of ${rows.length}`} plain go={onGo} to="sheet" />
+          <Stat label="Still to pay" value={money.pendingCount} plain go={onGo} to="sheet" />
+          <Stat label="On hold" value={money.holdCount} plain go={onGo} to="sheet" />
+          <Stat label="Days lost" value={days(thisMonth.absent)} plain go={onGo} to="attendance" />
         </div>
 
+        {/* How many are settled, not what they came to. */}
         <SegBar
           parts={[
-            { label: 'Paid', value: money.paid, tone: 'paid', text: rupees(money.paid) },
+            { label: 'Paid', value: money.paidCount, tone: 'paid', text: money.paidCount },
             {
               label: 'Still to pay',
-              value: money.pending,
+              value: money.pendingCount,
               tone: 'none',
-              text: rupees(money.pending),
+              text: money.pendingCount,
             },
           ]}
-          empty="Nothing to pay this month yet."
+          unit=" people"
+          empty="Nobody on this month yet."
         />
 
         {previous ? (
           <p className="compare small">
             <span className="muted">Against {previous.label}:</span>
-            <Delta label="net" now={thisMonth.net} was={previous.net} money />
-            <Delta label="gross" now={thisMonth.gross} was={previous.gross} money />
             <Delta label="staff" now={thisMonth.staff} was={previous.staff} />
             <Delta label="days lost" now={thisMonth.absent} was={previous.absent} invert />
           </p>
@@ -1157,11 +1109,15 @@ export default function Dashboard({
             never opened.
           </p>
         )}
+        <p className="muted small">
+          What the month comes to is on the <strong>Salary sheet</strong> and in{' '}
+          <strong>Reports</strong>, not here.
+        </p>
       </div>
 
       {trend.length > 1 && (
         <div className="card">
-          <h2>Last {trend.length} months</h2>
+          <h2>Days lost, last {trend.length} months</h2>
           <Trend trend={trend} current={period.id} onPeriod={onPeriod} />
         </div>
       )}
@@ -1214,10 +1170,12 @@ export default function Dashboard({
           </h2>
           <div className="stat-row">
             <Stat label="People" value={sunday.people} plain />
-            <Stat label="Amount" value={sunday.amount} />
-            <Stat label="Still to pay" value={sunday.unpaid} sub={`${sunday.unpaidCount} people`} />
+            <Stat label="Days worked" value={days(sunday.days)} plain />
+            <Stat label="Still to pay" value={sunday.unpaidCount} plain />
           </div>
-          <p className="muted small">Paid on its own register, apart from the month's salary.</p>
+          <p className="muted small">
+            Paid on its own register, apart from the month's salary — the amounts are there.
+          </p>
         </div>
 
         <div className="card">
@@ -1225,11 +1183,15 @@ export default function Dashboard({
             Statutory <button className="ghost tiny" onClick={() => onGo('reports')}>open</button>
           </h2>
           <div className="stat-row">
-            <Stat label="PF" value={totals.pf} sub={`${statutory?.pf.rows.length || 0} people`} />
-            <Stat label="ESI" value={totals.esi} sub={`${statutory?.esi.rows.length || 0} people`} />
-            <Stat label="PT" value={totals.pt} sub={`${statutory?.pt.exempt || 0} under the slab`} />
-            <Stat label="Loans" value={loans.thisMonth} sub={`${loans.people} people`} />
+            <Stat label="On PF" value={statutory?.pf.rows.length || 0} plain />
+            <Stat label="On ESI" value={statutory?.esi.rows.length || 0} plain />
+            <Stat label="Under the PT slab" value={statutory?.pt.exempt || 0} plain />
+            <Stat label="Repaying a loan" value={loans.people} plain />
           </div>
+          <p className="muted small">
+            How many people, not how much — the registers and the figures are under{' '}
+            <strong>Reports</strong>.
+          </p>
         </div>
       </div>
 
@@ -1310,42 +1272,6 @@ export default function Dashboard({
 
         <div className="card">
           <h2>
-            How it goes out <button className="ghost tiny" onClick={() => onGo('sheet')}>open</button>
-          </h2>
-          <SegBar
-            parts={modeBars}
-          />
-          {rows.length ? (
-            <table className="sheet">
-              <thead>
-                <tr>
-                  <th className="sticky-name">Mode</th>
-                  <th>People</th>
-                  <th>Amount</th>
-                  <th>Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {byMode.map((mode) => (
-                  <tr key={mode.mode}>
-                    <td className="sticky-name">{mode.mode}</td>
-                    <td className="num">{mode.count}</td>
-                    <td className="num">{rupees(mode.amount)}</td>
-                    <td className="num muted">{rupees(mode.paid)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="muted small">No rows yet.</p>
-          )}
-          <p className="muted small">
-            Sunday duty is not in here — it is paid from its own register, in its own way.
-          </p>
-        </div>
-
-        <div className="card">
-          <h2>
             Filing <button className="ghost tiny" onClick={() => onGo('reports')}>open</button>
           </h2>
           <ul className="due-list">
@@ -1355,7 +1281,6 @@ export default function Dashboard({
                   {filing.label}
                   <span className="hint">{filing.note}</span>
                 </span>
-                <span className="num">{rupees(filing.amount)}</span>
                 <span className="muted small">by {filing.due}</span>
               </li>
             ))}
@@ -1373,12 +1298,12 @@ export default function Dashboard({
           rows={companies
             .map((c) => ({
               label: c.name,
-              value: c.totals.net_salary,
-              text: rupees(c.totals.net_salary),
-              staff: c.totals.count,
+              value: c.totals.count,
+              text: `${c.totals.count}`,
+              rate: presentRate(c.rows),
             }))
             .sort((a, b) => b.value - a.value)}
-          note={(r) => `${r.staff} on the payroll`}
+          note={(r) => `${r.rate} present`}
         />
         <div className="table-wrap">
           <table className="sheet">
@@ -1386,12 +1311,9 @@ export default function Dashboard({
               <tr>
                 <th className="sticky-name">Company</th>
                 <th>Staff</th>
-                <th>Gross</th>
-                <th>Deductions</th>
-                <th>Net payable</th>
                 <th title="Days marked present, out of the days that carry any mark">Present</th>
                 <th>Days lost</th>
-                <th>Paid</th>
+                <th>Salaries paid</th>
                 <th>Still to pay</th>
               </tr>
             </thead>
@@ -1404,27 +1326,18 @@ export default function Dashboard({
                   <tr key={company.id}>
                     <td className="sticky-name">{company.name}</td>
                     <td className="num">{t.count}</td>
-                    <td className="num">{rupees(t.gross_salary)}</td>
-                    <td className="num">
-                      {rupees(t.pt + t.esi + t.pf + t.loan_deduction + t.deduction)}
-                    </td>
-                    <td className="num grand">{rupees(t.net_salary)}</td>
                     <td className="num">{presentRate(company.rows)}</td>
                     <td className="num">
                       {days(company.rows.reduce((sum, r) => sum + r.absent_days, 0))}
                     </td>
-                    <td className="num muted">
-                      {paid.length} · {rupees(paid.reduce((s, r) => s + r.final_payable, 0))}
-                    </td>
-                    <td className="num">
-                      {outstanding.length} · {rupees(outstanding.reduce((s, r) => s + r.final_payable, 0))}
-                    </td>
+                    <td className="num muted">{paid.length}</td>
+                    <td className="num">{outstanding.length}</td>
                   </tr>
                 );
               })}
               {!companies.length && (
                 <tr>
-                  <td colSpan={9} className="empty">
+                  <td colSpan={6} className="empty">
                     No companies yet — add one under <strong>Employees</strong>.
                   </td>
                 </tr>
@@ -1568,22 +1481,27 @@ function NameList({ label, list, name = (e) => e.name, suffix, all }) {
  * library - it is one series and a handful of months, and the standalone file
  * has to stay one file.
  */
+/*
+ * The months behind this one. It used to draw net payable; the dashboard
+ * carries no money now, so it draws days lost - the figure this page is
+ * actually about, and the one worth seeing a run of.
+ */
 function Trend({ trend, current, onPeriod }) {
-  const top = Math.max(...trend.map((t) => t.net), 1);
+  const top = Math.max(...trend.map((t) => t.absent), 1);
   return (
     <div className="trend">
       {trend.map((month) => {
-        const height = Math.max(2, Math.round((month.net / top) * 100));
+        const height = Math.max(2, Math.round((month.absent / top) * 100));
         const isNow = month.period.id === current;
         return (
           <button
             key={month.period.id}
             className={`trend-bar${isNow ? ' now' : ''}`}
             disabled={!onPeriod || isNow}
-            title={`${month.period.label} — ${month.staff} staff, gross ${rupees(month.gross)}, ${days(month.absent)} days lost`}
+            title={`${month.period.label} — ${month.staff} staff, ${days(month.absent)} days lost`}
             onClick={() => onPeriod?.(month.period.id)}
           >
-            <span className="trend-value">{rupees(month.net)}</span>
+            <span className="trend-value">{days(month.absent)}</span>
             <span className="trend-track">
               <span className="trend-fill" style={{ height: `${height}%` }} />
             </span>
