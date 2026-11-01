@@ -14,6 +14,15 @@ import { log } from '../logger.js';
 import { makeToken, readToken } from '../tokens.js';
 import { nextKind } from '../../../shared/punchClock.js';
 import { REQUEST_KINDS } from '../../../shared/attendanceRequests.js';
+import {
+  TICKET_CATEGORIES,
+  createTicket,
+  getTicket,
+  listTasks,
+  listTickets,
+  replyToTicket,
+  setTaskStatus,
+} from '../people.js';
 
 export const punchRouter = Router();
 
@@ -52,10 +61,17 @@ const whoever = (req, res) => {
   return employee;
 };
 
-/** A crude per-link rate limit: a punch is one tap, not forty. */
+/**
+ * A crude per-link rate limit: a punch is one tap, not forty.
+ *
+ * The counter is per link AND per route. It used to be per link alone, which
+ * meant the limits interfered: twenty punches would use up the allowance for
+ * raising a ticket, and the strictest route on the page was starved by traffic
+ * to the loosest. Each route now has its own bucket for the minute.
+ */
 const hits = new Map();
-const rateLimit = (max) => (req, res, next) => {
-  const key = `${req.params.token}:${Math.floor(Date.now() / 60000)}`;
+const rateLimit = (max, bucket) => (req, res, next) => {
+  const key = `${req.params.token}:${bucket}:${Math.floor(Date.now() / 60000)}`;
   const n = (hits.get(key) || 0) + 1;
   hits.set(key, n);
   if (hits.size > 5000) hits.clear();
@@ -90,10 +106,15 @@ punchRouter.get('/:token', (req, res) => {
     periods: listPeriods()
       .filter((p) => !p.locked)
       .map((p) => ({ id: p.id, label: p.label, year: p.year, month: p.month })),
+    // Their own work and their own tickets. Same fence as everything else here:
+    // the id comes from the token, so there is no way to read anybody else's.
+    tasks: listTasks({ employee_id: employee.id }).slice(0, 30),
+    tickets: listTickets({ employee_id: employee.id }).slice(0, 20),
+    ticket_categories: TICKET_CATEGORIES,
   });
 });
 
-punchRouter.post('/:token/punch', rateLimit(20), (req, res) => {
+punchRouter.post('/:token/punch', rateLimit(20, 'punch'), (req, res) => {
   const employee = whoever(req, res);
   if (!employee) return;
 
@@ -124,7 +145,7 @@ punchRouter.post('/:token/punch', rateLimit(20), (req, res) => {
   });
 });
 
-punchRouter.post('/:token/requests', rateLimit(10), (req, res) => {
+punchRouter.post('/:token/requests', rateLimit(10, 'requests'), (req, res) => {
   const employee = whoever(req, res);
   if (!employee) return;
   try {
@@ -143,6 +164,60 @@ punchRouter.post('/:token/requests/:id/withdraw', (req, res) => {
     const request = withdrawRequest(Number(req.params.id), employee.id);
     if (!request) return res.status(404).json({ error: 'not found' });
     res.json(request);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- their own work ---------------- */
+
+/**
+ * Tick a task off, or put it back. Only their own, and only between open and
+ * done - a task cannot be dropped from here, because dropping work somebody
+ * gave you is the office's decision, not yours.
+ */
+punchRouter.post('/:token/tasks/:id/status', rateLimit(30, 'tasks'), (req, res) => {
+  const employee = whoever(req, res);
+  if (!employee) return;
+  const tasks = listTasks({ employee_id: employee.id });
+  const mine = tasks.find((t) => t.id === Number(req.params.id));
+  if (!mine) return res.status(404).json({ error: 'not found' });
+  const status = req.body?.status === 'open' ? 'open' : 'done';
+  try {
+    res.json(setTaskStatus(mine.id, { status, note: req.body?.note, by: employee.name }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- the helpdesk, their side ---------------- */
+
+punchRouter.post('/:token/tickets', rateLimit(5, 'tickets'), (req, res) => {
+  const employee = whoever(req, res);
+  if (!employee) return;
+  try {
+    // Again: the id is the token's, never the body's.
+    res.status(201).json(createTicket(employee.id, { ...(req.body || {}), by: employee.name }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+punchRouter.get('/:token/tickets/:id', (req, res) => {
+  const employee = whoever(req, res);
+  if (!employee) return;
+  const ticket = getTicket(Number(req.params.id));
+  if (!ticket || ticket.employee_id !== employee.id) return res.status(404).json({ error: 'not found' });
+  res.json(ticket);
+});
+
+punchRouter.post('/:token/tickets/:id/reply', rateLimit(20, 'ticket-replies'), (req, res) => {
+  const employee = whoever(req, res);
+  if (!employee) return;
+  const ticket = getTicket(Number(req.params.id));
+  if (!ticket || ticket.employee_id !== employee.id) return res.status(404).json({ error: 'not found' });
+  try {
+    res.json(replyToTicket(ticket.id, { side: 'employee', author: employee.name, body: req.body?.body }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

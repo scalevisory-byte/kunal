@@ -1219,3 +1219,19 @@ button.small { font-size: 0.72rem; padding: 0.15rem 0.4rem; }
 /* The audit trail reads as a log, so it is set tight and monospaced where it
    carries values rather than words. */
 .trail td.val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; }
+
+/* A task past the date it was wanted by, and the two sides of a helpdesk thread. */
+td.overdue { color: var(--bad); font-variant-numeric: tabular-nums; }
+.pill.high { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+.pill.low, .pill.dropped, .pill.done, .pill.closed, .pill.answered { color: var(--muted); }
+.pill.open { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+
+.reply { border-left: 2px solid var(--line); padding: 0.2rem 0 0.2rem 0.6rem; }
+.reply.employee { border-left-color: color-mix(in srgb, var(--brand) 50%, var(--line)); }
+
+/* The digest, as the text that will actually be sent. */
+pre.digest {
+  margin: 0.5rem 0; padding: 0.6rem 0.7rem; overflow-x: auto;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--line-soft);
+  font-size: 0.78rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+}

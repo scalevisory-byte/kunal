@@ -950,6 +950,101 @@ test('a leave application cannot be raised without saying which kind of leave', 
   assert.equal(thin.status, 400);
 });
 
+test('the rate limits do not interfere with each other', async () => {
+  /*
+   * Each route has its own bucket per link per minute. It used to be one bucket
+   * for the whole link, so twenty punches would use up the allowance for
+   * raising a ticket - the strictest route starved by traffic to the loosest.
+   * Everything above has already punched and raised requests on this link
+   * inside this minute, so a first ticket here must still go through.
+   */
+  const raised = await open('POST', `/api/punch/${punchToken}/tickets`, {
+    category: 'Other',
+    subject: 'Checking the limits do not collide',
+  });
+  assert.equal(raised.status, 201);
+});
+
+test('the punch link shows their own work and tickets, and nobody else\u2019s', async () => {
+  // The office gives them something to do, and somebody else something else.
+  const mine = await api('POST', '/api/people/tasks', {
+    employee_id: employeeId,
+    title: 'Bring the Aadhaar copy in',
+    due_on: '2026-11-20',
+  });
+  const theirs = await api('POST', '/api/people/tasks', {
+    employee_id: managerId,
+    title: 'Somebody else\u2019s job entirely',
+  });
+  assert.equal(mine.status, 201);
+  assert.equal(theirs.status, 201);
+
+  const page = await open('GET', `/api/punch/${punchToken}`);
+  assert.equal(page.status, 200);
+  const titles = page.body.tasks.map((t) => t.title);
+  assert.ok(titles.includes('Bring the Aadhaar copy in'));
+  assert.equal(titles.includes('Somebody else\u2019s job entirely'), false);
+
+  // They can tick their own off...
+  const ticked = await open('POST', `/api/punch/${punchToken}/tasks/${mine.body.id}/status`, {
+    status: 'done',
+  });
+  assert.equal(ticked.status, 200);
+  assert.equal(ticked.body.status, 'done');
+
+  // ...and not somebody else's.
+  const nope = await open('POST', `/api/punch/${punchToken}/tasks/${theirs.body.id}/status`, {
+    status: 'done',
+  });
+  assert.equal(nope.status, 404);
+
+  // Nor drop one: dropping work somebody gave you is the office's call.
+  const dropped = await open('POST', `/api/punch/${punchToken}/tasks/${mine.body.id}/status`, {
+    status: 'dropped',
+  });
+  assert.equal(dropped.body.status, 'done', 'anything but "open" is read as done');
+});
+
+test('an employee raises a ticket from their link and can only read their own', async () => {
+  const raised = await open('POST', `/api/punch/${punchToken}/tickets`, {
+    employee_id: managerId, // trying it on
+    category: 'Attendance',
+    subject: 'The machine did not read me on the 9th',
+  });
+  assert.equal(raised.status, 201);
+  assert.equal(raised.body.employee_id, employeeId, 'the id came from the token, not the body');
+
+  const read = await open('GET', `/api/punch/${punchToken}/tickets/${raised.body.id}`);
+  assert.equal(read.status, 200);
+
+  // The office answers; they reply; the office's answer does not close it.
+  const answered = await api('POST', `/api/people/tickets/${raised.body.id}/reply`, {
+    body: 'Added it from the punch log.',
+    by: 'Dinesh',
+  });
+  assert.equal(answered.body.status, 'answered');
+
+  const back = await open('POST', `/api/punch/${punchToken}/tickets/${raised.body.id}/reply`, {
+    body: 'Thanks, I can see it now.',
+  });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.status, 'open', 'the employee speaking puts it back to the office');
+  assert.equal(back.body.replies.at(-1).side, 'employee');
+
+  // Somebody else's ticket is not readable from this link.
+  const other = await api('POST', '/api/people/tickets', {
+    employee_id: managerId,
+    category: 'Salary',
+    subject: 'Not your business',
+  });
+  const peek = await open('GET', `/api/punch/${punchToken}/tickets/${other.body.id}`);
+  assert.equal(peek.status, 404);
+  const meddle = await open('POST', `/api/punch/${punchToken}/tickets/${other.body.id}/reply`, {
+    body: 'butting in',
+  });
+  assert.equal(meddle.status, 404);
+});
+
 test('rejecting writes nothing beyond the decision', async () => {
   const pending = (await api('GET', '/api/attendance/requests?status=pending')).body.requests;
   const correction = pending.find((r) => r.kind === 'correction');

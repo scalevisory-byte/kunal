@@ -921,3 +921,341 @@ function leaveQuotasOf(employee, year) {
     taken: { CL: used.CL || 0, SL: used.SL || 0, PL: used.PL || 0, UL: used.UL || 0 },
   };
 }
+
+/* ================================================================= *
+ * tasks, and the helpdesk
+ * ================================================================= */
+
+db.exec(`
+  -- Work given to somebody, with a date it is wanted by. Not the same thing as
+  -- Dinesh's WhatsApp task assistant, which reads his own messages; this is
+  -- office work assigned to staff and visible to them.
+  CREATE TABLE IF NOT EXISTS staff_tasks (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id   INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+    title         TEXT NOT NULL,
+    detail        TEXT,
+    assigned_by   TEXT,
+    due_on        TEXT,
+    priority      TEXT NOT NULL DEFAULT 'normal',   -- low | normal | high
+    -- open | done | dropped. A task is never deleted once it was done: what
+    -- was asked for and whether it happened is the record.
+    status        TEXT NOT NULL DEFAULT 'open',
+    done_on       TEXT,
+    done_note     TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_tasks_employee ON staff_tasks(employee_id, status, due_on);
+
+  -- What an employee has asked the office for, or complained about.
+  CREATE TABLE IF NOT EXISTS tickets (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id   INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    category      TEXT NOT NULL DEFAULT 'Other',
+    subject       TEXT NOT NULL,
+    detail        TEXT,
+    -- open | answered | closed. "Answered" is not "closed": the person who
+    -- raised it decides whether the answer settled it.
+    status        TEXT NOT NULL DEFAULT 'open',
+    assigned_to   TEXT,
+    closed_on     TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status, created_at);
+
+  CREATE TABLE IF NOT EXISTS ticket_replies (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id   INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    -- 'office' or 'employee'. Who is talking matters more than their name here.
+    side        TEXT NOT NULL DEFAULT 'office',
+    author      TEXT,
+    body        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_replies_ticket ON ticket_replies(ticket_id, created_at);
+`);
+
+export const TASK_PRIORITIES = ['low', 'normal', 'high'];
+export const TICKET_CATEGORIES = [
+  'Salary',
+  'Attendance',
+  'Leave',
+  'PF / ESI',
+  'Bank details',
+  'Documents',
+  'Complaint',
+  'Other',
+];
+
+const dayNow = () => new Date().toISOString().slice(0, 10);
+
+/* ---------------- tasks ---------------- */
+
+export const getTask = (id) =>
+  db
+    .prepare(
+      `SELECT t.*, e.name AS employee_name, c.name AS company_name
+       FROM staff_tasks t
+       LEFT JOIN employees e ON e.id = t.employee_id
+       LEFT JOIN companies c ON c.id = e.company_id
+       WHERE t.id = ?`
+    )
+    .get(id) || null;
+
+export function listTasks({ employee_id, status, limit = 300 } = {}) {
+  const where = [];
+  const params = [];
+  if (employee_id) {
+    where.push('t.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (status) {
+    where.push('t.status = ?');
+    params.push(status);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db
+    .prepare(
+      `SELECT t.*, e.name AS employee_name, c.name AS company_name
+       FROM staff_tasks t
+       LEFT JOIN employees e ON e.id = t.employee_id
+       LEFT JOIN companies c ON c.id = e.company_id
+       ${clause}
+       ORDER BY CASE t.status WHEN 'open' THEN 0 ELSE 1 END,
+                t.due_on IS NULL, t.due_on,
+                CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+                t.id DESC
+       LIMIT ?`
+    )
+    .all(...params, Math.min(1000, Number(limit) || 300))
+    .map((row) => ({
+      ...row,
+      // Worked out rather than stored, so it cannot go stale overnight.
+      overdue: row.status === 'open' && Boolean(row.due_on) && row.due_on < dayNow(),
+    }));
+}
+
+export function createTask(input = {}) {
+  const title = String(input.title || '').trim();
+  if (!title) throw new Error('what is the task?');
+  const employee = input.employee_id ? getEmployee(input.employee_id) : null;
+  if (input.employee_id && !employee) throw new Error('employee not found');
+  const info = db
+    .prepare(
+      `INSERT INTO staff_tasks (employee_id, title, detail, assigned_by, due_on, priority)
+       VALUES (@employee_id, @title, @detail, @assigned_by, @due_on, @priority)`
+    )
+    .run({
+      employee_id: employee?.id || null,
+      title,
+      detail: input.detail || null,
+      assigned_by: input.assigned_by || input.by || null,
+      due_on: input.due_on || null,
+      priority: TASK_PRIORITIES.includes(input.priority) ? input.priority : 'normal',
+    });
+  audit({
+    who: input.by,
+    action: 'created',
+    entity: 'staff_tasks',
+    entity_id: info.lastInsertRowid,
+    label: employee ? `task for ${employee.name}` : 'task',
+    note: title,
+  });
+  return getTask(info.lastInsertRowid);
+}
+
+export function updateTask(id, patch = {}) {
+  const before = getTask(id);
+  if (!before) throw new Error('not found');
+  const fields = [];
+  const values = [];
+  for (const key of ['employee_id', 'title', 'detail', 'assigned_by', 'due_on', 'priority']) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`);
+    values.push(patch[key] === '' ? null : patch[key]);
+  }
+  if (!fields.length) return before;
+  db.prepare(`UPDATE staff_tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  audit({ who: patch.by, action: 'changed', entity: 'staff_tasks', entity_id: id, label: before.title });
+  return getTask(id);
+}
+
+/**
+ * Done, or dropped. Reopening is allowed - somebody marks a thing done and then
+ * it turns out it was not - but the trail carries each turn, so the history of
+ * a task is not rewritten by its latest state.
+ */
+export function setTaskStatus(id, { status, note, by } = {}) {
+  const task = getTask(id);
+  if (!task) throw new Error('not found');
+  if (!['open', 'done', 'dropped'].includes(status)) throw new Error('a task is open, done or dropped');
+  db.prepare(
+    `UPDATE staff_tasks SET status = ?, done_on = ?, done_note = ? WHERE id = ?`
+  ).run(status, status === 'open' ? null : note?.date || dayNow(), note?.text || note || null, id);
+  audit({
+    who: by,
+    action: status === 'done' ? 'done' : status === 'dropped' ? 'dropped' : 'reopened',
+    entity: 'staff_tasks',
+    entity_id: id,
+    label: task.title,
+    from_value: task.status,
+    to_value: status,
+  });
+  return getTask(id);
+}
+
+export function deleteTask(id, by) {
+  const before = getTask(id);
+  if (!before) return false;
+  if (before.status === 'done') throw new Error('a task that was done stays on the record — drop it instead');
+  const gone = db.prepare(`DELETE FROM staff_tasks WHERE id = ?`).run(id).changes > 0;
+  if (gone) audit({ who: by, action: 'deleted', entity: 'staff_tasks', entity_id: id, label: before.title });
+  return gone;
+}
+
+/* ---------------- helpdesk ---------------- */
+
+export function getTicket(id) {
+  const ticket = db
+    .prepare(
+      `SELECT t.*, e.name AS employee_name, e.code AS employee_code, c.name AS company_name
+       FROM tickets t
+       JOIN employees e ON e.id = t.employee_id
+       LEFT JOIN companies c ON c.id = e.company_id
+       WHERE t.id = ?`
+    )
+    .get(id);
+  if (!ticket) return null;
+  return {
+    ...ticket,
+    replies: db
+      .prepare(`SELECT * FROM ticket_replies WHERE ticket_id = ? ORDER BY created_at, id`)
+      .all(id),
+  };
+}
+
+export function listTickets({ employee_id, status, limit = 200 } = {}) {
+  const where = [];
+  const params = [];
+  if (employee_id) {
+    where.push('t.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (status) {
+    where.push('t.status = ?');
+    params.push(status);
+  }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  return db
+    .prepare(
+      `SELECT t.*, e.name AS employee_name, c.name AS company_name,
+              (SELECT COUNT(*) FROM ticket_replies r WHERE r.ticket_id = t.id) AS replies,
+              (SELECT MAX(r.created_at) FROM ticket_replies r WHERE r.ticket_id = t.id) AS last_reply_at,
+              (SELECT r.side FROM ticket_replies r WHERE r.ticket_id = t.id
+                ORDER BY r.created_at DESC, r.id DESC LIMIT 1) AS last_side
+       FROM tickets t
+       JOIN employees e ON e.id = t.employee_id
+       LEFT JOIN companies c ON c.id = e.company_id
+       ${clause}
+       ORDER BY CASE t.status WHEN 'open' THEN 0 WHEN 'answered' THEN 1 ELSE 2 END,
+                t.created_at DESC
+       LIMIT ?`
+    )
+    .all(...params, Math.min(1000, Number(limit) || 200))
+    .map((row) => ({
+      ...row,
+      // Waiting on the office: raised or last spoken to by the employee.
+      waiting: row.status !== 'closed' && (!row.replies || row.last_side === 'employee'),
+    }));
+}
+
+export function createTicket(employeeId, input = {}) {
+  const employee = getEmployee(employeeId);
+  if (!employee) throw new Error('employee not found');
+  const subject = String(input.subject || '').trim();
+  if (!subject) throw new Error('say what it is about in a line');
+  const info = db
+    .prepare(
+      `INSERT INTO tickets (employee_id, category, subject, detail, assigned_to)
+       VALUES (@employee_id, @category, @subject, @detail, @assigned_to)`
+    )
+    .run({
+      employee_id: employee.id,
+      category: input.category || 'Other',
+      subject,
+      detail: input.detail || null,
+      assigned_to: input.assigned_to || null,
+    });
+  audit({
+    who: input.by || employee.name,
+    action: 'created',
+    entity: 'tickets',
+    entity_id: info.lastInsertRowid,
+    label: `${input.category || 'Other'} from ${employee.name}`,
+    note: subject,
+  });
+  return getTicket(info.lastInsertRowid);
+}
+
+/**
+ * Reply. The office answering moves it to `answered`, not to `closed` - whether
+ * the answer settled it is the employee's call, and a helpdesk that closes its
+ * own tickets measures nothing.
+ */
+export function replyToTicket(id, { side = 'office', author, body } = {}) {
+  const ticket = getTicket(id);
+  if (!ticket) throw new Error('not found');
+  const text = String(body || '').trim();
+  if (!text) throw new Error('nothing to say?');
+  if (ticket.status === 'closed') throw new Error('this one is closed — raise a new one');
+  db.prepare(
+    `INSERT INTO ticket_replies (ticket_id, side, author, body) VALUES (?, ?, ?, ?)`
+  ).run(id, side === 'employee' ? 'employee' : 'office', author || null, text);
+  db.prepare(`UPDATE tickets SET status = ? WHERE id = ?`).run(
+    side === 'employee' ? 'open' : 'answered',
+    id
+  );
+  audit({
+    who: author,
+    action: 'replied',
+    entity: 'tickets',
+    entity_id: id,
+    label: `${ticket.category} from ${ticket.employee_name}`,
+    note: side === 'employee' ? 'from the employee' : 'from the office',
+  });
+  return getTicket(id);
+}
+
+export function closeTicket(id, { by, note } = {}) {
+  const ticket = getTicket(id);
+  if (!ticket) throw new Error('not found');
+  if (ticket.status === 'closed') return ticket;
+  db.prepare(`UPDATE tickets SET status = 'closed', closed_on = ? WHERE id = ?`).run(dayNow(), id);
+  if (note) replyToTicketRaw(id, { side: 'office', author: by, body: note });
+  audit({
+    who: by,
+    action: 'closed',
+    entity: 'tickets',
+    entity_id: id,
+    label: `${ticket.category} from ${ticket.employee_name}`,
+  });
+  return getTicket(id);
+}
+
+/** The insert alone, for closing with a last word (which replyTo would refuse). */
+function replyToTicketRaw(id, { side, author, body }) {
+  db.prepare(`INSERT INTO ticket_replies (ticket_id, side, author, body) VALUES (?, ?, ?, ?)`).run(
+    id,
+    side,
+    author || null,
+    String(body).trim()
+  );
+}
+
+export function reopenTicket(id, { by } = {}) {
+  const ticket = getTicket(id);
+  if (!ticket) throw new Error('not found');
+  db.prepare(`UPDATE tickets SET status = 'open', closed_on = NULL WHERE id = ?`).run(id);
+  audit({ who: by, action: 'reopened', entity: 'tickets', entity_id: id, label: `${ticket.category} from ${ticket.employee_name}` });
+  return getTicket(id);
+}

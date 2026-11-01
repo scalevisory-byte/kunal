@@ -497,3 +497,115 @@ test('switching the late/early rule is on the trail - it changes what people are
   assert.equal(line.from_value, 'hours');
   assert.equal(line.to_value, 'concession');
 });
+
+/* ================================================================= *
+ * tasks and the helpdesk
+ * ================================================================= */
+
+let taskId;
+
+test('a task is assigned with a date it is wanted by', async () => {
+  const created = await api('POST', '/api/people/tasks', {
+    employee_id: employeeId,
+    title: 'Collect the PF challan receipts for September',
+    due_on: '2026-11-15',
+    priority: 'high',
+    assigned_by: 'Dinesh',
+  });
+  assert.equal(created.status, 201);
+  taskId = created.body.id;
+  assert.equal(created.body.status, 'open');
+  assert.equal(created.body.priority, 'high');
+});
+
+test('a task with no title is refused', async () => {
+  const bad = await api('POST', '/api/people/tasks', { employee_id: employeeId, due_on: '2026-11-15' });
+  assert.equal(bad.status, 400);
+});
+
+test('overdue is worked out, not stored, so it cannot go stale overnight', async () => {
+  const past = await api('POST', '/api/people/tasks', {
+    employee_id: employeeId,
+    title: 'Something that was wanted last year',
+    due_on: '2025-01-01',
+  });
+  const { body } = await api('GET', '/api/people/tasks');
+  assert.equal(body.tasks.find((t) => t.id === past.body.id).overdue, true);
+  assert.equal(body.tasks.find((t) => t.id === taskId).overdue, false);
+  // Open work first, then by when it is wanted.
+  assert.equal(body.tasks[0].due_on, '2025-01-01', 'the overdue one is at the top');
+});
+
+test('a task can be ticked off and put back, and the trail carries each turn', async () => {
+  const done = await api('POST', `/api/people/tasks/${taskId}/status`, {
+    status: 'done',
+    note: 'All 85 receipts filed',
+    by: 'Vaibhav Gupta',
+  });
+  assert.equal(done.body.status, 'done');
+  assert.ok(done.body.done_on);
+
+  const reopened = await api('POST', `/api/people/tasks/${taskId}/status`, { status: 'open' });
+  assert.equal(reopened.body.status, 'open');
+  assert.equal(reopened.body.done_on, null);
+
+  const { body } = await api('GET', `/api/people/audit?entity=staff_tasks&entity_id=${taskId}`);
+  const actions = body.entries.map((e) => e.action);
+  assert.ok(actions.includes('done'));
+  assert.ok(actions.includes('reopened'));
+});
+
+test('a task that was done stays on the record', async () => {
+  await api('POST', `/api/people/tasks/${taskId}/status`, { status: 'done' });
+  const gone = await api('DELETE', `/api/people/tasks/${taskId}`);
+  assert.equal(gone.status, 400);
+  assert.match(gone.body.error, /stays on the record/);
+});
+
+let ticketId;
+
+test('a ticket is raised, answered, and closed by the office', async () => {
+  const raised = await api('POST', '/api/people/tickets', {
+    employee_id: employeeId,
+    category: 'Salary',
+    subject: 'October PF looks higher than September',
+    detail: 'It was 1,080 last month and 1,440 this month',
+  });
+  assert.equal(raised.status, 201);
+  ticketId = raised.body.id;
+  assert.equal(raised.body.status, 'open');
+
+  let list = (await api('GET', '/api/people/tickets')).body.tickets;
+  assert.equal(list[0].waiting, true, 'nobody has answered it yet');
+
+  const replied = await api('POST', `/api/people/tickets/${ticketId}/reply`, {
+    body: 'Your basic went up with the appraisal, so 12% of it did too.',
+    by: 'Dinesh',
+  });
+  // Answering is not closing: whether the answer settled it is their call.
+  assert.equal(replied.body.status, 'answered');
+  assert.equal(replied.body.replies.length, 1);
+  assert.equal(replied.body.replies[0].side, 'office');
+
+  list = (await api('GET', '/api/people/tickets')).body.tickets;
+  assert.equal(list[0].waiting, false, 'the office has spoken, so it is not waiting on us');
+
+  const closed = await api('POST', `/api/people/tickets/${ticketId}/close`, { by: 'Dinesh' });
+  assert.equal(closed.body.status, 'closed');
+  assert.ok(closed.body.closed_on);
+});
+
+test('a closed ticket takes no more replies, but can be reopened', async () => {
+  const late = await api('POST', `/api/people/tickets/${ticketId}/reply`, { body: 'one more thing' });
+  assert.equal(late.status, 400);
+  assert.match(late.body.error, /closed/);
+
+  const reopened = await api('POST', `/api/people/tickets/${ticketId}/reopen`, {});
+  assert.equal(reopened.body.status, 'open');
+  assert.equal(reopened.body.closed_on, null);
+});
+
+test('a ticket with nothing said about it is refused', async () => {
+  const bad = await api('POST', '/api/people/tickets', { employee_id: employeeId, category: 'Leave' });
+  assert.equal(bad.status, 400);
+});
