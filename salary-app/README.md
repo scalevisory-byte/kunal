@@ -553,7 +553,16 @@ When a candidate finishes applying, the app hands the test out at
 
 - `ref` — the application id, so the test system knows who is sitting it;
 - `callback_token` — a short-lived, purpose-scoped token that lets the score come back
-  **without this app's password**, which the test system will never have.
+  **without this app's password**, which the test system will never have;
+- `seconds_per_question` — how long the candidate gets for one question, **only when a
+  limit is set**. With none it is left off the URL entirely rather than sent as `0`, which
+  a test system could read as "no time at all".
+
+**The clock runs in the test system, not here.** This app cannot time somebody typing; it
+decides the rule, publishes it on the URL, and afterwards says which questions went past
+it. The limit is per opening (`test_seconds_per_question`, blank = no limit), falling back
+to `TEST_SECONDS_PER_QUESTION`. It is kept **on the result** as well, so changing an
+opening's limit later cannot rewrite what an old sitting was judged against.
 
 The test system then posts to `POST /api/public/test-result/:callback_token`:
 
@@ -563,6 +572,7 @@ The test system then posts to `POST /api/public/test-result/:callback_token`:
   "score": 4,
   "max_score": 6,
   "pass_percent": 60,
+  "seconds_per_question": 45,
   "source": "ZYNTA test system",
   "answers": [
     { "question": "GST on a domestic air ticket?", "answer": "5%",
@@ -574,7 +584,9 @@ The test system then posts to `POST /api/public/test-result/:callback_token`:
 ```
 
 `answers` is optional and drives the question-by-question view on the application, with the
-time each question took and the longest one named. `seconds` may instead be `time_taken`,
+time each question took and the longest one named. Where a limit was set, a question that
+ran past it is flagged and counted ("1 over 45s") — but a question with no timing is never
+counted as over, because "not known" is not "over". `seconds` may instead be `time_taken`,
 `duration_ms`, or a `started_at`/`answered_at` pair — see `shared/testAnswers.js`, which
 also states plainly that the shape is **not pinned down** until a real payload is checked
 against it. A question with no timing reads as "not known", never as nought seconds; a

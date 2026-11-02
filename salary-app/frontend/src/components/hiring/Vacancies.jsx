@@ -19,6 +19,7 @@ const blank = (companyId) => ({
   internal_notes: '',
   test_url: '',
   test_pass_percent: '',
+  test_seconds_per_question: '',
 });
 
 /**
@@ -115,6 +116,12 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
               value={draft.test_pass_percent}
               placeholder="50"
               onChange={(v) => setDraft({ ...draft, test_pass_percent: v })}
+            />
+            <Field
+              label="Seconds per question"
+              value={draft.test_seconds_per_question}
+              placeholder="blank = no limit"
+              onChange={(v) => setDraft({ ...draft, test_seconds_per_question: v })}
             />
             <Field
               label="Skills (comma separated)"

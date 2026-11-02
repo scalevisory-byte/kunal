@@ -38,6 +38,14 @@ function QuestionTimes({ detail }) {
           <span className="n">{detail.slowest ? spell(detail.slowest.seconds) : '—'}</span>
           <span className="k">Longest{detail.slowest ? ` — Q${detail.slowest.n}` : ''}</span>
         </div>
+        {/* Only shown where a limit was actually set. With none, there is
+            nothing to be over, and a column of noughts would imply there was. */}
+        {detail.limit_seconds ? (
+          <div className="figure">
+            <span className={`n ${detail.over_limit ? 'over' : ''}`}>{detail.over_limit}</span>
+            <span className="k">Over {detail.limit_seconds}s</span>
+          </div>
+        ) : null}
       </div>
       {detail.untimed > 0 && (
         <p className="muted small">
@@ -63,7 +71,10 @@ function QuestionTimes({ detail }) {
             {detail.items.map((q) => (
               <tr key={q.n} className={q.n === slowest ? 'slowest' : undefined}>
                 <td className="num">{q.n}</td>
-                <td className="num">{spell(q.seconds)}</td>
+                <td className={`num${q.over ? ' over' : ''}`}>
+                  {spell(q.seconds)}
+                  {q.over ? <div className="small">over</div> : null}
+                </td>
                 <td className="wraps q">{q.question || <span className="muted">—</span>}</td>
                 <td className="wraps a">
                   {q.given || <span className="muted">not answered</span>}
@@ -430,8 +441,12 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             <p className="muted small">
               This opening uses{' '}
               {data.test.source === 'opening' ? 'its own test' : 'the app-wide test'}, pass mark{' '}
-              {data.test.pass_percent}%, so a score can come back on its own. Type one in here
-              when the test was taken elsewhere.
+              {data.test.pass_percent}%
+              {data.test.seconds_per_question
+                ? `, ${data.test.seconds_per_question}s a question`
+                : ', no time limit per question'}
+              , so a score can come back on its own. Type one in here when the test was taken
+              elsewhere.
             </p>
           ) : (
             <p className="muted small">
@@ -492,7 +507,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
               </thead>
               <tbody>
                 {tests.flatMap((t) => {
-                  const detail = readAnswers(t.answers);
+                  const detail = readAnswers(t.answers, { limitSeconds: t.seconds_per_question });
                   const open = openTest === t.id;
                   return [
                   <tr

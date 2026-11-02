@@ -89,3 +89,39 @@ test('times are spelled so four minutes does not read as 240', () => {
   assert.equal(spell(120), '2m');
   assert.equal(spell(null), '—', 'not known is never 0s');
 });
+
+/*
+ * Going past the time allowed for one question.
+ *
+ * Two ways this lies and must not: with no limit set, nothing can be over it;
+ * and a question nobody timed cannot have overrun one.
+ */
+
+test('with no limit, nothing is over it', () => {
+  const read = readAnswers([{ q: 'a', seconds: 300 }, { q: 'b', seconds: 1 }]);
+  assert.equal(read.limit_seconds, null);
+  assert.equal(read.over_limit, 0, 'a limit nobody set is not a limit of nought');
+  assert.equal(read.items[0].over, false);
+});
+
+test('over the limit is counted and marked, strictly over', () => {
+  const read = readAnswers(
+    [{ q: 'a', seconds: 61 }, { q: 'b', seconds: 60 }, { q: 'c', seconds: 12 }],
+    { limitSeconds: 60 }
+  );
+  assert.equal(read.limit_seconds, 60);
+  assert.equal(read.over_limit, 1);
+  assert.deepEqual(read.items.map((q) => q.over), [true, false, false], 'exactly on it is not over');
+});
+
+test('a question with no timing cannot have overrun the limit', () => {
+  const read = readAnswers([{ q: 'a' }, { q: 'b', seconds: 90 }], { limitSeconds: 30 });
+  assert.equal(read.items[0].over, false, '"not known" is not "over"');
+  assert.equal(read.over_limit, 1);
+});
+
+test('a limit of nought or nonsense is treated as no limit', () => {
+  for (const bad of [0, -5, null, 'soon', undefined]) {
+    assert.equal(readAnswers([{ q: 'a', seconds: 99 }], { limitSeconds: bad }).over_limit, 0, String(bad));
+  }
+});

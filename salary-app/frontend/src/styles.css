@@ -1799,3 +1799,5 @@ table.sheet.qa { width: 100%; }
    had room to spare. These two share it. table-layout: fixed collapsed the
    column instead - auto layout with an explicit split is what works. */
 table.sheet.qa td.q, table.sheet.qa td.a { width: 50%; max-width: none; }
+/* A question that ran past the time allowed for one. */
+table.sheet td.num.over, .figure .n.over { color: var(--bad); }

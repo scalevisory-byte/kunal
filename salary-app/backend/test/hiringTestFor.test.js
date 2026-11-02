@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
+import { checkTestUrl, secondsPerQuestion, testFor } from '../../shared/hiringTest.js';
 
 /*
  * The test follows the vacancy.
@@ -88,4 +88,31 @@ test("the ZYNTA test keeps its own ?embed=1 when the candidate's parameters are 
   assert.equal(url.searchParams.get('embed'), '1', 'iframe mode must survive');
   assert.equal(url.searchParams.get('ref'), '42');
   assert.equal(url.origin + url.pathname, 'https://test.zyntajobs.in/');
+});
+
+/*
+ * The time a candidate gets for one question.
+ *
+ * The rule this hangs on: NOTHING SET IS NO LIMIT, never a limit of nought.
+ * A limit of nought would fail every candidate on every question, silently.
+ */
+
+test('no limit anywhere is no limit, not nought', () => {
+  assert.equal(secondsPerQuestion({}, {}), null);
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: null }, {}), null);
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: '' }, {}), null);
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: 0 }, {}), null, 'nought is "none"');
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: -30 }, {}), null);
+});
+
+test("an opening's limit wins, and falls back to the app-wide one", () => {
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: 45 }, { secondsPerQuestion: 90 }), 45);
+  assert.equal(secondsPerQuestion({}, { secondsPerQuestion: 90 }), 90);
+  assert.equal(testFor({ test_seconds_per_question: 45 }, DEFAULTS).secondsPerQuestion, 45);
+  assert.equal(testFor({}, DEFAULTS).secondsPerQuestion, null, 'none by default');
+});
+
+test('an hour on one question is a typo, not a limit', () => {
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: 99999 }, {}), 3600);
+  assert.equal(secondsPerQuestion({ test_seconds_per_question: 60.4 }, {}), 60, 'rounded');
 });

@@ -18,6 +18,8 @@ const FIELDS = [
   // are not tested the same way. Blank falls back to the app-wide one.
   ['test_url', 'Test link for this job'],
   ['test_pass_percent', 'Pass mark %'],
+  // Blank is NO limit. The clock runs in the test system; this publishes it.
+  ['test_seconds_per_question', 'Seconds per question'],
 ];
 
 /**

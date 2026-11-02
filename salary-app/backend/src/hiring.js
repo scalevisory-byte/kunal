@@ -50,6 +50,10 @@ db.exec(`
     -- falls back to the app-wide TEST_EMBED_URL.
     test_url        TEXT,
     test_pass_percent INTEGER,
+    -- How long a candidate gets for ONE question. Null is no limit, never a
+    -- limit of nought. This app does not enforce it - the clock runs inside
+    -- the test system; this is where the rule is decided and published.
+    test_seconds_per_question INTEGER,
     status          TEXT NOT NULL DEFAULT 'draft',
     opened_on       TEXT,
     needed_by       TEXT,
@@ -210,6 +214,7 @@ export function nextRef(table, prefix) {
 for (const [column, type] of [
   ['test_url', 'TEXT'],
   ['test_pass_percent', 'INTEGER'],
+  ['test_seconds_per_question', 'INTEGER'],
 ]) {
   if (!columnsOf('vacancies').has(column)) {
     db.exec(`ALTER TABLE vacancies ADD COLUMN ${column} ${type}`);
@@ -227,6 +232,16 @@ for (const [column, type] of [
 if (!columnsOf('tests').has('pass_percent')) {
   db.exec(`ALTER TABLE tests ADD COLUMN pass_percent INTEGER`);
   log.info('Migrated tests: added pass_percent.');
+}
+
+/*
+ * The per-question limit the test was sat under, for the same reason as the
+ * pass bar: the opening's limit can be edited afterwards, and "three questions
+ * over the limit" means nothing without the limit it was over.
+ */
+if (!columnsOf('tests').has('seconds_per_question')) {
+  db.exec(`ALTER TABLE tests ADD COLUMN seconds_per_question INTEGER`);
+  log.info('Migrated tests: added seconds_per_question.');
 }
 
 /* ---------------- vacancies ---------------- */
@@ -608,12 +623,15 @@ export function hireApplication(id, input = {}) {
 
 /* ---------------- tests ---------------- */
 
-/** What this application's opening counts as a pass. */
-function passBarFor(applicationId) {
+/** The rules this application's opening sets for its test. */
+function rulesFor(applicationId) {
   const application = applicationId ? getApplication(applicationId) : null;
   const vacancy = application ? getVacancy(application.vacancy_id) : null;
-  return testFor(vacancy, { url: config.testEmbedUrl, passPercent: config.testPassPercent })
-    .passPercent;
+  return testFor(vacancy, {
+    url: config.testEmbedUrl,
+    passPercent: config.testPassPercent,
+    secondsPerQuestion: config.testSecondsPerQuestion,
+  });
 }
 
 export function recordTest(body) {
@@ -631,9 +649,16 @@ export function recordTest(body) {
    * to be judged at the app-wide 50 even on a seat whose bar is 70 - the two
    * paths disagreeing about the same candidate.
    */
+  const rules = rulesFor(values.application_id);
   const stated = Number(body.pass_percent);
-  values.pass_percent = Number.isFinite(stated) && stated > 0 ? stated : passBarFor(values.application_id);
+  values.pass_percent = Number.isFinite(stated) && stated > 0 ? stated : rules.passPercent;
   values.passed = values.percentage >= values.pass_percent ? 1 : 0;
+
+  // What the questions were timed against. The test system may state it; the
+  // opening's rule otherwise. Null stays null - no limit is not nought.
+  const statedLimit = Number(body.seconds_per_question);
+  values.seconds_per_question =
+    Number.isFinite(statedLimit) && statedLimit > 0 ? Math.round(statedLimit) : rules.secondsPerQuestion;
   const id = insert('tests', values);
 
   // The application carries the latest result so the board can sort on it

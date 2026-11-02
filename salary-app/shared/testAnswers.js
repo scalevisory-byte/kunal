@@ -91,7 +91,13 @@ function asList(raw) {
   return { list: [], problem: '' };
 }
 
-export function readAnswers(raw) {
+/**
+ * `limitSeconds` is the time a candidate was allowed for one question. Null is
+ * NO limit, never a limit of nought, so a test taken without one never reads
+ * as every question overrunning.
+ */
+export function readAnswers(raw, { limitSeconds = null } = {}) {
+  const limit = Number(limitSeconds) > 0 ? Number(limitSeconds) : null;
   const { list, problem } = asList(raw);
   const items = list.map((row, i) => {
     const plain = row && typeof row === 'object' ? row : { answer: row };
@@ -104,6 +110,15 @@ export function readAnswers(raw) {
       seconds: secondsFor(plain),
     };
   });
+
+  /*
+   * Over the limit, where there IS a limit and the question carries a time.
+   * A question nobody timed cannot have overrun it - "not known" is not
+   * "over", the same rule the timings themselves follow.
+   */
+  for (const q of items) {
+    q.over = limit !== null && q.seconds !== null && q.seconds > limit;
+  }
 
   const timed = items.filter((q) => q.seconds !== null);
   const marked = items.filter((q) => q.correct !== null);
@@ -123,6 +138,8 @@ export function readAnswers(raw) {
     slowest: timed.length
       ? timed.reduce((worst, q) => (q.seconds > worst.seconds ? q : worst))
       : null,
+    limit_seconds: limit,
+    over_limit: items.filter((q) => q.over).length,
     marked: marked.length,
     correct: marked.filter((q) => q.correct).length,
     wrong: marked.filter((q) => !q.correct).length,

@@ -161,6 +161,68 @@ test("a score typed in is judged by the opening's own pass mark", async () => {
   assert.equal(typed.body.application.stage, 'New', 'and it still moves nobody');
 });
 
+/*
+ * The per-question limit is HANDED TO the test system, because this app cannot
+ * run a clock on somebody typing - only the test page can. So the rule is
+ * decided here and published on the URL; with no limit it is left OFF the URL
+ * entirely rather than sent as 0, which a test system could read as "no time
+ * at all" and fail everybody.
+ */
+test('the time allowed for one question rides on the test link', async () => {
+  const company = await api('POST', '/api/companies', { name: 'BOOKNFLY' });
+  const timed = await api('POST', '/api/hiring/vacancies', {
+    company_id: company.body.id,
+    title: 'Data Entry',
+    status: 'published',
+    test_url: 'https://test.zyntajobs.in/?embed=1',
+    test_seconds_per_question: 45,
+  });
+  const applied = await open('POST', `/api/public/vacancies/${timed.body.ref_no}/apply`, {
+    name: 'Krupa Shah',
+    phone: '9825777126',
+  });
+  const handed = await open('GET', `/api/public/test/${applied.body.upload_token}`);
+  const url = new URL(handed.body.url);
+  assert.equal(url.searchParams.get('seconds_per_question'), '45');
+  assert.equal(url.searchParams.get('embed'), '1', 'and the embed flag still survives');
+  assert.equal(handed.body.seconds_per_question, 45);
+
+  // An opening with no limit says so by saying nothing.
+  const loose = await api('POST', '/api/hiring/vacancies', {
+    company_id: company.body.id,
+    title: 'Peon',
+    status: 'published',
+    test_url: 'https://test.zyntajobs.in/?embed=1',
+  });
+  const b = await open('POST', `/api/public/vacancies/${loose.body.ref_no}/apply`, {
+    name: 'Ankit Bhoi',
+    phone: '9825777127',
+  });
+  const second = await open('GET', `/api/public/test/${b.body.upload_token}`);
+  assert.equal(new URL(second.body.url).searchParams.has('seconds_per_question'), false);
+  assert.equal(second.body.seconds_per_question, null, 'no limit, not nought');
+});
+
+test('a result keeps the limit it was sat under', async () => {
+  const { rows } = (await api('GET', '/api/hiring/applications')).body;
+  const theirs = rows.find((r) => r.candidate_name === 'Krupa Shah');
+  const recorded = await api('POST', `/api/hiring/applications/${theirs.id}/test`, {
+    score: 8,
+    max_score: 10,
+  });
+  assert.equal(recorded.body.test.seconds_per_question, 45);
+
+  // Changing the opening's limit afterwards must not rewrite what the old
+  // result was judged against.
+  const app = (await api('GET', `/api/hiring/applications/${theirs.id}`)).body;
+  await api('PATCH', `/api/hiring/vacancies/${app.application.vacancy_id}`, {
+    test_seconds_per_question: 20,
+  });
+  const after = (await api('GET', `/api/hiring/applications/${theirs.id}`)).body;
+  assert.equal(after.tests[0].seconds_per_question, 45, 'the old sitting keeps its own limit');
+  assert.equal(after.test.seconds_per_question, 20, 'while the opening now says 20');
+});
+
 test('a made-up link gets nothing', async () => {
   assert.equal((await open('GET', '/api/public/test/not-a-real-token')).status, 403);
   assert.equal((await open('POST', '/api/public/test-result/not-a-real-token', { score: 3 })).status, 403);

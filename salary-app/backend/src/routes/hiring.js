@@ -68,6 +68,7 @@ hiringRouter.get('/config', (req, res) =>
     public_url: config.publicUrl || null,
     test_configured: !!config.testEmbedUrl,
     test_pass_percent: config.testPassPercent,
+    test_seconds_per_question: config.testSecondsPerQuestion || null,
     whatsapp: config.officeWhatsapp || null,
   })
 );
@@ -292,8 +293,14 @@ hiringRouter.get('/applications/:id', (req, res) => {
       const resolved = testFor(getVacancy(application.vacancy_id), {
         url: config.testEmbedUrl,
         passPercent: config.testPassPercent,
+        secondsPerQuestion: config.testSecondsPerQuestion,
       });
-      return { source: resolved.source, pass_percent: resolved.passPercent, problem: resolved.problem };
+      return {
+        source: resolved.source,
+        pass_percent: resolved.passPercent,
+        seconds_per_question: resolved.secondsPerQuestion,
+        problem: resolved.problem,
+      };
     })(),
   });
 });

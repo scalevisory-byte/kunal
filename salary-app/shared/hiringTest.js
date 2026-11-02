@@ -61,13 +61,38 @@ const percent = (value, fallback) => {
  * and "it is falling back to the app-wide one" look identical on screen
  * otherwise, and the difference is the whole point of this change.
  */
+/**
+ * How long a candidate gets for one question, in seconds.
+ *
+ * **Nothing is a limit of nought.** No limit set means NO limit - a question
+ * nobody put a clock on must not become one every candidate fails. So this
+ * returns null rather than a number, and everything downstream treats null as
+ * "no limit" rather than as zero.
+ *
+ * This app does not ENFORCE it - the clock runs inside the test system, which
+ * is the only thing watching the candidate type. What this app does is decide
+ * the rule, hand it over with the test, and afterwards say who went past it.
+ */
+export function secondsPerQuestion(vacancy, defaults = {}) {
+  for (const value of [vacancy?.test_seconds_per_question, defaults.secondsPerQuestion]) {
+    if (value === null || value === undefined || value === '') continue;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    // A sane ceiling: an hour on one question is not a limit, it is a typo.
+    return Math.min(3600, Math.round(n));
+  }
+  return null;
+}
+
 export function testFor(vacancy, defaults = {}) {
   const fallbackPass = percent(defaults.passPercent, 50);
+  const perQuestion = secondsPerQuestion(vacancy, defaults);
   const own = checkTestUrl(vacancy?.test_url);
   if (own.url) {
     return {
       url: own.url,
       passPercent: percent(vacancy?.test_pass_percent, fallbackPass),
+      secondsPerQuestion: perQuestion,
       source: 'opening',
       problem: '',
     };
@@ -80,6 +105,7 @@ export function testFor(vacancy, defaults = {}) {
       // An opening may set its own pass mark even while using the shared test:
       // the same questions can be a higher bar for a senior seat.
       passPercent: percent(vacancy?.test_pass_percent, fallbackPass),
+      secondsPerQuestion: perQuestion,
       source: 'default',
       problem: own.problem,
     };
@@ -88,6 +114,7 @@ export function testFor(vacancy, defaults = {}) {
   return {
     url: '',
     passPercent: percent(vacancy?.test_pass_percent, fallbackPass),
+    secondsPerQuestion: perQuestion,
     source: null,
     problem: own.problem || shared.problem,
   };

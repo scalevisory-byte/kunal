@@ -77,6 +77,9 @@ export const config = {
   // Blank means the test step is simply not offered.
   testEmbedUrl: process.env.TEST_EMBED_URL || '',
   testPassPercent: num(process.env.TEST_PASS_PERCENT, 50),
+  // How long a candidate gets for one question. 0 / unset means NO limit -
+  // never a limit of nought, which would fail everybody on every question.
+  testSecondsPerQuestion: num(process.env.TEST_SECONDS_PER_QUESTION, 0),
 
   // The office's own number, for the "send today's list to myself" link.
   officeWhatsapp: (process.env.OFFICE_WHATSAPP || '').replace(/\D/g, ''),

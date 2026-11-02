@@ -229,14 +229,31 @@ publicRouter.get('/test/:token', (req, res) => {
    */
   const application = claim.a ? getApplication(claim.a) : null;
   const vacancy = application ? getVacancy(application.vacancy_id) : null;
-  const test = testFor(vacancy, { url: config.testEmbedUrl, passPercent: config.testPassPercent });
+  const test = testFor(vacancy, {
+    url: config.testEmbedUrl,
+    passPercent: config.testPassPercent,
+    secondsPerQuestion: config.testSecondsPerQuestion,
+  });
   if (!test.url) return res.status(404).json({ error: 'No test is set up for this opening yet.' });
 
   const back = makeToken('test', { c: claim.c, a: claim.a }, { minutes: 240 });
   const url = new URL(test.url);
   url.searchParams.set('ref', String(claim.a ?? claim.c));
   url.searchParams.set('callback_token', back);
-  res.json({ url: url.toString(), pass_percent: test.passPercent });
+  /*
+   * The per-question limit rides on the URL so the test system can run the
+   * clock - this app cannot, it is not the thing watching the candidate type.
+   * Left OFF the URL entirely when there is no limit, rather than sent as 0,
+   * which a test system could read as "no time at all".
+   */
+  if (test.secondsPerQuestion) {
+    url.searchParams.set('seconds_per_question', String(test.secondsPerQuestion));
+  }
+  res.json({
+    url: url.toString(),
+    pass_percent: test.passPercent,
+    seconds_per_question: test.secondsPerQuestion,
+  });
 });
 
 /** The test system posting a score back. The token is what authorises it. */
