@@ -192,9 +192,18 @@ export default function AssetHistory({ asset, onClose, onError }) {
           through a link that expires.
         </p>
 
-        <button className="ghost" onClick={() => window.open(`/api/people/assets/${asset.id}/label.svg?h=18`, '_blank')}>
-          Print the label
-        </button>
+        <div className="row">
+          <button className="ghost" onClick={() => window.open(`/api/people/assets/${asset.id}/label.svg?h=18`, '_blank')}>
+            Print the label
+          </button>
+          <button
+            className="ghost"
+            onClick={() => window.open(`/api/people/assets/${asset.id}/voucher.html`, '_blank')}
+            title="The purchase voucher, to hand to accounts"
+          >
+            Purchase voucher
+          </button>
+        </div>
       </div>
     </div>
   );

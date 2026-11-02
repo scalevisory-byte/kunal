@@ -160,6 +160,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    */
   const label = (asset) => window.open(`/api/people/assets/${asset.id}/label.svg?as=qr`, '_blank');
 
+  /*
+   * The voucher accounts needs before it will release the money. Printed from
+   * the register rather than filled in: it cannot exist unless the asset does,
+   * which is the whole rule.
+   */
+  const voucher = (asset) =>
+    window.open(`/api/people/assets/${asset.id}/voucher.html`, '_blank');
+
   /* A page of them, because nobody labels one asset at a time. */
   const labelSheet = () => {
     const ids = shown.map((a) => a.id).join(',');
@@ -458,6 +466,15 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     {asset.code && !asset.written_off_on && (
                       <button className="ghost small" onClick={() => label(asset)}>
                         label
+                      </button>
+                    )}{' '}
+                    {!asset.written_off_on && (
+                      <button
+                        className="ghost small"
+                        onClick={() => voucher(asset)}
+                        title="The purchase voucher, to hand to accounts"
+                      >
+                        voucher
                       </button>
                     )}{' '}
                     {!asset.written_off_on &&
