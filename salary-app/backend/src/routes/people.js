@@ -9,6 +9,14 @@ import qr from 'qrcode-generator';
 import { qrSvg } from '../../../shared/qr.js';
 import { voucher } from '../../../shared/voucher.js';
 import { config } from '../config.js';
+import ExcelJS from 'exceljs';
+import multer from 'multer';
+import { planAssetImport } from '../../../shared/assetImport.js';
+import { listCompanies, listEmployees } from '../db.js';
+
+/* In memory: the sheet is read once and never kept. 8 MB covers an office's
+   whole asset list many times over. */
+const assetSheet = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 import { deletePhotoFile, photoLink, uploadAssetPhoto } from '../assetPhotos.js';
 
 /*
@@ -910,4 +918,106 @@ peopleRouter.get('/digest', (req, res) => {
     return;
   }
   res.json(built);
+});
+
+/* ---------------- an existing asset list, out of Excel ---------------- */
+
+/**
+ * Dry run, then write. Nothing is created until somebody has seen what would
+ * be - an import that silently makes two hundred duplicates is worse than no
+ * import at all.
+ *
+ * `?write=true` does it for real. Everything else about the two calls is
+ * identical, deliberately: the plan you approve is the plan that runs.
+ */
+peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  try {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+    const wanted = String(req.body.sheet || '').trim().toLowerCase();
+    const ws =
+      (wanted && wb.worksheets.find((s) => s.name.trim().toLowerCase() === wanted)) ||
+      wb.worksheets[0];
+    if (!ws) return res.status(400).json({ error: 'that file has no sheets' });
+
+    const rows = [];
+    ws.eachRow({ includeEmpty: true }, (row) => {
+      // ExcelJS indexes from 1 and puts a hole at 0; the planner wants a plain
+      // array, and a formula cell has to give its cached result, not "=SUM(...)".
+      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+      rows.push(values.map((v) => (v && typeof v === 'object' && 'result' in v ? v.result : v)));
+    });
+
+    const plan = planAssetImport({
+      rows,
+      existing: listAssets({}),
+      /*
+       * Everybody, active or not. `active: false` would have asked for the
+       * INACTIVE ones only - so every current employee's name came back
+       * "not on the staff list" and nothing was matched to a holder.
+       * Somebody who has left can still be holding a laptop, which is why
+       * this is not narrowed to the active list either.
+       */
+      employees: listEmployees({}),
+      companies: listCompanies(),
+    });
+    if (plan.problem) return res.status(400).json(plan);
+
+    const write = String(req.body.write) === 'true';
+    if (!write) {
+      return res.json({
+        ...plan,
+        sheet: ws.name,
+        sheets: wb.worksheets.map((s) => s.name),
+        wrote: 0,
+        updated: 0,
+      });
+    }
+
+    let wrote = 0;
+    let updated = 0;
+    for (const asset of plan.create) {
+      createAsset({
+        company_id: asset.company_id,
+        kind: asset.kind,
+        label: asset.label,
+        code: asset.code || undefined,
+        identifier: asset.identifier,
+        purchase_cost: asset.purchase_cost,
+        purchase_date: asset.purchase_date || null,
+        vendor: asset.vendor,
+        invoice_no: asset.invoice_no,
+        warranty_until: asset.warranty_until || null,
+        note: asset.note,
+        // The holder is set ONLY where the name matched somebody real. An
+        // unmatched name is reported, never guessed at.
+        employee_id: asset.employee_id,
+        issued_on: asset.employee_id ? asset.purchase_date || null : null,
+        by: req.body.by || 'import',
+      });
+      wrote++;
+    }
+    for (const asset of plan.update) {
+      /*
+       * Only the fields the sheet actually carries, and only where it has
+       * something to say. An import must not blank a purchase date somebody
+       * typed in here because the spreadsheet's column was empty.
+       */
+      const patch = {};
+      for (const field of ['identifier', 'vendor', 'invoice_no', 'note']) {
+        if (asset[field]) patch[field] = asset[field];
+      }
+      for (const field of ['purchase_date', 'warranty_until']) {
+        if (asset[field]) patch[field] = asset[field];
+      }
+      if (asset.purchase_cost > 0) patch.purchase_cost = asset.purchase_cost;
+      if (Object.keys(patch).length) updateAsset(asset.id, patch);
+      updated++;
+    }
+
+    res.json({ ...plan, sheet: ws.name, wrote, updated });
+  } catch (err) {
+    next(err);
+  }
 });

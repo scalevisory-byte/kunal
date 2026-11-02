@@ -428,3 +428,100 @@ test('a returned asset leaves the holder and goes back into the office', async (
   assert.ok(handovers[0].issued_on && handovers[0].returned_on);
   assert.equal(handovers[0].condition_in, 'fine');
 });
+
+/* ---------------- an existing asset list, out of Excel ---------------- */
+
+/**
+ * The whole reason this is dry-run-first: an import that silently creates a
+ * second copy of every laptop already on the register is worse than no import.
+ */
+test('an Excel asset list comes in, once, with every refusal named', async () => {
+  const ExcelJS = (await import('exceljs')).default;
+  const company = (await api('POST', '/api/companies', { name: 'IMPORT CO' })).body;
+  const person = (
+    await api('POST', '/api/employees', {
+      company_id: company.id,
+      name: 'MEERA JOSHI',
+      monthly_salary: 20000,
+    })
+  ).body;
+  // Already on the register, by serial.
+  const already = (
+    await api('POST', '/api/people/assets', {
+      company_id: company.id,
+      kind: 'printer',
+      label: 'Old printer',
+      identifier: 'HP1122',
+    })
+  ).body;
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Assets');
+  ws.addRow(['IMPORT CO — asset list']);
+  ws.addRow([]);
+  ws.addRow(['Sr No', 'Asset Name', 'Type', 'Serial No', 'Cost', 'Purchase Date', 'Issued To']);
+  ws.addRow([1, 'Dell Latitude', 'Laptop', 'DL-1', '₹ 42,000', '14/03/2024', 'MEERA JOSHI']);
+  ws.addRow([2, 'HP LaserJet', 'Printer', 'HP1122', '18500', '02-07-2023', '']);
+  ws.addRow([3, 'Office chair', '', '', '2,400', '', 'SOMEBODY ELSE']);
+  ws.addRow([4, '', '', '', '', '', '']);
+  ws.addRow(['TOTAL', '', '', '', '62900']);
+  const buffer = await wb.xlsx.writeBuffer();
+
+  const send = async (write) => {
+    const form = new FormData();
+    form.set('file', new Blob([buffer]), 'assets.xlsx');
+    if (write) form.set('write', 'true');
+    const res = await fetch(`${base}/api/people/assets/import`, {
+      method: 'POST',
+      headers: { authorization: 'Bearer the-key' },
+      body: form,
+    });
+    return { status: res.status, body: await res.json() };
+  };
+
+  // The dry run changes nothing.
+  const before = (await api('GET', '/api/people/assets')).body.assets.length;
+  const dry = await send(false);
+  assert.equal(dry.status, 200);
+  assert.equal(dry.body.create.length, 2, 'the laptop and the chair');
+  assert.equal(dry.body.update.length, 1, 'the printer is already here, by serial');
+  assert.equal(dry.body.update[0].id, already.id);
+  /*
+   * A row numbered in column A and otherwise empty is a genuinely blank line -
+   * an office that numbered 1..120 and filled 116 - so it is passed over in
+   * silence. A row that carries a SERIAL but no name is a different thing and
+   * IS named (see assetImport.test.js); that one is somebody's laptop.
+   */
+  assert.deepEqual(dry.body.skipped.map((s) => s.why), ['a total row']);
+  assert.deepEqual(dry.body.holders_unknown.map((a) => a.holder_name), ['SOMEBODY ELSE']);
+  assert.equal(dry.body.wrote, 0);
+  assert.equal((await api('GET', '/api/people/assets')).body.assets.length, before, 'nothing written');
+
+  // The real run does exactly what the dry run said.
+  const done = await send(true);
+  assert.equal(done.body.wrote, 2);
+  assert.equal(done.body.updated, 1);
+  const assets = (await api('GET', '/api/people/assets')).body.assets;
+  assert.equal(assets.length, before + 2);
+
+  const laptop = assets.find((a) => a.label === 'Dell Latitude');
+  assert.equal(laptop.kind, 'laptop');
+  assert.equal(laptop.purchase_cost, 42000, '"₹ 42,000" is forty-two thousand');
+  assert.equal(laptop.purchase_date, '2024-03-14', 'day first, not March the 14th read as April');
+  assert.equal(laptop.employee_id, person.id, 'a name the staff list has is matched');
+  assert.ok(laptop.code, 'and it still gets its own code');
+
+  const chair = assets.find((a) => a.label === 'Office chair');
+  assert.equal(chair.employee_id, null, 'a name nobody has is NOT guessed at');
+
+  /*
+   * Running the same file again matches everything that CAN be matched. The
+   * chair carries no code and no serial, so there is nothing to recognise it
+   * by - it would be created again, and the plan says so rather than letting
+   * that be a surprise.
+   */
+  assert.deepEqual(dry.body.unmatchable.map((a) => a.label), ['Office chair']);
+  const again = await send(true);
+  assert.equal(again.body.wrote, 1, 'only the one with nothing to match on');
+  assert.equal(again.body.update.length, 2, 'the laptop and the printer matched');
+});

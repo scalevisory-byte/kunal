@@ -3,6 +3,7 @@ import { api, download } from '../../api.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
+import AssetImport from './AssetImport.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
@@ -25,6 +26,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState(null);
   const [notFound, setNotFound] = useState('');
   const [said, setSaid] = useState('');
@@ -260,6 +262,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Add an asset'}
         </button>
+        <button className="ghost" onClick={() => setImporting((v) => !v)}>
+          {importing ? 'Cancel' : 'Import from Excel'}
+        </button>
         {/*
           * Fetched rather than linked, so the download carries whatever
           * identifies this browser - a link works on a session cookie and
@@ -286,6 +291,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           Handovers (CSV)
         </button>
       </div>
+
+      {importing && (
+        <AssetImport onDone={load} onError={(err) => setSaid(err.message)} />
+      )}
 
       {adding && (
         <div className="card">
