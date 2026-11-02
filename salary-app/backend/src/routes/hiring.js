@@ -33,6 +33,7 @@ import {
   updateVacancy,
 } from '../hiring.js';
 import { config } from '../config.js';
+import { testFor } from '../../../shared/hiringTest.js';
 import { matchScore } from '../../../shared/match.js';
 import { MATCH_BANDS, REJECTED, STAGES } from '../../../shared/stages.js';
 import { WEIGHTS } from '../../../shared/match.js';
@@ -120,7 +121,15 @@ hiringRouter.get('/vacancies/:id', (req, res) => {
 });
 
 hiringRouter.patch('/vacancies/:id', (req, res) => {
-  const vacancy = updateVacancy(Number(req.params.id), req.body || {});
+  // Same 400 the create route gives. A typed test link that is not a web
+  // address is the office's mistake to correct, not a server fault, and a 500
+  // reads as "the app is broken" rather than "fix that box".
+  let vacancy;
+  try {
+    vacancy = updateVacancy(Number(req.params.id), req.body || {});
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
   if (!vacancy) return res.status(404).json({ error: 'not found' });
   // The requirement changed, so every score measured against the old one is stale.
   rescoreVacancy(vacancy.id);
@@ -274,6 +283,18 @@ hiringRouter.get('/applications/:id', (req, res) => {
     interviews: listInterviews({ application_id: application.id }),
     tests: listTests(application.candidate_id),
     resume: resumeLink(candidate),
+    /*
+     * Which test this one is sat, and whether it is the opening's own or the
+     * app-wide fallback. The URL itself is NOT sent - the office does not need
+     * it here, and a candidate's test link is handed out tokened or not at all.
+     */
+    test: (() => {
+      const resolved = testFor(getVacancy(application.vacancy_id), {
+        url: config.testEmbedUrl,
+        passPercent: config.testPassPercent,
+      });
+      return { source: resolved.source, pass_percent: resolved.passPercent, problem: resolved.problem };
+    })(),
   });
 });
 

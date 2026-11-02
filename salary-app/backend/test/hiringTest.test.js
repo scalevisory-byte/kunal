@@ -93,6 +93,38 @@ test('the thank-you page is told a test exists, and gets its URL with a token on
   assert.ok(url.searchParams.get('callback_token'), 'no way to send a score back');
 });
 
+/*
+ * The crux of making the test follow the vacancy: TEST_EMBED_URL is set in
+ * this whole file, so an opening carrying its own has to WIN. Getting this
+ * backwards would send every candidate the general test and nobody would
+ * notice until somebody compared two scores.
+ */
+test("an opening's own test beats the app-wide one", async () => {
+  const company = await api('POST', '/api/companies', { name: 'SCALE' });
+  const own = await api('POST', '/api/hiring/vacancies', {
+    company_id: company.body.id,
+    title: 'Accounts Executive',
+    status: 'published',
+    test_url: 'https://accounts.example.com/sit?set=B',
+    test_pass_percent: 70,
+  });
+
+  const applied = await open('POST', `/api/public/vacancies/${own.body.ref_no}/apply`, {
+    name: 'Foram Mistry',
+    phone: '9825777124',
+  });
+  const handed = await open('GET', `/api/public/test/${applied.body.upload_token}`);
+  const url = new URL(handed.body.url);
+  assert.equal(url.origin + url.pathname, 'https://accounts.example.com/sit');
+  assert.equal(url.searchParams.get('set'), 'B');
+  assert.equal(handed.body.pass_percent, 70, 'its own bar, not the app-wide 50');
+  assert.ok(url.searchParams.get('callback_token'), 'a score still has to be able to come back');
+
+  // And the other opening is untouched by it.
+  const first = await open('GET', `/api/public/test/${uploadToken}`);
+  assert.match(first.body.url, /^https:\/\/test\.example\.com\/start/);
+});
+
 test('a made-up link gets nothing', async () => {
   assert.equal((await open('GET', '/api/public/test/not-a-real-token')).status, 403);
   assert.equal((await open('POST', '/api/public/test-result/not-a-real-token', { score: 3 })).status, 403);

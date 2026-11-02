@@ -63,8 +63,13 @@ export default function Apply({ ref_no }) {
         result = await api.public.post(`/vacancies/${encodeURIComponent(ref_no)}/apply`, form);
       }
       setDone(result);
-      // The test, if one is set up, is the next thing to put in front of them.
-      if (result.upload_token && site?.test_configured) {
+      /*
+       * The test, if this opening has one, is the next thing to put in front
+       * of them. Always ASKED for rather than guessed from an app-wide flag:
+       * the test follows the vacancy now, so an opening can have its own while
+       * there is no app-wide one at all. No test is a 404, caught below.
+       */
+      if (result.upload_token) {
         try {
           setTest(await api.public.get(`/test/${result.upload_token}`));
         } catch {

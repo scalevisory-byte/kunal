@@ -4,6 +4,7 @@ import {
   createApplication,
   getApplication,
   getCandidate,
+  getVacancy,
   getVacancyByRef,
   listVacancies,
   recordTest,
@@ -13,6 +14,7 @@ import {
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { publicVacancy } from '../../../shared/hiringMessages.js';
+import { testFor } from '../../../shared/hiringTest.js';
 import { deleteResumeFile, uploadResumeSafely } from '../resumes.js';
 import { makeToken, readToken } from '../tokens.js';
 
@@ -61,7 +63,11 @@ publicRouter.get('/config', (req, res) =>
   res.json({
     whatsapp: config.officeWhatsapp || null,
     max_resume_mb: Math.round(config.maxResumeBytes / (1024 * 1024)),
-    // So the apply page does not go looking for a test that is not set up.
+    /*
+     * Whether a test is offered now depends on the OPENING, so this only says
+     * whether there is an app-wide fallback. The apply page asks for the test
+     * link itself and handles a 404 as "this job has none".
+     */
     test_configured: !!config.testEmbedUrl,
   })
 );
@@ -214,13 +220,23 @@ publicRouter.post('/resume/:token', rateLimit(10), uploadResumeSafely, (req, res
 publicRouter.get('/test/:token', (req, res) => {
   const claim = readToken('resume-upload', req.params.token) || readToken('test', req.params.token);
   if (!claim) return res.status(403).json({ error: 'This test link has expired.' });
-  if (!config.testEmbedUrl) return res.status(404).json({ error: 'No test is set up yet.' });
+
+  /*
+   * The test belongs to the OPENING they applied for, falling back to the
+   * app-wide one. The vacancy is read from the application rather than from
+   * anything the request says, so a token for one job cannot fetch another
+   * job's test.
+   */
+  const application = claim.a ? getApplication(claim.a) : null;
+  const vacancy = application ? getVacancy(application.vacancy_id) : null;
+  const test = testFor(vacancy, { url: config.testEmbedUrl, passPercent: config.testPassPercent });
+  if (!test.url) return res.status(404).json({ error: 'No test is set up for this opening yet.' });
 
   const back = makeToken('test', { c: claim.c, a: claim.a }, { minutes: 240 });
-  const url = new URL(config.testEmbedUrl);
+  const url = new URL(test.url);
   url.searchParams.set('ref', String(claim.a ?? claim.c));
   url.searchParams.set('callback_token', back);
-  res.json({ url: url.toString(), pass_percent: config.testPassPercent });
+  res.json({ url: url.toString(), pass_percent: test.passPercent });
 });
 
 /** The test system posting a score back. The token is what authorises it. */

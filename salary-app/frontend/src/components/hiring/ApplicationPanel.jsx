@@ -343,16 +343,20 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
 
         <div className="card">
           <h3>Record a test</h3>
-          {config?.test_configured ? (
+          {data.test?.source ? (
             <p className="muted small">
-              Your own test system is linked, so a score can also come back on its own. Type one
-              in here when the test was taken elsewhere.
+              This opening uses{' '}
+              {data.test.source === 'opening' ? 'its own test' : 'the app-wide test'}, pass mark{' '}
+              {data.test.pass_percent}%, so a score can come back on its own. Type one in here
+              when the test was taken elsewhere.
             </p>
           ) : (
             <p className="muted small">
-              No test system is linked yet (TEST_EMBED_URL). Type the score in by hand.
+              No test is set up for this opening. Put a link on it under Openings, or type the
+              score in by hand.
             </p>
           )}
+          {data.test?.problem && <p className="error small">{data.test.problem}</p>}
           <form className="row" onSubmit={saveTest}>
             <input
               placeholder="Type"

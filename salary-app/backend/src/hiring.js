@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { ALL_STAGES, REJECTED } from '../../shared/stages.js';
 import { matchScore } from '../../shared/match.js';
+import { checkTestUrl } from '../../shared/hiringTest.js';
 
 /*
  * Hiring, for Dinesh's OWN companies.
@@ -44,6 +45,11 @@ db.exec(`
     benefits        TEXT,
     -- Why the seat is open, who it is replacing - never leaves the office.
     internal_notes  TEXT,
+    -- The test for THIS job. A travel consultant and an accounts executive
+    -- are not tested the same way, so the test follows the vacancy; blank
+    -- falls back to the app-wide TEST_EMBED_URL.
+    test_url        TEXT,
+    test_pass_percent INTEGER,
     status          TEXT NOT NULL DEFAULT 'draft',
     opened_on       TEXT,
     needed_by       TEXT,
@@ -197,6 +203,20 @@ export function nextRef(table, prefix) {
   return `${prefix}-${String((Number.isFinite(last) ? last : 0) + 1).padStart(3, '0')}`;
 }
 
+/*
+ * The test used to be one address for the whole app. An opening now carries
+ * its own, so older databases need the two columns adding.
+ */
+for (const [column, type] of [
+  ['test_url', 'TEXT'],
+  ['test_pass_percent', 'INTEGER'],
+]) {
+  if (!columnsOf('vacancies').has(column)) {
+    db.exec(`ALTER TABLE vacancies ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated vacancies: added ${column}.`);
+  }
+}
+
 /* ---------------- vacancies ---------------- */
 
 const VACANCY_COLUMNS = `
@@ -246,8 +266,23 @@ export const getVacancyByRef = (ref) =>
     )
     .get(ref);
 
+/**
+ * A test link is checked when it is SAVED, not when a candidate opens it.
+ * Finding out it was never a web address three days later, from somebody who
+ * could not take the test, is the version of this that wastes everybody's
+ * time.
+ */
+function checkedTest(values) {
+  if (!('test_url' in values)) return values;
+  const text = String(values.test_url || '').trim();
+  if (!text) return { ...values, test_url: null };
+  const { url, problem } = checkTestUrl(text);
+  if (problem) throw new Error(problem);
+  return { ...values, test_url: url };
+}
+
 export function createVacancy(body) {
-  const values = writable('vacancies', body);
+  const values = checkedTest(writable('vacancies', body));
   if (!values.title) throw new Error('an opening needs a job title');
   // Every opening belongs to one of our own companies. Without that there is
   // nothing to put the person on the payroll of later.
@@ -259,7 +294,7 @@ export function createVacancy(body) {
 }
 
 export function updateVacancy(id, body) {
-  const values = writable('vacancies', body);
+  const values = checkedTest(writable('vacancies', body));
   values.updated_at = nowIso();
   update('vacancies', id, values);
   return getVacancy(id);

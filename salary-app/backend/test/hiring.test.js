@@ -397,6 +397,83 @@ test('deleting a candidate takes their CV off the disk with them', async () => {
 
 /* ---------------- last, because it trips the limiter ---------------- */
 
+/* ---------------- the test follows the vacancy ---------------- */
+
+test('an opening carries its own test, and the candidate is sent to that one', async () => {
+  // No app-wide TEST_EMBED_URL is set in this run, so if this works at all it
+  // can only be the opening's own.
+  const own = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId,
+    title: 'Accounts Executive',
+    test_url: 'https://tests.example.com/accounts?v=2',
+    test_pass_percent: 70,
+  });
+  assert.equal(own.status, 201);
+  // Publishing is what makes the apply link live, here as everywhere.
+  await api('PATCH', `/api/hiring/vacancies/${own.body.id}`, { status: 'published' });
+
+  const applied = await open('POST', `/api/public/vacancies/${own.body.ref_no}/apply`, {
+    name: 'Hema Shah',
+    phone: '9000000042',
+  });
+  assert.equal(applied.status, 201);
+
+  const sat = await open('GET', `/api/public/test/${applied.body.upload_token}`);
+  assert.equal(sat.status, 200);
+  assert.match(sat.body.url, /^https:\/\/tests\.example\.com\/accounts\?/);
+  assert.equal(sat.body.pass_percent, 70, "the opening's own pass mark, not the default");
+  // The callback token is what lets the score come back without our password.
+  assert.ok(new URL(sat.body.url).searchParams.get('callback_token'));
+  // And the query the office typed survives.
+  assert.equal(new URL(sat.body.url).searchParams.get('v'), '2');
+});
+
+test('an opening with no test of its own, and no app-wide one, offers none', async () => {
+  const plain = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId,
+    title: 'Office Boy',
+  });
+  await api('PATCH', `/api/hiring/vacancies/${plain.body.id}`, { status: 'published' });
+  const applied = await open('POST', `/api/public/vacancies/${plain.body.ref_no}/apply`, {
+    name: 'Ramesh Bhai',
+    phone: '9000000043',
+  });
+  const sat = await open('GET', `/api/public/test/${applied.body.upload_token}`);
+  assert.equal(sat.status, 404, 'no test is "none", never somebody else\'s test');
+});
+
+test('a test link that is not a web address is refused when it is SAVED', async () => {
+  for (const bad of ['javascript:alert(1)', 'ask Hema for the link']) {
+    const refused = await api('POST', '/api/hiring/vacancies', {
+      company_id: companyId,
+      title: 'Nope',
+      test_url: bad,
+    });
+    assert.equal(refused.status, 400, bad);
+  }
+
+  // Editing an opening answers the same way the create route does, and leaves
+  // the link that was already working alone.
+  const good = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId,
+    title: 'Has a test',
+    test_url: 'https://tests.example.com/ok',
+  });
+  const refused = await api('PATCH', `/api/hiring/vacancies/${good.body.id}`, {
+    test_url: 'javascript:alert(1)',
+  });
+  assert.equal(refused.status, 400, 'not a 500 - it is the office to correct, not a fault');
+  const after = await api('GET', `/api/hiring/vacancies/${good.body.id}`);
+  assert.equal(after.body.vacancy.test_url, 'https://tests.example.com/ok', 'untouched');
+});
+
+test('the test link never reaches the advert', async () => {
+  const listed = await open('GET', '/api/public/vacancies');
+  for (const advert of listed.body.vacancies) {
+    assert.ok(!('test_url' in advert), 'the advert is an allow-list and must stay one');
+  }
+});
+
 test('the public apply form cannot be hammered', async () => {
   let limited = false;
   for (let i = 0; i < 14; i += 1) {

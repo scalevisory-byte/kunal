@@ -14,6 +14,10 @@ const FIELDS = [
   ['skills', 'Skills'],
   ['positions', 'Openings'],
   ['needed_by', 'Needed by'],
+  // The test follows the job: a travel consultant and an accounts executive
+  // are not tested the same way. Blank falls back to the app-wide one.
+  ['test_url', 'Test link for this job'],
+  ['test_pass_percent', 'Pass mark %'],
 ];
 
 /**

@@ -17,6 +17,8 @@ const blank = (companyId) => ({
   needed_by: '',
   description: '',
   internal_notes: '',
+  test_url: '',
+  test_pass_percent: '',
 });
 
 /**
@@ -102,6 +104,18 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
             <Field label="Qualification" value={draft.education} placeholder="B.Com" onChange={(v) => setDraft({ ...draft, education: v })} />
             <Field label="Salary from" value={draft.salary_min} placeholder="15000" onChange={(v) => setDraft({ ...draft, salary_min: v })} />
             <Field label="Salary to" value={draft.salary_max} placeholder="22000" onChange={(v) => setDraft({ ...draft, salary_max: v })} />
+            <Field
+              label="Test link for this job"
+              value={draft.test_url}
+              placeholder="https://… — blank uses the app-wide test"
+              onChange={(v) => setDraft({ ...draft, test_url: v })}
+            />
+            <Field
+              label="Pass mark %"
+              value={draft.test_pass_percent}
+              placeholder="50"
+              onChange={(v) => setDraft({ ...draft, test_pass_percent: v })}
+            />
             <Field
               label="Skills (comma separated)"
               value={draft.skills}
