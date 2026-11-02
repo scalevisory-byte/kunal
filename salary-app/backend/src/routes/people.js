@@ -7,6 +7,26 @@ import { getEmployee } from '../db.js';
 import { barcodeSvg } from '../../../shared/barcode.js';
 import qr from 'qrcode-generator';
 import { qrSvg } from '../../../shared/qr.js';
+import { config } from '../config.js';
+
+/*
+ * What a sticker's QR actually carries: a link to that asset, so scanning it
+ * with any phone camera opens its page rather than showing a string somebody
+ * then has to retype into the search box.
+ *
+ * The address is PUBLIC_URL when it is set, and otherwise whatever host this
+ * request came in on - so a sticker printed from the office laptop carries the
+ * office laptop's address, which is wrong on a phone but honestly wrong rather
+ * than silently useless. Set PUBLIC_URL before printing a sheet that goes on
+ * the kit.
+ *
+ * `?as=text` still puts the bare code in, for anybody who wants a sticker that
+ * outlives the address.
+ */
+const assetLink = (req, code) => {
+  const base = (config.publicUrl || `${req.protocol}://${req.get('host') || ''}`).replace(/\/$/, '');
+  return `${base}/a/${encodeURIComponent(code)}`;
+};
 
 /* The sticker sheet is the only HTML this router sends, and an asset's name is
    typed by somebody. */
@@ -283,12 +303,14 @@ peopleRouter.get('/assets/:id/label.svg', (req, res) => {
     return res.type('image/svg+xml').send(svg);
   }
 
-  const svg = qrSvg(asset.code, {
+  const svg = qrSvg(as === 'text' ? asset.code : assetLink(req, asset.code), {
     qr,
     sizeMm: Number(req.query.mm) || 18,
     // Q survives a scuff, a thumbprint and a corner peeling off a vehicle.
     // A sticker gets exactly that, and the code is short enough to afford it.
     ecc: 'Q',
+    // The caption is the code, always. A URL printed under a sticker is
+    // unreadable and nobody types one off a laptop lid.
     label: asset.code,
   });
   if (!svg) return res.status(400).json({ error: 'that code cannot be made into a QR' });
@@ -320,7 +342,12 @@ peopleRouter.get('/assets/labels.html', (req, res) => {
   const mm = Number(req.query.mm) || 18;
   const cells = assets
     .map((a) => {
-      const svg = qrSvg(a.code, { qr, sizeMm: mm, ecc: 'Q' }) || '';
+      const svg =
+        qrSvg(String(req.query.as) === 'text' ? a.code : assetLink(req, a.code), {
+          qr,
+          sizeMm: mm,
+          ecc: 'Q',
+        }) || '';
       const what = [a.kind, a.label].filter(Boolean).join(' — ');
       return (
         `<div class="sticker">${svg}` +
@@ -349,9 +376,9 @@ peopleRouter.get('/assets/labels.html', (req, res) => {
       @media print { body { margin: 5mm; } h1, .note { display: none; } .sticker { border-color: #eee; } }
     </style></head><body>
       <h1>${assets.length} label${assets.length === 1 ? '' : 's'} — print this page</h1>
-      <p class="note">The dashed lines are a cutting guide and do not print dark. Each code is
-      the asset's own; scanning it with a phone shows that code, which the register's search box
-      finds.</p>
+      <p class="note">The dashed lines are a cutting guide and do not print dark. Scanning one
+      with a phone opens that asset — ${esc(assetLink(req, 'CODE').replace('/CODE', ''))} — and
+      asks for a sign-in first, because an asset register is not public.</p>
       <div class="sheet">${cells}</div>
     </body></html>`
   );

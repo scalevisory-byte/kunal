@@ -15,7 +15,16 @@ import Assets from './people/Assets.jsx';
  * view of it rather than the way in, and it also shows on that person's own
  * record.
  */
-export default function AssetsTab({ employees, companies, period, me, onError, onReload }) {
+export default function AssetsTab({
+  employees,
+  companies,
+  period,
+  me,
+  scanned,
+  onScanned,
+  onError,
+  onReload,
+}) {
   if (STANDALONE) {
     return (
       <section className="card">
@@ -36,6 +45,8 @@ export default function AssetsTab({ employees, companies, period, me, onError, o
       companies={companies}
       period={period}
       me={me}
+      scanned={scanned}
+      onScanned={onScanned}
       onError={onError}
       onReload={onReload}
     />

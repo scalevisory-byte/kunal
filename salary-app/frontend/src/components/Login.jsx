@@ -92,7 +92,7 @@ export default function Login({ onSignedIn, onError }) {
   return (
     <div className="login">
       <form className="card login-card" onSubmit={submit}>
-        <h1>Salary Sheet</h1>
+        <h1>BOOKNFLY HRMS</h1>
 
         {mode === 'setup' && (
           <>

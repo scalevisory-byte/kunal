@@ -18,7 +18,7 @@ const today = () => new Date().toISOString().slice(0, 10);
  * **out of the building** gets its own figure, because an asset in the office is
  * somewhere you can go and look.
  */
-export default function Assets({ employees, companies, onError }) {
+export default function Assets({ employees, companies, scanned, onScanned, onError }) {
   const [assets, setAssets] = useState([]);
   const [totals, setTotals] = useState({});
   const [view, setView] = useState('register');
@@ -26,6 +26,7 @@ export default function Assets({ employees, companies, onError }) {
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [history, setHistory] = useState(null);
+  const [notFound, setNotFound] = useState('');
   const [said, setSaid] = useState('');
   const [draft, setDraft] = useState({
     company_id: '',
@@ -68,6 +69,35 @@ export default function Assets({ employees, companies, onError }) {
       }
     })();
   }, [draft.company_id]);
+
+  /*
+   * A sticker was scanned and the app has landed here. The code is looked up
+   * on its own rather than searched for in whatever is on screen: the register
+   * may be filtered to one company, or to "in the office", and a scan should
+   * find the thing wherever it is - including something written off, which is
+   * exactly when somebody scans a label to ask what happened to it.
+   */
+  useEffect(() => {
+    if (!scanned) return;
+    let dropped = false;
+    (async () => {
+      try {
+        const asset = await api.get(`/people/assets/by-code/${encodeURIComponent(scanned)}`);
+        if (!dropped) setHistory(asset);
+      } catch (err) {
+        // 404 here is not an error to shout about: it is a sticker for
+        // something that has been removed, or a code typed by hand.
+        if (!dropped) setNotFound(err.status === 404 ? scanned : '');
+        if (err.status !== 404) onError(err);
+      } finally {
+        onScanned?.();
+      }
+    })();
+    return () => {
+      dropped = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanned]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -353,9 +383,16 @@ export default function Assets({ employees, companies, onError }) {
 
       {said && <p className="error">{said}</p>}
 
+      {/*
+       * The register is wide, and it needs a scroller of its own. Without one
+       * it widens the whole page, and on a phone Chrome then lays the entire
+       * app out at the table's width - which is how a scanned sticker came to
+       * open a panel running off the side of the screen.
+       */}
       {!shown.length ? (
         <p className="muted small">Nothing here.</p>
       ) : (
+        <div className="table-wrap">
         <table className="sheet">
           <thead>
             <tr>
@@ -439,8 +476,16 @@ export default function Assets({ employees, companies, onError }) {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
+      {notFound && (
+        <p className="banner bad">
+          Nothing on the register with the code <strong>{notFound}</strong>. The sticker may be
+          for something that has been removed.
+          <button className="ghost tiny" onClick={() => setNotFound('')}>dismiss</button>
+        </p>
+      )}
       {history && <AssetHistory asset={history} onClose={() => setHistory(null)} onError={onError} />}
     </section>
   );

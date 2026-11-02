@@ -779,6 +779,15 @@ table.sample td, table.sample th { padding: 0.2rem 0.4rem; }
   border-radius: var(--radius);
   padding: 1.2rem;
   width: min(46rem, 100%);
+  /*
+   * A grid item will not shrink below its own content, so one wide table
+   * inside pushed the whole panel off the side of a phone - which is exactly
+   * the screen somebody is on when they scan a sticker. It scrolls inside
+   * itself now instead.
+   */
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 .payslip-head { display: flex; justify-content: space-between; align-items: start; gap: 1rem; flex-wrap: wrap; }

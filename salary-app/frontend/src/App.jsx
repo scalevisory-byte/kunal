@@ -84,6 +84,22 @@ function Shell() {
   // Declared with the rest: this sits above two early returns, and a hook
   // after one of those is React error #310.
   const [navOpen, setNavOpen] = useState(false);
+  /*
+   * A sticker on a laptop lid was scanned. The path is read once, at the top,
+   * and then taken out of the address bar - so a refresh does not reopen the
+   * same asset, and the link can still be pasted to somebody.
+   *
+   * It survives the sign-in screen on purpose: an asset register is not public,
+   * so scanning while signed out should ask who you are and THEN show the
+   * laptop, rather than losing it and landing on the dashboard.
+   */
+  const [scanned, setScanned] = useState(() => {
+    if (STANDALONE) return '';
+    const found = window.location.pathname.match(/^\/a\/([^/]+)/);
+    if (!found) return '';
+    window.history.replaceState({}, '', '/');
+    return decodeURIComponent(found[1]);
+  });
   const [authed, setAuthed] = useState(false);
   // Who is signed in, and what their role carries. Used to hide what they
   // cannot do - the server refuses it regardless, so this is courtesy rather
@@ -168,6 +184,11 @@ function Shell() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (authed && scanned) setTab('assets');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed, scanned]);
 
   useEffect(() => {
     if (authed) loadAll();
@@ -625,6 +646,8 @@ function Shell() {
             companies={companies}
             period={period}
             me={me}
+            scanned={scanned}
+            onScanned={() => setScanned('')}
             onError={handle}
             onReload={loadAll}
           />
