@@ -3,7 +3,7 @@ import { STANDALONE, api } from '../api.js';
 import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
 import Contributions from './Contributions.jsx';
-import EmployeeRecord from './EmployeeRecord.jsx';
+import EmployeeRecord, { Reporting } from './EmployeeRecord.jsx';
 
 /**
  * One employee's full record.
@@ -236,6 +236,24 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
         {error && <p className="error">{error}</p>}
 
         <OnboardingChecklist employee={draft} />
+
+        {/* Works with or without the server - it is a link between two rows. */}
+        <Reporting
+          employee={draft}
+          employees={allEmployees}
+          onPatch={async (id, patch) => {
+            setDraft({ ...draft, ...patch });
+            setSaving(true);
+            setError('');
+            try {
+              await onPatch(id, patch);
+            } catch (err) {
+              setError(err.message);
+            } finally {
+              setSaving(false);
+            }
+          }}
+        />
 
         <EmployeeRecord
           employee={draft}

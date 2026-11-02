@@ -4,6 +4,7 @@ import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import OrgChart from './OrgChart.jsx';
+import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { rupees } from '../format.js';
 
 const BLANK = {
@@ -29,6 +30,15 @@ const BLANK = {
   conveyance: '',
   medical: '',
 };
+
+/*
+ * Naming people in a note. Capped, because the honest thing is to say who is
+ * affected - not to print seventy-four names into a toolbar.
+ */
+const listNames = (people, limit = 6) =>
+  people.length > limit
+    ? `${people.slice(0, limit).map((p) => p.name).join(', ')} and ${people.length - limit} more`
+    : people.map((p) => p.name).join(', ');
 
 /** The employee master: who gets paid, and what their monthly salary is. */
 export default function Employees({
@@ -60,6 +70,10 @@ export default function Employees({
   const [reportFor, setReportFor] = useState(null);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [showTemplate, setShowTemplate] = useState(false);
+  // Setting the reporting line one record at a time is the reason twenty-six
+  // people had no manager at all.
+  const [bulkManager, setBulkManager] = useState('');
+  const [showManager, setShowManager] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -154,6 +168,35 @@ export default function Employees({
     try {
       await onBulkPatch([...picked], { religion: name.trim() });
       setBulkReligion('');
+      setPicked(new Set());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /*
+   * One manager over everybody ticked.
+   *
+   * Worked out against the WHOLE list, never the filtered one: with a company
+   * chosen, somebody's manager can legitimately be in another company, and
+   * judging a loop off a shortened list would miss one.
+   */
+  const managerPlan = useMemo(
+    () => bulkManagerPlan(employees, [...picked], bulkManager),
+    [employees, picked, bulkManager]
+  );
+
+  const applyManager = async () => {
+    if (!managerPlan.setting.length) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onBulkPatch(
+        managerPlan.setting.map((p) => p.id),
+        { reports_to_id: bulkManager ? Number(bulkManager) : null }
+      );
       setPicked(new Set());
     } catch (err) {
       setError(err.message);
@@ -475,6 +518,9 @@ export default function Employees({
             <button className="ghost" onClick={() => setShowTemplate((v) => !v)}>
               {showTemplate ? 'Hide the split' : 'Split their salary'}
             </button>
+            <button className="ghost" onClick={() => setShowManager((v) => !v)}>
+              {showManager ? 'Hide the manager' : 'Set their manager'}
+            </button>
             <label>
               PF / ESI
               <select
@@ -567,6 +613,88 @@ export default function Employees({
               pay changes. HRA is {template.hraPercentOfBasic}% of basic because Vadodara and
               Surat are not metros for the exemption.
             </span>
+          </div>
+        )}
+
+        {picked.size > 0 && showManager && (
+          <div className="bulk-bar wrap">
+            <strong>Reporting line for {picked.size}</strong>
+            <label>
+              They all report to
+              <select value={bulkManager} onChange={(e) => setBulkManager(e.target.value)}>
+                <option value="">Nobody — take the manager away</option>
+                {employees
+                  .filter((e) => e.active)
+                  .slice()
+                  .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.designation ? ` — ${m.designation}` : ''}
+                      {m.company_name && !companyId ? ` (${m.company_name})` : ''}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <button
+              className="primary"
+              disabled={busy || !managerPlan.setting.length}
+              onClick={applyManager}
+            >
+              {busy
+                ? 'Saving…'
+                : managerPlan.setting.length
+                  ? `Set ${managerPlan.setting.length}`
+                  : 'Nothing to set'}
+            </button>
+            {/*
+              * What it will and will not do, before it does it. A bulk action
+              * that quietly skips the manager himself leaves the chart looking
+              * finished when it is not, so every refusal is named here.
+              */}
+            <div className="note small stack-tight">
+              {managerPlan.missing && (
+                <div className="bad">
+                  That manager is not on the list any more. Choose another one.
+                </div>
+              )}
+              {managerPlan.setting.length > 0 && (
+                <div>
+                  {managerPlan.clearing
+                    ? `${managerPlan.setting.length} will be left with no manager.`
+                    : `${managerPlan.setting.length} will report to ${managerPlan.manager?.name}.`}
+                  {managerPlan.replacing.length > 0 &&
+                    ` ${managerPlan.replacing.length} of them already report to somebody else — that link is replaced: ${listNames(managerPlan.replacing)}.`}
+                </div>
+              )}
+              {managerPlan.already.length > 0 && (
+                <div className="muted">
+                  {managerPlan.already.length}{' '}
+                  {managerPlan.clearing ? 'had no manager anyway' : 'already report to them'} —{' '}
+                  {listNames(managerPlan.already)}.
+                </div>
+              )}
+              {managerPlan.self.length > 0 && (
+                <div className="warn">
+                  {listNames(managerPlan.self)} is the manager, and is left alone — nobody can
+                  report to themselves.
+                </div>
+              )}
+              {managerPlan.circular.length > 0 && (
+                /* The refused people are the subject of the sentence. Put the
+                   manager first and it reads as though THEY were skipped. */
+                <div className="warn">
+                  {listNames(managerPlan.circular)} {managerPlan.circular.length === 1 ? 'is' : 'are'}{' '}
+                  left alone — {managerPlan.manager?.name} already reports to{' '}
+                  {managerPlan.circular.length === 1 ? 'them' : 'one of them'}, so it would make the
+                  line circle back on itself.
+                </div>
+              )}
+              <div className="muted">
+                Nobody&apos;s pay changes. This only says who reports to whom, and it can be set
+                again or taken away.
+              </div>
+            </div>
           </div>
         )}
 

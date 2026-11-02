@@ -5,11 +5,63 @@ import { DOCUMENT_KINDS, kindLabel } from '../../../shared/documents.js';
 const when = (value) => String(value || '').replace('T', ' ').slice(0, 16);
 
 /**
- * The parts of an employee record that are not fields: the paper on file, who
- * they report to, and what has changed about them over time.
+ * Who somebody reports to.
  *
- * All three need the server — a document is a file, and a history is a table.
- * The single-file build says so rather than showing an empty box.
+ * Its own piece, and deliberately NOT behind the server: a manager is a link
+ * between two rows already in memory, unlike a document (a file) or a history
+ * (a table). It used to sit inside the block below and so vanished from the
+ * single-file build, which could draw the chart and bulk-set the line but gave
+ * no way to set one person's.
+ *
+ * The direct reports are counted from the list itself rather than fetched, so
+ * what this says and what the chart draws come from the same place.
+ */
+export function Reporting({ employee, employees, onPatch }) {
+  const managers = employees.filter((e) => e.id !== employee.id && e.active);
+  const reports = employees.filter((e) => e.reports_to_id === employee.id);
+  return (
+    <div className="structure">
+      <h3 style={{ margin: '0 0 0.5rem' }}>Reporting</h3>
+      <div className="form-grid">
+        <label>
+          Reports to
+          <select
+            value={employee.reports_to_id || ''}
+            onChange={(e) => onPatch(employee.id, { reports_to_id: Number(e.target.value) || null })}
+          >
+            <option value="">Nobody</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+                {m.designation ? ` — ${m.designation}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {reports.length ? (
+        <p className="small" style={{ marginTop: '0.4rem' }}>
+          <strong>{reports.length}</strong>{' '}
+          {reports.length === 1 ? 'person reports' : 'people report'} to them:{' '}
+          {reports.map((r) => r.name).join(', ')}
+        </p>
+      ) : (
+        <p className="muted small">Nobody reports to them.</p>
+      )}
+      <p className="muted small">
+        To set this for a lot of people at once, tick them on the employee list and use
+        <strong> Set their manager</strong>.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The rest of a record that is not fields: the paper on file, and what has
+ * changed about them over time.
+ *
+ * Both need the server — a document is a file, and a history is a table. The
+ * single-file build says so rather than showing an empty box.
  */
 export default function EmployeeRecord({ employee, employees, onPatch, onError }) {
   const [record, setRecord] = useState(null);
@@ -53,8 +105,8 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
         <h3 style={{ margin: '0 0 0.4rem' }}>Documents and history</h3>
         <p className="muted small">
           Keeping documents and a change history needs the server version — a PAN card is a
-          file, and a file cannot live in this browser. Everything else on this record works
-          here as normal.
+          file, and a file cannot live in this browser. Everything else on this record,
+          the reporting line included, works here as normal.
         </p>
       </div>
     );
@@ -90,40 +142,10 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
     }
   };
 
-  const { documents, document_status: status, history, reports } = record;
-  const managers = employees.filter((e) => e.id !== employee.id && e.active);
+  const { documents, document_status: status, history } = record;
 
   return (
     <>
-      <div className="structure">
-        <h3 style={{ margin: '0 0 0.5rem' }}>Reporting</h3>
-        <div className="form-grid">
-          <label>
-            Reports to
-            <select
-              value={employee.reports_to_id || ''}
-              onChange={(e) => onPatch(employee.id, { reports_to_id: e.target.value || null })}
-            >
-              <option value="">Nobody</option>
-              {managers.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                  {m.designation ? ` — ${m.designation}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        {reports.length ? (
-          <p className="small" style={{ marginTop: '0.4rem' }}>
-            <strong>{reports.length}</strong> {reports.length === 1 ? 'person reports' : 'people report'} to
-            them: {reports.map((r) => r.name).join(', ')}
-          </p>
-        ) : (
-          <p className="muted small">Nobody reports to them.</p>
-        )}
-      </div>
-
       {/*
         * What they were handed. The asset register is the authority and this
         * only reads it, so the two cannot drift. Nothing here issues or takes

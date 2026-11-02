@@ -17,6 +17,7 @@ import { parseSheet, listSheetNames } from '../../shared/sheet.js';
  */
 const AUTO_TIME_MARKS = new Set(['', 'P', 'A', 'HF']);
 import { readPunchFile, punchesToMarks } from '../../shared/punches.js';
+import { wouldLoop } from '../../shared/orgChart.js';
 import {
   DEFAULT_MARK_MAP,
   isLegacyXls,
@@ -646,9 +647,25 @@ export async function handle(method, path, body) {
     }
 
     if (method === 'PATCH') {
+      /*
+       * The same refusal the server makes. Without it this build would accept
+       * a reporting line the server rejects, and the two would disagree about
+       * the same click.
+       */
+      if ('reports_to_id' in (body || {})) {
+        const manager = Number(body.reports_to_id) || null;
+        if (manager && wouldLoop(db.employees, employee.id, manager)) {
+          throw new HttpError(400, 'That would make the reporting line circle back on itself.');
+        }
+      }
       for (const key of EMPLOYEE_FIELDS) {
         if (!(key in (body || {}))) continue;
-        employee[key] = key === 'active' ? (body[key] ? 1 : 0) : body[key];
+        let value = body[key];
+        if (key === 'active') value = value ? 1 : 0;
+        // An id has to be stored as a number: a select hands back a string,
+        // and "3" never matches employee 3 when the chart looks the manager up.
+        if (key === 'reports_to_id') value = Number(value) || null;
+        employee[key] = value;
       }
       save();
       return { ...employee, company_name: companyOf(employee.company_id)?.name || '' };

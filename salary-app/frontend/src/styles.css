@@ -1758,3 +1758,8 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 .org li.top { font-weight: 600; }
 .org li:last-child { border-bottom: none; }
 .org .pill { font-size: 0.68rem; }
+
+/* A bulk action's own note: what it will do, and each thing it will not. */
+.stack-tight { display: grid; gap: 0.25rem; }
+.stack-tight .warn { color: var(--warn); }
+.stack-tight .bad { color: var(--bad); }

@@ -121,3 +121,71 @@ export function wouldLoop(employees, personId, managerId) {
   }
   return false;
 }
+
+/**
+ * Setting one manager over everybody ticked, worked out BEFORE anything is
+ * saved.
+ *
+ * Doing this one record at a time is fine for a team of four and hopeless for
+ * a hundred and fifteen, but a manager is not a religion: tick everybody,
+ * choose a manager, and two things go wrong at once. The manager is almost
+ * always among the people ticked - "select all, report to Vaibhav" asks
+ * Vaibhav to report to himself - and anybody the manager already reports to
+ * would close a circle.
+ *
+ * So the plan is worked out first and says what it will and will not do. The
+ * refusals are NAMED, never silently dropped: a bulk action that quietly skips
+ * three people leaves somebody believing the chart is complete.
+ *
+ * Judging each person against the list as it stands now is enough. Everybody
+ * ticked gets the SAME manager, so the only chain that could move above the
+ * manager belongs to one of their own ancestors - and an ancestor is exactly
+ * what `circular` refuses, so that chain stays where it is.
+ *
+ * `managerId` empty means take the manager away, which can never loop.
+ */
+export function bulkManagerPlan(employees = [], ids = [], managerId = null) {
+  const byId = new Map(employees.filter((e) => e && e.id != null).map((e) => [e.id, e]));
+  const wanted = managerId ? Number(managerId) : null;
+  const manager = wanted ? byId.get(wanted) || null : null;
+
+  const plan = {
+    manager,
+    clearing: !wanted,
+    // The manager was chosen but is not on the list at all. Possible if the
+    // list was filtered or they were deleted between choosing and clicking.
+    missing: Boolean(wanted) && !manager,
+    setting: [],
+    replacing: [],
+    already: [],
+    self: [],
+    circular: [],
+  };
+  if (plan.missing) return plan;
+
+  for (const id of [...new Set(ids.map(Number))]) {
+    const person = byId.get(id);
+    if (!person) continue;
+    const now = person.reports_to_id || null;
+    if ((now || null) === (wanted || null)) {
+      plan.already.push(person);
+      continue;
+    }
+    if (wanted) {
+      if (id === wanted) {
+        plan.self.push(person);
+        continue;
+      }
+      if (wouldLoop(employees, id, wanted)) {
+        plan.circular.push(person);
+        continue;
+      }
+    }
+    plan.setting.push(person);
+    // Already placed under somebody else: this replaces that line rather than
+    // filling a blank, which is worth saying out loud before it happens.
+    if (now) plan.replacing.push(person);
+  }
+
+  return plan;
+}
