@@ -120,7 +120,7 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
             <Field
               label="Seconds per question"
               value={draft.test_seconds_per_question}
-              placeholder="blank = no limit"
+              placeholder="blank = 30 (the default)"
               onChange={(v) => setDraft({ ...draft, test_seconds_per_question: v })}
             />
             <Field

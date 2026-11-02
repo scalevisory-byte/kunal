@@ -21,6 +21,9 @@ process.env.LINK_SECRET = 'test-secret';
 process.env.PUBLIC_URL = 'https://hr.example.com';
 process.env.SERVE_FRONTEND = 'false';
 process.env.TEST_EMBED_URL = 'https://test.example.com/start?v=2';
+// Explicitly OFF in this file, so the "no limit means no limit" assertions
+// below are testing that and not the shipped 30-second default.
+process.env.TEST_SECONDS_PER_QUESTION = '0';
 
 const { createServer } = await import('../src/server.js');
 
@@ -187,7 +190,8 @@ test('the time allowed for one question rides on the test link', async () => {
   assert.equal(url.searchParams.get('embed'), '1', 'and the embed flag still survives');
   assert.equal(handed.body.seconds_per_question, 45);
 
-  // An opening with no limit says so by saying nothing.
+  // With the app-wide limit off and none on the opening, there is no limit at
+  // all - and it says so by saying nothing.
   const loose = await api('POST', '/api/hiring/vacancies', {
     company_id: company.body.id,
     title: 'Peon',

@@ -398,7 +398,6 @@ test('deleting a candidate takes their CV off the disk with them', async () => {
 /* ---------------- last, because it trips the limiter ---------------- */
 
 /* ---------------- the test follows the vacancy ---------------- */
-
 test('an opening carries its own test, and the candidate is sent to that one', async () => {
   // No app-wide TEST_EMBED_URL is set in this run, so if this works at all it
   // can only be the opening's own.
@@ -472,6 +471,48 @@ test('the test link never reaches the advert', async () => {
   for (const advert of listed.body.vacancies) {
     assert.ok(!('test_url' in advert), 'the advert is an allow-list and must stay one');
   }
+});
+
+/*
+ * The shipped default: 30 seconds a question, Dinesh's own figure. This file
+ * sets no TEST_SECONDS_PER_QUESTION, so what it sees is what an install with
+ * nothing configured gets - and an opening that says nothing inherits it.
+ *
+ * Built through the OFFICE routes, not the public apply form: that form is
+ * rate limited per IP and this file has spent its budget by here.
+ */
+test('thirty seconds a question is the default, and an opening inherits it', async () => {
+  const config = await api('GET', '/api/hiring/config');
+  assert.equal(config.body.test_seconds_per_question, 30);
+
+  const job = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId,
+    title: 'Inherits the default',
+    test_url: 'https://tests.example.com/x',
+  });
+  const who = await api('POST', '/api/hiring/candidates', {
+    name: 'Default Inheritor',
+    phone: '9000000044',
+  });
+  const put = await api('POST', '/api/hiring/applications', {
+    vacancy_id: job.body.id,
+    candidate_id: who.body.id,
+  });
+  assert.equal(put.status, 201);
+  const appId = put.body.application.id;
+
+  const detail = await api('GET', `/api/hiring/applications/${appId}`);
+  assert.equal(detail.body.test.seconds_per_question, 30, 'nothing set on the opening');
+
+  // An opening may still say something else.
+  await api('PATCH', `/api/hiring/vacancies/${job.body.id}`, { test_seconds_per_question: 90 });
+  const after = await api('GET', `/api/hiring/applications/${appId}`);
+  assert.equal(after.body.test.seconds_per_question, 90);
+
+  // Handing it back blank returns to the DEFAULT, not to no limit at all.
+  await api('PATCH', `/api/hiring/vacancies/${job.body.id}`, { test_seconds_per_question: '' });
+  const back = await api('GET', `/api/hiring/applications/${appId}`);
+  assert.equal(back.body.test.seconds_per_question, 30);
 });
 
 test('the public apply form cannot be hammered', async () => {

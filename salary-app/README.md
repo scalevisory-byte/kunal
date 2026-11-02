@@ -560,8 +560,10 @@ When a candidate finishes applying, the app hands the test out at
 
 **The clock runs in the test system, not here.** This app cannot time somebody typing; it
 decides the rule, publishes it on the URL, and afterwards says which questions went past
-it. The limit is per opening (`test_seconds_per_question`, blank = no limit), falling back
-to `TEST_SECONDS_PER_QUESTION`. It is kept **on the result** as well, so changing an
+it. The limit is per opening (`test_seconds_per_question`), falling back to
+`TEST_SECONDS_PER_QUESTION`, whose default is **30 seconds** — Dinesh's own figure. Blank
+on an opening therefore means "use the default", not "no limit"; setting
+`TEST_SECONDS_PER_QUESTION=0` is how a limit is turned off everywhere. It is kept **on the result** as well, so changing an
 opening's limit later cannot rewrite what an old sitting was judged against.
 
 The test system then posts to `POST /api/public/test-result/:callback_token`:
