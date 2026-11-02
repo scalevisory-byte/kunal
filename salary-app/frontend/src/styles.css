@@ -1742,3 +1742,19 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   margin-top: 0.25rem;
   line-height: 1.3;
 }
+
+/* The reporting line: one indented list, with a hairline down each level so
+   an indent of three is readable without counting. */
+.org { list-style: none; margin: 0; padding: 0; font-size: 0.85rem; }
+.org li {
+  padding-top: 0.28rem;
+  padding-bottom: 0.28rem;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.org li.top { font-weight: 600; }
+.org li:last-child { border-bottom: none; }
+.org .pill { font-size: 0.68rem; }

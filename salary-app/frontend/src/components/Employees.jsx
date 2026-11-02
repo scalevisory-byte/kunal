@@ -3,6 +3,7 @@ import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
+import OrgChart from './OrgChart.jsx';
 import { rupees } from '../format.js';
 
 const BLANK = {
@@ -54,6 +55,8 @@ export default function Employees({
   const [bulkReligion, setBulkReligion] = useState('');
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
+  // The same people, read two ways: down a list, or up a reporting line.
+  const [asChart, setAsChart] = useState(false);
   const [reportFor, setReportFor] = useState(null);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [showTemplate, setShowTemplate] = useState(false);
@@ -440,6 +443,13 @@ export default function Employees({
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
             Show inactive
           </label>
+          <button
+            className={asChart ? 'active' : undefined}
+            onClick={() => setAsChart((v) => !v)}
+            title="Who reports to whom"
+          >
+            {asChart ? 'As a list' : 'Reporting line'}
+          </button>
           <span className="grow" />
           <span className="muted small">{filtered.length} employees</span>
         </div>
@@ -560,6 +570,9 @@ export default function Employees({
           </div>
         )}
 
+        {asChart ? (
+          <OrgChart employees={filtered} onOpen={(e) => setProfileFor(e.id)} />
+        ) : (
         <div className="table-wrap">
           <table className="sheet">
             <thead>
@@ -737,6 +750,7 @@ export default function Employees({
             </tbody>
           </table>
         </div>
+        )}
         <p className="muted small">
           Salary here is the master figure. Changing it does not rewrite a month that already has its
           own number - edit that on the salary sheet.
