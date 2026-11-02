@@ -1763,3 +1763,10 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 .stack-tight { display: grid; gap: 0.25rem; }
 .stack-tight .warn { color: var(--warn); }
 .stack-tight .bad { color: var(--bad); }
+
+/* A manager for each department. The "what this will do" column is prose, so
+   it wraps - every other cell in a sheet is a figure and must not. */
+.dept-managers td.what { white-space: normal; min-width: 18rem; max-width: 34rem; height: auto; }
+.dept-managers td.what .stack-tight { padding: 0.2rem 0; }
+.dept-managers td select { max-width: 22rem; }
+.dept-managers .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-top: 0.6rem; }

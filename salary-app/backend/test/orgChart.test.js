@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bulkManagerPlan, orgChart, wouldLoop } from '../../shared/orgChart.js';
+import {
+  bulkManagerPlan,
+  departmentGroups,
+  departmentManagerPlan,
+  orgChart,
+  wouldLoop,
+} from '../../shared/orgChart.js';
 
 /*
  * The reporting line.
@@ -145,4 +151,74 @@ test('a manager who is not on the list is said so, not set', () => {
 test('the same person ticked twice is counted once', () => {
   const plan = bulkManagerPlan(TEAM, [7, 7, 7], 1);
   assert.equal(plan.setting.length, 1);
+});
+
+/*
+ * A manager per department.
+ *
+ * The thing to pin is that a department is planned by the same rules as a
+ * ticked list - the head keeps their own manager, a loop is still refused -
+ * and that a department nobody chose for is left completely alone.
+ */
+
+const STAFF = [
+  { id: 1, name: 'VAIBHAV GUPTA', department: '' },
+  { id: 2, name: 'ALPESH SHUKLA', department: 'Accounts', reports_to_id: 1 },
+  { id: 3, name: 'ASHOK MISHRA', department: 'Accounts' },
+  { id: 4, name: 'ABDULHAK BHENSWALA', department: 'Accounts', reports_to_id: 3 },
+  { id: 5, name: 'ARQAM SAIYED', department: 'Operations', reports_to_id: 1 },
+  { id: 6, name: 'AXAY DHADUK', department: 'Operations' },
+  { id: 7, name: 'NOBODY SAID', department: '' },
+];
+
+test('departments group with the unset ones kept last, never hidden', () => {
+  const groups = departmentGroups(STAFF);
+  assert.deepEqual(
+    groups.map((g) => [g.name || '(none)', g.count]),
+    [['Accounts', 3], ['Operations', 2], ['(none)', 2]]
+  );
+  // Somebody already managing inside the department is offered as its head.
+  assert.deepEqual(groups[0].inside.map((p) => p.name), ['ASHOK MISHRA']);
+});
+
+test('one manager per department, each department judged on its own', () => {
+  const plan = departmentManagerPlan(STAFF, { Accounts: 2, Operations: 5 });
+  assert.equal(plan.departments, 2);
+
+  const accounts = plan.rows.find((r) => r.department === 'Accounts');
+  assert.deepEqual(names(accounts.plan.setting), ['ASHOK MISHRA', 'ABDULHAK BHENSWALA']);
+  assert.deepEqual(names(accounts.plan.self), ['ALPESH SHUKLA'], 'the head keeps VAIBHAV');
+  assert.deepEqual(names(accounts.plan.replacing), ['ABDULHAK BHENSWALA']);
+
+  const ops = plan.rows.find((r) => r.department === 'Operations');
+  assert.deepEqual(names(ops.plan.setting), ['AXAY DHADUK']);
+
+  assert.equal(plan.setting, 3);
+  assert.equal(plan.leaving, 2, 'the two heads themselves');
+});
+
+test('a department nobody chose for is not touched - blank is not "no manager"', () => {
+  const plan = departmentManagerPlan(STAFF, { Accounts: 2, Operations: '', '': null });
+  assert.deepEqual(plan.rows.map((r) => r.department), ['Accounts']);
+  assert.equal(plan.setting, 2);
+});
+
+test('setting a department under somebody who reports into it is refused by name', () => {
+  // ABDULHAK (4) is under ASHOK (3), who is in Accounts. Making all of
+  // Accounts report to ABDULHAK would close a circle on ASHOK.
+  const plan = departmentManagerPlan(STAFF, { Accounts: 4 });
+  const accounts = plan.rows[0];
+  assert.deepEqual(names(accounts.plan.circular), ['ASHOK MISHRA']);
+  assert.deepEqual(names(accounts.plan.self), ['ABDULHAK BHENSWALA']);
+  assert.deepEqual(names(accounts.plan.setting), ['ALPESH SHUKLA']);
+});
+
+test('the people with no department are a group like any other, same rules', () => {
+  const plan = departmentManagerPlan(STAFF, { '': 5 });
+  const none = plan.rows[0];
+  assert.equal(none.department, '');
+  assert.deepEqual(names(none.plan.setting), ['NOBODY SAID']);
+  // ARQAM already reports to VAIBHAV, so the director is left where he is -
+  // the loop check does not care that this group has no name.
+  assert.deepEqual(names(none.plan.circular), ['VAIBHAV GUPTA']);
 });

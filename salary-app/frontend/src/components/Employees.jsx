@@ -4,6 +4,7 @@ import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import OrgChart from './OrgChart.jsx';
+import DepartmentManagers from './DepartmentManagers.jsx';
 import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { rupees } from '../format.js';
 
@@ -63,6 +64,7 @@ export default function Employees({
   // for seventy, so rows can be ticked and given one in a single go.
   const [picked, setPicked] = useState(() => new Set());
   const [bulkReligion, setBulkReligion] = useState('');
+  const [bulkDepartment, setBulkDepartment] = useState('');
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
   // The same people, read two ways: down a list, or up a reporting line.
@@ -205,6 +207,27 @@ export default function Employees({
     }
   };
 
+  /*
+   * A department for everybody ticked. Same shape as the religion setter,
+   * and for the same reason: a field nobody has filled cannot be filtered or
+   * grouped by, and the department-wise manager panel has nothing to go on
+   * until this is done once.
+   */
+  const applyDepartment = async (name) => {
+    if (!picked.size) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onBulkPatch([...picked], { department: name.trim() });
+      setBulkDepartment('');
+      setPicked(new Set());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Whatever is already in use, plus the usual ones, as suggestions only -
   // the box takes anything typed into it.
   const religions = useMemo(() => {
@@ -213,8 +236,19 @@ export default function Employees({
     return [...new Set([...inUse, ...common])].sort();
   }, [employees]);
 
+  const departments = useMemo(() => {
+    const inUse = employees.map((e) => e.department).filter(Boolean);
+    const common = ['Accounts', 'Operations', 'Sales', 'Admin', 'HR', 'Ticketing'];
+    return [...new Set([...inUse, ...common])].sort();
+  }, [employees]);
+
   return (
     <section className="stack">
+      <datalist id="department-list">
+        {departments.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
       <datalist id="religion-list">
         {religions.map((name) => (
           <option key={name} value={name} />
@@ -514,6 +548,23 @@ export default function Employees({
               {busy ? 'Saving…' : `Apply to ${picked.size}`}
             </button>
             <button disabled={busy} onClick={() => applyReligion('')}>Clear</button>
+            <label>
+              Set department to
+              <input
+                list="department-list"
+                placeholder="e.g. Accounts, Operations"
+                value={bulkDepartment}
+                onChange={(e) => setBulkDepartment(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyDepartment(bulkDepartment)}
+              />
+            </label>
+            <button
+              className="primary"
+              disabled={busy || !bulkDepartment.trim()}
+              onClick={() => applyDepartment(bulkDepartment)}
+            >
+              {busy ? 'Saving…' : `Apply to ${picked.size}`}
+            </button>
             <span className="grow" />
             <button className="ghost" onClick={() => setShowTemplate((v) => !v)}>
               {showTemplate ? 'Hide the split' : 'Split their salary'}
@@ -699,7 +750,16 @@ export default function Employees({
         )}
 
         {asChart ? (
-          <OrgChart employees={filtered} onOpen={(e) => setProfileFor(e.id)} />
+          <div className="stack">
+            {/* The department-wise setter lives with the chart, because that
+                is where you look to see whether it worked. */}
+            <DepartmentManagers
+              employees={filtered}
+              onBulkPatch={onBulkPatch}
+              onError={(err) => setError(err.message)}
+            />
+            <OrgChart employees={filtered} onOpen={(e) => setProfileFor(e.id)} />
+          </div>
         ) : (
         <div className="table-wrap">
           <table className="sheet">
@@ -717,6 +777,7 @@ export default function Employees({
                 </th>
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
+                <th title="Groups people for the reporting line and the department-wise manager">Department</th>
                 <th title="Decides which festivals are a paid holiday">Religion</th>
                 <th title="Drives the birthday list on the dashboard">Born</th>
                 <th title="Drives the new joinees and work anniversaries on the dashboard">Joined</th>
@@ -769,6 +830,22 @@ export default function Employees({
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    {/* Keyed on the stored value, so a bulk change under a row
+                        already on screen re-renders instead of leaving a stale
+                        one showing. */}
+                    <input
+                      key={`department-${emp.id}-${emp.department || ''}`}
+                      className="cell-input wide"
+                      list="department-list"
+                      defaultValue={emp.department || ''}
+                      placeholder="-"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.department || '') &&
+                        onPatch(emp.id, { department: e.target.value })
+                      }
+                    />
                   </td>
                   <td>
                     <input

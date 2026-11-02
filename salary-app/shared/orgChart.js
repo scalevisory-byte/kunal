@@ -189,3 +189,75 @@ export function bulkManagerPlan(employees = [], ids = [], managerId = null) {
 
   return plan;
 }
+
+/** The department somebody is in, or '' for nobody-said. */
+const deptOf = (person) => String(person.department || '').trim();
+
+/**
+ * The staff grouped by department, for setting a manager over a whole one at
+ * a time.
+ *
+ * People with no department are kept as a group of their own rather than
+ * dropped or lumped into the first one: on a real list that is usually the
+ * biggest group, and hiding it is how somebody ends up with no manager and no
+ * sign of it.
+ */
+export function departmentGroups(employees = []) {
+  const groups = new Map();
+  for (const person of employees) {
+    if (!person || person.id == null) continue;
+    const name = deptOf(person);
+    const list = groups.get(name) || [];
+    list.push(person);
+    groups.set(name, list);
+  }
+  return [...groups.entries()]
+    .map(([name, people]) => ({
+      name,
+      people,
+      count: people.length,
+      // Somebody already managing people inside this department is the
+      // obvious head. Offered, never chosen - nothing decides itself.
+      inside: people.filter((p) => people.some((q) => q.reports_to_id === p.id)),
+    }))
+    .sort(
+      // Named departments first, "no department" last however it sorts.
+      (a, b) => (a.name === '') - (b.name === '') || a.name.localeCompare(b.name)
+    );
+}
+
+/**
+ * One manager per department, several departments at once.
+ *
+ * `choices` is {department name: manager id}; a department left out, or set
+ * to nothing, is not touched at all - which is NOT the same as being set to
+ * "no manager". Clearing a whole department's line is deliberate enough to
+ * need its own action, and a blank dropdown is how a mis-click would do it by
+ * accident.
+ *
+ * Each department is planned with the same rules as the bulk setter, against
+ * the WHOLE list, so the head of a department keeps whoever they report to
+ * and a loop is refused by name.
+ */
+export function departmentManagerPlan(employees = [], choices = {}) {
+  const rows = departmentGroups(employees)
+    .filter((group) => choices[group.name])
+    .map((group) => ({
+      department: group.name,
+      count: group.count,
+      plan: bulkManagerPlan(
+        employees,
+        group.people.map((p) => p.id),
+        choices[group.name]
+      ),
+    }));
+
+  return {
+    rows,
+    // What one click would do, totalled, so the button can say it.
+    setting: rows.reduce((n, r) => n + r.plan.setting.length, 0),
+    replacing: rows.reduce((n, r) => n + r.plan.replacing.length, 0),
+    leaving: rows.reduce((n, r) => n + r.plan.self.length + r.plan.circular.length, 0),
+    departments: rows.length,
+  };
+}
