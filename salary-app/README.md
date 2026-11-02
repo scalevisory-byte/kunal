@@ -536,6 +536,57 @@ flagged once something has been typed — blank is "not yet", never "wrong".
 This is also where somebody hired on the **Hiring** tab lands: *Add to payroll* carries their
 phone, email and date of birth across, and the checklist names the rest.
 
+### The candidate test
+
+The test **follows the vacancy**. Each opening carries its own `test_url` and
+`test_pass_percent` (Hiring → Openings), falling back to `TEST_EMBED_URL` /
+`TEST_PASS_PERCENT` in the environment. Blank in both places means the test step is simply
+not offered — no test is "none", never somebody else's test.
+
+Dinesh's own system is **`https://test.zyntajobs.in/?embed=1`**, the one embedded on the
+ZYNTA site under *Candidate skills test*. The `embed=1` is what puts it in iframe mode and
+is preserved when the candidate's parameters are appended. Only `http` and `https` are
+accepted, checked when the link is **saved** rather than when a candidate opens it.
+
+When a candidate finishes applying, the app hands the test out at
+`GET /api/public/test/:token` as that URL plus two parameters:
+
+- `ref` — the application id, so the test system knows who is sitting it;
+- `callback_token` — a short-lived, purpose-scoped token that lets the score come back
+  **without this app's password**, which the test system will never have.
+
+The test system then posts to `POST /api/public/test-result/:callback_token`:
+
+```json
+{
+  "type": "ticketing",
+  "score": 4,
+  "max_score": 6,
+  "pass_percent": 60,
+  "source": "ZYNTA test system",
+  "answers": [
+    { "question": "GST on a domestic air ticket?", "answer": "5%",
+      "correct": true, "seconds": 14 },
+    { "question": "Tally shortcut for a payment voucher", "answer": "F4",
+      "correct": false, "expected": "F5", "seconds": 236 }
+  ]
+}
+```
+
+`answers` is optional and drives the question-by-question view on the application, with the
+time each question took and the longest one named. `seconds` may instead be `time_taken`,
+`duration_ms`, or a `started_at`/`answered_at` pair — see `shared/testAnswers.js`, which
+also states plainly that the shape is **not pinned down** until a real payload is checked
+against it. A question with no timing reads as "not known", never as nought seconds; a
+question the test system does not mark reads as "not marked", never as wrong.
+
+**A recorded score moves nobody.** There is no auto-shortlist and no auto-reject.
+
+**Still to confirm:** whether `test.zyntajobs.in` reads `callback_token` and posts a score
+back at all. The ZYNTA site embeds it with no `postMessage` listener, so results may
+currently stay inside the test system. Until that is wired, scores are typed in by hand on
+the application — which works, and is judged by the same pass mark.
+
 ### Punching from a phone, and attendance approvals
 
 The biometric machine stays the main source. This is for the people it cannot see — somebody

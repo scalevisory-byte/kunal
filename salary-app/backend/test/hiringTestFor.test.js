@@ -71,3 +71,21 @@ test('a pass mark outside 0-100 is pulled back into range', () => {
   assert.equal(testFor({ test_pass_percent: -5 }, DEFAULTS).passPercent, 0);
   assert.equal(testFor({ test_pass_percent: 'abc' }, DEFAULTS).passPercent, 50, 'falls back');
 });
+
+/*
+ * The real one.
+ *
+ * Dinesh's test system is embedded on the ZYNTA site at /skills-test as
+ * `https://test.zyntajobs.in/?embed=1`, and that `embed=1` is not decoration -
+ * it is what puts the test in iframe mode. Appending the candidate's `ref` and
+ * `callback_token` must not lose it.
+ */
+test("the ZYNTA test keeps its own ?embed=1 when the candidate's parameters are added", () => {
+  const resolved = testFor({ test_url: 'https://test.zyntajobs.in/?embed=1' }, {});
+  const url = new URL(resolved.url);
+  url.searchParams.set('ref', '42');
+  url.searchParams.set('callback_token', 'abc.def');
+  assert.equal(url.searchParams.get('embed'), '1', 'iframe mode must survive');
+  assert.equal(url.searchParams.get('ref'), '42');
+  assert.equal(url.origin + url.pathname, 'https://test.zyntajobs.in/');
+});
