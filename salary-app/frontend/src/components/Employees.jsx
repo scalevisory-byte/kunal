@@ -8,6 +8,9 @@ import DepartmentManagers from './DepartmentManagers.jsx';
 import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { rupees } from '../format.js';
 
+/* The people with nothing in that field - a group, not a gap. */
+const NOT_SET = '\u0000none';
+
 const BLANK = {
   name: '',
   company_id: '',
@@ -58,6 +61,17 @@ export default function Employees({
   const [form, setForm] = useState(BLANK);
   const [companyName, setCompanyName] = useState('');
   const [query, setQuery] = useState('');
+  /*
+   * Narrowing by the two fields that say where somebody sits. Not remembered
+   * between visits, unlike the company filter: a company is where you work all
+   * day, these are "show me the ticketing staff for a minute", and a filter
+   * still on tomorrow is how people conclude half the staff have vanished.
+   *
+   * '' is everybody; NOT_SET is the people with nothing in that field, which
+   * is a group worth acting on rather than a gap.
+   */
+  const [designation, setDesignation] = useState('');
+  const [department, setDepartment] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [error, setError] = useState('');
   // Setting a religion one row at a time is fine for three people and hopeless
@@ -77,15 +91,81 @@ export default function Employees({
   const [bulkManager, setBulkManager] = useState('');
   const [showManager, setShowManager] = useState(false);
 
+  /* Everybody a filter could show: the active/inactive rule and nothing else. */
+  const onShow = useMemo(
+    () => employees.filter((e) => showInactive || e.active),
+    [employees, showInactive]
+  );
+
+  const matches = (value, chosen) =>
+    !chosen || (chosen === NOT_SET ? !String(value || '').trim() : String(value || '').trim() === chosen);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return employees.filter(
       (e) =>
         (showInactive || e.active) &&
         (!companyId || e.company_id === companyId) &&
-        (!q || e.name.toLowerCase().includes(q) || (e.company_name || '').toLowerCase().includes(q))
+        matches(e.designation, designation) &&
+        matches(e.department, department) &&
+        (!q ||
+          e.name.toLowerCase().includes(q) ||
+          (e.company_name || '').toLowerCase().includes(q) ||
+          // Typing a job title into the search should find it too, rather than
+          // making somebody hunt for the right dropdown.
+          (e.designation || '').toLowerCase().includes(q) ||
+          (e.department || '').toLowerCase().includes(q))
     );
-  }, [employees, query, showInactive, companyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employees, query, showInactive, companyId, designation, department]);
+
+  /*
+   * What is in each field, counted off the people the OTHER filters leave -
+   * so choosing a company changes the designations offered, and a count of 0
+   * never appears. Counted on the unfiltered-by-itself set, or picking a
+   * designation would immediately hide every other option.
+   */
+  const choicesFor = (field, other, otherChosen) => {
+    const pool = employees.filter(
+      (e) =>
+        (showInactive || e.active) &&
+        (!companyId || e.company_id === companyId) &&
+        matches(e[other], otherChosen)
+    );
+    const counts = new Map();
+    for (const person of pool) {
+      const key = String(person[field] || '').trim() || NOT_SET;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()].sort(
+      (a, b) => (a[0] === NOT_SET) - (b[0] === NOT_SET) || a[0].localeCompare(b[0])
+    );
+  };
+
+  const designationChoices = useMemo(
+    () => choicesFor('designation', 'department', department),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [employees, showInactive, companyId, department]
+  );
+  const departmentChoices = useMemo(
+    () => choicesFor('department', 'designation', designation),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [employees, showInactive, companyId, designation]
+  );
+
+  /*
+   * Rows that are ticked but no longer on screen.
+   *
+   * A tick survives a filter change, and every bulk action here works on what
+   * is ticked - so narrowing to five people after ticking thirty-six would
+   * quietly act on all thirty-six. Named and countable rather than guessed at
+   * either way: dropping the ticks silently loses work, and acting on people
+   * who are not on screen is worse.
+   */
+  const hidden = useMemo(
+    () => [...picked].filter((id) => !filtered.some((e) => e.id === id)),
+    [picked, filtered]
+  );
 
   /**
    * Splitting a salary into Basic/HRA for everyone ticked.
@@ -528,8 +608,74 @@ export default function Employees({
             {asChart ? 'As a list' : 'Reporting line'}
           </button>
           <span className="grow" />
-          <span className="muted small">{filtered.length} employees</span>
+          <span className="muted small">
+            {/* "of N" counts against the people a filter COULD show, so it
+                appears only when one is actually narrowing - an inactive
+                employee is not a hidden one. */}
+            {filtered.length}
+            {filtered.length !== onShow.length && ` of ${onShow.length}`} employees
+          </span>
         </div>
+
+        <div className="toolbar">
+          <label className="pick">
+            Designation
+            <select value={designation} onChange={(e) => setDesignation(e.target.value)}>
+              <option value="">All</option>
+              {designationChoices.map(([value, count]) => (
+                <option key={value} value={value}>
+                  {value === NOT_SET ? 'Not set' : value} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="pick">
+            Department
+            <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="">All</option>
+              {departmentChoices.map(([value, count]) => (
+                <option key={value} value={value}>
+                  {value === NOT_SET ? 'Not set' : value} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          {(designation || department) && (
+            <button
+              className="ghost"
+              onClick={() => {
+                setDesignation('');
+                setDepartment('');
+              }}
+            >
+              Clear the filter
+            </button>
+          )}
+          <span className="grow" />
+          <span className="muted small">
+            Everything below — ticking, the bulk setters, the reporting line — works on what
+            this leaves.
+          </span>
+        </div>
+
+        {hidden.length > 0 && (
+          <div className="bulk-bar warn-bar">
+            <strong>
+              {hidden.length} of the {picked.size} ticked{' '}
+              {hidden.length === 1 ? 'is' : 'are'} not on screen
+            </strong>
+            <span className="muted small">
+              The filter is hiding {hidden.length === 1 ? 'it' : 'them'}, but everything below
+              still counts {hidden.length === 1 ? 'it' : 'them'}.
+            </span>
+            <span className="grow" />
+            <button
+              onClick={() => setPicked(new Set(filtered.filter((e) => picked.has(e.id)).map((e) => e.id)))}
+            >
+              Tick only what is on screen
+            </button>
+          </div>
+        )}
 
         {picked.size > 0 && (
           <div className="bulk-bar">
@@ -777,6 +923,7 @@ export default function Employees({
                 </th>
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
+                <th>Designation</th>
                 <th title="Groups people for the reporting line and the department-wise manager">Department</th>
                 <th title="Decides which festivals are a paid holiday">Religion</th>
                 <th title="Drives the birthday list on the dashboard">Born</th>
@@ -830,6 +977,18 @@ export default function Employees({
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
+                  </td>
+                  <td>
+                    <input
+                      key={`designation-${emp.id}-${emp.designation || ''}`}
+                      className="cell-input wide"
+                      defaultValue={emp.designation || ''}
+                      placeholder="-"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.designation || '') &&
+                        onPatch(emp.id, { designation: e.target.value })
+                      }
+                    />
                   </td>
                   <td>
                     {/* Keyed on the stored value, so a bulk change under a row
