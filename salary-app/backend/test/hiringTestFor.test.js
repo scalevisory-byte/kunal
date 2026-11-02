@@ -56,6 +56,16 @@ test('nonsense typed into the box is a problem, not a crash', () => {
   assert.match(typed.problem, /web address/);
 });
 
+test('a pass mark the database has not set is the fallback, not a bar of nought', () => {
+  // This is what SQLite hands over for a column nobody filled in, and
+  // Number(null) is 0 - which is finite, and would pass everybody.
+  assert.equal(testFor({ test_pass_percent: null }, DEFAULTS).passPercent, 50);
+  assert.equal(testFor({ test_pass_percent: '' }, DEFAULTS).passPercent, 50);
+  assert.equal(testFor({ test_pass_percent: null }, {}).passPercent, 50, 'and with no defaults');
+  // Nought typed in deliberately is still nought.
+  assert.equal(testFor({ test_pass_percent: 0 }, DEFAULTS).passPercent, 0);
+});
+
 test('a pass mark outside 0-100 is pulled back into range', () => {
   assert.equal(testFor({ test_pass_percent: 140 }, DEFAULTS).passPercent, 100);
   assert.equal(testFor({ test_pass_percent: -5 }, DEFAULTS).passPercent, 0);

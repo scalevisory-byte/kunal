@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { ALL_STAGES, REJECTED } from '../../shared/stages.js';
 import { matchScore } from '../../shared/match.js';
-import { checkTestUrl } from '../../shared/hiringTest.js';
+import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 
 /*
  * Hiring, for Dinesh's OWN companies.
@@ -215,6 +215,18 @@ for (const [column, type] of [
     db.exec(`ALTER TABLE vacancies ADD COLUMN ${column} ${type}`);
     log.info(`Migrated vacancies: added ${column}.`);
   }
+}
+
+/*
+ * The bar a result was judged against, kept on the result.
+ *
+ * "Passed" with no bar recorded cannot be explained six months later, and the
+ * opening's pass mark can be edited afterwards. Older rows have none, which
+ * reads as "not recorded" rather than as nought.
+ */
+if (!columnsOf('tests').has('pass_percent')) {
+  db.exec(`ALTER TABLE tests ADD COLUMN pass_percent INTEGER`);
+  log.info('Migrated tests: added pass_percent.');
 }
 
 /* ---------------- vacancies ---------------- */
@@ -596,13 +608,32 @@ export function hireApplication(id, input = {}) {
 
 /* ---------------- tests ---------------- */
 
+/** What this application's opening counts as a pass. */
+function passBarFor(applicationId) {
+  const application = applicationId ? getApplication(applicationId) : null;
+  const vacancy = application ? getVacancy(application.vacancy_id) : null;
+  return testFor(vacancy, { url: config.testEmbedUrl, passPercent: config.testPassPercent })
+    .passPercent;
+}
+
 export function recordTest(body) {
   const values = writable('tests', body);
   if (!values.candidate_id) throw new Error('a test result needs a candidate');
   const max = Number(values.max_score) || 0;
   const score = Number(values.score) || 0;
   values.percentage = max > 0 ? Math.round((score / max) * 1000) / 10 : Number(body.percentage) || 0;
-  values.passed = values.percentage >= (Number(body.pass_percent) || config.testPassPercent) ? 1 : 0;
+
+  /*
+   * The bar is the OPENING's, falling back to the app-wide one.
+   *
+   * The test system is told the right figure when it fetches the test, so it
+   * posts the right one back. A score typed in by hand carries none, and used
+   * to be judged at the app-wide 50 even on a seat whose bar is 70 - the two
+   * paths disagreeing about the same candidate.
+   */
+  const stated = Number(body.pass_percent);
+  values.pass_percent = Number.isFinite(stated) && stated > 0 ? stated : passBarFor(values.application_id);
+  values.passed = values.percentage >= values.pass_percent ? 1 : 0;
   const id = insert('tests', values);
 
   // The application carries the latest result so the board can sort on it
@@ -614,12 +645,20 @@ export function recordTest(body) {
       test_status: values.passed ? 'passed' : 'below threshold',
     });
   }
-  return db.prepare(`SELECT * FROM tests WHERE id = ?`).get(id);
+  /*
+   * Mapped the same way listTests maps it. Handing back SQLite's raw 0/1 here
+   * while the list hands back true/false means a POST echo and the list
+   * disagree about the same row - the exact trap the asset services fell into.
+   */
+  const saved = db.prepare(`SELECT * FROM tests WHERE id = ?`).get(id);
+  return { ...saved, passed: !!saved.passed };
 }
 
 export const listTests = (candidateId) =>
   db
-    .prepare(`SELECT * FROM tests WHERE candidate_id = ? ORDER BY taken_at DESC`)
+    // id breaks the tie: taken_at is only to the second, so two sittings saved
+    // in the same second came back in whichever order SQLite felt like.
+    .prepare(`SELECT * FROM tests WHERE candidate_id = ? ORDER BY taken_at DESC, id DESC`)
     .all(candidateId)
     .map((t) => ({ ...t, passed: !!t.passed }));
 

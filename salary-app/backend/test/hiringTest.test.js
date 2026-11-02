@@ -125,6 +125,42 @@ test("an opening's own test beats the app-wide one", async () => {
   assert.match(first.body.url, /^https:\/\/test\.example\.com\/start/);
 });
 
+/*
+ * A score typed in by hand must be judged by the SAME bar as one the test
+ * system posts back. The test system is told the opening's figure when it
+ * fetches the test, so it sends the right one; a typed score carries none and
+ * was being judged at the app-wide 50 on a seat whose bar is 70 - the two
+ * routes disagreeing about the same candidate.
+ */
+test("a score typed in is judged by the opening's own pass mark", async () => {
+  const company = await api('POST', '/api/companies', { name: 'BOOKNFLY VENTURE LLP' });
+  const strict = await api('POST', '/api/hiring/vacancies', {
+    company_id: company.body.id,
+    title: 'Senior Accountant',
+    status: 'published',
+    test_pass_percent: 70,
+  });
+  const applied = await open('POST', `/api/public/vacancies/${strict.body.ref_no}/apply`, {
+    name: 'Nirav Desai',
+    phone: '9825777125',
+  });
+  assert.equal(applied.status, 201);
+  const { rows } = (await api('GET', '/api/hiring/applications')).body;
+  const theirs = rows.find((r) => r.candidate_name === 'Nirav Desai');
+  assert.ok(theirs, 'the application should be on the office list');
+
+  // 60% clears the app-wide 50 and misses this opening's 70.
+  const typed = await api('POST', `/api/hiring/applications/${theirs.id}/test`, {
+    score: 6,
+    max_score: 10,
+  });
+  assert.equal(typed.body.test.percentage, 60);
+  assert.equal(typed.body.test.passed, false, 'judged at 70, not the app-wide 50');
+  assert.equal(typed.body.test.pass_percent, 70, 'and the bar is recorded on the result');
+  assert.equal(typed.body.application.test_status, 'below threshold');
+  assert.equal(typed.body.application.stage, 'New', 'and it still moves nobody');
+});
+
 test('a made-up link gets nothing', async () => {
   assert.equal((await open('GET', '/api/public/test/not-a-real-token')).status, 403);
   assert.equal((await open('POST', '/api/public/test-result/not-a-real-token', { score: 3 })).status, 403);

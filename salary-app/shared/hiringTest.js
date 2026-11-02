@@ -39,7 +39,16 @@ export function checkTestUrl(value) {
   return { url: parsed.toString(), problem: '' };
 }
 
+/*
+ * A pass mark, or the fallback.
+ *
+ * null and '' have to be ruled out BEFORE Number(), because Number(null) is 0
+ * and Number('') is 0 - both finite. A column that is simply not set comes
+ * back as null from the database, so this read a bar of 0 and everybody
+ * passed. `undefined` alone is not what a database hands over.
+ */
 const percent = (value, fallback) => {
+  if (value === null || value === undefined || value === '') return fallback;
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(100, Math.max(0, Math.round(n)));

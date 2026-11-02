@@ -82,7 +82,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
   };
 
   if (!data) return null;
-  const { application, match, interviews, resume } = data;
+  const { application, match, interviews, resume, tests } = data;
   const age = aging(application.stage_changed_at);
   const here = STAGES.findIndex((s) => s.key === application.stage);
   const next = here >= 0 && here < STAGES.length - 1 ? STAGES[here + 1] : null;
@@ -383,6 +383,69 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             />
             <button type="submit">Save</button>
           </form>
+
+          {/*
+            * Every sitting, newest first.
+            *
+            * The figure at the top of this panel is the LATEST result against
+            * this opening; these are the workings behind it. The server sends
+            * them by candidate, so somebody who also sat a test for another
+            * job shows that here too - it is still their result, and it is
+            * labelled rather than hidden or quietly counted as this one.
+            */}
+          {tests?.length ? (
+            /* Wrapped, or the last column runs off the side of the panel -
+               a panel is narrower than a page and a sheet does not reflow. */
+            <div className="table-wrap" style={{ marginTop: '0.6rem' }}>
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>Taken</th>
+                  <th>Test</th>
+                  <th className="num">Score</th>
+                  <th className="num">%</th>
+                  <th>Verdict</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tests.map((t) => (
+                  <tr key={t.id}>
+                    <td>{String(t.taken_at).replace('T', ' ').slice(0, 16)}</td>
+                    <td>
+                      {t.type}
+                      {/* Where it came from rides along with the test name:
+                          a sixth column makes this scroll sideways inside a
+                          drawer, and a table you have to scroll is one nobody
+                          reads the end of. */}
+                      <div className="muted small">
+                        {t.source || 'typed in'}
+                        {t.application_id !== application.id && ' · for another opening'}
+                      </div>
+                    </td>
+                    <td className="num">
+                      {t.max_score ? `${t.score} / ${t.max_score}` : <span className="muted">—</span>}
+                    </td>
+                    <td className="num">{Math.round(t.percentage)}%</td>
+                    <td className={t.passed ? 'good' : 'warn'}>
+                      {t.passed ? 'Passed' : 'Below the bar'}
+                      {/* The bar it was judged against, because "passed" with
+                          no bar cannot be explained later, and an opening's
+                          pass mark can be edited afterwards. */}
+                      {t.pass_percent ? (
+                        <span className="muted small"> (needed {t.pass_percent}%)</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          ) : (
+            <p className="muted small" style={{ marginTop: '0.5rem' }}>
+              No test taken yet. A score is one more thing to weigh — it moves nobody on its
+              own.
+            </p>
+          )}
         </div>
 
         <div className="card">

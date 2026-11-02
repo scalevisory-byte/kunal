@@ -1781,3 +1781,7 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
   background: color-mix(in srgb, var(--warn) 7%, transparent);
 }
+
+/* A test verdict in a table cell. */
+table.sheet td.good { color: var(--good); }
+table.sheet td.warn { color: var(--warn); }
