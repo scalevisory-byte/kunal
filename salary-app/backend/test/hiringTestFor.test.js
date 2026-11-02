@@ -80,6 +80,30 @@ test('a pass mark outside 0-100 is pulled back into range', () => {
  * it is what puts the test in iframe mode. Appending the candidate's `ref` and
  * `callback_token` must not lose it.
  */
+/*
+ * `t` names WHICH test, so it is the single most important thing not to lose:
+ * drop it and every candidate sits whatever the default test is, scores come
+ * back, and nothing anywhere says they answered the wrong questions.
+ */
+test('the test name on the link survives the candidate parameters', () => {
+  const resolved = testFor({ test_url: 'https://crm.zyntajobs.in/test?t=office-admin' }, {});
+  const url = new URL(resolved.url);
+  url.searchParams.set('ref', '42');
+  url.searchParams.set('callback_token', 'abc.def');
+  url.searchParams.set('seconds_per_question', '30');
+  assert.equal(url.searchParams.get('t'), 'office-admin');
+  assert.equal(url.origin + url.pathname, 'https://crm.zyntajobs.in/test');
+});
+
+test('two openings can carry two different tests on the same system', () => {
+  const admin = testFor({ test_url: 'https://crm.zyntajobs.in/test?t=office-admin' }, {});
+  const accounts = testFor({ test_url: 'https://crm.zyntajobs.in/test?t=accounts' }, {});
+  assert.equal(new URL(admin.url).searchParams.get('t'), 'office-admin');
+  assert.equal(new URL(accounts.url).searchParams.get('t'), 'accounts');
+  assert.equal(admin.source, 'opening');
+  assert.equal(accounts.source, 'opening');
+});
+
 test("the ZYNTA test keeps its own ?embed=1 when the candidate's parameters are added", () => {
   const resolved = testFor({ test_url: 'https://test.zyntajobs.in/?embed=1' }, {});
   const url = new URL(resolved.url);

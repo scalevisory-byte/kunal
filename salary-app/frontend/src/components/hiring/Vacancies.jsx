@@ -108,7 +108,7 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
             <Field
               label="Test link for this job"
               value={draft.test_url}
-              placeholder="https://… — blank uses the app-wide test"
+              placeholder="https://crm.zyntajobs.in/test?t=office-admin"
               onChange={(v) => setDraft({ ...draft, test_url: v })}
             />
             <Field

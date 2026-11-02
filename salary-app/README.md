@@ -543,10 +543,24 @@ The test **follows the vacancy**. Each opening carries its own `test_url` and
 `TEST_PASS_PERCENT` in the environment. Blank in both places means the test step is simply
 not offered — no test is "none", never somebody else's test.
 
-Dinesh's own system is **`https://test.zyntajobs.in/?embed=1`**, the one embedded on the
-ZYNTA site under *Candidate skills test*. The `embed=1` is what puts it in iframe mode and
-is preserved when the candidate's parameters are appended. Only `http` and `https` are
-accepted, checked when the link is **saved** rather than when a candidate opens it.
+Dinesh's own system lives in the ZYNTA CRM, and **`t` names which test**:
+
+```
+https://crm.zyntajobs.in/test?t=office-admin
+https://crm.zyntajobs.in/test?t=accounts
+```
+
+So there is deliberately **no app-wide default** — put the right link, with its own `t`, on
+each opening. That is the whole point of the test following the vacancy: a travel
+consultant and an accounts executive do not sit the same questions. Whatever query the
+link already carries is preserved when the candidate's parameters are appended, so `t`
+survives. Only `http` and `https` are accepted, checked when the link is **saved** rather
+than when a candidate opens it.
+
+*(The ZYNTA website separately embeds `https://test.zyntajobs.in/?embed=1` under
+`/skills-test`, with `embed=1` for iframe mode. Whether that is the same application as
+`crm.zyntajobs.in/test` is **not confirmed** — neither host resolves from the build
+environment, so neither could be opened and checked.)*
 
 When a candidate finishes applying, the app hands the test out at
 `GET /api/public/test/:token` as that URL plus two parameters:
