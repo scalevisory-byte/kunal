@@ -155,6 +155,26 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_verify_round ON asset_verifications(round, verified_on);
 
   /*
+   * Photographs of an asset. The file lives on disk; this row only ever holds
+   * a generated filename, never the one it was uploaded with.
+   *
+   * Several per asset on purpose, each with its own note and date: the whole
+   * of most arguments about a laptop is what condition it was in when it went
+   * out and what condition it came back in, and a line saying "scratched"
+   * settles nothing.
+   */
+  CREATE TABLE IF NOT EXISTS asset_photos (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id    INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    file_path   TEXT NOT NULL,
+    note        TEXT,
+    taken_on    TEXT,
+    uploaded_by TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_asset_photos ON asset_photos(asset_id, created_at);
+
+  /*
    * What was done to an asset, when, by whom, and what it cost.
    *
    * next_service_on is whatever the person doing the work said, not a date
@@ -1954,3 +1974,27 @@ export function reopenTicket(id, { by } = {}) {
   audit({ who: by, action: 'reopened', entity: 'tickets', entity_id: id, label: `${ticket.category} from ${ticket.employee_name}` });
   return getTicket(id);
 }
+
+/* ---------------- asset photographs ---------------- */
+
+export const listAssetPhotos = (assetId) =>
+  db
+    .prepare(`SELECT * FROM asset_photos WHERE asset_id = ? ORDER BY datetime(created_at) DESC, id DESC`)
+    .all(assetId);
+
+export const getAssetPhoto = (id) => db.prepare(`SELECT * FROM asset_photos WHERE id = ?`).get(id);
+
+export function addAssetPhoto({ asset_id, file_path, note, taken_on, by }) {
+  if (!getAsset(asset_id)) throw new Error('that asset is not on the register');
+  if (!file_path) throw new Error('no photo was uploaded');
+  const info = db
+    .prepare(
+      `INSERT INTO asset_photos (asset_id, file_path, note, taken_on, uploaded_by)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(asset_id, file_path, note || null, taken_on || dayNow(), by || null);
+  return getAssetPhoto(info.lastInsertRowid);
+}
+
+export const deleteAssetPhoto = (id) =>
+  db.prepare(`DELETE FROM asset_photos WHERE id = ?`).run(id).changes;

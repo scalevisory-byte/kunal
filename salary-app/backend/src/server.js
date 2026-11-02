@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
+import { photoFile, photoLinkValid } from './assetPhotos.js';
+import { getAssetPhoto } from './people.js';
 import { log } from './logger.js';
 import { requireAdminForChanges, requireAuth, requireWriteForChanges } from './auth.js';
 import { getCandidate } from './hiring.js';
@@ -84,6 +86,24 @@ export function createServer() {
     const file = documentFile(doc);
     if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
     res.download(file, doc.file_name || path.basename(file));
+  });
+
+  /*
+   * A photograph of an asset. Same expiring signature as a document, for the
+   * same reason: a browser cannot put a bearer token on an <img src>.
+   *
+   * Sent inline rather than as a download, because this one is looked at on a
+   * page rather than saved.
+   */
+  app.get('/files/asset-photo/:id', (req, res) => {
+    const photo = getAssetPhoto(Number(req.params.id));
+    if (!photo) return res.status(404).json({ error: 'not found' });
+    if (!photoLinkValid(photo, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the asset again.' });
+    }
+    const file = photoFile(photo);
+    if (!file) return res.status(410).json({ error: 'the photo is missing from disk' });
+    res.sendFile(file);
   });
 
   app.get('/api/config', requireAuth, (req, res) =>

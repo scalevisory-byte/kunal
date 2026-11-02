@@ -60,6 +60,9 @@ export const config = {
   // CVs go here; a row keeps only the filename.
   resumeDir,
   maxResumeBytes: num(process.env.MAX_RESUME_MB, 5) * 1024 * 1024,
+  // A photo straight off a phone is bigger than a CV and nobody is going to
+  // resize one before uploading it.
+  maxPhotoBytes: num(process.env.MAX_PHOTO_MB, 12) * 1024 * 1024,
   resumeLinkMinutes: num(process.env.RESUME_LINK_MINUTES, 10),
 
   // Signs CV download links and the tokens the public apply page uses.

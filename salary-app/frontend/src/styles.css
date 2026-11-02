@@ -1716,3 +1716,29 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 }
 .split-add .row { align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
 .split-add input[readonly] { font-variant-numeric: tabular-nums; }
+
+/* Photographs of an asset: a row that scrolls rather than a grid that reflows,
+   because there are usually two or three and occasionally twenty. */
+.photo-strip {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+.photo-strip figure { margin: 0; flex: 0 0 auto; width: 9rem; }
+.photo-strip img {
+  width: 9rem;
+  height: 7rem;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  display: block;
+  background: var(--line-soft);
+}
+.photo-strip figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.25rem;
+  line-height: 1.3;
+}

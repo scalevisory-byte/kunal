@@ -8,6 +8,7 @@ import { barcodeSvg } from '../../../shared/barcode.js';
 import qr from 'qrcode-generator';
 import { qrSvg } from '../../../shared/qr.js';
 import { config } from '../config.js';
+import { deletePhotoFile, photoLink, uploadAssetPhoto } from '../assetPhotos.js';
 
 /*
  * What a sticker's QR actually carries: a link to that asset, so scanning it
@@ -27,6 +28,13 @@ const assetLink = (req, code) => {
   const base = (config.publicUrl || `${req.protocol}://${req.get('host') || ''}`).replace(/\/$/, '');
   return `${base}/a/${encodeURIComponent(code)}`;
 };
+
+/*
+ * A photo as the browser may see it: a signed link that expires, and never
+ * `file_path`. Where the file is on disk is not the page's business, and a
+ * path that leaves the server is a path somebody can guess the next one of.
+ */
+const asPhoto = ({ file_path, ...rest }) => ({ ...rest, link: photoLink({ ...rest, file_path }) });
 
 /* The sticker sheet is the only HTML this router sends, and an asset's name is
    typed by somebody. */
@@ -73,7 +81,11 @@ import {
   listAllNotes,
   listAppraisals,
   assetHistory,
+  addAssetPhoto,
   assetsWithOwnership,
+  deleteAssetPhoto,
+  getAssetPhoto,
+  listAssetPhotos,
   deleteService,
   getAsset,
   getAssetByCode,
@@ -382,6 +394,41 @@ peopleRouter.get('/assets/labels.html', (req, res) => {
       <div class="sheet">${cells}</div>
     </body></html>`
   );
+});
+
+/* ---- photographs of the kit ---- */
+
+peopleRouter.get('/assets/:id/photos', (req, res) => {
+  if (!getAsset(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.json({ photos: listAssetPhotos(Number(req.params.id)).map(asPhoto) });
+});
+
+peopleRouter.post('/assets/:id/photos', uploadAssetPhoto, (req, res) => {
+  try {
+    const photo = addAssetPhoto({
+      asset_id: Number(req.params.id),
+      file_path: req.file?.filename,
+      note: req.body?.note,
+      taken_on: req.body?.taken_on,
+      by: who(req),
+    });
+    res.status(201).json({ photo: asPhoto(photo) });
+  } catch (err) {
+    // The file is already on disk at this point; nothing points at it, so it
+    // goes rather than sitting there forever.
+    if (req.file?.filename) deletePhotoFile({ file_path: req.file.filename });
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/assets/:id/photos/:photoId', (req, res) => {
+  const photo = getAssetPhoto(Number(req.params.photoId));
+  if (!photo || photo.asset_id !== Number(req.params.id)) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  deleteAssetPhoto(photo.id);
+  deletePhotoFile(photo);
+  res.status(204).end();
 });
 
 peopleRouter.get('/assets/:id/history', (req, res) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 
@@ -12,6 +12,19 @@ import { rupees } from '../../format.js';
  */
 export default function AssetHistory({ asset, onClose, onError }) {
   const [found, setFound] = useState(null);
+  const [photos, setPhotos] = useState([]);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState('');
+  const file = useRef(null);
+
+  const loadPhotos = async () => {
+    try {
+      const { photos: list } = await api.get(`/people/assets/${asset.id}/photos`);
+      setPhotos(list);
+    } catch (err) {
+      onError(err);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -21,8 +34,38 @@ export default function AssetHistory({ asset, onClose, onError }) {
         onError(err);
       }
     })();
+    loadPhotos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
+
+  const addPhoto = async () => {
+    const chosen = file.current?.files?.[0];
+    if (!chosen) return;
+    setBusy('Uploading…');
+    try {
+      const form = new FormData();
+      form.set('photo', chosen);
+      if (note.trim()) form.set('note', note.trim());
+      await api.upload(`/people/assets/${asset.id}/photos`, form);
+      if (file.current) file.current.value = '';
+      setNote('');
+      await loadPhotos();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const removePhoto = async (photo) => {
+    if (!window.confirm('Remove this photograph?')) return;
+    try {
+      await api.del(`/people/assets/${asset.id}/photos/${photo.id}`);
+      await loadPhotos();
+    } catch (err) {
+      onError(err);
+    }
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -103,6 +146,51 @@ export default function AssetHistory({ asset, onClose, onError }) {
             </tbody>
           </table>
         )}
+
+        {/*
+          * Photographs. What condition something was in when it went out, and
+          * what condition it came back in, is the whole of most arguments
+          * about an asset - and a line saying "scratched" settles nothing.
+          */}
+        <h4 style={{ margin: '1rem 0 0.4rem' }}>
+          Photographs{photos.length ? ` — ${photos.length}` : ''}
+        </h4>
+        {photos.length > 0 && (
+          <div className="photo-strip">
+            {photos.map((photo) => (
+              <figure key={photo.id}>
+                <a href={photo.link?.url} target="_blank" rel="noreferrer" title="Open it full size">
+                  <img src={photo.link?.url} alt={photo.note || asset.code} loading="lazy" />
+                </a>
+                <figcaption>
+                  <span className="muted small">{photo.taken_on}</span>
+                  {photo.note && <span className="small"> {photo.note}</span>}
+                  <button className="ghost tiny" onClick={() => removePhoto(photo)}>
+                    remove
+                  </button>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+        <div className="row" style={{ marginTop: '0.4rem' }}>
+          {/* capture="environment" opens the camera straight on a phone, which
+              is where somebody standing next to the laptop actually is. */}
+          <input ref={file} type="file" accept="image/*" capture="environment" />
+          <input
+            placeholder="what it shows — scratched lid, on handover…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            style={{ flex: '1 1 14rem' }}
+          />
+          <button onClick={addPhoto} disabled={!!busy}>
+            {busy || 'Add a photo'}
+          </button>
+        </div>
+        <p className="muted small">
+          JPG, PNG, WEBP or HEIC. The file lives on the server, never in this page, and is opened
+          through a link that expires.
+        </p>
 
         <button className="ghost" onClick={() => window.open(`/api/people/assets/${asset.id}/label.svg?h=18`, '_blank')}>
           Print the label
