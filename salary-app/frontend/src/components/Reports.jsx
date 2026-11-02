@@ -5,6 +5,7 @@ import AttendanceRequests from './AttendanceRequests.jsx';
 import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import Statutory from './Statutory.jsx';
+import LeaveRegister from './LeaveRegister.jsx';
 import { rupees } from '../format.js';
 
 /** Totals, downloads, and pulling an existing spreadsheet in. */
@@ -198,6 +199,8 @@ export default function Reports({ period, payroll, onReload }) {
           </div>
         </div>
       )}
+
+      {payroll && <LeaveRegister payroll={payroll} />}
 
       <Statutory period={period} />
 
