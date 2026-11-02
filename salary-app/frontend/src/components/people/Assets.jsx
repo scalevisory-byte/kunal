@@ -123,7 +123,18 @@ export default function Assets({ employees, companies, onError }) {
     window.confirm(`Remove ${asset.code} ${asset.label} from the register?`) &&
     act(() => api.del(`/people/assets/${asset.id}`));
 
-  const label = (asset) => window.open(`/api/people/assets/${asset.id}/label.svg?h=14`, '_blank');
+  /*
+   * One sticker. QR by default - a phone camera reads it, and nobody in the
+   * office has a laser scanner in their pocket. The Code 128 is still there
+   * behind ?as=bar for a scanner that wants it.
+   */
+  const label = (asset) => window.open(`/api/people/assets/${asset.id}/label.svg?as=qr`, '_blank');
+
+  /* A page of them, because nobody labels one asset at a time. */
+  const labelSheet = () => {
+    const ids = shown.map((a) => a.id).join(',');
+    window.open(`/api/people/assets/labels.html?ids=${ids}`, '_blank');
+  };
 
   if (view === 'stock') {
     return (
@@ -216,6 +227,14 @@ export default function Assets({ employees, companies, onError }) {
           * identifies this browser - a link works on a session cookie and
           * 401s for somebody here on the API key.
           */}
+        <button
+          className="ghost"
+          onClick={labelSheet}
+          disabled={!shown.some((a) => a.code)}
+          title="A page of QR stickers for everything on screen, to print and cut"
+        >
+          Labels to print
+        </button>
         <button
           className="ghost"
           onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}

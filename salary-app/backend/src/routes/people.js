@@ -5,6 +5,15 @@ import { listPeriods } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
 import { getEmployee } from '../db.js';
 import { barcodeSvg } from '../../../shared/barcode.js';
+import qr from 'qrcode-generator';
+import { qrSvg } from '../../../shared/qr.js';
+
+/* The sticker sheet is the only HTML this router sends, and an asset's name is
+   typed by somebody. */
+const esc = (v) =>
+  String(v ?? '').replace(/[<>&'"]/g, (c) =>
+    ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;' }[c])
+  );
 import { handoverCsv, handoverSlip, registerCsv, registerTotals } from '../../../shared/assetReport.js';
 import {
   SERVICE_KINDS,
@@ -255,13 +264,97 @@ peopleRouter.get('/assets/slip/:employeeId', (req, res) => {
 });
 
 /** The label, as an SVG the browser can print. */
+/*
+ * The sticker that goes on the thing.
+ *
+ * ?as=qr for a QR code, ?as=bar for the Code 128, anything else for both -
+ * which is the default, because a phone camera reads the QR and the office's
+ * laser scanner reads the barcode, and a sticker is printed once.
+ */
 peopleRouter.get('/assets/:id/label.svg', (req, res) => {
   const asset = getAsset(Number(req.params.id));
   if (!asset) return res.status(404).json({ error: 'not found' });
   if (!asset.code) return res.status(400).json({ error: 'that asset has no code to print' });
-  const svg = barcodeSvg(asset.code, { heightMm: Number(req.query.h) || 12 });
-  if (!svg) return res.status(400).json({ error: 'that code cannot be made into a barcode' });
+
+  const as = String(req.query.as || 'qr');
+  if (as === 'bar') {
+    const svg = barcodeSvg(asset.code, { heightMm: Number(req.query.h) || 12 });
+    if (!svg) return res.status(400).json({ error: 'that code cannot be made into a barcode' });
+    return res.type('image/svg+xml').send(svg);
+  }
+
+  const svg = qrSvg(asset.code, {
+    qr,
+    sizeMm: Number(req.query.mm) || 18,
+    // Q survives a scuff, a thumbprint and a corner peeling off a vehicle.
+    // A sticker gets exactly that, and the code is short enough to afford it.
+    ecc: 'Q',
+    label: asset.code,
+  });
+  if (!svg) return res.status(400).json({ error: 'that code cannot be made into a QR' });
   res.type('image/svg+xml').send(svg);
+});
+
+/**
+ * A sheet of stickers to print, because nobody labels one asset at a time.
+ *
+ * Plain HTML with the SVGs inline and a print stylesheet: no PDF library, and
+ * what comes out of the printer is what is on the screen. Sized in
+ * millimetres, so a 40mm sticker is 40mm.
+ */
+peopleRouter.get('/assets/labels.html', (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map((n) => Number(n))
+    .filter(Boolean);
+
+  const assets = (
+    ids.length
+      ? ids.map((id) => getAsset(id)).filter(Boolean)
+      : listAssets({
+          company_id: Number(req.query.company_id) || undefined,
+          written_off: false,
+        })
+  ).filter((a) => a.code);
+
+  const mm = Number(req.query.mm) || 18;
+  const cells = assets
+    .map((a) => {
+      const svg = qrSvg(a.code, { qr, sizeMm: mm, ecc: 'Q' }) || '';
+      const what = [a.kind, a.label].filter(Boolean).join(' — ');
+      return (
+        `<div class="sticker">${svg}` +
+        `<div class="code">${esc(a.code)}</div>` +
+        `<div class="what">${esc(what)}</div>` +
+        `<div class="who">${esc(a.company_name || '')}</div></div>`
+      );
+    })
+    .join('');
+
+  res.type('html').send(
+    `<!doctype html><html><head><meta charset="utf-8"><title>Asset labels</title><style>
+      body { font: 11px/1.3 system-ui, sans-serif; margin: 8mm; }
+      h1 { font-size: 14px; margin: 0 0 6mm; }
+      .sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
+      .sticker {
+        width: ${(mm + 14).toFixed(0)}mm;
+        border: 0.2mm dashed #bbb;
+        padding: 2mm;
+        text-align: center;
+        page-break-inside: avoid;
+      }
+      .sticker svg { display: block; margin: 0 auto; }
+      .code { font-family: monospace; font-weight: 700; margin-top: 1mm; }
+      .what, .who { color: #555; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      @media print { body { margin: 5mm; } h1, .note { display: none; } .sticker { border-color: #eee; } }
+    </style></head><body>
+      <h1>${assets.length} label${assets.length === 1 ? '' : 's'} — print this page</h1>
+      <p class="note">The dashed lines are a cutting guide and do not print dark. Each code is
+      the asset's own; scanning it with a phone shows that code, which the register's search box
+      finds.</p>
+      <div class="sheet">${cells}</div>
+    </body></html>`
+  );
 });
 
 peopleRouter.get('/assets/:id/history', (req, res) => {
