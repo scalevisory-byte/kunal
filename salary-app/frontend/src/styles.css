@@ -1785,3 +1785,17 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 /* A test verdict in a table cell. */
 table.sheet td.good { color: var(--good); }
 table.sheet td.warn { color: var(--warn); }
+
+/* The question somebody sat on, in a test's question-by-question list. */
+table.sheet tr.slowest td { background: color-mix(in srgb, var(--warn) 10%, transparent); }
+/* Prose in a sheet cell: every other cell is a figure and must not wrap. */
+table.sheet td.wraps { white-space: normal; height: auto; max-width: 22rem; }
+/* The question list fills the drawer and splits the prose evenly, instead of
+   the last column soaking up the slack and squeezing the question to three
+   words a line. */
+table.sheet.qa { width: 100%; }
+/* `table.sheet td:last-child { width: 100% }` gives the last column all the
+   slack, which squeezed the question to three words a line while the answer
+   had room to spare. These two share it. table-layout: fixed collapsed the
+   column instead - auto layout with an explicit split is what works. */
+table.sheet.qa td.q, table.sheet.qa td.a { width: 50%; max-width: none; }

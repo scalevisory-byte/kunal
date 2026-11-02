@@ -2,14 +2,97 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { ALL_STAGES, STAGES, aging, matchBand, stageMeta } from '../../../../shared/stages.js';
 import { waLink } from '../../../../shared/hiringMessages.js';
+import { readAnswers, spell } from '../../../../shared/testAnswers.js';
 
 /**
  * One person against one job: why they scored what they scored, where they are,
  * and the next move. The move and the message are side by side because they go
  * together - telling somebody is the other half of deciding.
  */
+/**
+ * One sitting, question by question, with how long each took.
+ *
+ * The point of it is the question somebody SAT ON: a candidate who answers
+ * nine questions in ten seconds each and spends four minutes on the tenth has
+ * told you something a percentage cannot.
+ *
+ * Two things it refuses to do: a question with no time recorded shows a dash
+ * rather than 0s, and a question the test system did not mark shows nothing
+ * rather than a cross - silence is not a wrong answer.
+ */
+function QuestionTimes({ detail }) {
+  if (detail.problem) return <p className="error small" style={{ margin: '0.5rem' }}>{detail.problem}</p>;
+  const slowest = detail.slowest?.n;
+  return (
+    <div style={{ padding: '0.5rem 0.6rem' }}>
+      <div className="figures">
+        <div className="figure">
+          <span className="n">{spell(detail.total_seconds)}</span>
+          <span className="k">Time taken</span>
+        </div>
+        <div className="figure">
+          <span className="n">{spell(detail.average_seconds)}</span>
+          <span className="k">Per question</span>
+        </div>
+        <div className="figure">
+          <span className="n">{detail.slowest ? spell(detail.slowest.seconds) : '—'}</span>
+          <span className="k">Longest{detail.slowest ? ` — Q${detail.slowest.n}` : ''}</span>
+        </div>
+      </div>
+      {detail.untimed > 0 && (
+        <p className="muted small">
+          {detail.untimed} of {detail.items.length}{' '}
+          {detail.items.length === 1 ? 'question' : 'questions'}{' '}
+          {detail.untimed === 1 ? 'carries' : 'carry'} no timing, so the total is of the rest.
+        </p>
+      )}
+      <div className="table-wrap">
+        <table className="sheet qa">
+          <thead>
+            <tr>
+              <th>#</th>
+              {/* Took comes early on purpose: it is the reason this list
+                  exists, and a panel is narrow enough that the last column
+                  is the one nobody scrolls to. */}
+              <th className="num">Took</th>
+              <th>Question</th>
+              <th>Answered</th>
+            </tr>
+          </thead>
+          <tbody>
+            {detail.items.map((q) => (
+              <tr key={q.n} className={q.n === slowest ? 'slowest' : undefined}>
+                <td className="num">{q.n}</td>
+                <td className="num">{spell(q.seconds)}</td>
+                <td className="wraps q">{q.question || <span className="muted">—</span>}</td>
+                <td className="wraps a">
+                  {q.given || <span className="muted">not answered</span>}
+                  {/* Right or wrong rides with the answer rather than taking a
+                      fifth column. "not marked" is said, never left blank -
+                      silence from the test system is not a wrong answer. */}
+                  <div
+                    className={`small ${q.correct === true ? 'good' : q.correct === false ? 'warn' : 'muted'}`}
+                  >
+                    {q.correct === true
+                      ? 'right'
+                      : q.correct === false
+                        ? `wrong${q.expected ? ` — should be ${q.expected}` : ''}`
+                        : 'not marked'}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ApplicationPanel({ applicationId, config, onClose, onChanged, onToast, onError }) {
   const [data, setData] = useState(null);
+  // Which sitting is opened out, question by question.
+  const [openTest, setOpenTest] = useState(null);
   const [notify, setNotify] = useState(null);
   const [test, setTest] = useState({ score: '', max_score: '', type: 'skills' });
   const [interview, setInterview] = useState({ at: '', mode: 'in-person', location_or_link: '', round: 1 });
@@ -408,8 +491,16 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                 </tr>
               </thead>
               <tbody>
-                {tests.map((t) => (
-                  <tr key={t.id}>
+                {tests.flatMap((t) => {
+                  const detail = readAnswers(t.answers);
+                  const open = openTest === t.id;
+                  return [
+                  <tr
+                    key={t.id}
+                    onClick={() => detail.items.length && setOpenTest(open ? null : t.id)}
+                    style={detail.items.length ? { cursor: 'pointer' } : undefined}
+                    title={detail.items.length ? 'Question by question' : undefined}
+                  >
                     <td>{String(t.taken_at).replace('T', ' ').slice(0, 16)}</td>
                     <td>
                       {t.type}
@@ -434,9 +525,25 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                       {t.pass_percent ? (
                         <span className="muted small"> (needed {t.pass_percent}%)</span>
                       ) : null}
+                      {detail.items.length ? (
+                        <div className="muted small">
+                          {detail.total_seconds !== null
+                            ? `${spell(detail.total_seconds)} in all`
+                            : 'no timings'}{' '}
+                          · {open ? 'hide' : `${detail.items.length} questions`}
+                        </div>
+                      ) : null}
                     </td>
-                  </tr>
-                ))}
+                  </tr>,
+                  open ? (
+                    <tr key={`${t.id}-detail`}>
+                      <td colSpan={5} style={{ padding: 0 }}>
+                        <QuestionTimes detail={detail} />
+                      </td>
+                    </tr>
+                  ) : null,
+                  ];
+                })}
               </tbody>
             </table>
             </div>
