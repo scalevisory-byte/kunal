@@ -159,7 +159,7 @@ export default function Festivals({ period, codes, employees, locked, onApplied 
   };
 
   return (
-    <div className="card">
+    <div className="plain">
       <h2>Festivals & holidays — {period.label}</h2>
       <p className="muted small">
         A festival is not a holiday for everyone. Type the name and the religions it covers are

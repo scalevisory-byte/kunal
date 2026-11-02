@@ -1801,3 +1801,24 @@ table.sheet.qa { width: 100%; }
 table.sheet.qa td.q, table.sheet.qa td.a { width: 50%; max-width: none; }
 /* A question that ran past the time allowed for one. */
 table.sheet td.num.over, .figure .n.over { color: var(--bad); }
+
+/* The morning roll call: one row per person who is not simply at work. */
+table.sheet.roll-table td { white-space: normal; height: auto; }
+table.sheet.roll-table .why { display: inline-block; margin-right: 0.6rem; }
+table.sheet.roll-table tr.r0 td.sticky-name { box-shadow: inset 3px 0 var(--bad); }
+table.sheet.roll-table tr.r1 td.sticky-name,
+table.sheet.roll-table tr.r2 td.sticky-name { box-shadow: inset 3px 0 var(--warn); }
+
+/* A panel folded away until it is wanted. */
+.card.fold { padding: 0.5rem 0.9rem; }
+.card.fold > summary { cursor: pointer; list-style: none; padding: 0.25rem 0; }
+.card.fold > summary::-webkit-details-marker { display: none; }
+.card.fold > summary::before { content: '▸ '; color: var(--muted); }
+.card.fold[open] > summary::before { content: '▾ '; }
+.card.fold .plain > h2:first-child,
+.card.fold .plain > h3:first-child { margin-top: 0.4rem; }
+
+/* The roll call's reasons column: wide enough not to wrap one phrase to five
+   lines, and each reason on its own line. */
+table.sheet.roll-table td:nth-child(2) { min-width: 15rem; }
+table.sheet.roll-table .why { display: block; margin: 0; }

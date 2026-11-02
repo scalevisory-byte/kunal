@@ -112,13 +112,20 @@ export default function Dashboard({
     };
   }, [period?.id, periods.length]);
 
+  /*
+   * Narrowed by the company filter, like every other tab. The roll call used
+   * to read payroll.rows straight through, so choosing BOOKNFLY still listed
+   * SCALE's absentees - the one screen where that filter did nothing.
+   */
   const rows = useMemo(
     () =>
-      (payroll?.rows || []).map((row) => ({
-        ...row,
-        ...calculateRow(row, payroll.period, row.attendance),
-      })),
-    [payroll]
+      (payroll?.rows || [])
+        .filter((row) => !companyId || row.company_id === companyId)
+        .map((row) => ({
+          ...row,
+          ...calculateRow(row, payroll.period, row.attendance),
+        })),
+    [payroll, companyId]
   );
 
   const totals = useMemo(() => totalRows(rows), [rows]);
@@ -192,7 +199,7 @@ export default function Dashboard({
       unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
     };
 
-    for (const row of payroll?.rows || []) {
+    for (const row of rows) {
       const entry = row.attendance?.[shownDay];
       const times = typeof entry === 'object' && entry ? entry : {};
       const code = (typeof entry === 'object' ? entry?.code : entry) || '';
@@ -232,7 +239,52 @@ export default function Dashboard({
     out.overtime.sort((a, b) => b.minutes - a.minutes);
     out.short.sort((a, b) => a.minutes - b.minutes);
     return { ...out, startsAt: standard.in_time, endsAt: standard.out_time, grace };
-  }, [payroll, shownDay, period]);
+  }, [rows, shownDay, period]);
+
+  /*
+   * The one list the morning actually needs: who is not simply at work.
+   *
+   * Eight separate strips of names answered "who is late" and "who is absent"
+   * separately, and neither answered "who do I have to ring this morning".
+   * This is ONE row per person, carrying every reason that applies to them -
+   * somebody can be late AND short of hours, and two chips in two strips never
+   * said that was the same person.
+   *
+   * Present is deliberately NOT in it. It is usually everybody, and a list of
+   * seventy-eight people nobody needs to do anything about buries the five who
+   * matter. It stays behind "show all".
+   */
+  const needsLooking = useMemo(() => {
+    if (!roll) return [];
+    const by = new Map();
+    const note = (person, rank, what, when = '') => {
+      const seen = by.get(person.id) || {
+        ...person,
+        rank,
+        reasons: [],
+        in_time: person.in_time,
+        out_time: person.out_time,
+      };
+      seen.rank = Math.min(seen.rank, rank);
+      seen.reasons.push({ what, when });
+      by.set(person.id, seen);
+    };
+
+    // Ordered by how much somebody has to do about it, not alphabetically.
+    for (const p of roll.absent) note(p, 0, ATTENDANCE_CODES[p.code]?.label || 'Absent');
+    for (const p of roll.late) note(p, 1, `Late by ${formatDuration(p.lateBy)}`, p.in_time);
+    for (const p of roll.early) note(p, 2, 'Left early', p.out_time);
+    for (const p of roll.halfDay) note(p, 3, 'Half day');
+    for (const p of roll.short) note(p, 4, `Short ${formatDuration(-p.minutes)}`);
+    for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave');
+    for (const p of roll.unmarked) note(p, 6, 'Not marked yet');
+
+    return [...by.values()].sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+    );
+  }, [roll]);
 
   /* Attendance, counted off the marks rather than the payroll columns, so an
      unmarked day shows as unmarked instead of quietly counting as present. */
@@ -832,60 +884,50 @@ export default function Dashboard({
           </div>
         ) : (
           <>
-        <NameList
-          label="Absent"
-          list={roll.absent}
-          name={(p) => p.employee_name}
-          suffix={(p) => ATTENDANCE_CODES[p.code]?.label}
-          all
-        />
-        <NameList
-          label="On leave"
-          list={roll.leave}
-          name={(p) => p.employee_name}
-          suffix={(p) => ATTENDANCE_CODES[p.code]?.label}
-          all
-        />
-        <NameList
-          label="Half day"
-          list={roll.halfDay}
-          name={(p) => p.employee_name}
-          all
-        />
-        <NameList
-          label={`Late in — after ${roll.startsAt} plus ${roll.grace} minutes`}
-          list={roll.late}
-          name={(p) => p.employee_name}
-          suffix={(p) => `${p.in_time}, ${formatDuration(p.lateBy)} late`}
-          all
-        />
-        <NameList
-          label={`Left early — before ${roll.endsAt} less ${roll.grace} minutes`}
-          list={roll.early}
-          name={(p) => p.employee_name}
-          suffix={(p) => p.out_time}
-          all
-        />
-        <NameList
-          label="On overtime"
-          list={roll.overtime}
-          name={(p) => p.employee_name}
-          suffix={(p) => `+${formatDuration(p.minutes)}`}
-          all
-        />
-        <NameList
-          label="Short hours"
-          list={roll.short}
-          name={(p) => p.employee_name}
-          suffix={(p) => formatDuration(p.minutes)}
-          all
-        />
-        <NameList
-          label="Not marked yet"
-          list={roll.unmarked}
-          name={(p) => p.employee_name}
-          all
-        />
+        {needsLooking.length === 0 ? (
+          <p className="muted small">
+            Everybody on the list is at work, on time, and nobody is short of hours.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="sheet roll-table">
+              <thead>
+                <tr>
+                  <th className="sticky-name">Name</th>
+                  <th>What</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th>Company</th>
+                </tr>
+              </thead>
+              <tbody>
+                {needsLooking.map((p) => (
+                  <tr key={p.id} className={`r${p.rank}`}>
+                    <td className="sticky-name">{p.employee_name}</td>
+                    <td>
+                      {p.reasons.map((r, i) => (
+                        <span key={i} className="why">
+                          {r.what}
+                          {r.when ? <span className="muted"> at {r.when}</span> : null}
+                        </span>
+                      ))}
+                    </td>
+                    <td>{p.in_time || <span className="muted">—</span>}</td>
+                    <td>{p.out_time || <span className="muted">—</span>}</td>
+                    <td className="muted small">{p.company_name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="muted small">
+          {needsLooking.length} of {roll.present.length + roll.absent.length + roll.leave.length +
+            roll.halfDay.length + roll.unmarked.length}{' '}
+          need looking at. Late is judged against {roll.startsAt} plus {roll.grace} minutes, and
+          early against {roll.endsAt} — a day with no clock time is never called late, only
+          "not known".
+        </p>
 
         {roll.present.length > 0 && (
           <>

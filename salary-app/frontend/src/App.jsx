@@ -530,13 +530,28 @@ function Shell() {
 
         {tab === 'attendance' && period && payroll && (
           <div className="stack">
-            <Festivals
-              period={period}
-              codes={codes}
-              employees={employees}
-              locked={locked}
-              onApplied={() => loadPayroll(periodId)}
-            />
+            {/*
+              * Folded away by default. It is half a screen of explanation and
+              * it is needed a few times a year, while the grid under it is
+              * needed every day - it was pushing the actual work below the
+              * fold. Still one click away, and it says what it is.
+              */}
+            <details className="card fold">
+              <summary>
+                <strong>Festivals &amp; holidays</strong>
+                <span className="muted small">
+                  {' '}
+                  — a paid day off for some or all of the staff
+                </span>
+              </summary>
+              <Festivals
+                period={period}
+                codes={codes}
+                employees={employees}
+                locked={locked}
+                onApplied={() => loadPayroll(periodId)}
+              />
+            </details>
             <Attendance
             period={period}
             rows={visibleRows}
