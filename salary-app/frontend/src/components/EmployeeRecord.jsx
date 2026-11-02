@@ -24,11 +24,18 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
     try {
       setRecord(await api.get(`/employees/${employee.id}/record`));
       /*
-       * What this person is holding. Read from the register rather than kept
-       * on the employee row: the register is where an asset's holder lives,
-       * and two places holding the same answer is how they come to disagree.
+       * What this person is holding NOW.
+       *
+       * `out=true` matters: an asset keeps the employee_id of whoever last had
+       * it after it comes back, so that the register can still say who
+       * returned it. Asking by employee_id alone listed things the person had
+       * already handed in - it said ALPESH SHUKLA still had a laptop that was
+       * sitting in the office.
+       *
+       * Read from the register rather than kept on the employee row, because
+       * two places holding the same answer is how they come to disagree.
        */
-      const { assets } = await api.get(`/people/assets?employee_id=${employee.id}`);
+      const { assets } = await api.get(`/people/assets?employee_id=${employee.id}&out=true`);
       setHeld(assets || []);
     } catch (err) {
       onError(err);

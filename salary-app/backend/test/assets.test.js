@@ -368,3 +368,63 @@ test('the trail carries the asset moves by code and by name', async () => {
   assert.match(issued.label, /BPL-LAP-|BNF\/OLD/, 'labelled by code');
   assert.ok(issued.to_value, 'and says who got it');
 });
+
+/*
+ * What somebody is holding, after they have handed it back.
+ *
+ * This is where the two columns nearly came apart. An asset keeps the
+ * employee_id of whoever last had it even after it is returned - on purpose,
+ * so the register can still say who gave it back. Asking "what does this
+ * person have" by employee_id ALONE therefore answers with everything they
+ * have EVER had, which is how the employee record came to say ALPESH SHUKLA
+ * still had a laptop sitting in the office.
+ */
+test('a returned asset leaves the holder and goes back into the office', async () => {
+  const company = await api('POST', '/api/companies', { name: 'RETURNS LTD' });
+  const person = await api('POST', '/api/employees', {
+    company_id: company.body.id,
+    name: 'RIYA PATEL',
+    monthly_salary: 20000,
+  });
+  const asset = await api('POST', '/api/people/assets', {
+    company_id: company.body.id,
+    kind: 'Laptop',
+    label: 'ThinkPad E14',
+    purchase_cost: 52000,
+  });
+
+  await api('POST', `/api/people/assets/${asset.body.id}/issue`, { employee_id: person.body.id });
+
+  const held = async (query) =>
+    (await api('GET', `/api/people/assets?employee_id=${person.body.id}${query}`)).body.assets.map(
+      (a) => a.code
+    );
+
+  assert.deepEqual(await held('&out=true'), [asset.body.code], 'she has it');
+
+  await api('POST', `/api/people/assets/${asset.body.id}/return`, { condition: 'fine' });
+
+  // The record asks for what is still out, which is now nothing.
+  assert.deepEqual(await held('&out=true'), [], 'she handed it back');
+
+  // Without `out` it still comes back, because the column remembers who
+  // returned it - which is exactly the trap, so it is pinned here.
+  assert.deepEqual(await held(''), [asset.body.code], 'the register remembers who had it');
+
+  // And it is in the office: on the register, issued to nobody.
+  const office = (await api('GET', '/api/people/assets')).body.assets.find(
+    (a) => a.code === asset.body.code
+  );
+  assert.ok(office.returned_on, 'the return is dated');
+  assert.equal(
+    (await api('GET', '/api/people/assets?out=true')).body.assets.some((a) => a.code === office.code),
+    false,
+    'it is no longer out with anybody'
+  );
+
+  // The handover is closed, not lost: it is how long she had it.
+  const { handovers } = (await api('GET', `/api/people/assets/handovers?asset_id=${asset.body.id}`)).body;
+  assert.equal(handovers.length, 1);
+  assert.ok(handovers[0].issued_on && handovers[0].returned_on);
+  assert.equal(handovers[0].condition_in, 'fine');
+});
