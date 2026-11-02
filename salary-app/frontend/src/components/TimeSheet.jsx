@@ -144,7 +144,13 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
      one person across days. Everything below draws from this. */
   const lines =
     view === 'day'
-      ? filtered.map((row) => ({ key: row.employee_id, row, day, label: row.employee_name, sub: row.company_name }))
+      /*
+       * No company line under the name. The company filter is at the top of
+       * the page and the name column is narrow; repeating "BOOKNFLY PRIVATE
+       * LIMITED" under all eighty-five of them doubled the row height and
+       * told nobody anything.
+       */
+      ? filtered.map((row) => ({ key: row.employee_id, row, day, label: row.employee_name }))
       : person
         ? dayList.map((d) => ({
             key: d,

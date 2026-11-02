@@ -22,10 +22,14 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
   const on = String(period.late_policy || POLICY.hours) === POLICY.concession;
 
   const preview = useMemo(() => {
-    const out = { people: [], charge: 0, minutes: 0, judged: 0, unknown: 0 };
+    const out = { people: [], charge: 0, minutes: 0, judged: 0, unknown: 0, each: [] };
     for (const row of rows) {
       if (row.late_total_minutes > 0 || row.late_days || row.early_days) {
         out.minutes += row.late_total_minutes || 0;
+        // The summary is of EVERYBODY who was late or early, not only those
+        // past the concession - "who is coming in late" is the question a
+        // month is read for, and most of them never reach the charge.
+        out.each.push(row);
       }
       if (row.judged_days === 0) out.unknown++;
       const amount = Number(row.late_computed) || 0;
@@ -35,6 +39,7 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
       }
     }
     out.people.sort((a, b) => (b.late_computed || 0) - (a.late_computed || 0));
+    out.each.sort((a, b) => (b.late_total_minutes || 0) - (a.late_total_minutes || 0));
     return out;
   }, [rows]);
 
@@ -82,6 +87,47 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
           <span className="n">{money(preview.charge)}</span>
         </div>
       </div>
+
+      {preview.each.length > 0 ? (
+        <div className="table-wrap">
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th className="sticky-name">Name</th>
+                <th className="num">Late days</th>
+                <th className="num">Late by</th>
+                <th className="num">Early days</th>
+                <th className="num">Early by</th>
+                <th className="num">In all</th>
+                <th className="num">{on ? 'Charged' : 'Would cost'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.each.map((r) => (
+                <tr key={r.employee_id}>
+                  <td className="sticky-name">{r.employee_name}</td>
+                  <td className="num">{r.late_days || <span className="muted">—</span>}</td>
+                  <td className="num">{r.late_minutes ? formatDuration(r.late_minutes) : <span className="muted">—</span>}</td>
+                  <td className="num">{r.early_days || <span className="muted">—</span>}</td>
+                  <td className="num">{r.early_minutes ? formatDuration(r.early_minutes) : <span className="muted">—</span>}</td>
+                  <td className="num">{formatDuration(r.late_total_minutes)}</td>
+                  <td className="num">
+                    {/* Nought here is not "free by accident" - it is inside
+                        the concession, which is what the concession is for. */}
+                    {r.late_computed > 0 ? money(r.late_computed) : <span className="muted">within it</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="muted small">
+          {preview.unknown === rows.length
+            ? 'No clock times this month, so nobody can be called late — that is "not known", not "on time".'
+            : 'Nobody came in late or left early this month.'}
+        </p>
+      )}
 
       {open && (
         <>

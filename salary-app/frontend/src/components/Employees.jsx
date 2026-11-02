@@ -924,6 +924,8 @@ export default function Employees({
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
                 <th>Designation</th>
+                <th title="When this person's day starts. Blank follows the office's usual timing, set on the Time tab.">Shift in</th>
+                <th title="When this person's day ends. Blank follows the office's usual timing.">Shift out</th>
                 <th title="Groups people for the reporting line and the department-wise manager">Department</th>
                 <th title="Decides which festivals are a paid holiday">Religion</th>
                 <th title="Drives the birthday list on the dashboard">Born</th>
@@ -987,6 +989,36 @@ export default function Employees({
                       onBlur={(e) =>
                         e.target.value !== (emp.designation || '') &&
                         onPatch(emp.id, { designation: e.target.value })
+                      }
+                    />
+                  </td>
+                  {/*
+                    * This person's own hours. Blank follows the office's usual
+                    * day — it is NOT a shift of nothing. A night shift judged
+                    * against a 9:30 start reads as five hours late every day,
+                    * which is the whole reason these exist.
+                    */}
+                  <td>
+                    <input
+                      key={`shiftin-${emp.id}-${emp.shift_in || ''}`}
+                      className="cell-input time"
+                      defaultValue={emp.shift_in || ''}
+                      placeholder="usual"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.shift_in || '') &&
+                        onPatch(emp.id, { shift_in: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      key={`shiftout-${emp.id}-${emp.shift_out || ''}`}
+                      className="cell-input time"
+                      defaultValue={emp.shift_out || ''}
+                      placeholder="usual"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.shift_out || '') &&
+                        onPatch(emp.id, { shift_out: e.target.value })
                       }
                     />
                   </td>

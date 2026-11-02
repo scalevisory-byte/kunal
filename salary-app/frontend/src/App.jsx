@@ -4,6 +4,7 @@ import Attendance from './components/Attendance.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
 import Festivals from './components/Festivals.jsx';
+import HolidayDetail from './components/HolidayDetail.jsx';
 import Apply from './components/hiring/Apply.jsx';
 import Hiring from './components/hiring/Hiring.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
@@ -22,13 +23,22 @@ import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
 
+/*
+ * Which tabs are about a MONTH. The month picker and its settings - working
+ * days, hours a day, the PT slab, lock, delete - were on every screen, so the
+ * asset register carried "Working days 26 · PT above 12000" across the top of
+ * it. None of that means anything to a laptop, a candidate or a staff note.
+ */
+const MONTHLY_TABS = new Set([
+  'dashboard', 'sheet', 'attendance', 'time', 'leave', 'loans', 'reports',
+]);
+
 /* key, what it is called, its icon */
 const TABS = [
   ['dashboard', 'Dashboard', 'dashboard'],
   ['sheet', 'Salary sheet', 'sheet'],
   ['attendance', 'Attendance', 'attendance'],
   ['time', 'Time', 'clock'],
-  ['sunday', 'Sunday', 'sunday'],
   ['leave', 'Leave', 'leave'],
   ['loans', 'Loans', 'loans'],
   ['employees', 'Employees', 'employees'],
@@ -456,6 +466,7 @@ function Shell() {
           * it always was; this is only the filter.
           */}
         <div className="top-row">
+          {MONTHLY_TABS.has(tab) && (
           <PeriodBar
             periods={periods}
             period={period}
@@ -465,6 +476,10 @@ function Shell() {
             onSync={syncPeriod}
             onDelete={deletePeriod}
           />
+          )}
+          {/* The company filter stays everywhere but Admin: assets, candidates
+              and staff notes all belong to a company, even though none of them
+              belong to a month. */}
           <label className="company-pick" title="Show one company, or all of them">
             Company
             <select
@@ -559,6 +574,40 @@ function Shell() {
               locked={locked}
               onSave={saveAttendance}
             />
+
+            {/*
+              * The Sunday register moved here from its own tab, as asked, and
+              * it is still the ONLY place Sunday pay is settled - it is not
+              * in the month's net, so losing it would lose the money. Folded,
+              * because it is looked at once a month.
+              */}
+            <details className="card fold">
+              <summary>
+                <strong>Sunday working</strong>
+                <span className="muted small">
+                  {' '}
+                  — who worked which Sundays, and what they are owed for them.
+                  Paid from here, never in the month&apos;s salary.
+                </span>
+              </summary>
+              <SundayRegister
+                period={period}
+                rows={visibleRows}
+                locked={locked}
+                onPatchRow={patchRow}
+              />
+            </details>
+
+            <details className="card fold">
+              <summary>
+                <strong>Paid holidays</strong>
+                <span className="muted small">
+                  {' '}
+                  — which days were given off, and who worked them anyway
+                </span>
+              </summary>
+              <HolidayDetail period={period} rows={visibleRows} />
+            </details>
           </div>
         )}
 
@@ -569,15 +618,6 @@ function Shell() {
             locked={locked}
             onSave={saveAttendance}
             onPatchPeriod={patchPeriod}
-          />
-        )}
-
-        {tab === 'sunday' && period && payroll && (
-          <SundayRegister
-            period={period}
-            rows={visibleRows}
-            locked={locked}
-            onPatchRow={patchRow}
           />
         )}
 

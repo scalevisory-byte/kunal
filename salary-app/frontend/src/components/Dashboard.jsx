@@ -586,7 +586,7 @@ export default function Dashboard({
       key: 'sunday',
       tone: 'warn',
       text: `${sunday.unpaidCount} Sunday payments still to make`,
-      go: 'sunday',
+      go: 'attendance',
     },
     unmarkedPeople.length > 0 &&
       unmarkedPeople.length === rows.length && {
@@ -1234,7 +1234,7 @@ export default function Dashboard({
 
         <div className="card" data-go="sunday">
           <h2>
-            Sunday duty <button className="ghost tiny" onClick={() => onGo('sunday')}>open</button>
+            Sunday duty <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
           </h2>
           <div className="stat-row">
             <Stat label="People" value={sunday.people} plain />
