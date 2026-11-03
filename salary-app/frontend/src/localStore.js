@@ -30,6 +30,17 @@ import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, parseTime, timesToDay } from '../../shared/timesheet.js';
+import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
+import { WEIGHTS, matchScore } from '../../shared/match.js';
+import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
+import {
+  hiringDigest,
+  publicVacancy,
+  stageMessage,
+  vacancyBroadcast,
+  waLink,
+} from '../../shared/hiringMessages.js';
+import { CSV_COLUMNS as HIRING_CSV, toCsv as hiringCsv } from '../../shared/hiringCsv.js';
 
 /**
  * The standalone build's data layer.
@@ -53,6 +64,25 @@ const EMPTY = {
   holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
   loans: [], // { id, employee_id, amount, instalment, given_on, reason, status }
   repayments: [], // { loan_id, period_id, amount }
+  /*
+   * Hiring. The office half of it runs here perfectly well - an opening, a
+   * person, the link between them, a test result, an interview, a to-do - and
+   * the handover to payroll is the whole point of hiring living inside the
+   * HRMS, so it had to work offline too.
+   *
+   * What genuinely cannot: a candidate opening an apply link, and a CV file.
+   * Both need an address on the internet and somewhere other than this browser
+   * to keep a file. Those two say so where they are, rather than blanking the
+   * tab - which is what this file used to do with the whole module.
+   */
+  vacancies: [],
+  candidates: [],
+  applications: [],
+  tests: [],
+  interviews: [],
+  hiring_tasks: [],
+  // The highest JOB-/CAN- number ever handed out, so one is never reused.
+  ref_high: {},
   next_id: 1,
 };
 
@@ -336,6 +366,300 @@ function buildPayroll(periodId, { sync = true } = {}) {
     totals: totalRows(rows),
   };
 }
+
+/* ---------------- hiring, offline ---------------- */
+
+/*
+ * The server keeps all of this in six SQLite tables and joins on read. Here it
+ * is six arrays and the joins are done by hand, exactly as the employee and
+ * payroll side of this file already works.
+ *
+ * What is NOT re-implemented is anything with judgement in it: the match score
+ * (shared/match.js), the stages (shared/stages.js), the test rules
+ * (shared/hiringTest.js) and every message (shared/hiringMessages.js) are the
+ * same modules the server runs, so a candidate cannot score 71 on the laptop
+ * and 64 on the server.
+ */
+
+const VACANCY_FIELDS = [
+  'company_id', 'title', 'department', 'reports_to', 'location', 'work_mode',
+  'employment_type', 'experience_band', 'education', 'positions',
+  'salary_min', 'salary_max', 'skills', 'description', 'responsibilities',
+  'requirements', 'benefits', 'internal_notes',
+  'test_url', 'test_pass_percent', 'test_seconds_per_question',
+  'status', 'opened_on', 'needed_by',
+];
+
+const CANDIDATE_FIELDS = [
+  'name', 'phone', 'email', 'dob', 'gender', 'location', 'preferred_location',
+  'education', 'experience', 'current_company', 'current_salary',
+  'expected_salary', 'notice_period', 'role', 'skills', 'industry',
+  'source', 'referred_by', 'notes',
+];
+
+/* Deliberately no stage, stage_log, stage_changed_at or employee_id: a stage
+   moves through its own call so the log is written, and payroll through the
+   hire button. Word for word the server's `skip` list. */
+const APPLICATION_FIELDS = [
+  'match_score', 'test_score', 'test_status', 'offer_salary', 'joining_date', 'notes',
+];
+
+const INTERVIEW_FIELDS = [
+  'application_id', 'at', 'mode', 'location_or_link', 'round', 'panel', 'notes', 'status',
+];
+
+const TASK_FIELDS = [
+  'title', 'due_on', 'priority', 'status', 'application_id', 'candidate_id', 'vacancy_id',
+];
+
+const hiringNow = () => new Date().toISOString();
+const today = () => hiringNow().slice(0, 10);
+
+/** Only the fields the table has, so a stray key cannot land in the store. */
+function pick(fields, body, existing = {}) {
+  const out = {};
+  for (const key of fields) {
+    if (body && key in body) out[key] = body[key] === undefined ? null : body[key];
+    else if (key in existing) out[key] = existing[key];
+  }
+  return out;
+}
+
+/**
+ * JOB-001, CAN-001 - the number somebody reads out over a phone, and the one
+ * printed on an advert and quoted back by a candidate who saw it.
+ *
+ * It is a HIGH-WATER MARK, never a count and never the last row: deleting the
+ * newest opening must not hand JOB-002 to a different job while the first
+ * JOB-002 is still on a WhatsApp forward somebody is reading. The same rule
+ * the asset codes follow, and for the same reason.
+ *
+ * The mark is seeded from whatever is already on file, so a store written
+ * before this existed carries on from the right number rather than from one.
+ */
+function nextHiringRef(key, prefix) {
+  const db = load();
+  db.ref_high ||= {};
+  const seen = Math.max(
+    Number(db.ref_high[key]) || 0,
+    ...db[key].map((r) => Number(String(r.ref_no).replace(/\D/g, '')) || 0),
+    0
+  );
+  db.ref_high[key] = seen + 1;
+  return `${prefix}-${String(seen + 1).padStart(3, '0')}`;
+}
+
+/** Digits only: "+91 98250 12345" and "9825012345" are one person. */
+const normalisePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
+const vacancyOf = (id) => load().vacancies.find((v) => v.id === Number(id)) || null;
+const candidateOf = (id) => load().candidates.find((c) => c.id === Number(id)) || null;
+const applicationOf = (id) => load().applications.find((a) => a.id === Number(id)) || null;
+
+/** v.* plus the company name and the two counts the server sub-selects. */
+function vacancyRow(v) {
+  if (!v) return null;
+  const db = load();
+  const apps = db.applications.filter((a) => a.vacancy_id === v.id);
+  return {
+    ...v,
+    company_name: companyOf(v.company_id)?.name || '',
+    applications: apps.length,
+    hired: apps.filter((a) => a.employee_id).length,
+  };
+}
+
+const candidateRow = (c) =>
+  c && { ...c, applications: load().applications.filter((a) => a.candidate_id === c.id).length };
+
+/** The server's APPLICATION_COLUMNS join, by hand. */
+function applicationRow(a) {
+  if (!a) return null;
+  const c = candidateOf(a.candidate_id);
+  const v = vacancyOf(a.vacancy_id);
+  if (!c || !v) return null;
+  return {
+    ...a,
+    candidate_ref: c.ref_no,
+    candidate_name: c.name,
+    phone: c.phone,
+    email: c.email,
+    location: c.location,
+    preferred_location: c.preferred_location,
+    education: c.education,
+    experience: c.experience,
+    skills: c.skills,
+    expected_salary: c.expected_salary,
+    current_salary: c.current_salary,
+    current_company: c.current_company,
+    notice_period: c.notice_period,
+    role: c.role,
+    resume_path: c.resume_path || null,
+    resume_name: c.resume_name || null,
+    source: c.source,
+    vacancy_ref: v.ref_no,
+    job_title: v.title,
+    department: v.department,
+    job_location: v.location,
+    vacancy_status: v.status,
+    company_id: v.company_id,
+    company_name: companyOf(v.company_id)?.name || '',
+  };
+}
+
+function interviewRow(i) {
+  if (!i) return null;
+  const app = applicationOf(i.application_id);
+  const c = app ? candidateOf(app.candidate_id) : null;
+  const v = app ? vacancyOf(app.vacancy_id) : null;
+  return {
+    ...i,
+    candidate_name: c?.name || null,
+    phone: c?.phone || null,
+    job_title: v?.title || null,
+    vacancy_ref: v?.ref_no || null,
+    company_name: v ? companyOf(v.company_id)?.name || null : null,
+  };
+}
+
+const taskRow = (t) =>
+  t && {
+    ...t,
+    candidate_name: candidateOf(t.candidate_id)?.name || null,
+    job_title: vacancyOf(t.vacancy_id)?.title || null,
+  };
+
+/*
+ * There is no .env on a laptop, so there is no app-wide test address and no
+ * public URL. An opening's OWN test link still resolves, which is the one that
+ * matters - the office types it per vacancy anyway.
+ */
+const HIRING_DEFAULTS = { url: null, passPercent: 50, secondsPerQuestion: 30 };
+const testRules = (vacancy) => testFor(vacancy, HIRING_DEFAULTS);
+
+const listApplicationRows = ({ vacancy_id, candidate_id, company_id, stage, q } = {}) => {
+  const needle = q ? String(q).toLowerCase() : '';
+  return load()
+    .applications.map(applicationRow)
+    .filter(Boolean)
+    .filter((r) => !vacancy_id || r.vacancy_id === Number(vacancy_id))
+    .filter((r) => !candidate_id || r.candidate_id === Number(candidate_id))
+    .filter((r) => !company_id || r.company_id === Number(company_id))
+    .filter((r) => !stage || r.stage === stage)
+    .filter(
+      (r) =>
+        !needle ||
+        [r.candidate_name, r.phone, r.job_title, r.vacancy_ref]
+          .some((f) => String(f || '').toLowerCase().includes(needle))
+    )
+    .sort((a, b) => b.match_score - a.match_score || b.id - a.id);
+};
+
+const listTestsFor = (candidateId) =>
+  load()
+    .tests.filter((t) => t.candidate_id === Number(candidateId))
+    // id breaks the tie, as on the server: taken_at is only to the second.
+    .sort((a, b) => String(b.taken_at).localeCompare(String(a.taken_at)) || b.id - a.id);
+
+const upcomingInterviews = () => {
+  const since = new Date(Date.now() - 86400000).toISOString();
+  return load()
+    .interviews.filter((i) => i.status === 'Scheduled' && String(i.at) >= since.slice(0, 16))
+    .map(interviewRow)
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+};
+
+const openTasks = () =>
+  load()
+    .hiring_tasks.filter((t) => t.status === 'open')
+    .map(taskRow)
+    .sort((a, b) => {
+      if (!a.due_on !== !b.due_on) return a.due_on ? -1 : 1;
+      return String(a.due_on || '').localeCompare(String(b.due_on || '')) || b.id - a.id;
+    });
+
+/** The same figures the server's hiringOverview() counts. */
+function hiringOverview() {
+  const db = load();
+  const published = db.vacancies.filter((v) => v.status === 'published');
+  const byStage = {};
+  for (const a of db.applications) byStage[a.stage] = (byStage[a.stage] || 0) + 1;
+
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const monthStart = `${today().slice(0, 7)}-01`;
+  const hiredIds = new Set(db.applications.filter((a) => a.employee_id).map((a) => a.employee_id));
+
+  return {
+    vacancies: {
+      open: published.length,
+      draft: db.vacancies.filter((v) => v.status === 'draft').length,
+      total: db.vacancies.length,
+      positions: published.reduce((n, v) => n + (Number(v.positions) || 0), 0),
+      unfilled:
+        published.reduce((n, v) => n + (Number(v.positions) || 0), 0) -
+        db.applications.filter(
+          (a) => a.employee_id && published.some((v) => v.id === a.vacancy_id)
+        ).length,
+    },
+    candidates: {
+      total: db.candidates.length,
+      withResume: db.candidates.filter((c) => c.resume_path).length,
+      addedThisWeek: db.candidates.filter((c) => String(c.created_at) >= weekAgo).length,
+    },
+    applications: {
+      total: db.applications.length,
+      thisWeek: db.applications.filter((a) => String(a.created_at) >= weekAgo).length,
+      byStage,
+      rejected: byStage[REJECTED] || 0,
+    },
+    interviews: { upcoming: upcomingInterviews().length },
+    tasks: {
+      open: db.hiring_tasks.filter((t) => t.status === 'open').length,
+      overdue: db.hiring_tasks.filter(
+        (t) => t.status === 'open' && t.due_on && t.due_on < today()
+      ).length,
+    },
+    hires: {
+      total: db.applications.filter((a) => a.employee_id).length,
+      thisMonth: db.employees.filter(
+        (e) => hiredIds.has(e.id) && e.joined_on && e.joined_on >= monthStart
+      ).length,
+      awaitingPayroll: db.applications.filter(
+        (a) => ['Selected', 'Joined'].includes(a.stage) && !a.employee_id
+      ).length,
+    },
+  };
+}
+
+/** A test link is checked when it is SAVED, not when a candidate opens it. */
+function checkedTestUrl(values) {
+  if (!('test_url' in values)) return values;
+  const text = String(values.test_url || '').trim();
+  if (!text) return { ...values, test_url: null };
+  const { url, problem } = checkTestUrl(text);
+  if (problem) throw new HttpError(400, problem);
+  return { ...values, test_url: url };
+}
+
+/** Re-score every application on an opening whose requirement just changed. */
+function rescoreVacancy(vacancy) {
+  for (const a of load().applications) {
+    if (a.vacancy_id !== vacancy.id) continue;
+    a.match_score = matchScore(candidateOf(a.candidate_id) || {}, vacancy).total;
+  }
+}
+
+/**
+ * The one thing that cannot be done offline, said once and reused: a CV is a
+ * file and a candidate's apply link is an address on the internet. Neither
+ * exists in an HTML file on a laptop.
+ */
+const NO_FILES_OFFLINE =
+  'A CV has to live somewhere other than this browser, so attaching one needs the server version. ' +
+  'Everything else about this candidate works here.';
 
 /* ---------------- the router ---------------- */
 
@@ -950,6 +1274,587 @@ export async function handle(method, path, body) {
     }
   }
 
+  /* ---------------- hiring ---------------- */
+  if (parts[0] === 'hiring') {
+    const params = new URLSearchParams(path.split('?')[1] || '');
+    const what = parts[1];
+    const id = Number(parts[2]);
+
+    if (route === 'GET /hiring/config') {
+      return {
+        stages: STAGES,
+        rejected: REJECTED,
+        bands: MATCH_BANDS,
+        weights: WEIGHTS,
+        /*
+         * No address, so no apply link and nothing for a test system to post
+         * back to. Said as null rather than invented: the screens read these
+         * and explain themselves from them.
+         */
+        public_url: null,
+        test_configured: false,
+        test_pass_percent: HIRING_DEFAULTS.passPercent,
+        test_seconds_per_question: HIRING_DEFAULTS.secondsPerQuestion,
+        whatsapp: null,
+        offline: true,
+      };
+    }
+
+    if (route === 'GET /hiring/overview') {
+      return {
+        ...hiringOverview(),
+        upcoming: upcomingInterviews(),
+        open_tasks: openTasks(),
+        recent: listApplicationRows().slice(0, 12),
+      };
+    }
+
+    if (route === 'GET /hiring/digest') {
+      const day = today();
+      return {
+        text: hiringDigest({
+          interviews: upcomingInterviews().filter((i) => String(i.at).slice(0, 10) === day),
+          tasks: openTasks(),
+          newApplications: hiringOverview().applications.thisWeek,
+        }),
+        whatsapp: null,
+      };
+    }
+
+    /* ---- openings ---- */
+    if (what === 'vacancies') {
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        const companyId = Number(params.get('company_id')) || null;
+        const needle = (params.get('q') || '').toLowerCase();
+        return {
+          vacancies: db.vacancies
+            .map(vacancyRow)
+            .filter((v) => !status || v.status === status)
+            .filter((v) => !companyId || v.company_id === companyId)
+            .filter(
+              (v) =>
+                !needle ||
+                [v.title, v.ref_no, v.location, v.skills, v.department]
+                  .some((f) => String(f || '').toLowerCase().includes(needle))
+            )
+            .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || b.id - a.id),
+        };
+      }
+
+      if (parts.length === 2 && method === 'POST') {
+        const values = checkedTestUrl(pick(VACANCY_FIELDS, body));
+        if (!String(values.title || '').trim()) throw new HttpError(400, 'an opening needs a job title');
+        // Every opening belongs to one of our own companies - without that
+        // there is nobody to put the person on the payroll of later.
+        if (!companyOf(Number(values.company_id))) throw new HttpError(400, 'an opening needs a company');
+        const vacancy = {
+          id: nextId(),
+          ref_no: nextHiringRef('vacancies', 'JOB'),
+          ...values,
+          company_id: Number(values.company_id),
+          positions: Number(values.positions) || 1,
+          status: values.status || 'draft',
+          opened_on: values.opened_on || today(),
+          created_at: hiringNow(),
+          updated_at: hiringNow(),
+        };
+        db.vacancies.push(vacancy);
+        save();
+        return vacancyRow(vacancy);
+      }
+
+      const vacancy = vacancyOf(id);
+      if (parts.length >= 3 && !vacancy) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'GET') {
+        return { vacancy: vacancyRow(vacancy), applications: listApplicationRows({ vacancy_id: vacancy.id }) };
+      }
+      if (parts.length === 3 && method === 'PATCH') {
+        Object.assign(vacancy, checkedTestUrl(pick(VACANCY_FIELDS, body, vacancy)), {
+          company_id: body?.company_id === undefined ? vacancy.company_id : Number(body.company_id),
+          updated_at: hiringNow(),
+        });
+        // The requirement changed, so every score measured against the old
+        // one is stale.
+        rescoreVacancy(vacancy);
+        save();
+        return vacancyRow(vacancy);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        // ON DELETE CASCADE, by hand: the applications on this opening, and
+        // the interviews and to-dos hanging off those.
+        const gone = new Set(db.applications.filter((a) => a.vacancy_id === vacancy.id).map((a) => a.id));
+        db.applications = db.applications.filter((a) => a.vacancy_id !== vacancy.id);
+        db.interviews = db.interviews.filter((i) => !gone.has(i.application_id));
+        db.hiring_tasks = db.hiring_tasks.filter((t) => t.vacancy_id !== vacancy.id);
+        db.vacancies = db.vacancies.filter((v) => v.id !== vacancy.id);
+        save();
+        return null;
+      }
+
+      /* People already on file who are not on this opening yet, best fit
+         first - so a new opening starts from the books, not an empty page. */
+      if (parts[3] === 'suggestions' && method === 'GET') {
+        const on = new Set(
+          db.applications.filter((a) => a.vacancy_id === vacancy.id).map((a) => a.candidate_id)
+        );
+        const limit = Number(params.get('limit')) || 25;
+        return {
+          suggestions: db.candidates
+            .filter((c) => !on.has(c.id))
+            .map((candidate) => {
+              const { total, factors, missing } = matchScore(candidate, vacancy);
+              return { candidate, match_score: total, factors, missing };
+            })
+            .sort((a, b) => b.match_score - a.match_score)
+            .slice(0, limit),
+        };
+      }
+
+      /*
+       * The advert still writes itself - that text is worth having offline,
+       * because it gets pasted into WhatsApp and the job boards by hand. The
+       * apply LINK does not, and says so instead of being faked.
+       */
+      if (parts[3] === 'share' && method === 'GET') {
+        // vacancyRow, not the stored row: the advert names the company, and
+        // the company name only exists on the joined row. A candidate who
+        // does not know who is hiring does not turn up.
+        const joined = vacancyRow(vacancy);
+        return {
+          public: publicVacancy(joined),
+          apply_url: null,
+          broadcast: vacancyBroadcast(joined, { baseUrl: '' }),
+          published: vacancy.status === 'published',
+          offline: true,
+        };
+      }
+    }
+
+    /* ---- candidates ---- */
+    if (what === 'candidates') {
+      if (parts.length === 2 && method === 'GET') {
+        const needle = (params.get('q') || '').toLowerCase();
+        const limit = Number(params.get('limit')) || 500;
+        const offset = Number(params.get('offset')) || 0;
+        const all = db.candidates
+          .filter(
+            (c) =>
+              !needle ||
+              [c.name, c.phone, c.ref_no, c.skills, c.location, c.role]
+                .some((f) => String(f || '').toLowerCase().includes(needle))
+          )
+          .slice()
+          .sort((a, b) => b.id - a.id);
+        return { rows: all.slice(offset, offset + limit).map(candidateRow), total: all.length };
+      }
+
+      if (parts.length === 2 && method === 'POST') {
+        const values = pick(CANDIDATE_FIELDS, body);
+        if (!String(values.name || '').trim()) throw new HttpError(400, 'a candidate needs a name');
+        values.phone = normalisePhone(values.phone);
+        if (!values.phone) throw new HttpError(400, 'a candidate needs a mobile number');
+        // The mobile number IS the identity - the unique index on the server.
+        if (db.candidates.some((c) => c.phone === values.phone)) {
+          throw new HttpError(409, 'Somebody with this mobile number is already on file');
+        }
+        const candidate = {
+          id: nextId(),
+          ref_no: nextHiringRef('candidates', 'CAN'),
+          ...values,
+          source: values.source || 'office',
+          resume_path: null,
+          resume_name: null,
+          created_at: hiringNow(),
+          updated_at: hiringNow(),
+        };
+        db.candidates.push(candidate);
+        save();
+        return candidateRow(candidate);
+      }
+
+      const candidate = candidateOf(id);
+      if (parts.length >= 3 && !candidate) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'GET') {
+        return {
+          candidate,
+          applications: listApplicationRows({ candidate_id: candidate.id }),
+          tests: listTestsFor(candidate.id),
+          // No file store, so never a link. Null is what the server sends for
+          // somebody with no CV, so the screen already knows how to read it.
+          resume: null,
+        };
+      }
+      if (parts.length === 3 && method === 'PATCH') {
+        const values = pick(CANDIDATE_FIELDS, body, candidate);
+        if (body && 'phone' in body) {
+          values.phone = normalisePhone(values.phone);
+          if (!values.phone) throw new HttpError(400, 'a candidate needs a mobile number');
+          if (db.candidates.some((c) => c.id !== candidate.id && c.phone === values.phone)) {
+            throw new HttpError(409, 'Somebody with this mobile number is already on file');
+          }
+        }
+        Object.assign(candidate, values, { updated_at: hiringNow() });
+        save();
+        return candidateRow(candidate);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        const gone = new Set(db.applications.filter((a) => a.candidate_id === candidate.id).map((a) => a.id));
+        db.applications = db.applications.filter((a) => a.candidate_id !== candidate.id);
+        db.interviews = db.interviews.filter((i) => !gone.has(i.application_id));
+        db.tests = db.tests.filter((t) => t.candidate_id !== candidate.id);
+        db.hiring_tasks = db.hiring_tasks.filter((t) => t.candidate_id !== candidate.id);
+        db.candidates = db.candidates.filter((c) => c.id !== candidate.id);
+        save();
+        return null;
+      }
+      if (parts[3] === 'resume') throw new HttpError(400, NO_FILES_OFFLINE);
+      if (parts[3] === 'resume-link') throw new HttpError(404, 'no CV on file');
+    }
+
+    /* ---- the pipeline ---- */
+    if (what === 'applications') {
+      if (parts.length === 2 && method === 'GET') {
+        const rows = listApplicationRows({
+          vacancy_id: Number(params.get('vacancy_id')) || null,
+          candidate_id: Number(params.get('candidate_id')) || null,
+          company_id: Number(params.get('company_id')) || null,
+          stage: params.get('stage'),
+          q: params.get('q'),
+        });
+        const limit = Number(params.get('limit')) || 1000;
+        const offset = Number(params.get('offset')) || 0;
+        return { rows: rows.slice(offset, offset + limit), total: rows.length };
+      }
+
+      /* Putting somebody already on file forward for an opening. */
+      if (parts.length === 2 && method === 'POST') {
+        const vacancy = vacancyOf(body?.vacancy_id);
+        const candidate = candidateOf(body?.candidate_id);
+        if (!vacancy) throw new HttpError(400, 'opening not found');
+        if (!candidate) throw new HttpError(400, 'candidate not found');
+        const already = db.applications.find(
+          (a) => a.vacancy_id === vacancy.id && a.candidate_id === candidate.id
+        );
+        // Pressing submit twice is not a mistake worth shouting about.
+        if (already) return { application: applicationRow(already), created: false };
+
+        const at = hiringNow();
+        const application = {
+          id: nextId(),
+          vacancy_id: vacancy.id,
+          candidate_id: candidate.id,
+          match_score: matchScore(candidate, vacancy).total,
+          stage: 'New',
+          test_score: null,
+          test_status: null,
+          offer_salary: null,
+          joining_date: null,
+          employee_id: null,
+          stage_log: [{ stage: 'New', on: at, by: body?.by || body?.source || 'office' }],
+          stage_changed_at: at,
+          notes: null,
+          created_at: at,
+        };
+        db.applications.push(application);
+        save();
+        return { application: applicationRow(application), created: true };
+      }
+
+      const application = applicationOf(id);
+      if (parts.length >= 3 && !application) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'GET') {
+        const candidate = candidateOf(application.candidate_id);
+        const vacancy = vacancyOf(application.vacancy_id);
+        const resolved = testRules(vacancy);
+        return {
+          application: applicationRow(application),
+          // Why it scored what it scored. The number alone is no use to
+          // somebody deciding.
+          match: matchScore(candidate, vacancy),
+          interviews: db.interviews
+            .filter((i) => i.application_id === application.id)
+            .map(interviewRow)
+            .sort((a, b) => String(a.at).localeCompare(String(b.at))),
+          tests: listTestsFor(application.candidate_id),
+          resume: null,
+          test: {
+            source: resolved.source,
+            pass_percent: resolved.passPercent,
+            seconds_per_question: resolved.secondsPerQuestion,
+            problem: resolved.problem,
+          },
+        };
+      }
+
+      if (parts.length === 3 && method === 'PATCH') {
+        Object.assign(application, pick(APPLICATION_FIELDS, body, application));
+        save();
+        return applicationRow(application);
+      }
+
+      if (parts.length === 3 && method === 'DELETE') {
+        db.interviews = db.interviews.filter((i) => i.application_id !== application.id);
+        db.hiring_tasks = db.hiring_tasks.filter((t) => t.application_id !== application.id);
+        db.applications = db.applications.filter((a) => a.id !== application.id);
+        save();
+        return null;
+      }
+
+      /*
+       * The one way an application changes stage. A person chose it: neither
+       * the match score nor a test result moves anybody. It comes back with
+       * the message to send, because the point of the move is usually that
+       * somebody needs telling.
+       */
+      if (parts[3] === 'stage' && method === 'POST') {
+        const stage = body?.stage;
+        if (!stage) throw new HttpError(400, 'which stage?');
+        if (!ALL_STAGES.includes(stage)) throw new HttpError(400, `unknown stage: ${stage}`);
+        if (application.stage !== stage) {
+          const at = hiringNow();
+          application.stage_log = [
+            ...(application.stage_log || []),
+            { stage, on: at, by: body?.by || 'office', ...(body?.note ? { note: body.note } : {}) },
+          ];
+          application.stage = stage;
+          application.stage_changed_at = at;
+          save();
+        }
+        const candidate = candidateOf(application.candidate_id);
+        const text = stageMessage(stage, {
+          candidate,
+          vacancy: vacancyOf(application.vacancy_id),
+          offer: { salary: application.offer_salary, joining_date: application.joining_date },
+        });
+        return {
+          application: applicationRow(application),
+          notify: text ? { text, whatsapp: waLink(candidate.phone, text) } : null,
+        };
+      }
+
+      /*
+       * The handover to payroll, and the whole reason hiring lives inside the
+       * HRMS: the person who joins becomes an employee row, so they land on
+       * the salary sheet, the attendance grid and the PF/ESI registers without
+       * their name being typed a second time.
+       *
+       * Deliberately its own button, not a side effect of reaching "Joined" -
+       * a wrong salary here is a wrong payslip at the end of the month. And
+       * hiring the same person twice does not make a second employee.
+       */
+      if (parts[3] === 'hire' && method === 'POST') {
+        if (application.employee_id) {
+          return {
+            employee: employeeOf(application.employee_id),
+            application: applicationRow(application),
+            created: false,
+          };
+        }
+        const candidate = candidateOf(application.candidate_id);
+        const vacancy = vacancyOf(application.vacancy_id);
+        const salary = Number(body?.monthly_salary ?? application.offer_salary) || 0;
+        if (salary <= 0) {
+          throw new HttpError(400, 'a monthly salary is needed before somebody goes on the payroll');
+        }
+        const joined = body?.joined_on || application.joining_date || today();
+        // The company comes from the OPENING, never from the form.
+        const employee = await handle('POST', '/employees', {
+          company_id: vacancy.company_id,
+          name: candidate.name,
+          designation: body?.designation || vacancy.title,
+          department: body?.department || vacancy.department || null,
+          dob: candidate.dob || null,
+          gender: candidate.gender || null,
+          phone: candidate.phone,
+          email: candidate.email || null,
+          address: candidate.location || null,
+          monthly_salary: salary,
+          joined_on: joined,
+          payment_mode: body?.payment_mode || 'Bank',
+          cl_quota: Number(body?.cl_quota) || 0,
+          sl_quota: Number(body?.sl_quota) || 0,
+          pl_quota: Number(body?.pl_quota) || 0,
+          pf: Number(body?.pf) || 0,
+          esi: Number(body?.esi) || 0,
+          code: body?.code || null,
+          religion: body?.religion || null,
+        });
+        application.employee_id = employee.id;
+        application.offer_salary = salary;
+        application.joining_date = joined;
+        save();
+        await handle('POST', `/hiring/applications/${application.id}/stage`, {
+          stage: 'Joined',
+          by: body?.by || 'office',
+          note: 'Added to payroll',
+        });
+        return { employee, application: applicationRow(applicationOf(application.id)), created: true };
+      }
+
+      /*
+       * A result typed in by hand. The bar is the OPENING's, not the app's,
+       * and it is kept ON the result - the opening's pass mark can be edited
+       * afterwards, and "passed" with no bar recorded cannot be explained six
+       * months later.
+       */
+      if (parts[3] === 'test' && method === 'POST') {
+        const max = Number(body?.max_score) || 0;
+        const score = Number(body?.score) || 0;
+        const percentage = max > 0 ? Math.round((score / max) * 1000) / 10 : Number(body?.percentage) || 0;
+        const rules = testRules(vacancyOf(application.vacancy_id));
+        const stated = Number(body?.pass_percent);
+        const passPercent = Number.isFinite(stated) && stated > 0 ? stated : rules.passPercent;
+        const statedLimit = Number(body?.seconds_per_question);
+        const test = {
+          id: nextId(),
+          candidate_id: application.candidate_id,
+          application_id: application.id,
+          type: body?.type || 'skills',
+          score,
+          max_score: max,
+          percentage,
+          pass_percent: passPercent,
+          passed: percentage >= passPercent,
+          seconds_per_question:
+            Number.isFinite(statedLimit) && statedLimit > 0
+              ? Math.round(statedLimit)
+              : rules.secondsPerQuestion,
+          source: body?.source || 'typed in',
+          answers: body?.answers ?? null,
+          taken_at: hiringNow(),
+        };
+        db.tests.push(test);
+        // The application carries the latest result so the board can sort on
+        // it. The test itself never moves anybody.
+        application.test_score = Math.round(percentage);
+        application.test_status = test.passed ? 'passed' : 'below threshold';
+        save();
+        return { test, application: applicationRow(application) };
+      }
+    }
+
+    /* ---- interviews ---- */
+    if (what === 'interviews') {
+      if (parts.length === 2 && method === 'GET') {
+        const applicationId = Number(params.get('application_id')) || null;
+        if (params.get('upcoming') === 'true') return { interviews: upcomingInterviews() };
+        return {
+          interviews: db.interviews
+            .filter((i) => !applicationId || i.application_id === applicationId)
+            .map(interviewRow)
+            .sort((a, b) => String(a.at).localeCompare(String(b.at))),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const values = pick(INTERVIEW_FIELDS, body);
+        if (!Number(values.application_id)) throw new HttpError(400, 'an interview needs an application');
+        if (!values.at) throw new HttpError(400, 'an interview needs a date and time');
+        const app = applicationOf(values.application_id);
+        if (!app) throw new HttpError(400, 'an interview needs an application');
+        const interview = {
+          id: nextId(),
+          ...values,
+          application_id: app.id,
+          mode: values.mode || 'in-person',
+          round: Number(values.round) || 1,
+          status: values.status || 'Scheduled',
+          created_at: hiringNow(),
+        };
+        db.interviews.push(interview);
+
+        // An interview nobody is reminded about is an interview that gets
+        // missed, so scheduling one puts it on the office's list for that day.
+        const joined = applicationRow(app);
+        db.hiring_tasks.push({
+          id: nextId(),
+          title: `Interview: ${joined.candidate_name} for ${joined.job_title}`,
+          due_on: String(interview.at).slice(0, 10),
+          priority: 'high',
+          status: 'open',
+          application_id: app.id,
+          candidate_id: app.candidate_id,
+          vacancy_id: app.vacancy_id,
+          created_at: hiringNow(),
+          done_at: null,
+        });
+        save();
+
+        const candidate = candidateOf(app.candidate_id);
+        // Scheduling does NOT move the application - that happens when the
+        // candidate confirms.
+        const text = stageMessage('Interview', {
+          candidate,
+          vacancy: vacancyOf(app.vacancy_id),
+          interview,
+        });
+        return {
+          interview,
+          notify: text ? { text, whatsapp: waLink(candidate.phone, text) } : null,
+        };
+      }
+      const interview = db.interviews.find((i) => i.id === id);
+      if (parts.length === 3 && !interview) throw new HttpError(404, 'not found');
+      if (parts.length === 3 && method === 'PATCH') {
+        Object.assign(interview, pick(INTERVIEW_FIELDS, body, interview));
+        save();
+        return interview;
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        db.interviews = db.interviews.filter((i) => i.id !== id);
+        save();
+        return null;
+      }
+    }
+
+    /* ---- the office's own list ---- */
+    if (what === 'tasks') {
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        return {
+          tasks: db.hiring_tasks
+            .filter((t) => !status || t.status === status)
+            .map(taskRow)
+            .sort((a, b) => {
+              if (!a.due_on !== !b.due_on) return a.due_on ? -1 : 1;
+              return String(a.due_on || '').localeCompare(String(b.due_on || '')) || b.id - a.id;
+            }),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const values = pick(TASK_FIELDS, body);
+        if (!String(values.title || '').trim()) throw new HttpError(400, 'a task needs a title');
+        const task = {
+          id: nextId(),
+          ...values,
+          priority: values.priority || 'normal',
+          status: values.status || 'open',
+          created_at: hiringNow(),
+          done_at: null,
+        };
+        db.hiring_tasks.push(task);
+        save();
+        return taskRow(task);
+      }
+      const task = db.hiring_tasks.find((t) => t.id === id);
+      if (parts.length === 3 && !task) throw new HttpError(404, 'not found');
+      if (parts.length === 3 && method === 'PATCH') {
+        Object.assign(task, pick(TASK_FIELDS, body, task));
+        if (task.status === 'done' && !task.done_at) task.done_at = hiringNow();
+        save();
+        return taskRow(task);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        db.hiring_tasks = db.hiring_tasks.filter((t) => t.id !== id);
+        save();
+        return null;
+      }
+    }
+  }
+
   throw new HttpError(404, `not available offline: ${route}`);
 }
 
@@ -1192,6 +2097,32 @@ export async function file(path) {
     const which = registerPath[2];
     const rows = which === 'pt' ? report.pt.rows : which === 'wages' ? report.wages : report[which].rows;
     return new Blob([toCsv(CSV_COLUMNS[which], rows)], { type: 'text/csv;charset=utf-8' });
+  }
+
+  /*
+   * Hiring's two exports. The CV itself is never in one - a spreadsheet of
+   * strangers' resumes is exactly the file that gets forwarded by mistake -
+   * so the candidates export carries "yes"/"" and nothing more.
+   */
+  const hiringExport = path.split('?')[0].match(/^\/hiring\/export\/(pipeline|candidates)\.csv$/);
+  if (hiringExport) {
+    const params = new URLSearchParams(path.split('?')[1] || '');
+    const which = hiringExport[1];
+    const body =
+      which === 'pipeline'
+        ? hiringCsv(
+            HIRING_CSV.pipeline,
+            (await handle('GET', `/hiring/applications?limit=100000${
+              params.get('vacancy_id') ? `&vacancy_id=${params.get('vacancy_id')}` : ''
+            }${params.get('stage') ? `&stage=${encodeURIComponent(params.get('stage'))}` : ''}`)).rows
+          )
+        : hiringCsv(
+            HIRING_CSV.candidates,
+            (await handle('GET', `/hiring/candidates?limit=100000${
+              params.get('q') ? `&q=${encodeURIComponent(params.get('q'))}` : ''
+            }`)).rows.map((r) => ({ ...r, has_resume: r.resume_path ? 'yes' : '' }))
+          );
+    return new Blob([body], { type: 'text/csv;charset=utf-8' });
   }
 
   const match = path.match(/^\/periods\/(\d+)\/(pack\.xlsx|export\.xlsx|export\.csv|bank\.csv|sunday\.csv)$/);

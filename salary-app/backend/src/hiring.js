@@ -197,14 +197,42 @@ function update(table, id, values) {
   return db.prepare(sql).run({ ...values, id }).changes;
 }
 
+/*
+ * The highest JOB-/CAN- number ever handed out. Kept, rather than worked out
+ * from the rows, because the rows can be deleted and the number cannot be
+ * taken back: JOB-002 is printed on an advert, on a WhatsApp forward and in
+ * the note somebody wrote down, so handing it to a different job is how two
+ * candidates end up quoting the same reference for different seats.
+ *
+ * The same rule the asset codes follow, for the same reason.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS hiring_seq (
+    name TEXT PRIMARY KEY,
+    last INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
 /**
  * JOB-001, CAN-001. The integer id is what everything joins on; this is the
- * number somebody reads out over a phone, so it has to be gapless enough to say.
+ * number somebody reads out over a phone, so it has to be gapless enough to
+ * say - and never reused.
+ *
+ * Seeded from whatever is already on file, so a database written before the
+ * mark existed carries on from the right number rather than from one.
  */
 export function nextRef(table, prefix) {
-  const row = db.prepare(`SELECT ref_no FROM ${table} ORDER BY id DESC LIMIT 1`).get();
-  const last = row ? Number(String(row.ref_no).replace(/\D/g, '')) : 0;
-  return `${prefix}-${String((Number.isFinite(last) ? last : 0) + 1).padStart(3, '0')}`;
+  const stored = db.prepare(`SELECT last FROM hiring_seq WHERE name = ?`).get(table)?.last || 0;
+  const highest = db
+    .prepare(`SELECT ref_no FROM ${table}`)
+    .all()
+    .reduce((top, r) => Math.max(top, Number(String(r.ref_no).replace(/\D/g, '')) || 0), 0);
+  const next = Math.max(stored, highest) + 1;
+  db.prepare(
+    `INSERT INTO hiring_seq (name, last) VALUES (@name, @last)
+     ON CONFLICT(name) DO UPDATE SET last = @last`
+  ).run({ name: table, last: next });
+  return `${prefix}-${String(next).padStart(3, '0')}`;
 }
 
 /*

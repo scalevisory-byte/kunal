@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../../api.js';
+import { STANDALONE, api } from '../../api.js';
 import { matchBand } from '../../../../shared/stages.js';
 import { resumeRequest, waLink } from '../../../../shared/hiringMessages.js';
 
@@ -117,14 +117,26 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
               </a>
             </div>
           )}
-          <div className="row" style={{ marginTop: '0.5rem' }}>
-            <input
-              ref={file}
-              type="file"
-              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-              onChange={(e) => upload(e.target.files?.[0])}
-            />
-          </div>
+          {/*
+            * A file picker that cannot keep the file is worse than none: it
+            * takes the CV, appears to work, and loses it. So offline it says
+            * so instead, and the WhatsApp chase above still works.
+            */}
+          {STANDALONE ? (
+            <p className="muted small" style={{ marginTop: '0.5rem' }}>
+              Keeping a CV needs the server version — a file cannot live inside this
+              single HTML file. Ask for it on WhatsApp and keep it in a folder for now.
+            </p>
+          ) : (
+            <div className="row" style={{ marginTop: '0.5rem' }}>
+              <input
+                ref={file}
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={(e) => upload(e.target.files?.[0])}
+              />
+            </div>
+          )}
         </div>
 
         <div className="card">

@@ -556,3 +556,29 @@ test('with no test system linked, the apply page is not offered one', async () =
   assert.equal(asked.status, 404);
   assert.match(asked.body.error, /no test is set up/i);
 });
+
+/*
+ * A reference number is printed on an advert, forwarded on WhatsApp and
+ * written down by a candidate. Deleting the opening does not take those back,
+ * so the number must never be handed to a different seat - the same rule the
+ * asset codes follow. This used to read the last surviving row, so deleting
+ * the newest opening gave its number straight to the next one.
+ */
+test('a deleted opening never hands its reference number to the next one', async () => {
+  const company = (await api('POST', '/api/companies', { name: `Ref test ${Date.now()}` })).body;
+  const open1 = (await api('POST', '/api/hiring/vacancies', {
+    company_id: company.id, title: 'Travel Consultant',
+  })).body;
+  const open2 = (await api('POST', '/api/hiring/vacancies', {
+    company_id: company.id, title: 'Accounts Executive',
+  })).body;
+  const n = (ref) => Number(String(ref).replace(/\D/g, ''));
+  assert.equal(n(open2.ref_no), n(open1.ref_no) + 1);
+
+  assert.equal((await api('DELETE', `/api/hiring/vacancies/${open2.id}`)).status, 204);
+  const open3 = (await api('POST', '/api/hiring/vacancies', {
+    company_id: company.id, title: 'Office Assistant',
+  })).body;
+  assert.notEqual(open3.ref_no, open2.ref_no, `${open2.ref_no} is on an advert already`);
+  assert.equal(n(open3.ref_no), n(open2.ref_no) + 1);
+});

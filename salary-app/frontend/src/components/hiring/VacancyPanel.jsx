@@ -184,8 +184,15 @@ export default function VacancyPanel({ vacancyId, onClose, onPatch, onOpenApplic
               </label>
             ) : (
               <div className="banner">
-                PUBLIC_URL is not set on the server, so there is no apply link to share yet.
-                The message below still works — candidates reply with their CV.
+                {/*
+                  * Two different reasons for the same missing link, and
+                  * telling somebody to set PUBLIC_URL on a server that does
+                  * not exist sends them looking for a setting they will never
+                  * find. The store says which case this is.
+                  */}
+                {share?.offline
+                  ? 'This single file has no address on the internet, so there is no apply link \u2014 that part needs the server version. The message below still works: candidates reply with their CV.'
+                  : 'PUBLIC_URL is not set on the server, so there is no apply link to share yet. The message below still works \u2014 candidates reply with their CV.'}
               </div>
             )}
             <label className="field" style={{ marginTop: '0.7rem' }}>

@@ -668,27 +668,35 @@ function Shell() {
           />
         )}
 
-        {tab === 'hiring' &&
-          (STANDALONE ? (
-            <div className="card">
-              <h2>Hiring</h2>
+        {tab === 'hiring' && (
+          <>
+            {/*
+              * This used to be the whole tab: one card saying hiring needs the
+              * server, and nothing else. But only two things actually need it
+              * - a candidate opening an apply link, and a CV file - and both
+              * of those are at the edges. The openings, the people, the board,
+              * interviews, the test results and, above all, putting somebody
+              * on the payroll are just records, and this file already keeps
+              * records. So they work here, and the two that cannot say so
+              * where they are rather than blanking the module.
+              */}
+            {STANDALONE && (
               <p className="muted small">
-                Hiring needs the server version of this app, not this single file. A candidate
-                has to be able to open an apply link, and a CV has to live somewhere other than
-                this browser — neither works from a file on your laptop.
+                Offline: openings, candidates, the board, interviews, test scores and
+                “Add to payroll” all work in this file. What needs the server version is
+                the apply link a candidate opens and keeping their CV — an address on the
+                internet and somewhere to put a file, neither of which a file on your
+                laptop has.
               </p>
-              <p className="muted small">
-                Everything else on this file keeps working exactly as it does now.
-              </p>
-            </div>
-          ) : (
+            )}
             <Hiring
               companies={companies}
               companyId={companyId}
               onEmployeesChanged={loadAll}
               onError={handle}
             />
-          ))}
+          </>
+        )}
 
         {tab === 'people' && (
           <People
