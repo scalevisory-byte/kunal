@@ -1953,3 +1953,26 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 }
 .vf-actions .muted { flex: 1 1 14rem; }
 .vf-actions button.ghost { border-color: transparent; background: none; color: var(--muted); }
+
+/* ---------- the share step: the post, and the link ---------- */
+
+.share-post { display: flex; flex-direction: column; gap: 1.1rem; }
+.sp-block { display: flex; flex-direction: column; gap: 0.5rem; }
+.sp-block h3 {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sp-link { display: flex; gap: 0.4rem; align-items: center; }
+.sp-link input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+.sp-set { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.2rem; }
+.sp-text { width: 100%; font-size: 0.82rem; line-height: 1.5; }
+.share-post .warn { color: var(--warn); }

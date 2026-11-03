@@ -55,6 +55,29 @@ db.exec(`
   );
 `);
 
+/**
+ * The installation's own settings, as plain key/value.
+ *
+ * Only for things that belong to the INSTALLATION rather than to a month or a
+ * company - today, the public web address. Deliberately not a settings
+ * framework: two functions and a table.
+ */
+export const getSetting = (key) =>
+  db.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key)?.value ?? null;
+
+export function setSetting(key, value) {
+  const text = value === null || value === undefined ? '' : String(value);
+  if (!text) {
+    db.prepare(`DELETE FROM app_settings WHERE key = ?`).run(key);
+    return null;
+  }
+  db.prepare(
+    `INSERT INTO app_settings (key, value) VALUES (@key, @value)
+     ON CONFLICT(key) DO UPDATE SET value = @value`
+  ).run({ key, value: text });
+  return text;
+}
+
 /* ================================================================= *
  * roles
  * ================================================================= */

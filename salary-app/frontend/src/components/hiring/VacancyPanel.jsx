@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { matchBand } from '../../../../shared/stages.js';
+import SharePost from './SharePost.jsx';
 
 const FIELDS = [
   ['title', 'Job title'],
@@ -26,11 +27,22 @@ const FIELDS = [
  * One vacancy: its details, the share pack (step 2), the people already on the
  * file who fit it, and who has applied.
  */
-export default function VacancyPanel({ vacancyId, onClose, onPatch, onOpenApplication, onToast, onError }) {
+export default function VacancyPanel({
+  vacancyId, onClose, onPatch, onOpenApplication, onToast, onError, openShare = 0,
+}) {
   const [data, setData] = useState(null);
   const [share, setShare] = useState(null);
   const [suggestions, setSuggestions] = useState(null);
   const [view, setView] = useState('details');
+
+  /*
+   * Opened from "Publish vacancy": land on the share screen, because sending
+   * it is what the person is in the middle of doing. A counter, so publishing
+   * a second vacancy works the same as the first.
+   */
+  useEffect(() => {
+    if (openShare) setView('share');
+  }, [openShare]);
 
   const load = async () => {
     try {
@@ -171,55 +183,14 @@ export default function VacancyPanel({ vacancyId, onClose, onPatch, onOpenApplic
 
         {view === 'share' ? (
           <div className="card">
-            {!share?.published ? (
-              <div className="banner">
-                This is not published yet, so the apply link will not work. Publish it on the
-                Details tab first.
-              </div>
-            ) : null}
-            {share?.apply_url ? (
-              <label className="field">
-                Apply link
-                <input readOnly value={share.apply_url} onFocus={(e) => e.target.select()} />
-              </label>
-            ) : (
-              <div className="banner">
-                {/*
-                  * Two different reasons for the same missing link, and
-                  * telling somebody to set PUBLIC_URL on a server that does
-                  * not exist sends them looking for a setting they will never
-                  * find. The store says which case this is.
-                  */}
-                {share?.offline
-                  ? 'This single file has no address on the internet, so there is no apply link \u2014 that part needs the server version. The message below still works: candidates reply with their CV.'
-                  : 'PUBLIC_URL is not set on the server, so there is no apply link to share yet. The message below still works \u2014 candidates reply with their CV.'}
-              </div>
-            )}
-            <label className="field" style={{ marginTop: '0.7rem' }}>
-              The message, ready to send
-              <textarea className="copy-box" readOnly value={share?.broadcast || ''} />
-            </label>
-            <div className="row" style={{ marginTop: '0.6rem' }}>
-              <button
-                onClick={async () => {
-                  await navigator.clipboard?.writeText(share.broadcast);
-                  onToast('Copied');
-                }}
-              >
-                Copy
-              </button>
-              <a
-                className="btn"
-                target="_blank"
-                rel="noreferrer"
-                href={`https://wa.me/?text=${encodeURIComponent(share?.broadcast || '')}`}
-              >
-                Open in WhatsApp
-              </a>
-              <span className="muted small">
-                Your office notes and who the seat reports to are deliberately not in it.
-              </span>
-            </div>
+            <SharePost
+              share={share}
+              vacancy={vacancy}
+              offline={share?.offline}
+              onSaved={load}
+              onToast={onToast}
+              onError={onError}
+            />
           </div>
         ) : null}
 

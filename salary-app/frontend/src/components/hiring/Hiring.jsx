@@ -32,6 +32,7 @@ const VIEWS = [
 export default function Hiring({ companies, companyId, onEmployeesChanged, onError }) {
   const [view, setView] = useState('overview');
   const [askNewVacancy, setAskNewVacancy] = useState(0);
+  const [shareNow, setShareNow] = useState(0);
   const [config, setConfig] = useState(null);
   const [overview, setOverview] = useState(null);
   const [vacancies, setVacancies] = useState([]);
@@ -98,10 +99,23 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
     }
   };
 
+  /*
+   * Raising one is not the end of the job - the next thing anybody does is
+   * send it to people. So a PUBLISHED vacancy opens straight onto its share
+   * screen, where the post and the apply link are. A draft does not: there is
+   * nothing to send yet, and being thrown at a share screen for something
+   * nobody can apply to is just confusing.
+   */
   const createVacancy = guard(async (body) => {
-    await api.post('/hiring/vacancies', body);
-    say('Saved as a draft');
+    const made = await api.post('/hiring/vacancies', body);
     await load();
+    if (body.status === 'published' && made?.id) {
+      setOpenVacancy(made.id);
+      setShareNow((n) => n + 1);
+      say('Published — here is the post');
+    } else {
+      say('Saved as a draft');
+    }
   });
 
   const patchVacancy = guard(async (id, body) => {
@@ -232,6 +246,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
 
       {openVacancy ? (
         <VacancyPanel
+          openShare={shareNow}
           vacancyId={openVacancy}
           onClose={() => {
             setOpenVacancy(null);

@@ -34,6 +34,7 @@ import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.j
 import { WEIGHTS, matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
+import { cleanPublicUrl, reachablePublicly } from '../../shared/publicUrl.js';
 import { fromBand } from '../../shared/experienceBand.js';
 import {
   hiringDigest,
@@ -85,6 +86,13 @@ const EMPTY = {
   hiring_tasks: [],
   // The highest JOB-/CAN- number ever handed out, so one is never reused.
   ref_high: {},
+  /*
+   * Settings that belong to the installation. Today just the public address -
+   * where this app will be reachable once it IS. It is worth typing here even
+   * offline: the apply link points at wherever it is deployed, not at this
+   * file, so the post can be written now and sent the day it goes up.
+   */
+  settings: {},
   next_id: 1,
 };
 
@@ -540,6 +548,8 @@ const taskRow = (t) =>
  * matters - the office types it per vacancy anyway.
  */
 const HIRING_DEFAULTS = { url: null, passPercent: 50, secondsPerQuestion: 30 };
+
+const publicBase = () => String(load().settings?.public_url || '');
 const testRules = (vacancy) => testFor(vacancy, HIRING_DEFAULTS);
 
 const listApplicationRows = ({ vacancy_id, candidate_id, company_id, stage, q } = {}) => {
@@ -1312,13 +1322,22 @@ export async function handle(method, path, body) {
          * back to. Said as null rather than invented: the screens read these
          * and explain themselves from them.
          */
-        public_url: null,
+        public_url: publicBase() || null,
+        public_url_reachable: reachablePublicly(publicBase()),
         test_configured: false,
         test_pass_percent: HIRING_DEFAULTS.passPercent,
         test_seconds_per_question: HIRING_DEFAULTS.secondsPerQuestion,
         whatsapp: null,
         offline: true,
       };
+    }
+
+    if (route === 'PUT /hiring/public-url') {
+      const { url, problem } = cleanPublicUrl(body?.url);
+      if (problem) throw new HttpError(400, problem);
+      db.settings = { ...(db.settings || {}), public_url: url };
+      save();
+      return { public_url: url || null, public_url_reachable: reachablePublicly(url) };
     }
 
     if (route === 'GET /hiring/overview') {
@@ -1443,11 +1462,19 @@ export async function handle(method, path, body) {
         // the company name only exists on the joined row. A candidate who
         // does not know who is hiring does not turn up.
         const joined = vacancyRow(vacancy);
+        const baseUrl = publicBase();
         return {
           public: publicVacancy(joined),
-          apply_url: null,
-          broadcast: vacancyBroadcast(joined, { baseUrl: '' }),
+          apply_url: baseUrl ? `${baseUrl}/apply/${joined.ref_no}` : null,
+          apply_url_reachable: reachablePublicly(baseUrl),
+          broadcast: vacancyBroadcast(joined, { baseUrl }),
           published: vacancy.status === 'published',
+          /*
+           * `offline` says this FILE cannot answer an apply link, which is a
+           * different thing from not knowing the address. Once the address is
+           * typed the post is right; what is still missing is the app running
+           * at it, and the screen says which of the two is the problem.
+           */
           offline: true,
         };
       }

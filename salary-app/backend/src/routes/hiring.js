@@ -33,6 +33,8 @@ import {
   updateVacancy,
 } from '../hiring.js';
 import { config } from '../config.js';
+import { getSetting, setSetting } from '../users.js';
+import { cleanPublicUrl, reachablePublicly } from '../../../shared/publicUrl.js';
 import { testFor } from '../../../shared/hiringTest.js';
 import { matchScore } from '../../../shared/match.js';
 import { MATCH_BANDS, REJECTED, STAGES } from '../../../shared/stages.js';
@@ -55,6 +57,15 @@ import {
 
 export const hiringRouter = Router();
 
+/**
+ * Where candidates reach this app.
+ *
+ * The typed setting wins over PUBLIC_URL in the environment: somebody who
+ * opened the screen and typed it meant it, and an env var they cannot see is
+ * the harder of the two to change.
+ */
+const publicBase = () => getSetting('public_url') || config.publicUrl || '';
+
 const num = (v) => (v === undefined || v === '' ? undefined : Number(v));
 
 /* ---------------- what the dashboard needs to draw itself ---------------- */
@@ -65,7 +76,9 @@ hiringRouter.get('/config', (req, res) =>
     rejected: REJECTED,
     bands: MATCH_BANDS,
     weights: WEIGHTS,
-    public_url: config.publicUrl || null,
+    public_url: publicBase() || null,
+    public_url_reachable: reachablePublicly(publicBase()),
+    public_url_from_env: !getSetting('public_url') && !!config.publicUrl,
     test_configured: !!config.testEmbedUrl,
     test_pass_percent: config.testPassPercent,
     test_seconds_per_question: config.testSecondsPerQuestion || null,
@@ -153,13 +166,30 @@ hiringRouter.get('/vacancies/:id/suggestions', (req, res) => {
 hiringRouter.get('/vacancies/:id/share', (req, res) => {
   const vacancy = getVacancy(Number(req.params.id));
   if (!vacancy) return res.status(404).json({ error: 'not found' });
-  const baseUrl = config.publicUrl || req.query.base_url || '';
+  const baseUrl = publicBase() || req.query.base_url || '';
   res.json({
     public: publicVacancy(vacancy),
     apply_url: baseUrl ? applyUrl(baseUrl, vacancy) : null,
+    // A link to localhost is a link that works on exactly one computer, so
+    // the screen is told whether this is one to put on an advert.
+    apply_url_reachable: reachablePublicly(baseUrl),
     broadcast: vacancyBroadcast(vacancy, { baseUrl }),
     published: vacancy.status === 'published',
   });
+});
+
+/**
+ * Setting the address, from the app rather than from a server's environment.
+ *
+ * It does NOT make the app reachable - only deploying it does that. It is
+ * where the apply link is composed from, so the link is right the moment the
+ * address is.
+ */
+hiringRouter.put('/public-url', (req, res) => {
+  const { url, problem } = cleanPublicUrl(req.body?.url);
+  if (problem) return res.status(400).json({ error: problem });
+  setSetting('public_url', url);
+  res.json({ public_url: publicBase() || null, public_url_reachable: reachablePublicly(publicBase()) });
 });
 
 /* ---------------- candidates ---------------- */
