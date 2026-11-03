@@ -37,7 +37,7 @@ export default function Pipeline({ applications, vacancies, onMove, onOpen, onEx
     <>
       <div className="row" style={{ marginBottom: '0.8rem' }}>
         <select value={vacancyId} onChange={(e) => setVacancyId(e.target.value)}>
-          <option value="">Every opening</option>
+          <option value="">Every vacancy</option>
           {vacancies.map((v) => (
             <option key={v.id} value={v.id}>
               {v.ref_no} — {v.title}

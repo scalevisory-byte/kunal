@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const blank = (companyId) => ({
   company_id: companyId || '',
@@ -26,10 +26,22 @@ const blank = (companyId) => ({
  * The openings our own companies have. Created as a draft and published on
  * purpose, because publishing is what makes the apply link live.
  */
-export default function Vacancies({ vacancies, companies, companyId, onCreate, onPatch, onOpen, onDelete }) {
+export default function Vacancies({
+  vacancies, companies, companyId, onCreate, onPatch, onOpen, onDelete, askNew = 0,
+}) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(blank(companyId));
   const [filter, setFilter] = useState('');
+
+  /*
+   * "+ New vacancy" from the tab bar lands here. A counter rather than a flag:
+   * pressing it again after closing the form has to open it again, and a
+   * boolean that is already true changes nothing. Zero is the first render,
+   * where the form stays shut.
+   */
+  useEffect(() => {
+    if (askNew) setAdding(true);
+  }, [askNew]);
 
   const shown = vacancies.filter((v) => (filter ? v.status === filter : true));
 
@@ -63,16 +75,16 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
         </div>
         <span className="spacer" />
         <button className="primary" onClick={() => setAdding((v) => !v)}>
-          {adding ? 'Cancel' : 'New opening'}
+          {adding ? 'Cancel' : '+ New vacancy'}
         </button>
       </div>
 
       {adding ? (
         <form className="card" onSubmit={save}>
-          <h2>New opening</h2>
+          <h2>New vacancy</h2>
           {!companies.length ? (
             <div className="banner bad">
-              There are no companies yet. Add one on the Employees tab first — an opening has to
+              There are no companies yet. Add one on the Employees tab first — a vacancy has to
               belong to a company, or there is nobody to put the person on the payroll of.
             </div>
           ) : null}
@@ -129,7 +141,7 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
               placeholder="Tally, GST, Excel"
               onChange={(v) => setDraft({ ...draft, skills: v })}
             />
-            <Field label="Openings" type="number" value={draft.positions} onChange={(v) => setDraft({ ...draft, positions: v })} />
+            <Field label="How many seats" type="number" value={draft.positions} onChange={(v) => setDraft({ ...draft, positions: v })} />
             <Field label="Needed by" type="date" value={draft.needed_by} onChange={(v) => setDraft({ ...draft, needed_by: v })} />
             <Select
               label="Type"
@@ -220,7 +232,7 @@ export default function Vacancies({ vacancies, companies, companyId, onCreate, o
             ))}
           </tbody>
         </table>
-        {!shown.length ? <p className="empty">No openings here yet.</p> : null}
+        {!shown.length ? <p className="empty">No vacancies here yet.</p> : null}
       </div>
     </>
   );

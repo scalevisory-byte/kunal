@@ -14,7 +14,7 @@ import Candidates from './Candidates.jsx';
 const VIEWS = [
   ['overview', 'Overview'],
   ['pipeline', 'Pipeline'],
-  ['openings', 'Openings'],
+  ['openings', 'Vacancies'],
   ['candidates', 'Candidates'],
   ['interviews', 'Interviews'],
   ['tasks', 'Follow-ups'],
@@ -31,6 +31,7 @@ const VIEWS = [
  */
 export default function Hiring({ companies, companyId, onEmployeesChanged, onError }) {
   const [view, setView] = useState('overview');
+  const [askNewVacancy, setAskNewVacancy] = useState(0);
   const [config, setConfig] = useState(null);
   const [overview, setOverview] = useState(null);
   const [vacancies, setVacancies] = useState([]);
@@ -46,6 +47,12 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
   const [openApplication, setOpenApplication] = useState(null);
   const [notify, setNotify] = useState(null);
   const [toast, setToast] = useState('');
+
+  /** Go to the vacancies list and open its form, from wherever you are. */
+  const newVacancy = useCallback(() => {
+    setView('openings');
+    setAskNewVacancy((n) => n + 1);
+  }, []);
 
   const say = useCallback((message) => {
     setToast(message);
@@ -144,6 +151,18 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           </button>
         ))}
         <span className="spacer" />
+        {/*
+          * The thing you came here to do, on every screen of this tab.
+          *
+          * It was one click away under the Vacancies sub-tab and Dinesh could
+          * not find it - the tab opens on Overview, which on an empty system
+          * is five noughts and three cards saying nothing is happening yet.
+          * A page whose answer is "there is nothing" has to say what to do
+          * about it, in a button.
+          */}
+        <button className="primary" onClick={newVacancy}>
+          + New vacancy
+        </button>
         {config?.public_url ? (
           <a className="btn" href="/jobs" target="_blank" rel="noreferrer">
             Careers page
@@ -152,7 +171,13 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
       </nav>
 
       {view === 'overview' ? (
-        <HiringOverview data={overview} onGo={setView} onOpenApplication={setOpenApplication} />
+        <HiringOverview
+          data={overview}
+          onGo={setView}
+          onOpenApplication={setOpenApplication}
+          onNewVacancy={newVacancy}
+          onAddCandidate={() => setView('candidates')}
+        />
       ) : null}
 
       {view === 'pipeline' ? (
@@ -174,6 +199,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onPatch={patchVacancy}
           onDelete={deleteVacancy}
           onOpen={setOpenVacancy}
+          askNew={askNewVacancy}
         />
       ) : null}
 

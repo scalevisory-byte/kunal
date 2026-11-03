@@ -682,7 +682,7 @@ function Shell() {
               */}
             {STANDALONE && (
               <p className="muted small">
-                Offline: openings, candidates, the board, interviews, test scores and
+                Offline: vacancies, candidates, the board, interviews, test scores and
                 “Add to payroll” all work in this file. What needs the server version is
                 the apply link a candidate opens and keeping their CV — an address on the
                 internet and somewhere to put a file, neither of which a file on your

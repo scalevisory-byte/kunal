@@ -4,7 +4,7 @@ import { aging } from '../../../../shared/stages.js';
  * What needs doing, before what has been done. There is no money on this page:
  * the cost of a hire shows up on the salary sheet, where it belongs.
  */
-export default function HiringOverview({ data, onGo, onOpenApplication }) {
+export default function HiringOverview({ data, onGo, onOpenApplication, onNewVacancy, onAddCandidate }) {
   if (!data) return <p className="loading">Loading…</p>;
 
   const { vacancies, candidates, applications, interviews, tasks, hires } = data;
@@ -23,7 +23,7 @@ export default function HiringOverview({ data, onGo, onOpenApplication }) {
       go: 'pipeline',
     },
     vacancies.draft && {
-      text: `${vacancies.draft} opening${vacancies.draft === 1 ? '' : 's'} still a draft — nobody can apply`,
+      text: `${vacancies.draft} vacanc${vacancies.draft === 1 ? 'y' : 'ies'} still a draft — nobody can apply`,
       go: 'openings',
     },
     candidates.total - candidates.withResume > 0 && {
@@ -56,6 +56,30 @@ export default function HiringOverview({ data, onGo, onOpenApplication }) {
         </div>
       ) : null}
 
+      {/*
+        * Nothing raised, nobody on file: the page was five noughts and three
+        * cards saying nothing had happened, with no way out of it. Dinesh
+        * asked where you add a vacancy, which is the question this screen was
+        * leaving him with. So an empty system opens with the two things that
+        * start it, as buttons.
+        */}
+      {!vacancies.total && !data.candidates?.total ? (
+        <div className="card">
+          <h2>Nothing here yet</h2>
+          <p className="muted small">
+            Hiring starts with a vacancy — the seat you are filling, which company it is
+            for and what it pays. Candidates are then put against it, scored on fit and
+            moved along the board; whoever joins goes onto the payroll from here.
+          </p>
+          <div className="row" style={{ marginTop: '0.7rem' }}>
+            <button className="primary" onClick={onNewVacancy}>
+              + New vacancy
+            </button>
+            <button onClick={onAddCandidate}>Add a candidate</button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="card">
         <h2>Today</h2>
         <div className="figures">
@@ -80,7 +104,9 @@ export default function HiringOverview({ data, onGo, onOpenApplication }) {
               ))}
             </div>
           ) : (
-            <p className="muted small">Nobody in the pipeline yet.</p>
+            <p className="muted small">
+              Nobody in the pipeline yet — raise a vacancy, then put people against it.
+            </p>
           )}
           <p className="small muted" style={{ marginTop: '0.6rem' }}>
             {applications.total} applications in all, {candidates.total} people on file
@@ -126,9 +152,14 @@ export default function HiringOverview({ data, onGo, onOpenApplication }) {
               })}
             </div>
           ) : (
-            <p className="muted small">
-              Nothing yet. Publish an opening and share the link, or add somebody by hand.
-            </p>
+            <div>
+              <p className="muted small">Nothing yet.</p>
+              <div className="row" style={{ gap: '0.6rem' }}>
+                <button className="link" onClick={onNewVacancy}>Raise a vacancy</button>
+                <span className="muted small">or</span>
+                <button className="link" onClick={onAddCandidate}>add somebody by hand</button>
+              </div>
+            </div>
           )}
         </div>
       </div>

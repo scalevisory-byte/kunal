@@ -25,7 +25,7 @@ export default function Jobs() {
         <span className="brand">Careers</span>
         <h1>Open positions</h1>
         <span className="where">
-          {jobs.length ? `${jobs.length} opening${jobs.length === 1 ? '' : 's'}` : 'Nothing open just now'}
+          {jobs.length ? `${jobs.length} vacanc${jobs.length === 1 ? 'y' : 'ies'}` : 'Nothing open just now'}
         </span>
       </header>
 

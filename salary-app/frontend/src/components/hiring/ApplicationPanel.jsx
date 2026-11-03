@@ -321,7 +321,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
               <p className="muted small">
                 Adds {application.candidate_name} to <strong>{application.company_name}</strong> as
                 an employee, carrying across the phone, email and date of birth already on file.
-                The company comes from the opening, not from a form.
+                The company comes from the vacancy, not from a form.
               </p>
               <div className="row">
                 <button
@@ -439,7 +439,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
           <h3>Record a test</h3>
           {data.test?.source ? (
             <p className="muted small">
-              This opening uses{' '}
+              This vacancy uses{' '}
               {data.test.source === 'opening' ? 'its own test' : 'the app-wide test'}, pass mark{' '}
               {data.test.pass_percent}%
               {data.test.seconds_per_question
@@ -450,7 +450,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             </p>
           ) : (
             <p className="muted small">
-              No test is set up for this opening. Put a link on it under Openings, or type the
+              No test is set up for this vacancy. Put a link on it under Vacancies, or type the
               score in by hand.
             </p>
           )}
@@ -525,7 +525,7 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                           reads the end of. */}
                       <div className="muted small">
                         {t.source || 'typed in'}
-                        {t.application_id !== application.id && ' · for another opening'}
+                        {t.application_id !== application.id && ' · for another vacancy'}
                       </div>
                     </td>
                     <td className="num">

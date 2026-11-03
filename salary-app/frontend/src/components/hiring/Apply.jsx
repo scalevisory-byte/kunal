@@ -87,7 +87,7 @@ export default function Apply({ ref_no }) {
     return (
       <div className="public">
         <div className="done">
-          <p className="big">This opening is not available</p>
+          <p className="big">This vacancy is not available</p>
           <p className="muted">{error}</p>
         </div>
       </div>

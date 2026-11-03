@@ -12,7 +12,7 @@ const FIELDS = [
   ['salary_min', 'Salary from'],
   ['salary_max', 'Salary to'],
   ['skills', 'Skills'],
-  ['positions', 'Openings'],
+  ['positions', 'How many seats'],
   ['needed_by', 'Needed by'],
   // The test follows the job: a travel consultant and an accounts executive
   // are not tested the same way. Blank falls back to the app-wide one.
