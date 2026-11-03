@@ -708,7 +708,16 @@ function Shell() {
           />
         )}
 
-        {tab === 'reports' && <Reports period={period} payroll={payroll} onReload={loadAll} />}
+        {tab === 'reports' && (
+          <Reports
+            period={period}
+            payroll={payroll}
+            onReload={loadAll}
+            onGo={setTab}
+            employees={employees}
+            companies={companies}
+          />
+        )}
 
         {tab === 'admin' && (
           <Admin

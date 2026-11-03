@@ -1811,7 +1811,12 @@ table.sheet.roll-table tr.r2 td.sticky-name { box-shadow: inset 3px 0 var(--warn
 
 /* A panel folded away until it is wanted. */
 .card.fold { padding: 0.5rem 0.9rem; }
-.card.fold > summary { cursor: pointer; list-style: none; padding: 0.25rem 0; }
+.card.fold > summary {
+  cursor: pointer; list-style: none; padding: 0.25rem 0;
+  /* Flex, or the "3/10 ready" tally cannot be pushed to the right and sits
+     jammed against the end of the hint. */
+  display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+}
 .card.fold > summary::-webkit-details-marker { display: none; }
 .card.fold > summary::before { content: '▸ '; color: var(--muted); }
 .card.fold[open] > summary::before { content: '▾ '; }
@@ -1822,3 +1827,18 @@ table.sheet.roll-table tr.r2 td.sticky-name { box-shadow: inset 3px 0 var(--warn
    lines, and each reason on its own line. */
 table.sheet.roll-table td:nth-child(2) { min-width: 15rem; }
 table.sheet.roll-table .why { display: block; margin: 0; }
+
+/* The Reports home: a category per fold, a row per report.
+   Widths are set explicitly because `table.sheet td:last-child { width: 100% }`
+   otherwise gives all the slack to the button column and squeezes the note to
+   three words a line. */
+.report-filters { margin-bottom: .6rem; }
+table.sheet.report-list { width: 100%; }
+table.sheet.report-list td { height: auto; }
+table.sheet.report-list td:nth-child(1) { width: 16rem; white-space: normal; }
+table.sheet.report-list td:nth-child(2) { width: 7rem; }
+table.sheet.report-list td:nth-child(3) { width: auto; white-space: normal; }
+table.sheet.report-list td:nth-child(4) { width: 9rem; white-space: nowrap; text-align: right; }
+table.sheet tr.picked td { background: var(--brand-soft); }
+.card.fold > summary .tally { margin-left: auto; font-size: .76rem; color: var(--muted); }
+.report-open { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }

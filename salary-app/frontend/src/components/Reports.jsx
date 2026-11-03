@@ -6,10 +6,31 @@ import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import Statutory from './Statutory.jsx';
 import LeaveRegister from './LeaveRegister.jsx';
+import ReportFilters from './ReportFilters.jsx';
+import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
 import { rupees } from '../format.js';
 
-/** Totals, downloads, and pulling an existing spreadsheet in. */
-export default function Reports({ period, payroll, onReload }) {
+/**
+ * Every report in one place, by category.
+ *
+ * This screen used to be a card of download buttons, with the rest of the
+ * reports scattered across six other tabs. Somebody looking for "the late
+ * coming report" had no way to know where it was — or whether it existed.
+ *
+ * Now the listing comes from `shared/reportCatalog.js`, so it cannot claim a
+ * report the system does not have, or quietly leave one out. A report that is
+ * not built yet is LISTED and says so, rather than being hidden to make the
+ * screen look finished.
+ *
+ * Nothing here recalculates anything. Each report opens the panel or the file
+ * that already produces it, which is why the totals reconcile with payroll by
+ * construction rather than by checking.
+ */
+export default function Reports({ period, payroll, onReload, onGo, employees = [], companies = [] }) {
+  const [openId, setOpenId] = useState(null);
+  const [filters, setFilters] = useState({
+    company_id: '', branch_id: '', department: '', employee_id: '', from: '', to: '', q: '',
+  });
   const [file, setFile] = useState(null);
   const [sheets, setSheets] = useState([]);
   const [sheet, setSheet] = useState('');
@@ -69,12 +90,277 @@ export default function Reports({ period, payroll, onReload }) {
     }
   };
 
+  /*
+   * Where each report actually comes from. A panel renders inline; a file is
+   * downloaded; a tab is somewhere it has not been moved off yet, and says so
+   * rather than pretending to live here.
+   */
+  const PANELS = {
+    'payroll-by-company': () => <Totals period={period} payroll={payroll} grab={grab} />,
+    'cost-company': () => <Totals period={period} payroll={payroll} grab={grab} />,
+    'attendance-register': () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
+    'attendance-percent': () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
+    absenteeism: () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
+    'attendance-approvals': () => (
+      <AttendanceRequests period={period} onReload={onReload} onError={(err) => setError(err.message)} />
+    ),
+    'leave-status': () => (
+      <AttendanceRequests period={period} onReload={onReload} onError={(err) => setError(err.message)} />
+    ),
+    'leave-month': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
+    'leave-lop': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
+    'pf-register': () => <Statutory period={period} />,
+    'esi-register': () => <Statutory period={period} />,
+    'pt-register': () => <Statutory period={period} />,
+    'wage-register': () => <Statutory period={period} />,
+  };
+
+  const FILES = period
+    ? {
+        'salary-register': [`/periods/${period.id}/export.xlsx`, `Salary-${period.label}.xlsx`],
+        'sunday-register': [`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`],
+        'sunday-holiday-pay': [`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`],
+        'bank-register': [`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`],
+        'unpaid-salary': [`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`],
+        'leave-balance': [`/leave.csv?year=${period.year}`, `Leave-${period.year}.csv`],
+        'employee-master': ['/employees.csv', 'Employees.csv'],
+        'employee-active': ['/employees.csv', 'Employees.csv'],
+      }
+    : {};
+
+  const TAB_LABEL = {
+    dashboard: 'Dashboard', time: 'Time', attendance: 'Attendance', sheet: 'Salary sheet',
+    people: 'People', employees: 'Employees', assets: 'Assets', loans: 'Loans',
+  };
+
+  const open = REPORTS.find((r) => r.id === openId) || null;
+  const totals = catalogueTotals();
+
   return (
     <section className="stack">
       <div className="card">
-        <h2>{period ? period.label : 'No month open'} — totals</h2>
-        {payroll ? (
-          <>
+        <div className="late-head">
+          <div>
+            <h2>Reports</h2>
+            <p className="muted small">
+              {totals.total} reports, by what they answer. {totals.ready} are ready,{' '}
+              {totals.partial} work but are not yet a report of their own, and {totals.planned} are
+              still to be built — listed all the same, so the gaps are visible.
+            </p>
+          </div>
+          {!period && <span className="pill">No month open</span>}
+        </div>
+      </div>
+
+      {CATEGORIES.map((category) => {
+        const rows = reportsIn(category.key);
+        return (
+          <details key={category.key} className="card fold" open={category.key === 'attendance'}>
+            <summary>
+              <strong>{category.label}</strong>
+              <span className="muted small"> — {category.hint}</span>
+              <span className="tally">
+                {rows.filter((r) => r.status === 'ready').length}/{rows.length} ready
+              </span>
+            </summary>
+            <div className="table-wrap">
+              <table className="sheet report-list">
+                <tbody>
+                  {rows.map((report) => (
+                    <tr key={report.id} className={report.id === openId ? 'picked' : undefined}>
+                      <td className="sticky-name">{report.name}</td>
+                      <td>
+                        <span className={`chip ${STATUS[report.status].tone}`}>
+                          {STATUS[report.status].label}
+                        </span>
+                      </td>
+                      <td className="wraps muted small">{report.note}</td>
+                      <td className="num">
+                        {PANELS[report.id] ? (
+                          <button onClick={() => setOpenId(openId === report.id ? null : report.id)}>
+                            {openId === report.id ? 'Close' : 'Open'}
+                          </button>
+                        ) : FILES[report.id] ? (
+                          <button onClick={() => grab(...FILES[report.id])}>Download</button>
+                        ) : report.at?.startsWith('tab:') ? (
+                          <button className="ghost" onClick={() => onGo?.(report.at.slice(4))}>
+                            {TAB_LABEL[report.at.slice(4)] || 'Open'} tab
+                          </button>
+                        ) : (
+                          <span className="muted small">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        );
+      })}
+
+      {open && (
+        <div className="card report-open">
+          <div className="late-head">
+            <div>
+              <h2>{open.name}</h2>
+              <p className="muted small">
+                {CATEGORIES.find((c) => c.key === open.category)?.label}
+                {period ? ` · ${period.label}` : ''}
+              </p>
+            </div>
+            <button className="ghost" onClick={() => setOpenId(null)}>Close</button>
+          </div>
+          <ReportFilters
+            report={open}
+            employees={employees}
+            companies={companies}
+            value={filters}
+            onChange={setFilters}
+          />
+          {PANELS[open.id]?.()}
+        </div>
+      )}
+
+      {error && <p className="error">{error}</p>}
+
+      <details className="card fold">
+        <summary>
+          <strong>Tools</strong>
+          <span className="muted small"> — bringing data in, and taking a backup out</span>
+        </summary>
+        <div className="stack">
+          {period && <MonthlyStatusImport period={period} onReload={onReload} />}
+          {period && <PunchImport period={period} onReload={onReload} />}
+      <div className="card">
+        <h2>Import a salary sheet</h2>
+        <p className="muted small">
+          Reads a tab laid out like the April sheet: company in column A, name in C, day marks in D–AG,
+          monthly salary in AL. Employees are matched by company and name, so importing the same sheet
+          twice updates rather than duplicates.
+        </p>
+        <input type="file" accept=".xlsx,.xlsm" onChange={(e) => pickFile(e.target.files?.[0] || null)} />
+
+        {sheets.length > 0 && (
+          <div className="inline-form">
+            <label>
+              Tab
+              <select value={sheet} onChange={(e) => setSheet(e.target.value)}>
+                {sheets.map((s) => (
+                  <option key={s.name} value={s.name}>{s.name} ({s.rows} rows)</option>
+                ))}
+              </select>
+            </label>
+            <button disabled={!!busy} onClick={() => runImport(true)}>Check first</button>
+            <button className="primary" disabled={!!busy || !period} onClick={() => runImport(false)}>
+              Import into {period?.label || '…'}
+            </button>
+          </div>
+        )}
+
+        {busy && <p className="muted">{busy}</p>}
+        {error && <p className="error">{error}</p>}
+
+        {result && (
+          <div className="result">
+            {result.dryRun ? (
+              <p>
+                <strong>{result.parsed}</strong> employees found on <strong>{result.sheet}</strong>
+                {result.skipped.length > 0 && <> · {result.skipped.length} rows could not be read</>}.
+                Nothing has been saved yet.
+              </p>
+            ) : (
+              <p>
+                Imported <strong>{result.parsed}</strong> rows from <strong>{result.sheet}</strong>:{' '}
+                {result.created} new employees, {result.updated} updated, {result.rowsWritten} payroll
+                rows{result.attendanceMarks ? `, ${result.attendanceMarks} attendance marks` : ''}.
+              </p>
+            )}
+            {result.skipped?.length > 0 && (
+              <ul className="skipped">
+                {result.skipped.slice(0, 10).map((s) => (
+                  <li key={s.row}>Row {s.row} {s.name ? `(${s.name})` : ''} — {s.reason}</li>
+                ))}
+              </ul>
+            )}
+            {result.preview?.length > 0 && (
+              <div className="table-wrap">
+                <table className="sheet">
+                  <thead>
+                    <tr><th className="sticky-name">Name</th><th>Company</th><th>Salary</th><th>Absent</th><th>Sun</th></tr>
+                  </thead>
+                  <tbody>
+                    {result.preview.map((p) => (
+                      <tr key={p.row}>
+                        <td className="sticky-name">{p.name}</td>
+                        <td>{p.company}</td>
+                        <td className="num">{rupees(p.salary)}</td>
+                        <td className="num">{p.absent ?? '-'}</td>
+                        <td className="num">{p.sundays ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {STANDALONE && (
+        <div className="card">
+          <h2>This file holds your data</h2>
+          <p className="muted small">
+            Everything lives in this browser, on this device. Nobody else can see it, and it is not
+            on any server — which also means it is not backed up anywhere. Take a backup before
+            clearing browsing data, changing computer, or at the end of a payroll run.
+          </p>
+          <div className="button-row">
+            <button onClick={downloadBackup}>Download backup</button>
+            <label className="restore">
+              Restore a backup
+              <input
+                type="file"
+                accept=".json"
+                onChange={async (e) => {
+                  const chosen = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!chosen) return;
+                  if (!window.confirm('Replace everything in this browser with the backup?')) return;
+                  setError('');
+                  try {
+                    await restoreBackup(chosen);
+                    await onReload();
+                  } catch (err) {
+                    setError(`That backup could not be read: ${err.message}`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+        </div>
+      </details>
+
+    </section>
+  );
+}
+
+function Stat({ label, value, strong, plain }) {
+  return (
+    <div className={`stat${strong ? ' strong' : ''}`}>
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">{plain ? value : rupees(value)}</span>
+    </div>
+  );
+}
+
+/** The month's figures and the files that go out — Payroll → company summary. */
+function Totals({ period, payroll, grab }) {
+  if (!payroll) return <p className="muted">Open a month first.</p>;
+  return (
+    <>
+
             <div className="stat-row">
               <Stat label="Employees" value={payroll.totals.count} plain />
               <Stat label="Gross" value={payroll.totals.gross_salary} />
@@ -160,138 +446,6 @@ export default function Reports({ period, payroll, onReload }) {
               Your marks (P / A / HF / W/O / H/O), your columns, live formulas. <strong>Download
               Excel</strong> is the app's own fuller layout, with the hours and OT columns.
             </p>
-          </>
-        ) : (
-          <p className="muted">Open a month first.</p>
-        )}
-      </div>
-
-      {STANDALONE && (
-        <div className="card">
-          <h2>This file holds your data</h2>
-          <p className="muted small">
-            Everything lives in this browser, on this device. Nobody else can see it, and it is not
-            on any server — which also means it is not backed up anywhere. Take a backup before
-            clearing browsing data, changing computer, or at the end of a payroll run.
-          </p>
-          <div className="button-row">
-            <button onClick={downloadBackup}>Download backup</button>
-            <label className="restore">
-              Restore a backup
-              <input
-                type="file"
-                accept=".json"
-                onChange={async (e) => {
-                  const chosen = e.target.files?.[0];
-                  e.target.value = '';
-                  if (!chosen) return;
-                  if (!window.confirm('Replace everything in this browser with the backup?')) return;
-                  setError('');
-                  try {
-                    await restoreBackup(chosen);
-                    await onReload();
-                  } catch (err) {
-                    setError(`That backup could not be read: ${err.message}`);
-                  }
-                }}
-              />
-            </label>
-          </div>
-        </div>
-      )}
-
-      {payroll && <LeaveRegister payroll={payroll} />}
-
-      <Statutory period={period} />
-
-      <AttendanceRequests period={period} onReload={onReload} onError={(err) => window.alert(err.message)} />
-      {payroll && <AttendanceReport payroll={payroll} />}
-      {period && <MonthlyStatusImport period={period} onReload={onReload} />}
-      {period && <PunchImport period={period} onReload={onReload} />}
-
-      <div className="card">
-        <h2>Import a salary sheet</h2>
-        <p className="muted small">
-          Reads a tab laid out like the April sheet: company in column A, name in C, day marks in D–AG,
-          monthly salary in AL. Employees are matched by company and name, so importing the same sheet
-          twice updates rather than duplicates.
-        </p>
-        <input type="file" accept=".xlsx,.xlsm" onChange={(e) => pickFile(e.target.files?.[0] || null)} />
-
-        {sheets.length > 0 && (
-          <div className="inline-form">
-            <label>
-              Tab
-              <select value={sheet} onChange={(e) => setSheet(e.target.value)}>
-                {sheets.map((s) => (
-                  <option key={s.name} value={s.name}>{s.name} ({s.rows} rows)</option>
-                ))}
-              </select>
-            </label>
-            <button disabled={!!busy} onClick={() => runImport(true)}>Check first</button>
-            <button className="primary" disabled={!!busy || !period} onClick={() => runImport(false)}>
-              Import into {period?.label || '…'}
-            </button>
-          </div>
-        )}
-
-        {busy && <p className="muted">{busy}</p>}
-        {error && <p className="error">{error}</p>}
-
-        {result && (
-          <div className="result">
-            {result.dryRun ? (
-              <p>
-                <strong>{result.parsed}</strong> employees found on <strong>{result.sheet}</strong>
-                {result.skipped.length > 0 && <> · {result.skipped.length} rows could not be read</>}.
-                Nothing has been saved yet.
-              </p>
-            ) : (
-              <p>
-                Imported <strong>{result.parsed}</strong> rows from <strong>{result.sheet}</strong>:{' '}
-                {result.created} new employees, {result.updated} updated, {result.rowsWritten} payroll
-                rows{result.attendanceMarks ? `, ${result.attendanceMarks} attendance marks` : ''}.
-              </p>
-            )}
-            {result.skipped?.length > 0 && (
-              <ul className="skipped">
-                {result.skipped.slice(0, 10).map((s) => (
-                  <li key={s.row}>Row {s.row} {s.name ? `(${s.name})` : ''} — {s.reason}</li>
-                ))}
-              </ul>
-            )}
-            {result.preview?.length > 0 && (
-              <div className="table-wrap">
-                <table className="sheet">
-                  <thead>
-                    <tr><th className="sticky-name">Name</th><th>Company</th><th>Salary</th><th>Absent</th><th>Sun</th></tr>
-                  </thead>
-                  <tbody>
-                    {result.preview.map((p) => (
-                      <tr key={p.row}>
-                        <td className="sticky-name">{p.name}</td>
-                        <td>{p.company}</td>
-                        <td className="num">{rupees(p.salary)}</td>
-                        <td className="num">{p.absent ?? '-'}</td>
-                        <td className="num">{p.sundays ?? '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Stat({ label, value, strong, plain }) {
-  return (
-    <div className={`stat${strong ? ' strong' : ''}`}>
-      <span className="stat-label">{label}</span>
-      <span className="stat-value">{plain ? value : rupees(value)}</span>
-    </div>
+    </>
   );
 }
