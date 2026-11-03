@@ -33,6 +33,8 @@ import { TIME_FIELDS, parseTime, timesToDay } from '../../shared/timesheet.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import { WEIGHTS, matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
+import { validateVacancy } from '../../shared/vacancyForm.js';
+import { fromBand } from '../../shared/experienceBand.js';
 import {
   hiringDigest,
   publicVacancy,
@@ -386,8 +388,8 @@ const VACANCY_FIELDS = [
   'employment_type', 'experience_band', 'education', 'positions',
   'salary_min', 'salary_max', 'skills', 'description', 'responsibilities',
   'requirements', 'benefits', 'internal_notes',
-  'test_url', 'test_pass_percent', 'test_seconds_per_question',
-  'status', 'opened_on', 'needed_by',
+  'test_url', 'test_pass_percent', 'test_seconds_per_question', 'test_duration_minutes',
+  'status', 'opened_on', 'needed_by', 'apply_by',
 ];
 
 const CANDIDATE_FIELDS = [
@@ -632,6 +634,25 @@ function hiringOverview() {
       ).length,
     },
   };
+}
+
+/*
+ * The same rules the form checks and the server checks - one list in
+ * shared/vacancyForm.js, so the laptop and the server cannot disagree about
+ * what a vacancy is allowed to say. Required-ness stays with the caller.
+ */
+function checkVacancyValues(values) {
+  const { min, max } = fromBand(values.experience_band);
+  const problems = validateVacancy(
+    { positions: 1, ...values, experience_min: min, experience_max: max },
+    { assessment: !!values.test_url }
+  );
+  delete problems.company_id;
+  delete problems.title;
+  delete problems.location;
+  const [first] = Object.values(problems);
+  if (first) throw new HttpError(400, first);
+  return values;
 }
 
 /** A test link is checked when it is SAVED, not when a candidate opens it. */
@@ -1343,7 +1364,7 @@ export async function handle(method, path, body) {
       }
 
       if (parts.length === 2 && method === 'POST') {
-        const values = checkedTestUrl(pick(VACANCY_FIELDS, body));
+        const values = checkVacancyValues(checkedTestUrl(pick(VACANCY_FIELDS, body)));
         if (!String(values.title || '').trim()) throw new HttpError(400, 'an opening needs a job title');
         // Every opening belongs to one of our own companies - without that
         // there is nobody to put the person on the payroll of later.
@@ -1371,7 +1392,7 @@ export async function handle(method, path, body) {
         return { vacancy: vacancyRow(vacancy), applications: listApplicationRows({ vacancy_id: vacancy.id }) };
       }
       if (parts.length === 3 && method === 'PATCH') {
-        Object.assign(vacancy, checkedTestUrl(pick(VACANCY_FIELDS, body, vacancy)), {
+        Object.assign(vacancy, checkVacancyValues(checkedTestUrl(pick(VACANCY_FIELDS, body, vacancy))), {
           company_id: body?.company_id === undefined ? vacancy.company_id : Number(body.company_id),
           updated_at: hiringNow(),
         });

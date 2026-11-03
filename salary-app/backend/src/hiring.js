@@ -4,6 +4,8 @@ import { log } from './logger.js';
 import { ALL_STAGES, REJECTED } from '../../shared/stages.js';
 import { matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
+import { validateVacancy } from '../../shared/vacancyForm.js';
+import { fromBand } from '../../shared/experienceBand.js';
 
 /*
  * Hiring, for Dinesh's OWN companies.
@@ -243,6 +245,21 @@ for (const [column, type] of [
   ['test_url', 'TEXT'],
   ['test_pass_percent', 'INTEGER'],
   ['test_seconds_per_question', 'INTEGER'],
+  /*
+   * Two the redesigned form asks for that no column held.
+   *
+   * `apply_by` is the last day to apply, which is NOT `needed_by` - that is
+   * the day the seat has to be filled, and the two are weeks apart.
+   *
+   * `test_duration_minutes` is the whole paper, where
+   * `test_seconds_per_question` is one question. Both are kept: the
+   * per-question clock is the one the test system is already told about and
+   * the one Dinesh set to 30, and a total is a different rule, not a
+   * replacement for it. Neither is enforced here - the clock runs inside the
+   * test system; this is where the rule is decided and published.
+   */
+  ['apply_by', 'TEXT'],
+  ['test_duration_minutes', 'INTEGER'],
 ]) {
   if (!columnsOf('vacancies').has(column)) {
     db.exec(`ALTER TABLE vacancies ADD COLUMN ${column} ${type}`);
@@ -336,6 +353,36 @@ function checkedTest(values) {
   return { ...values, test_url: url };
 }
 
+/*
+ * The same rules the form checks, checked again here.
+ *
+ * Not belt and braces: the form is one way in and the API is another, and a
+ * vacancy posted around the form with its salary range upside down scores
+ * every candidate against nonsense. `shared/vacancyForm.js` holds the list
+ * once so the two cannot disagree about what is allowed.
+ *
+ * Only the rules about the VALUES, though - the form's own "you must fill
+ * this in" is a form's job. An existing row being patched is checked against
+ * what it will become, never against the patch alone.
+ */
+function checkVacancy(values, { assessment }) {
+  // The API is handed the BAND, not the two boxes, so it is read back out of
+  // the band - otherwise "5-2 yrs" posted directly would sail through.
+  const { min, max } = fromBand(values.experience_band);
+  const problems = validateVacancy(
+    { ...values, experience_min: min, experience_max: max },
+    { assessment }
+  );
+  // Required-ness is said in this module's own words, which the tests and the
+  // older callers already expect.
+  delete problems.company_id;
+  delete problems.title;
+  delete problems.location;
+  const [first] = Object.values(problems);
+  if (first) throw new Error(first);
+  return values;
+}
+
 export function createVacancy(body) {
   const values = checkedTest(writable('vacancies', body));
   if (!values.title) throw new Error('an opening needs a job title');
@@ -343,6 +390,7 @@ export function createVacancy(body) {
   // nothing to put the person on the payroll of later.
   const company = db.prepare(`SELECT id FROM companies WHERE id = ?`).get(Number(values.company_id));
   if (!company) throw new Error('an opening needs a company');
+  checkVacancy({ positions: 1, ...values }, { assessment: !!values.test_url });
   values.ref_no = nextRef('vacancies', 'JOB');
   values.opened_on = values.opened_on || nowIso().slice(0, 10);
   return getVacancy(insert('vacancies', values));
@@ -350,6 +398,10 @@ export function createVacancy(body) {
 
 export function updateVacancy(id, body) {
   const values = checkedTest(writable('vacancies', body));
+  // Checked against what the row WILL be, not against the patch: sending only
+  // a new maximum salary has to be judged against the minimum already stored.
+  const after = { ...(getVacancy(id) || {}), ...values };
+  checkVacancy(after, { assessment: !!after.test_url });
   values.updated_at = nowIso();
   update('vacancies', id, values);
   return getVacancy(id);

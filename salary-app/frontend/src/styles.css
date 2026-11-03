@@ -1876,3 +1876,80 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 table.sheet tr.picked td { background: var(--brand-soft); }
 .card.fold > summary .tally { margin-left: auto; font-size: .76rem; color: var(--muted); }
 .report-open { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+
+/* ---------- the vacancy form ----------
+   Enterprise-plain on purpose: a white sheet, hairline rules between named
+   sections, two columns that become one on a phone, and one navy button for
+   the thing you came to do. No cards inside cards, no shadows, no oversized
+   boxes - this is a form somebody fills in several times a week. */
+
+.vacancy-form { padding: 0; overflow: hidden; }
+.vacancy-form .vf-head { padding: 1rem 1.25rem 0.85rem; border-bottom: 1px solid var(--line); }
+.vacancy-form .vf-head h2 { margin: 0 0 0.2rem; font-size: 1rem; }
+.vacancy-form .vf-head p { margin: 0; }
+.vacancy-form .banner { margin: 0.9rem 1.25rem; }
+
+.vf-section { padding: 0.95rem 1.25rem 1.1rem; border-bottom: 1px solid var(--line); }
+.vf-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+.vf-section-head h3 {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vf-section-head > :not(h3) { margin-left: auto; }
+
+/* Two columns, one on a phone. Fixed rather than auto-fit so a short box and
+   a long one still line up - an auto grid reflows them into three and four
+   across on a wide screen, which is what the old form did. */
+.vf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem 1.1rem; }
+.vf-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.7rem; }
+.vf-field.wide { grid-column: 1 / -1; }
+@media (max-width: 720px) {
+  .vf-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.vf-field { display: flex; flex-direction: column; gap: 0.22rem; min-width: 0; }
+.vf-label { font-size: 0.74rem; color: var(--muted); }
+.vf-label b { color: var(--bad); font-weight: 600; }
+.vf-field input,
+.vf-field select,
+.vf-field textarea {
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--text);
+  padding: 0.34rem 0.45rem;
+}
+.vf-field textarea { resize: vertical; line-height: 1.45; }
+.vf-hint { font-size: 0.68rem; color: var(--muted); }
+.vf-error { font-size: 0.68rem; color: var(--bad); }
+.vf-field.bad input,
+.vf-field.bad select,
+.vf-field.bad textarea { border-color: var(--bad); }
+
+.vf-note {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.vf-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.74rem; color: var(--muted); }
+.vf-toggle input { margin: 0; }
+
+.vf-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.9rem 1.25rem;
+}
+.vf-actions .muted { flex: 1 1 14rem; }
+.vf-actions button.ghost { border-color: transparent; background: none; color: var(--muted); }
