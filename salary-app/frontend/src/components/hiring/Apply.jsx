@@ -113,12 +113,33 @@ export default function Apply({ ref_no }) {
           {test?.url ? (
             <section style={{ textAlign: 'left' }}>
               <h3>One short assessment</h3>
-              <p className="note">Do it in one sitting. It does not take long.</p>
+              <p className="note">
+                Do it in one sitting. It does not take long.
+                {test.seconds_per_question
+                  ? ` You get ${test.seconds_per_question} seconds for each question.`
+                  : ''}
+              </p>
               <iframe
                 title="Assessment"
                 src={test.url}
                 style={{ width: '100%', height: '70vh', border: '1px solid var(--line)', borderRadius: '10px' }}
               />
+              {/*
+                * Always shown, never only on failure: a page in an iframe on
+                * another domain cannot tell the page around it that it failed
+                * to load. Without this, a test system that is down or blocked
+                * leaves the candidate looking at a blank grey rectangle with
+                * nothing to do — and we never hear about it, because they
+                * simply close the tab.
+                */}
+              <p className="note">
+                Nothing showing above?{' '}
+                <a href={test.url} target="_blank" rel="noreferrer">
+                  Open the assessment in a new tab
+                </a>
+                . Your application is already with us either way — the
+                assessment is extra, and your reference is {done.candidate_ref}.
+              </p>
             </section>
           ) : null}
 
