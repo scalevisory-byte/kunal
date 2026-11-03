@@ -32,6 +32,7 @@ export const CATEGORIES = [
   { key: 'employee', label: 'Employees', hint: 'The master, joiners, leavers and papers' },
   { key: 'loans', label: 'Loans and advances', hint: 'Given, recovered and outstanding' },
   { key: 'assets', label: 'Assets', hint: 'Register, handovers, verification and upkeep' },
+  { key: 'hiring', label: 'Hiring', hint: 'Openings, candidates and where each one has reached' },
   { key: 'mis', label: 'Management', hint: 'Cost, attendance and movement, month on month' },
 ];
 
@@ -176,18 +177,30 @@ export const REPORTS = [
       note: 'Closure is a status on the loan. Nothing reports loans closed over a period.' }),
 
   /* ---- G. Assets ---- */
-  R('asset-register', 'Asset register', 'assets', 'ready', { filters: ['company', 'search'], at: 'tab:assets' }),
+  R('asset-register', 'Asset register', 'assets', 'ready', { filters: ['company', 'search'], at: 'file:asset-register' }),
   R('asset-allocation', 'Employee-wise asset allocation', 'assets', 'ready',
-    { filters: ['company', 'employee'], at: 'tab:assets' }),
+    { filters: ['company', 'employee'], at: 'file:asset-register',
+      note: 'The register carries who holds what; the Assets tab shows it as a board.' }),
   R('asset-handovers', 'Asset handover and return', 'assets', 'ready',
-    { filters: ['range', 'company', 'employee'], at: 'tab:assets' }),
+    { filters: ['range', 'company', 'employee'], at: 'file:asset-handovers' }),
   R('asset-verification', 'Asset verification', 'assets', 'partial',
     { filters: ['company'], at: 'tab:assets',
       note: 'Stock take works and keeps “not checked” apart from “not found”. No export of a round.' }),
-  R('asset-maintenance', 'Asset maintenance', 'assets', 'ready', { filters: ['range', 'company'], at: 'tab:assets' }),
-  R('asset-cost', 'Asset service cost', 'assets', 'ready', { filters: ['company'], at: 'tab:assets' }),
+  R('asset-maintenance', 'Asset maintenance', 'assets', 'ready', { filters: ['range', 'company'], at: 'file:asset-services' }),
+  R('asset-cost', 'Asset service cost', 'assets', 'ready', { filters: ['company'], at: 'file:asset-cost' }),
   R('asset-damaged', 'Damaged or missing assets', 'assets', 'partial',
     { filters: ['company'], note: 'Needs a damage or loss reason on the asset, so a missing laptop can be told from a broken one.' }),
+
+  /* ---- Hiring. Not in the specification, but the module exists and its
+     reports were reachable only from inside the Hiring tab. ---- */
+  R('hiring-pipeline', 'Pipeline — every application', 'hiring', 'ready',
+    { filters: ['company', 'search'], at: 'file:pipeline', phase: 2 }),
+  R('hiring-candidates', 'Candidate list', 'hiring', 'ready',
+    { filters: ['company', 'search'], at: 'file:candidates', phase: 2,
+      note: 'Says whether a CV is on file, never what is in it.' }),
+  R('hiring-openings', 'Openings and how they are filling', 'hiring', 'partial',
+    { filters: ['company'], at: 'tab:hiring', phase: 2,
+      note: 'On the Hiring tab — seats, applied, joined. No export yet.' }),
 
   /* ---- H. Management ---- */
   R('cost-employee', 'Monthly employee cost', 'mis', 'partial',

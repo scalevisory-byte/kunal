@@ -128,7 +128,25 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
       }
     : {};
 
+  /*
+   * These do not belong to a month, so they are available whether or not one
+   * is open — and they are real files the app already serves. The asset and
+   * hiring rows used to send somebody off to another tab, which is not a
+   * report, which is why those categories looked empty from here.
+   */
+  Object.assign(FILES, {
+    'asset-register': ['/people/assets/register.csv', 'Asset-register.csv'],
+    'asset-allocation': ['/people/assets/register.csv', 'Asset-register.csv'],
+    'asset-handovers': ['/people/assets/handovers.csv', 'Asset-handovers.csv'],
+    'asset-services': ['/people/maintenance/services.csv', 'Asset-services.csv'],
+    'asset-maintenance': ['/people/maintenance/services.csv', 'Asset-services.csv'],
+    'asset-cost': ['/people/maintenance/ownership.csv', 'Asset-cost-of-ownership.csv'],
+    'hiring-pipeline': ['/hiring/export/pipeline.csv', 'Hiring-pipeline.csv'],
+    'hiring-candidates': ['/hiring/export/candidates.csv', 'Hiring-candidates.csv'],
+  });
+
   const TAB_LABEL = {
+    hiring: 'Hiring',
     dashboard: 'Dashboard', time: 'Time', attendance: 'Attendance', sheet: 'Salary sheet',
     people: 'People', employees: 'Employees', assets: 'Assets', loans: 'Loans',
   };
@@ -152,6 +170,49 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
         </div>
       </div>
 
+      {open ? (
+        <>
+      {/*
+        * One report fills the screen, with the listing put away behind it.
+        *
+        * The open panel used to render BELOW all eight categories, so a click
+        * at the top of the page opened a report somewhere off the bottom of
+        * it. "Back to all reports" is how you get out, and the trail above the
+        * title says which category you came from.
+        */}
+      <div className="card report-open">
+        <div className="late-head">
+          <div>
+            <p className="muted small">
+              <button className="link" onClick={() => setOpenId(null)}>All reports</button>
+              {' / '}
+              {CATEGORIES.find((c) => c.key === open.category)?.label}
+            </p>
+            <h2>{open.name}</h2>
+            <p className="muted small">
+              {period ? period.label : 'No month open'}
+              {open.note ? ` · ${open.note}` : ''}
+            </p>
+          </div>
+          <button onClick={() => setOpenId(null)}>Back to all reports</button>
+        </div>
+        <ReportFilters
+          report={open}
+          employees={employees}
+          companies={companies}
+          value={filters}
+          onChange={setFilters}
+        />
+        {PANELS[open.id]?.() || (
+          <p className="muted small">
+            This one is not a report of its own yet — {open.note || 'it is still to be built.'}
+          </p>
+        )}
+      </div>
+
+        </>
+      ) : (
+        <>
       {CATEGORIES.map((category) => {
         const rows = reportsIn(category.key);
         return (
@@ -187,7 +248,13 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
                             {TAB_LABEL[report.at.slice(4)] || 'Open'} tab
                           </button>
                         ) : (
-                          <span className="muted small">—</span>
+                          /* Every report opens, including the ones not built:
+                             the view then says what it will hold and what is
+                             missing. A row that does nothing at all tells
+                             somebody the screen is broken. */
+                          <button className="ghost" onClick={() => setOpenId(report.id)}>
+                            Open
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -199,27 +266,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
         );
       })}
 
-      {open && (
-        <div className="card report-open">
-          <div className="late-head">
-            <div>
-              <h2>{open.name}</h2>
-              <p className="muted small">
-                {CATEGORIES.find((c) => c.key === open.category)?.label}
-                {period ? ` · ${period.label}` : ''}
-              </p>
-            </div>
-            <button className="ghost" onClick={() => setOpenId(null)}>Close</button>
-          </div>
-          <ReportFilters
-            report={open}
-            employees={employees}
-            companies={companies}
-            value={filters}
-            onChange={setFilters}
-          />
-          {PANELS[open.id]?.()}
-        </div>
+        </>
       )}
 
       {error && <p className="error">{error}</p>}

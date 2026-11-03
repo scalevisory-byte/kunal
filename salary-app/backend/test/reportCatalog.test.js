@@ -53,12 +53,31 @@ test('nothing claims to be ready with nowhere to reach it', () => {
   }
 });
 
-test('the specification is covered end to end — sixty reports, eight categories', () => {
-  assert.equal(CATEGORIES.length, 8);
+/*
+ * The specification asked for sixty reports in eight categories. Those counts
+ * are pinned exactly, so dropping one is caught — and anything the APP has
+ * beyond the spec (hiring) is allowed, but has to be deliberate rather than
+ * drift.
+ */
+test('every category in the specification carries exactly what it asked for', () => {
+  const spec = {
+    attendance: 10, payroll: 10, leave: 5, statutory: 8,
+    employee: 6, loans: 5, assets: 7, mis: 9,
+  };
+  for (const [key, count] of Object.entries(spec)) {
+    assert.equal(reportsIn(key).length, count, `${key} should carry ${count}`);
+  }
+  assert.equal(Object.values(spec).reduce((a, b) => a + b, 0), 60);
+
+  // Beyond the spec: hiring, because the module exists and its reports were
+  // reachable only from inside the Hiring tab.
+  const extra = CATEGORIES.map((c) => c.key).filter((k) => !(k in spec));
+  assert.deepEqual(extra, ['hiring']);
+
   const totals = catalogueTotals();
-  assert.equal(totals.total, 60);
-  assert.equal(totals.ready + totals.partial + totals.planned, 60);
-  // Every category carries something; an empty heading is a hole in the spec.
+  assert.equal(totals.total, 60 + reportsIn('hiring').length);
+  assert.equal(totals.ready + totals.partial + totals.planned, totals.total);
+  // Every category carries something; an empty heading is a hole in the screen.
   for (const c of CATEGORIES) {
     assert.ok(reportsIn(c.key).length > 0, `${c.key} has no reports`);
   }
@@ -71,7 +90,7 @@ test('phase 1 is the five essential categories, and only those', () => {
     ['attendance', 'employee', 'leave', 'payroll', 'statutory']
   );
   const phase2 = new Set(REPORTS.filter((r) => r.phase === 2).map((r) => r.category));
-  assert.deepEqual([...phase2].sort(), ['assets', 'loans', 'mis']);
+  assert.deepEqual([...phase2].sort(), ['assets', 'hiring', 'loans', 'mis']);
 });
 
 test('a category lists what works before what does not', () => {
