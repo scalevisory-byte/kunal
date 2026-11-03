@@ -31,6 +31,8 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   const [filters, setFilters] = useState({
     company_id: '', branch_id: '', department: '', employee_id: '', from: '', to: '', q: '',
   });
+  const [query, setQuery] = useState('');
+  const [openCategory, setOpenCategory] = useState('attendance');
   const [file, setFile] = useState(null);
   const [sheets, setSheets] = useState([]);
   const [sheet, setSheet] = useState('');
@@ -154,120 +156,135 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   const open = REPORTS.find((r) => r.id === openId) || null;
   const totals = catalogueTotals();
 
-  return (
-    <section className="stack">
-      <div className="card">
-        <div className="late-head">
-          <div>
-            <h2>Reports</h2>
-            <p className="muted small">
-              {totals.total} reports, by what they answer. {totals.ready} are ready,{' '}
-              {totals.partial} work but are not yet a report of their own, and {totals.planned} are
-              still to be built — listed all the same, so the gaps are visible.
-            </p>
-          </div>
-          {!period && <span className="pill">No month open</span>}
-        </div>
-      </div>
+  /*
+   * The tree, filtered by the search box. A search looks across every
+   * category at once — somebody who knows a report is called "Wage register"
+   * should not have to know it lives under Statutory.
+   */
+  const hunt = query.trim().toLowerCase();
+  const tree = CATEGORIES.map((category) => ({
+    ...category,
+    rows: reportsIn(category.key).filter(
+      (r) => !hunt || r.name.toLowerCase().includes(hunt) || category.label.toLowerCase().includes(hunt)
+    ),
+  })).filter((c) => c.rows.length > 0);
 
-      {open ? (
-        <>
+  const found = tree.reduce((n, c) => n + c.rows.length, 0);
+
+  return (
+    <section className="report-shell">
       {/*
-        * One report fills the screen, with the listing put away behind it.
-        *
-        * The open panel used to render BELOW all eight categories, so a click
-        * at the top of the page opened a report somewhere off the bottom of
-        * it. "Back to all reports" is how you get out, and the trail above the
-        * title says which category you came from.
+        * A report tree, the way accounting software has always done it: one
+        * line per report under its heading, the open one marked, and a search
+        * that reaches all of them. The table of chips and notes that was here
+        * before made nine lines of every report and buried the list.
         */}
-      <div className="card report-open">
-        <div className="late-head">
-          <div>
-            <p className="muted small">
-              <button className="link" onClick={() => setOpenId(null)}>All reports</button>
-              {' / '}
-              {CATEGORIES.find((c) => c.key === open.category)?.label}
-            </p>
-            <h2>{open.name}</h2>
-            <p className="muted small">
-              {period ? period.label : 'No month open'}
-              {open.note ? ` · ${open.note}` : ''}
-            </p>
-          </div>
-          <button onClick={() => setOpenId(null)}>Back to all reports</button>
-        </div>
-        <ReportFilters
-          report={open}
-          employees={employees}
-          companies={companies}
-          value={filters}
-          onChange={setFilters}
+      <aside className="report-tree">
+        <input
+          className="search"
+          placeholder="Find a report"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
         />
-        {PANELS[open.id]?.() || (
+        {hunt && (
           <p className="muted small">
-            This one is not a report of its own yet — {open.note || 'it is still to be built.'}
+            {found} of {totals.total} {found === 1 ? 'report' : 'reports'}
           </p>
         )}
-      </div>
-
-        </>
-      ) : (
-        <>
-      {CATEGORIES.map((category) => {
-        const rows = reportsIn(category.key);
-        return (
-          <details key={category.key} className="card fold" open={category.key === 'attendance'}>
-            <summary>
-              <strong>{category.label}</strong>
-              <span className="muted small"> — {category.hint}</span>
-              <span className="tally">
-                {rows.filter((r) => r.status === 'ready').length}/{rows.length} ready
-              </span>
-            </summary>
-            <div className="table-wrap">
-              <table className="sheet report-list">
-                <tbody>
-                  {rows.map((report) => (
-                    <tr key={report.id} className={report.id === openId ? 'picked' : undefined}>
-                      <td className="sticky-name">{report.name}</td>
-                      <td>
-                        <span className={`chip ${STATUS[report.status].tone}`}>
-                          {STATUS[report.status].label}
-                        </span>
-                      </td>
-                      <td className="wraps muted small">{report.note}</td>
-                      <td className="num">
-                        {PANELS[report.id] ? (
-                          <button onClick={() => setOpenId(openId === report.id ? null : report.id)}>
-                            {openId === report.id ? 'Close' : 'Open'}
-                          </button>
-                        ) : FILES[report.id] ? (
-                          <button onClick={() => grab(...FILES[report.id])}>Download</button>
-                        ) : report.at?.startsWith('tab:') ? (
-                          <button className="ghost" onClick={() => onGo?.(report.at.slice(4))}>
-                            {TAB_LABEL[report.at.slice(4)] || 'Open'} tab
-                          </button>
-                        ) : (
-                          /* Every report opens, including the ones not built:
-                             the view then says what it will hold and what is
-                             missing. A row that does nothing at all tells
-                             somebody the screen is broken. */
-                          <button className="ghost" onClick={() => setOpenId(report.id)}>
-                            Open
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {tree.map((category) => (
+          <details key={category.key} open={Boolean(hunt) || category.key === openCategory}>
+            <summary title={category.hint}>{category.label}</summary>
+            <ul>
+              {category.rows.map((report) => (
+                <li key={report.id}>
+                  <button
+                    type="button"
+                    className={`${report.id === openId ? 'on' : ''} s-${report.status}`}
+                    title={report.note || STATUS[report.status].label}
+                    onClick={() => {
+                      setOpenId(report.id);
+                      setOpenCategory(category.key);
+                    }}
+                  >
+                    {report.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </details>
-        );
-      })}
+        ))}
+        {!tree.length && <p className="muted small">Nothing called that.</p>}
+      </aside>
 
-        </>
-      )}
+      <div className="report-body stack">
+        {!open ? (
+          <div className="card">
+            <h2>Reports</h2>
+            <p className="muted small">
+              Pick one from the list. {totals.total} in all — {totals.ready} ready,{' '}
+              {totals.partial} that work but are not yet a report of their own, and{' '}
+              {totals.planned} still to be built. The ones not finished are listed too, so the
+              gaps are visible rather than hidden.
+            </p>
+            {!period && <p className="muted small">No month is open.</p>}
+          </div>
+        ) : (
+          <div className="card">
+            <div className="late-head">
+              <div>
+                <p className="muted small">
+                  {CATEGORIES.find((c) => c.key === open.category)?.label}
+                  {period ? ` · ${period.label}` : ''}
+                </p>
+                <h2>{open.name}</h2>
+                {open.status !== 'ready' && (
+                  <p className="small">
+                    <span className={`chip ${STATUS[open.status].tone}`}>
+                      {STATUS[open.status].label}
+                    </span>{' '}
+                    <span className="muted">{open.note}</span>
+                  </p>
+                )}
+              </div>
+              {FILES[open.id] && (
+                <button className="primary" onClick={() => grab(...FILES[open.id])}>
+                  Download
+                </button>
+              )}
+              {!FILES[open.id] && open.at?.startsWith('tab:') && (
+                <button onClick={() => onGo?.(open.at.slice(4))}>
+                  Open the {TAB_LABEL[open.at.slice(4)] || ''} tab
+                </button>
+              )}
+            </div>
+
+            <ReportFilters
+              report={open}
+              employees={employees}
+              companies={companies}
+              value={filters}
+              onChange={setFilters}
+            />
+
+            {PANELS[open.id] ? (
+              PANELS[open.id]()
+            ) : FILES[open.id] ? (
+              <p className="muted small">
+                Downloads as a CSV, which opens in Excel. Everything in it comes from the same
+                records the salary sheet is paid from.
+              </p>
+            ) : open.at?.startsWith('tab:') ? (
+              <p className="muted small">
+                This one lives on the {TAB_LABEL[open.at.slice(4)]} tab and has not been brought
+                across yet.
+              </p>
+            ) : (
+              <p className="muted small">
+                Not built yet. {open.note}
+              </p>
+            )}
+          </div>
+        )}
 
       {error && <p className="error">{error}</p>}
 
@@ -388,7 +405,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
       )}
         </div>
       </details>
-
+      </div>
     </section>
   );
 }

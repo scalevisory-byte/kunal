@@ -1833,12 +1833,46 @@ table.sheet.roll-table .why { display: block; margin: 0; }
    otherwise gives all the slack to the button column and squeezes the note to
    three words a line. */
 .report-filters { margin-bottom: .6rem; }
-table.sheet.report-list { width: 100%; }
-table.sheet.report-list td { height: auto; }
-table.sheet.report-list td:nth-child(1) { width: 16rem; white-space: normal; }
-table.sheet.report-list td:nth-child(2) { width: 7rem; }
-table.sheet.report-list td:nth-child(3) { width: auto; white-space: normal; }
-table.sheet.report-list td:nth-child(4) { width: 9rem; white-space: nowrap; text-align: right; }
+/* The report tree: one line per report under its heading, the open one
+   marked, like the report browser every accounts package has. */
+.report-shell { display: flex; gap: 1rem; align-items: flex-start; }
+.report-tree {
+  flex: 0 0 16rem; min-width: 0;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); padding: 0.6rem;
+  position: sticky; top: 0.5rem; max-height: calc(100vh - 1rem); overflow: auto;
+}
+.report-tree .search { width: 100%; flex: none; margin-bottom: 0.4rem; }
+.report-tree details { margin-bottom: 0.1rem; }
+.report-tree summary {
+  cursor: pointer; list-style: none; font-size: 0.78rem; font-weight: 600;
+  padding: 0.3rem 0.25rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.report-tree summary::-webkit-details-marker { display: none; }
+.report-tree summary::before { content: '▸ '; }
+.report-tree details[open] > summary::before { content: '▾ '; }
+.report-tree ul { list-style: none; margin: 0 0 0.3rem; padding: 0; }
+.report-tree li button {
+  display: block; width: 100%; text-align: left;
+  border: 0; background: none; border-radius: 3px;
+  padding: 0.28rem 0.5rem 0.28rem 1.1rem;
+  font-size: 0.82rem; color: var(--fg); cursor: pointer;
+  /* One line each. A report called "Attendance corrections and approvals"
+     must not become three lines and push the next one off the screen. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.report-tree li button:hover { background: var(--brand-soft); }
+.report-tree li button.on { background: var(--brand-soft); font-weight: 600; }
+/* Not finished is said in the colour, not with a chip that doubles the row. */
+.report-tree li button.s-partial { color: var(--warn); }
+.report-tree li button.s-planned { color: var(--muted); }
+.report-body { flex: 1 1 auto; min-width: 0; }
+
+@media (max-width: 900px) {
+  .report-shell { flex-direction: column; }
+  .report-tree { flex: none; width: 100%; position: static; max-height: 22rem; }
+}
 table.sheet tr.picked td { background: var(--brand-soft); }
 .card.fold > summary .tally { margin-left: auto; font-size: .76rem; color: var(--muted); }
 .report-open { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
