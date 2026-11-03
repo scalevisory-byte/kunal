@@ -10,6 +10,19 @@ import { MONTHS } from '../format.js';
  * So it folds away behind one button, and the choice is remembered. Only the
  * month picker stays out, because which month you are in is not a setting -
  * it is the first thing you need to know.
+ *
+ * And then folding was not enough. Reports, Attendance, Time, Leave and Loans
+ * all read a month but none of them SET one, so "Working days 26 - PT above
+ * 12000 - Delete month" was clutter on five screens and a delete button two
+ * clicks from a report. Dinesh sent a second photograph, of Reports.
+ *
+ * So `allowSettings` is what divides them. The month PICKER is everywhere a
+ * month is read; the month's SETTINGS live on the Salary sheet alone, which is
+ * the one screen those figures actually pay from. Everywhere else the strip is
+ * a single dropdown, with a tooltip saying where the settings went. The one
+ * exception: with no month open at all, "New month"
+ * has to be reachable from wherever you are standing, or a fresh app with the
+ * Dashboard in front of it has no way forward.
  */
 const SETTINGS_KEY = 'salary-app-month-settings-open';
 const rememberedOpen = () => {
@@ -20,8 +33,15 @@ const rememberedOpen = () => {
   }
 };
 
-/** Month picker plus the settings that month calculates with. */
-export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch, onSync, onDelete }) {
+/**
+ * Month picker, plus - on the Salary sheet only - the settings that month
+ * calculates with.
+ *
+ * @param allowSettings Does this screen set the month, or only read it?
+ */
+export default function PeriodBar({
+  periods, period, onSelect, onCreate, onPatch, onSync, onDelete, allowSettings = true,
+}) {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState(rememberedOpen);
 
@@ -36,6 +56,13 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
       return now;
     });
   };
+  /*
+   * On a read-only screen there is nothing to show but the picker - except
+   * when no month exists yet, when New month is the only way out.
+   */
+  const showSettings = allowSettings && settings;
+  const canCreate = allowSettings || !periods.length;
+
   const now = new Date();
   const [form, setForm] = useState({
     year: now.getFullYear(),
@@ -65,6 +92,10 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
         value={period?.id || ''}
         onChange={(e) => onSelect(Number(e.target.value))}
         disabled={!periods.length}
+        /* Where the settings went, said in a tooltip rather than as a line of
+           text repeated across six screens - which would be the same clutter
+           again, only politer. */
+        title={allowSettings ? 'Which month' : 'Which month. Its settings are on the Salary sheet.'}
       >
         {!periods.length && <option value="">No months yet</option>}
         {periods.map((p) => (
@@ -72,20 +103,22 @@ export default function PeriodBar({ periods, period, onSelect, onCreate, onPatch
         ))}
       </select>
 
-      <button
-        className={settings ? 'active' : undefined}
-        onClick={toggleSettings}
-        aria-expanded={settings}
-        title={settings ? 'Hide the month settings' : 'Working days, hours, PT, lock, delete'}
-      >
-        {settings ? 'Hide settings' : 'Settings'}
-      </button>
+      {allowSettings && (
+        <button
+          className={settings ? 'active' : undefined}
+          onClick={toggleSettings}
+          aria-expanded={settings}
+          title={settings ? 'Hide the month settings' : 'Working days, hours, PT, lock, delete'}
+        >
+          {settings ? 'Hide settings' : 'Settings'}
+        </button>
+      )}
 
-      {settings && (
+      {canCreate && (showSettings || !periods.length) && (
         <button onClick={() => setOpen((v) => !v)}>{open ? 'Cancel' : 'New month'}</button>
       )}
 
-      {period && settings && (
+      {period && showSettings && (
         <>
           <span
             className="fixed-setting"

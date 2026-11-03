@@ -28,6 +28,10 @@ import Glyph from './icons.jsx';
  * days, hours a day, the PT slab, lock, delete - were on every screen, so the
  * asset register carried "Working days 26 · PT above 12000" across the top of
  * it. None of that means anything to a laptop, a candidate or a staff note.
+ *
+ * These tabs READ a month, so they keep the picker. Only the Salary sheet
+ * SETS one, so only it gets the settings (see PeriodBar's allowSettings) -
+ * otherwise Reports carried a Delete month button two clicks from a report.
  */
 const MONTHLY_TABS = new Set([
   'dashboard', 'sheet', 'attendance', 'time', 'leave', 'loans', 'reports',
@@ -475,6 +479,8 @@ function Shell() {
             onPatch={patchPeriod}
             onSync={syncPeriod}
             onDelete={deletePeriod}
+            /* The Salary sheet is the one screen those settings pay from. */
+            allowSettings={tab === 'sheet'}
           />
           )}
           {/* The company filter stays everywhere but Admin: assets, candidates
