@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, download, openPage } from '../../api.js';
+import AssetDashboard from './AssetDashboard.jsx';
+import AssetMasters from './AssetMasters.jsx';
+import { assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
@@ -22,7 +25,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 export default function Assets({ employees, companies, scanned, onScanned, onError }) {
   const [assets, setAssets] = useState([]);
   const [totals, setTotals] = useState({});
-  const [view, setView] = useState('register');
+  const [view, setView] = useState('dashboard');
+  /* What the dashboard asked the register to show, so the two agree. */
+  const [from, setFrom] = useState(null);
+  const [allBranches, setAllBranches] = useState([]);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
@@ -42,8 +48,36 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     invoice_no: '',
     warranty_until: '',
     code: '',
+    brand: '',
+    model: '',
+    description: '',
+    department: '',
+    location: '',
+    floor_room: '',
+    warranty_from: '',
+    warranty_provider: '',
+    purchase_remarks: '',
   });
   const [branches, setBranches] = useState([]);
+  /* The lists behind the pickers. Suggestions only - typing anything works. */
+  const [masters, setMasters] = useState([]);
+
+  /*
+   * Every branch, for the dashboard's filter. The add form loads one
+   * company's branches on demand; this is the whole list, once.
+   */
+  useEffect(() => {
+    api
+      .get('/people/asset-masters')
+      .then(({ masters: list }) => setMasters(list || []))
+      .catch(() => setMasters([]));
+    api
+      .get('/companies/branches')
+      .then(({ branches }) => setAllBranches(branches || []))
+      // A company with no branches at all is normal, not a failure worth a
+      // banner on a dashboard.
+      .catch(() => setAllBranches([]));
+  }, []);
 
   const load = async () => {
     try {
@@ -175,6 +209,40 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     const ids = shown.map((a) => a.id).join(',');
     openPage(`/people/assets/labels.html?ids=${ids}`).catch(onError);
   };
+
+  /*
+   * The dashboard opens the register with the filter the card carried, so a
+   * figure and the rows behind it can never disagree.
+   */
+  if (view === 'dashboard') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <AssetDashboard
+          companies={companies}
+          branches={allBranches}
+          onError={onError}
+          onOpen={(f) => {
+            setFrom(f);
+            setFilter(
+              f.status === 'assigned' ? 'out' : f.status === 'written_off' ? 'gone'
+                : f.status === 'available' ? 'in' : 'all'
+            );
+            setView('register');
+          }}
+        />
+      </section>
+    );
+  }
+
+  if (view === 'masters') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <AssetMasters onError={onError} />
+      </section>
+    );
+  }
 
   if (view === 'stock') {
     return (
@@ -363,10 +431,16 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
               From
               <input
                 value={draft.vendor}
+                list="asset-vendors"
                 placeholder="vendor"
                 onChange={(e) => setDraft({ ...draft, vendor: e.target.value })}
               />
             </label>
+            <datalist id="asset-vendors">
+              {masters.filter((m) => m.kind === 'vendor').map((m) => (
+                <option key={m.id} value={m.name} />
+              ))}
+            </datalist>
             <label>
               Invoice
               <input value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} />
@@ -388,6 +462,93 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
               />
             </label>
           </div>
+
+          {/*
+            * Folded away, because the four boxes above are what somebody
+            * types in a hurry and these are what they fill in afterwards -
+            * and a form that opens with twenty boxes does not get used.
+            */}
+          <details className="fold" style={{ marginTop: '0.6rem' }}>
+            <summary>More about it — brand, where it lives, the warranty</summary>
+            <div className="grid" style={{ marginTop: '0.6rem' }}>
+              <label>
+                Brand
+                <input
+                  list="asset-brands"
+                  value={draft.brand}
+                  placeholder="Dell"
+                  onChange={(e) => setDraft({ ...draft, brand: e.target.value })}
+                />
+                <datalist id="asset-brands">
+                  {masters.filter((m) => m.kind === 'brand').map((m) => (
+                    <option key={m.id} value={m.name} />
+                  ))}
+                </datalist>
+              </label>
+              <label>
+                Model
+                <input
+                  value={draft.model}
+                  placeholder="3420"
+                  onChange={(e) => setDraft({ ...draft, model: e.target.value })}
+                />
+              </label>
+              <label>
+                Department
+                <input
+                  value={draft.department}
+                  onChange={(e) => setDraft({ ...draft, department: e.target.value })}
+                />
+              </label>
+              <label>
+                Where it is
+                <input
+                  value={draft.location}
+                  placeholder="Alkapuri office"
+                  onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                />
+              </label>
+              <label>
+                Floor / room
+                <input
+                  value={draft.floor_room}
+                  onChange={(e) => setDraft({ ...draft, floor_room: e.target.value })}
+                />
+              </label>
+              <label>
+                Warranty from
+                <input
+                  type="date"
+                  value={draft.warranty_from}
+                  onChange={(e) => setDraft({ ...draft, warranty_from: e.target.value })}
+                />
+              </label>
+              <label>
+                Warranty by
+                <input
+                  value={draft.warranty_provider}
+                  placeholder="who honours it"
+                  onChange={(e) => setDraft({ ...draft, warranty_provider: e.target.value })}
+                />
+              </label>
+            </div>
+            <label className="block" style={{ marginTop: '0.6rem' }}>
+              What it is
+              <textarea
+                rows="2"
+                value={draft.description}
+                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              />
+            </label>
+            <label className="block">
+              Purchase remarks
+              <textarea
+                rows="2"
+                value={draft.purchase_remarks}
+                onChange={(e) => setDraft({ ...draft, purchase_remarks: e.target.value })}
+              />
+            </label>
+          </details>
           <p className="muted small">
             Leave the code empty and it is worked out — <code>BPL-LAP-014</code>, which is whose it
             is, what it is and which one. Type one if the sticker is already on it.
@@ -523,10 +684,12 @@ function Tabs({ view, setView }) {
       {/* Maintenance is a fourth view rather than a tab above these three:
           two rows of tabs over one table is one row too many. */}
       {[
+        ['dashboard', 'Dashboard'],
         ['register', 'Register'],
         ['slips', 'Who holds what'],
         ['stock', 'Stock take'],
         ['maintenance', 'Maintenance'],
+        ['masters', 'Lists'],
       ].map(([key, text]) => (
         <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
           {text}

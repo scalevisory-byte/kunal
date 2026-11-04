@@ -39,6 +39,8 @@ import { settlement } from '../../shared/settlement.js';
 import { digest } from '../../shared/digest.js';
 import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
 import { labelSheet, labelSvg, voucherHtml } from '../../shared/assetLabels.js';
+import { STATE_KEYS, allocationProblem, financialYear } from '../../shared/assetStatus.js';
+import { assetDashboard, purchaseYears } from '../../shared/assetDashboard.js';
 import qr from 'qrcode-generator';
 import { handoverSlip, registerCsv, registerTotals, handoverCsv } from '../../shared/assetReport.js';
 import {
@@ -125,6 +127,9 @@ const EMPTY = {
   asset_handovers: [],
   asset_services: [],
   asset_verifications: [],
+  // Categories, the types under them, brands and vendors. One list with a
+  // `kind`, not four tables - see the note on the server's asset_masters.
+  asset_masters: [],
   audit_log: [],
   // The highest JOB-/CAN- number ever handed out, so one is never reused.
   ref_high: {},
@@ -792,7 +797,11 @@ const ASSET_FIELDS = [
   'purchase_date', 'vendor', 'invoice_no', 'warranty_until',
   'amc_until', 'amc_vendor', 'amc_cost',
   'employee_id', 'issued_on', 'returned_on', 'condition', 'note',
+  'brand', 'model', 'description', 'department', 'location', 'floor_room',
+  'warranty_from', 'warranty_provider', 'purchase_remarks', 'state_note',
 ];
+
+const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
 
 const dayNow = () => new Date().toISOString().slice(0, 10);
 const stampNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -1094,7 +1103,10 @@ const assetsWithOwnershipOffline = (opts = {}) => {
 };
 
 /** Append-only, written by the same calls that move the asset. */
-function logHandoverOffline(assetId, { employee_id, issued_on, issued_by, condition_out, note }) {
+function logHandoverOffline(
+  assetId,
+  { employee_id, issued_on, issued_by, condition_out, note, expected_return_on, accessories } = {}
+) {
   const db = load();
   db.asset_handovers.push({
     id: nextId(),
@@ -1110,6 +1122,12 @@ function logHandoverOffline(assetId, { employee_id, issued_on, issued_by, condit
     condition_out: condition_out || null,
     condition_in: null,
     note: note || null,
+    // Null is open-ended, which is how most allocations are - and why the
+    // overdue alert only counts the ones that named a date.
+    expected_return_on: expected_return_on || null,
+    accessories: accessories || null,
+    acknowledged_on: null,
+    acknowledged_by: null,
     created_at: stampNow(),
   });
 }
@@ -3076,6 +3094,26 @@ export async function handle(method, path, body) {
           code = nextCode(company || 'GEN', kind, assetCodesInUse());
         }
 
+        /*
+         * A serial already on the register ASKS rather than refuses, like the
+         * duplicate service does: serials get retyped off a sticker and two
+         * boxes really do carry the same one.
+         */
+        const serial = String(body?.identifier || '').trim();
+        if (serial && !body?.force) {
+          const twin = db.assets.find(
+            (a) => String(a.identifier || '').toLowerCase() === serial.toLowerCase()
+          );
+          if (twin) {
+            const clash = new HttpError(
+              409,
+              `Serial ${serial} is already on ${twin.code || 'another asset'} (${twin.label}). Add it anyway?`
+            );
+            clash.duplicate = assetRow(twin);
+            throw clash;
+          }
+        }
+
         const asset = {
           id: nextId(),
           code,
@@ -3089,6 +3127,18 @@ export async function handle(method, path, body) {
           vendor: body?.vendor || null,
           invoice_no: body?.invoice_no || null,
           warranty_until: body?.warranty_until || null,
+          warranty_from: body?.warranty_from || null,
+          warranty_provider: body?.warranty_provider || null,
+          purchase_remarks: body?.purchase_remarks || null,
+          brand: body?.brand || null,
+          model: body?.model || null,
+          description: body?.description || null,
+          department: body?.department || null,
+          location: body?.location || null,
+          floor_room: body?.floor_room || null,
+          state: null,
+          state_note: null,
+          state_since: null,
           amc_until: body?.amc_until || null,
           amc_vendor: body?.amc_vendor || null,
           amc_cost: body?.amc_cost === '' || body?.amc_cost === undefined ? null : Number(body.amc_cost),
@@ -3126,6 +3176,57 @@ export async function handle(method, path, body) {
         const found = db.assets.find((a) => a.code === wanted);
         if (!found) throw new HttpError(404, `nothing on the register with the code ${parts[3]}`);
         return assetRow(found);
+      }
+
+      /*
+       * The employee signing for it. On the handover, not the asset: what was
+       * agreed was agreed about THAT handover, and the next one is signed
+       * again.
+       */
+      if (parts[2] === 'handovers' && parts[4] === 'acknowledge' && method === 'POST') {
+        const row = db.asset_handovers.find((h) => h.id === Number(parts[3]));
+        if (!row) throw new HttpError(404, 'not found');
+        if (!row.acknowledged_on) {
+          row.acknowledged_on = body?.on || dayNow();
+          row.acknowledged_by = body?.by || row.employee_name || null;
+          auditLine({
+            who: body?.by, action: 'acknowledged', entity: 'asset_handovers', entity_id: row.id,
+            label: `${row.employee_name || 'somebody'} signed for it`,
+          });
+          save();
+        }
+        return handoverRow(row);
+      }
+
+      if (parts[2] === 'dashboard' && method === 'GET') {
+        const companyId = Number(params.get('company_id')) || undefined;
+        const branchId = Number(params.get('branch_id')) || undefined;
+        const all = listAssetsOffline({ company_id: companyId, branch_id: branchId, written_off: true });
+        const category = params.get('category') || '';
+        const year = params.get('year') || '';
+        const assets = all
+          .filter((a) => !category || a.kind === category)
+          .filter((a) => !year || financialYear(a.purchase_date) === year);
+        const ids = new Set(assets.map((a) => a.id));
+        const rounds = [...new Set(db.asset_verifications.map((v) => v.round))];
+        const round = params.get('round') || rounds[rounds.length - 1] || null;
+        return {
+          ...assetDashboard({
+            assets,
+            handovers: listHandoversOffline({}).filter((h) => ids.has(h.asset_id)),
+            services: listServicesOffline({}).filter((x) => ids.has(x.asset_id)),
+            verifications: round
+              ? db.asset_verifications
+                  .filter((v) => v.round === round)
+                  .map((v) => ({ ...v, found: Boolean(v.found) }))
+              : [],
+            round,
+            soon: Number(params.get('soon')) || 30,
+          }),
+          round,
+          years: purchaseYears(all),
+          categories: [...new Set(all.map((a) => a.kind).filter(Boolean))].sort(),
+        };
       }
 
       if (parts[2] === 'handovers' && method === 'GET') {
@@ -3227,6 +3328,11 @@ export async function handle(method, path, body) {
        */
       if (parts[3] === 'issue' && method === 'POST') {
         if (asset.written_off_on) throw new HttpError(400, 'that asset is written off');
+        // Only an AVAILABLE asset goes out. Passing it straight on from the
+        // person holding it is the one exception, handled below.
+        if (asset.state && STATE_KEYS.includes(asset.state)) {
+          throw new HttpError(400, allocationProblem(assetRow(asset)));
+        }
         const employee = employeeOf(body?.employee_id);
         if (!employee) throw new HttpError(400, 'employee not found');
         const open = openHandoverOf(asset.id);
@@ -3242,6 +3348,8 @@ export async function handle(method, path, body) {
           issued_by: body?.by,
           condition_out: body?.condition,
           note: body?.note,
+          expected_return_on: body?.expected_return_on,
+          accessories: body?.accessories,
         });
         asset.employee_id = employee.id;
         asset.issued_on = body?.issued_on || dayNow();
@@ -3317,6 +3425,33 @@ export async function handle(method, path, body) {
         return assetRow(asset);
       }
 
+      /*
+       * Under maintenance, damaged, missing - or back in use. Its own call
+       * rather than a field on the form, because it is a decision somebody
+       * takes about the thing and belongs on the trail with a date.
+       */
+      if (parts[3] === 'state' && method === 'POST') {
+        if (asset.written_off_on) throw new HttpError(400, 'that asset is written off');
+        const wanted = String(body?.state || '').trim();
+        const next = wanted && wanted !== 'available' ? wanted : null;
+        if (next && !STATE_KEYS.includes(next)) {
+          throw new HttpError(400, `a state is one of ${STATE_KEYS.join(', ')}, or blank for none`);
+        }
+        if (next !== asset.state) {
+          auditLine({
+            who: body?.by, action: next || 'back in use', entity: 'assets', entity_id: asset.id,
+            label: `${asset.code || ''} ${asset.label}`.trim(),
+            from_value: asset.state || 'in use', to_value: next || 'in use',
+            note: body?.note || null,
+          });
+          asset.state = next;
+          asset.state_note = next ? body?.note || null : null;
+          asset.state_since = next ? body?.on || dayNow() : null;
+          save();
+        }
+        return assetRow(asset);
+      }
+
       /* A photograph is a file. Refused honestly rather than half-working. */
       if (parts[3] === 'photos') {
         if (method === 'GET') return { photos: [] };
@@ -3370,6 +3505,79 @@ export async function handle(method, path, body) {
         });
         save();
         return serviceRow(service);
+      }
+    }
+
+    /* ---- the lists behind the pickers ---- */
+    if (what === 'asset-masters') {
+      const withParent = (m) => ({
+        ...m,
+        parent_name: m.parent_id ? db.asset_masters.find((x) => x.id === m.parent_id)?.name || null : null,
+      });
+      if (parts.length === 2 && method === 'GET') {
+        const kind = params.get('kind');
+        return {
+          masters: db.asset_masters
+            .filter((m) => !kind || m.kind === kind)
+            .map(withParent)
+            .sort(
+              (a, b) =>
+                String(a.kind).localeCompare(String(b.kind)) ||
+                (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+                String(a.name).localeCompare(String(b.name))
+            ),
+          kinds: MASTER_KINDS,
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const kind = String(body?.kind || '').trim();
+        if (!MASTER_KINDS.includes(kind)) {
+          throw new HttpError(400, `a master is one of ${MASTER_KINDS.join(', ')}`);
+        }
+        const name = String(body?.name || '').trim();
+        if (!name) throw new HttpError(400, 'give it a name');
+        // A type under no category is a type of nothing.
+        const parentId = kind === 'type' ? Number(body?.parent_id) || null : null;
+        if (kind === 'type' && !parentId) throw new HttpError(400, 'which category is this a type of?');
+        if (db.asset_masters.some(
+          (m) => m.kind === kind && (m.parent_id || 0) === (parentId || 0) && m.name === name
+        )) {
+          throw new HttpError(400, `${name} is already on the list`);
+        }
+        const row = {
+          id: nextId(),
+          kind,
+          name,
+          parent_id: parentId,
+          note: body?.note || null,
+          active: 1,
+          sort_order: Number(body?.sort_order) || 0,
+          created_at: stampNow(),
+        };
+        db.asset_masters.push(row);
+        save();
+        return withParent(row);
+      }
+      const master = db.asset_masters.find((m) => m.id === id);
+      if (parts.length === 3 && !master) throw new HttpError(404, 'not found');
+      if (parts.length === 3 && method === 'PATCH') {
+        if ('name' in (body || {})) master.name = String(body.name || '').trim() || master.name;
+        if ('note' in (body || {})) master.note = body.note || null;
+        if ('active' in (body || {})) master.active = body.active ? 1 : 0;
+        if ('sort_order' in (body || {})) master.sort_order = Number(body.sort_order) || 0;
+        save();
+        return withParent(master);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        /*
+         * Taking a name off the list does NOT touch the assets carrying it:
+         * an asset stores the name as text, so an old laptop keeps saying
+         * "Dell" after Dell comes off the vendor list. A master is there to
+         * make typing easy, not a key that can rewrite history.
+         */
+        db.asset_masters = db.asset_masters.filter((m) => m.id !== master.id && m.parent_id !== master.id);
+        save();
+        return { deleted: true };
       }
     }
 

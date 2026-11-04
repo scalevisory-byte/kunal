@@ -13,6 +13,7 @@ import { log } from './logger.js';
 import { settlement } from '../../shared/settlement.js';
 import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
 import { looksDuplicate, ownership } from '../../shared/maintenance.js';
+import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
 
 // The trail itself lives in db.js, because the payroll write paths there write
 // to it too and db.js cannot import this file without a cycle.
@@ -277,6 +278,35 @@ const ASSET_COLUMNS = [
   // bill and a signed handover slip still refer to it.
   ['written_off_on', 'TEXT'],
   ['written_off_why', 'TEXT'],
+
+  /*
+   * What the thing IS, beyond its kind. A register that says "Laptop" and
+   * nothing else cannot be matched against an invoice or a service bill.
+   */
+  ['brand', 'TEXT'],
+  ['model', 'TEXT'],
+  ['description', 'TEXT'],
+
+  /* Where it is, which is not the same as who has it. */
+  ['department', 'TEXT'],
+  ['location', 'TEXT'],
+  ['floor_room', 'TEXT'],
+
+  /* The warranty's own details. `warranty_until` held only the end. */
+  ['warranty_from', 'TEXT'],
+  ['warranty_provider', 'TEXT'],
+  ['purchase_remarks', 'TEXT'],
+
+  /*
+   * ONLY the four states nothing in the data can tell us: under maintenance,
+   * damaged, missing, disposed. Available / Assigned / Written off are facts
+   * this database already holds and are worked out every time, never stored -
+   * a column saying "Assigned" beside an employee_id of null is not a status,
+   * it is a second opinion. See shared/assetStatus.js.
+   */
+  ['state', 'TEXT'],
+  ['state_note', 'TEXT'],
+  ['state_since', 'TEXT'],
 ];
 
 const assetColumns = () => db.prepare(`PRAGMA table_info(assets)`).all().map((c) => c.name);
@@ -299,6 +329,99 @@ if (assetColumns().includes('value')) {
 
 // One asset code, used once. Partial, because most rows carry no code yet.
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_code ON assets(code) WHERE code IS NOT NULL`);
+
+/*
+ * The asset masters: categories, the types under them, brands and vendors.
+ *
+ * ONE table with a `kind` column rather than four, because they are four
+ * lists of names and four tables would be four screens, four routes and four
+ * places to fix the same typo. A type belongs to a category through
+ * `parent_id`; the other three have no parent.
+ *
+ * Nothing is forced to come from here. An asset still stores its category,
+ * brand and vendor as TEXT, so a name typed before the master existed keeps
+ * working and nobody is blocked at six in the evening because the vendor is
+ * not on a list yet. The master makes the pickers useful; it is not a gate.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_masters (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind       TEXT NOT NULL,           -- category | type | brand | vendor
+    name       TEXT NOT NULL,
+    parent_id  INTEGER REFERENCES asset_masters(id) ON DELETE CASCADE,
+    note       TEXT,
+    active     INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_master_name
+    ON asset_masters(kind, COALESCE(parent_id, 0), name);
+`);
+
+export const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
+
+export const listMasters = (kind) =>
+  db
+    .prepare(
+      `SELECT m.*, p.name AS parent_name FROM asset_masters m
+       LEFT JOIN asset_masters p ON p.id = m.parent_id
+       ${kind ? 'WHERE m.kind = ?' : ''}
+       ORDER BY m.kind, m.sort_order, m.name`
+    )
+    .all(...(kind ? [kind] : []));
+
+export function createMaster(input = {}) {
+  const kind = String(input.kind || '').trim();
+  if (!MASTER_KINDS.includes(kind)) throw new Error(`a master is one of ${MASTER_KINDS.join(', ')}`);
+  const name = String(input.name || '').trim();
+  if (!name) throw new Error('give it a name');
+  // A type under no category is a type of nothing.
+  const parentId = kind === 'type' ? Number(input.parent_id) || null : null;
+  if (kind === 'type' && !parentId) throw new Error('which category is this a type of?');
+  const twin = db
+    .prepare(`SELECT id FROM asset_masters WHERE kind = ? AND COALESCE(parent_id, 0) = ? AND name = ?`)
+    .get(kind, parentId || 0, name);
+  if (twin) throw new Error(`${name} is already on the list`);
+  const info = db
+    .prepare(
+      `INSERT INTO asset_masters (kind, name, parent_id, note, sort_order)
+       VALUES (@kind, @name, @parent_id, @note, @sort_order)`
+    )
+    .run({
+      kind,
+      name,
+      parent_id: parentId,
+      note: input.note || null,
+      sort_order: Number(input.sort_order) || 0,
+    });
+  return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(info.lastInsertRowid);
+}
+
+export function updateMaster(id, patch = {}) {
+  const row = db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(id);
+  if (!row) throw new Error('not found');
+  const next = {
+    name: 'name' in patch ? String(patch.name || '').trim() || row.name : row.name,
+    note: 'note' in patch ? patch.note || null : row.note,
+    active: 'active' in patch ? (patch.active ? 1 : 0) : row.active,
+    sort_order: 'sort_order' in patch ? Number(patch.sort_order) || 0 : row.sort_order,
+  };
+  db.prepare(
+    `UPDATE asset_masters SET name = @name, note = @note, active = @active, sort_order = @sort_order
+     WHERE id = @id`
+  ).run({ ...next, id });
+  return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(id);
+}
+
+/**
+ * Taking a name off the list does NOT touch the assets that carry it.
+ *
+ * The asset stores the name as text, so an old laptop keeps saying "Dell"
+ * after Dell comes off the vendor list. That is the point: a master is a
+ * convenience for typing, not a foreign key that can rewrite history.
+ */
+export const deleteMaster = (id) =>
+  db.prepare(`DELETE FROM asset_masters WHERE id = ?`).run(id).changes > 0;
 
 /** Today, as the app writes dates everywhere: YYYY-MM-DD. */
 const dayNow = () => new Date().toISOString().slice(0, 10);
@@ -735,16 +858,42 @@ export function createAsset(input = {}) {
     code = nextCode(company || 'GEN', kind, codesInUse());
   }
 
+  /*
+   * A serial number that is already on the register.
+   *
+   * It ASKS rather than refuses, like the duplicate service does: serials get
+   * retyped off a sticker, two devices really do ship with the same number on
+   * the box, and a register that will not record the truth gets worked
+   * around. The 409 carries the row it clashes with so the screen can show it.
+   */
+  const serial = String(input.identifier || '').trim();
+  if (serial && !input.force) {
+    const twin = db
+      .prepare(`SELECT * FROM assets WHERE identifier = ? COLLATE NOCASE LIMIT 1`)
+      .get(serial);
+    if (twin) {
+      const err = new Error(
+        `Serial ${serial} is already on ${twin.code || 'another asset'} (${twin.label}). Add it anyway?`
+      );
+      err.duplicate = twin;
+      throw err;
+    }
+  }
+
   const info = db
     .prepare(
       `INSERT INTO assets (code, company_id, branch_id, kind, label, identifier, purchase_cost,
                            purchase_date, vendor, invoice_no, warranty_until,
                            amc_until, amc_vendor, amc_cost,
-                           employee_id, issued_on, returned_on, condition, note)
+                           employee_id, issued_on, returned_on, condition, note,
+                           brand, model, description, department, location, floor_room,
+                           warranty_from, warranty_provider, purchase_remarks)
        VALUES (@code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
                @purchase_date, @vendor, @invoice_no, @warranty_until,
                @amc_until, @amc_vendor, @amc_cost,
-               @employee_id, @issued_on, @returned_on, @condition, @note)`
+               @employee_id, @issued_on, @returned_on, @condition, @note,
+               @brand, @model, @description, @department, @location, @floor_room,
+               @warranty_from, @warranty_provider, @purchase_remarks)`
     )
     .run({
       code,
@@ -758,6 +907,15 @@ export function createAsset(input = {}) {
       vendor: input.vendor || null,
       invoice_no: input.invoice_no || null,
       warranty_until: input.warranty_until || null,
+      brand: input.brand || null,
+      model: input.model || null,
+      description: input.description || null,
+      department: input.department || null,
+      location: input.location || null,
+      floor_room: input.floor_room || null,
+      warranty_from: input.warranty_from || null,
+      warranty_provider: input.warranty_provider || null,
+      purchase_remarks: input.purchase_remarks || null,
       amc_until: input.amc_until || null,
       amc_vendor: input.amc_vendor || null,
       amc_cost: input.amc_cost === undefined || input.amc_cost === '' ? null : Number(input.amc_cost) || 0,
@@ -801,6 +959,16 @@ const ASSET_FIELDS = [
   'returned_on',
   'condition',
   'note',
+  'brand',
+  'model',
+  'description',
+  'department',
+  'location',
+  'floor_room',
+  'warranty_from',
+  'warranty_provider',
+  'purchase_remarks',
+  'state_note',
 ];
 
 export function updateAsset(id, patch = {}) {
@@ -853,12 +1021,53 @@ const openHandover = (assetId) =>
     )
     .get(assetId) || null;
 
-function logHandover(assetId, { employee_id, issued_on, issued_by, condition_out, note } = {}) {
+function logHandover(
+  assetId,
+  { employee_id, issued_on, issued_by, condition_out, note, expected_return_on, accessories } = {}
+) {
   const name = employee_id ? getEmployee(employee_id)?.name || null : null;
   db.prepare(
-    `INSERT INTO asset_handovers (asset_id, employee_id, employee_name, issued_on, issued_by, condition_out, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(assetId, employee_id || null, name, issued_on || dayNow(), issued_by || null, condition_out || null, note || null);
+    `INSERT INTO asset_handovers (asset_id, employee_id, employee_name, issued_on, issued_by,
+                                  condition_out, note, expected_return_on, accessories)
+     VALUES (@asset_id, @employee_id, @employee_name, @issued_on, @issued_by,
+             @condition_out, @note, @expected_return_on, @accessories)`
+  ).run({
+    asset_id: assetId,
+    employee_id: employee_id || null,
+    employee_name: name,
+    issued_on: issued_on || dayNow(),
+    issued_by: issued_by || null,
+    condition_out: condition_out || null,
+    note: note || null,
+    expected_return_on: expected_return_on || null,
+    accessories: accessories || null,
+  });
+}
+
+/**
+ * The employee signing for it.
+ *
+ * A slip nobody signed settles nothing, which is the whole reason a handover
+ * is recorded. Kept on the handover rather than the asset, because what was
+ * agreed was agreed about THAT handover - the next one is signed again.
+ */
+export function acknowledgeHandover(id, { on, by } = {}) {
+  const row = db.prepare(`SELECT * FROM asset_handovers WHERE id = ?`).get(id);
+  if (!row) throw new Error('not found');
+  if (row.acknowledged_on) return row;
+  db.prepare(`UPDATE asset_handovers SET acknowledged_on = ?, acknowledged_by = ? WHERE id = ?`).run(
+    on || dayNow(),
+    by || row.employee_name || null,
+    id
+  );
+  audit({
+    who: by,
+    action: 'acknowledged',
+    entity: 'asset_handovers',
+    entity_id: id,
+    label: `${row.employee_name || 'somebody'} signed for it`,
+  });
+  return db.prepare(`SELECT * FROM asset_handovers WHERE id = ?`).get(id);
 }
 
 /**
@@ -868,10 +1077,22 @@ function logHandover(assetId, { employee_id, issued_on, issued_by, condition_out
  * first handover rather than losing it - which is what used to happen, and is
  * why asset history had nothing behind it.
  */
-export function issueAsset(id, { employee_id, issued_on, condition, note, by } = {}) {
+export function issueAsset(
+  id,
+  { employee_id, issued_on, condition, note, by, expected_return_on, accessories } = {}
+) {
   const asset = getAsset(id);
   if (!asset) throw new Error('not found');
   if (asset.written_off_on) throw new Error('that asset is written off');
+  /*
+   * Only an AVAILABLE asset can go out. Passing it straight on from the
+   * person who has it is the one exception and is handled below; everything
+   * else - away being repaired, damaged, missing - is refused with the reason,
+   * because "no" on its own sends people hunting.
+   */
+  if (asset.state && STATE_KEYS.includes(asset.state)) {
+    throw new Error(allocationProblem(asset));
+  }
   const employee = getEmployee(employee_id);
   if (!employee) throw new Error('employee not found');
 
@@ -889,6 +1110,8 @@ export function issueAsset(id, { employee_id, issued_on, condition, note, by } =
     issued_by: by,
     condition_out: condition,
     note,
+    expected_return_on,
+    accessories,
   });
   return updateAsset(id, {
     employee_id: employee.id,
@@ -973,6 +1196,45 @@ export function writeOffAsset(id, { on, why, by } = {}) {
   return getAsset(id);
 }
 
+/**
+ * Mark it under maintenance, damaged, missing - or back to normal.
+ *
+ * Its own call rather than a field on the edit form, for the same reason
+ * issuing and writing off are: it is a decision somebody takes about the
+ * thing, and it belongs on the trail with a date and a reason. Passing no
+ * state (or 'available') clears it, which is how something comes back from
+ * the repair shop.
+ */
+export function setAssetState(id, { state, note, on, by } = {}) {
+  const asset = getAsset(id);
+  if (!asset) throw new Error('not found');
+  if (asset.written_off_on) throw new Error('that asset is written off');
+  const wanted = String(state || '').trim();
+  const next = wanted && wanted !== 'available' ? wanted : null;
+  if (next && !STATE_KEYS.includes(next)) {
+    throw new Error(`a state is one of ${STATE_KEYS.join(', ')}, or blank for none`);
+  }
+  if (next === asset.state) return getAsset(id);
+
+  db.prepare(`UPDATE assets SET state = ?, state_note = ?, state_since = ? WHERE id = ?`).run(
+    next,
+    next ? note || null : null,
+    next ? on || dayNow() : null,
+    id
+  );
+  audit({
+    who: by,
+    action: next || 'back in use',
+    entity: 'assets',
+    entity_id: id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    from_value: asset.state || 'in use',
+    to_value: next || 'in use',
+    note: note || null,
+  });
+  return getAsset(id);
+}
+
 export function deleteAsset(id, by) {
   const before = getAsset(id);
   if (!before) return false;
@@ -1047,6 +1309,15 @@ export function verifyAsset(id, { round, found = true, note, by, on } = {}) {
   });
   return getAsset(id);
 }
+
+/** Every verdict recorded in a round, for the dashboard's two alerts. */
+export const listVerifications = (round) =>
+  round
+    ? db
+        .prepare(`SELECT * FROM asset_verifications WHERE round = ?`)
+        .all(round)
+        .map((v) => ({ ...v, found: Boolean(v.found) }))
+    : [];
 
 export const listRounds = () =>
   db
@@ -1757,6 +2028,18 @@ db.exec(`
  * created - migrating it at the top of the file ran before the table existed
  * and took every test with it.
  */
+addColumns('asset_handovers', [
+  // When it is due back. Null is open-ended, which is how most allocations
+  // are - and why an overdue alert must only count the ones that said a date.
+  ['expected_return_on', 'TEXT'],
+  // The bag, the charger, the SIM. On the slip somebody signs, so it is on
+  // the handover and not on the asset.
+  ['accessories', 'TEXT'],
+  // A slip nobody signed is a slip that settles nothing.
+  ['acknowledged_on', 'TEXT'],
+  ['acknowledged_by', 'TEXT'],
+]);
+
 addColumns('tickets', [
   // Tasks had a priority and the helpdesk did not, so a salary query and a
   // broken chair queued the same.

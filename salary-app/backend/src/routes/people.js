@@ -9,6 +9,8 @@ import { barcodeSvg } from '../../../shared/barcode.js';
 import qr from 'qrcode-generator';
 import { qrSvg } from '../../../shared/qr.js';
 import { labelSheet, labelSvg, voucherHtml } from '../../../shared/assetLabels.js';
+import { assetDashboard, purchaseYears } from '../../../shared/assetDashboard.js';
+import { financialYear } from '../../../shared/assetStatus.js';
 import { config } from '../config.js';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
@@ -103,6 +105,14 @@ import {
   listAudit,
   listHandovers,
   listRounds,
+  listVerifications,
+  setAssetState,
+  acknowledgeHandover,
+  listMasters,
+  createMaster,
+  updateMaster,
+  deleteMaster,
+  MASTER_KINDS,
   listServices,
   logService,
   roundProgress,
@@ -403,6 +413,9 @@ peopleRouter.post('/assets', (req, res) => {
   try {
     res.status(201).json(createAsset({ ...req.body, by: who(req) }));
   } catch (err) {
+    // A serial already on the register is a QUESTION, not a refusal: serials
+    // get retyped off a sticker and two boxes really do carry the same one.
+    if (err.duplicate) return res.status(409).json({ error: err.message, duplicate: err.duplicate });
     bad(res, err);
   }
 });
@@ -458,6 +471,88 @@ peopleRouter.delete('/assets/:id', (req, res) => {
 /* ---------------- maintenance ---------------- */
 
 /** The register with each asset's running cost worked out, plus what is due. */
+/**
+ * The asset dashboard.
+ *
+ * Every figure is counted from the SAME register the Asset Register screen
+ * shows, filtered the same way, and each card hands back the filter that
+ * produced it - so a card saying 14 and a list showing 13 cannot happen.
+ */
+peopleRouter.get('/assets/dashboard', (req, res) => {
+  const filter = {
+    company_id: Number(req.query.company_id) || undefined,
+    branch_id: Number(req.query.branch_id) || undefined,
+  };
+  // Written-off assets are counted, because "what have we spent on kit" has
+  // to include the laptop that was scrapped last year.
+  const all = listAssets({ ...filter, written_off: true });
+  const category = req.query.category || '';
+  const year = req.query.year || '';
+  const assets = all
+    .filter((a) => !category || a.kind === category)
+    .filter((a) => !year || financialYear(a.purchase_date) === year);
+  const ids = new Set(assets.map((a) => a.id));
+
+  const round = req.query.round || listRounds()[0]?.round || null;
+  res.json({
+    ...assetDashboard({
+      assets,
+      handovers: listHandovers({}).filter((h) => ids.has(h.asset_id)),
+      services: listServices({ limit: 5000 }).filter((s) => ids.has(s.asset_id)),
+      verifications: listVerifications(round),
+      round,
+      soon: Number(req.query.soon) || 30,
+    }),
+    round,
+    years: purchaseYears(all),
+    categories: [...new Set(all.map((a) => a.kind).filter(Boolean))].sort(),
+  });
+});
+
+/** Under maintenance, damaged, missing - or back in use. */
+peopleRouter.post('/assets/:id/state', (req, res) => {
+  try {
+    res.json(setAssetState(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/** The employee signing for what they were handed. */
+peopleRouter.post('/assets/handovers/:id/acknowledge', (req, res) => {
+  try {
+    res.json(acknowledgeHandover(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/* ---------------- the lists behind the pickers ---------------- */
+
+peopleRouter.get('/asset-masters', (req, res) =>
+  res.json({ masters: listMasters(req.query.kind || undefined), kinds: MASTER_KINDS })
+);
+
+peopleRouter.post('/asset-masters', (req, res) => {
+  try {
+    res.status(201).json(createMaster(req.body || {}));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/asset-masters/:id', (req, res) => {
+  try {
+    res.json(updateMaster(Number(req.params.id), req.body || {}));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/asset-masters/:id', (req, res) => {
+  res.json({ deleted: deleteMaster(Number(req.params.id)) });
+});
+
 peopleRouter.get('/maintenance', (req, res) => {
   const assets = assetsWithOwnership({
     company_id: Number(req.query.company_id) || undefined,

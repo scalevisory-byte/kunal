@@ -40,12 +40,17 @@ async function freshStore() {
   return { api, mod, company, amit, riya };
 }
 
+/*
+ * A serial per asset. They used to share one, which the duplicate check now
+ * (rightly) stops - a serial already on the register is a question.
+ */
+let serialNo = 0;
 const addLaptop = (api, company, extra = {}) =>
   api('POST', '/people/assets', {
     company_id: company.id,
     kind: 'Laptop',
     label: 'Dell Latitude',
-    identifier: 'SN-44218',
+    identifier: `SN-${44218 + serialNo++}`,
     purchase_cost: 54000,
     purchase_date: '2025-06-10',
     ...extra,
@@ -115,7 +120,7 @@ test('issuing, passing on and returning keeps every handover', async () => {
   assert.equal(amits.returned_on, '2026-04-01');
   assert.equal(amits.condition_in, 'passed on directly');
   // The slip carries the serial, which is what identifies the actual object.
-  assert.equal(amits.identifier, 'SN-44218');
+  assert.match(amits.identifier, /^SN-\d+$/);
 
   await api('POST', `/people/assets/${asset.id}/return`, { returned_on: '2026-06-30', condition: 'scratched lid' });
   now = (await api('GET', '/people/assets')).assets.find((a) => a.id === asset.id);
@@ -264,7 +269,7 @@ test('a handover slip lists only what somebody still has', async () => {
   assert.equal(slip.employee, 'Amit Shah');
   assert.equal(slip.items.length, 1, 'only what they still have');
   assert.match(slip.items[0].what, /Still out/);
-  assert.equal(slip.items[0].serial, 'SN-44218');
+  assert.match(slip.items[0].serial, /^SN-\d+$/);
   // Said on the slip itself, because the point of signing is agreeing to it.
   assert.match(slip.undertaking, /I have received/);
 });
@@ -313,4 +318,193 @@ test('the register and what it costs to keep survive a reload', async () => {
   assert.ok(totals);
   const { services } = await second.handle('GET', '/people/maintenance/services');
   assert.equal(services.length, 1);
+});
+
+/* ---------------- the complete-module work ---------------- */
+
+test('a serial already on the register ASKS rather than refuses', async () => {
+  const { api, company } = await freshStore();
+  const first = await api('POST', '/people/assets', {
+    company_id: company.id, kind: 'Laptop', label: 'One', identifier: 'SN-SAME',
+  });
+  await assert.rejects(
+    () => api('POST', '/people/assets', {
+      company_id: company.id, kind: 'Laptop', label: 'Two', identifier: 'SN-SAME',
+    }),
+    (err) => {
+      assert.equal(err.status, 409);
+      assert.match(err.message, /Add it anyway/);
+      assert.equal(err.duplicate.id, first.id, 'it hands back what it clashes with');
+      return true;
+    }
+  );
+  // Two boxes really do ship with the same number on them.
+  const forced = await api('POST', '/people/assets', {
+    company_id: company.id, kind: 'Laptop', label: 'Two', identifier: 'SN-SAME', force: true,
+  });
+  assert.equal(forced.identifier, 'SN-SAME');
+  // The case it was typed in does not matter.
+  await assert.rejects(
+    () => api('POST', '/people/assets', {
+      company_id: company.id, kind: 'Laptop', label: 'Three', identifier: 'sn-same',
+    }),
+    /Add it anyway/
+  );
+});
+
+test('only an available asset can be allocated, and the refusal says why', async () => {
+  const { api, company, amit, riya } = await freshStore();
+  const asset = await addLaptop(api, company);
+
+  await api('POST', `/people/assets/${asset.id}/state`, { state: 'maintenance', note: 'screen' });
+  await assert.rejects(
+    () => api('POST', `/people/assets/${asset.id}/issue`, { employee_id: amit.id }),
+    /under maintenance/
+  );
+
+  // Back in use, and it goes out.
+  await api('POST', `/people/assets/${asset.id}/state`, { state: '' });
+  const out = await api('POST', `/people/assets/${asset.id}/issue`, { employee_id: amit.id });
+  assert.equal(out.employee_name, 'Amit Shah');
+  // Passing it straight on is the one exception, and it still works.
+  const passed = await api('POST', `/people/assets/${asset.id}/issue`, { employee_id: riya.id });
+  assert.equal(passed.employee_name, 'Riya Pal');
+});
+
+test('status is worked out, never stored - so it cannot contradict the log', async () => {
+  const { api, company, amit } = await freshStore();
+  const asset = await addLaptop(api, company);
+  const status = async (id) =>
+    (await api('GET', '/people/assets?written_off=true')).assets.find((a) => a.id === id);
+
+  let now = await status(asset.id);
+  assert.equal(now.state, null, 'nothing special is going on, which is not a status');
+
+  await api('POST', `/people/assets/${asset.id}/issue`, { employee_id: amit.id });
+  now = await status(asset.id);
+  assert.equal(now.state, null, 'being out with somebody is a FACT, not a stored state');
+  assert.ok(now.employee_id);
+
+  // Away being repaired while it is out: both are true, and both are kept.
+  await api('POST', `/people/assets/${asset.id}/state`, { state: 'maintenance', note: 'keyboard' });
+  now = await status(asset.id);
+  assert.equal(now.state, 'maintenance');
+  assert.equal(now.state_note, 'keyboard');
+  assert.ok(now.state_since);
+  assert.ok(now.employee_id, 'it has not stopped being theirs');
+
+  // A nonsense state is refused rather than stored.
+  await assert.rejects(
+    () => api('POST', `/people/assets/${asset.id}/state`, { state: 'lost in the post' }),
+    /a state is one of/
+  );
+});
+
+test('an allocation carries what was handed over, and gets signed for', async () => {
+  const { api, company, amit } = await freshStore();
+  const asset = await addLaptop(api, company);
+  await api('POST', `/people/assets/${asset.id}/issue`, {
+    employee_id: amit.id,
+    issued_on: '2026-09-01',
+    expected_return_on: '2026-10-01',
+    accessories: 'bag, charger, mouse',
+    condition: 'new',
+  });
+  const { handovers } = await api('GET', `/people/assets/handovers?asset_id=${asset.id}`);
+  assert.equal(handovers[0].expected_return_on, '2026-10-01');
+  assert.equal(handovers[0].accessories, 'bag, charger, mouse');
+  assert.equal(handovers[0].acknowledged_on, null, 'nobody has signed yet');
+
+  const signed = await api('POST', `/people/assets/handovers/${handovers[0].id}/acknowledge`, {
+    on: '2026-09-02', by: 'Amit Shah',
+  });
+  assert.equal(signed.acknowledged_on, '2026-09-02');
+  assert.equal(signed.acknowledged_by, 'Amit Shah');
+
+  // Signing twice does not move the date.
+  const again = await api('POST', `/people/assets/handovers/${handovers[0].id}/acknowledge`, {
+    on: '2026-12-25',
+  });
+  assert.equal(again.acknowledged_on, '2026-09-02');
+});
+
+test('the dashboard counts the register, and each card hands back its filter', async () => {
+  const { api, company, amit } = await freshStore();
+  const out = await addLaptop(api, company, { label: 'Out' });
+  const free = await addLaptop(api, company, { label: 'Free' });
+  const broken = await addLaptop(api, company, { label: 'Broken' });
+  await api('POST', `/people/assets/${out.id}/issue`, {
+    employee_id: amit.id, issued_on: '2026-08-01', expected_return_on: '2026-09-01',
+  });
+  await api('POST', `/people/assets/${broken.id}/state`, { state: 'damaged' });
+
+  const d = await api('GET', '/people/assets/dashboard');
+  const card = (key) => d.cards.find((c) => c.key === key);
+  assert.equal(card('all').n, 3);
+  assert.equal(card('assigned').n, 1);
+  assert.equal(card('available').n, 1, 'the damaged one is not available');
+  assert.equal(card('maintenance').n, 0);
+  assert.equal(d.spent, 54000 * 3, 'what the company has spent on kit');
+  assert.deepEqual(card('assigned').filter, { status: 'assigned' }, 'the card carries its own filter');
+
+  // An expected return that has passed.
+  const late = d.alerts.find((a) => a.key === 'overdue_returns');
+  assert.ok(late, 'an overdue return is an alert');
+  assert.equal(late.n, 1);
+  assert.ok(late.rows[0].overdue_days > 0);
+
+  assert.ok(d.years.includes('2025-26'), 'bought in June 2025, which is 2025-26');
+  assert.deepEqual(d.categories, ['Laptop']);
+  assert.ok(free.id);
+});
+
+test('an allocation with no return date is open-ended, never overdue', async () => {
+  const { api, company, amit } = await freshStore();
+  const asset = await addLaptop(api, company);
+  await api('POST', `/people/assets/${asset.id}/issue`, { employee_id: amit.id, issued_on: '2020-01-01' });
+  const d = await api('GET', '/people/assets/dashboard');
+  assert.equal(
+    d.alerts.find((a) => a.key === 'overdue_returns'),
+    undefined,
+    'most allocations name no date, and calling those late makes the alert useless'
+  );
+});
+
+test('the masters are four lists, and a type belongs to a category', async () => {
+  const { api } = await freshStore();
+  const cat = await api('POST', '/people/asset-masters', { kind: 'category', name: 'IT equipment' });
+  const type = await api('POST', '/people/asset-masters', {
+    kind: 'type', name: 'Laptop', parent_id: cat.id,
+  });
+  assert.equal(type.parent_name, 'IT equipment');
+
+  await assert.rejects(
+    () => api('POST', '/people/asset-masters', { kind: 'type', name: 'Loose' }),
+    /which category/
+  );
+  await assert.rejects(
+    () => api('POST', '/people/asset-masters', { kind: 'category', name: 'IT equipment' }),
+    /already on the list/
+  );
+  await assert.rejects(
+    () => api('POST', '/people/asset-masters', { kind: 'colour', name: 'Blue' }),
+    /a master is one of/
+  );
+
+  const { masters } = await api('GET', '/people/asset-masters?kind=category');
+  assert.equal(masters.length, 1);
+
+  // Deleting a category takes its types, and nothing else.
+  await api('DELETE', `/people/asset-masters/${cat.id}`);
+  assert.equal((await api('GET', '/people/asset-masters')).masters.length, 0);
+});
+
+test('a name off the master list does not rewrite the assets carrying it', async () => {
+  const { api, company } = await freshStore();
+  const vendor = await api('POST', '/people/asset-masters', { kind: 'vendor', name: 'Rashmi Computers' });
+  const asset = await addLaptop(api, company, { vendor: 'Rashmi Computers' });
+  await api('DELETE', `/people/asset-masters/${vendor.id}`);
+
+  const still = (await api('GET', '/people/assets')).assets.find((a) => a.id === asset.id);
+  assert.equal(still.vendor, 'Rashmi Computers', 'a master makes typing easy; it is not a key');
 });
