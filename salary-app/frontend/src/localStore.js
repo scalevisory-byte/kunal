@@ -954,6 +954,8 @@ const EMPLOYEE_FIELDS = [
   'basic', 'hra', 'conveyance', 'medical',
   'pf_mode', 'esi_mode', 'shift_in', 'shift_out', 'weekly_off', 'reports_to_id',
   'monthly_salary', 'pf', 'esi', 'payment_mode', 'joined_on', 'left_on',
+  // When probation ends. Informational; the reminder needs the date.
+  'probation_until',
   'active', 'sort_order',
 ];
 
@@ -2181,6 +2183,8 @@ export async function handle(method, path, body) {
           kind,
           // Only a warning carries a severity: an appreciation has no level.
           severity: kind === 'warning' ? body?.severity || 'verbal' : null,
+          // WHAT it was about, which is not how formally it was given.
+          category: body?.category || null,
           dated: String(body?.dated || '').trim() || dayNow(),
           subject,
           detail: body?.detail || null,
@@ -2200,7 +2204,7 @@ export async function handle(method, path, body) {
       const note = db.employee_notes.find((n) => n.id === id);
       if (parts.length === 3 && !note) throw new HttpError(404, 'not found');
       if (parts.length === 3 && method === 'PATCH') {
-        for (const key of ['kind', 'severity', 'dated', 'subject', 'detail', 'issued_by', 'acknowledged_on']) {
+        for (const key of ['kind', 'severity', 'category', 'dated', 'subject', 'detail', 'issued_by', 'acknowledged_on']) {
           if (key in (body || {})) note[key] = body[key] === '' ? null : body[key];
         }
         auditLine({
@@ -2259,6 +2263,7 @@ export async function handle(method, path, body) {
           from_salary: from,
           to_salary: to,
           effective_from: body?.effective_from || null,
+          next_review_on: body?.next_review_on || null,
           applied_at: null,
           created_at: stampNow(),
         };
@@ -2276,7 +2281,7 @@ export async function handle(method, path, body) {
       if (parts.length === 3 && method === 'PATCH') {
         if (row.applied_at) throw new HttpError(400, 'this increment has been paid - it stays on the record');
         for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary',
-                           'from_salary', 'to_salary', 'effective_from']) {
+                           'from_salary', 'to_salary', 'effective_from', 'next_review_on']) {
           if (key in (body || {})) row[key] = body[key] === '' ? null : body[key];
         }
         save();
@@ -2563,6 +2568,7 @@ export async function handle(method, path, body) {
           detail: body?.detail || null,
           status: 'open',
           assigned_to: body?.assigned_to || null,
+          priority: TASK_PRIORITIES.includes(body?.priority) ? body.priority : 'normal',
           closed_on: null,
           created_at: stampNow(),
         };
@@ -2676,6 +2682,9 @@ export async function handle(method, path, body) {
           reason: pickField('reason', existing?.reason),
           exit_interview: pickField('exit_interview', existing?.exit_interview),
           extras: 'extras' in (body || {}) ? body.extras || [] : existing?.extras || [],
+          // The clearance list, kept with the exit because it only exists
+          // while somebody is leaving.
+          clearance: 'clearance' in (body || {}) ? body.clearance || [] : existing?.clearance || [],
           rules: 'rules' in (body || {}) ? body.rules || {} : existing?.rules || {},
           settled_on: existing?.settled_on ?? null,
           settled_amount: existing?.settled_amount ?? null,
@@ -2745,6 +2754,17 @@ export async function handle(method, path, body) {
         db.periods.find((p) => !p.locked)?.id ||
         db.periods[0]?.id;
       const payroll = wanted ? buildPayroll(wanted, { sync: false }) : null;
+      /*
+       * Three dates the office is meant to remember: probation ending, a
+       * document running out, a review falling due. Only the LATEST review
+       * per person carries a live date - an older one superseded by a newer
+       * would read as a second appraisal due.
+       */
+      const newestReview = new Map();
+      for (const a of db.appraisals) {
+        const seen = newestReview.get(a.employee_id);
+        if (!seen || String(a.reviewed_on) > String(seen.reviewed_on)) newestReview.set(a.employee_id, a);
+      }
       return digest({
         period: payroll?.period || null,
         rows: payroll?.rows || [],
@@ -2754,6 +2774,10 @@ export async function handle(method, path, body) {
         tasks: db.staff_tasks.filter((t) => t.status === 'open').map(withPerson),
         exits: db.employee_exits.filter((x) => !x.settled_on).map(exitRow),
         assets_out: [],
+        employees: db.employees,
+        // No document store in this file, so nothing is claimed to expire.
+        documents: [],
+        appraisals: [...newestReview.values()].map(withPerson),
         today: dayNow(),
       });
     }

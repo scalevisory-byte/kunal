@@ -1976,3 +1976,69 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 .sp-set { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.2rem; }
 .sp-text { width: 100%; font-size: 0.82rem; line-height: 1.5; }
 .share-post .warn { color: var(--warn); }
+
+/* ---------- People: one person's file ---------- */
+
+.person-find .pf-find-row { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
+.person-find .search { flex: 1 1 18rem; min-width: 0; }
+.person-find label.field.inline { flex: 0 0 auto; }
+
+.pf-results { margin-top: 0.7rem; display: flex; flex-direction: column; }
+.pf-hit {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1.2fr) minmax(0, 2fr) auto auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  text-align: left;
+  width: 100%;
+  padding: 0.4rem 0.2rem;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  cursor: pointer;
+}
+.pf-hit:first-child { border-top: none; }
+.pf-hit:hover { background: var(--hover, rgba(0, 0, 0, 0.03)); }
+.pf-hit-name { font-weight: 500; }
+@media (max-width: 720px) {
+  .pf-hit { grid-template-columns: minmax(0, 1fr) auto; }
+  .pf-hit > :nth-child(2) { grid-column: 1 / -1; }
+}
+
+.pf-status {
+  font-size: 0.68rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pf-status.probation { color: var(--warn); border-color: var(--warn); }
+.pf-status.leaving { color: var(--warn); border-color: var(--warn); }
+.pf-status.left { opacity: 0.65; }
+
+.pf-head { border-bottom: 1px solid var(--line); padding-bottom: 0.8rem; }
+.pf-who { display: flex; align-items: center; gap: 0.6rem; margin: 0.3rem 0 0.6rem; }
+.pf-who h2 { margin: 0; }
+.pf-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem 1.2rem;
+  margin: 0 0 0.6rem;
+}
+.pf-fact dt { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.pf-fact dd { margin: 0; font-size: 0.85rem; }
+
+.pf-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  margin-right: 0.45rem;
+  background: var(--muted);
+  vertical-align: middle;
+}
+.pf-dot.now { background: var(--bad); }
+.pf-dot.soon { background: var(--warn); }
+
+.pf-what { font-weight: 500; margin-right: 0.3rem; }

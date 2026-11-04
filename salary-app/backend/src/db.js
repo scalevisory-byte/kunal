@@ -541,6 +541,16 @@ db.exec(`
  * that succeeded must not be reported as failed because its audit line did not
  * fit, and a trail that can fail a save is a trail somebody turns off.
  */
+/*
+ * The date probation ends. Nullable and purely informational - nothing is
+ * blocked by it - but without the date "probation completing" cannot be a
+ * reminder, only something somebody is supposed to remember.
+ */
+if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'probation_until')) {
+  db.exec(`ALTER TABLE employees ADD COLUMN probation_until TEXT`);
+  log.info('Migrated employees: added probation_until.');
+}
+
 export function audit(entry = {}) {
   try {
     return db
@@ -697,6 +707,9 @@ const EMPLOYEE_FIELDS = [
   'payment_mode',
   'joined_on',
   'left_on',
+  // When probation ends. Informational: nothing is blocked by it, but the
+  // reminder cannot exist without the date.
+  'probation_until',
   'active',
   'sort_order',
 ];
@@ -881,6 +894,9 @@ export function createEmployee(input) {
     payment_mode: input.payment_mode || 'Bank',
     joined_on: input.joined_on || null,
     left_on: input.left_on || null,
+    // When probation ends. Informational: nothing is blocked by it, but the
+    // reminder cannot exist without the date.
+    probation_until: input.probation_until || null,
     active: input.active === undefined ? 1 : input.active ? 1 : 0,
     sort_order: Number(input.sort_order) || 0,
   };

@@ -4,6 +4,7 @@ import { buildPayroll } from '../payroll.js';
 import { listPeriods } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
 import { getEmployee } from '../db.js';
+import { listDocuments } from '../db.js';
 import { barcodeSvg } from '../../../shared/barcode.js';
 import qr from 'qrcode-generator';
 import { qrSvg } from '../../../shared/qr.js';
@@ -891,6 +892,21 @@ peopleRouter.post('/tickets/:id/reopen', (req, res) => {
  * is a decision about credentials rather than code. So this returns the text,
  * ready to paste or to be fetched by a cron that posts it wherever Dinesh wants.
  */
+/**
+ * The most recent review for each person, so a superseded one does not read
+ * as a second appraisal falling due.
+ */
+function latestReviews(rows, byEmployee) {
+  const newest = new Map();
+  for (const row of rows) {
+    const seen = newest.get(row.employee_id);
+    if (!seen || String(row.reviewed_on) > String(seen.reviewed_on)) newest.set(row.employee_id, row);
+  }
+  return [...newest.values()]
+    .filter((row) => byEmployee.get(row.employee_id)?.active !== 0)
+    .map((row) => ({ ...row, employee_name: row.employee_name || byEmployee.get(row.employee_id)?.name }));
+}
+
 peopleRouter.get('/digest', (req, res) => {
   // The open month, unless one is named. sync:false - reading this must not
   // open rows or post loan instalments as a side effect of a reminder.
@@ -901,6 +917,17 @@ peopleRouter.get('/digest', (req, res) => {
   const exits = listExits({ settled: false });
   const leaverIds = new Set(exits.map((e) => e.employee_id));
 
+  /*
+   * Three dates the office is meant to remember: probation ending, a document
+   * running out, a review falling due. Read from where they already live - no
+   * new table, and nothing is computed twice.
+   */
+  const staff = listEmployees({});
+  const byEmployee = new Map(staff.map((e) => [e.id, e]));
+  const documents = staff
+    .flatMap((e) => listDocuments(e.id).map((d) => ({ ...d, employee_name: e.name })))
+    .filter((d) => d.expires_on);
+
   const built = digest({
     period: payroll?.period || null,
     rows: payroll?.rows || [],
@@ -910,6 +937,11 @@ peopleRouter.get('/digest', (req, res) => {
     tasks: listTasks({ status: 'open' }),
     exits,
     assets_out: listAssets({ out: true }).filter((a) => leaverIds.has(a.employee_id)),
+    employees: staff,
+    documents,
+    // Only the latest review per person carries a live "next" date; an older
+    // one that has been superseded would read as a second appraisal due.
+    appraisals: latestReviews(listAllAppraisals({}), byEmployee),
     today: new Date().toISOString().slice(0, 10),
   });
 

@@ -13,12 +13,16 @@ const today = () => new Date().toISOString().slice(0, 10);
  * `overdue` is worked out on read rather than stored, so a list left open
  * overnight is right in the morning.
  */
-export default function Tasks({ employees, onError }) {
+export default function Tasks({ employees, onError, only = null }) {
   const [tasks, setTasks] = useState([]);
   const [status, setStatus] = useState('open');
   const [adding, setAdding] = useState(false);
+  /*
+   * On one person's file the picker is already answered - there is nobody
+   * else on the screen to choose. It is still a picker in the Everyone view.
+   */
   const [draft, setDraft] = useState({
-    employee_id: '',
+    employee_id: only?.id || '',
     title: '',
     detail: '',
     due_on: '',
@@ -28,7 +32,9 @@ export default function Tasks({ employees, onError }) {
 
   const load = async (filter = status) => {
     try {
-      const { tasks: list } = await api.get(`/people/tasks${filter ? `?status=${filter}` : ''}`);
+      const { tasks: list } = await api.get(
+        `/people/tasks${filter ? `?status=${filter}` : ''}${only ? `${filter ? '&' : '?'}employee_id=${only.id}` : ''}`
+      );
       setTasks(list);
     } catch (err) {
       onError(err);

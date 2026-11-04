@@ -19,18 +19,26 @@ const CATEGORIES = ['Salary', 'Attendance', 'Leave', 'PF / ESI', 'Bank details',
  * **Waiting means waiting on us.** The list leads with the ones where nobody
  * in the office has spoken since the employee did.
  */
-export default function Helpdesk({ employees, onError }) {
+export default function Helpdesk({ employees, onError, only = null }) {
   const [tickets, setTickets] = useState([]);
   const [status, setStatus] = useState('');
   const [openId, setOpenId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [reply, setReply] = useState('');
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ employee_id: '', category: 'Salary', subject: '', detail: '' });
+  // On one person's file the picker is already answered.
+  const [draft, setDraft] = useState({
+    employee_id: only?.id || '',
+    category: 'Salary',
+    subject: '',
+    detail: '',
+  });
 
   const load = async (filter = status) => {
     try {
-      const { tickets: list } = await api.get(`/people/tickets${filter ? `?status=${filter}` : ''}`);
+      const { tickets: list } = await api.get(
+        `/people/tickets${filter ? `?status=${filter}` : ''}${only ? `${filter ? '&' : '?'}employee_id=${only.id}` : ''}`
+      );
       setTickets(list);
     } catch (err) {
       onError(err);

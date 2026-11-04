@@ -702,6 +702,9 @@ function Shell() {
           <People
             employees={employees}
             companies={companies}
+            /* The app-wide company filter never reached People, so picking
+               BOOKNFLY above still showed SCALE's staff here. */
+            companyId={companyId}
             period={period}
             me={me}
             onError={handle}

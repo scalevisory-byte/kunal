@@ -15,12 +15,16 @@ const KIND_LABEL = { warning: 'Warning', appreciation: 'Appreciation', note: 'No
  * A warning carries how formal it was (verbal, written, final) and when it was
  * acknowledged, because a warning the person never saw is not much of a warning.
  */
-export default function Records({ employees, onError }) {
+export default function Records({ employees, onError, only = null }) {
   const [notes, setNotes] = useState([]);
   const [kind, setKind] = useState('');
   const [adding, setAdding] = useState(false);
+  /*
+   * On one person's file the picker is already answered - there is nobody
+   * else on the screen to choose. It is still a picker in the Everyone view.
+   */
   const [draft, setDraft] = useState({
-    employee_id: '',
+    employee_id: only?.id || '',
     kind: 'warning',
     severity: 'verbal',
     dated: today(),
@@ -31,7 +35,9 @@ export default function Records({ employees, onError }) {
 
   const load = async (filter = kind) => {
     try {
-      const { notes: list } = await api.get(`/people/notes${filter ? `?kind=${filter}` : ''}`);
+      const { notes: list } = await api.get(
+        `/people/notes${filter ? `?kind=${filter}` : ''}${only ? `${filter ? '&' : '?'}employee_id=${only.id}` : ''}`
+      );
       setNotes(list);
     } catch (err) {
       onError(err);

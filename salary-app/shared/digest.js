@@ -44,6 +44,14 @@ const names = (list, limit = 4) => {
  * @returns {{ lines: string[], text: string, count: number }}
  *   count is how many things actually need doing - zero means say nothing.
  */
+/** A date that many days on, as YYYY-MM-DD. */
+function shift(day, days) {
+  const at = new Date(`${String(day).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(at.getTime())) return String(day).slice(0, 10);
+  at.setUTCDate(at.getUTCDate() + Number(days || 0));
+  return at.toISOString().slice(0, 10);
+}
+
 export function digest(input = {}) {
   const {
     period = null,
@@ -54,6 +62,16 @@ export function digest(input = {}) {
     tasks = [],
     exits = [],
     assets_out: assetsOut = [],
+    /*
+     * Three dates the office is supposed to remember and nobody does. They
+     * arrive as plain lists so this module stays dependency-free and the
+     * caller decides where they came from.
+     */
+    employees = [],
+    documents = [],
+    appraisals = [],
+    /** How far ahead to look. A month, because that is the notice people need. */
+    ahead = 30,
     today = new Date().toISOString().slice(0, 10),
   } = input;
 
@@ -118,6 +136,72 @@ export function digest(input = {}) {
   const dueToday = tasks.filter((t) => t.status === 'open' && t.due_on === today);
   if (dueToday.length) {
     add(`• ${plural(dueToday.length, 'job')} wanted today: ${names(dueToday.map((t) => t.title))}`);
+  }
+
+  /* --- dates nobody remembers --- */
+
+  /*
+   * A window, not a day: told the morning probation ends, there is nothing
+   * left to decide. `soon` is today plus the notice period.
+   */
+  const soon = shift(today, ahead);
+
+  const probation = employees.filter(
+    (e) => e.active !== 0 && e.probation_until && e.probation_until >= today && e.probation_until <= soon
+  );
+  if (probation.length) {
+    add(
+      `• ${plural(probation.length, 'probation')} ending by ${soon}: ${names(probation.map((e) => e.name))}`,
+      1,
+      'dates'
+    );
+  }
+  // Already past, and still nobody has confirmed them.
+  const probationPast = employees.filter(
+    (e) => e.active !== 0 && e.probation_until && e.probation_until < today
+  );
+  if (probationPast.length) {
+    add(
+      `• ${plural(probationPast.length, 'probation')} finished and not confirmed: ${names(
+        probationPast.map((e) => e.name)
+      )}`,
+      1,
+      'dates'
+    );
+  }
+
+  const expiring = documents.filter((d) => d.expires_on && d.expires_on >= today && d.expires_on <= soon);
+  if (expiring.length) {
+    add(
+      `• ${plural(expiring.length, 'document')} expiring by ${soon}: ${names(
+        expiring.map((d) => `${d.employee_name || 'somebody'}'s ${d.kind || 'document'}`)
+      )}`,
+      1,
+      'dates'
+    );
+  }
+  const expired = documents.filter((d) => d.expires_on && d.expires_on < today);
+  if (expired.length) {
+    add(
+      `• ${plural(expired.length, 'document')} already expired: ${names(
+        expired.map((d) => `${d.employee_name || 'somebody'}'s ${d.kind || 'document'}`)
+      )}`,
+      1,
+      'dates'
+    );
+  }
+
+  // Due by the date the LAST review set. An appraisal nobody set a next date
+  // on is not overdue - it is simply not scheduled, which is not a failing.
+  const reviewsDue = appraisals.filter((a) => a.next_review_on && a.next_review_on <= soon);
+  if (reviewsDue.length) {
+    add(
+      `• ${plural(reviewsDue.length, 'appraisal')} due by ${soon}: ${names(
+        reviewsDue.map((a) => a.employee_name)
+      )}`,
+      1,
+      'dates'
+    );
   }
 
   /* --- the month --- */

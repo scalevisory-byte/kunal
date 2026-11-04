@@ -303,6 +303,45 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_code ON assets(code) WHERE 
 /** Today, as the app writes dates everywhere: YYYY-MM-DD. */
 const dayNow = () => new Date().toISOString().slice(0, 10);
 
+/*
+ * Columns the People redesign asked for that no table had. Each is nullable
+ * and none of them can move a rupee - they are things the office writes down,
+ * not inputs to a calculation.
+ */
+const addColumns = (table, columns) => {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  for (const [column, type] of columns) {
+    if (have.has(column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated ${table}: added ${column}.`);
+  }
+};
+
+addColumns('appraisals', [
+  // When the next review is due. Without it "appraisal due" cannot be a
+  // reminder, only a thing somebody remembers.
+  ['next_review_on', 'TEXT'],
+]);
+addColumns('employee_notes', [
+  /*
+   * The KIND of warning, which is not its SEVERITY. "Written" says how
+   * formally it was given; "Attendance" says what it was about. A record you
+   * cannot group by subject is a record nobody reads back.
+   */
+  ['category', 'TEXT'],
+]);
+addColumns('employee_documents', [
+  // Seen and checked against the original, by whom and when. A scan on file
+  // is not the same as a document somebody has verified.
+  ['verified_on', 'TEXT'],
+  ['verified_by', 'TEXT'],
+]);
+addColumns('employee_exits', [
+  // The clearance list, as JSON [{item, done, note}]. Kept with the exit
+  // rather than as its own table: it exists only while somebody is leaving.
+  ['clearance', 'TEXT'],
+]);
+
 export const ASSET_KINDS = [
   'Laptop',
   'Desktop',
@@ -371,13 +410,14 @@ export function createNote(employeeId, input = {}) {
   const dated = String(input.dated || '').trim() || new Date().toISOString().slice(0, 10);
   const info = db
     .prepare(
-      `INSERT INTO employee_notes (employee_id, kind, severity, dated, subject, detail, issued_by, acknowledged_on)
-       VALUES (@employee_id, @kind, @severity, @dated, @subject, @detail, @issued_by, @acknowledged_on)`
+      `INSERT INTO employee_notes (employee_id, kind, severity, category, dated, subject, detail, issued_by, acknowledged_on)
+       VALUES (@employee_id, @kind, @severity, @category, @dated, @subject, @detail, @issued_by, @acknowledged_on)`
     )
     .run({
       employee_id: employee.id,
       kind,
       severity: kind === 'warning' ? input.severity || 'verbal' : null,
+      category: input.category || null,
       dated,
       subject,
       detail: input.detail || null,
@@ -402,7 +442,7 @@ export function updateNote(id, patch = {}) {
   if (!before) throw new Error('not found');
   const fields = [];
   const values = [];
-  for (const key of ['kind', 'severity', 'dated', 'subject', 'detail', 'issued_by', 'acknowledged_on']) {
+  for (const key of ['kind', 'severity', 'category', 'dated', 'subject', 'detail', 'issued_by', 'acknowledged_on']) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(patch[key] === '' ? null : patch[key]);
@@ -496,9 +536,9 @@ export function createAppraisal(employeeId, input = {}) {
   const info = db
     .prepare(
       `INSERT INTO appraisals (employee_id, cycle, reviewed_on, reviewed_by, rating, summary,
-                               from_salary, to_salary, effective_from)
+                               from_salary, to_salary, effective_from, next_review_on)
        VALUES (@employee_id, @cycle, @reviewed_on, @reviewed_by, @rating, @summary,
-               @from_salary, @to_salary, @effective_from)`
+               @from_salary, @to_salary, @effective_from, @next_review_on)`
     )
     .run({
       employee_id: employee.id,
@@ -510,6 +550,7 @@ export function createAppraisal(employeeId, input = {}) {
       from_salary: from,
       to_salary: to,
       effective_from: input.effective_from || null,
+      next_review_on: input.next_review_on || null,
     });
   audit({
     who: input.by,
@@ -531,7 +572,7 @@ export function updateAppraisal(id, patch = {}) {
   }
   const fields = [];
   const values = [];
-  for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary', 'from_salary', 'to_salary', 'effective_from']) {
+  for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary', 'from_salary', 'to_salary', 'effective_from', 'next_review_on']) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(patch[key] === '' ? null : patch[key]);
@@ -1691,6 +1732,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_replies_ticket ON ticket_replies(ticket_id, created_at);
 `);
 
+/*
+ * Declared here, below the second db.exec, because that is where `tickets` is
+ * created - migrating it at the top of the file ran before the table existed
+ * and took every test with it.
+ */
+addColumns('tickets', [
+  // Tasks had a priority and the helpdesk did not, so a salary query and a
+  // broken chair queued the same.
+  ['priority', `TEXT NOT NULL DEFAULT 'normal'`],
+]);
+
 export const TASK_PRIORITIES = ['low', 'normal', 'high'];
 export const TICKET_CATEGORIES = [
   'Salary',
@@ -1891,8 +1943,8 @@ export function createTicket(employeeId, input = {}) {
   if (!subject) throw new Error('say what it is about in a line');
   const info = db
     .prepare(
-      `INSERT INTO tickets (employee_id, category, subject, detail, assigned_to)
-       VALUES (@employee_id, @category, @subject, @detail, @assigned_to)`
+      `INSERT INTO tickets (employee_id, category, subject, detail, assigned_to, priority)
+       VALUES (@employee_id, @category, @subject, @detail, @assigned_to, @priority)`
     )
     .run({
       employee_id: employee.id,
@@ -1900,6 +1952,7 @@ export function createTicket(employeeId, input = {}) {
       subject,
       detail: input.detail || null,
       assigned_to: input.assigned_to || null,
+      priority: TASK_PRIORITIES.includes(input.priority) ? input.priority : 'normal',
     });
   audit({
     who: input.by || employee.name,

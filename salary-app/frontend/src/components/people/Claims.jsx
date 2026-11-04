@@ -15,12 +15,16 @@ const today = () => new Date().toISOString().slice(0, 10);
  * replacing it. A claim cannot be paid without being approved, and paying it
  * twice is refused, so a double click cannot pay a petrol bill twice.
  */
-export default function Claims({ employees, period, onError, onReload }) {
+export default function Claims({ employees, period, onError, onReload, only = null }) {
   const [claims, setClaims] = useState([]);
   const [status, setStatus] = useState('');
   const [adding, setAdding] = useState(false);
+  /*
+   * On one person's file the picker is already answered - there is nobody
+   * else on the screen to choose. It is still a picker in the Everyone view.
+   */
   const [draft, setDraft] = useState({
-    employee_id: '',
+    employee_id: only?.id || '',
     kind: 'Petrol',
     spent_on: today(),
     amount: '',
@@ -29,7 +33,9 @@ export default function Claims({ employees, period, onError, onReload }) {
 
   const load = async (filter = status) => {
     try {
-      const { claims: list } = await api.get(`/people/claims${filter ? `?status=${filter}` : ''}`);
+      const { claims: list } = await api.get(
+        `/people/claims${filter ? `?status=${filter}` : ''}${only ? `${filter ? '&' : '?'}employee_id=${only.id}` : ''}`
+      );
       setClaims(list);
     } catch (err) {
       onError(err);

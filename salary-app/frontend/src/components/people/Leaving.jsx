@@ -18,7 +18,7 @@ const today = () => new Date().toISOString().slice(0, 10);
  * final payment and then found in a drawer cannot be undone. And once the
  * settlement is marked paid, the dates behind it stop moving.
  */
-export default function Leaving({ employees, onError, onReload }) {
+export default function Leaving({ employees, onError, onReload, only = null }) {
   const [exits, setExits] = useState([]);
   const [picked, setPicked] = useState(null);
   const [detail, setDetail] = useState(null);

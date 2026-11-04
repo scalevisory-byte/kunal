@@ -14,12 +14,16 @@ const today = () => new Date().toISOString().slice(0, 10);
  * second rise, and an applied increment cannot be edited away afterwards -
  * somebody was paid on it.
  */
-export default function Appraisals({ employees, onError, onReload }) {
+export default function Appraisals({ employees, onError, onReload, only = null }) {
   const [rows, setRows] = useState([]);
   const [pendingOnly, setPendingOnly] = useState(false);
   const [adding, setAdding] = useState(false);
+  /*
+   * On one person's file the picker is already answered - there is nobody
+   * else on the screen to choose. It is still a picker in the Everyone view.
+   */
   const [draft, setDraft] = useState({
-    employee_id: '',
+    employee_id: only?.id || '',
     cycle: '',
     reviewed_on: today(),
     reviewed_by: '',
@@ -31,7 +35,9 @@ export default function Appraisals({ employees, onError, onReload }) {
 
   const load = async (pending = pendingOnly) => {
     try {
-      const { appraisals } = await api.get(`/people/appraisals${pending ? '?pending=true' : ''}`);
+      const { appraisals } = await api.get(
+        `/people/appraisals${pending ? '?pending=true' : ''}${only ? `${pending ? '&' : '?'}employee_id=${only.id}` : ''}`
+      );
       setRows(appraisals);
     } catch (err) {
       onError(err);
