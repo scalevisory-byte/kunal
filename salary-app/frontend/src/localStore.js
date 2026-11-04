@@ -35,6 +35,8 @@ import { WEIGHTS, matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
 import { cleanPublicUrl, reachablePublicly } from '../../shared/publicUrl.js';
+import { settlement } from '../../shared/settlement.js';
+import { digest } from '../../shared/digest.js';
 import { fromBand } from '../../shared/experienceBand.js';
 import {
   hiringDigest,
@@ -84,6 +86,23 @@ const EMPTY = {
   tests: [],
   interviews: [],
   hiring_tasks: [],
+  /*
+   * The People tab. Warnings and appreciations, appraisals, expense claims,
+   * office tasks, the helpdesk, leaving, and the trail of who changed what.
+   *
+   * This file used to say all of it needed the server. That was never true of
+   * the data - it already holds 115 people and a year of payslips - only of
+   * there being a second person to approve things, which the screens now say
+   * instead of the module being switched off.
+   */
+  employee_notes: [],
+  appraisals: [],
+  expense_claims: [],
+  staff_tasks: [],
+  tickets: [],
+  ticket_replies: [],
+  employee_exits: [],
+  audit_log: [],
   // The highest JOB-/CAN- number ever handed out, so one is never reused.
   ref_high: {},
   /*
@@ -166,9 +185,25 @@ class HttpError extends Error {
 
 /* ---------------- reads that mirror the server's joins ---------------- */
 
-const companyOf = (id) => load().companies.find((c) => c.id === id) || null;
-const employeeOf = (id) => load().employees.find((e) => e.id === id) || null;
-const periodOf = (id) => load().periods.find((p) => p.id === id) || null;
+/*
+ * Looked up by id, with the id COERCED.
+ *
+ * Every id that reaches here from a form is a string - a `<select>` value and
+ * an `<input>` value always are - and `5 === '5'` is false, so a strict
+ * compare silently finds nothing and the screen shows "employee not found"
+ * for somebody who is plainly on the list. It cost a whole afternoon once
+ * already, when a manager picker stored reports_to_id as a string and the org
+ * chart showed all 115 people as roots.
+ *
+ * A bad id gives NaN, which matches nothing, which is the right answer.
+ */
+const byId = (rows, id) => {
+  const want = Number(id);
+  return rows.find((r) => r.id === want) || null;
+};
+const companyOf = (id) => byId(load().companies, id);
+const employeeOf = (id) => byId(load().employees, id);
+const periodOf = (id) => byId(load().periods, id);
 
 function sortedEmployees() {
   const db = load();
@@ -691,6 +726,205 @@ function rescoreVacancy(vacancy) {
 const NO_FILES_OFFLINE =
   'A CV has to live somewhere other than this browser, so attaching one needs the server version. ' +
   'Everything else about this candidate works here.';
+
+/* ---------------- the People tab, offline ---------------- */
+
+/*
+ * Warnings and appreciations, appraisals, expense claims, office tasks, the
+ * helpdesk, leaving and the full and final, and the trail of who changed what.
+ *
+ * This file used to say all of it needed the server - "a trail that outlives
+ * one browser is not something a single file on a laptop can hold". That was
+ * never true of the DATA: this file already holds 115 people, a year of
+ * attendance and every payslip. It was true of exactly one thing, and it still
+ * is: there is nobody else here. A claim the office approves and the employee
+ * raised is one person wearing both hats, and the trail's `who` is a name typed
+ * on a form - which the server version says about itself too.
+ *
+ * So it all works, and the screens say that plainly rather than pretending
+ * there is an approver on the other side.
+ *
+ * Two rules carried over from the server word for word, because they are the
+ * ones that cost money if they differ:
+ *   - nothing decides itself
+ *   - money reaches the payroll through ONE call that names the month it comes
+ *     out of (paying a claim), and it cannot be made twice
+ */
+
+const NOTE_KINDS = ['warning', 'appreciation', 'note'];
+const WARNING_LEVELS = ['verbal', 'written', 'final'];
+const CLAIM_KINDS = ['Travel', 'Food', 'Petrol', 'Lodging', 'Phone', 'Other'];
+const CLAIM_STATUSES = ['pending', 'approved', 'rejected', 'paid'];
+const TASK_PRIORITIES = ['low', 'normal', 'high'];
+const TICKET_CATEGORIES = [
+  'Salary', 'Attendance', 'Leave', 'PF / ESI', 'Bank details', 'Documents', 'Complaint', 'Other',
+];
+const ASSET_KINDS = [
+  'Laptop', 'Desktop', 'Mobile', 'SIM card', 'ID card', 'Access card', 'Vehicle', 'Tools',
+  'Furniture', 'Other',
+];
+
+const dayNow = () => new Date().toISOString().slice(0, 10);
+const stampNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+const nameOf = (employeeId) => employeeOf(Number(employeeId))?.name || `#${employeeId}`;
+
+/**
+ * The trail.
+ *
+ * `who` is a name somebody typed on a form, not an authenticated identity -
+ * one shared password, no accounts - and the screen says so. Written the same
+ * way the server writes it so the two lists read alike.
+ */
+function auditLine(entry = {}) {
+  const db = load();
+  db.audit_log.push({
+    id: nextId(),
+    at: stampNow(),
+    who: entry.who || null,
+    action: String(entry.action || 'changed'),
+    entity: String(entry.entity || 'unknown'),
+    entity_id: entry.entity_id === undefined ? null : Number(entry.entity_id) || null,
+    label: entry.label || null,
+    field: entry.field || null,
+    from_value:
+      entry.from_value === undefined || entry.from_value === null ? null : String(entry.from_value),
+    to_value: entry.to_value === undefined || entry.to_value === null ? null : String(entry.to_value),
+    note: entry.note || null,
+  });
+}
+
+const withPerson = (row) => {
+  const e = employeeOf(row.employee_id);
+  return {
+    ...row,
+    employee_name: e?.name || null,
+    employee_code: e?.code || null,
+    company_name: e ? companyOf(e.company_id)?.name || null : null,
+  };
+};
+
+/** The increment in rupees and per cent, worked out rather than stored. */
+function withIncrement(row) {
+  const from = Number(row.from_salary) || 0;
+  const to = Number(row.to_salary) || 0;
+  const rise = to && from ? to - from : 0;
+  return {
+    ...row,
+    increment: rise,
+    increment_percent: from > 0 && to ? Math.round((rise / from) * 1000) / 10 : null,
+  };
+}
+
+const ticketRow = (t) => {
+  const replies = load().ticket_replies.filter((r) => r.ticket_id === t.id);
+  const last = replies[replies.length - 1];
+  return {
+    ...withPerson(t),
+    replies: replies.length,
+    last_reply_at: last?.created_at || null,
+    last_side: last?.side || null,
+  };
+};
+
+const ticketWithReplies = (t) =>
+  t && {
+    ...withPerson(t),
+    replies: load()
+      .ticket_replies.filter((r) => r.ticket_id === t.id)
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)) || a.id - b.id),
+  };
+
+const exitRow = (x) => {
+  const e = employeeOf(x.employee_id);
+  return {
+    ...x,
+    employee_name: e?.name || null,
+    employee_code: e?.code || null,
+    joined_on: e?.joined_on || null,
+    monthly_salary: e?.monthly_salary ?? null,
+    company_name: e ? companyOf(e.company_id)?.name || null : null,
+  };
+};
+
+/**
+ * The full and final.
+ *
+ * It ASSEMBLES, it never recalculates: the final month's net is the payslip's
+ * own figure, read with sync:false for the same reason the server does it -
+ * reading a closed month to settle somebody must not backdate a new hire into
+ * it or post another loan instalment.
+ */
+function fullAndFinalOf(employeeId) {
+  const db = load();
+  const employee = employeeOf(employeeId);
+  if (!employee) throw new HttpError(404, 'employee not found');
+  const exit = db.employee_exits.find((x) => x.employee_id === employee.id);
+  if (!exit) return null;
+
+  let finalMonth = null;
+  let finalLabel = null;
+  const last = exit.last_working_day ? new Date(exit.last_working_day) : null;
+  if (last && !Number.isNaN(last.getTime())) {
+    const period = db.periods.find(
+      (p) => p.year === last.getFullYear() && p.month === last.getMonth() + 1
+    );
+    if (period) {
+      finalLabel = period.label;
+      const payroll = buildPayroll(period.id, { sync: false });
+      finalMonth = payroll?.rows.find((r) => r.employee_id === employee.id) || null;
+    }
+  }
+
+  const year = last && !Number.isNaN(last.getTime()) ? last.getFullYear() : new Date().getFullYear();
+  const leave = leaveOf(employee, year);
+  const loans = db.loans
+    .filter((l) => l.employee_id === employee.id && l.status !== 'closed')
+    .map((l) => ({ ...l, ...loanOutstanding(l) }));
+  const claims = db.expense_claims
+    .filter((c) => c.employee_id === employee.id && c.status === 'approved')
+    .map(withPerson);
+
+  return {
+    employee,
+    exit,
+    final_month: finalMonth,
+    final_month_label: finalLabel,
+    settlement: settlement({
+      employee,
+      exit: { ...exit, final_month_label: finalLabel },
+      final_month: finalMonth,
+      leave: { quotas: leave.quotas, taken: leave.taken },
+      loan_outstanding: loans.reduce((sum, l) => sum + (Number(l.outstanding) || 0), 0),
+      claims,
+      // No asset register in this file, so nothing is named as unreturned -
+      // which is the safe way round: an asset is NAMED and valued, never
+      // deducted, so having none means nothing is wrongly withheld.
+      assets: [],
+      extras: exit.extras || [],
+    }),
+    loans,
+    claims,
+    assets: [],
+    leave,
+  };
+}
+
+/** One person's leave for a year, counted off the marks like the Leave tab. */
+function leaveOf(employee, year) {
+  const db = load();
+  const periodIds = new Set(db.periods.filter((p) => p.year === year).map((p) => p.id));
+  const taken = { CL: 0, SL: 0, PL: 0, UL: 0 };
+  for (const a of db.attendance) {
+    if (!periodIds.has(a.period_id) || a.employee_id !== employee.id) continue;
+    if (taken[a.code] !== undefined) taken[a.code] += 1;
+  }
+  return {
+    employee_id: employee.id,
+    quotas: { CL: employee.cl_quota || 0, SL: employee.sl_quota || 0, PL: employee.pl_quota || 0 },
+    taken,
+  };
+}
 
 /* ---------------- the router ---------------- */
 
@@ -1900,6 +2134,628 @@ export async function handle(method, path, body) {
         save();
         return null;
       }
+    }
+  }
+
+  /* ---------------- People ---------------- */
+  if (parts[0] === 'people') {
+    const params = new URLSearchParams(path.split('?')[1] || '');
+    const what = parts[1];
+    const id = Number(parts[2]);
+    const by = body?.by || null;
+
+    if (route === 'GET /people/options') {
+      return {
+        asset_kinds: ASSET_KINDS,
+        claim_kinds: CLAIM_KINDS,
+        claim_statuses: CLAIM_STATUSES,
+        note_kinds: NOTE_KINDS,
+        task_priorities: TASK_PRIORITIES,
+        ticket_categories: TICKET_CATEGORIES,
+        warning_levels: WARNING_LEVELS,
+      };
+    }
+
+    /* ---- warnings and appreciations ---- */
+    if (what === 'notes') {
+      if (parts.length === 2 && method === 'GET') {
+        const kind = params.get('kind');
+        const employeeId = Number(params.get('employee_id')) || null;
+        return {
+          notes: db.employee_notes
+            .filter((n) => !kind || n.kind === kind)
+            .filter((n) => !employeeId || n.employee_id === employeeId)
+            .map(withPerson)
+            .sort((a, b) => String(b.dated).localeCompare(String(a.dated)) || b.id - a.id),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const employee = employeeOf(body?.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        const subject = String(body?.subject || '').trim();
+        if (!subject) throw new HttpError(400, 'say what it is about in a line');
+        const kind = NOTE_KINDS.includes(body?.kind) ? body.kind : 'note';
+        const note = {
+          id: nextId(),
+          employee_id: employee.id,
+          kind,
+          // Only a warning carries a severity: an appreciation has no level.
+          severity: kind === 'warning' ? body?.severity || 'verbal' : null,
+          dated: String(body?.dated || '').trim() || dayNow(),
+          subject,
+          detail: body?.detail || null,
+          issued_by: body?.issued_by || null,
+          // A warning the person never saw is not much of a warning.
+          acknowledged_on: body?.acknowledged_on || null,
+          created_at: stampNow(),
+        };
+        db.employee_notes.push(note);
+        auditLine({
+          who: by, action: 'created', entity: 'employee_notes', entity_id: note.id,
+          label: `${kind} for ${employee.name}`, note: subject,
+        });
+        save();
+        return withPerson(note);
+      }
+      const note = db.employee_notes.find((n) => n.id === id);
+      if (parts.length === 3 && !note) throw new HttpError(404, 'not found');
+      if (parts.length === 3 && method === 'PATCH') {
+        for (const key of ['kind', 'severity', 'dated', 'subject', 'detail', 'issued_by', 'acknowledged_on']) {
+          if (key in (body || {})) note[key] = body[key] === '' ? null : body[key];
+        }
+        auditLine({
+          who: by, action: 'changed', entity: 'employee_notes', entity_id: id,
+          label: `${note.kind} for ${nameOf(note.employee_id)}`,
+        });
+        save();
+        return withPerson(note);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        db.employee_notes = db.employee_notes.filter((n) => n.id !== id);
+        auditLine({
+          who: by, action: 'deleted', entity: 'employee_notes', entity_id: id,
+          label: `${note.kind} for ${nameOf(note.employee_id)}`,
+        });
+        save();
+        return { deleted: true };
+      }
+    }
+
+    /* ---- appraisals: a proposal until applied ---- */
+    if (what === 'appraisals') {
+      if (parts.length === 2 && method === 'GET') {
+        const pending = params.get('pending') === 'true';
+        const cycle = params.get('cycle');
+        return {
+          appraisals: db.appraisals
+            .filter((a) => !pending || !a.applied_at)
+            .filter((a) => !cycle || a.cycle === cycle)
+            .map((a) => withIncrement({ ...withPerson(a), monthly_salary: employeeOf(a.employee_id)?.monthly_salary }))
+            .sort((a, b) => String(b.reviewed_on).localeCompare(String(a.reviewed_on)) || b.id - a.id),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const employee = employeeOf(body?.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        /*
+         * Measured against what they are on NOW unless somebody says
+         * otherwise, so an increment can never be worked off a stale figure.
+         */
+        const from =
+          body?.from_salary === undefined
+            ? Number(employee.monthly_salary) || 0
+            : Number(body.from_salary) || 0;
+        const to =
+          body?.to_salary === undefined || body?.to_salary === '' ? null : Number(body.to_salary);
+        if (to !== null && !(to >= 0)) throw new HttpError(400, 'the new salary must be a number');
+        const row = {
+          id: nextId(),
+          employee_id: employee.id,
+          cycle: body?.cycle || null,
+          reviewed_on: String(body?.reviewed_on || '').trim() || dayNow(),
+          reviewed_by: body?.reviewed_by || null,
+          rating: body?.rating || null,
+          summary: body?.summary || null,
+          from_salary: from,
+          to_salary: to,
+          effective_from: body?.effective_from || null,
+          applied_at: null,
+          created_at: stampNow(),
+        };
+        db.appraisals.push(row);
+        auditLine({
+          who: by, action: 'created', entity: 'appraisals', entity_id: row.id,
+          label: `appraisal for ${employee.name}`,
+        });
+        save();
+        return withIncrement(withPerson(row));
+      }
+      const row = db.appraisals.find((a) => a.id === id);
+      if (parts.length >= 3 && !row) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'PATCH') {
+        if (row.applied_at) throw new HttpError(400, 'this increment has been paid - it stays on the record');
+        for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary',
+                           'from_salary', 'to_salary', 'effective_from']) {
+          if (key in (body || {})) row[key] = body[key] === '' ? null : body[key];
+        }
+        save();
+        return withIncrement(withPerson(row));
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        if (row.applied_at) throw new HttpError(400, 'this increment has been paid - it stays on the record');
+        db.appraisals = db.appraisals.filter((a) => a.id !== id);
+        auditLine({
+          who: by, action: 'deleted', entity: 'appraisals', entity_id: id,
+          label: `appraisal for ${nameOf(row.employee_id)}`,
+        });
+        save();
+        return { deleted: true };
+      }
+      /*
+       * Applying writes the salary through the normal employee patch, so it
+       * lands in the change history like any other rise. Applying twice gives
+       * no second rise.
+       */
+      if (parts[3] === 'apply' && method === 'POST') {
+        if (row.applied_at) {
+          return {
+            appraisal: withIncrement(withPerson(row)),
+            employee: employeeOf(row.employee_id),
+            applied: false,
+          };
+        }
+        const to = Number(row.to_salary);
+        if (!(to > 0)) throw new HttpError(400, 'set the new salary before applying it');
+        const employee = await handle('PATCH', `/employees/${row.employee_id}`, {
+          monthly_salary: to,
+        });
+        row.applied_at = stampNow();
+        auditLine({
+          who: by, action: 'applied', entity: 'appraisals', entity_id: id,
+          label: `increment for ${employee.name}`, field: 'monthly_salary',
+          from_value: row.from_salary, to_value: to,
+        });
+        save();
+        return { appraisal: withIncrement(withPerson(row)), employee, applied: true };
+      }
+    }
+
+    /* ---- expense claims ---- */
+    if (what === 'claims') {
+      const claimOrder = { pending: 0, approved: 1 };
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        const employeeId = Number(params.get('employee_id')) || null;
+        return {
+          claims: db.expense_claims
+            .filter((c) => !status || c.status === status)
+            .filter((c) => !employeeId || c.employee_id === employeeId)
+            .map(withPerson)
+            .sort(
+              (a, b) =>
+                (claimOrder[a.status] ?? 2) - (claimOrder[b.status] ?? 2) ||
+                String(b.spent_on).localeCompare(String(a.spent_on)) ||
+                b.id - a.id
+            ),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const employee = employeeOf(body?.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        const amount = Number(body?.amount);
+        if (!(amount > 0)) throw new HttpError(400, 'what did it cost?');
+        const claim = {
+          id: nextId(),
+          employee_id: employee.id,
+          kind: body?.kind || 'Other',
+          spent_on: String(body?.spent_on || '').trim() || dayNow(),
+          amount,
+          detail: body?.detail || null,
+          status: 'pending',
+          decided_by: null,
+          decided_at: null,
+          decision_note: null,
+          paid_period_id: null,
+          paid_at: null,
+          created_at: stampNow(),
+        };
+        db.expense_claims.push(claim);
+        auditLine({
+          who: by || employee.name, action: 'created', entity: 'expense_claims',
+          entity_id: claim.id, label: `${claim.kind} claim by ${employee.name}`, to_value: amount,
+        });
+        save();
+        return withPerson(claim);
+      }
+      const claim = db.expense_claims.find((c) => c.id === id);
+      if (parts.length >= 3 && !claim) throw new HttpError(404, 'not found');
+
+      /*
+       * A decision is taken ONCE. "Approved then rejected then approved" is
+       * not a trail anybody can act on.
+       */
+      if (parts[3] === 'decide' && method === 'POST') {
+        const status = body?.status;
+        if (!['approved', 'rejected'].includes(status)) {
+          throw new HttpError(400, 'a claim is approved or rejected');
+        }
+        if (claim.status === 'paid') throw new HttpError(400, 'this claim has already been paid');
+        if (claim.status !== 'pending') throw new HttpError(400, `this claim was already ${claim.status}`);
+        Object.assign(claim, {
+          status,
+          decided_by: by || null,
+          decided_at: stampNow(),
+          decision_note: body?.note || null,
+        });
+        auditLine({
+          who: by, action: status, entity: 'expense_claims', entity_id: id,
+          label: `${claim.kind} claim by ${nameOf(claim.employee_id)}`,
+          to_value: claim.amount, note: body?.note || null,
+        });
+        save();
+        return withPerson(claim);
+      }
+
+      /*
+       * Paid through a month's payroll, as an addition on that person's row.
+       * Only an approved claim; ADDED to whatever addition is already there
+       * rather than replacing it; and never twice, so a double click cannot
+       * pay a petrol bill twice.
+       */
+      if (parts[3] === 'pay' && method === 'POST') {
+        if (claim.status === 'paid') throw new HttpError(400, 'this claim has already been paid');
+        if (claim.status !== 'approved') throw new HttpError(400, 'approve the claim before paying it');
+        const period = periodOf(Number(body?.period_id));
+        if (!period) throw new HttpError(400, 'pick a month to pay it in');
+        if (period.locked) throw new HttpError(400, `${period.label} is closed`);
+        syncRows(period.id);
+        const row = db.payroll_rows.find(
+          (r) => r.period_id === period.id && r.employee_id === claim.employee_id
+        );
+        if (!row) throw new HttpError(400, `${nameOf(claim.employee_id)} has no row in ${period.label}`);
+
+        row.addition = (Number(row.addition) || 0) + Number(claim.amount);
+        row.adjustment_note = [row.adjustment_note, `${claim.kind} claim ${claim.spent_on}`]
+          .filter(Boolean)
+          .join('; ');
+        Object.assign(claim, { status: 'paid', paid_period_id: period.id, paid_at: stampNow() });
+        auditLine({
+          who: by, action: 'paid', entity: 'expense_claims', entity_id: id,
+          label: `${claim.kind} claim by ${nameOf(claim.employee_id)}`,
+          to_value: claim.amount, note: `in ${period.label}`,
+        });
+        save();
+        return withPerson(claim);
+      }
+
+      if (parts.length === 3 && method === 'DELETE') {
+        if (claim.status === 'paid') throw new HttpError(400, 'a paid claim stays on the record');
+        db.expense_claims = db.expense_claims.filter((c) => c.id !== id);
+        auditLine({
+          who: by, action: 'deleted', entity: 'expense_claims', entity_id: id,
+          label: `${claim.kind} claim by ${nameOf(claim.employee_id)}`,
+        });
+        save();
+        return { deleted: true };
+      }
+    }
+
+    /* ---- office tasks given to staff ---- */
+    if (what === 'tasks') {
+      const prio = { high: 0, normal: 1, low: 2 };
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        const employeeId = Number(params.get('employee_id')) || null;
+        return {
+          tasks: db.staff_tasks
+            .filter((t) => !status || t.status === status)
+            .filter((t) => !employeeId || t.employee_id === employeeId)
+            .map((t) => ({
+              ...withPerson(t),
+              // Worked out on read, never stored: a date does not become
+              // overdue by somebody opening the page.
+              overdue: t.status === 'open' && !!t.due_on && t.due_on < dayNow(),
+            }))
+            .sort(
+              (a, b) =>
+                (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) ||
+                (!a.due_on) - (!b.due_on) ||
+                String(a.due_on || '').localeCompare(String(b.due_on || '')) ||
+                (prio[a.priority] ?? 1) - (prio[b.priority] ?? 1) ||
+                b.id - a.id
+            ),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const title = String(body?.title || '').trim();
+        if (!title) throw new HttpError(400, 'what is the task?');
+        const employee = body?.employee_id ? employeeOf(body.employee_id) : null;
+        if (body?.employee_id && !employee) throw new HttpError(400, 'employee not found');
+        const task = {
+          id: nextId(),
+          employee_id: employee?.id || null,
+          title,
+          detail: body?.detail || null,
+          assigned_by: body?.assigned_by || by || null,
+          due_on: body?.due_on || null,
+          priority: TASK_PRIORITIES.includes(body?.priority) ? body.priority : 'normal',
+          status: 'open',
+          done_on: null,
+          done_note: null,
+          created_at: stampNow(),
+        };
+        db.staff_tasks.push(task);
+        auditLine({
+          who: by, action: 'created', entity: 'staff_tasks', entity_id: task.id,
+          label: employee ? `task for ${employee.name}` : 'task', note: title,
+        });
+        save();
+        return withPerson(task);
+      }
+      const task = db.staff_tasks.find((t) => t.id === id);
+      if (parts.length >= 3 && !task) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'PATCH') {
+        for (const key of ['title', 'detail', 'assigned_by', 'due_on', 'priority', 'employee_id']) {
+          if (key in (body || {})) task[key] = body[key] === '' ? null : body[key];
+        }
+        save();
+        return withPerson(task);
+      }
+      if (parts[3] === 'status' && method === 'POST') {
+        const status = body?.status;
+        if (!['open', 'done', 'dropped'].includes(status)) {
+          throw new HttpError(400, 'a task is open, done or dropped');
+        }
+        task.status = status;
+        task.done_on = status === 'open' ? null : body?.note?.date || dayNow();
+        task.done_note = body?.note?.text || (typeof body?.note === 'string' ? body.note : null);
+        auditLine({
+          who: by,
+          action: status === 'done' ? 'done' : status === 'dropped' ? 'dropped' : 'reopened',
+          entity: 'staff_tasks', entity_id: id, label: task.title,
+          from_value: task.status, to_value: status,
+        });
+        save();
+        return withPerson(task);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        // What was asked for and whether it happened IS the record.
+        if (task.status === 'done') {
+          throw new HttpError(400, 'a task that was done stays on the record — drop it instead');
+        }
+        db.staff_tasks = db.staff_tasks.filter((t) => t.id !== id);
+        auditLine({ who: by, action: 'deleted', entity: 'staff_tasks', entity_id: id, label: task.title });
+        save();
+        return { deleted: true };
+      }
+    }
+
+    /* ---- the helpdesk ---- */
+    if (what === 'tickets') {
+      const order = { open: 0, answered: 1 };
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        const employeeId = Number(params.get('employee_id')) || null;
+        return {
+          tickets: db.tickets
+            .filter((t) => !status || t.status === status)
+            .filter((t) => !employeeId || t.employee_id === employeeId)
+            .map(ticketRow)
+            .sort(
+              (a, b) =>
+                (order[a.status] ?? 2) - (order[b.status] ?? 2) ||
+                String(b.created_at).localeCompare(String(a.created_at))
+            ),
+        };
+      }
+      if (parts.length === 2 && method === 'POST') {
+        const employee = employeeOf(body?.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        const subject = String(body?.subject || '').trim();
+        if (!subject) throw new HttpError(400, 'say what it is about in a line');
+        const ticket = {
+          id: nextId(),
+          employee_id: employee.id,
+          category: body?.category || 'Other',
+          subject,
+          detail: body?.detail || null,
+          status: 'open',
+          assigned_to: body?.assigned_to || null,
+          closed_on: null,
+          created_at: stampNow(),
+        };
+        db.tickets.push(ticket);
+        auditLine({
+          who: by || employee.name, action: 'created', entity: 'tickets', entity_id: ticket.id,
+          label: `${ticket.category} from ${employee.name}`, note: subject,
+        });
+        save();
+        return ticketWithReplies(ticket);
+      }
+      const ticket = db.tickets.find((t) => t.id === id);
+      if (parts.length >= 3 && !ticket) throw new HttpError(404, 'not found');
+      if (parts.length === 3 && method === 'GET') return ticketWithReplies(ticket);
+
+      /*
+       * Answering is NOT closing: the person who raised it decides whether the
+       * answer settled it, and a reply from them puts it back to open.
+       */
+      if (parts[3] === 'reply' && method === 'POST') {
+        const text = String(body?.body || '').trim();
+        if (!text) throw new HttpError(400, 'nothing to say?');
+        if (ticket.status === 'closed') throw new HttpError(400, 'this one is closed — raise a new one');
+        const side = body?.side === 'employee' ? 'employee' : 'office';
+        db.ticket_replies.push({
+          id: nextId(),
+          ticket_id: ticket.id,
+          side,
+          author: body?.author || null,
+          body: text,
+          created_at: stampNow(),
+        });
+        ticket.status = side === 'employee' ? 'open' : 'answered';
+        auditLine({
+          who: body?.author, action: 'replied', entity: 'tickets', entity_id: id,
+          label: `${ticket.category} from ${nameOf(ticket.employee_id)}`,
+          note: side === 'employee' ? 'from the employee' : 'from the office',
+        });
+        save();
+        return ticketWithReplies(ticket);
+      }
+      if (parts[3] === 'close' && method === 'POST') {
+        if (ticket.status !== 'closed') {
+          ticket.status = 'closed';
+          ticket.closed_on = dayNow();
+          // A last word is allowed on closing, which a plain reply would
+          // refuse once it is closed.
+          if (body?.note) {
+            db.ticket_replies.push({
+              id: nextId(), ticket_id: ticket.id, side: 'office',
+              author: by || null, body: String(body.note).trim(), created_at: stampNow(),
+            });
+          }
+          auditLine({
+            who: by, action: 'closed', entity: 'tickets', entity_id: id,
+            label: `${ticket.category} from ${nameOf(ticket.employee_id)}`,
+          });
+          save();
+        }
+        return ticketWithReplies(ticket);
+      }
+      if (parts[3] === 'reopen' && method === 'POST') {
+        ticket.status = 'open';
+        ticket.closed_on = null;
+        auditLine({
+          who: by, action: 'reopened', entity: 'tickets', entity_id: id,
+          label: `${ticket.category} from ${nameOf(ticket.employee_id)}`,
+        });
+        save();
+        return ticketWithReplies(ticket);
+      }
+    }
+
+    /* ---- leaving, and the full and final ---- */
+    if (what === 'exits') {
+      if (parts.length === 2 && method === 'GET') {
+        const settled =
+          params.get('settled') === 'true' ? true : params.get('settled') === 'false' ? false : undefined;
+        return {
+          exits: db.employee_exits
+            .filter((x) => settled === undefined || !!x.settled_on === settled)
+            .map(exitRow)
+            .sort((a, b) =>
+              String(b.last_working_day || b.resigned_on || '').localeCompare(
+                String(a.last_working_day || a.resigned_on || '')
+              ) || b.id - a.id
+            ),
+        };
+      }
+      const employeeId = Number(parts[2]);
+      if (parts.length === 3 && method === 'GET') {
+        const found = fullAndFinalOf(employeeId);
+        if (!found) throw new HttpError(404, 'nothing recorded for this person');
+        return found;
+      }
+      if (parts.length === 3 && method === 'PUT') {
+        const employee = employeeOf(employeeId);
+        if (!employee) throw new HttpError(404, 'employee not found');
+        const existing = db.employee_exits.find((x) => x.employee_id === employee.id);
+        const pickField = (key, fallback) => (key in (body || {}) ? body[key] || null : fallback ?? null);
+        const row = {
+          id: existing?.id ?? nextId(),
+          employee_id: employee.id,
+          type: body?.type || existing?.type || 'resigned',
+          resigned_on: pickField('resigned_on', existing?.resigned_on),
+          notice_days:
+            'notice_days' in (body || {})
+              ? body.notice_days === '' ? null : Number(body.notice_days)
+              : existing?.notice_days ?? null,
+          last_working_day: pickField('last_working_day', existing?.last_working_day),
+          reason: pickField('reason', existing?.reason),
+          exit_interview: pickField('exit_interview', existing?.exit_interview),
+          extras: 'extras' in (body || {}) ? body.extras || [] : existing?.extras || [],
+          rules: 'rules' in (body || {}) ? body.rules || {} : existing?.rules || {},
+          settled_on: existing?.settled_on ?? null,
+          settled_amount: existing?.settled_amount ?? null,
+          created_at: existing?.created_at || stampNow(),
+        };
+        if (existing) Object.assign(existing, row);
+        else db.employee_exits.push(row);
+        auditLine({
+          who: by, action: existing ? 'changed' : 'created', entity: 'employee_exits',
+          entity_id: employee.id, label: `exit for ${employee.name}`,
+        });
+        save();
+        return fullAndFinalOf(employee.id);
+      }
+      if (parts[3] === 'settle' && method === 'POST') {
+        const existing = db.employee_exits.find((x) => x.employee_id === employeeId);
+        if (!existing) throw new HttpError(404, 'no exit recorded for this person');
+        // Settled once, after which the dates stop moving.
+        if (existing.settled_on) throw new HttpError(400, 'this settlement has already been paid');
+        existing.settled_on = body?.settled_on || dayNow();
+        existing.settled_amount = Number(body?.amount) || 0;
+        auditLine({
+          who: by, action: 'settled', entity: 'employee_exits', entity_id: employeeId,
+          label: `full and final for ${nameOf(employeeId)}`, to_value: existing.settled_amount,
+        });
+        save();
+        return fullAndFinalOf(employeeId);
+      }
+      if (parts.length === 3 && method === 'DELETE') {
+        db.employee_exits = db.employee_exits.filter((x) => x.employee_id !== employeeId);
+        auditLine({
+          who: by, action: 'deleted', entity: 'employee_exits', entity_id: employeeId,
+          label: `exit for ${nameOf(employeeId)}`,
+        });
+        save();
+        return { deleted: true };
+      }
+    }
+
+    /* ---- the trail ---- */
+    if (route === 'GET /people/audit') {
+      const entity = params.get('entity');
+      const entityId = Number(params.get('entity_id')) || null;
+      const whoLike = (params.get('who') || '').toLowerCase();
+      const since = params.get('since');
+      const limit = Math.min(1000, Math.max(1, Number(params.get('limit')) || 200));
+      return {
+        entries: db.audit_log
+          .filter((e) => !entity || e.entity === entity)
+          .filter((e) => !entityId || e.entity_id === entityId)
+          .filter((e) => !whoLike || String(e.who || '').toLowerCase().includes(whoLike))
+          .filter((e) => !since || String(e.at) >= since)
+          .sort((a, b) => String(b.at).localeCompare(String(a.at)) || b.id - a.id)
+          .slice(0, limit),
+      };
+    }
+
+    /*
+     * What to say, not the sending of it. Same module the server runs, so the
+     * text is identical; what is missing here is the two lists this file has
+     * no table for - attendance correction requests and assets still out with
+     * a leaver - and empty is the truthful answer for both, not a guess.
+     */
+    if (route === 'GET /people/digest') {
+      const wanted =
+        Number(params.get('period_id')) ||
+        db.periods.find((p) => !p.locked)?.id ||
+        db.periods[0]?.id;
+      const payroll = wanted ? buildPayroll(wanted, { sync: false }) : null;
+      return digest({
+        period: payroll?.period || null,
+        rows: payroll?.rows || [],
+        requests: [],
+        claims: db.expense_claims.map(withPerson),
+        tickets: db.tickets.map(ticketRow),
+        tasks: db.staff_tasks.filter((t) => t.status === 'open').map(withPerson),
+        exits: db.employee_exits.filter((x) => !x.settled_on).map(exitRow),
+        assets_out: [],
+        today: dayNow(),
+      });
     }
   }
 

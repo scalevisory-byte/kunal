@@ -244,7 +244,22 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // writes it breaks; the migration folds existing values into the two.
   const addition = num(row.addition);
   const deduction = num(row.deduction);
-  const adjustment = num(row.adjustment) + addition - deduction;
+  /*
+   * `adjustment` is the OLD single signed field, kept so nothing that still
+   * writes it breaks. The combined figure is deliberately NOT returned under
+   * the same name it is read from.
+   *
+   * It used to be, and that made this function unsafe to run on its own
+   * output: `adjustment` came back already carrying `addition - deduction`,
+   * so a second pass added them again. Five screens recompute a row the API
+   * has already computed - the sheet, the payslip, the dashboard, the Sunday
+   * and leave registers - which is deliberate, so a typed figure moves the
+   * totals without waiting for a round trip. With a 1,200 claim paid onto a
+   * row, the sheet showed 2,400. The Payslip had been patched for the same
+   * thing once before, one screen at a time; this fixes the cause.
+   */
+  const legacyAdjustment = num(row.adjustment);
+  const adjustment = legacyAdjustment + addition - deduction;
   const grossSalary = round0(grossAfterAbsent + otSalary + adjustment - lateSalary); // AV
 
   // AW: professional tax goes on what the month actually pays - the gross, after
@@ -344,7 +359,10 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     shift_out: lateEarly.shift_out,
     addition: round2(addition),
     deduction: round2(deduction),
-    adjustment: round2(adjustment),
+    // Handed back exactly as it came in, so running this on its own output
+    // gives the same answer. The combined figure is `adjustment_total`.
+    adjustment: round2(legacyAdjustment),
+    adjustment_total: round2(adjustment),
     gross_salary: grossSalary,
     pt,
     esi: round2(esi),
@@ -374,7 +392,8 @@ export function totalRows(rows = []) {
     'late_salary',
     'addition',
     'deduction',
-    'adjustment',
+    // The combined figure, which is what this line has always meant.
+    'adjustment_total',
     'gross_salary',
     'pt',
     'esi',

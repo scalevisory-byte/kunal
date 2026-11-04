@@ -522,7 +522,7 @@ test('an addition and a deduction are separate boxes, with a reason', async () =
   const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
   const row = body.rows[0];
   assert.equal(row.gross_salary, before + 1500 - 400);
-  assert.equal(row.adjustment, 1100, 'the net effect of the two');
+  assert.equal(row.adjustment_total, 1100, 'the net effect of the two');
 
   // The wage register counts the deduction with the rest of them.
   const register = await api('GET', `/api/periods/${periodId}/statutory`);

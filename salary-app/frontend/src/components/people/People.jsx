@@ -23,36 +23,35 @@ const PANELS = [
 /**
  * The People tab: the paper trail around somebody that is not pay and not
  * attendance - warnings and appreciations, appraisals and the increments they
- * led to, the laptop and the SIM, expense claims, leaving and the full and
+ * led to, expense claims, office tasks, the helpdesk, leaving and the full and
  * final, and who changed what.
  *
- * All six need the server. A warning on a record, a claim somebody else
- * approves and a trail that outlives one browser are not things a single file
- * on a laptop can hold, and pretending otherwise would lose the record.
+ * This used to be switched off entirely in the single-file build, on the
+ * grounds that a record has to outlive one browser and be seen by more than
+ * one person. The first half was never true - this file already holds 115
+ * people, a year of attendance and every payslip, and it backs up to a file.
+ * The second half IS true, and it is one sentence, not a reason to hide eight
+ * panels: there is nobody else here. The banner below says that instead.
  */
 export default function People({ employees, companies, period, me, onError, onReload }) {
   const [panel, setPanel] = useState('records');
-
-  if (STANDALONE) {
-    return (
-      <section className="card">
-        <h2>People</h2>
-        <p className="muted small">
-          Warnings and appreciations, appraisals, expense claims, tasks, the helpdesk, leaving
-          and the full and final, and the audit trail all need the server version. They are
-          records
-          that have to outlive one browser and be seen by more than one person — a single file on
-          a laptop cannot hold them. Everything to do with pay, attendance and hours works here as
-          normal.
-        </p>
-      </section>
-    );
-  }
 
   const props = { employees, companies, period, me, onError, onReload };
 
   return (
     <section className="stack">
+      {/*
+        * Said once, at the top, rather than switching the tab off: what is
+        * missing offline is a second person, not the records.
+        */}
+      {STANDALONE && (
+        <p className="muted small">
+          All of this works in this file. What it cannot do is involve anybody else: you raise a
+          claim and you approve it, an employee cannot open the helpdesk themselves, and the
+          trail’s “who” is a name typed on a form — which is true of the server version too,
+          since there is one shared password.
+        </p>
+      )}
       <div className="sub-tabs toolbar">
         {PANELS.map(([key, label]) => (
           <button key={key} className={panel === key ? 'active' : undefined} onClick={() => setPanel(key)}>

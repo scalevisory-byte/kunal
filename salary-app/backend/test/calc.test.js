@@ -263,11 +263,13 @@ test('a month can carry an addition and a deduction at once', () => {
 
   // The old single signed field still works, for anything that writes it.
   assert.equal(calculateRow({ salary: 26000, adjustment: -444 }, {}).gross_salary, 25556);
-  assert.equal(
-    calculateRow({ salary: 26000, adjustment: -444, addition: 100 }, {}).adjustment,
-    -344,
-    'and folds in with the two'
-  );
+  // It folds in with the two - under `adjustment_total`, which is the combined
+  // figure. `adjustment` is handed back as it came in, so that running this
+  // function on its own output cannot add the same money twice.
+  const mixed = calculateRow({ salary: 26000, adjustment: -444, addition: 100 }, {});
+  assert.equal(mixed.adjustment_total, -344, 'and folds in with the two');
+  assert.equal(mixed.adjustment, -444, 'the legacy column comes back untouched');
+  assert.equal(mixed.gross_salary, 25656);
 });
 
 test('totals add up across rows', () => {
@@ -380,4 +382,54 @@ test('a breakup changes how the month is described, never what it pays', () => {
     + split.earned_medical + split.earned_special;
   assert.equal(lines, Math.round(split.gross_after_absent));
   assert.equal(plain.earned_basic, null);
+});
+
+/*
+ * Running calculateRow on its OWN OUTPUT must give the same answer.
+ *
+ * Five screens do exactly that - the salary sheet, the payslip, the dashboard,
+ * the Sunday register and the leave register all recompute a row the API has
+ * already computed, deliberately, so a typed figure moves the totals without
+ * waiting for a round trip. It used to return the combined `adjustment`
+ * (= adjustment + addition - deduction) under the same name it read, so the
+ * second pass added them again: a 1,200 claim paid onto a row showed 2,400 on
+ * the sheet. The payslip had been patched for the same thing once before, one
+ * screen at a time.
+ */
+test('calculateRow run on its own output gives the same figures', () => {
+  const period = { working_days: 26, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 };
+  const cases = [
+    { salary: 15000, addition: 1200, deduction: 0 },
+    { salary: 15000, addition: 0, deduction: 900 },
+    // Both at once: a month can carry an incentive and a breakage.
+    { salary: 32000, addition: 2500, deduction: 400 },
+    // And the legacy signed column, which some old rows still carry.
+    { salary: 20000, adjustment: -750, addition: 0, deduction: 0 },
+    { salary: 20000, adjustment: 500, addition: 300, deduction: 100 },
+  ];
+
+  for (const base of cases) {
+    const row = { employee_id: 1, pf: 0, esi: 0, ...base };
+    const once = calculateRow(row, period, {});
+    const twice = calculateRow(once, period, {});
+    const thrice = calculateRow(twice, period, {});
+    for (const key of ['gross_salary', 'net_salary', 'pt', 'addition', 'deduction', 'adjustment_total']) {
+      assert.equal(
+        twice[key],
+        once[key],
+        `${key} moved on the second pass for ${JSON.stringify(base)}`
+      );
+      assert.equal(thrice[key], once[key], `${key} moved again on the third pass`);
+    }
+  }
+});
+
+test('an addition reaches the gross exactly once', () => {
+  const period = { working_days: 26, hours_per_day: 9, pt_threshold: 12000, pt_amount: 200 };
+  const plain = calculateRow({ salary: 15000, pf: 0, esi: 0 }, period, {});
+  const withClaim = calculateRow({ salary: 15000, pf: 0, esi: 0, addition: 1200 }, period, {});
+  assert.equal(withClaim.gross_salary - plain.gross_salary, 1200);
+  // And on the sheet, which recomputes what the API already computed.
+  const asTheSheetDoes = calculateRow(withClaim, period, {});
+  assert.equal(asTheSheetDoes.gross_salary, withClaim.gross_salary);
 });
