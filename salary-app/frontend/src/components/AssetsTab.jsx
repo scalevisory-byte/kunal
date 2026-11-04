@@ -25,21 +25,22 @@ export default function AssetsTab({
   onError,
   onReload,
 }) {
-  if (STANDALONE) {
-    return (
-      <section className="card">
-        <h2>Assets</h2>
-        <p className="muted small">
-          The asset register, handovers, the stock take and the service history need the server
-          version. They are records that have to outlive one browser and be seen by more than one
-          person — a single file on a laptop cannot hold them. Everything to do with pay,
-          attendance and hours works here as normal.
-        </p>
-      </section>
-    );
-  }
-
   return (
+    <>
+      {/*
+        * This used to be the whole tab: one card saying the register needs the
+        * server. It does not. An asset, a handover, a stock take and a service
+        * bill are records, and this file already keeps records. One thing
+        * genuinely needs a server and says so where it is - a PHOTOGRAPH is a
+        * file, and a file cannot live inside an HTML page.
+        */}
+      {STANDALONE && (
+        <p className="muted small">
+          Offline: the register, codes and labels, handovers, the stock take and the service
+          history all work in this file. What needs the server version is a photograph of an
+          asset — that is a file, and a file cannot live inside an HTML page.
+        </p>
+      )}
     <Assets
       employees={employees}
       companies={companies}
@@ -50,5 +51,6 @@ export default function AssetsTab({
       onError={onError}
       onReload={onReload}
     />
+    </>
   );
 }

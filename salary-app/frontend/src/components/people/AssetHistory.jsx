@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { api } from '../../api.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { STANDALONE, api, openPage, pageDataUrl } from '../../api.js';
 import { rupees } from '../../format.js';
 
 /**
@@ -11,6 +11,17 @@ import { rupees } from '../../format.js';
  * nothing can disagree with the register.
  */
 export default function AssetHistory({ asset, onClose, onError }) {
+  /* The inline label: a URL on the server, a data URI in the single file. */
+  const labelSrc = useMemo(() => {
+    if (!asset?.code) return '';
+    const path = `/people/assets/${asset.id}/label.svg?h=14`;
+    if (!STANDALONE) return `/api${path}`;
+    try {
+      return pageDataUrl(path);
+    } catch {
+      return '';
+    }
+  }, [asset?.id, asset?.code]);
   const [found, setFound] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [note, setNote] = useState('');
@@ -84,12 +95,13 @@ export default function AssetHistory({ asset, onClose, onError }) {
           </button>
         </div>
 
-        {asset.code && (
-          <img
-            className="asset-label"
-            src={`/api/people/assets/${asset.id}/label.svg?h=14`}
-            alt={`Barcode for ${asset.code}`}
-          />
+        {/*
+          * The label, shown inline. Offline there is no URL to point an <img>
+          * at, so the same shared builder makes the SVG and it goes in as a
+          * data URI - which is also why it is encoded rather than inlined raw.
+          */}
+        {asset.code && labelSrc && (
+          <img className="asset-label" src={labelSrc} alt={`Barcode for ${asset.code}`} />
         )}
 
         <div className="figures">
@@ -193,12 +205,12 @@ export default function AssetHistory({ asset, onClose, onError }) {
         </p>
 
         <div className="row">
-          <button className="ghost" onClick={() => window.open(`/api/people/assets/${asset.id}/label.svg?h=18`, '_blank')}>
+          <button className="ghost" onClick={() => openPage(`/people/assets/${asset.id}/label.svg?h=18`).catch(onError)}>
             Print the label
           </button>
           <button
             className="ghost"
-            onClick={() => window.open(`/api/people/assets/${asset.id}/voucher.html`, '_blank')}
+            onClick={() => openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError)}
             title="The purchase voucher, to hand to accounts"
           >
             Purchase voucher

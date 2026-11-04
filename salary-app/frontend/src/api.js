@@ -10,8 +10,17 @@
 export const STANDALONE = import.meta.env.VITE_STANDALONE === 'true';
 
 let localPromise = null;
+/*
+ * The resolved module, kept so a synchronous caller can reach it. An <img>
+ * src cannot await, and by the time any screen that needs one is on, the
+ * store has long since loaded.
+ */
+let localCache = null;
 const localStore = () => {
-  localPromise ||= import('./localStore.js');
+  localPromise ||= import('./localStore.js').then((mod) => {
+    localCache = mod;
+    return mod;
+  });
   return localPromise;
 };
 
@@ -154,4 +163,40 @@ export async function downloadBackup() {
 
 export async function restoreBackup(file) {
   (await localStore()).restore(await file.text());
+}
+
+/**
+ * A page the browser opens in a new tab - an asset label, a sheet of stickers,
+ * a voucher.
+ *
+ * On the server these are ordinary URLs. In the single file there is no server
+ * to serve them, so the same shared module builds the page here and it is
+ * opened as a blob. Either way the caller just says "open this".
+ */
+export async function openPage(path) {
+  if (!STANDALONE) {
+    window.open(`/api${path}`, '_blank');
+    return;
+  }
+  const { body, type } = (await localStore()).page(path);
+  const url = URL.createObjectURL(new Blob([body], { type }));
+  window.open(url, '_blank');
+  // Revoked late: revoking at once can beat the new tab to it.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/**
+ * The same page as a data URI, for an <img> that cannot wait for a promise.
+ *
+ * Synchronous, so it only works in the single file - where localStore is
+ * already loaded by the time any asset screen is on - and the caller falls
+ * back to the server URL otherwise.
+ */
+export function pageDataUrl(path) {
+  if (!STANDALONE || !localPromise) return '';
+  // localStore is a loaded module by now; reach it through the same cache.
+  const mod = localCache;
+  if (!mod?.page) return '';
+  const { body, type } = mod.page(path);
+  return `data:${type};charset=utf-8,${encodeURIComponent(body)}`;
 }

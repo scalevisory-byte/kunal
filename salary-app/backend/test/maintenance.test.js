@@ -357,20 +357,42 @@ test('the trail carries the services, by asset code and amount', async () => {
   assert.ok(body.entries.some((e) => e.action === 'service removed'));
 });
 
-test('deleting an asset takes its services with it, which is why it refuses to', async () => {
-  // The laptop has handovers? No - but it has services, and deleting is still
-  // allowed for something never issued. The services go with it, which is the
-  // reason write-off exists.
+test('an asset with a service on its record is written off, not deleted', async () => {
+  /*
+   * This used to be the other way round, and the test's own title argued
+   * against its body: deleting checked handovers ALONE, so an asset that had
+   * been serviced but never issued could be deleted - taking a bill that
+   * carries its code with it, and freeing that code for the next thing.
+   *
+   * Deleting is now only for an asset nothing has ever happened to: a typo
+   * typed in a minute ago, whose code was never on a sticker or a bill.
+   */
   const spare = await api('POST', '/api/people/assets', {
     company_id: companyId,
     kind: 'Other',
     label: 'Spare',
     purchase_cost: 100,
   });
+  // Nothing has happened to it yet, so it can go.
+  const typo = await api('POST', '/api/people/assets', {
+    company_id: companyId, kind: 'Other', label: 'Typo', purchase_cost: 0,
+  });
+  assert.equal((await api('DELETE', `/api/people/assets/${typo.body.id}`)).body.deleted, true);
+
   await api('POST', `/api/people/assets/${spare.body.id}/services`, { serviced_on: '2026-10-01', cost: 50 });
-  assert.equal((await api('DELETE', `/api/people/assets/${spare.body.id}`)).body.deleted, true);
+  const refused = await api('DELETE', `/api/people/assets/${spare.body.id}`);
+  assert.equal(refused.status, 400);
+  assert.match(refused.body.error, /service on its record/);
+
+  // The bill is still there, which is the point.
   const { body } = await api('GET', `/api/people/maintenance/services?asset_id=${spare.body.id}`);
-  assert.equal(body.services.length, 0, 'gone with it');
+  assert.equal(body.services.length, 1);
+
+  // Write-off is the way out, and it keeps the row and the code.
+  const gone = await api('POST', `/api/people/assets/${spare.body.id}/write-off`, { why: 'scrapped' });
+  assert.equal(gone.status, 200);
+  assert.ok(gone.body.written_off_on);
+  assert.ok(gone.body.code);
 });
 
 /*

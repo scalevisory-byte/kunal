@@ -976,11 +976,31 @@ export function writeOffAsset(id, { on, why, by } = {}) {
 export function deleteAsset(id, by) {
   const before = getAsset(id);
   if (!before) return false;
-  // Anything with a history is written off, not deleted: deleting takes the
-  // handovers and the service record with it.
-  const handovers = db.prepare(`SELECT COUNT(*) AS n FROM asset_handovers WHERE asset_id = ?`).get(id).n;
-  if (handovers) {
+  /*
+   * Anything with a HISTORY is written off, not deleted: deleting takes the
+   * handovers, the service bills and the stock-take verdicts with it.
+   *
+   * It used to check handovers alone, so an asset that had been serviced but
+   * never issued could be deleted - taking a bill that carries its code, and
+   * freeing that code for the next thing. The comment already said "history";
+   * now the check does too.
+   */
+  const history = db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM asset_handovers WHERE asset_id = @id) AS handovers,
+         (SELECT COUNT(*) FROM asset_services WHERE asset_id = @id) AS services,
+         (SELECT COUNT(*) FROM asset_verifications WHERE asset_id = @id) AS checks`
+    )
+    .get({ id });
+  if (history.handovers) {
     throw new Error('this asset has been issued to somebody - write it off instead of deleting it');
+  }
+  if (history.services) {
+    throw new Error('this asset has a service on its record - write it off instead of deleting it');
+  }
+  if (history.checks) {
+    throw new Error('this asset has been through a stock take - write it off instead of deleting it');
   }
   const gone = db.prepare(`DELETE FROM assets WHERE id = ?`).run(id).changes > 0;
   if (gone) {

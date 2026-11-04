@@ -37,6 +37,20 @@ import { validateVacancy } from '../../shared/vacancyForm.js';
 import { cleanPublicUrl, reachablePublicly } from '../../shared/publicUrl.js';
 import { settlement } from '../../shared/settlement.js';
 import { digest } from '../../shared/digest.js';
+import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
+import { labelSheet, labelSvg, voucherHtml } from '../../shared/assetLabels.js';
+import qr from 'qrcode-generator';
+import { handoverSlip, registerCsv, registerTotals, handoverCsv } from '../../shared/assetReport.js';
+import {
+  SERVICE_KINDS,
+  looksDuplicate,
+  maintenanceAlerts,
+  maintenanceTotals,
+  ownership,
+  ownershipCsv,
+  servicesCsv,
+  spendReport,
+} from '../../shared/maintenance.js';
 import { fromBand } from '../../shared/experienceBand.js';
 import {
   hiringDigest,
@@ -102,6 +116,15 @@ const EMPTY = {
   tickets: [],
   ticket_replies: [],
   employee_exits: [],
+  /*
+   * The asset register and everything hanging off it. Only a PHOTOGRAPH of an
+   * asset genuinely needs a server - a file cannot live inside an HTML page -
+   * and that one says so where it is.
+   */
+  assets: [],
+  asset_handovers: [],
+  asset_services: [],
+  asset_verifications: [],
   audit_log: [],
   // The highest JOB-/CAN- number ever handed out, so one is never reused.
   ref_high: {},
@@ -764,6 +787,13 @@ const ASSET_KINDS = [
   'Furniture', 'Other',
 ];
 
+const ASSET_FIELDS = [
+  'company_id', 'branch_id', 'kind', 'label', 'identifier', 'purchase_cost',
+  'purchase_date', 'vendor', 'invoice_no', 'warranty_until',
+  'amc_until', 'amc_vendor', 'amc_cost',
+  'employee_id', 'issued_on', 'returned_on', 'condition', 'note',
+];
+
 const dayNow = () => new Date().toISOString().slice(0, 10);
 const stampNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -925,6 +955,265 @@ function leaveOf(employee, year) {
     taken,
   };
 }
+
+/* ---------------- the Assets tab, offline ---------------- */
+
+/*
+ * The register, handovers, the stock take and the service history.
+ *
+ * Same answer as Hiring and People: these are records, and this file already
+ * keeps records. One thing genuinely needs a server and says so where it is -
+ * a PHOTOGRAPH of an asset is a file, and a file cannot live inside an HTML
+ * page on a laptop. Everything else works.
+ *
+ * Nothing with judgement in it is re-implemented. The asset code series
+ * (shared/assetCode.js), the Code 128 barcode (shared/barcode.js), the
+ * register totals and the handover slip (shared/assetReport.js), the cost of
+ * ownership and the duplicate check (shared/maintenance.js) and the voucher
+ * (shared/voucher.js) are the very modules the server runs.
+ */
+
+const assetOf = (id) => byId(load().assets, id);
+
+/** Every code ever used, written-off ones included - a number is never reused. */
+const assetCodesInUse = () => load().assets.map((a) => a.code).filter(Boolean);
+
+/** Days until a date, or null. Negative means it has passed. */
+function daysUntilDay(date) {
+  if (!date) return null;
+  const then = new Date(date);
+  if (Number.isNaN(then.getTime())) return null;
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  return Math.round((then - today) / 86400000);
+}
+
+/** a.* plus the joins every asset screen reads. */
+function assetRow(a, { round } = {}) {
+  if (!a) return null;
+  const db = load();
+  const holder = a.employee_id ? employeeOf(a.employee_id) : null;
+  const verdict = round
+    ? db.asset_verifications.find((v) => v.asset_id === a.id && v.round === round) || null
+    : null;
+  return {
+    ...a,
+    employee_name: holder?.name || null,
+    company_name: a.company_id ? companyOf(a.company_id)?.name || null : null,
+    branch_name: null,
+    handovers: db.asset_handovers.filter((h) => h.asset_id === a.id).length,
+    warranty_left_days: daysUntilDay(a.warranty_until),
+    ...(round
+      ? {
+          // null is "not looked at yet", which is NOT "missing". Counting the
+          // third as the second is how a stock take invents losses.
+          verified_found: verdict ? Boolean(verdict.found) : null,
+          verified_on: verdict?.verified_on || null,
+        }
+      : {}),
+  };
+}
+
+function listAssetsOffline({ employee_id, company_id, out, written_off = false, round } = {}) {
+  return load()
+    .assets.filter((a) => !employee_id || a.employee_id === Number(employee_id))
+    .filter((a) => !company_id || a.company_id === Number(company_id))
+    // "Out" means issued to somebody and not back yet.
+    .filter((a) => !out || (a.employee_id && !a.returned_on))
+    // A written-off asset keeps its row and its code; it is simply off the
+    // register unless asked for.
+    .filter((a) => written_off || !a.written_off_on)
+    .map((a) => assetRow(a, { round }))
+    .sort(
+      (x, y) =>
+        Number(Boolean(y.employee_id && !y.returned_on)) - Number(Boolean(x.employee_id && !x.returned_on)) ||
+        String(x.kind || '').localeCompare(String(y.kind || '')) ||
+        String(x.code || '').localeCompare(String(y.code || '')) ||
+        String(x.label || '').localeCompare(String(y.label || ''))
+    );
+}
+
+const handoverRow = (h) => {
+  const a = assetOf(h.asset_id);
+  return {
+    ...h,
+    code: a?.code || null,
+    label: a?.label || null,
+    kind: a?.kind || null,
+    purchase_cost: a?.purchase_cost ?? 0,
+    // The serial identifies the actual object on a document somebody signs.
+    identifier: a?.identifier || null,
+    company_name: a?.company_id ? companyOf(a.company_id)?.name || null : null,
+  };
+};
+
+const listHandoversOffline = ({ asset_id, employee_id, open } = {}) =>
+  load()
+    .asset_handovers.filter((h) => !asset_id || h.asset_id === Number(asset_id))
+    .filter((h) => !employee_id || h.employee_id === Number(employee_id))
+    .filter((h) => !open || !h.returned_on)
+    .map(handoverRow)
+    .sort((a, b) => String(b.issued_on).localeCompare(String(a.issued_on)) || b.id - a.id);
+
+const openHandoverOf = (assetId) =>
+  load().asset_handovers.find((h) => h.asset_id === Number(assetId) && !h.returned_on) || null;
+
+const serviceRow = (s) => {
+  const a = assetOf(s.asset_id);
+  return {
+    ...s,
+    code: a?.code || null,
+    label: a?.label || null,
+    // Aliased, and it matters: taking the asset's `kind` would put "Laptop"
+    // where the timeline means "Repair". The server was bitten by exactly this.
+    asset_kind: a?.kind || null,
+    company_name: a?.company_id ? companyOf(a.company_id)?.name || null : null,
+    under_warranty: Boolean(s.under_warranty),
+  };
+};
+
+const listServicesOffline = ({ asset_id, company_id, from, to } = {}) =>
+  load()
+    .asset_services.filter((s) => !asset_id || s.asset_id === Number(asset_id))
+    .filter((s) => !company_id || assetOf(s.asset_id)?.company_id === Number(company_id))
+    .filter((s) => !from || String(s.serviced_on) >= from)
+    .filter((s) => !to || String(s.serviced_on) <= to)
+    .map(serviceRow)
+    .sort((a, b) => String(b.serviced_on).localeCompare(String(a.serviced_on)) || b.id - a.id);
+
+/** The register plus what each one has cost to keep. */
+const assetsWithOwnershipOffline = (opts = {}) => {
+  const byAsset = new Map();
+  for (const s of listServicesOffline({ company_id: opts.company_id })) {
+    if (!byAsset.has(s.asset_id)) byAsset.set(s.asset_id, []);
+    byAsset.get(s.asset_id).push(s);
+  }
+  return listAssetsOffline(opts).map((asset) => {
+    const services = byAsset.get(asset.id) || [];
+    return { ...asset, services, ownership: ownership(asset, services) };
+  });
+};
+
+/** Append-only, written by the same calls that move the asset. */
+function logHandoverOffline(assetId, { employee_id, issued_on, issued_by, condition_out, note }) {
+  const db = load();
+  db.asset_handovers.push({
+    id: nextId(),
+    asset_id: Number(assetId),
+    employee_id: employee_id || null,
+    // Kept as text too, so a slip still reads correctly after somebody has
+    // left and their row is gone.
+    employee_name: employee_id ? employeeOf(employee_id)?.name || null : null,
+    issued_on: issued_on || dayNow(),
+    issued_by: issued_by || null,
+    returned_on: null,
+    returned_by: null,
+    condition_out: condition_out || null,
+    condition_in: null,
+    note: note || null,
+    created_at: stampNow(),
+  });
+}
+
+/** Bring it back in. Used by the return call and by writing one off. */
+function returnAssetOffline(id, { returned_on, condition, note, by } = {}) {
+  const asset = assetOf(id);
+  if (!asset) throw new HttpError(404, 'not found');
+  const open = openHandoverOf(id);
+  if (open) {
+    open.returned_on = returned_on || dayNow();
+    open.returned_by = by || null;
+    open.condition_in = condition || null;
+    if (note) open.note = note;
+  }
+  asset.returned_on = returned_on || dayNow();
+  if (condition) asset.condition = condition;
+  auditLine({
+    who: by, action: 'returned', entity: 'assets', entity_id: asset.id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    from_value: employeeOf(asset.employee_id)?.name || null,
+  });
+  return asset;
+}
+
+/** The timeline, assembled from the rows that already hold each part. */
+function assetHistoryOffline(id) {
+  const asset = assetOf(id);
+  if (!asset) return null;
+  const events = [];
+
+  if (asset.purchase_date || asset.created_at) {
+    events.push({
+      on: asset.purchase_date || String(asset.created_at).slice(0, 10),
+      what: asset.purchase_date ? 'Bought' : 'Added to the register',
+      detail: [asset.vendor, asset.invoice_no].filter(Boolean).join(', ') || null,
+      amount: Number(asset.purchase_cost) || 0,
+    });
+  }
+  for (const h of listHandoversOffline({ asset_id: id }).reverse()) {
+    events.push({
+      on: h.issued_on, what: 'Issued', who: h.employee_name,
+      detail: h.condition_out || null, by: h.issued_by,
+    });
+    if (h.returned_on) {
+      events.push({
+        on: h.returned_on, what: 'Returned', who: h.employee_name,
+        detail: h.condition_in || null, by: h.returned_by,
+      });
+    }
+  }
+  for (const s of listServicesOffline({ asset_id: id }).reverse()) {
+    events.push({
+      on: s.serviced_on,
+      what: s.kind || 'Serviced',
+      detail: [s.work, s.vendor, s.under_warranty ? 'under warranty' : null].filter(Boolean).join(', ') || null,
+      amount: Number(s.cost) || 0,
+      by: s.logged_by,
+    });
+  }
+  for (const v of load().asset_verifications.filter((v) => v.asset_id === Number(id))) {
+    events.push({
+      on: v.verified_on,
+      what: v.found ? 'Checked' : 'Not found',
+      detail: [v.round, v.note].filter(Boolean).join(' · ') || null,
+      by: v.verified_by,
+    });
+  }
+  if (asset.written_off_on) {
+    events.push({ on: asset.written_off_on, what: 'Written off', detail: asset.written_off_why || null });
+  }
+
+  return {
+    asset: assetRow(asset),
+    events: events
+      .filter((e) => e.on)
+      .sort((a, b) => String(a.on).localeCompare(String(b.on))),
+  };
+}
+
+/** How a round is going. Three figures, never two. */
+function roundProgressOffline(round) {
+  const assets = listAssetsOffline({ round });
+  const missing = assets.filter((a) => a.verified_found === false);
+  const todo = assets.filter((a) => a.verified_found === null);
+  return {
+    round,
+    total: assets.length,
+    found: assets.filter((a) => a.verified_found === true).length,
+    missing: missing.length,
+    not_checked: todo.length,
+    missing_value: missing.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0),
+    missing_assets: missing,
+    not_checked_assets: todo,
+  };
+}
+
+/**
+ * A photograph is a file, and a file cannot live inside an HTML page. Said in
+ * one place so every route that touches one says the same thing.
+ */
+const NO_PHOTOS_OFFLINE =
+  'A photograph is a file, so keeping one needs the server version. Everything else about ' +
+  'this asset works here — the note on its condition is on the handover.';
 
 /* ---------------- the router ---------------- */
 
@@ -2748,6 +3037,414 @@ export async function handle(method, path, body) {
      * no table for - attendance correction requests and assets still out with
      * a leaver - and empty is the truthful answer for both, not a guess.
      */
+    /* ---- the asset register ---- */
+    if (what === 'assets') {
+      const assetId = Number(parts[2]);
+
+      if (parts.length === 2 && method === 'GET') {
+        const assets = listAssetsOffline({
+          employee_id: Number(params.get('employee_id')) || undefined,
+          company_id: Number(params.get('company_id')) || undefined,
+          out: params.get('out') === 'true',
+          written_off: params.get('written_off') === 'true',
+          round: params.get('round') || undefined,
+        });
+        return { assets, totals: registerTotals(assets), kinds: ASSET_KINDS };
+      }
+
+      if (parts.length === 2 && method === 'POST') {
+        const label = String(body?.label || '').trim();
+        if (!label) throw new HttpError(400, 'give the asset a name');
+        const companyId = Number(body?.company_id) || null;
+        const company = companyId ? companyOf(companyId)?.name || null : null;
+        const kind = body?.kind || 'Other';
+
+        /*
+         * Typed if somebody typed one - an office with stickers already on
+         * the laptops should keep them - and worked out if not. The series
+         * reads the HIGHEST number ever used, so a code is never reused.
+         */
+        let code = null;
+        if (body?.code) {
+          const problem = codeProblem(body.code);
+          if (problem) throw new HttpError(400, problem);
+          code = tidyCode(body.code);
+          if (db.assets.some((a) => a.code === code)) {
+            throw new HttpError(400, `${code} is already on something else`);
+          }
+        } else {
+          code = nextCode(company || 'GEN', kind, assetCodesInUse());
+        }
+
+        const asset = {
+          id: nextId(),
+          code,
+          company_id: companyId,
+          branch_id: Number(body?.branch_id) || null,
+          kind,
+          label,
+          identifier: body?.identifier || null,
+          purchase_cost: Number(body?.purchase_cost ?? body?.value) || 0,
+          purchase_date: body?.purchase_date || null,
+          vendor: body?.vendor || null,
+          invoice_no: body?.invoice_no || null,
+          warranty_until: body?.warranty_until || null,
+          amc_until: body?.amc_until || null,
+          amc_vendor: body?.amc_vendor || null,
+          amc_cost: body?.amc_cost === '' || body?.amc_cost === undefined ? null : Number(body.amc_cost),
+          employee_id: Number(body?.employee_id) || null,
+          issued_on: body?.issued_on || null,
+          returned_on: body?.returned_on || null,
+          condition: body?.condition || null,
+          note: body?.note || null,
+          written_off_on: null,
+          written_off_why: null,
+          created_at: stampNow(),
+        };
+        db.assets.push(asset);
+        // Added already in somebody's hands: that is a handover, and the log
+        // must say so or the history starts with a gap.
+        if (asset.employee_id && !asset.returned_on) {
+          logHandoverOffline(asset.id, {
+            employee_id: asset.employee_id,
+            issued_on: asset.issued_on,
+            issued_by: body?.by,
+            condition_out: asset.condition,
+          });
+        }
+        auditLine({
+          who: body?.by, action: 'created', entity: 'assets', entity_id: asset.id,
+          label: `${code} ${label}`.trim(),
+        });
+        save();
+        return assetRow(asset);
+      }
+
+      /* Scanning a label: the code off a barcode scanner lands here. */
+      if (parts[2] === 'by-code' && method === 'GET') {
+        const wanted = tidyCode(decodeURIComponent(parts[3] || ''));
+        const found = db.assets.find((a) => a.code === wanted);
+        if (!found) throw new HttpError(404, `nothing on the register with the code ${parts[3]}`);
+        return assetRow(found);
+      }
+
+      if (parts[2] === 'handovers' && method === 'GET') {
+        return {
+          handovers: listHandoversOffline({
+            asset_id: Number(params.get('asset_id')) || undefined,
+            employee_id: Number(params.get('employee_id')) || undefined,
+            open: params.get('open') === 'true',
+          }),
+        };
+      }
+
+      /* One person's slip, to print and have signed. */
+      if (parts[2] === 'slip' && method === 'GET') {
+        const employee = employeeOf(Number(parts[3]));
+        if (!employee) throw new HttpError(404, 'employee not found');
+        return handoverSlip({
+          employee,
+          company: companyOf(employee.company_id)?.name || null,
+          handovers: listHandoversOffline({ employee_id: employee.id }),
+        });
+      }
+
+      const asset = assetOf(assetId);
+      if (parts.length >= 3 && Number.isFinite(assetId) && !asset) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'PATCH') {
+        const before = { ...asset };
+        for (const key of ASSET_FIELDS) {
+          if (!(key in (body || {}))) continue;
+          const value = body[key];
+          if (['purchase_cost', 'amc_cost', 'company_id', 'branch_id', 'employee_id'].includes(key)) {
+            asset[key] = value === '' || value === null ? null : Number(value);
+          } else {
+            asset[key] = value === '' ? null : value;
+          }
+        }
+        if (asset.purchase_cost === null) asset.purchase_cost = 0;
+        if (body?.code !== undefined) {
+          // A typed code is tidied, not rejected - the office already has
+          // stickers - but it still cannot be on two things.
+          const problem = body.code ? codeProblem(body.code) : null;
+          if (problem) throw new HttpError(400, problem);
+          const tidy = body.code ? tidyCode(body.code) : null;
+          if (tidy && db.assets.some((a) => a.id !== asset.id && a.code === tidy)) {
+            throw new HttpError(400, `${tidy} is already on something else`);
+          }
+          asset.code = tidy;
+        }
+        auditLine({
+          who: body?.by, action: 'changed', entity: 'assets', entity_id: asset.id,
+          label: `${asset.code || ''} ${asset.label}`.trim(),
+          from_value: before.label, to_value: asset.label,
+        });
+        save();
+        return assetRow(asset);
+      }
+
+      if (parts.length === 3 && method === 'DELETE') {
+        /*
+         * Anything with a HISTORY is written off, not deleted: deleting takes
+         * the handovers, the service bills and the stock-take verdicts with
+         * it - and frees a code that is printed on a sticker and quoted on a
+         * bill. Only an asset nothing has ever happened to can go.
+         */
+        if (db.asset_handovers.some((h) => h.asset_id === asset.id)) {
+          throw new HttpError(
+            400,
+            'this asset has been issued to somebody - write it off instead of deleting it'
+          );
+        }
+        if (db.asset_services.some((s) => s.asset_id === asset.id)) {
+          throw new HttpError(
+            400,
+            'this asset has a service on its record - write it off instead of deleting it'
+          );
+        }
+        if (db.asset_verifications.some((v) => v.asset_id === asset.id)) {
+          throw new HttpError(
+            400,
+            'this asset has been through a stock take - write it off instead of deleting it'
+          );
+        }
+        db.assets = db.assets.filter((a) => a.id !== asset.id);
+        auditLine({
+          who: body?.by, action: 'deleted', entity: 'assets', entity_id: asset.id,
+          label: `${asset.code || ''} ${asset.label}`.trim(),
+        });
+        save();
+        return { deleted: true };
+      }
+
+      if (parts[3] === 'history' && method === 'GET') return assetHistoryOffline(asset.id);
+
+      /*
+       * Issuing while it is already out with somebody else CLOSES the first
+       * handover rather than losing it - which is what used to happen on the
+       * server, and is why asset history had nothing behind it.
+       */
+      if (parts[3] === 'issue' && method === 'POST') {
+        if (asset.written_off_on) throw new HttpError(400, 'that asset is written off');
+        const employee = employeeOf(body?.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        const open = openHandoverOf(asset.id);
+        if (open && open.employee_id === employee.id) return assetRow(asset);
+        if (open) {
+          open.returned_on = body?.issued_on || dayNow();
+          open.returned_by = body?.by || null;
+          open.condition_in = 'passed on directly';
+        }
+        logHandoverOffline(asset.id, {
+          employee_id: employee.id,
+          issued_on: body?.issued_on || dayNow(),
+          issued_by: body?.by,
+          condition_out: body?.condition,
+          note: body?.note,
+        });
+        asset.employee_id = employee.id;
+        asset.issued_on = body?.issued_on || dayNow();
+        asset.returned_on = null;
+        if (body?.condition) asset.condition = body.condition;
+        auditLine({
+          who: body?.by, action: 'issued', entity: 'assets', entity_id: asset.id,
+          label: `${asset.code || ''} ${asset.label}`.trim(), to_value: employee.name,
+        });
+        save();
+        return assetRow(asset);
+      }
+
+      if (parts[3] === 'return' && method === 'POST') {
+        returnAssetOffline(asset.id, body || {});
+        save();
+        return assetRow(asset);
+      }
+
+      /*
+       * Written off, not deleted: the row and the code stay, because an old
+       * service bill and a signed slip still refer to them. Anything still out
+       * is brought back first, so nobody is left holding something that no
+       * longer exists.
+       */
+      if (parts[3] === 'write-off' && method === 'POST') {
+        if (asset.written_off_on) return assetRow(asset);
+        const why = String(body?.why || '').trim();
+        if (!why) throw new HttpError(400, 'say why it is being written off');
+        if (asset.employee_id && !asset.returned_on) {
+          returnAssetOffline(asset.id, {
+            returned_on: body?.on || dayNow(),
+            condition: 'written off',
+            by: body?.by,
+          });
+        }
+        asset.written_off_on = body?.on || dayNow();
+        asset.written_off_why = why;
+        auditLine({
+          who: body?.by, action: 'written off', entity: 'assets', entity_id: asset.id,
+          label: `${asset.code || ''} ${asset.label}`.trim(), note: why,
+        });
+        save();
+        return assetRow(asset);
+      }
+
+      /* One verdict per asset per round: checking again REPLACES it. */
+      if (parts[3] === 'verify' && method === 'POST') {
+        const round = String(body?.round || '').trim();
+        if (!round) throw new HttpError(400, 'which round is this?');
+        const found = body?.found === undefined ? true : Boolean(body.found);
+        const existing = db.asset_verifications.find(
+          (v) => v.asset_id === asset.id && v.round === round
+        );
+        const record = {
+          id: existing?.id ?? nextId(),
+          asset_id: asset.id,
+          round,
+          found: found ? 1 : 0,
+          verified_on: body?.on || dayNow(),
+          verified_by: body?.by || null,
+          held_by: employeeOf(asset.employee_id)?.name || null,
+          note: body?.note || null,
+          created_at: existing?.created_at || stampNow(),
+        };
+        if (existing) Object.assign(existing, record);
+        else db.asset_verifications.push(record);
+        auditLine({
+          who: body?.by, action: found ? 'verified' : 'not found', entity: 'assets',
+          entity_id: asset.id, label: `${asset.code || ''} ${asset.label}`.trim(), note: round,
+        });
+        save();
+        return assetRow(asset);
+      }
+
+      /* A photograph is a file. Refused honestly rather than half-working. */
+      if (parts[3] === 'photos') {
+        if (method === 'GET') return { photos: [] };
+        throw new HttpError(400, NO_PHOTOS_OFFLINE);
+      }
+
+      /*
+       * The duplicate check ASKS rather than refuses: two identical repairs on
+       * one day do happen, and a system that will not record the truth gets
+       * worked around. 409 carrying the row it resembles.
+       */
+      if (parts[3] === 'services' && method === 'POST') {
+        const on = String(body?.serviced_on || '').trim() || dayNow();
+        const cost = Number(body?.cost) || 0;
+        if (cost < 0) throw new HttpError(400, 'a cost is not a negative number');
+        if (!body?.force) {
+          const twin = looksDuplicate({ serviced_on: on, cost }, listServicesOffline({ asset_id: asset.id }));
+          if (twin) {
+            const err = new HttpError(
+              409,
+              `${asset.code} already has a ${
+                cost ? `₹${Math.round(cost).toLocaleString('en-IN')}` : 'no-cost'
+              } service on ${on}${twin.work ? ` (${twin.work})` : ''}. Add it anyway?`
+            );
+            err.duplicate = twin;
+            throw err;
+          }
+        }
+        const service = {
+          id: nextId(),
+          asset_id: asset.id,
+          serviced_on: on,
+          kind: body?.kind || 'Service',
+          work: body?.work || null,
+          vendor: body?.vendor || null,
+          invoice_no: body?.invoice_no || null,
+          cost,
+          under_warranty: body?.under_warranty ? 1 : 0,
+          // Never computed - only what the person doing the work said. No
+          // date means not scheduled, never overdue.
+          next_service_on: body?.next_service_on || null,
+          note: body?.note || null,
+          logged_by: body?.by || null,
+          created_at: stampNow(),
+        };
+        db.asset_services.push(service);
+        auditLine({
+          who: body?.by, action: 'serviced', entity: 'assets', entity_id: asset.id,
+          label: `${asset.code || ''} ${asset.label}`.trim(),
+          to_value: cost || null, note: body?.work || null,
+        });
+        save();
+        return serviceRow(service);
+      }
+    }
+
+    /* ---- maintenance ---- */
+    if (what === 'maintenance') {
+      if (parts.length === 2 && method === 'GET') {
+        const companyId = Number(params.get('company_id')) || undefined;
+        const assets = assetsWithOwnershipOffline({ company_id: companyId, written_off: true });
+        return {
+          assets,
+          totals: maintenanceTotals(assets),
+          alerts: maintenanceAlerts(assets),
+          spend: spendReport(assets, listServicesOffline({ company_id: companyId }), {
+            year: params.get('year') || 'all',
+          }),
+          kinds: SERVICE_KINDS,
+        };
+      }
+      if (parts[2] === 'services' && parts.length === 3 && method === 'GET') {
+        return {
+          services: listServicesOffline({
+            asset_id: Number(params.get('asset_id')) || undefined,
+            company_id: Number(params.get('company_id')) || undefined,
+            from: params.get('from') || undefined,
+            to: params.get('to') || undefined,
+          }),
+        };
+      }
+      if (parts[2] === 'services' && parts[3]) {
+        const service = db.asset_services.find((s) => s.id === Number(parts[3]));
+        if (!service) throw new HttpError(404, 'not found');
+        if (method === 'PATCH') {
+          for (const key of ['serviced_on', 'kind', 'work', 'vendor', 'invoice_no', 'cost',
+                             'under_warranty', 'next_service_on', 'note']) {
+            if (!(key in (body || {}))) continue;
+            if (key === 'cost') service.cost = Number(body.cost) || 0;
+            else if (key === 'under_warranty') service.under_warranty = body.under_warranty ? 1 : 0;
+            else service[key] = body[key] === '' ? null : body[key];
+          }
+          save();
+          return serviceRow(service);
+        }
+        if (method === 'DELETE') {
+          db.asset_services = db.asset_services.filter((s) => s.id !== service.id);
+          save();
+          return { deleted: true };
+        }
+      }
+    }
+
+    /* ---- the stock take ---- */
+    if (what === 'rounds') {
+      if (parts.length === 2 && method === 'GET') {
+        const byRound = new Map();
+        for (const v of db.asset_verifications) {
+          const seen = byRound.get(v.round) || {
+            round: v.round, checked: 0, found: 0, started: v.verified_on, last: v.verified_on,
+          };
+          seen.checked += 1;
+          seen.found += v.found ? 1 : 0;
+          if (String(v.verified_on) < String(seen.started)) seen.started = v.verified_on;
+          if (String(v.verified_on) > String(seen.last)) seen.last = v.verified_on;
+          byRound.set(v.round, seen);
+        }
+        return {
+          rounds: [...byRound.values()]
+            .map((r) => ({ ...r, missing: r.checked - r.found }))
+            .sort((a, b) => String(b.last).localeCompare(String(a.last))),
+        };
+      }
+      if (parts.length === 3 && method === 'GET') {
+        return roundProgressOffline(decodeURIComponent(parts[2]));
+      }
+    }
+
     if (route === 'GET /people/digest') {
       const wanted =
         Number(params.get('period_id')) ||
@@ -3016,6 +3713,64 @@ export async function upload(path, formData) {
 }
 
 /** Builds the download in the browser and hands back a Blob. */
+/**
+ * Pages the browser opens in a new tab: an asset label, a sheet of them, and
+ * the voucher. On the server these are routes; here they are built from the
+ * SAME shared module and handed over as a blob, so a sticker printed from the
+ * single file is the sticker printed from the server.
+ *
+ * The QR carries the bare code rather than a link: this file has no address,
+ * so a URL in it would scan to nothing. The caption is the code either way,
+ * which is what somebody reads off a laptop lid.
+ */
+export function page(path) {
+  const clean = path.split('?')[0];
+  const params = new URLSearchParams(path.split('?')[1] || '');
+
+  const one = clean.match(/^\/people\/assets\/(\d+)\/label\.svg$/);
+  if (one) {
+    const asset = assetOf(Number(one[1]));
+    if (!asset) throw new HttpError(404, 'not found');
+    const { svg, problem, status } = labelSvg(assetRow(asset), {
+      qr,
+      as: params.get('as') || 'qr',
+      heightMm: params.get('h'),
+      sizeMm: params.get('mm'),
+      link: asset.code,
+    });
+    if (problem) throw new HttpError(status || 400, problem);
+    return { body: svg, type: 'image/svg+xml' };
+  }
+
+  if (clean === '/people/assets/labels.html') {
+    const ids = String(params.get('ids') || '')
+      .split(',')
+      .map(Number)
+      .filter(Boolean);
+    const assets = ids.length
+      ? ids.map((id) => assetRow(assetOf(id))).filter(Boolean)
+      : listAssetsOffline({ company_id: Number(params.get('company_id')) || undefined });
+    return {
+      body: labelSheet(assets, {
+        qr,
+        mm: params.get('mm'),
+        as: params.get('as'),
+        linkFor: (a) => a.code,
+      }),
+      type: 'text/html',
+    };
+  }
+
+  const vouch = clean.match(/^\/people\/assets\/(\d+)\/voucher\.html$/);
+  if (vouch) {
+    const asset = assetOf(Number(vouch[1]));
+    if (!asset) throw new HttpError(404, 'not found');
+    return { body: voucherHtml(assetRow(asset), { qr, link: asset.code }), type: 'text/html' };
+  }
+
+  throw new HttpError(404, `not available offline: ${path}`);
+}
+
 export async function file(path) {
   const registerPath = path.match(/^\/periods\/(\d+)\/statutory\/(pf|esi|pt|wages)\.csv$/);
   if (registerPath) {
@@ -3032,6 +3787,40 @@ export async function file(path) {
    * strangers' resumes is exactly the file that gets forwarded by mistake -
    * so the candidates export carries "yes"/"" and nothing more.
    */
+  /* The asset register's four downloads. */
+  const assetCsv = path.split('?')[0].match(
+    /^\/people\/(assets\/register|assets\/handovers|maintenance\/services|maintenance\/ownership)\.csv$/
+  );
+  if (assetCsv) {
+    const params = new URLSearchParams(path.split('?')[1] || '');
+    const companyId = Number(params.get('company_id')) || undefined;
+    const which = assetCsv[1];
+    let body;
+    if (which === 'assets/register') {
+      body = registerCsv(
+        listAssetsOffline({ company_id: companyId, written_off: params.get('written_off') === 'true' })
+      );
+    } else if (which === 'assets/handovers') {
+      body = handoverCsv(
+        listHandoversOffline({
+          employee_id: Number(params.get('employee_id')) || undefined,
+          open: params.get('open') === 'true',
+        })
+      );
+    } else if (which === 'maintenance/services') {
+      body = servicesCsv(
+        listServicesOffline({
+          company_id: companyId,
+          from: params.get('from') || undefined,
+          to: params.get('to') || undefined,
+        })
+      );
+    } else {
+      body = ownershipCsv(assetsWithOwnershipOffline({ company_id: companyId, written_off: true }));
+    }
+    return new Blob([body], { type: 'text/csv;charset=utf-8' });
+  }
+
   const hiringExport = path.split('?')[0].match(/^\/hiring\/export\/(pipeline|candidates)\.csv$/);
   if (hiringExport) {
     const params = new URLSearchParams(path.split('?')[1] || '');

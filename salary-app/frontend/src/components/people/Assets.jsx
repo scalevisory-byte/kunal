@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, download } from '../../api.js';
+import { api, download, openPage } from '../../api.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
@@ -160,7 +160,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    * office has a laser scanner in their pocket. The Code 128 is still there
    * behind ?as=bar for a scanner that wants it.
    */
-  const label = (asset) => window.open(`/api/people/assets/${asset.id}/label.svg?as=qr`, '_blank');
+  const label = (asset) => openPage(`/people/assets/${asset.id}/label.svg?as=qr`).catch(onError);
 
   /*
    * The voucher accounts needs before it will release the money. Printed from
@@ -168,12 +168,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    * which is the whole rule.
    */
   const voucher = (asset) =>
-    window.open(`/api/people/assets/${asset.id}/voucher.html`, '_blank');
+    openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError);
 
   /* A page of them, because nobody labels one asset at a time. */
   const labelSheet = () => {
     const ids = shown.map((a) => a.id).join(',');
-    window.open(`/api/people/assets/labels.html?ids=${ids}`, '_blank');
+    openPage(`/people/assets/labels.html?ids=${ids}`).catch(onError);
   };
 
   if (view === 'stock') {
