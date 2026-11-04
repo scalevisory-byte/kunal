@@ -330,6 +330,15 @@ if (assetColumns().includes('value')) {
 // One asset code, used once. Partial, because most rows carry no code yet.
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_code ON assets(code) WHERE code IS NOT NULL`);
 
+const addColumns = (table, columns) => {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  for (const [column, type] of columns) {
+    if (have.has(column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated ${table}: added ${column}.`);
+  }
+};
+
 /*
  * The asset masters: categories, the types under them, brands and vendors.
  *
@@ -358,7 +367,28 @@ db.exec(`
     ON asset_masters(kind, COALESCE(parent_id, 0), name);
 `);
 
+/*
+ * A vendor is a company you ring up; the other three are just names.
+ *
+ * The contact columns live on the same table and stay null for a category, a
+ * type or a brand. A separate `vendors` table would mean a second screen, a
+ * second set of routes and a second place for the same name to be typed - and
+ * the one thing a vendor shares with the other three is exactly what this
+ * table is for: being offered in a picker.
+ */
+addColumns('asset_masters', [
+  ['contact_person', 'TEXT'],
+  ['phone', 'TEXT'],
+  ['email', 'TEXT'],
+  ['address', 'TEXT'],
+  // What an invoice has to carry to be claimed against.
+  ['gstin', 'TEXT'],
+]);
+
 export const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
+
+/** Only a vendor has these; the rest keep them null. */
+export const VENDOR_FIELDS = ['contact_person', 'phone', 'email', 'address', 'gstin'];
 
 export const listMasters = (kind) =>
   db
@@ -384,8 +414,10 @@ export function createMaster(input = {}) {
   if (twin) throw new Error(`${name} is already on the list`);
   const info = db
     .prepare(
-      `INSERT INTO asset_masters (kind, name, parent_id, note, sort_order)
-       VALUES (@kind, @name, @parent_id, @note, @sort_order)`
+      `INSERT INTO asset_masters (kind, name, parent_id, note, sort_order,
+                                  contact_person, phone, email, address, gstin)
+       VALUES (@kind, @name, @parent_id, @note, @sort_order,
+               @contact_person, @phone, @email, @address, @gstin)`
     )
     .run({
       kind,
@@ -393,6 +425,10 @@ export function createMaster(input = {}) {
       parent_id: parentId,
       note: input.note || null,
       sort_order: Number(input.sort_order) || 0,
+      // Kept only for a vendor: a brand has no phone number.
+      ...Object.fromEntries(
+        VENDOR_FIELDS.map((f) => [f, kind === 'vendor' ? input[f] || null : null])
+      ),
     });
   return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(info.lastInsertRowid);
 }
@@ -405,9 +441,17 @@ export function updateMaster(id, patch = {}) {
     note: 'note' in patch ? patch.note || null : row.note,
     active: 'active' in patch ? (patch.active ? 1 : 0) : row.active,
     sort_order: 'sort_order' in patch ? Number(patch.sort_order) || 0 : row.sort_order,
+    ...Object.fromEntries(
+      VENDOR_FIELDS.map((f) => [
+        f,
+        row.kind === 'vendor' && f in patch ? patch[f] || null : row[f] ?? null,
+      ])
+    ),
   };
   db.prepare(
-    `UPDATE asset_masters SET name = @name, note = @note, active = @active, sort_order = @sort_order
+    `UPDATE asset_masters SET name = @name, note = @note, active = @active, sort_order = @sort_order,
+       contact_person = @contact_person, phone = @phone, email = @email,
+       address = @address, gstin = @gstin
      WHERE id = @id`
   ).run({ ...next, id });
   return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(id);
@@ -431,14 +475,6 @@ const dayNow = () => new Date().toISOString().slice(0, 10);
  * and none of them can move a rupee - they are things the office writes down,
  * not inputs to a calculation.
  */
-const addColumns = (table, columns) => {
-  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
-  for (const [column, type] of columns) {
-    if (have.has(column)) continue;
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-    log.info(`Migrated ${table}: added ${column}.`);
-  }
-};
 
 addColumns('appraisals', [
   // When the next review is due. Without it "appraisal due" cannot be a
@@ -2330,6 +2366,84 @@ export function reopenTicket(id, { by } = {}) {
   audit({ who: by, action: 'reopened', entity: 'tickets', entity_id: id, label: `${ticket.category} from ${ticket.employee_name}` });
   return getTicket(id);
 }
+
+/* ---------------- the paperwork for an asset ---------------- */
+
+/*
+ * The invoice, the warranty card, the delivery note.
+ *
+ * Its own table rather than a column on the asset, because an asset really
+ * does collect several over its life - the purchase invoice, then an AMC
+ * renewal, then a repair bill - and a single `invoice_file` column would mean
+ * the second one overwriting the first.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_documents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id    INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'invoice',
+    file_path   TEXT NOT NULL,
+    -- What it was called when it was uploaded, kept ONLY to show on screen.
+    -- The path is the generated name; this never touches the filesystem.
+    file_name   TEXT,
+    number      TEXT,
+    dated       TEXT,
+    note        TEXT,
+    uploaded_by TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_asset_docs ON asset_documents(asset_id, created_at);
+`);
+
+export const ASSET_DOC_KINDS = [
+  ['invoice', 'Invoice'],
+  ['warranty', 'Warranty card'],
+  ['delivery', 'Delivery note'],
+  ['amc', 'AMC contract'],
+  ['other', 'Something else'],
+];
+
+export const listAssetDocs = (assetId) =>
+  db
+    .prepare(`SELECT * FROM asset_documents WHERE asset_id = ? ORDER BY datetime(created_at) DESC, id DESC`)
+    .all(assetId);
+
+export const getAssetDoc = (id) => db.prepare(`SELECT * FROM asset_documents WHERE id = ?`).get(id);
+
+export function addAssetDoc({ asset_id, file_path, file_name, kind, number, dated, note, by }) {
+  const asset = getAsset(asset_id);
+  if (!asset) throw new Error('that asset is not on the register');
+  if (!file_path) throw new Error('no file was uploaded');
+  const info = db
+    .prepare(
+      `INSERT INTO asset_documents (asset_id, kind, file_path, file_name, number, dated, note, uploaded_by)
+       VALUES (@asset_id, @kind, @file_path, @file_name, @number, @dated, @note, @by)`
+    )
+    .run({
+      asset_id,
+      kind: ASSET_DOC_KINDS.some(([k]) => k === kind) ? kind : 'invoice',
+      file_path,
+      file_name: file_name || null,
+      // Defaults to what the asset already says, so the commonest case - the
+      // purchase invoice - needs nothing typed at all.
+      number: number || (kind === 'invoice' || !kind ? asset.invoice_no : null) || null,
+      dated: dated || (kind === 'invoice' || !kind ? asset.purchase_date : null) || null,
+      note: note || null,
+      by: by || null,
+    });
+  audit({
+    who: by,
+    action: 'attached',
+    entity: 'assets',
+    entity_id: asset_id,
+    label: `${asset.code || ''} ${asset.label}`.trim(),
+    note: file_name || kind || 'document',
+  });
+  return getAssetDoc(info.lastInsertRowid);
+}
+
+export const deleteAssetDoc = (id) =>
+  db.prepare(`DELETE FROM asset_documents WHERE id = ?`).run(id).changes > 0;
 
 /* ---------------- asset photographs ---------------- */
 

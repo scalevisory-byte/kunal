@@ -5,7 +5,8 @@ import express from 'express';
 import cors from 'cors';
 import { config } from './config.js';
 import { photoFile, photoLinkValid } from './assetPhotos.js';
-import { getAssetPhoto } from './people.js';
+import { docFile, docLinkValid } from './assetDocs.js';
+import { getAssetDoc, getAssetPhoto } from './people.js';
 import { log } from './logger.js';
 import { requireAdminForChanges, requireAuth, requireWriteForChanges } from './auth.js';
 import { getCandidate } from './hiring.js';
@@ -103,6 +104,27 @@ export function createServer() {
     }
     const file = photoFile(photo);
     if (!file) return res.status(410).json({ error: 'the photo is missing from disk' });
+    res.sendFile(file);
+  });
+
+  /**
+   * An asset's paperwork, behind the same expiring signature.
+   *
+   * Sent with its ORIGINAL name attached, because this one is saved and
+   * forwarded - "invoice.pdf" is useful where "doc-m3x8q1-4f2a.pdf" is not -
+   * and inline, so a PDF opens in the tab instead of landing in Downloads.
+   */
+  app.get('/files/asset-doc/:id', (req, res) => {
+    const doc = getAssetDoc(Number(req.params.id));
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    if (!docLinkValid(doc, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the asset again.' });
+    }
+    const file = docFile(doc);
+    if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
+    // The name is user input and this is a header: quotes and newlines out.
+    const safe = String(doc.file_name || 'document').replace(/[^\w.\- ]+/g, '_').slice(0, 80);
+    res.setHeader('content-disposition', `inline; filename="${safe}"`);
     res.sendFile(file);
   });
 

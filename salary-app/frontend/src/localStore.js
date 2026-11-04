@@ -802,6 +802,8 @@ const ASSET_FIELDS = [
 ];
 
 const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
+/** Only a vendor has these; the other three keep them null. */
+const VENDOR_FIELDS = ['contact_person', 'phone', 'email', 'address', 'gstin'];
 
 const dayNow = () => new Date().toISOString().slice(0, 10);
 const stampNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -1229,6 +1231,14 @@ function roundProgressOffline(round) {
  * A photograph is a file, and a file cannot live inside an HTML page. Said in
  * one place so every route that touches one says the same thing.
  */
+const ASSET_DOC_KINDS = [
+  ['invoice', 'Invoice'],
+  ['warranty', 'Warranty card'],
+  ['delivery', 'Delivery note'],
+  ['amc', 'AMC contract'],
+  ['other', 'Something else'],
+];
+
 const NO_PHOTOS_OFFLINE =
   'A photograph is a file, so keeping one needs the server version. Everything else about ' +
   'this asset works here — the note on its condition is on the handover.';
@@ -3459,6 +3469,19 @@ export async function handle(method, path, body) {
       }
 
       /*
+       * So is an invoice. The invoice NUMBER and date are on the asset and do
+       * work here - it is only the scan that cannot live inside an HTML page.
+       */
+      if (parts[3] === 'documents') {
+        if (method === 'GET') return { documents: [], kinds: ASSET_DOC_KINDS };
+        throw new HttpError(
+          400,
+          'Attaching the invoice needs the server version — a PDF is a file, and a file cannot ' +
+            'live inside this HTML page. The invoice number and date are on the asset and do work here.'
+        );
+      }
+
+      /*
        * The duplicate check ASKS rather than refuses: two identical repairs on
        * one day do happen, and a system that will not record the truth gets
        * worked around. 409 carrying the row it resembles.
@@ -3552,6 +3575,10 @@ export async function handle(method, path, body) {
           note: body?.note || null,
           active: 1,
           sort_order: Number(body?.sort_order) || 0,
+          // Only a vendor is somebody you ring up; a brand has no phone.
+          ...Object.fromEntries(
+            VENDOR_FIELDS.map((f) => [f, kind === 'vendor' ? body?.[f] || null : null])
+          ),
           created_at: stampNow(),
         };
         db.asset_masters.push(row);
@@ -3565,6 +3592,9 @@ export async function handle(method, path, body) {
         if ('note' in (body || {})) master.note = body.note || null;
         if ('active' in (body || {})) master.active = body.active ? 1 : 0;
         if ('sort_order' in (body || {})) master.sort_order = Number(body.sort_order) || 0;
+        if (master.kind === 'vendor') {
+          for (const f of VENDOR_FIELDS) if (f in (body || {})) master[f] = body[f] || null;
+        }
         save();
         return withParent(master);
       }

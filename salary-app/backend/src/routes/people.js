@@ -21,6 +21,7 @@ import { listCompanies, listEmployees } from '../db.js';
    whole asset list many times over. */
 const assetSheet = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 import { deletePhotoFile, photoLink, uploadAssetPhoto } from '../assetPhotos.js';
+import { deleteDocFile, docLink, uploadAssetDoc } from '../assetDocs.js';
 
 /*
  * What a sticker's QR actually carries: a link to that asset, so scanning it
@@ -47,6 +48,8 @@ const assetLink = (req, code) => {
  * path that leaves the server is a path somebody can guess the next one of.
  */
 const asPhoto = ({ file_path, ...rest }) => ({ ...rest, link: photoLink({ ...rest, file_path }) });
+/* The path never leaves the server - the same rule the CVs and the KYC follow. */
+const asDoc = ({ file_path, ...rest }) => ({ ...rest, link: docLink({ ...rest, file_path }) });
 
 /* The sticker sheet is the only HTML this router sends, and an asset's name is
    typed by somebody. */
@@ -106,6 +109,11 @@ import {
   listHandovers,
   listRounds,
   listVerifications,
+  listAssetDocs,
+  getAssetDoc,
+  addAssetDoc,
+  deleteAssetDoc,
+  ASSET_DOC_KINDS,
   setAssetState,
   acknowledgeHandover,
   listMasters,
@@ -368,6 +376,44 @@ peopleRouter.get('/assets/:id/voucher.html', (req, res) => {
   const asset = getAsset(Number(req.params.id));
   if (!asset) return res.status(404).json({ error: 'not found' });
   res.type('html').send(voucherHtml(asset, { qr, link: assetLink(req, asset.code) }));
+});
+
+/* The paperwork: the invoice, the warranty card, the delivery note. */
+peopleRouter.get('/assets/:id/documents', (req, res) => {
+  if (!getAsset(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  res.json({ documents: listAssetDocs(Number(req.params.id)).map(asDoc), kinds: ASSET_DOC_KINDS });
+});
+
+peopleRouter.post('/assets/:id/documents', uploadAssetDoc, (req, res) => {
+  try {
+    const doc = addAssetDoc({
+      asset_id: Number(req.params.id),
+      file_path: req.file?.filename,
+      // Kept only to show on screen; the path is the generated name.
+      file_name: req.file?.originalname,
+      kind: req.body?.kind,
+      number: req.body?.number,
+      dated: req.body?.dated,
+      note: req.body?.note,
+      by: who(req),
+    });
+    res.status(201).json({ document: asDoc(doc) });
+  } catch (err) {
+    // The file is already on disk; nothing points at it, so it goes rather
+    // than sitting there forever.
+    if (req.file?.filename) deleteDocFile({ file_path: req.file.filename });
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/assets/:id/documents/:docId', (req, res) => {
+  const doc = getAssetDoc(Number(req.params.docId));
+  if (!doc || doc.asset_id !== Number(req.params.id)) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  deleteAssetDoc(doc.id);
+  deleteDocFile(doc);
+  res.status(204).end();
 });
 
 peopleRouter.get('/assets/:id/photos', (req, res) => {

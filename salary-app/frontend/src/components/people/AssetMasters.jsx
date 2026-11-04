@@ -15,6 +15,14 @@ import { api } from '../../api.js';
  * not touch a single asset carrying that name.
  */
 
+const VENDOR_BOXES = [
+  ['contact_person', 'Who to ask for', 'Rashmi'],
+  ['phone', 'Phone', '98250 11223'],
+  ['email', 'Email', 'sales@…'],
+  ['gstin', 'GSTIN', '24ABCDE1234F1Z5'],
+  ['address', 'Address', 'Alkapuri, Vadodara'],
+];
+
 const LISTS = [
   ['category', 'Categories', 'The broad groups: IT equipment, Furniture, Vehicles'],
   ['type', 'Types', 'What sits under a category: Laptop, Printer, Desk'],
@@ -27,6 +35,9 @@ export default function AssetMasters({ onError }) {
   const [rows, setRows] = useState([]);
   const [name, setName] = useState('');
   const [parent, setParent] = useState('');
+  /* A vendor is somebody you ring up; the other three are just names. */
+  const [contact, setContact] = useState({ contact_person: '', phone: '', email: '', address: '', gstin: '' });
+  const [open, setOpen] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -53,13 +64,26 @@ export default function AssetMasters({ onError }) {
         kind,
         name: name.trim(),
         parent_id: kind === 'type' ? Number(parent) || null : null,
+        ...(kind === 'vendor' ? contact : {}),
       });
       setName('');
+      setContact({ contact_person: '', phone: '', email: '', address: '', gstin: '' });
       await load();
     } catch (err) {
       onError(err);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /* Saved on blur, like every other detail box in the app. */
+  const patch = async (row, key, value) => {
+    if ((row[key] || '') === value) return;
+    try {
+      await api.patch(`/people/asset-masters/${row.id}`, { [key]: value });
+      await load();
+    } catch (err) {
+      onError(err);
     }
   };
 
@@ -123,17 +147,60 @@ export default function AssetMasters({ onError }) {
         <p className="muted small">Add a category first — a type under nothing is a type of nothing.</p>
       ) : null}
 
+      {/* A vendor's details, typed with the name rather than afterwards. */}
+      {kind === 'vendor' && (
+        <div className="grid" style={{ marginTop: '0.5rem' }}>
+          {VENDOR_BOXES.map(([key, label, placeholder]) => (
+            <label className="field" key={key}>
+              {label}
+              <input
+                value={contact[key]}
+                placeholder={placeholder}
+                onChange={(e) => setContact({ ...contact, [key]: e.target.value })}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
       <div className="lines" style={{ marginTop: '0.7rem' }}>
         {!shown.length ? (
           <p className="muted small">Nothing on this list yet.</p>
         ) : (
           shown.map((row) => (
-            <div key={row.id}>
+            <div key={row.id} className="master-row">
               <span className="what">
-                {row.name}
+                {kind === 'vendor' ? (
+                  <button className="link" onClick={() => setOpen(open === row.id ? null : row.id)}>
+                    {row.name}
+                  </button>
+                ) : (
+                  row.name
+                )}
                 {row.parent_name ? <span className="muted small"> · under {row.parent_name}</span> : null}
+                {kind === 'vendor' ? (
+                  <span className="muted small">
+                    {' '}
+                    {[row.contact_person, row.phone].filter(Boolean).join(' · ') || 'no contact yet'}
+                  </span>
+                ) : null}
               </span>
               <button className="link" onClick={() => remove(row)}>remove</button>
+              {kind === 'vendor' && open === row.id ? (
+                <div className="grid master-contact">
+                  {VENDOR_BOXES.map(([key, label, placeholder]) => (
+                    <label className="field" key={key}>
+                      {label}
+                      <input
+                        key={`${row.id}-${key}-${row[key] ?? ''}`}
+                        defaultValue={row[key] || ''}
+                        placeholder={placeholder}
+                        onBlur={(e) => patch(row, key, e.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ))
         )}

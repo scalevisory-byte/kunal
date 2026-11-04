@@ -2042,3 +2042,13 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 .pf-dot.soon { background: var(--warn); }
 
 .pf-what { font-weight: 500; margin-right: 0.3rem; }
+
+/* A vendor's contact details, folded under their name. */
+.master-row .master-contact {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}

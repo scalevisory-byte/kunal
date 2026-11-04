@@ -24,9 +24,54 @@ export default function AssetHistory({ asset, onClose, onError }) {
   }, [asset?.id, asset?.code]);
   const [found, setFound] = useState(null);
   const [photos, setPhotos] = useState([]);
+  /* The paperwork: the invoice, the warranty card, the delivery note. */
+  const [docs, setDocs] = useState([]);
+  const [docKind, setDocKind] = useState('invoice');
+  const [docKinds, setDocKinds] = useState([]);
+  const docFile = useRef(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState('');
   const file = useRef(null);
+
+  const loadDocs = async () => {
+    try {
+      const { documents, kinds } = await api.get(`/people/assets/${asset.id}/documents`);
+      setDocs(documents || []);
+      setDocKinds(kinds || []);
+    } catch (err) {
+      // Offline this is a refusal with a reason, said beside the button
+      // rather than as a banner over a drawer somebody just opened.
+      setDocs([]);
+    }
+  };
+
+  const addDoc = async () => {
+    const chosen = docFile.current?.files?.[0];
+    if (!chosen) return;
+    const form = new FormData();
+    form.set('file', chosen);
+    form.set('kind', docKind);
+    setBusy('Attaching…');
+    try {
+      await api.upload(`/people/assets/${asset.id}/documents`, form);
+      if (docFile.current) docFile.current.value = '';
+      await loadDocs();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const removeDoc = async (doc) => {
+    if (!window.confirm(`Remove ${doc.file_name || 'this file'}?`)) return;
+    try {
+      await api.del(`/people/assets/${asset.id}/documents/${doc.id}`);
+      await loadDocs();
+    } catch (err) {
+      onError(err);
+    }
+  };
 
   const loadPhotos = async () => {
     try {
@@ -46,6 +91,7 @@ export default function AssetHistory({ asset, onClose, onError }) {
       }
     })();
     loadPhotos();
+    loadDocs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
 
@@ -158,6 +204,53 @@ export default function AssetHistory({ asset, onClose, onError }) {
             </tbody>
           </table>
         )}
+
+        {/*
+          * The paperwork. Its own list rather than a field on the asset,
+          * because an asset really does collect several over its life - the
+          * purchase invoice, an AMC renewal, a repair bill - and one column
+          * would mean the second overwriting the first.
+          */}
+        <h4 style={{ margin: '1rem 0 0.4rem' }}>
+          Paperwork{docs.length ? ` — ${docs.length}` : ''}
+        </h4>
+        {docs.length > 0 && (
+          <div className="lines">
+            {docs.map((doc) => (
+              <div key={doc.id}>
+                <span className="what">
+                  <a href={doc.link?.url} target="_blank" rel="noreferrer">
+                    {doc.file_name || 'document'}
+                  </a>
+                  <span className="muted small">
+                    {' '}
+                    {[
+                      docKinds.find(([k]) => k === doc.kind)?.[1] || doc.kind,
+                      doc.number,
+                      doc.dated,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                <button className="ghost tiny" onClick={() => removeDoc(doc)}>remove</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="row" style={{ marginTop: '0.4rem' }}>
+          <select value={docKind} onChange={(e) => setDocKind(e.target.value)}>
+            {(docKinds.length ? docKinds : [['invoice', 'Invoice']]).map(([k, text]) => (
+              <option key={k} value={k}>{text}</option>
+            ))}
+          </select>
+          <input ref={docFile} type="file" accept=".pdf,image/*" />
+          <button onClick={addDoc} disabled={!!busy}>Attach it</button>
+        </div>
+        <p className="muted small">
+          A PDF or a scan. The invoice number and date come from the asset, so the commonest
+          one needs nothing typed.
+        </p>
 
         {/*
           * Photographs. What condition something was in when it went out, and
