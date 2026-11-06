@@ -271,7 +271,13 @@ export default function Dashboard({
     out.late.sort((a, b) => b.lateBy - a.lateBy);
     out.overtime.sort((a, b) => b.minutes - a.minutes);
     out.short.sort((a, b) => a.minutes - b.minutes);
-    return { ...out, startsAt: standard.in_time, endsAt: standard.out_time, grace };
+    return {
+      ...out,
+      startsAt: standard.in_time,
+      endsAt: standard.out_time,
+      grace,
+      dayHours: Number(period.hours_per_day) || 9,
+    };
   }, [rows, shownDay, period]);
 
   /*
@@ -320,7 +326,16 @@ export default function Dashboard({
     // is exactly the sort of thing the morning is for.
     for (const p of roll.outOfUniform) note(p, 2, 'Not in proper uniform', '', 'uniform');
     for (const p of roll.halfDay) note(p, 3, 'Half day', '', 'halfDay');
-    for (const p of roll.short) note(p, 4, `Short ${formatDuration(-p.minutes)}`, '', 'short');
+    /*
+     * Said against the day it fell short OF.
+     *
+     * Dinesh: "error where 9 hrs not completed" - "Short 50m" on its own
+     * never said what the day was supposed to be, so nobody could tell
+     * whether it mattered.
+     */
+    for (const p of roll.short) {
+      note(p, 4, `Short ${formatDuration(-p.minutes)} of ${roll.dayHours}h`, '', 'short');
+    }
     for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
     for (const p of roll.unmarked) note(p, 6, 'Not marked yet', '', 'unmarked');
 
@@ -1136,7 +1151,9 @@ export default function Dashboard({
               } need looking at.`
             : `${listed.length} of ${needsLooking.length} on this list.`}{' '}
           Late is judged against {roll.startsAt} plus {roll.grace} minutes, and early against{' '}
-          {roll.endsAt} — a day with no clock time is never called late, only "not known".
+          {roll.endsAt} — a day with no clock time is never called late, only "not known". A full
+          day is <strong>{roll.dayHours} hours</strong>; anybody who did not complete them is on
+          the <strong>Short hours</strong> list with how far short they fell.
         </p>
 
         {roll.present.length > 0 && (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import { describeMinutes } from '../../../shared/attendanceRequests.js';
 import Payslip from './Payslip.jsx';
 import ChangePassword from './ChangePassword.jsx';
 
@@ -334,7 +335,23 @@ function MyLeave({ onError }) {
   const [leave, setLeave] = useState(null);
   const [requests, setRequests] = useState([]);
   const [months, setMonths] = useState([]);
-  const [form, setForm] = useState({ period_id: '', day: '', to_day: '', code: 'CL', reason: '' });
+  /*
+   * `code` doubles as which kind of time off this is: a leave code, or HOURS.
+   *
+   * Dinesh asked for a few hours off to be askable and deductible. It is not a
+   * leave code - the day stays Present and only the hours move - so it rides
+   * in the same picker where somebody is already choosing what to ask for,
+   * rather than as a second form they have to find.
+   */
+  const [form, setForm] = useState({
+    period_id: '',
+    day: '',
+    to_day: '',
+    code: 'CL',
+    minutes: 120,
+    reason: '',
+  });
+  const hours = form.code === 'HOURS';
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
 
@@ -369,9 +386,13 @@ function MyLeave({ onError }) {
       await api.post('/me/requests', {
         period_id: Number(form.period_id),
         day: Number(form.day),
-        to_day: form.to_day ? Number(form.to_day) : undefined,
-        kind: 'leave',
-        code: form.code,
+        ...(hours
+          ? { kind: 'short_leave', minutes: Number(form.minutes) }
+          : {
+              kind: 'leave',
+              code: form.code,
+              to_day: form.to_day ? Number(form.to_day) : undefined,
+            }),
         reason: form.reason,
       });
       setForm({ ...form, day: '', to_day: '', reason: '' });
@@ -433,6 +454,7 @@ function MyLeave({ onError }) {
               {['CL', 'SL', 'PL', 'UL'].map((c) => (
                 <option key={c} value={c}>{ATTENDANCE_CODES[c]?.label || c}</option>
               ))}
+              <option value="HOURS">A few hours off</option>
             </select>
           </label>
           {/*
@@ -453,18 +475,35 @@ function MyLeave({ onError }) {
               onChange={(e) => setForm({ ...form, day: dayOf(e.target.value) })}
             />
           </label>
-          <label className="vf-field">
-            <span className="vf-label">To</span>
-            <input
-              type="date"
-              min={dayDate(chosen, form.day || 1)}
-              max={dayDate(chosen, monthLength(chosen))}
-              value={dayDate(chosen, form.to_day)}
-              disabled={!chosen}
-              onChange={(e) => setForm({ ...form, to_day: dayOf(e.target.value) })}
-            />
-            <span className="vf-hint">Leave empty for one day</span>
-          </label>
+          {hours ? (
+            <label className="vf-field">
+              <span className="vf-label">How long</span>
+              <select
+                value={form.minutes}
+                onChange={(e) => setForm({ ...form, minutes: e.target.value })}
+              >
+                {[30, 60, 90, 120, 180, 240, 300].map((m) => (
+                  <option key={m} value={m}>{describeMinutes(m)}</option>
+                ))}
+              </select>
+              <span className="vf-hint">
+                It comes off that day's hours — a whole day is a leave application
+              </span>
+            </label>
+          ) : (
+            <label className="vf-field">
+              <span className="vf-label">To</span>
+              <input
+                type="date"
+                min={dayDate(chosen, form.day || 1)}
+                max={dayDate(chosen, monthLength(chosen))}
+                value={dayDate(chosen, form.to_day)}
+                disabled={!chosen}
+                onChange={(e) => setForm({ ...form, to_day: dayOf(e.target.value) })}
+              />
+              <span className="vf-hint">Leave empty for one day</span>
+            </label>
+          )}
           <label className="vf-field wide">
             <span className="vf-label">Why</span>
             <input
@@ -497,8 +536,10 @@ function MyLeave({ onError }) {
             {requests.map((r) => (
               <div key={r.id}>
                 <span className="what">
-                  {ATTENDANCE_CODES[r.code]?.label || r.kind} ·{' '}
-                  {r.to_day ? `${r.day}–${r.to_day}` : r.day}
+                  {r.kind === 'short_leave'
+                    ? `${describeMinutes(r.minutes)} off`
+                    : ATTENDANCE_CODES[r.code]?.label || r.kind}{' '}
+                  · {r.to_day ? `${r.day}–${r.to_day}` : r.day}
                   <span className="muted small"> {r.reason}</span>
                 </span>
                 <span className={`pf-status ${r.status === 'approved' ? '' : r.status}`}>{r.status}</span>

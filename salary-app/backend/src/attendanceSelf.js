@@ -1,8 +1,21 @@
-import { db, getEmployee, getPeriod, listEmployees, setAttendance } from './db.js';
+import {
+  attendanceByEmployee,
+  db,
+  getEmployee,
+  getPeriod,
+  listEmployees,
+  setAttendance,
+} from './db.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { judgePunch, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
-import { canDecide, daysOf, entriesFor, validateRequest } from '../../shared/attendanceRequests.js';
+import {
+  canDecide,
+  daysOf,
+  describeMinutes,
+  entriesFor,
+  validateRequest,
+} from '../../shared/attendanceRequests.js';
 
 /*
  * The employee's own side of attendance: punching from a phone, and asking for
@@ -193,13 +206,16 @@ export const getRequest = (id) =>
   db.prepare(`SELECT * FROM attendance_requests WHERE id = ?`).get(id) || null;
 
 export function createRequest(body) {
-  const { ok, problems } = validateRequest(body);
+  // The month's own hours decide what counts as "a whole day or more", so a
+  // nine-hour office and an eight-hour one draw the line in different places.
+  const hoursPerDay = Number(getPeriod(Number(body.period_id))?.hours_per_day) || 9;
+  const { ok, problems } = validateRequest({ ...body, hours_per_day: hoursPerDay });
   if (!ok) throw new Error(problems.join('; '));
   const id = db
     .prepare(
       `INSERT INTO attendance_requests
-        (employee_id, period_id, day, to_day, kind, code, in_time, lunch_out, lunch_in, out_time, reason)
-       VALUES (@employee_id, @period_id, @day, @to_day, @kind, @code, @in_time, @lunch_out, @lunch_in, @out_time, @reason)`
+        (employee_id, period_id, day, to_day, kind, code, in_time, lunch_out, lunch_in, out_time, reason, minutes)
+       VALUES (@employee_id, @period_id, @day, @to_day, @kind, @code, @in_time, @lunch_out, @lunch_in, @out_time, @reason, @minutes)`
     )
     .run({
       employee_id: Number(body.employee_id),
@@ -215,6 +231,11 @@ export function createRequest(body) {
       lunch_in: body.lunch_in || null,
       out_time: body.out_time || null,
       reason: String(body.reason).trim(),
+      // Only a few-hours-off request carries minutes.
+      minutes:
+        body.minutes === undefined || body.minutes === null || body.minutes === ''
+          ? null
+          : Math.abs(Math.round(Number(body.minutes))),
     }).lastInsertRowid;
   return getRequest(id);
 }
@@ -223,19 +244,38 @@ export function createRequest(body) {
  * The decision. Approving is the ONLY thing in this module that writes
  * attendance; rejecting writes nothing at all beyond the decision itself.
  */
-export function decideRequest(id, { approve, by = 'office', note } = {}) {
+export function decideRequest(id, { approve, by = 'office', note: req_note } = {}) {
   const request = getRequest(id);
   const period = request ? getPeriod(request.period_id) : null;
   const may = canDecide(request, { periodLocked: !!period?.locked });
   if (!may.ok) throw new Error(may.reason);
 
+  let note = null;
   if (approve) {
-    // One entry per day the request covers - a fortnight of leave is one
-    // decision, and the grid is written in one transaction so a half-approved
-    // fortnight cannot exist.
-    const entries = entriesFor(request).map((entry) => ({ ...entry, by }));
+    /*
+     * One entry per day the request covers - a fortnight of leave is one
+     * decision, and the grid is written in one transaction so a half-approved
+     * fortnight cannot exist.
+     *
+     * `storedOf` hands the rule in `entryFor` what the day already carries,
+     * which is how a few hours off avoids charging the same afternoon twice:
+     * where the clock already shows the shortfall, the approval records the
+     * reason and leaves the hours alone.
+     */
+    const marks = attendanceByEmployee(request.period_id).get(request.employee_id) || {};
+    const entries = entriesFor(request, { storedOf: (day) => marks[day] || null }).map((entry) => ({
+      ...entry,
+      by,
+    }));
     setAttendance(request.period_id, entries);
     const days = daysOf(request);
+    if (request.kind === 'short_leave') {
+      // Said on the decision, because "approved" alone would leave nobody
+      // able to tell whether it cost anything.
+      note = entries[0]?.short_leave_charged
+        ? `${describeMinutes(request.minutes)} deducted from that day`
+        : `${describeMinutes(request.minutes)} off — the clock already shows the day short, so the hours were not deducted twice`;
+    }
     log.info(
       `Attendance request ${id} approved by ${by}` +
         (days.length > 1 ? ` (days ${days[0]}-${days[days.length - 1]})` : '')
@@ -245,7 +285,7 @@ export function decideRequest(id, { approve, by = 'office', note } = {}) {
   db.prepare(
     `UPDATE attendance_requests SET status = ?, decided_by = ?, decided_at = datetime('now'), decision_note = ?
      WHERE id = ?`
-  ).run(approve ? 'approved' : 'rejected', by, note || null, id);
+  ).run(approve ? 'approved' : 'rejected', by, [note, req_note].filter(Boolean).join(' · ') || null, id);
   return getRequest(id);
 }
 

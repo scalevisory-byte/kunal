@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, download, openPage } from '../../api.js';
+import { STANDALONE, api, download, openPage } from '../../api.js';
 import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
 import { assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
@@ -444,7 +444,17 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             <label>
               Invoice
               <input value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} />
-              <span className="hint">the number; the PDF attaches from the register</span>
+              {/*
+                * Where the PDF goes, said differently in the two builds -
+                * "attaches from the register" is simply untrue in the single
+                * file, where there is nowhere to put one, and that sentence
+                * is what sent Dinesh looking for a button that cannot exist.
+                */}
+              <span className="hint">
+                {STANDALONE
+                  ? 'the number — attaching the PDF needs the server version'
+                  : 'the number; attach the PDF from the register once it is added'}
+              </span>
             </label>
             <label>
               Warranty until

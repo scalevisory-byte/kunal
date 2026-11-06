@@ -50,7 +50,28 @@ export const REQUEST_KINDS = [
     hint: 'both the mark and the hours need fixing',
     needs: 'both',
   },
+  /*
+   * A few hours off, not the whole day.
+   *
+   * Dinesh: *"what if employee apply leave for 2 hrs 3 hrs 4 hrs / need
+   * deduction for that type of leave"*. The app could already DEDUCT a few
+   * hours - that is the minutes column the salary sheet has always paid from -
+   * but there was no way for anybody to ASK for them, so it was recorded as a
+   * shortfall with no reason beside it.
+   *
+   * It needs minutes, not a mark and not times: the day stays Present, and
+   * only the hours move.
+   */
+  {
+    key: 'short_leave',
+    label: 'A few hours off',
+    hint: 'two or three hours, not the whole day',
+    needs: 'minutes',
+  },
 ];
+
+/** The shortest and longest a few hours off can sensibly be. */
+export const SHORT_LEAVE_MIN_MINUTES = 15;
 
 export const STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'];
 
@@ -97,6 +118,22 @@ export function validateRequest(request = {}) {
   }
 
   const needs = needsOf(kind);
+  /*
+   * A few hours off. More than a working day is a DAY's leave, which is a
+   * different request with a different mark and a different quota - so it is
+   * refused here rather than quietly deducting a day and a half of hours.
+   */
+  if (needs === 'minutes') {
+    const minutes = Number(request.minutes);
+    const dayMinutes = Math.round((Number(request.hours_per_day) || 9) * 60);
+    if (!Number.isFinite(minutes) || minutes < SHORT_LEAVE_MIN_MINUTES) {
+      problems.push(`say how long — at least ${SHORT_LEAVE_MIN_MINUTES} minutes`);
+    } else if (minutes >= dayMinutes) {
+      problems.push(
+        `that is a whole day or more — apply for leave instead (a day is ${Math.round(dayMinutes / 60)} hours)`
+      );
+    }
+  }
   if (needs === 'times' || needs === 'both') {
     const any = TIME_FIELDS.some((f) => parseTime(request[f]) !== null);
     if (!any && needs === 'times') problems.push('give at least one time');
@@ -117,9 +154,33 @@ export function validateRequest(request = {}) {
  * must not blank a lunch somebody else typed, which is the same merge rule
  * `setAttendance` already follows.
  */
-export function entryFor(request = {}, day = Number(request.day)) {
+export function entryFor(request = {}, day = Number(request.day), stored = null) {
   const entry = { employee_id: Number(request.employee_id), day: Number(day) };
   const needs = needsOf(request.kind);
+
+  /*
+   * A few hours off, and THE RULE THAT MATTERS: it must never charge the same
+   * hours twice.
+   *
+   * The app already deducts a shortfall worked out from the clock - out minus
+   * in minus lunch against the day's expected hours - so somebody who left
+   * three hours early is ALREADY three hours short there. Writing another 180
+   * minutes on top would dock the afternoon twice, which is the same trap the
+   * late/early concession was built around.
+   *
+   * So: the minutes are written only when nothing else is accounting for the
+   * day. Where the day carries clock times, those hours stand and the approval
+   * records WHY they are short - which is what was missing, not the deduction.
+   * `charged` says which happened, so the decision can say so out loud.
+   */
+  if (needs === 'minutes') {
+    const minutes = Math.round(Number(request.minutes) || 0);
+    const clocked = stored
+      ? TIME_FIELDS.some((f) => String(stored[f] || '').trim() !== '')
+      : false;
+    if (minutes > 0 && !clocked) entry.minutes = -minutes;
+    entry.short_leave_charged = minutes > 0 && !clocked;
+  }
 
   if ((needs === 'mark' || needs === 'both') && request.code) entry.code = request.code;
   if (needs === 'times' || needs === 'both') {
@@ -149,8 +210,20 @@ export function entryFor(request = {}, day = Number(request.day)) {
  * fortnight of leave is meaningless, and a leave request only ever names a
  * mark anyway.
  */
-export function entriesFor(request = {}) {
-  return daysOf(request).map((day) => entryFor(request, day));
+export function entriesFor(request = {}, { storedOf } = {}) {
+  return daysOf(request).map((day) =>
+    entryFor(request, day, storedOf ? storedOf(day) : null)
+  );
+}
+
+/** "2h 30m", the way somebody asking for a few hours off would say it. */
+export function describeMinutes(minutes) {
+  const total = Math.abs(Math.round(Number(minutes) || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (!total) return '0m';
+  if (!h) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 /** A one-line summary for the approval list, so nobody has to open each one. */
@@ -159,6 +232,9 @@ export function describe(request = {}) {
   const days = daysOf(request);
   if (days.length > 1) bits.push(`days ${days[0]}\u2013${days[days.length - 1]} (${days.length} days)`);
   if (request.code) bits.push(`mark it ${ATTENDANCE_CODES[request.code]?.label || request.code}`);
+  if (request.kind === 'short_leave' && request.minutes) {
+    bits.push(`${describeMinutes(request.minutes)} off`);
+  }
   const times = TIME_FIELDS.filter((f) => request[f]).map((f) => `${f.replace('_', ' ')} ${request[f]}`);
   if (times.length) bits.push(times.join(', '));
   return bits.join(' · ') || 'no change named';

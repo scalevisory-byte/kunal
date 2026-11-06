@@ -823,6 +823,45 @@ A last day before the first is refused as a typo rather than silently covering n
 a date range on a kind that cannot span one (a missing punch, say) is refused rather than
 quietly dropped.
 
+### A few hours off — and never charging the same hours twice
+
+Dinesh: *"what if employee apply leave for 2 hrs 3 hrs 4 hrs / need deduction for that type of
+leave"*.
+
+The app could always **deduct** a few hours — that is the minutes column the salary sheet has
+paid from since the Time tab was built. What was missing is that nobody could **ask** for them:
+the hours showed up as a shortfall with no reason beside them.
+
+**A few hours off** is now a kind of request, like a missing punch or a leave application. The
+employee picks it on their own Leave tab (or the punch link), chooses 30m / 1h / 1h 30m / 2h /
+3h / 4h / 5h, gives a reason, and it goes to the office. **A request still changes nothing** —
+while it is pending the net is untouched — and approving is what writes.
+
+Three rules:
+
+- **The day stays Present.** It is not a leave code and it does not touch a quota: only the
+  hours move. A whole day or more is **refused**, naming the day's length, because that is a
+  leave application with a mark and a quota behind it.
+- **It never charges the same hours twice.** The app already deducts a shortfall worked out
+  from the clock — out minus in minus lunch against the day's hours — so somebody who left
+  three hours early is *already* three hours short there. So the minutes are written **only
+  when the day carries no clock times**. Where it does, those hours stand and the approval
+  records *why* they were short. The decision says which happened, in as many words: *"2h
+  deducted from that day"* or *"2h off — the clock already shows the day short, so the hours
+  were not deducted twice"*. This is the same trap the late/early concession was built around.
+- **It is deducted, not forgiven.** Dinesh asked for the deduction. A manager who wants to
+  waive it rejects the request and marks the day as they see fit — the app does not decide that.
+
+Verified end to end: Amit asks for 2 hours on the 21st, net stays ₹22,502 while it is pending,
+the office approves, the note reads *"2h deducted from that day"* and the net is ₹22,280 —
+exactly 120 minutes at his own minute rate.
+
+### Did they complete the day?
+
+The roll call's **Short hours** list now names what the day fell short *of* — "Short 50m of 9h"
+rather than "Short 50m", which never said whether it mattered. The footnote states the full day
+in hours, and anybody who did not complete it is on that list.
+
 ### The day off need not be Sunday
 
 **Leave → The day off.** The app assumed Sunday everywhere, which is right for most of the

@@ -155,6 +155,8 @@ db.exec(`
     lunch_in    TEXT,
     out_time    TEXT,
     reason      TEXT,
+    -- How long, for a few hours off. Null on every other kind.
+    minutes     INTEGER,
     status      TEXT NOT NULL DEFAULT 'pending',
     decided_by  TEXT,
     decided_at  TEXT,
@@ -531,6 +533,10 @@ if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'we
 if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'to_day')) {
   db.exec(`ALTER TABLE attendance_requests ADD COLUMN to_day INTEGER`);
   log.info('Migrated attendance_requests: added to_day, so a leave application can cover a run of days.');
+}
+if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'minutes')) {
+  db.exec(`ALTER TABLE attendance_requests ADD COLUMN minutes INTEGER`);
+  log.info('Migrated attendance_requests: added minutes, so a few hours off can be asked for.');
 }
 
 for (const column of ['sunday_status', 'sunday_mode']) {

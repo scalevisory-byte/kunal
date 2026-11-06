@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { REQUEST_KINDS, kindLabel, spans } from '../../../shared/attendanceRequests.js';
+import {
+  REQUEST_KINDS,
+  describeMinutes,
+  kindLabel,
+  spans,
+} from '../../../shared/attendanceRequests.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 
 const clock = (iso) => String(iso || '').slice(11, 16);
@@ -391,6 +396,7 @@ function TicketForm({ token, categories, onDone, onError }) {
 function RequestForm({ token, periods, onDone, onError }) {
   const [form, setForm] = useState({
     kind: 'missing_punch',
+    minutes: 120,
     period_id: periods[0]?.id || '',
     day: '',
     to_day: '',
@@ -489,6 +495,26 @@ function RequestForm({ token, periods, onDone, onError }) {
             <input placeholder="18:30" value={form.out_time} onChange={(e) => setForm({ ...form, out_time: e.target.value })} />
           </label>
         </>
+      ) : null}
+
+      {/* A few hours off: presets, because nobody asks for 97 minutes. */}
+      {needs === 'minutes' ? (
+        <label className="field">
+          How long
+          <select
+            value={form.minutes}
+            onChange={(e) => setForm({ ...form, minutes: e.target.value })}
+          >
+            {[30, 60, 90, 120, 180, 240, 300].map((m) => (
+              <option key={m} value={m}>
+                {describeMinutes(m)}
+              </option>
+            ))}
+          </select>
+          <span className="vf-hint">
+            It comes off that day's hours. A whole day off is a leave application.
+          </span>
+        </label>
       ) : null}
 
       {needs === 'mark' || needs === 'both' ? (

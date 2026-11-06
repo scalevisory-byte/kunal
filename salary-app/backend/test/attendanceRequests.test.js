@@ -17,7 +17,7 @@ const base = { period_id: 1, employee_id: 7, day: 15, reason: 'Machine did not r
 test('every kind of request says what it is and what it needs', () => {
   for (const kind of REQUEST_KINDS) {
     assert.ok(kind.label && kind.hint, `${kind.key} does not explain itself`);
-    assert.ok(['times', 'mark', 'both'].includes(kind.needs));
+    assert.ok(['times', 'mark', 'both', 'minutes'].includes(kind.needs));
   }
 });
 

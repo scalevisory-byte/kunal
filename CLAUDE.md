@@ -727,6 +727,34 @@ LATE COMING ALS0"*, then *"roll call me absent reason aur late coming list add k
   down with "missing ) after argument list". Never put backticks in a comment inside a template
   string.
 
+## A few hours off — short leave, with the no-double-charge rule
+
+Dinesh: *"what if employee apply leave for 2 hrs 3 hrs 4 hrs / need dection for that type of
+leave / erroer where 9 hrs not completed"*.
+
+- A new request kind **`short_leave`** with `needs: 'minutes'` and a `minutes` column on
+  `attendance_requests`. The employee picks it on MyPage's Leave tab or the punch link (presets
+  30m–5h); the office approves it in the same queue as everything else. *A request never writes
+  attendance; an approval does* still holds, with a test that the net is untouched while pending.
+- **The rule that matters: it must never charge the same hours twice.** The app already deducts
+  the clock shortfall (`out − in − lunch` against the day's hours), so somebody who left three
+  hours early is ALREADY three hours short there. So `entryFor` writes the minutes **only when
+  the day carries no clock times**; where it does, the hours stand and the approval records the
+  reason. `entriesFor(request, { storedOf })` hands it the day, and `decideRequest` writes which
+  happened onto the decision note. Tests for both halves. Same trap as the late/early concession.
+- **The day stays Present** — no mark, no quota, only hours. A whole day or more is refused and
+  names the day's length, because that is a leave application. The floor is 15 minutes.
+- **No change to `calculateRow`.** It writes the minutes column the sheet has always paid from,
+  so no existing month can move. Verified: 2h on a clean day = exactly 120 × the person's minute
+  rate (₹22,502 → ₹22,280 on a ₹26,000 salary).
+- *"error where 9 hrs not completed"*: the roll call's Short hours line now reads **"Short 50m of
+  9h"** and the footnote states the full day, because "Short 50m" alone never said what the day
+  was supposed to be.
+- **Bug found on the way:** `updateUser` silently ignores an unknown field and returns 200, so
+  `PATCH /auth/users/:id {must_change:false}` looked like it worked and did nothing. Left as is —
+  `must_change` is deliberately NOT patchable, because an admin clearing it would re-enable a
+  password that was read out loud. The forced screen is the only way off it.
+
 ## Attaching the asset invoice — it was there, nobody could find it
 
 Dinesh: *"invoicec attch karne ka option nahi he"*. It had been working since `assetDocs.js`

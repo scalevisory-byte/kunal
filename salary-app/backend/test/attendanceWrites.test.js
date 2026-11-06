@@ -427,3 +427,128 @@ test('a uniform verdict survives the grid, the clock and the punch import', asyn
   assert.equal(day.uniform, false);
   assert.equal(day.reason, 'No ID card');
 });
+
+/* ================================================================= *
+ * A few hours off — and never charging the same hours twice
+ * ================================================================= *
+ *
+ * Dinesh: "what if employee apply leave for 2 hrs 3 hrs 4 hrs / need
+ * deduction for that type of leave".
+ *
+ * The app could always DEDUCT a few hours — that is the minutes column the
+ * sheet has always paid from — but nobody could ASK for them. The rule that
+ * matters is the one the late/early concession hangs on: the same afternoon
+ * must never be docked twice.
+ */
+
+test('a few hours off deducts, on a day the clock says nothing about', async () => {
+  const who = staff.Typed;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 24, code: 'P' }],
+  });
+  const before = await rowOf(who);
+
+  const made = await api('POST', '/api/attendance/requests', {
+    employee_id: who,
+    period_id: periodId,
+    day: 24,
+    kind: 'short_leave',
+    minutes: 120,
+    reason: 'Bank work',
+  });
+  assert.equal(made.status, 201);
+  // Pending changes nothing, like every other request.
+  assert.equal((await dayOf(who, 24)).minutes, 0);
+  assert.equal((await rowOf(who)).net_salary, before.net_salary);
+
+  const decided = await api('POST', `/api/attendance/requests/${made.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+
+  const day = await dayOf(who, 24);
+  assert.equal(day.minutes, -120, 'two hours off the day');
+  assert.equal(day.code, 'P', 'the day is still Present — only the hours moved');
+  assert.equal(day.reason, 'Bank work');
+  // And it costs exactly two hours at this person's minute rate.
+  const after = await rowOf(who);
+  assert.equal(before.net_salary - after.net_salary, Math.round(120 * PER_MINUTE));
+  assert.match(decided.body.decision_note || '', /deducted/);
+});
+
+test('but NOT twice, when the clock already shows the day short', async () => {
+  const who = staff.Punched;
+  // Clocked in at 9:30 and away at 16:30 — the sheet already docks the hours.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 25, in_time: '09:30', out_time: '16:30' }],
+  });
+  const clocked = await dayOf(who, 25);
+  assert.ok(clocked.minutes < 0, 'the clock already found the shortfall');
+  const before = await rowOf(who);
+
+  const made = await api('POST', '/api/attendance/requests', {
+    employee_id: who,
+    period_id: periodId,
+    day: 25,
+    kind: 'short_leave',
+    minutes: 120,
+    reason: 'Left for the bank',
+  });
+  const decided = await api('POST', `/api/attendance/requests/${made.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+
+  const after = await dayOf(who, 25);
+  assert.equal(after.minutes, clocked.minutes, 'the hours the clock found still stand');
+  assert.equal(after.reason, 'Left for the bank', 'and now they have a reason beside them');
+  assert.equal((await rowOf(who)).net_salary, before.net_salary, 'nobody was docked twice');
+  assert.match(decided.body.decision_note || '', /not deducted twice/);
+});
+
+test('a whole day or more is refused — that is a leave application', async () => {
+  const tooLong = await api('POST', '/api/attendance/requests', {
+    employee_id: staff.Typed,
+    period_id: periodId,
+    day: 26,
+    kind: 'short_leave',
+    minutes: 9 * 60,
+    reason: 'the whole day',
+  });
+  assert.equal(tooLong.status, 400);
+  assert.match(tooLong.body.error, /whole day|leave instead/i);
+
+  const tooShort = await api('POST', '/api/attendance/requests', {
+    employee_id: staff.Typed,
+    period_id: periodId,
+    day: 26,
+    kind: 'short_leave',
+    minutes: 5,
+    reason: 'five minutes',
+  });
+  assert.equal(tooShort.status, 400);
+});
+
+test('rejecting a few hours off writes nothing at all', async () => {
+  const who = staff.Imported;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 27, code: 'P' }],
+  });
+  const made = await api('POST', '/api/attendance/requests', {
+    employee_id: who,
+    period_id: periodId,
+    day: 27,
+    kind: 'short_leave',
+    minutes: 180,
+    reason: 'Personal work',
+  });
+  await api('POST', `/api/attendance/requests/${made.body.id}/decide`, {
+    approve: false,
+    by: 'Dinesh',
+  });
+  const day = await dayOf(who, 27);
+  assert.equal(day.minutes, 0);
+  assert.equal(day.reason, '');
+});

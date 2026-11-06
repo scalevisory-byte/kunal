@@ -37,8 +37,10 @@ export default function AssetsTab({
       {STANDALONE && (
         <p className="muted small">
           Offline: the register, codes and labels, handovers, the stock take and the service
-          history all work in this file. What needs the server version is a photograph of an
-          asset — that is a file, and a file cannot live inside an HTML page.
+          history all work in this file — including the invoice <strong>number</strong>, the
+          date, the vendor and the purchase voucher. What needs the server version is{' '}
+          <strong>attaching the invoice PDF or a photograph</strong>: those are files, and a
+          file cannot live inside an HTML page.
         </p>
       )}
     <Assets
