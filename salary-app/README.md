@@ -211,6 +211,33 @@ Checked against the real September sheets, every total reconciles: salary 20,89,
 deduction 11,150, PT 14,400, PF 3,600, net 19,01,078, and the Sunday register 44 people at
 96,651 — each the same figure his own rows add up to.
 
+### Sending payslips without deploying anything
+
+Dinesh: *"ABHI BINA DEPLY K BHEJ SAKU ESA BANAVO"* — hand the month to the staff now, with
+nothing on the internet.
+
+The staff portal answers this properly and needs a server. **Send payslips**, on the salary
+sheet's toolbar, is the part that does not: **one small HTML file per person**, which you
+forward on WhatsApp. It opens on any phone with no login, no app and no network, and prints to
+PDF.
+
+Each file carries **that one person's** month — the net, the whole working line by line, their
+days, their Sunday duty stated separately — and a line you can type once and have appear on
+everybody's slip (*"Salary 7 tarikh ko aa jayega"*).
+
+**One file holds one person. Nothing else goes in it.** The single-file build holds every
+salary in the company, so forwarding *that* to an employee hands them the lot. The slip is
+built from one calculated row and never from the store, and there are tests that nobody else's
+name or figure is in it, that it loads nothing from the internet, and that a name with a
+`<script>` in it cannot break the page.
+
+Tick everybody and download them in one go (the browser asks once whether to allow several
+downloads), or take one at a time. They land named `Amit-Shah-October-2026.html`, about 6 KB
+each — small enough to send eighty of them.
+
+It assembles, it does not recalculate: every figure came out of `calculateRow`, so the slip and
+the sheet cannot disagree. Works in both builds.
+
 ### Which file am I looking at?
 
 Every download of the standalone file lands as `SalarySheet (2).html`, `(3)` and so on, so

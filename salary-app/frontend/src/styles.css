@@ -1833,6 +1833,9 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 .picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .picker-why > input { width: 100%; margin: 0.35rem 0; }
 
+/* The send-payslips picker is a list, not a day menu: it needs the width. */
+.picker.wide-picker { width: min(44rem, 94vw); }
+
 /* ---------- the face on a record ---------- */
 
 .avatar {

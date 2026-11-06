@@ -784,6 +784,35 @@ leave / erroer where 9 hrs not completed"*.
   `must_change` is deliberately NOT patchable, because an admin clearing it would re-enable a
   password that was read out loud. The forced screen is the only way off it.
 
+## Sending payslips without deploying — `shared/payslipPage.js`
+
+Asked to deploy, Dinesh instead answered: **"ABHI BINA DEPLY K BHEJ SAKU ESA BANAVO"** — he
+wants to hand the month out NOW, with nothing on the internet. So deployment is **deferred by
+his choice**, not blocked.
+
+- **Send payslips** on the salary sheet's toolbar writes **one self-contained HTML file per
+  person**, ~6 KB, which he forwards on WhatsApp. Opens on any phone with no login, no app and
+  no network; prints to PDF. Named `Amit-Shah-October-2026.html`.
+- **ONE FILE HOLDS ONE PERSON.** The single-file build holds every salary in the company, so
+  forwarding *that* to an employee hands them the lot. The slip is built from one calculated
+  row and never from the store. Tests: nobody else's name or figure appears, no company total,
+  nothing loads from the internet (no src/href/http/img/fetch; the only inline handler is the
+  print button), and a `<script>` in a name is escaped.
+- It **assembles, never recalculates** — every figure came out of `calculateRow`, so the slip
+  and the sheet cannot disagree. Sunday duty is stated beside the net, never added in.
+- A free line the office types once rides onto every slip.
+- **Test-fixture trap worth remembering:** `calculateRow` reads `row.salary`, not
+  `monthly_salary` — a fixture using the master's name computed a net of −1,800 (gross 0, PF
+  deducted) and three tests failed against perfectly good code.
+
+**What is still only on the server:** staff logins, apply links and CVs, punch links, and every
+file upload (photos, invoice PDFs, documents). The production path is verified end to end here
+— fresh `npm ci --omit=dev`, first admin, every new module, restart with auth on, data intact
+under one `DATA_DIR` holding `salary.db` + `asset-docs/` `asset-photos/` `documents/`
+`resumes/` `backups/`. Railway config (`railway.json`, `backend/Dockerfile`, `.dockerignore`)
+is correct and the build survives a missing `frontend/seed.json`. **No Docker daemon here, and
+Railway needs either his clicks or an account token — ask before spending effort on it again.**
+
 ## Penalties — fines, losses and damage recovered from salary
 
 Dinesh asked *"any penlaty loss ?"*, was told the Deduct column already does it and what it

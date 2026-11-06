@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { calculateRow, totalRows } from '../../../shared/calc.js';
 import { days, rupees, rupees2 } from '../format.js';
+import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 
 /**
  * The calculation sheet. Typing in a cell recalculates the row immediately with
@@ -80,6 +81,7 @@ function EditableCell({ row, field, disabled, onCommit, auto }) {
 export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCompany, saving, locked }) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
+  const [sending, setSending] = useState(false);
   const scroller = useRef(null);
 
   const filtered = useMemo(() => {
@@ -125,6 +127,17 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
           <input type="checkbox" checked={dense} onChange={(e) => setDense(e.target.checked)} />
           Compact
         </label>
+        {/*
+          * Hand the month out without putting anything on the internet.
+          *
+          * Dinesh: "ABHI BINA DEPLY K BHEJ SAKU ESA BANAVO". The staff portal
+          * answers this properly and needs a server; this is the part that
+          * does not - one small file per person, carrying THEIR month and
+          * nobody else's, which he forwards on WhatsApp.
+          */}
+        <button onClick={() => setSending(true)} disabled={!filtered.length}>
+          Send payslips
+        </button>
         <span className="grow" />
         {saving > 0 && <span className="pill saving">Saving {saving}…</span>}
         {locked && <span className="pill locked">Locked</span>}
@@ -132,6 +145,10 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
           {filtered.length} of {rows.length} employees
         </span>
       </div>
+
+      {sending && (
+        <SendPayslips period={period} rows={filtered} onClose={() => setSending(false)} />
+      )}
 
       <div className={`table-wrap${dense ? ' dense' : ''}`} ref={scroller}>
         <table className="sheet numbered">
@@ -226,6 +243,127 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
         </table>
       </div>
     </section>
+  );
+}
+
+/**
+ * One file per person, downloaded here and sent on WhatsApp.
+ *
+ * ONE FILE HOLDS ONE PERSON. It is built from that row alone and never from
+ * the store, because the single-file build holds every salary in the company
+ * and forwarding THAT to an employee hands them the lot.
+ */
+function SendPayslips({ period, rows, onClose }) {
+  const [picked, setPicked] = useState(() => new Set(rows.map((r) => r.employee_id)));
+  const [busy, setBusy] = useState('');
+  const [note, setNote] = useState('');
+
+  const save = (row) => {
+    const calc = calculateRow(row, period, row.attendance);
+    const html = payslipHtml({
+      employee: {
+        name: row.employee_name,
+        code: row.employee_code,
+        company_name: row.company_name,
+        designation: row.designation,
+      },
+      period,
+      row: { ...row, ...calc },
+      note: note.trim() || undefined,
+    });
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = payslipFileName({ name: row.employee_name }, period);
+    a.click();
+    // Let the browser take the file before the URL goes.
+    window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+
+  const saveAll = async () => {
+    const list = rows.filter((r) => picked.has(r.employee_id));
+    for (let i = 0; i < list.length; i++) {
+      setBusy(`${i + 1} of ${list.length}…`);
+      save(list[i]);
+      // A pause between them: browsers refuse a burst of downloads.
+      await new Promise((r) => window.setTimeout(r, 350));
+    }
+    setBusy('');
+  };
+
+  return (
+    <div className="picker-backdrop" onClick={onClose}>
+      <div className="picker card wide-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="picker-head">
+          <strong>Send {period.label} payslips</strong>
+          <span className="muted small">one file each, to forward on WhatsApp</span>
+        </div>
+        <p className="muted small">
+          Each file holds <strong>that one person’s</strong> month — their pay with the whole
+          working, their days, and nothing about anybody else. It opens on any phone with no
+          login and no internet, and prints to PDF.
+        </p>
+        <label className="field">
+          A line to put on every slip (optional)
+          <input
+            value={note}
+            placeholder="Salary credited on 7th. Any query, tell the office."
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+        <div className="row" style={{ margin: '0.5rem 0' }}>
+          <button
+            onClick={() =>
+              setPicked(
+                picked.size === rows.length ? new Set() : new Set(rows.map((r) => r.employee_id))
+              )
+            }
+          >
+            {picked.size === rows.length ? 'Untick all' : `Tick all ${rows.length}`}
+          </button>
+          <button className="primary" disabled={!picked.size || !!busy} onClick={saveAll}>
+            {busy || `Download ${picked.size} file${picked.size === 1 ? '' : 's'}`}
+          </button>
+          <button onClick={onClose}>Close</button>
+        </div>
+        <div className="table-wrap" style={{ maxHeight: '42vh' }}>
+          <table className="sheet">
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.employee_id}>
+                  <td style={{ width: '1.6rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={picked.has(r.employee_id)}
+                      onChange={() => {
+                        const next = new Set(picked);
+                        if (next.has(r.employee_id)) next.delete(r.employee_id);
+                        else next.add(r.employee_id);
+                        setPicked(next);
+                      }}
+                    />
+                  </td>
+                  <td>
+                    {r.employee_name}
+                    <div className="muted small">{r.company_name}</div>
+                  </td>
+                  <td className="num">{rupees(r.net_salary)}</td>
+                  <td style={{ width: '5rem' }}>
+                    <button className="ghost small" onClick={() => save(r)}>
+                      just this one
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted small">
+          The browser may ask once whether to allow several downloads — say yes. They land in
+          your Downloads folder, named after the person and the month.
+        </p>
+      </div>
+    </div>
   );
 }
 
