@@ -263,3 +263,110 @@ test('a GPS punch marks the day, instead of leaving a blank that is paid in full
   assert.equal(entry.code, 'P', 'and it is marked, not left blank');
   assert.ok(entry.in_time, 'with the time on it');
 });
+
+/* ================================================================= *
+ * The absence reason, and whether it was allowed
+ * ================================================================= *
+ *
+ * Dinesh asked for both by name. Two things have to hold, and the second is
+ * the one that would hurt: they follow the SAME per-field merge rule as every
+ * other column, and NEITHER MOVES A RUPEE.
+ */
+
+test('a reason and a decision are kept on the day', async () => {
+  const who = staff.Requested;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 17, code: 'A' }],
+  });
+  // Nobody has decided anything yet, and that is NOT "not approved".
+  assert.equal((await dayOf(who, 17)).approved, null);
+  assert.equal((await dayOf(who, 17)).reason, '');
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 17, reason: 'Rang in — fever', approved: true }],
+  });
+  const day = await dayOf(who, 17);
+  assert.equal(day.reason, 'Rang in — fever');
+  assert.equal(day.approved, true);
+  // And naming only those two left the mark alone.
+  assert.equal(day.code, 'A');
+});
+
+test('neither of them moves a rupee', async () => {
+  const who = staff.Requested;
+  const before = await rowOf(who);
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 17, approved: false, reason: 'No word at all' }],
+  });
+  const after = await rowOf(who);
+
+  // An allowed absence is still an absence. Paid time off is CL/SL/PL, and
+  // this column is not a back door to it.
+  for (const field of ['gross_salary', 'net_salary', 'absent_days', 'present_days', 'pt', 'pf']) {
+    assert.equal(after[field], before[field], `${field} moved`);
+  }
+});
+
+test('marking everyone Present does not wipe a reason typed that morning', async () => {
+  const who = staff.Imported;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 18, reason: 'Said he would be late', approved: true }],
+  });
+  // What the toolbar sends: a code and minutes, naming neither column.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 18, code: 'P', minutes: 0 }],
+  });
+  const day = await dayOf(who, 18);
+  assert.equal(day.reason, 'Said he would be late');
+  assert.equal(day.approved, true);
+  assert.equal(day.code, 'P');
+});
+
+test('a decision can be handed back, which is not the same as refusing it', async () => {
+  const who = staff.Imported;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 18, approved: null }],
+  });
+  assert.equal((await dayOf(who, 18)).approved, null, 'back to nobody having decided');
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 18, approved: false }],
+  });
+  assert.equal((await dayOf(who, 18)).approved, false, 'and false is a real refusal');
+});
+
+test('a reason survives on a day with no mark at all — somebody rang in first', async () => {
+  const who = staff.Punched;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 23, reason: 'Rang to say he will not be in tomorrow' }],
+  });
+  const day = await dayOf(who, 23);
+  assert.ok(day, 'the day was kept rather than thrown away for having no mark');
+  assert.equal(day.code, '');
+  assert.equal(day.reason, 'Rang to say he will not be in tomorrow');
+});
+
+test('approving a leave application fills both in by itself', async () => {
+  const who = staff.Typed;
+  const made = await api('POST', '/api/attendance/requests', {
+    employee_id: who,
+    period_id: periodId,
+    day: 27,
+    kind: 'leave',
+    code: 'CL',
+    reason: 'Family function in Surat',
+  });
+  assert.equal(made.status, 201);
+  const decided = await api('POST', `/api/attendance/requests/${made.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+
+  const day = await dayOf(who, 27);
+  assert.equal(day.code, 'CL');
+  // Nobody types the reason twice, and the grid cannot disagree with the queue.
+  assert.equal(day.reason, 'Family function in Surat');
+  assert.equal(day.approved, true);
+});

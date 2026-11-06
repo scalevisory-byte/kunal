@@ -36,6 +36,8 @@ export default function Dashboard({
   companyName,
   onGo,
   onPeriod,
+  onSaveAttendance,
+  locked,
 }) {
   const [leave, setLeave] = useState([]);
   const [history, setHistory] = useState([]); // the last few months, for the trend
@@ -49,6 +51,10 @@ export default function Dashboard({
   const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
   const [showPresent, setShowPresent] = useState(false);
+  // Which of the roll call's lists is on screen. 'late' is the one Dinesh
+  // asked for by name; 'all' is the morning's whole list.
+  const [bucket, setBucket] = useState('all');
+  const [saving, setSaving] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,6 +218,11 @@ export default function Dashboard({
         minutes,
         in_time: times.in_time || '',
         out_time: times.out_time || '',
+        // Why they were not at work, and whether somebody allowed it. Both
+        // live on the attendance day itself. `approved` is three-state: null
+        // is "nobody has decided", which is not "not approved".
+        reason: times.reason || '',
+        approved: times.approved === undefined ? null : times.approved,
       };
 
       if (!code) out.unmarked.push(person);
@@ -257,27 +268,36 @@ export default function Dashboard({
   const needsLooking = useMemo(() => {
     if (!roll) return [];
     const by = new Map();
-    const note = (person, rank, what, when = '') => {
+    const note = (person, rank, what, when = '', bucketKey = '') => {
       const seen = by.get(person.id) || {
         ...person,
         rank,
         reasons: [],
+        // Which lists this person belongs to, so one table can be filtered
+        // instead of being split back into a strip per reason.
+        in: new Set(),
         in_time: person.in_time,
         out_time: person.out_time,
       };
       seen.rank = Math.min(seen.rank, rank);
       seen.reasons.push({ what, when });
+      if (bucketKey) seen.in.add(bucketKey);
       by.set(person.id, seen);
     };
 
     // Ordered by how much somebody has to do about it, not alphabetically.
-    for (const p of roll.absent) note(p, 0, ATTENDANCE_CODES[p.code]?.label || 'Absent');
-    for (const p of roll.late) note(p, 1, `Late by ${formatDuration(p.lateBy)}`, p.in_time);
-    for (const p of roll.early) note(p, 2, 'Left early', p.out_time);
-    for (const p of roll.halfDay) note(p, 3, 'Half day');
-    for (const p of roll.short) note(p, 4, `Short ${formatDuration(-p.minutes)}`);
-    for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave');
-    for (const p of roll.unmarked) note(p, 6, 'Not marked yet');
+    for (const p of roll.absent) note(p, 0, ATTENDANCE_CODES[p.code]?.label || 'Absent', '', 'absent');
+    for (const p of roll.late) {
+      note(p, 1, `Late by ${formatDuration(p.lateBy)}`, p.in_time, 'late');
+      // Kept on the row so the late list can sort by it and show the minutes.
+      const seen = by.get(p.id);
+      if (seen) seen.lateBy = p.lateBy;
+    }
+    for (const p of roll.early) note(p, 2, 'Left early', p.out_time, 'early');
+    for (const p of roll.halfDay) note(p, 3, 'Half day', '', 'halfDay');
+    for (const p of roll.short) note(p, 4, `Short ${formatDuration(-p.minutes)}`, '', 'short');
+    for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
+    for (const p of roll.unmarked) note(p, 6, 'Not marked yet', '', 'unmarked');
 
     return [...by.values()].sort(
       (a, b) =>
@@ -285,6 +305,41 @@ export default function Dashboard({
         String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
     );
   }, [roll]);
+
+  /*
+   * One list, filtered - not eight strips of names again.
+   *
+   * Dinesh asked for "a list like this for late coming also", pointing at the
+   * absent list. Eight separate strips were what this page HAD, and they could
+   * not say that the same person was late and short of hours. So the chips
+   * narrow the one table instead: "Late in 3" gives exactly the late list,
+   * with the minutes and how many times this month, and every row still
+   * carries every reason that applies to them.
+   */
+  const buckets = useMemo(
+    () =>
+      roll
+        ? [
+            ['all', 'Everyone', needsLooking.length],
+            ['absent', 'Absent', roll.absent.length],
+            ['late', 'Late coming', roll.late.length],
+            ['early', 'Early out', roll.early.length],
+            ['halfDay', 'Half day', roll.halfDay.length],
+            ['leave', 'On leave', roll.leave.length],
+            ['short', 'Short hours', roll.short.length],
+            ['unmarked', 'Not marked', roll.unmarked.length],
+          ]
+        : [],
+    [roll, needsLooking]
+  );
+
+  const listed = useMemo(() => {
+    if (bucket === 'all') return needsLooking;
+    const only = needsLooking.filter((p) => p.in?.has(bucket));
+    // The late list reads by how late, worst first - which is the question.
+    if (bucket === 'late') return [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
+    return only;
+  }, [needsLooking, bucket]);
 
   /* Attendance, counted off the marks rather than the payroll columns, so an
      unmarked day shows as unmarked instead of quietly counting as present. */
@@ -498,6 +553,30 @@ export default function Dashboard({
       };
     });
   }, [rows]);
+
+  /** How many times each person has been late so far this month. */
+  const lateThisMonth = useMemo(() => new Map(monthly.map((m) => [m.id, m.late])), [monthly]);
+
+  /*
+   * Recording why somebody was out, and whether it was allowed, FROM HERE.
+   *
+   * This is the screen somebody is looking at when they find out - the morning
+   * roll call - so it is the screen that takes the answer. It writes through
+   * the same `setAttendance` the grid uses, which only touches the columns it
+   * names, so recording a reason cannot disturb a mark or an hour.
+   *
+   * Neither field moves a rupee. An approved absence is still an absence; paid
+   * time off is CL/SL/PL, which it already was.
+   */
+  const saveDay = async (person, patch) => {
+    if (!onSaveAttendance || locked) return;
+    setSaving((n) => n + 1);
+    try {
+      await onSaveAttendance([{ employee_id: person.id, day: shownDay, ...patch }]);
+    } finally {
+      setSaving((n) => n - 1);
+    }
+  };
 
   /** The same month, added up across everybody. */
   const monthTotalsOf = useMemo(
@@ -889,19 +968,37 @@ export default function Dashboard({
             Everybody on the list is at work, on time, and nobody is short of hours.
           </p>
         ) : (
-          <div className="table-wrap">
+          <>
+            {/* One list, narrowed - "Late coming 3" IS the late list. */}
+            <div className="chips roll-chips">
+              {buckets.map(([key, label, count]) => (
+                <button
+                  key={key}
+                  className={`chip ${bucket === key ? 'active' : ''}`}
+                  disabled={count === 0 && key !== 'all'}
+                  onClick={() => setBucket(key)}
+                >
+                  {label} <span className="muted">{count}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="table-wrap">
             <table className="sheet roll-table">
               <thead>
                 <tr>
                   <th className="sticky-name">Name</th>
                   <th>What</th>
+                  {bucket === 'late' ? <th className="num">Late this month</th> : null}
                   <th>In</th>
                   <th>Out</th>
+                  <th>Why</th>
+                  <th>Allowed?</th>
                   <th>Company</th>
                 </tr>
               </thead>
               <tbody>
-                {needsLooking.map((p) => (
+                {listed.map((p) => (
                   <tr key={p.id} className={`r${p.rank}`}>
                     <td className="sticky-name">{p.employee_name}</td>
                     <td>
@@ -912,21 +1009,96 @@ export default function Dashboard({
                         </span>
                       ))}
                     </td>
+                    {bucket === 'late' ? (
+                      <td className="num">
+                        {lateThisMonth.get(p.id) ? (
+                          <span className={lateThisMonth.get(p.id) > 3 ? 'overdue' : undefined}>
+                            {lateThisMonth.get(p.id)}×
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    ) : null}
                     <td>{p.in_time || <span className="muted">—</span>}</td>
                     <td>{p.out_time || <span className="muted">—</span>}</td>
+                    {/*
+                      * Typed here, saved on blur, and kept on the attendance
+                      * day itself - so it shows on the grid's day menu, on the
+                      * absent/present report and on the person's own record,
+                      * not only on this screen.
+                      *
+                      * Keyed on the stored value so a reload under a row
+                      * already on screen re-renders the box instead of leaving
+                      * a stale one showing - the same trap the employee table
+                      * hit.
+                      */}
+                    <td>
+                      <input
+                        className="why-box"
+                        key={`${p.id}-${shownDay}-${p.reason}`}
+                        defaultValue={p.reason}
+                        placeholder={locked ? '' : 'rang in — fever'}
+                        disabled={locked}
+                        onBlur={(e) => {
+                          const typed = e.target.value.trim();
+                          if (typed === (p.reason || '')) return;
+                          saveDay(p, { reason: typed });
+                        }}
+                      />
+                    </td>
+                    <td className="small">
+                      {/*
+                        * Three states, not a tick box. Null is "nobody has
+                        * decided", which is NOT "not approved" - a day nobody
+                        * has looked at must not read as a refusal. Clicking
+                        * the one already chosen hands the decision back.
+                        */}
+                      <button
+                        className={`chip tiny ${p.approved === true ? 'active' : ''}`}
+                        disabled={locked}
+                        title="Allowed"
+                        onClick={() => saveDay(p, { approved: p.approved === true ? null : true })}
+                      >
+                        yes
+                      </button>{' '}
+                      <button
+                        className={`chip tiny ${p.approved === false ? 'active bad' : ''}`}
+                        disabled={locked}
+                        title="Not allowed"
+                        onClick={() => saveDay(p, { approved: p.approved === false ? null : false })}
+                      >
+                        no
+                      </button>
+                      {p.approved === null ? (
+                        <div className="muted small">not decided</div>
+                      ) : null}
+                    </td>
                     <td className="muted small">{p.company_name}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+            <p className="muted small">
+              <strong>Why</strong> and <strong>Allowed?</strong> live on the day itself, not on
+              this screen — the same two boxes are in the day's menu on the{' '}
+              <strong>Attendance</strong> grid, and an approved leave application fills them in
+              by itself. Neither changes what anybody is paid: an allowed absence is still an
+              absence, and paid time off is Casual, Sick or Privilege leave.
+              {saving > 0 ? ' Saving…' : ''}
+            </p>
+          </>
         )}
         <p className="muted small">
-          {needsLooking.length} of {roll.present.length + roll.absent.length + roll.leave.length +
-            roll.halfDay.length + roll.unmarked.length}{' '}
-          need looking at. Late is judged against {roll.startsAt} plus {roll.grace} minutes, and
-          early against {roll.endsAt} — a day with no clock time is never called late, only
-          "not known".
+          {bucket === 'all'
+            ? `${needsLooking.length} of ${
+                roll.present.length + roll.absent.length + roll.leave.length +
+                roll.halfDay.length + roll.unmarked.length
+              } need looking at.`
+            : `${listed.length} of ${needsLooking.length} on this list.`}{' '}
+          Late is judged against {roll.startsAt} plus {roll.grace} minutes, and early against{' '}
+          {roll.endsAt} — a day with no clock time is never called late, only "not known".
         </p>
 
         {roll.present.length > 0 && (

@@ -81,7 +81,7 @@ const EMPTY = {
   employees: [],
   periods: [],
   payroll_rows: [],
-  attendance: [], // { period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time }
+  attendance: [], // { period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved }
   holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
   loans: [], // { id, employee_id, amount, instalment, given_on, reason, status }
   repayments: [], // { loan_id, period_id, amount }
@@ -301,6 +301,9 @@ function attendanceFor(periodId, employeeId) {
       lunch_out: a.lunch_out || '',
       lunch_in: a.lunch_in || '',
       out_time: a.out_time || '',
+      reason: a.reason || '',
+      // null stays null: "nobody has decided" is not "not approved".
+      approved: a.approved === null || a.approved === undefined ? null : Boolean(a.approved),
     };
   }
   return marks;
@@ -1012,6 +1015,11 @@ function assetRow(a, { round } = {}) {
     company_name: a.company_id ? companyOf(a.company_id)?.name || null : null,
     branch_name: null,
     handovers: db.asset_handovers.filter((h) => h.asset_id === a.id).length,
+    // Always nought here, and that is the honest answer: a PDF and a
+    // photograph are files, and this build has nowhere to put one. The
+    // register says so beside the paperclip rather than looking broken.
+    documents: 0,
+    photos: 0,
     warranty_left_days: daysUntilDay(a.warranty_until),
     ...(round
       ? {
@@ -1839,8 +1847,34 @@ export async function handle(method, path, body) {
             }
           }
 
-          if (code || minutes || anyTime) {
-            const record = { period_id: period.id, employee_id: employeeId, day, code, minutes, ...times };
+          /*
+           * Why somebody was out, and whether it was allowed - same per-field
+           * rule, so "Mark everyone Present" cannot wipe a reason typed that
+           * morning. `approved` is three-state: null is "nobody has decided",
+           * which is NOT "not approved".
+           */
+          const reason =
+            'reason' in entry ? String(entry.reason ?? '').trim() || null : stored?.reason || null;
+          const approved =
+            'approved' in entry
+              ? entry.approved === null || entry.approved === undefined || entry.approved === ''
+                ? null
+                : Boolean(entry.approved)
+              : stored?.approved === null || stored?.approved === undefined
+                ? null
+                : Boolean(stored.approved);
+
+          if (code || minutes || anyTime || reason || approved !== null) {
+            const record = {
+              period_id: period.id,
+              employee_id: employeeId,
+              day,
+              code,
+              minutes,
+              ...times,
+              reason,
+              approved,
+            };
             if (index >= 0) db.attendance[index] = record;
             else db.attendance.push(record);
           } else if (index >= 0) {

@@ -228,6 +228,15 @@ db.exec(`
     lunch_out   TEXT,
     lunch_in    TEXT,
     out_time    TEXT,
+    -- Why somebody was not at work, and whether it was allowed. Asked for by
+    -- name: "NEED ABSNET REASON ALSO / APPROVED AND NOTAPPROVED WHAT".
+    -- approved is a THREE-state column on purpose: null is "nobody has
+    -- decided", which is not the same as "not approved". A day nobody has
+    -- looked at must not read as a refusal.
+    -- NEITHER COLUMN MOVES A RUPEE. An approved absence is still an absence;
+    -- paid time off is CL/SL/PL/PH, which it already was.
+    reason      TEXT,
+    approved    INTEGER,
     PRIMARY KEY (period_id, employee_id, day)
   );
 
@@ -287,6 +296,13 @@ if (!attendanceColumns.has('in_time')) {
     db.exec(`ALTER TABLE attendance ADD COLUMN ${column} TEXT`);
   }
   log.info('Migrated attendance table: added in/lunch/out times.');
+}
+if (!attendanceColumns.has('reason')) {
+  // Both nullable with no default, so every day already marked reads as "no
+  // reason given, nobody has decided" rather than as an unapproved absence.
+  db.exec(`ALTER TABLE attendance ADD COLUMN reason TEXT`);
+  db.exec(`ALTER TABLE attendance ADD COLUMN approved INTEGER`);
+  log.info('Migrated attendance table: added the absence reason and whether it was approved.');
 }
 
 // ot_minutes was NOT NULL DEFAULT 0 and named without the _override suffix. It
@@ -1586,7 +1602,8 @@ export function listAttendance(periodId, { company_id } = {}) {
   return db
     .prepare(
       `SELECT a.employee_id, a.day, a.code, a.minutes,
-              a.in_time, a.lunch_out, a.lunch_in, a.out_time
+              a.in_time, a.lunch_out, a.lunch_in, a.out_time,
+              a.reason, a.approved
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
@@ -1605,6 +1622,9 @@ export function attendanceByEmployee(periodId, opts) {
       lunch_out: row.lunch_out || '',
       lunch_in: row.lunch_in || '',
       out_time: row.out_time || '',
+      reason: row.reason || '',
+      // null stays null: "nobody has decided" is not "not approved".
+      approved: row.approved === null || row.approved === undefined ? null : Boolean(row.approved),
     };
   }
   return map;
@@ -1613,16 +1633,19 @@ export function attendanceByEmployee(periodId, opts) {
 export const setAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
     `INSERT INTO attendance
-       (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time)
+       (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time,
+        reason, approved)
      VALUES (@period_id, @employee_id, @day, @code, @minutes,
-             @in_time, @lunch_out, @lunch_in, @out_time)
+             @in_time, @lunch_out, @lunch_in, @out_time, @reason, @approved)
      ON CONFLICT(period_id, employee_id, day)
      DO UPDATE SET code = excluded.code, minutes = excluded.minutes,
                    in_time = excluded.in_time, lunch_out = excluded.lunch_out,
-                   lunch_in = excluded.lunch_in, out_time = excluded.out_time`
+                   lunch_in = excluded.lunch_in, out_time = excluded.out_time,
+                   reason = excluded.reason, approved = excluded.approved`
   );
   const existing = db.prepare(
-    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time FROM attendance
+    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved
+     FROM attendance
      WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
   // The month's own hours, so the half-day line and the shortfall are judged
@@ -1679,6 +1702,30 @@ export const setAttendance = db.transaction((periodId, entries) => {
     let minutes = 'minutes' in entry ? Number(entry.minutes) || 0 : Number(stored?.minutes) || 0;
 
     /*
+     * The reason somebody was not at work, and whether it was allowed.
+     *
+     * Same per-field rule as the times: only an entry that NAMES one touches
+     * it, so "Mark everyone Present" cannot wipe a reason typed that morning
+     * and a punch import cannot un-approve an absence.
+     *
+     * `approved` carries three states. null is "nobody has decided", which is
+     * NOT "not approved" - a day nobody has looked at must not read as a
+     * refusal. Naming it with null hands the decision back.
+     */
+    const reason =
+      'reason' in entry
+        ? String(entry.reason ?? '').trim() || null
+        : stored?.reason || null;
+    const approved =
+      'approved' in entry
+        ? entry.approved === null || entry.approved === undefined || entry.approved === ''
+          ? null
+          : Number(Boolean(entry.approved))
+        : stored?.approved === null || stored?.approved === undefined
+          ? null
+          : Number(stored.approved);
+
+    /*
      * Clock times become money HERE, not in the browser.
      *
      * The rule used to live only in the Time tab, so hours typed there were
@@ -1722,8 +1769,56 @@ export const setAttendance = db.transaction((periodId, entries) => {
       });
     }
 
-    if (code || minutes || anyTime) {
-      upsert.run({ period_id: periodId, employee_id: employeeId, day, code, minutes, ...times });
+    /*
+     * An approval is a DECISION, so the first one is recorded too - unlike a
+     * blank mark being filled in, which is not. Somebody deciding that an
+     * absence was allowed is exactly what anybody would come looking for
+     * later, and "who said this was fine" has to have an answer.
+     *
+     * A reason is recorded only when it REPLACES one: typing the first reason
+     * on a day that had none is filling a blank.
+     */
+    const wasApproved =
+      stored?.approved === null || stored?.approved === undefined ? null : Number(stored.approved);
+    if ('approved' in entry && approved !== wasApproved) {
+      const say = (v) => (v === null ? 'not decided' : v ? 'approved' : 'not approved');
+      changes.push({
+        who: entry.by || null,
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: employeeId,
+        label: `${nameOf(employeeId)}, ${monthLabel} day ${day}`,
+        field: 'approved',
+        from_value: say(wasApproved),
+        to_value: say(approved),
+      });
+    }
+    if (stored?.reason && reason !== stored.reason) {
+      changes.push({
+        who: entry.by || null,
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: employeeId,
+        label: `${nameOf(employeeId)}, ${monthLabel} day ${day}`,
+        field: 'reason',
+        from_value: stored.reason,
+        to_value: reason || '(cleared)',
+      });
+    }
+
+    // A reason or a decision is worth a row of its own: somebody rang in to
+    // say they would be out before anybody marked the day.
+    if (code || minutes || anyTime || reason || approved !== null) {
+      upsert.run({
+        period_id: periodId,
+        employee_id: employeeId,
+        day,
+        code,
+        minutes,
+        ...times,
+        reason,
+        approved,
+      });
     } else {
       remove.run(periodId, employeeId, day);
     }

@@ -587,6 +587,8 @@ function Shell() {
             companyName={companies.find((c) => c.id === companyId)?.name || ''}
             onGo={setTab}
             onPeriod={setPeriodId}
+            onSaveAttendance={saveAttendance}
+            locked={locked}
           />
         )}
 

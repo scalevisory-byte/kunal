@@ -444,6 +444,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             <label>
               Invoice
               <input value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} />
+              <span className="hint">the number; the PDF attaches from the register</span>
             </label>
             <label>
               Warranty until
@@ -581,6 +582,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
               <th>Where it is</th>
               <th>Since</th>
               <th>Warranty</th>
+              <th>Invoice</th>
               <th />
             </tr>
           </thead>
@@ -613,6 +615,31 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     ) : (
                       '—'
                     )}
+                  </td>
+                  {/*
+                    * The paperwork, ON the register.
+                    *
+                    * Attaching the invoice has been possible since the asset's
+                    * own page existed, and nobody found it: the only way in was
+                    * clicking the CODE, which reads as a code. Dinesh reported
+                    * the upload as missing when it had been there all along. So
+                    * the count is a column, and the column is the way in.
+                    */}
+                  <td className="small">
+                    <button
+                      className="link"
+                      title={
+                        asset.documents
+                          ? `${asset.documents} attached — open the asset to read or add one`
+                          : 'Attach the invoice, the warranty card, the delivery note'
+                      }
+                      onClick={() => setHistory({ ...asset, open: 'papers' })}
+                    >
+                      {asset.documents ? `📎 ${asset.documents}` : 'attach'}
+                    </button>
+                    {asset.invoice_no ? (
+                      <div className="muted small">{asset.invoice_no}</div>
+                    ) : null}
                   </td>
                   <td>
                     {asset.written_off_on ? (
@@ -673,7 +700,21 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           <button className="ghost tiny" onClick={() => setNotFound('')}>dismiss</button>
         </p>
       )}
-      {history && <AssetHistory asset={history} onClose={() => setHistory(null)} onError={onError} />}
+      {/*
+        * Reload on the way out: attaching an invoice or a photograph changes
+        * the register's own counts, and without this the row still read
+        * "attach" after one had just been attached.
+        */}
+      {history && (
+        <AssetHistory
+          asset={history}
+          onClose={() => {
+            setHistory(null);
+            load();
+          }}
+          onError={onError}
+        />
+      )}
     </section>
   );
 }

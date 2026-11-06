@@ -840,7 +840,13 @@ export function listAssets({ employee_id, company_id, branch_id, out, written_of
     .prepare(
       `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name,
               ${verification}
-              (SELECT COUNT(*) FROM asset_handovers h WHERE h.asset_id = a.id) AS handovers
+              (SELECT COUNT(*) FROM asset_handovers h WHERE h.asset_id = a.id) AS handovers,
+              -- On the register so the paperwork is VISIBLE. It was reachable
+              -- only by clicking an asset's code, which reads as a code and
+              -- not as a way in, so Dinesh reported the invoice upload as
+              -- missing when it had been there all along.
+              (SELECT COUNT(*) FROM asset_documents d WHERE d.asset_id = a.id) AS documents,
+              (SELECT COUNT(*) FROM asset_photos ph WHERE ph.asset_id = a.id) AS photos
        FROM assets a
        LEFT JOIN employees e ON e.id = a.employee_id
        LEFT JOIN companies c ON c.id = a.company_id

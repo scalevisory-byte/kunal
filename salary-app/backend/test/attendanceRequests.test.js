@@ -54,16 +54,32 @@ test('a day outside a month is refused', () => {
 test('approving writes only what the request actually named', () => {
   // The same merge rule setAttendance follows: approving "in at 9:30" must
   // not blank a lunch somebody else typed.
+  //
+  // The reason and the approval are the two exceptions, and deliberate ones:
+  // somebody asking has already said why, and a day written BY an approval is
+  // approved by definition. Everything else is still only what was named.
+  const why = { reason: 'Machine did not read my finger', approved: true };
+
   const entry = entryFor({ ...base, kind: 'missing_punch', in_time: '09:30', out_time: '18:30' });
-  assert.deepEqual(entry, { employee_id: 7, day: 15, in_time: '09:30', out_time: '18:30' });
+  assert.deepEqual(entry, { employee_id: 7, day: 15, in_time: '09:30', out_time: '18:30', ...why });
   assert.equal('lunch_out' in entry, false);
   assert.equal('code' in entry, false, 'a missing punch does not change the mark');
 
   const mark = entryFor({ ...base, kind: 'correction', code: 'CL', in_time: '09:30' });
-  assert.deepEqual(mark, { employee_id: 7, day: 15, code: 'CL' }, 'a correction only moves the mark');
+  assert.deepEqual(
+    mark,
+    { employee_id: 7, day: 15, code: 'CL', ...why },
+    'a correction only moves the mark'
+  );
 
   const both = entryFor({ ...base, kind: 'regularise', code: 'P', in_time: '09:30' });
-  assert.deepEqual(both, { employee_id: 7, day: 15, code: 'P', in_time: '09:30' });
+  assert.deepEqual(both, { employee_id: 7, day: 15, code: 'P', in_time: '09:30', ...why });
+
+  // No reason given, no reason written - never an empty string over whatever
+  // the office had already typed on that day.
+  const silent = entryFor({ period_id: 1, employee_id: 7, day: 15, kind: 'correction', code: 'A' });
+  assert.equal('reason' in silent, false);
+  assert.equal(silent.approved, true);
 });
 
 test('a request reads as one line in the approval list', () => {

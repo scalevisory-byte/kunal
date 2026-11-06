@@ -128,6 +128,17 @@ export function entryFor(request = {}, day = Number(request.day)) {
       entry[field] = request[field];
     }
   }
+  /*
+   * The reason travels with it, and the day is marked approved.
+   *
+   * Somebody asking for the day off has already said why; typing it again onto
+   * the grid afterwards is how the grid and the queue come to disagree. And a
+   * day written BY an approval is approved by definition - it is the one case
+   * in the app where that is not a separate judgement.
+   */
+  const why = String(request.reason || '').trim();
+  if (why) entry.reason = why;
+  entry.approved = true;
   return entry;
 }
 

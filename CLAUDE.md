@@ -679,6 +679,60 @@ CLAUDLALTED / APPLU LEAVE AND OTHER BASIC THINGS"*. `backend/src/routes/me.js`,
 - **Needs the server.** There is nothing in an HTML file on a laptop for an employee to sign in
   to, and anybody holding that file holds the whole payroll. The Admin tab says exactly that.
 
+## The roll call: why they were out, and the late-coming list
+
+Dinesh: *"NEED ABSNET REASON ALSO / APPROVED AND NOTAPPROVED WHAT / NEED LIKE TJHIS LIST FOR
+LATE COMING ALS0"*, then *"roll call me absent reason aur late coming list add karo"*.
+
+- **Two new columns on `attendance`: `reason` (text) and `approved` (nullable integer).**
+  `approved` is **three-state on purpose** — null is "nobody has decided", which is NOT "not
+  approved". A day nobody has looked at must not read as a refusal. Clicking the chosen one
+  hands the decision back to null.
+- **NEITHER MOVES A RUPEE**, and there is a test asserting gross, net, absent days, present
+  days, PT and PF are all unmoved. An allowed absence is still an absence; paid time off is
+  CL/SL/PL, which it already was. If this is ever asked to pay, it is a new mark, not a flag.
+- Both follow the **same per-field merge rule** as the clock times, so "Mark everyone Present"
+  cannot wipe a reason typed that morning and a punch import cannot un-approve an absence.
+  Tests for both. A reason or a decision also **keeps the row alive with no mark at all** —
+  somebody rings in the day before.
+- **`entryFor` in `shared/attendanceRequests.js` now carries the request's reason onto the day
+  and sets `approved: true`.** Somebody asking has already said why, and a day written BY an
+  approval is approved by definition — the one place in the app where that is not a separate
+  judgement. An existing test asserting "only what the request named" was rewritten to state
+  the new rule rather than patched.
+- **Audit:** a *decision* is recorded always, including the first one, because an approval is a
+  decision and "who said this was fine" has to have an answer. A *reason* is recorded only when
+  it REPLACES one — the first reason on a blank day is filling a blank, which is the line the
+  trail has always drawn.
+- **The roll call is still ONE table, narrowed by chips** (Everyone / Absent / Late coming /
+  Early out / Half day / On leave / Short hours / Not marked), not eight strips of names again —
+  that is what the page used to be and it could not say that one person was late *and* short.
+  "Late coming" sorts by how late and adds **how many times this month**, flagged past three.
+- The same two boxes are in the **day menu on the Attendance grid**, because that is where
+  somebody marking the absence is standing, and a reason that must be typed on another screen
+  is a reason nobody types.
+- **The backtick trap bit again**, exactly as warned below: `` `approved` `` inside an SQL
+  comment inside a `db.exec(\`…\`)` template literal closes the literal and took every test
+  down with "missing ) after argument list". Never put backticks in a comment inside a template
+  string.
+
+## Attaching the asset invoice — it was there, nobody could find it
+
+Dinesh: *"invoicec attch karne ka option nahi he"*. It had been working since `assetDocs.js`
+was built. The only way in was clicking the asset's **code** in the register, which reads as a
+code and not as a way in.
+
+- `listAssets` now carries **`documents` and `photos` counts**, and the register has an
+  **Invoice column**: `attach` when there is nothing, `📎 2` when there is, opening the asset's
+  page scrolled to its paperwork. Offline both counts are 0, which is the honest answer.
+- The drawer **reloads the register on close**, because attaching one changed the count and the
+  row still read "attach" straight after an upload.
+- In the single file the file picker is **not offered at all** any more — a sentence saying why
+  beats a control that errors on every click.
+- General lesson, third time now (hiring's "add vacancy", people, assets): **a feature reachable
+  only from a link that does not look like one is a feature that does not exist.** Put the way
+  in where the person is already looking.
+
 ## Hiring — HRMS module 5, inside `/salary-app/`
 
 Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") and it was first built as

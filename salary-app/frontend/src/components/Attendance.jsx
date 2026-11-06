@@ -762,6 +762,62 @@ function DayPicker({ codes, picker, period, entry, perMinute, onChange, onClose 
           </li>
         </ul>
 
+        {/*
+          * Why, and was it allowed.
+          *
+          * In the day menu as well as on the dashboard's roll call, because
+          * this is where somebody is standing when they mark the absence - and
+          * a reason that has to be typed on another screen is a reason nobody
+          * types. Both live on the day itself, so the two screens are showing
+          * one record, not two.
+          *
+          * NEITHER MOVES A RUPEE. An allowed absence is still an absence; paid
+          * time off is CL/SL/PL, which it already was.
+          */}
+        <div className="picker-why">
+          <div className="picker-minutes-head">
+            <strong>Why, if they were not in</strong>
+            <span className="muted small">
+              {entry.approved === true
+                ? 'allowed'
+                : entry.approved === false
+                  ? 'not allowed'
+                  : 'nobody has decided'}
+            </span>
+          </div>
+          <input
+            placeholder="rang in — fever"
+            value={entry.reason || ''}
+            onChange={(e) => onChange({ reason: e.target.value })}
+          />
+          <div className="minute-presets">
+            <button
+              type="button"
+              className={entry.approved === true ? 'active' : undefined}
+              onClick={() => onChange({ approved: entry.approved === true ? null : true })}
+            >
+              Allowed
+            </button>
+            <button
+              type="button"
+              className={entry.approved === false ? 'active' : undefined}
+              onClick={() => onChange({ approved: entry.approved === false ? null : false })}
+            >
+              Not allowed
+            </button>
+            <button
+              type="button"
+              className={entry.approved === null || entry.approved === undefined ? 'active' : undefined}
+              onClick={() => onChange({ approved: null })}
+            >
+              Not decided
+            </button>
+          </div>
+          <p className="muted small">
+            It does not change the pay — it records what happened, and shows on the roll call.
+          </p>
+        </div>
+
         <div className="picker-minutes">
           <div className="picker-minutes-head">
             <strong>Short hours this day</strong>

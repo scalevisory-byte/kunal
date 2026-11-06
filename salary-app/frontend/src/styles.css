@@ -1828,6 +1828,28 @@ table.sheet.roll-table tr.r2 td.sticky-name { box-shadow: inset 3px 0 var(--warn
 table.sheet.roll-table td:nth-child(2) { min-width: 15rem; }
 table.sheet.roll-table .why { display: block; margin: 0; }
 
+/* The day menu's reason block: the same shape as the short-hours block under
+   it, so the menu reads as one thing. */
+.picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
+.picker-why > input { width: 100%; margin: 0.35rem 0; }
+
+/* The roll call's own filter row: which list is on screen. Tighter than the
+   company chips above it, so the two do not read as one bank of buttons. */
+.chips.roll-chips { margin: 0.2rem 0 0.5rem; }
+.chips.roll-chips .chip { font-size: 0.72rem; padding: 0.2rem 0.5rem; }
+.chip:disabled { opacity: 0.45; cursor: default; }
+.chip.tiny { font-size: 0.68rem; padding: 0.1rem 0.4rem; }
+.chip.active.bad { border-color: var(--bad); background: transparent; color: var(--bad); }
+
+/* Why somebody was out, typed in the cell. Borderless until focus, like every
+   other cell on a sheet. */
+input.why-box {
+  width: 100%; min-width: 9rem; border: none; background: none;
+  font: inherit; color: inherit; padding: 0.1rem 0.2rem;
+}
+input.why-box:focus { outline: 2px inset var(--brand); background: var(--card); }
+input.why-box::placeholder { color: var(--muted); opacity: 0.6; }
+
 /* The Reports home: a category per fold, a row per report.
    Widths are set explicitly because `table.sheet td:last-child { width: 100% }`
    otherwise gives all the slack to the button column and squeezes the note to

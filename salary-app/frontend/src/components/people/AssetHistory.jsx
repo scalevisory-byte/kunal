@@ -30,6 +30,12 @@ export default function AssetHistory({ asset, onClose, onError }) {
   const [docKinds, setDocKinds] = useState([]);
   const docFile = useRef(null);
   const [note, setNote] = useState('');
+  /*
+   * Opened from the register's Invoice column: scroll to the paperwork rather
+   * than landing at the top of a long drawer and making somebody hunt for the
+   * thing they clicked.
+   */
+  const papers = useRef(null);
   const [busy, setBusy] = useState('');
   const file = useRef(null);
 
@@ -94,6 +100,16 @@ export default function AssetHistory({ asset, onClose, onError }) {
     loadDocs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
+
+  // Opened from the register's Invoice column: go where they clicked.
+  useEffect(() => {
+    if (asset.open !== 'papers') return;
+    const t = window.setTimeout(
+      () => papers.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+      150
+    );
+    return () => window.clearTimeout(t);
+  }, [asset.open, asset.id]);
 
   const addPhoto = async () => {
     const chosen = file.current?.files?.[0];
@@ -211,7 +227,7 @@ export default function AssetHistory({ asset, onClose, onError }) {
           * purchase invoice, an AMC renewal, a repair bill - and one column
           * would mean the second overwriting the first.
           */}
-        <h4 style={{ margin: '1rem 0 0.4rem' }}>
+        <h4 ref={papers} style={{ margin: '1rem 0 0.4rem' }}>
           Paperwork{docs.length ? ` — ${docs.length}` : ''}
         </h4>
         {docs.length > 0 && (
@@ -238,19 +254,34 @@ export default function AssetHistory({ asset, onClose, onError }) {
             ))}
           </div>
         )}
-        <div className="row" style={{ marginTop: '0.4rem' }}>
-          <select value={docKind} onChange={(e) => setDocKind(e.target.value)}>
-            {(docKinds.length ? docKinds : [['invoice', 'Invoice']]).map(([k, text]) => (
-              <option key={k} value={k}>{text}</option>
-            ))}
-          </select>
-          <input ref={docFile} type="file" accept=".pdf,image/*" />
-          <button onClick={addDoc} disabled={!!busy}>Attach it</button>
-        </div>
-        <p className="muted small">
-          A PDF or a scan. The invoice number and date come from the asset, so the commonest
-          one needs nothing typed.
-        </p>
+        {/*
+          * In the single file there is nowhere to put a PDF, so the box that
+          * cannot work is not offered. A file picker that errors on every click
+          * is worse than a sentence saying why.
+          */}
+        {STANDALONE ? (
+          <p className="muted small">
+            Attaching the invoice needs the <strong>server version</strong> — a PDF is a file,
+            and a file cannot live inside this HTML page. The invoice <em>number</em> and date
+            are on the asset and do work here, and so does the purchase voucher.
+          </p>
+        ) : (
+          <>
+            <div className="row" style={{ marginTop: '0.4rem' }}>
+              <select value={docKind} onChange={(e) => setDocKind(e.target.value)}>
+                {(docKinds.length ? docKinds : [['invoice', 'Invoice']]).map(([k, text]) => (
+                  <option key={k} value={k}>{text}</option>
+                ))}
+              </select>
+              <input ref={docFile} type="file" accept=".pdf,image/*" />
+              <button onClick={addDoc} disabled={!!busy}>Attach it</button>
+            </div>
+            <p className="muted small">
+              A PDF or a scan. The invoice number and date come from the asset, so the commonest
+              one needs nothing typed.
+            </p>
+          </>
+        )}
 
         {/*
           * Photographs. What condition something was in when it went out, and

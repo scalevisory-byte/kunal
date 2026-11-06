@@ -239,6 +239,46 @@ the last day anybody was marked on — and answers who is in:
 nobody clocked says so rather than reporting nobody late. A **half day, a leave, a holiday
 or an absence is never counted as late or early** — it was not a full day to begin with.
 
+#### One list, narrowed — including the late-coming list
+
+Under the counts is **one row per person who is not simply at work**, carrying every reason
+that applies to them: somebody can be late *and* short of hours, and two names in two
+separate strips never said that was the same person.
+
+A chip row narrows it — **Everyone · Absent · Late coming · Early out · Half day · On leave ·
+Short hours · Not marked**. Dinesh asked for "a list like this for late coming also",
+pointing at the absent list; eight separate strips of names is what this page used to be, so
+the chips give the same thing without going back to that. **Late coming** sorts by how late,
+worst first, and adds a column for **how many times that person has been late this month** —
+flagged past three, because that is the figure anybody actually acts on.
+
+#### Why they were out, and whether it was allowed
+
+Two more columns, asked for by name: **Why** and **Allowed?**
+
+- **Why** is typed straight into the row and saved as you leave the box. It is where the
+  morning's answer goes — *rang in, fever*.
+- **Allowed?** is **yes / no / not decided**, and it is three states on purpose. Nobody having
+  looked at a day is **not** the same as a refusal, so a day nobody has decided says *not
+  decided* rather than reading as unapproved. Clicking the one already chosen hands the
+  decision back.
+
+Both live **on the attendance day itself**, not on the dashboard — so the same two boxes are
+in the day's menu on the **Attendance** grid, where somebody marking the absence is already
+standing. **Approving a leave application fills them in by itself**, carrying the reason the
+employee gave, so nobody types it twice and the grid cannot disagree with the queue.
+
+**Neither column moves a rupee.** An allowed absence is still an absence; paid time off is
+Casual, Sick or Privilege leave, which it already was. There is a test asserting that gross,
+net, absent days, present days, PT and PF are all unmoved by either. They follow the same
+per-field merge rule as every other attendance column, so *Mark everyone Present* cannot wipe
+a reason typed that morning and a punch import cannot un-approve an absence — tests for both.
+
+A **decision** is on the audit trail by name, including the first one and including handing it
+back (`not decided → approved by Dinesh Parmar`). A **reason** is recorded only when it
+replaces one: typing the first reason on a day that had none is filling a blank, which is the
+line the trail has always drawn.
+
 **Nothing here is guessed.** Every figure is counted off the marks and clock times stored
 against each person, so a day nothing has arrived for reads *Not marked*, not *Present*.
 Attendance gets in three ways, and the roll call says so on a blank day rather than listing
@@ -1300,6 +1340,29 @@ one.
 now **`purchase_cost`** and nothing else, alongside the purchase date, the vendor, the
 invoice number, the warranty date and the AMC. A current valuation is a different question,
 and nobody has asked for it.
+
+### Attaching the invoice
+
+The invoice **number** is a field on the asset. The invoice **PDF** is attached from the
+register's own **Invoice** column: `attach` where there is nothing yet, `📎 2` where there
+is, and it opens the asset's page at its paperwork.
+
+That column exists because the upload was there and nobody could find it — the only way in
+was clicking the asset's **code**, which reads as a code and not as a way in, and Dinesh
+reported the invoice upload as missing when it had been working all along.
+
+Paperwork is its own list rather than a field, because an asset really does collect several
+over its life — the purchase invoice, then an AMC renewal, then a repair bill — and one
+column would mean the second overwriting the first. The kind is chosen (invoice, warranty
+card, delivery note, AMC contract), and the **number and date come off the asset**, so the
+commonest one needs nothing typed.
+
+A PDF or a scan, on disk under `DATA_DIR`, read back through an expiring signed link. The
+uploaded filename is kept only to show on screen; the path is a generated name.
+
+**Not in the single file**, and it now says so where the box used to be instead of offering a
+file picker that errors on every click: a PDF is a file, and a file cannot live inside an HTML
+page. The invoice number, the date and the purchase voucher all work there.
 
 ### Handovers, and their history
 
