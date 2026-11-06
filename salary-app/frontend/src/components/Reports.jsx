@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { STANDALONE, api, download, downloadBackup, restoreBackup } from '../api.js';
+import {
+  STANDALONE,
+  api,
+  download,
+  downloadBackup,
+  eraseEverything,
+  restoreBackup,
+} from '../api.js';
 import AttendanceReport from './AttendanceReport.jsx';
 import AttendanceRequests from './AttendanceRequests.jsx';
 import PunchImport from './PunchImport.jsx';
@@ -401,6 +408,44 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
               />
             </label>
           </div>
+
+          {/*
+            * Empty it.
+            *
+            * Asked for by name — a clean file to test with, or to hand on. It
+            * is the one button here with no undo, so it asks twice: once for
+            * the backup, once for the word. The backup taken beside it is the
+            * only way back.
+            */}
+          <h3 style={{ margin: '1.1rem 0 0.3rem', fontSize: '0.84rem' }}>Start again, empty</h3>
+          <p className="muted small">
+            Clears every company, person, month, mark and record from this browser. The staff
+            list this file was sent with goes too. <strong>There is no undo</strong> — take the
+            backup above first, or it is gone.
+          </p>
+          <button
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  'Erase everything in this browser?\n\n' +
+                    'Every company, person, month and mark. There is no undo.\n\n' +
+                    'Have you taken the backup above?'
+                )
+              )
+                return;
+              const said = window.prompt('Type ERASE to confirm.');
+              if (String(said || '').trim().toUpperCase() !== 'ERASE') return;
+              setError('');
+              try {
+                await eraseEverything();
+                await onReload();
+              } catch (err) {
+                setError(`Could not erase: ${err.message}`);
+              }
+            }}
+          >
+            Erase everything
+          </button>
         </div>
       )}
         </div>

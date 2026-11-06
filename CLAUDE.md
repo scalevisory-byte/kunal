@@ -784,6 +784,26 @@ leave / erroer where 9 hrs not completed"*.
   `must_change` is deliberately NOT patchable, because an admin clearing it would re-enable a
   password that was read out loud. The forced screen is the only way off it.
 
+## Starting again, empty — and the two builds
+
+Dinesh: **"GIVE ME REMOVED ALL DATA"** — a clean copy to test with.
+
+- **Reports → "Start again, empty"** calls `eraseEverything()` in `localStore.js`, which resets
+  to **`EMPTY`, NOT `freshStore()`** — starting from the seed would put all eighty-five people
+  straight back and read as if the erase had failed. No undo, so it asks twice: the backup, then
+  the word `ERASE`. Saying no or typing anything else leaves everything untouched (tested).
+- **It empties the BROWSER, not the FILE.** The seed is inlined as `__SEED__`, so the seeded
+  build still carries every name and salary **in its source** — a different browser opening that
+  same copy gets all 85 back. Confirmed by grep: the seeded file contains BHENSWALA, 24150 and
+  the rest; the blank build contains none of them.
+  **So the seeded file must never be forwarded to an employee or a tester.** Build with
+  `seed.json` moved aside for that (`No seed.json - the file will start empty`).
+- **`npm run build:standalone` wipes `dist-standalone/` first**, so a blank build made before a
+  seeded one is deleted by it. Build blank, copy it somewhere else, then build seeded.
+- One storage key, `salary-app-data-v1`, shared by every `file://` copy in a browser — which is
+  why a blank build alone does not look blank in a browser that already holds his data, and why
+  the erase button had to exist as well.
+
 ## Sending payslips without deploying — `shared/payslipPage.js`
 
 Asked to deploy, Dinesh instead answered: **"ABHI BINA DEPLY K BHEJ SAKU ESA BANAVO"** — he

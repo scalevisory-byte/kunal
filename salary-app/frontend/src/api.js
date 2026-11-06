@@ -165,6 +165,11 @@ export async function restoreBackup(file) {
   (await localStore()).restore(await file.text());
 }
 
+/** Empty this browser's copy. Only the single file has anything to empty. */
+export async function eraseEverything() {
+  (await localStore()).eraseEverything();
+}
+
 /**
  * A page the browser opens in a new tab - an asset label, a sheet of stickers,
  * a voucher.

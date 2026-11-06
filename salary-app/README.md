@@ -211,6 +211,19 @@ Checked against the real September sheets, every total reconciles: salary 20,89,
 deduction 11,150, PT 14,400, PF 3,600, net 19,01,078, and the Sunday register 44 people at
 96,651 — each the same figure his own rows add up to.
 
+### Starting again, empty
+
+**Reports → This file holds your data → Start again, empty** clears every company, person,
+month, mark and record from that browser — the staff list the file was sent with included.
+
+There is no undo, so it asks twice: once whether the backup beside it has been taken, and once
+for the word `ERASE`. Saying no, or typing anything else, leaves everything exactly as it was.
+
+**It empties the browser, not the file.** The staff list is baked into the file itself, so a
+*different* browser opening the same copy still gets the seeded list. For handing the app to
+somebody else, use a build made with no `seed.json` — that one starts empty everywhere, and
+carries no salaries in its source.
+
 ### Sending payslips without deploying anything
 
 Dinesh: *"ABHI BINA DEPLY K BHEJ SAKU ESA BANAVO"* — hand the month to the staff now, with

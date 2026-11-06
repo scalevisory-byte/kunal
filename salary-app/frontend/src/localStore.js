@@ -4421,3 +4421,19 @@ export function restore(json) {
   cache = { ...EMPTY, ...data };
   save();
 }
+
+/**
+ * Empty it. Everything, back to nothing.
+ *
+ * `EMPTY`, not `freshStore()`: the seeded staff list is baked into THIS file,
+ * so starting from the seed would put all eighty-five of them straight back
+ * and read as if the erase had failed. Somebody asking for empty means empty.
+ *
+ * There is no undo. The backup taken beside it is the only way back, which is
+ * why the button asks for it first.
+ */
+export function eraseEverything() {
+  cache = structuredClone(EMPTY);
+  save();
+  return { erased: true };
+}
