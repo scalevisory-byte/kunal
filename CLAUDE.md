@@ -711,6 +711,17 @@ LATE COMING ALS0"*, then *"roll call me absent reason aur late coming list add k
 - The same two boxes are in the **day menu on the Attendance grid**, because that is where
   somebody marking the absence is standing, and a reason that must be typed on another screen
   is a reason nobody types.
+- **The uniform check** (*"FOR IN PORPER UNIFORM OR NOT ALSO"*) is a third column,
+  `attendance.uniform`, three-state for the same reason: a floor nobody walked must not read as
+  a floor full of offenders. It has its own fold on the roll call listing **only people who
+  were at work** (`WORKED_MARKS` — present, half day, Sunday or holiday worked), because there
+  is no uniform to see on somebody who was not in and an absence must never read as a uniform
+  failure. One bulk button fills in **only the not-looked-at**, as "Mark everyone Present" fills
+  only blank days — otherwise it would undo the walk. ✗ puts them in the morning's list under
+  an **Out of uniform** chip. A verdict is on the audit trail, like a decision.
+- **Do not use an uncontrolled `<details>` for a fold whose contents reload.** The uniform fold
+  was one and it would not stay open: the payroll reload under it reset the element. It is a
+  `useState` toggle now, the same shape as the Present list beside it.
 - **The backtick trap bit again**, exactly as warned below: `` `approved` `` inside an SQL
   comment inside a `db.exec(\`…\`)` template literal closes the literal and took every test
   down with "missing ) after argument list". Never put backticks in a comment inside a template

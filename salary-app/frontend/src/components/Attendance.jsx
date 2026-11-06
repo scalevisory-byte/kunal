@@ -813,8 +813,41 @@ function DayPicker({ codes, picker, period, entry, perMinute, onChange, onClose 
               Not decided
             </button>
           </div>
+          <div className="picker-minutes-head" style={{ marginTop: '0.5rem' }}>
+            <strong>Uniform</strong>
+            <span className="muted small">
+              {entry.uniform === true
+                ? 'proper'
+                : entry.uniform === false
+                  ? 'not proper'
+                  : 'nobody looked'}
+            </span>
+          </div>
+          <div className="minute-presets">
+            <button
+              type="button"
+              className={entry.uniform === true ? 'active' : undefined}
+              onClick={() => onChange({ uniform: entry.uniform === true ? null : true })}
+            >
+              Proper
+            </button>
+            <button
+              type="button"
+              className={entry.uniform === false ? 'active' : undefined}
+              onClick={() => onChange({ uniform: entry.uniform === false ? null : false })}
+            >
+              Not proper
+            </button>
+            <button
+              type="button"
+              className={entry.uniform === null || entry.uniform === undefined ? 'active' : undefined}
+              onClick={() => onChange({ uniform: null })}
+            >
+              Not checked
+            </button>
+          </div>
           <p className="muted small">
-            It does not change the pay — it records what happened, and shows on the roll call.
+            None of this changes the pay — it records what happened, and shows on the roll call.
           </p>
         </div>
 

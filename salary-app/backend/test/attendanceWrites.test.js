@@ -370,3 +370,60 @@ test('approving a leave application fills both in by itself', async () => {
   assert.equal(day.reason, 'Family function in Surat');
   assert.equal(day.approved, true);
 });
+
+/* ================================================================= *
+ * The uniform check
+ * ================================================================= */
+
+test('the uniform check is three-state: not looked at is not a failure', async () => {
+  const who = staff.Typed;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 20, code: 'P' }],
+  });
+  // A floor nobody walked must not read as a floor full of offenders.
+  assert.equal((await dayOf(who, 20)).uniform, null);
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 20, uniform: false }],
+  });
+  assert.equal((await dayOf(who, 20)).uniform, false);
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 20, uniform: null }],
+  });
+  assert.equal((await dayOf(who, 20)).uniform, null, 'handed back, not turned into a pass');
+});
+
+test('the uniform check moves no money either', async () => {
+  const who = staff.Punched;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 21, code: 'P' }],
+  });
+  const before = await rowOf(who);
+
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 21, uniform: false }],
+  });
+  const after = await rowOf(who);
+  for (const field of ['gross_salary', 'net_salary', 'absent_days', 'present_days', 'pt', 'pf']) {
+    assert.equal(after[field], before[field], `${field} moved`);
+  }
+});
+
+test('a uniform verdict survives the grid, the clock and the punch import', async () => {
+  const who = staff.Imported;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 22, code: 'P', uniform: false, reason: 'No ID card' }],
+  });
+  // The toolbar: a code and minutes, naming neither.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 22, code: 'P', minutes: 0 }],
+  });
+  // A punch: times only.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 22, in_time: '09:30', out_time: '18:30' }],
+  });
+  const day = await dayOf(who, 22);
+  assert.equal(day.uniform, false);
+  assert.equal(day.reason, 'No ID card');
+});

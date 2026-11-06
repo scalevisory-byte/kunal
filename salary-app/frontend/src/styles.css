@@ -1833,6 +1833,15 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 .picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .picker-why > input { width: 100%; margin: 0.35rem 0; }
 
+/* The uniform check: a name and two small buttons, wrapping like a name list
+   rather than becoming a seventy-row table. */
+.uniform-fold { border: none; padding: 0; }
+.uniform-list { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; margin: 0.3rem 0; }
+.uniform-row { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; }
+.uniform-row .who { margin-right: 0.1rem; }
+.uniform-row.uy .who { color: var(--muted); }
+.uniform-row.un .who { color: var(--bad); font-weight: 600; }
+
 /* The roll call's own filter row: which list is on screen. Tighter than the
    company chips above it, so the two do not read as one bank of buttons. */
 .chips.roll-chips { margin: 0.2rem 0 0.5rem; }

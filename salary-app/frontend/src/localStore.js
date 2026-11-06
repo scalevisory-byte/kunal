@@ -81,7 +81,7 @@ const EMPTY = {
   employees: [],
   periods: [],
   payroll_rows: [],
-  attendance: [], // { period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved }
+  attendance: [], // { …, in_time, lunch_out, lunch_in, out_time, reason, approved, uniform }
   holidays: [], // { id, period_id, day, name, religions[], code, applied_at }
   loans: [], // { id, employee_id, amount, instalment, given_on, reason, status }
   repayments: [], // { loan_id, period_id, amount }
@@ -302,8 +302,10 @@ function attendanceFor(periodId, employeeId) {
       lunch_in: a.lunch_in || '',
       out_time: a.out_time || '',
       reason: a.reason || '',
-      // null stays null: "nobody has decided" is not "not approved".
+      // null stays null: "nobody has decided" is not "not approved", and
+      // "nobody looked at the uniform" is not "turned up wrong".
       approved: a.approved === null || a.approved === undefined ? null : Boolean(a.approved),
+      uniform: a.uniform === null || a.uniform === undefined ? null : Boolean(a.uniform),
     };
   }
   return marks;
@@ -1863,8 +1865,17 @@ export async function handle(method, path, body) {
               : stored?.approved === null || stored?.approved === undefined
                 ? null
                 : Boolean(stored.approved);
+          // The uniform check, three-state for the same reason.
+          const uniform =
+            'uniform' in entry
+              ? entry.uniform === null || entry.uniform === undefined || entry.uniform === ''
+                ? null
+                : Boolean(entry.uniform)
+              : stored?.uniform === null || stored?.uniform === undefined
+                ? null
+                : Boolean(stored.uniform);
 
-          if (code || minutes || anyTime || reason || approved !== null) {
+          if (code || minutes || anyTime || reason || approved !== null || uniform !== null) {
             const record = {
               period_id: period.id,
               employee_id: employeeId,
@@ -1874,6 +1885,7 @@ export async function handle(method, path, body) {
               ...times,
               reason,
               approved,
+              uniform,
             };
             if (index >= 0) db.attendance[index] = record;
             else db.attendance.push(record);

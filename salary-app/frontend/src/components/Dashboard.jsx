@@ -51,6 +51,7 @@ export default function Dashboard({
   const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
   const [showPresent, setShowPresent] = useState(false);
+  const [showUniform, setShowUniform] = useState(false);
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
   // asked for by name; 'all' is the morning's whole list.
   const [bucket, setBucket] = useState('all');
@@ -203,6 +204,14 @@ export default function Dashboard({
     const out = {
       present: [], absent: [], leave: [], halfDay: [], holiday: [], sunday: [],
       unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
+      /*
+       * The uniform check.
+       *
+       * `atWork` is who there is anything to check - present, a half day, or
+       * in on a Sunday or a holiday. There is no uniform to inspect on
+       * somebody who was not there, so an absence is never "not in uniform".
+       */
+      atWork: [], outOfUniform: [], uniformProper: 0, uniformChecked: 0,
     };
 
     for (const row of rows) {
@@ -223,6 +232,9 @@ export default function Dashboard({
         // is "nobody has decided", which is not "not approved".
         reason: times.reason || '',
         approved: times.approved === undefined ? null : times.approved,
+        // Was this person in proper uniform. null is "nobody looked", which
+        // is not "turned up wrong".
+        uniform: times.uniform === undefined ? null : times.uniform,
       };
 
       if (!code) out.unmarked.push(person);
@@ -244,8 +256,18 @@ export default function Dashboard({
       // off the clock or were typed straight onto the grid.
       if (minutes > 0) out.overtime.push(person);
       if (minutes < 0) out.short.push(person);
+
+      if (code && WORKED_MARKS.has(code)) {
+        out.atWork.push(person);
+        if (person.uniform === true) out.uniformProper++;
+        if (person.uniform !== null) out.uniformChecked++;
+        if (person.uniform === false) out.outOfUniform.push(person);
+      }
     }
 
+    out.atWork.sort((a, b) =>
+      String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+    );
     out.late.sort((a, b) => b.lateBy - a.lateBy);
     out.overtime.sort((a, b) => b.minutes - a.minutes);
     out.short.sort((a, b) => a.minutes - b.minutes);
@@ -294,6 +316,9 @@ export default function Dashboard({
       if (seen) seen.lateBy = p.lateBy;
     }
     for (const p of roll.early) note(p, 2, 'Left early', p.out_time, 'early');
+    // Somebody present in the wrong uniform is not on any other list, and it
+    // is exactly the sort of thing the morning is for.
+    for (const p of roll.outOfUniform) note(p, 2, 'Not in proper uniform', '', 'uniform');
     for (const p of roll.halfDay) note(p, 3, 'Half day', '', 'halfDay');
     for (const p of roll.short) note(p, 4, `Short ${formatDuration(-p.minutes)}`, '', 'short');
     for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
@@ -327,6 +352,7 @@ export default function Dashboard({
             ['halfDay', 'Half day', roll.halfDay.length],
             ['leave', 'On leave', roll.leave.length],
             ['short', 'Short hours', roll.short.length],
+            ['uniform', 'Out of uniform', roll.outOfUniform.length],
             ['unmarked', 'Not marked', roll.unmarked.length],
           ]
         : [],
@@ -573,6 +599,17 @@ export default function Dashboard({
     setSaving((n) => n + 1);
     try {
       await onSaveAttendance([{ employee_id: person.id, day: shownDay, ...patch }]);
+    } finally {
+      setSaving((n) => n - 1);
+    }
+  };
+
+  /** The same thing for a whole floor at once - one call, one reload. */
+  const saveMany = async (entries) => {
+    if (!onSaveAttendance || locked || !entries.length) return;
+    setSaving((n) => n + 1);
+    try {
+      await onSaveAttendance(entries);
     } finally {
       setSaving((n) => n - 1);
     }
@@ -919,6 +956,7 @@ export default function Dashboard({
           <Stat label="Late in" value={roll.late.length} plain go={onGo} to="time" />
           <Stat label="Early out" value={roll.early.length} plain go={onGo} to="time" />
           <Stat label="On overtime" value={roll.overtime.length} plain go={onGo} to="time" />
+          <Stat label="Out of uniform" value={roll.outOfUniform.length} plain />
           <Stat
             label="Not marked"
             value={roll.unmarked.length}
@@ -1121,6 +1159,90 @@ export default function Dashboard({
               />
             )}
           </>
+        )}
+
+        {/*
+          * The uniform check.
+          *
+          * Its own block, because it is the one thing on this page that is
+          * about people who ARE at work - everything else lists whoever is
+          * not. Folded away, since it is a walk round the floor and not
+          * something to read every morning.
+          *
+          * "All of them proper" fills in only whoever has not been looked at
+          * yet, exactly as "Mark everyone Present" fills only blank days. It
+          * never overwrites a verdict somebody recorded, because then the
+          * bulk button would quietly undo the walk.
+          */}
+        {roll.atWork.length > 0 && (
+          <div className="uniform-fold">
+            {/* A state toggle, not <details> - the same shape as the Present
+                list above, and an uncontrolled <details> loses its open state
+                every time the payroll reloads under it. */}
+            <p className="name-list small">
+              <strong>Uniform check</strong>
+              <span className="muted">
+                {' — '}
+                {roll.uniformChecked === 0
+                  ? `${roll.atWork.length} at work, none looked at yet`
+                  : `${roll.uniformProper} proper · ${roll.outOfUniform.length} not · ${
+                      roll.atWork.length - roll.uniformChecked
+                    } not looked at`}
+              </span>
+              <button className="ghost tiny" onClick={() => setShowUniform((v) => !v)}>
+                {showUniform ? 'hide' : `check the ${roll.atWork.length} at work`}
+              </button>
+            </p>
+            {showUniform && (
+            <>
+            <div className="row" style={{ margin: '0.4rem 0' }}>
+              <button
+                disabled={locked || roll.uniformChecked === roll.atWork.length}
+                onClick={() => {
+                  const rest = roll.atWork.filter((p) => p.uniform === null);
+                  if (!rest.length) return;
+                  saveMany(rest.map((p) => ({ employee_id: p.id, day: shownDay, uniform: true })));
+                }}
+              >
+                All {roll.atWork.filter((p) => p.uniform === null).length} not looked at: proper
+              </button>
+              <span className="muted small">
+                It records what was seen — it changes nobody's pay.
+              </span>
+            </div>
+            <div className="uniform-list">
+              {roll.atWork.map((p) => (
+                <span key={p.id} className={`uniform-row u${p.uniform === null ? '' : p.uniform ? 'y' : 'n'}`}>
+                  <span className="who">{p.employee_name}</span>
+                  <button
+                    className={`chip tiny ${p.uniform === true ? 'active' : ''}`}
+                    disabled={locked}
+                    title="In proper uniform"
+                    onClick={() => saveDay(p, { uniform: p.uniform === true ? null : true })}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    className={`chip tiny ${p.uniform === false ? 'active bad' : ''}`}
+                    disabled={locked}
+                    title="Not in proper uniform"
+                    onClick={() => saveDay(p, { uniform: p.uniform === false ? null : false })}
+                  >
+                    ✗
+                  </button>
+                </span>
+              ))}
+            </div>
+            <p className="muted small">
+              Only people who were at work are here — there is no uniform to see on somebody who
+              was not in, so an absence is never a uniform failure. A name with neither mark is{' '}
+              <strong>not looked at</strong>, which is not the same as turning up wrong. Anybody
+              marked ✗ shows on the list above and in the day's menu on the{' '}
+              <strong>Attendance</strong> grid.
+            </p>
+            </>
+            )}
+          </div>
         )}
 
         {roll.clocked === 0 ? (
@@ -1608,6 +1730,17 @@ export default function Dashboard({
  */
 const FULL_DAY_MARKS = new Set(['', 'P', 'WH', 'SP', 'HP']);
 const judgedOnTime = (code) => FULL_DAY_MARKS.has(String(code || '').toUpperCase());
+
+/*
+ * Who was actually at work, for the uniform check.
+ *
+ * A half day counts - they turned up, so there was a uniform to see. An
+ * absence, leave, a holiday and a day off do NOT: there is nothing to inspect
+ * on somebody who was not there, and an absence must never read as a uniform
+ * failure. A day with no mark is left out too, because nobody has said whether
+ * they were in at all.
+ */
+const WORKED_MARKS = new Set(['P', 'HF', 'WH', 'SP', 'HP']);
 
 /** Days marked present out of the days that carry any mark at all. */
 function presentRate(rows) {

@@ -268,7 +268,32 @@ in the day's menu on the **Attendance** grid, where somebody marking the absence
 standing. **Approving a leave application fills them in by itself**, carrying the reason the
 employee gave, so nobody types it twice and the grid cannot disagree with the queue.
 
-**Neither column moves a rupee.** An allowed absence is still an absence; paid time off is
+#### The uniform check
+
+Asked for alongside the two above: *"FOR IN PORPER UNIFORM OR NOT ALSO"*.
+
+**Uniform check** is its own fold on the roll call, because it is the one thing on that page
+about people who *are* at work — everything else lists whoever is not. It lists everybody who
+was at work that day (present, half day, or in on a Sunday or a holiday) with a **✓** and a
+**✗** each.
+
+- **"All N not looked at: proper"** fills in only whoever has not been looked at yet, exactly
+  as *Mark everyone Present* fills only blank days. It never overwrites a verdict somebody
+  recorded, or the bulk button would quietly undo the walk round the floor. On the real seeded
+  month that is one click for 78 people, then flag the two.
+- **A name with neither mark is "not looked at", which is not the same as turning up wrong.**
+  Three states again: a floor nobody walked must not read as a floor full of offenders.
+- **Only people who were at work are listed.** There is no uniform to see on somebody who was
+  not in, so an absence is never a uniform failure.
+- Anybody marked ✗ joins the morning's list under its own **Out of uniform** chip, gets a
+  count on the tiles, and shows in the day's menu on the **Attendance** grid.
+
+The point of one table rather than eight strips shows here: a row can read *Late by 55m at
+10:25 · Not in proper uniform · Short 50m* — one person, three things, which separate lists of
+names could never say.
+
+**None of the three columns moves a rupee.** An allowed absence is still an absence; paid time
+off is
 Casual, Sick or Privilege leave, which it already was. There is a test asserting that gross,
 net, absent days, present days, PT and PF are all unmoved by either. They follow the same
 per-field merge rule as every other attendance column, so *Mark everyone Present* cannot wipe

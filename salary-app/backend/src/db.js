@@ -237,6 +237,11 @@ db.exec(`
     -- paid time off is CL/SL/PL/PH, which it already was.
     reason      TEXT,
     approved    INTEGER,
+    -- Was this person in proper uniform. Three-state for the same reason
+    -- approved is: null is "nobody looked", which is not "turned up wrong".
+    -- A floor nobody checked must not read as a floor full of offenders.
+    -- This moves no money either; it is a record, not a fine.
+    uniform     INTEGER,
     PRIMARY KEY (period_id, employee_id, day)
   );
 
@@ -303,6 +308,12 @@ if (!attendanceColumns.has('reason')) {
   db.exec(`ALTER TABLE attendance ADD COLUMN reason TEXT`);
   db.exec(`ALTER TABLE attendance ADD COLUMN approved INTEGER`);
   log.info('Migrated attendance table: added the absence reason and whether it was approved.');
+}
+if (!attendanceColumns.has('uniform')) {
+  // Nullable, so every day already marked reads as "nobody looked" rather
+  // than as a uniform failure nobody recorded.
+  db.exec(`ALTER TABLE attendance ADD COLUMN uniform INTEGER`);
+  log.info('Migrated attendance table: added the uniform check.');
 }
 
 // ot_minutes was NOT NULL DEFAULT 0 and named without the _override suffix. It
@@ -1603,7 +1614,7 @@ export function listAttendance(periodId, { company_id } = {}) {
     .prepare(
       `SELECT a.employee_id, a.day, a.code, a.minutes,
               a.in_time, a.lunch_out, a.lunch_in, a.out_time,
-              a.reason, a.approved
+              a.reason, a.approved, a.uniform
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
@@ -1623,8 +1634,10 @@ export function attendanceByEmployee(periodId, opts) {
       lunch_in: row.lunch_in || '',
       out_time: row.out_time || '',
       reason: row.reason || '',
-      // null stays null: "nobody has decided" is not "not approved".
+      // null stays null: "nobody has decided" is not "not approved", and
+      // "nobody looked at the uniform" is not "turned up wrong".
       approved: row.approved === null || row.approved === undefined ? null : Boolean(row.approved),
+      uniform: row.uniform === null || row.uniform === undefined ? null : Boolean(row.uniform),
     };
   }
   return map;
@@ -1634,17 +1647,18 @@ export const setAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
     `INSERT INTO attendance
        (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time,
-        reason, approved)
+        reason, approved, uniform)
      VALUES (@period_id, @employee_id, @day, @code, @minutes,
-             @in_time, @lunch_out, @lunch_in, @out_time, @reason, @approved)
+             @in_time, @lunch_out, @lunch_in, @out_time, @reason, @approved, @uniform)
      ON CONFLICT(period_id, employee_id, day)
      DO UPDATE SET code = excluded.code, minutes = excluded.minutes,
                    in_time = excluded.in_time, lunch_out = excluded.lunch_out,
                    lunch_in = excluded.lunch_in, out_time = excluded.out_time,
-                   reason = excluded.reason, approved = excluded.approved`
+                   reason = excluded.reason, approved = excluded.approved,
+                   uniform = excluded.uniform`
   );
   const existing = db.prepare(
-    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved
+    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved, uniform
      FROM attendance
      WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
@@ -1724,6 +1738,19 @@ export const setAttendance = db.transaction((periodId, entries) => {
         : stored?.approved === null || stored?.approved === undefined
           ? null
           : Number(stored.approved);
+    /*
+     * The uniform check. Three-state for the same reason: a floor nobody
+     * checked must not read as a floor full of offenders. It moves no money -
+     * it is a record, not a fine.
+     */
+    const uniform =
+      'uniform' in entry
+        ? entry.uniform === null || entry.uniform === undefined || entry.uniform === ''
+          ? null
+          : Number(Boolean(entry.uniform))
+        : stored?.uniform === null || stored?.uniform === undefined
+          ? null
+          : Number(stored.uniform);
 
     /*
      * Clock times become money HERE, not in the browser.
@@ -1793,6 +1820,21 @@ export const setAttendance = db.transaction((periodId, entries) => {
         to_value: say(approved),
       });
     }
+    const wasUniform =
+      stored?.uniform === null || stored?.uniform === undefined ? null : Number(stored.uniform);
+    if ('uniform' in entry && uniform !== wasUniform) {
+      const say = (v) => (v === null ? 'not checked' : v ? 'proper uniform' : 'not in uniform');
+      changes.push({
+        who: entry.by || null,
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: employeeId,
+        label: `${nameOf(employeeId)}, ${monthLabel} day ${day}`,
+        field: 'uniform',
+        from_value: say(wasUniform),
+        to_value: say(uniform),
+      });
+    }
     if (stored?.reason && reason !== stored.reason) {
       changes.push({
         who: entry.by || null,
@@ -1808,7 +1850,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
 
     // A reason or a decision is worth a row of its own: somebody rang in to
     // say they would be out before anybody marked the day.
-    if (code || minutes || anyTime || reason || approved !== null) {
+    if (code || minutes || anyTime || reason || approved !== null || uniform !== null) {
       upsert.run({
         period_id: periodId,
         employee_id: employeeId,
@@ -1818,6 +1860,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
         ...times,
         reason,
         approved,
+        uniform,
       });
     } else {
       remove.run(periodId, employeeId, day);
