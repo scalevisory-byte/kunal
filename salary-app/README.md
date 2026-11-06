@@ -583,6 +583,39 @@ to Surat", "warning issued").
 All three need the server. The single-file build says so plainly rather than showing an empty
 box — a PAN card is a file, and a file cannot live in a browser.
 
+### The face on the record
+
+A photograph was always uploadable — it is one of the document kinds and it counts towards
+KYC — but it only ever appeared as a *filename in a list*, so nobody could see whether the
+right person was on the right record. Dinesh asked for a photo on the employee master, and
+this is what he meant.
+
+- The picture sits at the top of the record, with **add a photo** / **change** beside it.
+  Uploading there posts a document of kind `photo`, so it is the **same store** as the
+  documents panel: the KYC count stays right, and a replacement is a new upload rather than an
+  overwrite — an ID card printed last year is allowed to look like the person did last year.
+- **A face beside every name** in the Employees list, and initials for anybody without one, so
+  the master shows at a glance who is still missing a photograph.
+- The employee sees **their own** at the top of their own page.
+- It is served from `/api/employees/:id/photo`, **not** a signed expiring link like the other
+  documents. Those are for handing a file to somebody; this one is drawn by an `<img>` on a
+  page that may sit open all afternoon, and a link that dies in five minutes turns eighty faces
+  into eighty broken images. The door is the session instead, which is narrower than a
+  signature anybody could forward. **The kind is pinned in the query**, so that route can only
+  ever serve a photograph — there is a test that an Aadhaar card uploaded against the same
+  person is still a 404 there, and that a staff login gets 403 on the office route and only
+  their own face through `/api/me/photo`.
+- **Not in the single file**: a photograph is a file. Initials everywhere, and no upload box
+  that could not work.
+
+### Everything on one record, one click away
+
+The record drawer is long — the **Bank** boxes sit below six other blocks — and Dinesh asked
+for bank details to be "added" when they had been there all along, simply out of sight. So the
+drawer now opens with a row of jump links: **Documents & KYC · Bank · Statutory · Salary
+breakup · History**. Same lesson as the asset invoice: a thing you have to scroll to find is a
+thing that does not exist.
+
 ### Onboarding a new joiner
 
 Adding somebody to the payroll needs a name and a salary. Then the month ends, and the PF

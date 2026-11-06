@@ -17,7 +17,9 @@ test.after(() => server.close());
 /** A signed-in browser: cookies carried by hand, as the real one does. */
 function session() {
   let cookie = '';
-  return async (method, url, body) => {
+  // Exposed so the few tests that need a raw fetch - an upload, an <img> - can
+  // use the same signed-in session rather than a second one.
+  const call = async (method, url, body) => {
     const res = await fetch(`${base}${url}`, {
       method,
       headers: {
@@ -32,6 +34,8 @@ function session() {
     const text = await res.text();
     return { status: res.status, body: text ? JSON.parse(text) : null };
   };
+  call.cookie = () => cookie;
+  return call;
 }
 
 const admin = session();
@@ -338,4 +342,87 @@ test('switching a staff login off stops it at once', async () => {
   await admin('PATCH', `/api/auth/users/${mine.user_id}`, { active: false });
   const after = await staff('GET', '/api/me');
   assert.equal(after.status, 401, 'the role is read fresh on every request');
+});
+
+/*
+ * The photograph.
+ *
+ * Dinesh asked for a photo on the employee master. It is served as a picture
+ * rather than as a signed expiring link, because an <img> sits on a page all
+ * afternoon and a link that dies in five minutes turns eighty faces into
+ * eighty broken images. That makes the door the session, so the door is what
+ * these pin.
+ */
+test('a photograph is served as a picture, and only a photograph', async () => {
+  const png = Buffer.from(
+    '89504e470d0a1a0a0000000d49484452000000010000000108020000009077' +
+      '53de0000000c49444154789c636060000000040001273f2a2b0000000049454e44ae426082',
+    'hex'
+  );
+  const form = new FormData();
+  form.set('document', new Blob([png], { type: 'image/png' }), 'face.png');
+  form.set('kind', 'photo');
+  const up = await fetch(`${base}/api/employees/${amit.id}/documents`, {
+    method: 'POST',
+    headers: { cookie: admin.cookie() },
+    body: form,
+  });
+  assert.equal(up.status, 201);
+
+  const got = await fetch(`${base}/api/employees/${amit.id}/photo`, {
+    headers: { cookie: admin.cookie() },
+  });
+  assert.equal(got.status, 200);
+  assert.equal((await got.arrayBuffer()).byteLength, png.length);
+
+  // Riya has no photograph, and "none" is a 404 rather than somebody else's.
+  const none = await fetch(`${base}/api/employees/${riya.id}/photo`, {
+    headers: { cookie: admin.cookie() },
+  });
+  assert.equal(none.status, 404);
+
+  // An Aadhaar card uploaded against the same person is NOT reachable here:
+  // the kind is pinned in the query, so this route can only ever serve a face.
+  const aadhaar = new FormData();
+  aadhaar.set('document', new Blob([png], { type: 'image/png' }), 'aadhaar.png');
+  aadhaar.set('kind', 'aadhaar');
+  await fetch(`${base}/api/employees/${riya.id}/documents`, {
+    method: 'POST',
+    headers: { cookie: admin.cookie() },
+    body: aadhaar,
+  });
+  const still = await fetch(`${base}/api/employees/${riya.id}/photo`, {
+    headers: { cookie: admin.cookie() },
+  });
+  assert.equal(still.status, 404, 'an Aadhaar card is not a photograph');
+});
+
+test('a staff login sees their own face and cannot reach anybody else’s', async () => {
+  // The test above switched Amit's login off, so sign in again - which also
+  // shows that switching it back on lets them straight back in.
+  const list = (await admin('GET', '/api/auth/staff')).body.staff;
+  const mineRow = list.find((r) => r.employee_id === amit.id);
+  await admin('PATCH', `/api/auth/users/${mineRow.user_id}`, { active: true });
+  const again = session();
+  assert.equal(
+    (await again('POST', '/api/auth/login', {
+      username: mineRow.username,
+      password: amitsPassword,
+    })).status,
+    200
+  );
+
+  // Their own, through the one door they have.
+  const mine = await fetch(`${base}/api/me/photo`, { headers: { cookie: again.cookie() } });
+  assert.equal(mine.status, 200);
+
+  // The office route is office-only, like every other office route.
+  const theirs = await fetch(`${base}/api/employees/${riya.id}/photo`, {
+    headers: { cookie: again.cookie() },
+  });
+  assert.equal(theirs.status, 403);
+  const ownViaOffice = await fetch(`${base}/api/employees/${amit.id}/photo`, {
+    headers: { cookie: again.cookie() },
+  });
+  assert.equal(ownViaOffice.status, 403, 'even their own, through the office door');
 });

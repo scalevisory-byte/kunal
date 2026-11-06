@@ -6,9 +6,11 @@ import {
   listLoans,
   listPeriods,
   leaveSummary,
+  newestPhoto,
   updateEmployee,
 } from '../db.js';
 import { buildPayroll } from '../payroll.js';
+import { documentFile } from '../documents.js';
 import { createRequest, listRequests } from '../attendanceSelf.js';
 import { listTickets, createTicket, getTicket, replyToTicket, listAssets } from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
@@ -268,6 +270,18 @@ meRouter.patch('/', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+/*
+ * Their own photograph, for their own page. Same shape as the office route and
+ * the same reason it is not a signed link: an <img> on a page left open.
+ */
+meRouter.get('/photo', (req, res) => {
+  const doc = newestPhoto(req.employeeId);
+  const file = doc && documentFile(doc);
+  if (!file) return res.status(404).json({ error: 'no photograph on file' });
+  res.setHeader('cache-control', 'private, max-age=86400');
+  res.sendFile(file);
 });
 
 /** Their own documents, and what is still wanted. */

@@ -5,6 +5,7 @@ import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { describeMinutes } from '../../../shared/attendanceRequests.js';
 import Payslip from './Payslip.jsx';
 import ChangePassword from './ChangePassword.jsx';
+import { Avatar } from './EmployeePhoto.jsx';
 
 /*
  * What an employee sees when they sign in.
@@ -48,6 +49,9 @@ export default function MyPage({ me, onError, onSignOut }) {
   return (
     <div className="my-page">
       <header className="my-head">
+        {/* Their own face, from /api/me/photo - the same picture the office
+            has on their record, never anybody else's. */}
+        <Avatar employee={{ name: employee?.name || me?.name }} size="lg" src="/api/me/photo" />
         <div>
           <h1>{employee?.name || me?.name}</h1>
           <p className="muted small">

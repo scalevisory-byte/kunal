@@ -11,11 +11,12 @@ import {
   listEmployeeHistory,
   listEmployees,
   listPeriods,
+  newestPhoto,
   recordHistory,
   updateEmployee,
 } from '../db.js';
 import fs from 'node:fs';
-import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
+import { deleteDocumentFile, documentFile, documentLink, uploadDocument } from '../documents.js';
 import { documentStatus } from '../../../shared/documents.js';
 import { punchLink } from './punch.js';
 import { config } from '../config.js';
@@ -109,6 +110,29 @@ employeesRouter.get('/:id/record', (req, res) => {
     history: listEmployeeHistory(employee.id),
     reports: listDirectReports(employee.id),
   });
+});
+
+/*
+ * The photograph, served as a picture.
+ *
+ * Deliberately NOT a signed expiring link like the other documents. Those are
+ * for handing a file to somebody; this one is drawn by an <img> on a page that
+ * may sit open all afternoon, and a link that expires in a few minutes turns
+ * eighty faces into eighty broken images. It is behind the session instead -
+ * this router already requires `read`, which is a narrower door than a
+ * signature anybody could forward.
+ *
+ * Only a photograph is served this way. Nothing here can reach an Aadhaar
+ * card: the kind is pinned in the query.
+ */
+employeesRouter.get('/:id/photo', (req, res) => {
+  const doc = newestPhoto(Number(req.params.id));
+  const file = doc && documentFile(doc);
+  if (!file) return res.status(404).json({ error: 'no photograph on file' });
+  // A face does not change under the same document id, and a replacement is a
+  // new row with a new id, so this can be cached hard.
+  res.setHeader('cache-control', 'private, max-age=86400');
+  res.sendFile(file);
 });
 
 /**

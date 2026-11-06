@@ -764,7 +764,13 @@ export function listEmployees({ company_id, branch_id, active } = {}) {
   }
   return db
     .prepare(
-      `SELECT e.*, c.name AS company_name, b.name AS branch_name
+      `SELECT e.*, c.name AS company_name, b.name AS branch_name,
+              -- Whether there is a face to show, not the file itself. The
+              -- picture is fetched per employee from its own route; asking the
+              -- list for it would mean a photograph of everybody down the wire
+              -- to draw eighty thumbnails.
+              EXISTS (SELECT 1 FROM employee_documents d
+                      WHERE d.employee_id = e.id AND d.kind = 'photo') AS has_photo
        FROM employees e
        JOIN companies c ON c.id = e.company_id
        LEFT JOIN branches b ON b.id = e.branch_id
@@ -1062,6 +1068,22 @@ export function updateEmployee(id, patch) {
 }
 
 /* ---------------- employee documents ---------------- */
+
+/**
+ * The photograph to show for somebody: the newest one on file.
+ *
+ * A replacement is a new upload rather than an overwrite, so the old one is
+ * still on the record - an ID card printed last year is allowed to look like
+ * the person did last year.
+ */
+export const newestPhoto = (employeeId) =>
+  db
+    .prepare(
+      `SELECT * FROM employee_documents
+       WHERE employee_id = ? AND kind = 'photo'
+       ORDER BY uploaded_at DESC, id DESC LIMIT 1`
+    )
+    .get(Number(employeeId)) || null;
 
 export const listDocuments = (employeeId) =>
   db

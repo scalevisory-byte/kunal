@@ -3,6 +3,7 @@ import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
+import { Avatar } from './EmployeePhoto.jsx';
 import OrgChart from './OrgChart.jsx';
 import DepartmentManagers from './DepartmentManagers.jsx';
 import { bulkManagerPlan } from '../../../shared/orgChart.js';
@@ -954,9 +955,13 @@ export default function Employees({
                     />
                   </td>
                   <td className="sticky-name">
+                    {/* The face, where the name is. Initials where there is
+                        none, which is also how the master shows at a glance
+                        who still has no photograph. */}
+                    <Avatar employee={emp} />
                     <button
                       className="link"
-                      title="Open the full record — bank, PAN, UAN, ESIC, contact"
+                      title="Open the full record — photo, bank, PAN, UAN, ESIC, contact"
                       onClick={() => setProfileFor(emp.id)}
                     >
                       {emp.name}

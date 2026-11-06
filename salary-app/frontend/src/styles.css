@@ -1833,6 +1833,27 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 .picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .picker-why > input { width: 100%; margin: 0.35rem 0; }
 
+/* ---------- the face on a record ---------- */
+
+.avatar {
+  display: inline-block; vertical-align: middle; border-radius: 50%;
+  object-fit: cover; background: var(--line); flex: none;
+}
+.avatar-sm { width: 1.4rem; height: 1.4rem; margin-right: 0.35rem; }
+.avatar-lg { width: 3.4rem; height: 3.4rem; }
+/* Initials, for anybody with no photograph. Quiet - it is a gap, not a fault. */
+.avatar-none {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); font-weight: 600; letter-spacing: 0.02em;
+  background: var(--line); font-size: 0.62rem;
+}
+.avatar-lg.avatar-none { font-size: 1.05rem; }
+.photo-slot { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-right: 0.8rem; }
+
+/* The row of jump links at the top of a long record. */
+.chips.jump-row { margin: 0.2rem 0 0.6rem; }
+.chips.jump-row .chip { font-size: 0.72rem; padding: 0.2rem 0.5rem; }
+
 /* The uniform check: a name and two small buttons, wrapping like a name list
    rather than becoming a seventy-row table. */
 .uniform-fold { border: none; padding: 0; }

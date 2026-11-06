@@ -63,7 +63,7 @@ export function Reporting({ employee, employees, onPatch }) {
  * Both need the server — a document is a file, and a history is a table. The
  * single-file build says so rather than showing an empty box.
  */
-export default function EmployeeRecord({ employee, employees, onPatch, onError }) {
+export default function EmployeeRecord({ employee, employees, onPatch, onError, refresh = 0 }) {
   const [record, setRecord] = useState(null);
   const [held, setHeld] = useState([]);
   const [kind, setKind] = useState('pan');
@@ -94,10 +94,17 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
     }
   };
 
+  /*
+   * `refresh` is bumped by anything OUTSIDE this panel that changes what it
+   * shows - uploading the photograph from the record's header, which posts a
+   * document of kind `photo`. Without it the panel kept saying "Nothing on
+   * file yet · 4 still missing" with the face already on screen above it,
+   * which is how somebody uploads the same thing twice.
+   */
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employee.id]);
+  }, [employee.id, refresh]);
 
   if (STANDALONE) {
     return (
@@ -189,7 +196,7 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
 
       <div className="structure">
         <div className="row" style={{ marginBottom: '0.5rem' }}>
-          <h3 style={{ margin: 0 }}>Documents and KYC</h3>
+          <h3 id="sec-documents" style={{ margin: 0 }}>Documents and KYC</h3>
           <span className="spacer" />
           <span className="muted small">
             {status.complete
@@ -266,7 +273,7 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError }
       </div>
 
       <div className="structure">
-        <h3 style={{ margin: '0 0 0.5rem' }}>History</h3>
+        <h3 id="sec-history" style={{ margin: '0 0 0.5rem' }}>History</h3>
         {history.length ? (
           <ul className="timeline">
             {history.slice(0, 40).map((h) => (

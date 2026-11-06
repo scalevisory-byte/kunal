@@ -4,6 +4,7 @@ import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
 import Contributions from './Contributions.jsx';
 import EmployeeRecord, { Reporting } from './EmployeeRecord.jsx';
+import EmployeePhoto from './EmployeePhoto.jsx';
 
 /**
  * One employee's full record.
@@ -113,9 +114,19 @@ function complain(field, value) {
   return '';
 }
 
+const JUMPS = [
+  ['documents', 'Documents & KYC'],
+  ['bank', 'Bank'],
+  ['statutory', 'Statutory'],
+  ['structure', 'Salary breakup'],
+  ['history', 'History'],
+];
+
 export default function EmployeeProfile({ employee, companies, employees: allEmployees = [], onPatch, onClose }) {
   const [draft, setDraft] = useState(employee);
   const [saving, setSaving] = useState(false);
+  // Bumped when the photograph changes, so the documents panel re-reads.
+  const [recordRefresh, setRecordRefresh] = useState(0);
   const [error, setError] = useState('');
   // Branches of this person's company only - a Surat branch of SCALE is not
   // somewhere a BOOKNFLY employee can be put.
@@ -219,6 +230,15 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
     <div className="picker-backdrop" onClick={onClose}>
       <div className="modal profile" onClick={(e) => e.stopPropagation()}>
         <div className="payslip-head">
+          <EmployeePhoto
+            employee={employee}
+            onChanged={async () => {
+              setRecordRefresh((n) => n + 1);
+              // Reload the list too, so the face shows beside the name there.
+              await onPatch(employee.id, {});
+            }}
+            onError={(err) => setError(err.message)}
+          />
           <div>
             <h2>{employee.name}</h2>
             <p className="muted small">
@@ -234,6 +254,31 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
         </div>
 
         {error && <p className="error">{error}</p>}
+
+        {/*
+          * Where everything is, in one row.
+          *
+          * This drawer is long - the Bank boxes are below six other blocks -
+          * and Dinesh asked for bank details to be "added" when they had been
+          * there all along, simply out of sight. Same lesson as the asset
+          * invoice: a thing you have to scroll to find is a thing that does
+          * not exist.
+          */}
+        <div className="chips jump-row no-print">
+          {JUMPS.map(([id, label]) => (
+            <button
+              key={id}
+              className="chip"
+              onClick={() =>
+                document
+                  .getElementById(`sec-${id}`)
+                  ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         <OnboardingChecklist employee={draft} />
 
@@ -258,6 +303,7 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
         <EmployeeRecord
           employee={draft}
           employees={allEmployees}
+          refresh={recordRefresh}
           onPatch={async (id, patch) => {
             setDraft({ ...draft, ...patch });
             setSaving(true);
@@ -273,6 +319,7 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
           onError={(err) => setError(err.message)}
         />
 
+        <div id="sec-structure">
         <SalaryStructure
           employee={draft}
           onPatch={async (id, patch) => {
@@ -288,6 +335,8 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
             }
           }}
         />
+
+        </div>
 
         <Contributions employee={draft} onPatch={async (id, patch) => {
           setDraft({ ...draft, ...patch });
@@ -337,7 +386,11 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
         </div>
 
         {SECTIONS.map((section) => (
-          <section key={section.title} className="profile-section">
+          <section
+            key={section.title}
+            id={`sec-${section.title.toLowerCase().split(' ')[0]}`}
+            className="profile-section"
+          >
             <h3>{section.title}</h3>
             <div className="form-grid">{section.fields.map(box)}</div>
           </section>

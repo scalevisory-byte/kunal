@@ -727,6 +727,35 @@ LATE COMING ALS0"*, then *"roll call me absent reason aur late coming list add k
   down with "missing ) after argument list". Never put backticks in a comment inside a template
   string.
 
+## The face on the employee record
+
+Dinesh: *"IN EMPLOYE MATSR EMPLOYE EPHOOT ALSO NEED TO UPLOADED / EMPLOUEE DOCUMNTS ALOS NED TO
+UPLOADED / BAMNK DETAILD LASO NEED TOI UPADTATED"*, then *"haan kar do photo wala"*.
+
+**Inspected first, and two of the three already existed:** bank details are a section on the
+record (and employees can now fix their own), and documents upload with a `photo` kind among
+them. What was genuinely missing is that **a photograph was a filename in a list, never a
+face** — and that **Bank sits below six other blocks**, which is why it read as absent.
+
+- `frontend/src/components/EmployeePhoto.jsx` — `Avatar` (initials when there is none) and the
+  upload slot. Uploading posts a document of kind `photo` through the EXISTING route, so there
+  is one store and the KYC count stays right. A replacement is a new row, not an overwrite.
+- `GET /api/employees/:id/photo` and `GET /api/me/photo` serve `newestPhoto()` **inline behind
+  the session**, deliberately NOT as a signed expiring link like every other document: an
+  `<img>` sits on a page all afternoon and a five-minute link turns eighty faces into eighty
+  broken images. The **kind is pinned in the query**, so the route can only ever serve a
+  photograph — tested with an Aadhaar card that stays a 404 there.
+- `listEmployees` carries **`has_photo`** (an EXISTS subquery), never the file: asking the list
+  for the pictures would send eighty photographs down the wire to draw eighty thumbnails.
+- **A jump row** at the top of the record — Documents & KYC · Bank · Statutory · Salary breakup
+  · History — because the fourth time somebody reports a feature as missing when it is merely
+  below the fold, the fix is the way in, not the feature.
+- **Bug worth remembering:** the documents panel kept saying *"Nothing on file yet · 4 still
+  missing"* with the face already on screen above it, because it loads its own record and the
+  header upload did not tell it. `EmployeeRecord` now takes a `refresh` prop the profile bumps.
+  A stale "still missing" is how somebody uploads the same thing twice.
+- Offline: initials everywhere, no upload box that could not work.
+
 ## A few hours off — short leave, with the no-double-charge rule
 
 Dinesh: *"what if employee apply leave for 2 hrs 3 hrs 4 hrs / need dection for that type of
