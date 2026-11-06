@@ -2052,3 +2052,36 @@ table.sheet tr.picked td { background: var(--brand-soft); }
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
+
+/* ---------- the staff login's own page ---------- */
+
+.my-page { max-width: 46rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.my-head { display: flex; align-items: flex-start; gap: 1rem; }
+.my-head h1 { margin: 0 0 0.1rem; font-size: 1.15rem; }
+.my-head > :last-child { margin-left: auto; }
+
+.my-net { display: flex; flex-direction: column; gap: 0.1rem; }
+.my-net .n { font-size: 1.8rem; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.my-net .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+table.my-sum { width: 100%; }
+table.my-sum td { padding: 0.35rem 0.2rem; vertical-align: top; }
+table.my-sum td:last-child { text-align: right; white-space: nowrap; }
+table.my-sum tr.my-strong td { font-weight: 600; border-top: 1px solid var(--line); }
+
+.my-days { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.7rem; }
+.my-day {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 2rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 0.7rem;
+}
+.my-day b { font-weight: 600; }
+.my-day span { color: var(--muted); }
+
+/* The one-time password list: it cannot be shown again, so it stands out. */
+.banner-card { border-color: var(--brand); }

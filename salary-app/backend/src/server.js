@@ -8,7 +8,8 @@ import { photoFile, photoLinkValid } from './assetPhotos.js';
 import { docFile, docLinkValid } from './assetDocs.js';
 import { getAssetDoc, getAssetPhoto } from './people.js';
 import { log } from './logger.js';
-import { requireAdminForChanges, requireAuth, requireWriteForChanges } from './auth.js';
+import { requireAdminForChanges, requireAuth, requireRead, requireWriteForChanges } from './auth.js';
+import { meRouter } from './routes/me.js';
 import { getCandidate } from './hiring.js';
 import { getDocument } from './db.js';
 import { documentFile, documentLinkValid } from './documents.js';
@@ -162,15 +163,22 @@ export function createServer() {
    * employees, attendance, leave, payroll figures, assets, the registers,
    * hiring - is HR's work, salaries included.
    */
-  app.use('/api/companies', requireAuth, requireAdminForChanges, companiesRouter);
-  app.use('/api/employees', requireAuth, requireWriteForChanges, employeesRouter);
-  app.use('/api/leave', requireAuth, requireWriteForChanges, leaveRouter);
-  app.use('/api/loans', requireAuth, requireWriteForChanges, loansRouter);
-  app.use('/api/people', requireAuth, requireWriteForChanges, peopleRouter);
-  app.use('/api/periods', requireAuth, requireWriteForChanges, periodsRouter);
-  app.use('/api/hiring', requireAuth, requireWriteForChanges, hiringRouter);
-  app.use('/api/attendance', requireAuth, requireWriteForChanges, attendanceSelfRouter);
-  app.use('/api', requireAuth, requireWriteForChanges, reportsRouter);
+  /*
+   * The staff side. `requireSelf` inside answers about the signed-in person
+   * and nobody else; it is the only router a staff login can reach, because
+   * that role carries no `read`.
+   */
+  app.use('/api/me', requireAuth, meRouter);
+
+  app.use('/api/companies', requireAuth, requireRead, requireAdminForChanges, companiesRouter);
+  app.use('/api/employees', requireAuth, requireRead, requireWriteForChanges, employeesRouter);
+  app.use('/api/leave', requireAuth, requireRead, requireWriteForChanges, leaveRouter);
+  app.use('/api/loans', requireAuth, requireRead, requireWriteForChanges, loansRouter);
+  app.use('/api/people', requireAuth, requireRead, requireWriteForChanges, peopleRouter);
+  app.use('/api/periods', requireAuth, requireRead, requireWriteForChanges, periodsRouter);
+  app.use('/api/hiring', requireAuth, requireRead, requireWriteForChanges, hiringRouter);
+  app.use('/api/attendance', requireAuth, requireRead, requireWriteForChanges, attendanceSelfRouter);
+  app.use('/api', requireAuth, requireRead, requireWriteForChanges, reportsRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.
   if (config.serveFrontend && fs.existsSync(path.join(frontendDir, 'index.html'))) {

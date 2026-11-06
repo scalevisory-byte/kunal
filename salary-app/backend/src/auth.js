@@ -94,6 +94,10 @@ export function actorOf(req) {
         role: user.role,
         abilities: user.abilities,
         must_change: user.must_change,
+        // Which person this login IS, for a staff login. Read fresh with the
+        // role, for the same reason: it is the whole of their authority.
+        employee_id: user.employee_id ?? null,
+        employee_name: user.employee_name ?? null,
         via: 'session',
       };
     }
@@ -190,3 +194,36 @@ export const requireWriteForChanges = requireForChanges('write');
 
 /** Reads for anybody signed in; changes are an admin's. */
 export const requireAdminForChanges = requireForChanges('admin');
+
+/**
+ * The staff side: a login that IS somebody.
+ *
+ * Deliberately not an ability check. An office login may also be tied to an
+ * employee row - Dinesh looking at his own payslip - and a staff login has no
+ * `read` at all, so neither "has self" nor "has read" is the question. The
+ * question is: whose payslip would this be? `req.employeeId` is the answer,
+ * and every route under /api/me reads only that.
+ */
+export function requireSelf(req, res, next) {
+  const actor = req.actor;
+  if (!actor) return res.status(401).json({ error: 'unauthorized' });
+  const id = Number(actor.employee_id) || null;
+  if (!id) {
+    return res.status(403).json({
+      error:
+        'This login is not tied to an employee, so there is no “my salary” to show. ' +
+        'An admin can link it on the Admin tab.',
+    });
+  }
+  req.employeeId = id;
+  return next();
+}
+
+/**
+ * The office side needs `read`.
+ *
+ * It used to need only a signed-in session, which was fine while every login
+ * was an office login. A staff login would have been able to fetch the whole
+ * payroll through any GET, so the gate is explicit now.
+ */
+export const requireRead = requireAbility('read');

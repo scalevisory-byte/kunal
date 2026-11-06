@@ -4,6 +4,7 @@ import {
   ROLES,
   countUsers,
   createFirstAdmin,
+  createStaffLogin,
   createUser,
   deleteUser,
   getUser,
@@ -12,6 +13,7 @@ import {
   noteFirstSignIn,
   setPassword,
   signIn,
+  staffLogins,
   updateUser,
 } from '../users.js';
 import { log } from '../logger.js';
@@ -123,6 +125,37 @@ authRouter.post('/users', requireAbility('admin'), (req, res) => {
   } catch (err) {
     bad(res, err);
   }
+});
+
+/* ---------------- staff logins ---------------- */
+
+/** Every employee, and whether they can sign in yet. */
+authRouter.get('/staff', requireAbility('admin'), (_req, res) => {
+  res.json({ staff: staffLogins() });
+});
+
+/**
+ * Make one, or several.
+ *
+ * The password comes back ONCE and only here - it is stored as a hash, so
+ * there is nowhere else it could come from afterwards. The screen that asks
+ * is the screen that has to hand it over.
+ */
+authRouter.post('/staff', requireAbility('admin'), (req, res) => {
+  const ids = Array.isArray(req.body?.employee_ids) ? req.body.employee_ids : [];
+  if (!ids.length) return res.status(400).json({ error: 'which people?' });
+  const made = [];
+  const refused = [];
+  for (const id of ids.slice(0, 500)) {
+    try {
+      const { user, password } = createStaffLogin(id, {});
+      made.push({ employee_id: Number(id), username: user.username, name: user.name, password });
+    } catch (err) {
+      // One person's refusal must not lose the other 114.
+      refused.push({ employee_id: Number(id), error: err.message });
+    }
+  }
+  res.status(made.length ? 201 : 400).json({ made, refused });
 });
 
 authRouter.patch('/users/:id', requireAbility('admin'), (req, res) => {

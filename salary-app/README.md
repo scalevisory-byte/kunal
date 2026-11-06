@@ -1088,13 +1088,14 @@ Passwords are scrypt-hashed (`node:crypto`, no new dependency) and the session i
 HttpOnly cookie. The session secret lives in the database rather than an environment
 variable, so a restart does not sign everybody out of an app nobody configured.
 
-### The three roles
+### The four roles
 
 | Role | Can |
 | --- | --- |
 | **Admin** | Everything, including logins, branches, a month's settings and closing a month. |
 | **HR** | Employees, attendance, leave, payroll and assets — **salaries included**. Cannot change settings or logins. |
 | **Viewer** | Can look at everything and change nothing. |
+| **Staff** | Their own payslips, attendance and leave, and **nothing about anybody else**. |
 
 Dinesh's decision was that **HR sees salaries**. So the line between Admin and HR is not
 what they can *see*, it is what they can change about the installation itself: HR runs
@@ -1131,6 +1132,70 @@ on what you change.
 browser — **including the refusals**. The refusals are the point: one wrong password is
 somebody's thumb, ten in a minute is somebody trying passwords, and that is only visible
 because the failures are kept.
+
+### A login for every employee
+
+Dinesh asked whether all 115 people could have a login of their own — to check their salary
+and their attendance, download a payslip, see **how the salary was worked out**, and apply
+for leave. They can.
+
+**Admin → Staff logins** lists everybody on the payroll, with or without a login. Tick the
+ones who need one and press Make: the username is built from their name (`amit.shah`, then
+`amit.shah2` if that is taken) and the first password is three sayable words —
+`temple-jasmine-757` — because it gets read out across a counter.
+
+**The password is shown once, on that screen, and nowhere else.** It is stored as a scrypt
+hash like every other, so there is nothing to look it up from afterwards. The list stays on
+screen until it is dismissed and says so; "Copy all" puts name, username and password on the
+clipboard for pasting into whatever the office hands over. If one is lost, make a new one —
+that is a reset, not a lookup.
+
+A handed-over password is **temporary by construction**. The login is created with
+`must_change` set, and while that is set a *choose your own password* screen stands in front
+of the whole app — the staff side and the office side alike, since an admin reset sets the
+same flag. The one on the slip stops working the moment it is replaced. (It used to be
+written, shown on the admin list, and acted on nowhere, which meant the password read out
+over a counter kept working for ever.)
+
+#### What a staff login can reach
+
+**One router: `/api/me`.** The employee id comes off the LOGIN, never a URL or a body, so
+there is nothing on the page to tamper with — an employee cannot ask for somebody else's
+payslip however the request is written, because the request never gets to say whose payslip
+it wants.
+
+The staff role carries **no `read` at all**, and every office router now requires it, so
+`/api/employees`, `/api/periods`, `/api/people` and the rest answer a staff login with 403.
+That was a real hole: reads used to be open to anybody signed in, so a role with `read`
+would have fetched the whole payroll.
+
+What they see, in four tabs:
+
+- **My pay** — the month's net, then *how it was worked out* laid out as a sum you can follow
+  down the page: the monthly salary, the day rate × days paid, days not worked, overtime,
+  additions and deductions, then PT, PF, ESI and any loan instalment, ending at the net. Every
+  figure is the one the office's own sheet was paid from; the page works out nothing of its
+  own. **The payslip is the same `Payslip.jsx` the office prints** — print it or save it as a
+  PDF from the browser. Two payslips would drift the first time a line was added.
+- **My attendance** — their own month as the grid holds it: present, absent, leave, Sundays,
+  days paid, and every day's mark.
+- **Leave** — what is left of CL/SL/PL against quota, and an application form. **A leave
+  application changes nothing by itself**: it joins the same `attendance_requests` queue the
+  punch link uses, and an approval is what writes the grid. The dates are picked on a real
+  calendar bounded to the chosen month; the request still travels as a day number, because
+  that is what the approval writes.
+- **My details** — bank account, IFSC, phone, email and address are theirs to fix, and land on
+  the **same employee history the office reads**, by date, noted as changed from their own
+  login. A bank account changing the week before payday is visible. Salary, joining date, PAN,
+  UAN and ESIC are shown so they can be *checked* and are not theirs to edit, with a line
+  saying who to tell. They can change their own password here too.
+
+Sunday pay, when there is any, is stated beside the net and never added into it — the same
+rule as everywhere else in the app.
+
+**Not in the single file.** A staff login needs a server: there is nothing in an HTML page on
+a laptop for an employee to sign in to, and anybody holding that file holds the whole payroll.
+The Admin tab says so.
 
 ### Branches, beneath a company
 

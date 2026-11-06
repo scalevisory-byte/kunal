@@ -92,7 +92,8 @@ test('before anybody exists, the app says it needs setting up', async () => {
   assert.equal(body.signed_in, null);
   assert.deepEqual(
     body.roles.map((r) => r.key),
-    ['admin', 'hr', 'viewer'],
+    // 'employee' is the staff login: their own payslip and nothing else.
+    ['admin', 'hr', 'viewer', 'employee'],
   );
 });
 

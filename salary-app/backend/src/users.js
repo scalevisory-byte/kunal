@@ -95,6 +95,24 @@ export function setSetting(key, value) {
  * is not what they can see, it is what they can change about the installation
  * itself. HR runs payroll; Admin decides the rules payroll runs on.
  */
+/*
+ * A login that belongs to ONE employee.
+ *
+ * Null for the office logins - Dinesh, HR, a viewer - and set for the 115
+ * people who are only ever allowed to see their own payslip. The link is the
+ * whole of the employee role's authority: `/api/me` reads this column and
+ * nothing else, so an employee cannot ask for somebody else's month however
+ * the request is written.
+ */
+if (!db.prepare(`PRAGMA table_info(users)`).all().some((c) => c.name === 'employee_id')) {
+  db.exec(`ALTER TABLE users ADD COLUMN employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE`);
+  log.info('Migrated users: added employee_id, for staff logins.');
+}
+// One login per person. Partial, because office logins carry no employee.
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_user_employee ON users(employee_id) WHERE employee_id IS NOT NULL`
+);
+
 export const ROLES = [
   {
     key: 'admin',
@@ -113,6 +131,22 @@ export const ROLES = [
     label: 'Viewer',
     abilities: ['read'],
     what: 'Can look at everything and change nothing.',
+  },
+  /*
+   * The staff login, and the reason the ability list matters.
+   *
+   * It has NO `read`. Reads on the office side are deliberately open to
+   * anybody signed in - the company list is needed on every screen - so an
+   * employee role carrying `read` would be able to fetch the whole payroll.
+   * `self` reaches exactly one place: /api/me, which answers only about the
+   * employee this login is tied to.
+   */
+  {
+    key: 'employee',
+    label: 'Staff',
+    abilities: ['self'],
+    what: 'Their own payslips, attendance and leave. Nothing about anybody else.',
+    staff: true,
   },
 ];
 
@@ -174,6 +208,11 @@ const publicUser = (row) =>
     created_at: row.created_at,
     last_login_at: row.last_login_at,
     abilities: abilitiesOf(row.role),
+    // Which person this login is, for a staff login. Null for the office.
+    employee_id: row.employee_id ?? null,
+    employee_name: row.employee_id
+      ? db.prepare(`SELECT name FROM employees WHERE id = ?`).get(row.employee_id)?.name || null
+      : null,
   };
 
 export const countUsers = () => db.prepare(`SELECT COUNT(*) AS n FROM users`).get().n;
@@ -186,7 +225,7 @@ export const listUsers = () =>
 const tidyName = (v) => String(v || '').trim();
 const tidyUsername = (v) => String(v || '').trim().toLowerCase();
 
-export function createUser({ username, name, password, role = 'viewer' } = {}) {
+export function createUser({ username, name, password, role = 'viewer', employee_id = null } = {}) {
   const user = tidyUsername(username);
   if (!/^[a-z0-9._-]{3,40}$/.test(user)) {
     throw new Error('a username is 3-40 characters: letters, numbers, dot, dash or underscore');
@@ -199,13 +238,120 @@ export function createUser({ username, name, password, role = 'viewer' } = {}) {
     throw new Error(`there is already a login called ${user}`);
   }
 
+  /*
+   * A staff login must say WHOSE it is, and an office login must not: the
+   * employee link is the whole of the staff role's authority, and an office
+   * login carrying one would quietly narrow what Dinesh can see.
+   */
+  const person = Number(employee_id) || null;
+  if (role === 'employee' && !person) throw new Error('a staff login has to belong to somebody');
+  if (role !== 'employee' && person) throw new Error('only a staff login belongs to one employee');
+  if (person) {
+    if (!db.prepare(`SELECT 1 FROM employees WHERE id = ?`).get(person)) {
+      throw new Error('employee not found');
+    }
+    const taken = db.prepare(`SELECT username FROM users WHERE employee_id = ?`).get(person);
+    if (taken) throw new Error(`they already have a login (${taken.username})`);
+  }
+
   const salt = crypto.randomBytes(16).toString('hex');
   const id = db
     .prepare(
-      `INSERT INTO users (username, name, role, salt, hash) VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO users (username, name, role, salt, hash, employee_id) VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .run(user, tidyName(name), role, salt, hashWith(password, salt)).lastInsertRowid;
+    .run(user, tidyName(name), role, salt, hashWith(password, salt), person).lastInsertRowid;
   return getUser(id);
+}
+
+/* ================================================================= *
+ * staff logins
+ * ================================================================= */
+
+/**
+ * A username from somebody's name, with their code or a number to settle ties.
+ *
+ * "amit.shah", then "amit.shah2". Not their phone number and not their
+ * employee id: a username gets read out and typed, so it has to be sayable.
+ */
+export function suggestUsername(employee) {
+  const base =
+    String(employee?.name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '.')
+      .replace(/^\.+|\.+$/g, '')
+      .split('.')
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('.') || 'staff';
+  let candidate = base.slice(0, 36);
+  let n = 1;
+  while (db.prepare(`SELECT 1 FROM users WHERE username = ?`).get(candidate)) {
+    n += 1;
+    candidate = `${base.slice(0, 34)}${n}`;
+  }
+  return candidate;
+}
+
+/**
+ * A first password, said once.
+ *
+ * Words and digits rather than a random string, because this gets read out
+ * over a counter and typed on a phone - and one that cannot be read gets
+ * written on a sticker instead. It is temporary either way: the login is
+ * created with must_change set, so it is replaced on first use.
+ */
+const WORDS = [
+  'river', 'orange', 'temple', 'garden', 'silver', 'mango', 'market', 'copper',
+  'monsoon', 'lantern', 'harbour', 'cotton', 'jasmine', 'pepper', 'saffron', 'almond',
+];
+
+export function firstPassword() {
+  const pick = () => WORDS[crypto.randomInt(WORDS.length)];
+  return `${pick()}-${pick()}-${String(crypto.randomInt(100, 1000))}`;
+}
+
+/** Every employee, and whether they can sign in yet. */
+export const staffLogins = () =>
+  db
+    .prepare(
+      `SELECT e.id AS employee_id, e.name, e.code, e.active,
+              c.name AS company_name, e.department, e.designation,
+              u.id AS user_id, u.username, u.active AS login_active, u.must_change, u.last_login_at
+       FROM employees e
+       LEFT JOIN companies c ON c.id = e.company_id
+       LEFT JOIN users u ON u.employee_id = e.id
+       ORDER BY e.active DESC, c.name, e.name`
+    )
+    .all()
+    .map((r) => ({
+      ...r,
+      active: Boolean(r.active),
+      has_login: Boolean(r.user_id),
+      login_active: r.user_id ? Boolean(r.login_active) : null,
+      must_change: r.user_id ? Boolean(r.must_change) : null,
+    }));
+
+/**
+ * Make a staff login for one employee.
+ *
+ * Returns the password ONCE, in the response, because there is nowhere else
+ * it can come from afterwards - it is stored as a scrypt hash like every
+ * other. The screen that asks for it is the screen that has to hand it over.
+ */
+export function createStaffLogin(employeeId, { username, password } = {}) {
+  const employee = db.prepare(`SELECT * FROM employees WHERE id = ?`).get(Number(employeeId));
+  if (!employee) throw new Error('employee not found');
+  const first = password || firstPassword();
+  const user = createUser({
+    username: username || suggestUsername(employee),
+    name: employee.name,
+    password: first,
+    role: 'employee',
+    employee_id: employee.id,
+  });
+  // Temporary by construction: it is replaced the first time they sign in.
+  db.prepare(`UPDATE users SET must_change = 1 WHERE id = ?`).run(user.id);
+  return { user: getUser(user.id), password: first };
 }
 
 export function updateUser(id, patch = {}) {

@@ -5,9 +5,11 @@ import Branches from './Branches.jsx';
 import Logins from './Logins.jsx';
 import Settings from './Settings.jsx';
 import Users from './Users.jsx';
+import StaffLogins from './StaffLogins.jsx';
 
 const PANELS = [
   ['users', 'Logins'],
+  ['staff', 'Staff logins'],
   ['branches', 'Branches'],
   ['settings', 'Month settings'],
   ['backups', 'Backups'],
@@ -29,9 +31,11 @@ export default function Admin({ me, companies, period, locked, onPatchPeriod, on
       <section className="card">
         <h2>Admin</h2>
         <p className="muted small">
-          Logins, roles, branches and backups need the server version. This single file has no
-          server to sign in to and keeps its own copy of everything in this browser — use
-          Reports → Backup to take a copy of it.
+          Logins, roles, branches, backups and <strong>staff logins</strong> need the server
+          version. This single file has no server to sign in to and keeps its own copy of
+          everything in this browser — so there is nothing for an employee to sign in TO, and
+          anybody holding the file holds the whole payroll. Use Reports → Backup to take a copy
+          of it.
         </p>
       </section>
     );
@@ -60,6 +64,7 @@ export default function Admin({ me, companies, period, locked, onPatchPeriod, on
       </div>
 
       {panel === 'users' && <Users me={me} onError={onError} />}
+      {panel === 'staff' && <StaffLogins onError={onError} />}
       {panel === 'branches' && <Branches companies={companies} onError={onError} onReload={onReload} />}
       {panel === 'settings' && <Settings period={period} locked={locked} onPatch={onPatchPeriod} />}
       {panel === 'backups' && <Backups onError={onError} />}

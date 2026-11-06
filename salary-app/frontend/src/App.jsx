@@ -19,6 +19,8 @@ import SalarySheet from './components/SalarySheet.jsx';
 import SundayRegister from './components/SundayRegister.jsx';
 import TimeSheet from './components/TimeSheet.jsx';
 import Admin from './components/admin/Admin.jsx';
+import MyPage from './components/MyPage.jsx';
+import ChangePassword from './components/ChangePassword.jsx';
 import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
@@ -204,18 +206,28 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed, scanned]);
 
+  /*
+   * A staff login must not load the office at all.
+   *
+   * The server refuses it - every office router carries `requireRead` and the
+   * staff role has none - so this is not the control. But firing them anyway
+   * meant a staff sign-in opened with three 403s and an error banner about
+   * periods, which is what somebody reports as "it is broken".
+   */
+  const office = authed && me?.role !== 'employee';
+
   useEffect(() => {
-    if (authed) loadAll();
+    if (office) loadAll();
     // loadAll changes with periodId, which would loop; the period effect below
     // handles switching months.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [office]);
 
   useEffect(() => {
-    if (!authed || !periodId) return;
+    if (!office || !periodId) return;
     localStorage.setItem(PERIOD_KEY, String(periodId));
     loadPayroll(periodId).catch(handle);
-  }, [authed, periodId, loadPayroll, handle]);
+  }, [office, periodId, loadPayroll, handle]);
 
   /* ---- mutations ---- */
 
@@ -350,6 +362,47 @@ function Shell() {
           setAuthed(true);
         }}
         onError={(err) => setError(err.message)}
+      />
+    );
+  }
+
+  /*
+   * A password somebody else chose is replaced before anything else.
+   *
+   * It stands in front of BOTH apps - the office one and the staff one -
+   * because an admin reset sets the same flag. Until this was here the flag was
+   * written, shown on the admin list and never acted on, so the one-time
+   * password on the handover slip kept working for ever.
+   */
+  if (!STANDALONE && me?.must_change) {
+    return (
+      <ChangePassword
+        me={me}
+        forced
+        onDone={async () => {
+          const state = await api.get('/auth/state');
+          setMe(state.signed_in);
+        }}
+      />
+    );
+  }
+
+  /*
+   * A staff login gets a different app, not the office one with the tabs
+   * hidden. The server lets that role reach exactly one router, so there is
+   * nothing of the office left to hide - and a screen built by subtraction is
+   * how somebody ends up seeing a company total through a gap.
+   */
+  if (!STANDALONE && me?.role === 'employee') {
+    return (
+      <MyPage
+        me={me}
+        onError={(err) => setError(err.message)}
+        onSignOut={async () => {
+          await api.post('/auth/logout', {}).catch(() => {});
+          setMe(null);
+          setAuthed(false);
+        }}
       />
     );
   }

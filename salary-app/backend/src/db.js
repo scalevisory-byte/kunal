@@ -930,6 +930,17 @@ export const TRACKED_FIELDS = {
   active: 'Status',
   left_on: 'Left on',
   joined_on: 'Joining date',
+  /*
+   * Where the money goes.
+   *
+   * Not tracked until staff logins existed, because only the office could
+   * change it. Now the employee can - which is right, they are the ones who
+   * know their account number - and a bank account that changes the week
+   * before payday is exactly the change somebody has to be able to look back
+   * at. The history records who, when, and what it was before.
+   */
+  bank_account: 'Bank account',
+  ifsc: 'IFSC',
 };
 
 /** Readable in the timeline rather than an id nobody can place. */

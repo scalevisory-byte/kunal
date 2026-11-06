@@ -631,6 +631,54 @@ that half of "handover" did not exist. `shared/assetCode.js`, `shared/barcode.js
   literal closes the literal. `db.exec(\`… -- see \`foo\` …\`)` is a syntax error. Never put
   backticks in a comment inside a template string.
 
+## A login for every employee — the staff self-service side
+
+Dinesh: *"ADMINSIDE USER BANANKAOPTION BHI DO / IS TJIS POSSIBLE WE GIVE LOGIN TO ALL EMPLOYEE
+/ FOR CHECK SLARY AND ATTANECE RECORD AND DOPWNLAOD SALARY SLIP / CHEKC HOW SALARY WAS
+CLAUDLALTED / APPLU LEAVE AND OTHER BASIC THINGS"*. `backend/src/routes/me.js`,
+`frontend/src/components/MyPage.jsx`, `frontend/src/components/admin/StaffLogins.jsx`,
+`frontend/src/components/ChangePassword.jsx`.
+
+- **The fourth role is `employee`, abilities `['self']` — deliberately no `read`.**
+  `users.employee_id` ties the login to one person (partial unique index, so one login each);
+  `createUser` refuses a staff login without an employee and an office login with one.
+- **The critical finding: every office router now carries `requireRead`.** Reads used to be
+  open to anybody signed in, so a staff login would have fetched the whole payroll. There is a
+  test asserting 403 on eight office URLs.
+- **`/api/me` is the only door**, and `requireSelf` takes the employee id off the LOGIN, never
+  a URL or a body — so an employee cannot ask for somebody else's payslip however the request
+  is written. Every payroll read is `sync: false`: reading a year must not backdate a new hire
+  into a closed month or post another loan instalment into one already paid.
+- **"How was my salary calculated" is the question the page exists for**, so the row goes back
+  whole — per-day rate, days counted, every deduction — and `MyPay` lays it out as a sum you
+  follow down the page. The payslip is the **same `Payslip.jsx` the office prints**, not a
+  second one; two would drift the first time a line was added.
+- **A handed-over password is temporary for real.** `must_change` was being written, shown on
+  the admin list, and acted on NOWHERE — so the one-time password read out over a counter kept
+  working for ever, while the screen handing it over promised it would not. `ChangePassword`
+  now stands in front of the whole app (office and staff alike, since an admin reset sets the
+  same flag), the slip password is refused as "the password you already have", and a voluntary
+  change still needs the current one.
+- First passwords are three sayable words (`temple-jasmine-757`) because they get read out;
+  usernames are `amit.shah`, then `amit.shah2`. **Shown once, on the screen that makes them** —
+  there is nothing to look one up from afterwards.
+- Leave applications join the **existing `attendance_requests` queue**, not a parallel one, so
+  the one rule still holds: *a request never writes attendance; an approval does*. The form
+  picks real dates bounded to the chosen month and converts to the day number the approval
+  writes.
+- `bank_account` and `ifsc` were added to `TRACKED_FIELDS`, because employees can now change
+  them and a bank account changing the week before payday has to be visible by name and date.
+- **Three bugs worth remembering.** (1) `row.payable_days` was undefined on the attendance tab
+  — `calculateRow` returns `present_days`; the reports rename it afterwards. It rendered as a
+  dash, so the figure looked missing rather than wrong, on the one page whose job is explaining
+  the pay. Pinned as a number in a test. (2) `App.jsx` fired the office loads for a staff login
+  too, so a staff sign-in opened with 403s and an error banner about periods; the loads are now
+  gated on the role. (3) Driving this found the demo server had been serving **stale code**
+  because the entry point is `src/index.js`, not `src/server.js` — `node src/server.js` starts a
+  second app that dies on EADDRINUSE while the old one keeps answering.
+- **Needs the server.** There is nothing in an HTML file on a laptop for an employee to sign in
+  to, and anybody holding that file holds the whole payroll. The Admin tab says exactly that.
+
 ## Hiring — HRMS module 5, inside `/salary-app/`
 
 Dinesh shared `RECRUITMENT-WORKFLOW-SPEC.md` ("sme poora flow hai") and it was first built as
