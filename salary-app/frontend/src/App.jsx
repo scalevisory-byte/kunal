@@ -73,6 +73,9 @@ const BUILT_ON = (() => {
     return '';
   }
 })();
+/** Is this the blank copy? It keeps its own data, apart from the real file. */
+const IS_BLANK = typeof __BLANK__ !== 'undefined' && __BLANK__ === true;
+
 const COMPANY_KEY = 'salary-app-company';
 
 /**
@@ -451,6 +454,20 @@ function Shell() {
           <span className="side-name">
             BOOKNFLY <strong>HRMS</strong>
             <span className="built" title="When this file was built.">{BUILT_ON}</span>
+            {/*
+              * A blank copy says so, on every screen.
+              *
+              * Two files that look identical and keep separate data is how
+              * somebody spends an evening typing into the wrong one.
+              */}
+            {IS_BLANK ? (
+              <span
+                className="built blank-badge"
+                title="A blank copy for testing. It keeps its own data, separate from the real file."
+              >
+                TEST COPY — starts empty
+              </span>
+            ) : null}
           </span>
           <button
             className="ghost side-close"

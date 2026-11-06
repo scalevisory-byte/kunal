@@ -27,11 +27,30 @@ export default defineConfig(({ mode }) => {
     console.log(count ? `Baking in ${count} employees from seed.json` : 'No seed.json - the file will start empty');
   }
 
+  /*
+   * A blank copy, for testing or for handing to somebody else.
+   *
+   * It needs its OWN storage key, and that is the whole point of this flag.
+   * Every file:// copy in a browser shares one localStorage, so a blank file
+   * opened in the browser that already holds the real payroll showed all 85
+   * people - the file was blank, the browser was not, and it read as if the
+   * blank build had simply not worked.
+   *
+   * Tied to an explicit flag, NOT to "seed.json is missing": deriving it from
+   * the seed would mean one rebuild with the seed mislaid silently moved the
+   * key and made his real work vanish.
+   */
+  const blank = standalone && process.env.BLANK_BUILD === '1';
+  if (blank) console.log('BLANK build - its own storage, so it cannot see the real data');
+
   return {
     plugins: [react(), ...(standalone ? [viteSingleFile()] : [])],
     define: {
       'import.meta.env.VITE_STANDALONE': JSON.stringify(String(standalone)),
       __SEED__: seed,
+      __BLANK__: JSON.stringify(blank),
+      // The real file keeps this key for ever - it is where the work lives.
+      __STORE_KEY__: JSON.stringify(blank ? 'salary-app-blank-v1' : 'salary-app-data-v1'),
       // Stamped into the page so a downloaded file can say how old it is.
       // Every download lands as "SalarySheet (3).html" and so on, and there is
       // no other way to tell one from the next.

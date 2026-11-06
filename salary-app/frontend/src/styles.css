@@ -1833,6 +1833,12 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 .picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .picker-why > input { width: 100%; margin: 0.35rem 0; }
 
+/* A blank copy wears a badge, so it is never mistaken for the real file. */
+.built.blank-badge {
+  display: inline-block; margin-top: 2px; padding: 1px 5px; border-radius: 3px;
+  background: var(--warn); color: #fff; font-weight: 700; letter-spacing: .02em;
+}
+
 /* The send-payslips picker is a list, not a day menu: it needs the width. */
 .picker.wide-picker { width: min(44rem, 94vw); }
 

@@ -800,9 +800,16 @@ Dinesh: **"GIVE ME REMOVED ALL DATA"** — a clean copy to test with.
   `seed.json` moved aside for that (`No seed.json - the file will start empty`).
 - **`npm run build:standalone` wipes `dist-standalone/` first**, so a blank build made before a
   seeded one is deleted by it. Build blank, copy it somewhere else, then build seeded.
-- One storage key, `salary-app-data-v1`, shared by every `file://` copy in a browser — which is
-  why a blank build alone does not look blank in a browser that already holds his data, and why
-  the erase button had to exist as well.
+- **One storage key is shared by every `file://` copy in a browser.** I wrote that down and then
+  handed him a blank file anyway: he opened it in the Edge that already held the payroll and saw
+  all 85 people. The file was blank; the browser was not.
+  **Fixed properly:** `BLANK_BUILD=1` gives the blank build its own key (`salary-app-blank-v1`)
+  plus a `TEST COPY — starts empty` badge beside the build date. Both files can now sit in one
+  browser, each with its own data, neither able to touch the other — driven in one context:
+  real → 85 people, blank → empty, back to real → still 85.
+  The key is tied to an **explicit flag, not to "seed.json is missing"**: deriving it from the
+  seed would mean one rebuild with the seed mislaid silently moved the key and made his real
+  work vanish.
 
 ## Sending payslips without deploying — `shared/payslipPage.js`
 

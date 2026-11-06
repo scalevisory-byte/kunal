@@ -83,7 +83,16 @@ import { CSV_COLUMNS as HIRING_CSV, toCsv as hiringCsv } from '../../shared/hiri
  * Everything lives under one key so a backup is a single copy-paste.
  */
 
-const KEY = 'salary-app-data-v1';
+/*
+ * Where this build keeps its data.
+ *
+ * Every file:// copy in one browser shares localStorage, so a blank copy and
+ * the real one would otherwise be the same store - open the blank file in the
+ * browser holding the payroll and all 85 people are there, which is exactly
+ * what happened. A blank build gets its own key and cannot see the real work,
+ * nor touch it.
+ */
+const KEY = typeof __STORE_KEY__ === 'string' ? __STORE_KEY__ : 'salary-app-data-v1';
 
 const EMPTY = {
   companies: [],

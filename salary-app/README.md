@@ -220,9 +220,26 @@ There is no undo, so it asks twice: once whether the backup beside it has been t
 for the word `ERASE`. Saying no, or typing anything else, leaves everything exactly as it was.
 
 **It empties the browser, not the file.** The staff list is baked into the file itself, so a
-*different* browser opening the same copy still gets the seeded list. For handing the app to
-somebody else, use a build made with no `seed.json` — that one starts empty everywhere, and
-carries no salaries in its source.
+*different* browser opening the same copy still gets the seeded list.
+
+### A blank copy, for testing
+
+`BLANK_BUILD=1 npm run build:standalone`, with `seed.json` moved aside, makes a copy that
+starts empty — no names, no salaries, nothing in its source — and **keeps its own data**.
+
+That second half is the part that matters. Every `file://` copy in one browser shares the same
+localStorage, so a blank file opened in the browser that already holds the payroll showed all
+85 people: the file was blank, the browser was not, and it read as though the blank build had
+simply not worked. The blank build now uses its own key, so it cannot see the real data and
+cannot touch it — open both in one browser and each keeps its own.
+
+It wears a **TEST COPY — starts empty** badge beside the build date on every screen, because
+two files that look identical and keep separate data is how somebody spends an evening typing
+into the wrong one.
+
+The key is tied to an explicit flag, **not** to "`seed.json` is missing" — deriving it from the
+seed would mean one rebuild with the seed mislaid silently moved the key and made the real work
+vanish.
 
 ### Sending payslips without deploying anything
 
