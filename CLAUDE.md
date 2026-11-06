@@ -784,6 +784,33 @@ leave / erroer where 9 hrs not completed"*.
   `must_change` is deliberately NOT patchable, because an admin clearing it would re-enable a
   password that was read out loud. The forced screen is the only way off it.
 
+## Penalties — fines, losses and damage recovered from salary
+
+Dinesh asked *"any penlaty loss ?"*, was told the Deduct column already does it and what it
+does not remember, then: *"haan bana do penalty wala / salary me se decut hoga / and uska
+reporting bhi / kyu kata he kis chiz ka kata he uska note dalne ka option bhi dena"*.
+`shared/penalties.js`, `penalties` + `penalty_recoveries` in `backend/src/people.js`,
+`frontend/src/components/people/Penalties.jsx`.
+
+- **Recording one deducts NOTHING.** Recovery is a separate call naming the month, exactly like
+  `payClaim` beside it — added to the row's existing `deduction`, never replacing it, and the
+  same month cannot be taken from twice.
+- **The note is REQUIRED and `validatePenalty` refuses without it.** That is the whole module:
+  the Deduct box already deducted fine, it just could not say what for. The note rides onto
+  `adjustment_note`, so it prints on the payslip.
+- **`penalty_recoveries` is the ledger, the penalty row is the headline** — the same split as
+  the asset register and its handovers, so the two cannot drift.
+- **The Payment of Wages Act is REPORTED, never enforced.** `wageCheck` names the 50%-of-wages
+  cap and the "more than a month" line in a preview shown before the button. It does not
+  refuse: refusing would push the figure into the Deduct box, where nothing checks anything.
+  There is a test asserting both warnings fire AND that the recovery still goes through.
+- Six kinds; damage and loss must name the thing. Instalments over 1–24 months, the last one
+  carrying the rounding. Told / accepted are separate nullable dates — blank is "not yet", not
+  "refused". **Waived, not deleted**, once money has come out.
+- Works offline too (records, not files), mirrored in `localStore.js` with the same rules.
+- NOT a change to `calculateRow`: it writes the `deduction` column the sheet has always paid
+  from, so no existing month can move.
+
 ## Attaching the asset invoice — it was there, nobody could find it
 
 Dinesh: *"invoicec attch karne ka option nahi he"*. It had been working since `assetDocs.js`

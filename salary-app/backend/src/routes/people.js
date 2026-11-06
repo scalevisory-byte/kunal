@@ -58,6 +58,7 @@ const esc = (v) =>
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;' }[c])
   );
 import { handoverCsv, handoverSlip, registerCsv, registerTotals } from '../../../shared/assetReport.js';
+import { PENALTY_KINDS, penaltyReport } from '../../../shared/penalties.js';
 import {
   SERVICE_KINDS,
   maintenanceAlerts,
@@ -134,6 +135,15 @@ import {
   listTickets,
   markSettled,
   payClaim,
+  createPenalty,
+  deletePenalty,
+  getPenalty,
+  listPenalties,
+  listRecoveries,
+  previewRecovery,
+  recoverPenalty,
+  updatePenalty,
+  waivePenalty,
   reopenTicket,
   replyToTicket,
   returnAsset,
@@ -733,6 +743,89 @@ peopleRouter.post('/claims/:id/pay', (req, res) => {
 peopleRouter.delete('/claims/:id', (req, res) => {
   try {
     res.json({ deleted: deleteClaim(Number(req.params.id), who(req)) });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/* ---------------- penalties: fines, losses, damage ---------------- */
+
+peopleRouter.get('/penalties', (req, res) => {
+  const penalties = listPenalties({
+    employee_id: Number(req.query.employee_id) || undefined,
+    status: req.query.status || undefined,
+    company_id: Number(req.query.company_id) || undefined,
+  });
+  res.json({
+    penalties,
+    kinds: PENALTY_KINDS,
+    // The register, in the same call: nobody wants a second round trip to see
+    // what the month's fines add up to.
+    report: penaltyReport(penalties, { from: req.query.from, to: req.query.to }),
+  });
+});
+
+peopleRouter.get('/penalties/:id', (req, res) => {
+  const penalty = getPenalty(Number(req.params.id));
+  if (!penalty) return res.status(404).json({ error: 'not found' });
+  res.json({ penalty, recoveries: listRecoveries(penalty.id) });
+});
+
+peopleRouter.post('/penalties', (req, res) => {
+  try {
+    res.status(201).json(createPenalty(req.body, who(req)));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/penalties/:id', (req, res) => {
+  try {
+    res.json(updatePenalty(Number(req.params.id), req.body, who(req)));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/**
+ * What a recovery WOULD do - the amount, what is already coming out of that
+ * row, and what the Payment of Wages Act says about the total. Read-only, and
+ * shown before the button, because a deduction is easy to make and hard to
+ * undo.
+ */
+peopleRouter.get('/penalties/:id/preview', (req, res) => {
+  try {
+    res.json(
+      previewRecovery(Number(req.params.id), {
+        period_id: Number(req.query.period_id),
+        amount: req.query.amount,
+      })
+    );
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/** The ONE call that moves money, and it names the month it comes out of. */
+peopleRouter.post('/penalties/:id/recover', (req, res) => {
+  try {
+    res.json(recoverPenalty(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/penalties/:id/waive', (req, res) => {
+  try {
+    res.json(waivePenalty(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/penalties/:id', (req, res) => {
+  try {
+    res.json({ deleted: deletePenalty(Number(req.params.id), who(req)) });
   } catch (err) {
     bad(res, err);
   }

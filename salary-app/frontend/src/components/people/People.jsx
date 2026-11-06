@@ -5,6 +5,7 @@ import PersonFile from './PersonFile.jsx';
 import Records from './Records.jsx';
 import Appraisals from './Appraisals.jsx';
 import Claims from './Claims.jsx';
+import Penalties from './Penalties.jsx';
 import Tasks from './Tasks.jsx';
 import Helpdesk from './Helpdesk.jsx';
 import Leaving from './Leaving.jsx';
@@ -35,6 +36,7 @@ const PANELS = [
   ['records', 'On the record'],
   ['appraisals', 'Appraisals'],
   ['claims', 'Claims'],
+  ['penalties', 'Penalties'],
   ['tasks', 'Tasks'],
   ['helpdesk', 'Helpdesk'],
   ['leaving', 'Leaving'],
@@ -188,6 +190,7 @@ export default function People({
       {panel === 'records' && <Records {...props} />}
       {panel === 'appraisals' && <Appraisals {...props} />}
       {panel === 'claims' && <Claims {...props} />}
+      {panel === 'penalties' && <Penalties {...props} />}
       {panel === 'tasks' && <Tasks {...props} />}
       {panel === 'helpdesk' && <Helpdesk {...props} />}
       {panel === 'leaving' && <Leaving {...props} />}

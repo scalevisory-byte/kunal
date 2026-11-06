@@ -14,6 +14,13 @@ import { settlement } from '../../shared/settlement.js';
 import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
 import { looksDuplicate, ownership } from '../../shared/maintenance.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
+import {
+  instalmentOf,
+  kindLabel as penaltyKindLabel,
+  outstandingOf,
+  validatePenalty,
+  wageCheck,
+} from '../../shared/penalties.js';
 
 // The trail itself lives in db.js, because the payroll write paths there write
 // to it too and db.js cannot import this file without a cycle.
@@ -243,6 +250,54 @@ db.exec(`
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_claims_employee ON expense_claims(employee_id, spent_on);
+
+  -- Fines, losses and damage recovered from somebody's salary.
+  --
+  -- Its own table rather than a bigger Deduct box, because the box remembers
+  -- a number and a line of remark: not what broke, not when, not who decided,
+  -- not whether the person was ever told, and not whether it was meant to come
+  -- out over five months. The next argument about it has only the remark.
+  --
+  -- Recording one deducts NOTHING. Recovery is a separate call that names the
+  -- month it comes out of, like the expense claim above it.
+  CREATE TABLE IF NOT EXISTS penalties (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id   INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL DEFAULT 'fine',
+    amount        REAL NOT NULL,
+    -- What was damaged or lost. Free text, with the asset's code in it where
+    -- there is one: the register is the asset's record, this is the money.
+    what          TEXT,
+    asset_id      INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    -- WHY it is being deducted. Required - a deduction nobody can explain six
+    -- months later is the one that becomes a dispute.
+    note          TEXT NOT NULL,
+    happened_on   TEXT,
+    -- When they were told, and when they accepted it. Both nullable: "nobody
+    -- has done this yet" is not "they refused".
+    told_on       TEXT,
+    acknowledged_on TEXT,
+    months        INTEGER NOT NULL DEFAULT 1,
+    status        TEXT NOT NULL DEFAULT 'open',
+    waived_note   TEXT,
+    raised_by     TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_penalties_employee ON penalties(employee_id, happened_on);
+  CREATE INDEX IF NOT EXISTS idx_penalties_status ON penalties(status);
+
+  -- One row per month actually recovered. This is the ledger; the penalty row
+  -- carries the headline. They answer different questions, so they cannot
+  -- drift - the same split as the asset register and its handovers.
+  CREATE TABLE IF NOT EXISTS penalty_recoveries (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    penalty_id  INTEGER NOT NULL REFERENCES penalties(id) ON DELETE CASCADE,
+    period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+    amount      REAL NOT NULL,
+    by_whom     TEXT,
+    posted_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_penalty_recoveries ON penalty_recoveries(penalty_id);
   CREATE INDEX IF NOT EXISTS idx_claims_status ON expense_claims(status);
 
 `);
@@ -2474,3 +2529,309 @@ export function addAssetPhoto({ asset_id, file_path, note, taken_on, by }) {
 
 export const deleteAssetPhoto = (id) =>
   db.prepare(`DELETE FROM asset_photos WHERE id = ?`).run(id).changes;
+
+/* ================================================================= *
+ * Penalties — fines, losses and damage recovered from salary
+ * ================================================================= *
+ *
+ * Two rules, the same two the rest of this file holds:
+ *   - recording one deducts NOTHING; recovery is a separate call that names
+ *     the month the money comes out of;
+ *   - the law's limits are REPORTED, never enforced silently.
+ */
+
+/** One penalty, with what has come out of it so far. */
+const PENALTY_SELECT = `
+  SELECT p.*, e.name AS employee_name, e.code AS employee_code, c.name AS company_name,
+         a.code AS asset_code,
+         COALESCE((SELECT SUM(r.amount) FROM penalty_recoveries r WHERE r.penalty_id = p.id), 0)
+           AS recovered,
+         (SELECT COUNT(*) FROM penalty_recoveries r WHERE r.penalty_id = p.id)
+           AS recoveries_count
+  FROM penalties p
+  JOIN employees e ON e.id = p.employee_id
+  LEFT JOIN companies c ON c.id = e.company_id
+  LEFT JOIN assets a ON a.id = p.asset_id
+`;
+
+const dressPenalty = (row) =>
+  row && {
+    ...row,
+    recovered: Math.round((Number(row.recovered) || 0) * 100) / 100,
+    outstanding: outstandingOf(row),
+    kind_label: penaltyKindLabel(row.kind),
+    instalment: instalmentOf(row),
+  };
+
+export function listPenalties({ employee_id, status, company_id } = {}) {
+  const where = [];
+  const params = [];
+  if (employee_id) {
+    where.push('p.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (status) {
+    where.push('p.status = ?');
+    params.push(String(status));
+  }
+  if (company_id) {
+    where.push('e.company_id = ?');
+    params.push(Number(company_id));
+  }
+  return db
+    .prepare(
+      `${PENALTY_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY p.status = 'open' DESC, p.happened_on DESC, p.id DESC`
+    )
+    .all(...params)
+    .map(dressPenalty);
+}
+
+export const getPenalty = (id) =>
+  dressPenalty(db.prepare(`${PENALTY_SELECT} WHERE p.id = ?`).get(Number(id)));
+
+export const listRecoveries = (penaltyId) =>
+  db
+    .prepare(
+      `SELECT r.*, pe.label AS period_label, pe.year, pe.month
+       FROM penalty_recoveries r
+       JOIN periods pe ON pe.id = r.period_id
+       WHERE r.penalty_id = ?
+       ORDER BY pe.year, pe.month, r.id`
+    )
+    .all(Number(penaltyId));
+
+export function createPenalty(body = {}, by) {
+  const { ok, problems } = validatePenalty(body);
+  if (!ok) throw new Error(problems.join('; '));
+  const employee = getEmployee(Number(body.employee_id));
+  if (!employee) throw new Error('not found');
+
+  const id = db
+    .prepare(
+      `INSERT INTO penalties
+        (employee_id, kind, amount, what, asset_id, note, happened_on, told_on,
+         acknowledged_on, months, raised_by)
+       VALUES (@employee_id, @kind, @amount, @what, @asset_id, @note, @happened_on, @told_on,
+               @acknowledged_on, @months, @raised_by)`
+    )
+    .run({
+      employee_id: Number(body.employee_id),
+      kind: String(body.kind),
+      amount: Number(body.amount),
+      what: String(body.what || '').trim() || null,
+      asset_id: Number(body.asset_id) || null,
+      note: String(body.note).trim(),
+      happened_on: body.happened_on || dayNow(),
+      told_on: body.told_on || null,
+      acknowledged_on: body.acknowledged_on || null,
+      months: Number(body.months) || 1,
+      raised_by: by || null,
+    }).lastInsertRowid;
+
+  audit({
+    who: by,
+    action: 'created',
+    entity: 'penalties',
+    entity_id: id,
+    label: `${penaltyKindLabel(body.kind)} — ${employee.name}`,
+    to_value: Number(body.amount),
+    note: String(body.note).trim(),
+  });
+  return getPenalty(id);
+}
+
+export function updatePenalty(id, patch = {}, by) {
+  const before = getPenalty(id);
+  if (!before) throw new Error('not found');
+  if (before.recovered > 0 && 'amount' in patch && Number(patch.amount) < before.recovered) {
+    throw new Error(`${before.recovered} has already come out — it cannot be worth less than that`);
+  }
+  const fields = [];
+  const values = [];
+  for (const key of ['kind', 'amount', 'what', 'note', 'happened_on', 'told_on', 'acknowledged_on', 'months']) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`);
+    values.push(
+      key === 'amount' || key === 'months'
+        ? Number(patch[key]) || (key === 'months' ? 1 : 0)
+        : patch[key] === '' || patch[key] === null
+          ? null
+          : String(patch[key]).trim()
+    );
+  }
+  if (!fields.length) return before;
+  db.prepare(`UPDATE penalties SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  const after = getPenalty(id);
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'penalties',
+    entity_id: id,
+    label: `${after.kind_label} — ${after.employee_name}`,
+    from_value: before.amount,
+    to_value: after.amount,
+  });
+  return after;
+}
+
+/**
+ * Written off rather than deleted, once anything has come out of it.
+ *
+ * Waiving leaves the record standing and stops the collecting - the money
+ * already recovered is NOT handed back here, because that is a payment and
+ * payments go through the month they are made in.
+ */
+export function waivePenalty(id, { note, by } = {}) {
+  const penalty = getPenalty(id);
+  if (!penalty) throw new Error('not found');
+  if (penalty.status === 'waived') throw new Error('this was already waived');
+  if (!String(note || '').trim()) throw new Error('say why it is being waived');
+  db.prepare(`UPDATE penalties SET status = 'waived', waived_note = ? WHERE id = ?`).run(
+    String(note).trim(),
+    id
+  );
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'penalties',
+    entity_id: id,
+    label: `${penalty.kind_label} — ${penalty.employee_name}`,
+    from_value: penalty.status,
+    to_value: 'waived',
+    note: String(note).trim(),
+  });
+  return getPenalty(id);
+}
+
+export function deletePenalty(id, by) {
+  const before = getPenalty(id);
+  if (!before) return false;
+  if (before.recovered > 0) {
+    throw new Error('money has already come out of this — waive it instead, so the record stands');
+  }
+  const gone = db.prepare(`DELETE FROM penalties WHERE id = ?`).run(id).changes > 0;
+  if (gone) {
+    audit({
+      who: by,
+      action: 'deleted',
+      entity: 'penalties',
+      entity_id: id,
+      label: `${before.kind_label} — ${before.employee_name}`,
+    });
+  }
+  return gone;
+}
+
+/**
+ * What a recovery WOULD do, before anybody does it.
+ *
+ * The amount it would take, what is already coming out of that row, and what
+ * the Payment of Wages Act says about the total. Said before the click,
+ * because a deduction is easy to make and hard to undo.
+ */
+export function previewRecovery(id, { period_id, amount } = {}) {
+  const penalty = getPenalty(id);
+  if (!penalty) throw new Error('not found');
+  const period = db.prepare(`SELECT * FROM periods WHERE id = ?`).get(Number(period_id));
+  if (!period) throw new Error('pick a month');
+
+  const payroll = buildPayroll(period.id, { sync: false });
+  const row = payroll?.rows.find((r) => r.employee_id === penalty.employee_id) || null;
+  const take = Math.min(
+    Number(amount) > 0 ? Number(amount) : penalty.instalment,
+    penalty.outstanding
+  );
+
+  // What is already coming out of this row BEFORE this penalty.
+  const already = row
+    ? (Number(row.pt) || 0) +
+      (Number(row.pf) || 0) +
+      (Number(row.esi) || 0) +
+      (Number(row.loan_deduction) || 0) +
+      (Number(row.deduction) || 0)
+    : 0;
+
+  const check = wageCheck({
+    amount: take,
+    wages: row ? row.gross_salary : 0,
+    otherDeductions: already,
+    kind: penalty.kind,
+  });
+
+  return {
+    penalty,
+    period: { id: period.id, label: period.label, locked: Boolean(period.locked) },
+    has_row: Boolean(row),
+    amount: take,
+    gross: row ? row.gross_salary : null,
+    net_now: row ? row.net_salary : null,
+    net_after: row ? Math.round(row.net_salary - take) : null,
+    other_deductions: Math.round(already),
+    ...check,
+  };
+}
+
+/**
+ * Take it out of a named month, as a deduction on that person's row.
+ *
+ * The same shape as paying an expense claim: added to whatever the row already
+ * carries rather than replacing it, the reason appended to the remark so it is
+ * on the payslip, and refused once there is nothing left to recover - so a
+ * double click cannot fine somebody twice.
+ */
+export function recoverPenalty(id, { period_id, amount, by } = {}) {
+  const penalty = getPenalty(id);
+  if (!penalty) throw new Error('not found');
+  if (penalty.status === 'waived') throw new Error('this penalty was waived');
+  if (penalty.outstanding <= 0) throw new Error('this has been recovered in full');
+
+  const period = db.prepare(`SELECT * FROM periods WHERE id = ?`).get(Number(period_id));
+  if (!period) throw new Error('pick a month to take it from');
+  if (period.locked) throw new Error(`${period.label} is closed`);
+
+  const already = db
+    .prepare(`SELECT COUNT(*) AS n FROM penalty_recoveries WHERE penalty_id = ? AND period_id = ?`)
+    .get(id, period.id).n;
+  if (already) throw new Error(`already taken from ${period.label}`);
+
+  const row = db
+    .prepare(`SELECT * FROM payroll_rows WHERE period_id = ? AND employee_id = ?`)
+    .get(period.id, penalty.employee_id);
+  if (!row) throw new Error(`${penalty.employee_name} has no row in ${period.label}`);
+
+  const take = Math.min(
+    Number(amount) > 0 ? Number(amount) : penalty.instalment,
+    penalty.outstanding
+  );
+  if (!(take > 0)) throw new Error('nothing to take');
+
+  const deduction = (Number(row.deduction) || 0) + take;
+  // On the payslip, in the person's own words: what it was for.
+  const remark = [row.adjustment_note, `${penalty.kind_label}: ${penalty.note}`]
+    .filter(Boolean)
+    .join('; ');
+  db.prepare(`UPDATE payroll_rows SET deduction = ?, adjustment_note = ? WHERE id = ?`).run(
+    deduction,
+    remark,
+    row.id
+  );
+  db.prepare(
+    `INSERT INTO penalty_recoveries (penalty_id, period_id, amount, by_whom) VALUES (?, ?, ?, ?)`
+  ).run(id, period.id, take, by || null);
+
+  const after = getPenalty(id);
+  if (after.outstanding <= 0) {
+    db.prepare(`UPDATE penalties SET status = 'recovered' WHERE id = ?`).run(id);
+  }
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'penalties',
+    entity_id: id,
+    label: `${penalty.kind_label} — ${penalty.employee_name}`,
+    to_value: take,
+    note: `recovered from ${period.label}: ${penalty.note}`,
+  });
+  return getPenalty(id);
+}

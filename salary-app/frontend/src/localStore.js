@@ -31,6 +31,15 @@ import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, parseTime, timesToDay } from '../../shared/timesheet.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
+import {
+  PENALTY_KINDS,
+  instalmentOf,
+  kindLabel as penaltyKindLabel,
+  outstandingOf,
+  penaltyReport,
+  validatePenalty,
+  wageCheck,
+} from '../../shared/penalties.js';
 import { WEIGHTS, matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
@@ -114,6 +123,8 @@ const EMPTY = {
   employee_notes: [],
   appraisals: [],
   expense_claims: [],
+  penalties: [],
+  penalty_recoveries: [],
   staff_tasks: [],
   tickets: [],
   ticket_replies: [],
@@ -2686,6 +2697,200 @@ export async function handle(method, path, body) {
         });
         save();
         return { appraisal: withIncrement(withPerson(row)), employee, applied: true };
+      }
+    }
+
+    /* ---- penalties: fines, losses, damage ---- */
+    if (what === 'penalties') {
+      /*
+       * Word for word the server's two rules: recording one deducts NOTHING,
+       * and the law's limits are reported rather than enforced. Records, not
+       * files, so they belong in this file as much as anywhere.
+       */
+      const dress = (pen) => {
+        const recoveries = db.penalty_recoveries.filter((r) => r.penalty_id === pen.id);
+        const recovered =
+          Math.round(recoveries.reduce((t, r) => t + Number(r.amount || 0), 0) * 100) / 100;
+        const employee = employeeOf(pen.employee_id);
+        const full = {
+          ...pen,
+          employee_name: employee?.name || null,
+          employee_code: employee?.code || null,
+          company_name: employee?.company_id ? companyOf(employee.company_id)?.name || null : null,
+          recovered,
+          recoveries_count: recoveries.length,
+          kind_label: penaltyKindLabel(pen.kind),
+        };
+        return { ...full, outstanding: outstandingOf(full), instalment: instalmentOf(full) };
+      };
+
+      if (parts.length === 2 && method === 'GET') {
+        const status = params.get('status');
+        const employeeId = Number(params.get('employee_id')) || null;
+        const penalties = db.penalties
+          .filter((x) => !status || x.status === status)
+          .filter((x) => !employeeId || x.employee_id === employeeId)
+          .map(dress)
+          .sort(
+            (a, b) =>
+              (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) ||
+              String(b.happened_on).localeCompare(String(a.happened_on)) ||
+              b.id - a.id
+          );
+        return {
+          penalties,
+          kinds: PENALTY_KINDS,
+          report: penaltyReport(penalties, { from: params.get('from'), to: params.get('to') }),
+        };
+      }
+
+      if (parts.length === 2 && method === 'POST') {
+        const { ok, problems } = validatePenalty(body || {});
+        if (!ok) throw new HttpError(400, problems.join('; '));
+        const employee = employeeOf(body.employee_id);
+        if (!employee) throw new HttpError(400, 'employee not found');
+        const pen = {
+          id: nextId(),
+          employee_id: employee.id,
+          kind: String(body.kind),
+          amount: Number(body.amount),
+          what: String(body.what || '').trim() || null,
+          asset_id: Number(body.asset_id) || null,
+          note: String(body.note).trim(),
+          happened_on: body.happened_on || dayNow(),
+          told_on: body.told_on || null,
+          acknowledged_on: body.acknowledged_on || null,
+          months: Number(body.months) || 1,
+          status: 'open',
+          waived_note: null,
+          raised_by: by || null,
+          created_at: stampNow(),
+        };
+        db.penalties.push(pen);
+        auditLine({
+          who: by, action: 'created', entity: 'penalties', entity_id: pen.id,
+          label: `${penaltyKindLabel(pen.kind)} — ${employee.name}`,
+          to_value: pen.amount, note: pen.note,
+        });
+        save();
+        return dress(pen);
+      }
+
+      const pen = db.penalties.find((x) => x.id === id);
+      if (parts.length >= 3 && !pen) throw new HttpError(404, 'not found');
+
+      if (parts.length === 3 && method === 'GET') {
+        return {
+          penalty: dress(pen),
+          recoveries: db.penalty_recoveries
+            .filter((r) => r.penalty_id === pen.id)
+            .map((r) => ({ ...r, period_label: periodOf(r.period_id)?.label || null })),
+        };
+      }
+
+      if (parts.length === 3 && method === 'PATCH') {
+        for (const key of ['kind', 'amount', 'what', 'note', 'happened_on', 'told_on', 'acknowledged_on', 'months']) {
+          if (key in (body || {})) {
+            pen[key] = key === 'amount' || key === 'months' ? Number(body[key]) : body[key] || null;
+          }
+        }
+        save();
+        return dress(pen);
+      }
+
+      /* What it WOULD do, before anybody does it. */
+      if (parts[3] === 'preview' && method === 'GET') {
+        const period = periodOf(Number(params.get('period_id')));
+        if (!period) throw new HttpError(400, 'pick a month');
+        const full = dress(pen);
+        const built = buildPayroll(period.id, { sync: false });
+        const row = built?.rows.find((r) => r.employee_id === pen.employee_id) || null;
+        const wanted = Number(params.get('amount'));
+        const take = Math.min(wanted > 0 ? wanted : full.instalment, full.outstanding);
+        const already = row
+          ? (Number(row.pt) || 0) + (Number(row.pf) || 0) + (Number(row.esi) || 0) +
+            (Number(row.loan_deduction) || 0) + (Number(row.deduction) || 0)
+          : 0;
+        return {
+          penalty: full,
+          period: { id: period.id, label: period.label, locked: Boolean(period.locked) },
+          has_row: Boolean(row),
+          amount: take,
+          gross: row ? row.gross_salary : null,
+          net_now: row ? row.net_salary : null,
+          net_after: row ? Math.round(row.net_salary - take) : null,
+          other_deductions: Math.round(already),
+          ...wageCheck({ amount: take, wages: row ? row.gross_salary : 0, otherDeductions: already, kind: pen.kind }),
+        };
+      }
+
+      /* The one call that moves money, and it names the month. */
+      if (parts[3] === 'recover' && method === 'POST') {
+        const full = dress(pen);
+        if (pen.status === 'waived') throw new HttpError(400, 'this penalty was waived');
+        if (full.outstanding <= 0) throw new HttpError(400, 'this has been recovered in full');
+        const period = periodOf(Number(body?.period_id));
+        if (!period) throw new HttpError(400, 'pick a month to take it from');
+        if (period.locked) throw new HttpError(400, `${period.label} is closed`);
+        if (db.penalty_recoveries.some((r) => r.penalty_id === pen.id && r.period_id === period.id)) {
+          throw new HttpError(400, `already taken from ${period.label}`);
+        }
+        syncRows(period.id);
+        const row = db.payroll_rows.find(
+          (r) => r.period_id === period.id && r.employee_id === pen.employee_id
+        );
+        if (!row) throw new HttpError(400, `${nameOf(pen.employee_id)} has no row in ${period.label}`);
+        const wanted = Number(body?.amount);
+        const take = Math.min(wanted > 0 ? wanted : full.instalment, full.outstanding);
+        if (!(take > 0)) throw new HttpError(400, 'nothing to take');
+
+        row.deduction = (Number(row.deduction) || 0) + take;
+        row.adjustment_note = [row.adjustment_note, `${full.kind_label}: ${pen.note}`]
+          .filter(Boolean)
+          .join('; ');
+        db.penalty_recoveries.push({
+          id: nextId(),
+          penalty_id: pen.id,
+          period_id: period.id,
+          amount: take,
+          by_whom: by || null,
+          posted_at: stampNow(),
+        });
+        if (outstandingOf(dress(pen)) <= 0) pen.status = 'recovered';
+        auditLine({
+          who: by, action: 'changed', entity: 'penalties', entity_id: pen.id,
+          label: `${full.kind_label} — ${full.employee_name}`,
+          to_value: take, note: `recovered from ${period.label}: ${pen.note}`,
+        });
+        save();
+        return dress(pen);
+      }
+
+      if (parts[3] === 'waive' && method === 'POST') {
+        if (pen.status === 'waived') throw new HttpError(400, 'this was already waived');
+        if (!String(body?.note || '').trim()) throw new HttpError(400, 'say why it is being waived');
+        pen.status = 'waived';
+        pen.waived_note = String(body.note).trim();
+        auditLine({
+          who: by, action: 'changed', entity: 'penalties', entity_id: pen.id,
+          label: `${penaltyKindLabel(pen.kind)} — ${nameOf(pen.employee_id)}`,
+          from_value: 'open', to_value: 'waived', note: pen.waived_note,
+        });
+        save();
+        return dress(pen);
+      }
+
+      if (parts.length === 3 && method === 'DELETE') {
+        if (dress(pen).recovered > 0) {
+          throw new HttpError(400, 'money has already come out of this — waive it instead, so the record stands');
+        }
+        db.penalties = db.penalties.filter((x) => x.id !== pen.id);
+        auditLine({
+          who: by, action: 'deleted', entity: 'penalties', entity_id: pen.id,
+          label: `${penaltyKindLabel(pen.kind)} — ${nameOf(pen.employee_id)}`,
+        });
+        save();
+        return { deleted: true };
       }
     }
 

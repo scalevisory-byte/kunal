@@ -1057,6 +1057,53 @@ A claim cannot be paid without being approved, a decided claim is not decided ag
 paying it twice is refused, so a double click cannot pay a petrol bill twice. A paid claim
 stays on the record.
 
+### Penalties — fines, losses and damage
+
+Dinesh: *"haan bana do penalty wala / salary me se decut hoga / and uska reporting bhi / kyu
+kata he kis chiz ka kata he uska note dalne ka option bhi dena"*.
+
+The Deduct box on the salary sheet already took money out perfectly well. What it could not do
+is **remember**: what broke, when, who decided, whether the person was ever told, and whether
+₹5,000 was meant to come out in one month or five. The next argument about it had only the
+remark to go on.
+
+**Recording a penalty deducts nothing.** It is recovered from a month you name, which is the
+same discipline as the expense claim beside it and the attendance request before it.
+
+- **Six kinds**, because free text is not a category: damage, loss, cash or stock shortage,
+  fine, excess paid earlier, something else. Damage and loss have to **name the thing**.
+- **The reason is required.** The app will not record a penalty you cannot explain — that is
+  the one that becomes a dispute six months later. It goes onto the payslip with the
+  deduction: *"Damage to company property: dropped in the cab, screen replaced"*.
+- **Spread it over 1 to 24 months.** The instalment is worked out, the last one carries the
+  rounding so the parts add to the whole, and the same month cannot be taken from twice.
+- **Told / accepted are separate dates**, both allowed to be blank — "nobody has done this
+  yet" is not "they refused".
+- **Waived, not deleted**, once money has come out: the record stands and the collecting
+  stops. What was already recovered is not handed back here, because that is a payment and
+  payments go through the month they are made in.
+
+#### What it would do, before it does it
+
+Pressing *take it from October* opens the sum first: the gross, what is **already** coming out
+(PT, PF, ESI, loan, other), this penalty, and the net before and after.
+
+Under it, what the **Payment of Wages Act** has to say — the total capped at **half the wages**
+(75% where co-operative society dues are involved), and a damage or loss deduction capped at
+the actual loss. A ₹40,000 scooter against a ₹22,280 month reads *"deductions would come to
+197% of the gross"* and *"this one deduction is more than the whole month"*.
+
+**It is said, not refused.** Refusing would only get the figure typed into the Deduct box
+instead, where nothing checks anything at all — and the decision is on the trail either way.
+
+#### The register
+
+Everything, or only what is still coming out / recovered / waived: how many, how much in all,
+how much recovered, how much still to come, a line per kind, and a CSV. Every figure is
+assembled from the rows — nothing here recalculates a salary.
+
+Works in the single file too, like the rest of the People tab: these are records, not files.
+
 ### Tasks
 
 Work given to somebody, with a date it is wanted by. **Not** the same thing as the WhatsApp
