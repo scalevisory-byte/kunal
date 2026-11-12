@@ -152,3 +152,39 @@ test('a sheet is the width of its columns, not of its card', () => {
   // outer edge, not a missing gridline.
   assert.match(css, /table\.sheet td:last-child \{ border-right: none; \}/);
 });
+
+test('a class the markup uses 46 times has a rule', () => {
+  /*
+   * .row had NONE. Every one of them was a plain block, so inline children
+   * ran together with no space ("Raise a vacancyoradd somebody by hand",
+   * "+ New vacancyAdd a candidate") and block children stacked where a
+   * toolbar was meant. Measured across the tabs, sub-tabs and a drawer: 6
+   * squashed to a 0px gap, 6 stacked, 0 laid out as anyone would choose.
+   *
+   * That flex was always the intent is not a guess - the only two rules that
+   * existed for it set flex properties, and .split-add .row set align-items
+   * and gap on what was a block, where neither does anything.
+   */
+  assert.match(css, /^\.row \{[^}]*display:\s*flex/m);
+  assert.match(css, /^\.row \{[^}]*gap:/m);
+  // .field.inline had the same hole: on the Assets filter "Financial year"
+  // wrapped to two lines and dropped its select 6px below its neighbours.
+  assert.match(css, /^\.field\.inline \{[^}]*display:\s*inline-flex/m);
+});
+
+test('the hiring module uses the same tables as the rest of the app', () => {
+  /*
+   * Hiring was built as a separate app and moved in; its six tables never
+   * got the house class, so they had no header band, no gridlines and no
+   * cell padding. An empty Vacancies list read as one run-on line:
+   * "Ref Job Company Location Seats Joined Applied Status".
+   */
+  const dir = path.join(here, '../../frontend/src/components/hiring');
+  const bare = fs.readdirSync(dir)
+    .filter((f) => f.endsWith('.jsx'))
+    .filter((f) => /<table>/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+  assert.deepEqual(bare, [], `these hiring tables carry no class: ${bare.join(', ')}`);
+  // Their name cells carry a second line, which table.sheet's one-line rows
+  // would clip - the same exception the roll call takes.
+  assert.match(css, /table\.sheet\.hiring-table td \{[^}]*white-space:\s*normal/);
+});

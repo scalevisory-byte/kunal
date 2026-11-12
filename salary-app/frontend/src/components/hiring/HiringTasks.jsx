@@ -80,7 +80,7 @@ export default function Followups({ followups, digest, onReload, onOpen, onError
       </div>
 
       <div className="card scroll">
-        <table>
+        <table className="sheet hiring-table">
           <thead>
             <tr>
               <th>What</th>

@@ -127,7 +127,7 @@ export default function Pipeline({ applications, vacancies, onMove, onOpen, onEx
         </div>
       ) : (
         <div className="card scroll">
-          <table>
+          <table className="sheet hiring-table">
             <thead>
               <tr>
                 <th>Candidate</th>

@@ -196,7 +196,7 @@ export default function VacancyPanel({
 
         {view === 'applicants' ? (
           <div className="card scroll">
-            <table>
+            <table className="sheet hiring-table">
               <thead>
                 <tr>
                   <th>Candidate</th>

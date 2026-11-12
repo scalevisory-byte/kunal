@@ -99,7 +99,7 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
       ) : null}
 
       <div className="card scroll">
-        <table>
+        <table className="sheet hiring-table">
           <thead>
             <tr>
               <th>Ref</th>

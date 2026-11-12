@@ -516,7 +516,38 @@ tr.grand-row td { font-weight: 650; font-size: 1.05em; border-top: 1px solid var
 .deduct { color: var(--bad); }
 .deduct-cell .cell-input { color: var(--bad); }
 table.sheet td.num, table.sheet th.num { text-align: right; }
-.empty { text-align: center; color: var(--muted); padding: 2rem !important; white-space: normal; }
+/* The "nothing here" line inside a table. 2rem of padding put 85px of
+   nothing under the header band of an empty sheet whose real rows are 24px
+   tall - the message read as a hole rather than as an answer. */
+.empty { text-align: center; color: var(--muted); padding: 1rem !important; white-space: normal; }
+/*
+ * .row - a line of controls, side by side.
+ *
+ * It is used 46 times across the app and HAD NO RULE AT ALL, so every one of
+ * them was a plain block: inline children ran together with no space between
+ * them ("Raise a vacancyoradd somebody by hand", "+ New vacancyAdd a
+ * candidate"), and block children stacked into a column where a toolbar was
+ * meant. Measured across the tabs, sub-tabs and a drawer: 6 squashed to a 0px
+ * gap and 6 stacked, none laid out as anything anybody would have chosen.
+ *
+ * That the intent was always flex is not a guess: the two rules that DO exist
+ * for it both set flex properties - .dept-managers .row says display: flex
+ * outright, and .split-add .row sets align-items and gap, which on a block do
+ * nothing at all. That one was broken by the same missing base rule.
+ *
+ * It wraps, so a narrow window pushes the last control onto a second line
+ * rather than off the edge.
+ */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+
+/*
+ * A label whose caption and control sit on one line. Also had no base rule,
+ * so on the Assets filter "Financial year" wrapped to two lines and dropped
+ * its select 6px below the three beside it, which is what made that row look
+ * broken rather than merely narrow.
+ */
+.field.inline { display: inline-flex; align-items: center; gap: 0.35rem; }
+
 
 table.sheet .cell-input {
   width: 100%;
@@ -1758,7 +1789,7 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   padding-top: 0.8rem;
   border-top: 1px solid var(--line-soft);
 }
-.split-add .row { align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; }
+.split-add .row { margin-bottom: 0.5rem; }
 .split-add input[readonly] { font-variant-numeric: tabular-nums; }
 
 /* Photographs of an asset: a row that scrolls rather than a grid that reflows,
@@ -2225,3 +2256,19 @@ table.my-sum tr.my-strong td { font-weight: 600; border-top: 1px solid var(--lin
 
 /* The one-time password list: it cannot be shown again, so it stands out. */
 .banner-card { border-color: var(--brand); }
+
+/*
+ * The hiring module's tables.
+ *
+ * Hiring was built as a separate app and moved in here, and its six tables
+ * never got the house class - so they had no header band, no gridlines and
+ * no cell padding, and an empty Vacancies list read as one run-on line:
+ * "Ref Job Company Location Seats Joined Applied Status". They are sheets
+ * like every other table in the app now.
+ *
+ * Two of their columns carry a second line under the name (a department, a
+ * stage), which table.sheet's one-line rows would clip - so those rows are
+ * allowed their own height here, the same exception the roll call takes.
+ */
+table.sheet.hiring-table td { white-space: normal; height: auto; }
+table.sheet.hiring-table td.name-cell { min-width: 11rem; }

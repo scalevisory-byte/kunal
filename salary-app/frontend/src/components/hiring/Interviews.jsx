@@ -15,7 +15,7 @@ export default function Interviews({ interviews, onOpen, onReload, onError }) {
   return (
     <div className="card scroll">
       <h2>Interviews</h2>
-      <table>
+      <table className="sheet hiring-table">
         <thead>
           <tr>
             <th>When</th>
