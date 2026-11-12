@@ -104,6 +104,22 @@ test('it does not collide with ZynTask on the same machine', () => {
   }
 });
 
+test('the guide says to retire the shared password', () => {
+  /*
+   * The installer generates APP_PASSWORD, and it is full admin with no name
+   * on it. Nothing on screen says that, and creating named logins does not
+   * switch it off - so left alone it is a permanent nameless admin sitting
+   * in a text file on the server. The guide has to be the thing that says
+   * so, and has to say what to do about it.
+   */
+  const md = fs.readFileSync(path.join(kit, 'README.md'), 'utf8');
+  assert.match(md, /retire the shared password/i);
+  assert.match(md, /APP_PASSWORD=.{0,40}line/is);
+  // ...and the file it generates says it too, where somebody editing it
+  // will actually be looking.
+  assert.match(read('setup.ps1'), /DELETE this line/);
+});
+
 test('the guide says what has not been tested', () => {
   // These scripts have never been run. Saying so is the difference between
   // a step that fails and a step that fails and surprises somebody.

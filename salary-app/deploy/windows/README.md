@@ -78,9 +78,63 @@ silently dropped — which reads to everybody as "the login is broken".
 
 ---
 
-## 3. Give the staff their logins
+## 3. Make your own login, then retire the shared password
 
-Sign in at **https://hrms.scalevisory.in** with the office password, then:
+The password the installer printed is a **shared key, not a person**. It is
+full admin, it has no name on it, and the trail records whatever it does as
+*"the API key"* rather than as you. It is there to get you in the first
+time.
+
+So, once:
+
+1. Sign in at **https://hrms.scalevisory.in** with that password.
+2. The sign-in screen offers to **make the first admin** — do it. Pick your
+   own username and a password only you know.
+3. Open `C:\bnf-hrms\salary-app\backend\.env`, **delete the
+   `APP_PASSWORD=` line** (or comment it out with a `#`), and restart:
+
+```powershell
+Stop-Service BNFHRMS
+Start-Service BNFHRMS
+```
+
+That is it. Checked on a real server: with the line gone the old shared
+password gets **401**, a request with no credentials gets **401**, your own
+login still signs in and works, and every action now carries **your name**
+instead of "the API key".
+
+It still starts after you remove it, because named logins now exist — the
+app refuses to run with *nothing* guarding it, not with no shared password.
+
+> Keep `APP_PASSWORD` only if you later want something on a schedule to call
+> the API without a person. Nothing does today.
+
+### The four kinds of login
+
+| Role | Can | Cannot |
+|---|---|---|
+| **Admin** | everything | — |
+| **HR** | employees, attendance, leave, payroll, assets — **salaries included** | make logins, change a month's settings, close a month |
+| **Viewer** | look at everything | change anything |
+| **Staff** | their own payslips, attendance and leave | see anybody else at all |
+
+The line between Admin and HR is **not what they can see** — HR can see
+salaries, that was your decision. It is what they can change about the
+installation itself. HR runs payroll; Admin decides the rules payroll runs
+on.
+
+Driven against a real server, as codes: Admin read 200 / write 201 / make a
+login 201 / close a month 201. HR 200 / 201 / **403** / **403**. Viewer 200
+/ **403** / **403** / **403**. And it is enforced on the server, not by
+hiding buttons — a Viewer who knows the URL still cannot write.
+
+**Admin → Logins** is where you add HR and Viewer logins for the office.
+
+---
+
+## 4. Give the staff their logins
+
+Sign in as yourself, then:
 
 **Admin → Staff logins → tick the people → Make logins.**
 
@@ -106,7 +160,7 @@ no ability to read the office side at all, only `/api/me`.
 
 ---
 
-## 4. How an employee applies for leave
+## 5. How an employee applies for leave
 
 They sign in → **My page → Leave → Apply**.
 
@@ -130,7 +184,7 @@ balance reads **CL taken: 3**.
 
 ---
 
-## 5. Running it day to day
+## 6. Running it day to day
 
 In an Administrator PowerShell:
 
