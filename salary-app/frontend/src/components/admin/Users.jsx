@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import { usernameBase } from '../../../../shared/username.js';
 
 const when = (v) => String(v || '').replace('T', ' ').slice(0, 16);
 
@@ -14,6 +15,9 @@ export default function Users({ me, onError }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [adding, setAdding] = useState(false);
+  // Set the moment somebody types in the username box themselves, after
+  // which the name no longer writes over it.
+  const [ownUsername, setOwnUsername] = useState(false);
   const [draft, setDraft] = useState({ username: '', name: '', password: '', role: 'hr' });
   const [said, setSaid] = useState('');
 
@@ -81,29 +85,25 @@ export default function Users({ me, onError }) {
 
   return (
     <section className="stack">
-      <div className="card">
-        <h3>What each role may do</h3>
-        <table className="sheet">
-          <tbody>
-            {roles.map((role) => (
-              <tr key={role.key}>
-                <td className="sticky-name">
-                  <strong>{role.label}</strong>
-                </td>
-                <td>{role.what}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="muted small">
-          Enforced on the server, not by hiding buttons — somebody who knows the address still
-          cannot do what their role does not carry.
-        </p>
-      </div>
-
+      {/*
+        * The reason this screen exists, so it looks like it.
+        *
+        * It was a .ghost button - muted grey, no border, no fill - sitting
+        * under a full-width table of role descriptions. On a page whose only
+        * other thing is a list, "Add a login" in grey text reads as a caption
+        * for the list rather than as the way to make one. Asked for as
+        * "admin id se user id login banane ka option do", about a screen that
+        * already had it.
+        */}
       <div className="toolbar">
-        <button className="ghost" onClick={() => setAdding(!adding)}>
-          {adding ? 'Cancel' : 'Add a login'}
+        <button
+          className={adding ? undefined : 'primary'}
+          onClick={() => {
+            setOwnUsername(false);
+            setAdding(!adding);
+          }}
+        >
+          {adding ? 'Cancel' : '+ Add a login'}
         </button>
       </div>
 
@@ -112,7 +112,26 @@ export default function Users({ me, onError }) {
           <div className="form-grid">
             <label>
               Name
-              <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              <input
+                value={draft.name}
+                onChange={(e) => {
+                  /*
+                   * The username follows the name, the way the Staff logins
+                   * screen already makes "nidhi.shah" for itself. Typing the
+                   * name and then being refused until you invent a username
+                   * by hand is the sort of friction nobody reports, they just
+                   * stop making logins. Still editable - the moment it is
+                   * touched, this stops writing over it - and the server is
+                   * what refuses a duplicate, by name.
+                   */
+                  const name = e.target.value;
+                  setDraft((was) => ({
+                    ...was,
+                    name,
+                    username: ownUsername ? was.username : usernameBase(name),
+                  }));
+                }}
+              />
             </label>
             <label>
               Username
@@ -120,7 +139,10 @@ export default function Users({ me, onError }) {
                 value={draft.username}
                 autoCapitalize="none"
                 placeholder="hema"
-                onChange={(e) => setDraft({ ...draft, username: e.target.value })}
+                onChange={(e) => {
+                  setOwnUsername(true);
+                  setDraft({ ...draft, username: e.target.value });
+                }}
               />
             </label>
             <label>
@@ -199,6 +221,26 @@ export default function Users({ me, onError }) {
           ))}
         </tbody>
       </table>
+      <div className="card">
+        <h3>What each role may do</h3>
+        <table className="sheet">
+          <tbody>
+            {roles.map((role) => (
+              <tr key={role.key}>
+                <td className="sticky-name">
+                  <strong>{role.label}</strong>
+                </td>
+                <td>{role.what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="muted small">
+          Enforced on the server, not by hiding buttons — somebody who knows the address still
+          cannot do what their role does not carry.
+        </p>
+      </div>
+
       <p className="muted small">
         A switched-off login stops working at once, not when its session runs out. The last Admin
         cannot be demoted, switched off or removed — there would be nobody left who could make one.

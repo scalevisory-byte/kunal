@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { db } from './db.js';
 import { log } from './logger.js';
+import { usernameBase } from '../../shared/username.js';
 
 /*
  * Logins, roles, and the record of who signed in.
@@ -274,16 +275,11 @@ export function createUser({ username, name, password, role = 'viewer', employee
  * employee id: a username gets read out and typed, so it has to be sayable.
  */
 export function suggestUsername(employee) {
-  const base =
-    String(employee?.name || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '.')
-      .replace(/^\.+|\.+$/g, '')
-      .split('.')
-      .filter(Boolean)
-      .slice(0, 2)
-      .join('.') || 'staff';
-  let candidate = base.slice(0, 36);
+  // The shape comes from shared/username.js, which the Admin screen uses
+  // too - one rule, so the two cannot tell two people different usernames
+  // for the same name. Only the collision below needs the database.
+  const base = usernameBase(employee?.name) || 'staff';
+  let candidate = base;
   let n = 1;
   while (db.prepare(`SELECT 1 FROM users WHERE username = ?`).get(candidate)) {
     n += 1;
