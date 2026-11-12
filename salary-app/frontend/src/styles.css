@@ -363,6 +363,27 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
 }
 .card .table-wrap { border: none; border-radius: 0; }
 
+/*
+ * The fade that says a sheet carries on past its edge. See ScrollFrame.jsx -
+ * the class is only put on when there really is something hidden on that
+ * side, so a table that fits wears nothing.
+ *
+ * It sits OUTSIDE the scrolling box, or it would scroll away with the
+ * columns it is pointing at.
+ */
+.scroll-frame { position: relative; }
+.scroll-frame::before, .scroll-frame::after {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 2rem;
+  pointer-events: none; opacity: 0; transition: opacity 0.12s; z-index: 5;
+}
+.scroll-frame::before { left: 0; background: linear-gradient(to right, var(--surface), transparent); }
+.scroll-frame::after { right: 0; background: linear-gradient(to left, var(--surface), transparent); }
+.scroll-frame.more-left::before, .scroll-frame.more-right::after { opacity: 1; }
+/* A hairline at the very edge, so the fade reads as a cut rather than as a
+   column that happens to be pale. */
+.scroll-frame.more-right::after { box-shadow: inset -1px 0 var(--line); }
+.scroll-frame.more-left::before { box-shadow: inset 1px 0 var(--line); }
+
 /* Columns size to their contents and the table fills what is left, rather
    than every column stretching to share the width - a sheet of six columns
    should not look like a sheet of twenty-four. */
@@ -900,6 +921,14 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
 }
 
 .roll-call .stat-row { grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); }
+/*
+ * Nine figures in a row, and "Out of uniform" is the only label long enough
+ * to wrap - which dropped that one figure a line below the other eight and
+ * made the row read as two rows. The label keeps two lines' worth of space
+ * whether it needs them or not, so the figures sit on one line at every
+ * width rather than only at the widths nothing happens to wrap at.
+ */
+.roll-call .stat .stat-label { line-height: 1.3; min-height: 2.6em; }
 .roll-head { flex-wrap: wrap; }
 .roll-head > span:first-of-type { font-size: 1.05rem; }
 .roll-head .ghost { font-weight: 400; }
@@ -1887,7 +1916,45 @@ input.why-box {
   font: inherit; color: inherit; padding: 0.1rem 0.2rem;
 }
 input.why-box:focus { outline: 2px inset var(--brand); background: var(--card); }
-input.why-box::placeholder { color: var(--muted); opacity: 0.6; }
+/*
+ * The example is worth showing - it teaches how short a reason should be -
+ * but not eighteen times down one page, where a column of identical grey
+ * "rang in - fever" reads as data somebody typed. It appears on the row
+ * under the pointer and in the box being filled in, which is exactly when it
+ * is any use; a touch screen has no hover and gets it on focus.
+ */
+input.why-box::placeholder { color: transparent; }
+/* Without the example there, an empty cell gives no sign it can be typed in
+   at all. A dotted rule under the empty ones says "a box lives here" in the
+   width of a hairline, which fourteen copies of a sentence cannot. */
+input.why-box:placeholder-shown { border-bottom: 1px dotted var(--line); }
+table.sheet.roll-table tbody tr:hover input.why-box::placeholder,
+input.why-box:focus::placeholder { color: var(--muted); opacity: 0.6; }
+
+/*
+ * Allowed? - yes / no / not decided, as one control on one line.
+ * Hairlines and no fill until something is chosen, like every other control
+ * here; the chosen one is the only one that carries colour.
+ */
+.yesno { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.yesno button {
+  border: none; border-left: 1px solid var(--line); border-radius: 0;
+  background: none; color: var(--muted);
+  font: inherit; font-size: 0.68rem; line-height: 1.1;
+  padding: 0.1rem 0.4rem; min-height: 0; height: auto; cursor: pointer;
+}
+.yesno button:first-child { border-left: none; }
+.yesno button:hover:not(:disabled) { background: var(--brand-soft); color: var(--brand); }
+.yesno button.on { font-weight: 650; }
+.yesno button.on.yes { background: var(--brand-soft); color: var(--brand); }
+.yesno button.on.no { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+/* Nothing decided is the state most rows are in, and it is an ABSENCE of a
+   decision - so it carries no fill. Lighting it put an identical grey mark
+   down every row of the table, which is the wall this pass is undoing.
+   Only a decision somebody actually made wears colour. */
+.yesno button.on.none { background: none; color: var(--muted); font-weight: 500; }
+.yesno button:disabled { opacity: 0.45; cursor: default; }
+
 
 /* The Reports home: a category per fold, a row per report.
    Widths are set explicitly because `table.sheet td:last-child { width: 100% }`

@@ -8,6 +8,7 @@ import OrgChart from './OrgChart.jsx';
 import DepartmentManagers from './DepartmentManagers.jsx';
 import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { rupees } from '../format.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 /* The people with nothing in that field - a group, not a gap. */
 const NOT_SET = '\u0000none';
@@ -336,264 +337,6 @@ export default function Employees({
         ))}
       </datalist>
 
-      <OnboardingQueue employees={filtered} onOpen={(emp) => setProfileFor(emp.id)} />
-
-      <div className="card">
-        <h2>Add employee</h2>
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            Company
-            <select
-              required
-              value={form.company_id}
-              onChange={(e) => setForm({ ...form, company_id: e.target.value })}
-            >
-              <option value="">Select…</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Name
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </label>
-          <label>
-            Monthly salary
-            <input
-              required
-              inputMode="decimal"
-              value={form.monthly_salary}
-              onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })}
-            />
-          </label>
-          <label>
-            PF
-            <input inputMode="decimal" value={form.pf} onChange={(e) => setForm({ ...form, pf: e.target.value })} />
-          </label>
-          <label>
-            ESI
-            <input inputMode="decimal" value={form.esi} onChange={(e) => setForm({ ...form, esi: e.target.value })} />
-          </label>
-          <label>
-            Pay by
-            <select value={form.payment_mode} onChange={(e) => setForm({ ...form, payment_mode: e.target.value })}>
-              <option>Bank</option>
-              <option>Cash</option>
-              <option>Gpay</option>
-              <option>Cheque</option>
-            </select>
-          </label>
-          {/* Cash in hand needs no account, and asking for one is noise. */}
-          {form.payment_mode !== 'Cash' && (
-            <>
-              <label>
-                Bank
-                <input
-                  value={form.bank_name}
-                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
-                />
-              </label>
-              <label>
-                Account number
-                <input
-                  value={form.bank_account}
-                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
-                />
-              </label>
-              <label>
-                IFSC
-                <input
-                  placeholder="SBIN0001234"
-                  value={form.ifsc}
-                  onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })}
-                />
-              </label>
-            </>
-          )}
-          <label title="Decides which festivals are a paid holiday for this person">
-            Religion
-            <input
-              list="religion-list"
-              placeholder="optional"
-              value={form.religion}
-              onChange={(e) => setForm({ ...form, religion: e.target.value })}
-            />
-          </label>
-          <button className="primary" type="submit">Add</button>
-        </form>
-
-        {/*
-         * The breakup, on the same form. It is worth saying out loud that it
-         * changes nothing about what this person is paid: Basic, HRA and the
-         * rest are a division of the salary already typed above, and gross,
-         * net, PT and every deduction come out identical with or without
-         * them. What it buys is a payslip that shows lines, and PF charged on
-         * Basic rather than on the whole gross.
-         *
-         * Blank is a real answer. Most people will leave it and split later,
-         * or in bulk further down the page.
-         */}
-        <div className="split-add">
-          <div className="row">
-            <strong className="small">Salary structure</strong>
-            <button
-              type="button"
-              className="ghost tiny"
-              disabled={!(Number(form.monthly_salary) > 0)}
-              title={`Basic ${DEFAULT_TEMPLATE.basicPercent}%, HRA ${DEFAULT_TEMPLATE.hraPercentOfBasic}% of Basic, conveyance ${DEFAULT_TEMPLATE.conveyance}, medical ${DEFAULT_TEMPLATE.medical}`}
-              onClick={() => setForm({ ...form, ...applyTemplate(Number(form.monthly_salary)) })}
-            >
-              Use the usual split
-            </button>
-            {(form.basic || form.hra || form.conveyance || form.medical) && (
-              <button
-                type="button"
-                className="ghost tiny"
-                onClick={() =>
-                  setForm({ ...form, basic: '', hra: '', conveyance: '', medical: '' })
-                }
-              >
-                clear it
-              </button>
-            )}
-          </div>
-          <div className="form-grid">
-            <label>
-              Basic
-              <input
-                inputMode="decimal"
-                value={form.basic}
-                onChange={(e) => setForm({ ...form, basic: e.target.value })}
-              />
-            </label>
-            <label>
-              HRA
-              <input
-                inputMode="decimal"
-                value={form.hra}
-                onChange={(e) => setForm({ ...form, hra: e.target.value })}
-              />
-            </label>
-            <label>
-              Conveyance
-              <input
-                inputMode="decimal"
-                value={form.conveyance}
-                onChange={(e) => setForm({ ...form, conveyance: e.target.value })}
-              />
-            </label>
-            <label>
-              Medical
-              <input
-                inputMode="decimal"
-                value={form.medical}
-                onChange={(e) => setForm({ ...form, medical: e.target.value })}
-              />
-            </label>
-            <label title="Whatever is left of the salary. Never typed, so the parts cannot drift from the total.">
-              Special allowance
-              <input value={addSplit.set ? rupees(addSplit.special) : ''} readOnly disabled />
-            </label>
-          </div>
-          {addSplit.over ? (
-            <p className="error">
-              The parts come to {rupees(addSplit.named)}, which is {rupees(addSplit.overBy)} more
-              than the salary. Lower one of them.
-            </p>
-          ) : (
-            <p className="muted small">
-              Optional, and it does <strong>not</strong> change what they are paid — it only
-              divides the salary above into lines on the payslip. Leave it blank and the payslip
-              shows one figure.
-            </p>
-          )}
-        </div>
-        {error && <p className="error">{error}</p>}
-        <p className="muted small">
-          <strong>Religion</strong> decides which festivals count as a paid holiday for someone.
-          Set it once and the <strong>Festivals</strong> panel on the attendance grid does the
-          rest — Eid marks the Muslim staff paid, Diwali the Hindu staff, and everyone else works
-          that day as normal. To fill it in for a lot of people at once, tick them in the list
-          below and use <strong>Set religion to</strong>. The box takes anything you type; the
-          suggestions are only suggestions.
-        </p>
-        <p className="muted small">
-          <strong>Documents</strong> — PAN card, Aadhaar, photograph, cancelled cheque — attach to
-          the person, so their record opens the moment you press <strong>Add</strong> and the
-          upload box is waiting there. The rest of the joining form is on the same screen.
-        </p>
-        <p className="muted small">
-          A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
-          across, and anything already typed into that month stays put.
-        </p>
-      </div>
-
-      <div className="card">
-        <h2>Companies</h2>
-        <form
-          className="inline-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!companyName.trim()) return;
-            await onCreateCompany({ name: companyName.trim() });
-            setCompanyName('');
-          }}
-        >
-          <input
-            placeholder="New company name"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-          />
-          <button type="submit">Add company</button>
-        </form>
-        <ul className="chips">
-          {companies.map((c) => (
-            <li key={c.id} className={`chip${companyId === c.id ? ' active' : ''}`}>
-              <button
-                className="chip-name"
-                title={companyId === c.id ? 'Showing only this one - click to show all' : `Show only ${c.name}`}
-                onClick={() => onCompany?.(c.id)}
-              >
-                {c.name} <span className="muted">({c.employee_count})</span>
-              </button>
-              <button
-                className="chip-action"
-                title="Rename"
-                onClick={() => {
-                  const name = window.prompt(`Rename "${c.name}" to:`, c.name);
-                  if (name && name.trim() && name.trim() !== c.name) {
-                    onPatchCompany(c.id, { name: name.trim() });
-                  }
-                }}
-              >
-                ✎
-              </button>
-              <button
-                className="chip-action danger"
-                title={
-                  c.employee_count
-                    ? `${c.employee_count} employees are in this company`
-                    : 'Delete this company'
-                }
-                onClick={() => {
-                  const warning = c.employee_count
-                    ? `Delete "${c.name}" AND its ${c.employee_count} employees, with every month they appear in?`
-                    : `Delete "${c.name}"?`;
-                  if (window.confirm(warning)) onDeleteCompany(c.id);
-                }}
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-        <p className="muted small">
-          Click a company to show only its people — here, on the salary sheet and on the
-          attendance grid. Click it again, or <strong>All</strong> at the top, to go back.
-        </p>
-      </div>
-
       <div className="card">
         <div className="toolbar">
           <input className="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -908,7 +651,7 @@ export default function Employees({
             <OrgChart employees={filtered} onOpen={(e) => setProfileFor(e.id)} />
           </div>
         ) : (
-        <div className="table-wrap">
+        <ScrollFrame>
           <table className="sheet">
             <thead>
               <tr>
@@ -1150,7 +893,7 @@ export default function Employees({
               )}
             </tbody>
           </table>
-        </div>
+        </ScrollFrame>
         )}
         <p className="muted small">
           Salary here is the master figure. Changing it does not rewrite a month that already has its
@@ -1166,6 +909,264 @@ export default function Employees({
           past months intact. Total salary bill: <strong>{rupees(
             filtered.reduce((sum, e) => sum + Number(e.monthly_salary || 0), 0)
           )}</strong> per month.
+        </p>
+      </div>
+
+      <OnboardingQueue employees={filtered} onOpen={(emp) => setProfileFor(emp.id)} />
+
+      <div className="card">
+        <h2>Add employee</h2>
+        <form className="form-grid" onSubmit={submit}>
+          <label>
+            Company
+            <select
+              required
+              value={form.company_id}
+              onChange={(e) => setForm({ ...form, company_id: e.target.value })}
+            >
+              <option value="">Select…</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Name
+            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </label>
+          <label>
+            Monthly salary
+            <input
+              required
+              inputMode="decimal"
+              value={form.monthly_salary}
+              onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })}
+            />
+          </label>
+          <label>
+            PF
+            <input inputMode="decimal" value={form.pf} onChange={(e) => setForm({ ...form, pf: e.target.value })} />
+          </label>
+          <label>
+            ESI
+            <input inputMode="decimal" value={form.esi} onChange={(e) => setForm({ ...form, esi: e.target.value })} />
+          </label>
+          <label>
+            Pay by
+            <select value={form.payment_mode} onChange={(e) => setForm({ ...form, payment_mode: e.target.value })}>
+              <option>Bank</option>
+              <option>Cash</option>
+              <option>Gpay</option>
+              <option>Cheque</option>
+            </select>
+          </label>
+          {/* Cash in hand needs no account, and asking for one is noise. */}
+          {form.payment_mode !== 'Cash' && (
+            <>
+              <label>
+                Bank
+                <input
+                  value={form.bank_name}
+                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+                />
+              </label>
+              <label>
+                Account number
+                <input
+                  value={form.bank_account}
+                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
+                />
+              </label>
+              <label>
+                IFSC
+                <input
+                  placeholder="SBIN0001234"
+                  value={form.ifsc}
+                  onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })}
+                />
+              </label>
+            </>
+          )}
+          <label title="Decides which festivals are a paid holiday for this person">
+            Religion
+            <input
+              list="religion-list"
+              placeholder="optional"
+              value={form.religion}
+              onChange={(e) => setForm({ ...form, religion: e.target.value })}
+            />
+          </label>
+          <button className="primary" type="submit">Add</button>
+        </form>
+
+        {/*
+         * The breakup, on the same form. It is worth saying out loud that it
+         * changes nothing about what this person is paid: Basic, HRA and the
+         * rest are a division of the salary already typed above, and gross,
+         * net, PT and every deduction come out identical with or without
+         * them. What it buys is a payslip that shows lines, and PF charged on
+         * Basic rather than on the whole gross.
+         *
+         * Blank is a real answer. Most people will leave it and split later,
+         * or in bulk further down the page.
+         */}
+        <div className="split-add">
+          <div className="row">
+            <strong className="small">Salary structure</strong>
+            <button
+              type="button"
+              className="ghost tiny"
+              disabled={!(Number(form.monthly_salary) > 0)}
+              title={`Basic ${DEFAULT_TEMPLATE.basicPercent}%, HRA ${DEFAULT_TEMPLATE.hraPercentOfBasic}% of Basic, conveyance ${DEFAULT_TEMPLATE.conveyance}, medical ${DEFAULT_TEMPLATE.medical}`}
+              onClick={() => setForm({ ...form, ...applyTemplate(Number(form.monthly_salary)) })}
+            >
+              Use the usual split
+            </button>
+            {(form.basic || form.hra || form.conveyance || form.medical) && (
+              <button
+                type="button"
+                className="ghost tiny"
+                onClick={() =>
+                  setForm({ ...form, basic: '', hra: '', conveyance: '', medical: '' })
+                }
+              >
+                clear it
+              </button>
+            )}
+          </div>
+          <div className="form-grid">
+            <label>
+              Basic
+              <input
+                inputMode="decimal"
+                value={form.basic}
+                onChange={(e) => setForm({ ...form, basic: e.target.value })}
+              />
+            </label>
+            <label>
+              HRA
+              <input
+                inputMode="decimal"
+                value={form.hra}
+                onChange={(e) => setForm({ ...form, hra: e.target.value })}
+              />
+            </label>
+            <label>
+              Conveyance
+              <input
+                inputMode="decimal"
+                value={form.conveyance}
+                onChange={(e) => setForm({ ...form, conveyance: e.target.value })}
+              />
+            </label>
+            <label>
+              Medical
+              <input
+                inputMode="decimal"
+                value={form.medical}
+                onChange={(e) => setForm({ ...form, medical: e.target.value })}
+              />
+            </label>
+            <label title="Whatever is left of the salary. Never typed, so the parts cannot drift from the total.">
+              Special allowance
+              <input value={addSplit.set ? rupees(addSplit.special) : ''} readOnly disabled />
+            </label>
+          </div>
+          {addSplit.over ? (
+            <p className="error">
+              The parts come to {rupees(addSplit.named)}, which is {rupees(addSplit.overBy)} more
+              than the salary. Lower one of them.
+            </p>
+          ) : (
+            <p className="muted small">
+              Optional, and it does <strong>not</strong> change what they are paid — it only
+              divides the salary above into lines on the payslip. Leave it blank and the payslip
+              shows one figure.
+            </p>
+          )}
+        </div>
+        {error && <p className="error">{error}</p>}
+        <p className="muted small">
+          <strong>Religion</strong> decides which festivals count as a paid holiday for someone.
+          Set it once and the <strong>Festivals</strong> panel on the attendance grid does the
+          rest — Eid marks the Muslim staff paid, Diwali the Hindu staff, and everyone else works
+          that day as normal. To fill it in for a lot of people at once, tick them in the list
+          below and use <strong>Set religion to</strong>. The box takes anything you type; the
+          suggestions are only suggestions.
+        </p>
+        <p className="muted small">
+          <strong>Documents</strong> — PAN card, Aadhaar, photograph, cancelled cheque — attach to
+          the person, so their record opens the moment you press <strong>Add</strong> and the
+          upload box is waiting there. The rest of the joining form is on the same screen.
+        </p>
+        <p className="muted small">
+          A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
+          across, and anything already typed into that month stays put.
+        </p>
+      </div>
+
+      <div className="card">
+        <h2>Companies</h2>
+        <form
+          className="inline-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!companyName.trim()) return;
+            await onCreateCompany({ name: companyName.trim() });
+            setCompanyName('');
+          }}
+        >
+          <input
+            placeholder="New company name"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+          />
+          <button type="submit">Add company</button>
+        </form>
+        <ul className="chips">
+          {companies.map((c) => (
+            <li key={c.id} className={`chip${companyId === c.id ? ' active' : ''}`}>
+              <button
+                className="chip-name"
+                title={companyId === c.id ? 'Showing only this one - click to show all' : `Show only ${c.name}`}
+                onClick={() => onCompany?.(c.id)}
+              >
+                {c.name} <span className="muted">({c.employee_count})</span>
+              </button>
+              <button
+                className="chip-action"
+                title="Rename"
+                onClick={() => {
+                  const name = window.prompt(`Rename "${c.name}" to:`, c.name);
+                  if (name && name.trim() && name.trim() !== c.name) {
+                    onPatchCompany(c.id, { name: name.trim() });
+                  }
+                }}
+              >
+                ✎
+              </button>
+              <button
+                className="chip-action danger"
+                title={
+                  c.employee_count
+                    ? `${c.employee_count} employees are in this company`
+                    : 'Delete this company'
+                }
+                onClick={() => {
+                  const warning = c.employee_count
+                    ? `Delete "${c.name}" AND its ${c.employee_count} employees, with every month they appear in?`
+                    : `Delete "${c.name}"?`;
+                  if (window.confirm(warning)) onDeleteCompany(c.id);
+                }}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+        <p className="muted small">
+          Click a company to show only its people — here, on the salary sheet and on the
+          attendance grid. Click it again, or <strong>All</strong> at the top, to go back.
         </p>
       </div>
 
@@ -1203,9 +1204,24 @@ function OnboardingQueue({ employees, onOpen }) {
   const open = openOnboarding(employees || []);
   if (!open.length) return null;
 
+  /*
+   * Folded, because on a master nobody has filled in yet this is EVERYBODY -
+   * twelve rows of the same sentence ("Date of birth, Sex, Married or single,
+   * Mobile and 14 more") took the whole first screen, and pushed the list of
+   * employees 1,434px down a page you came to to look somebody up.
+   *
+   * The count stays in the open: a fold may hide rows, never the fact that
+   * there is something to do. It opens itself when only a couple are left,
+   * which is when the names are worth reading rather than counting.
+   */
   return (
-    <div className="card">
-      <h2>Still to finish</h2>
+    <details className="card fold" open={open.length <= 3}>
+      <summary>
+        <strong>Still to finish</strong>
+        <span className="muted small">
+          — {open.length} {open.length === 1 ? 'record is' : 'records are'} not complete
+        </span>
+      </summary>
       <p className="muted small">
         On the payroll, record not complete. Nothing is blocked — these are the gaps that bite
         at the PF return or the bank transfer. Click a name to fill them in.
@@ -1232,6 +1248,6 @@ function OnboardingQueue({ employees, onOpen }) {
       {open.length > 12 ? (
         <p className="muted small">and {open.length - 12} more.</p>
       ) : null}
-    </div>
+    </details>
   );
 }

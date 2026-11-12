@@ -1104,28 +1104,57 @@ export default function Dashboard({
                       {/*
                         * Three states, not a tick box. Null is "nobody has
                         * decided", which is NOT "not approved" - a day nobody
-                        * has looked at must not read as a refusal. Clicking
-                        * the one already chosen hands the decision back.
+                        * has looked at must not read as a refusal.
+                        *
+                        * All three on ONE line. "not decided" used to be a
+                        * block under the two chips, which made every row of
+                        * this table 89px tall: eighteen people came to 1,479px
+                        * for a list that is read at a glance each morning.
+                        * The third segment is both the state and the way to
+                        * hand the decision back, which also beats "click the
+                        * one already chosen", a rule nothing on screen said.
                         */}
-                      <button
-                        className={`chip tiny ${p.approved === true ? 'active' : ''}`}
-                        disabled={locked}
-                        title="Allowed"
-                        onClick={() => saveDay(p, { approved: p.approved === true ? null : true })}
-                      >
-                        yes
-                      </button>{' '}
-                      <button
-                        className={`chip tiny ${p.approved === false ? 'active bad' : ''}`}
-                        disabled={locked}
-                        title="Not allowed"
-                        onClick={() => saveDay(p, { approved: p.approved === false ? null : false })}
-                      >
-                        no
-                      </button>
-                      {p.approved === null ? (
-                        <div className="muted small">not decided</div>
-                      ) : null}
+                      <span className="yesno" role="group" aria-label="Was it allowed?">
+                        <button
+                          className={p.approved === true ? 'on yes' : undefined}
+                          disabled={locked}
+                          title="Allowed"
+                          aria-pressed={p.approved === true}
+                          onClick={() => saveDay(p, { approved: true })}
+                        >
+                          yes
+                        </button>
+                        <button
+                          className={p.approved === false ? 'on no' : undefined}
+                          disabled={locked}
+                          title="Not allowed"
+                          aria-pressed={p.approved === false}
+                          onClick={() => saveDay(p, { approved: false })}
+                        >
+                          no
+                        </button>
+                        <button
+                          className={p.approved === null || p.approved === undefined ? 'on none' : undefined}
+                          disabled={locked}
+                          title="Nobody has decided yet"
+                          /*
+                           * The dash is the label a screen reader gets too,
+                           * through aria-label - NOT a visually-hidden span
+                           * beside it. Such a span is position: absolute, it
+                           * escapes the scrolling frame it looks like it is
+                           * inside (the frame is not a positioned ancestor),
+                           * and it is then laid out against the page from a
+                           * static position 340px off the right-hand edge of
+                           * a phone - which pushed the whole dashboard
+                           * sideways. Measured, not guessed.
+                           */
+                          aria-label="not decided"
+                          aria-pressed={p.approved === null || p.approved === undefined}
+                          onClick={() => saveDay(p, { approved: null })}
+                        >
+                          —
+                        </button>
+                      </span>
                     </td>
                     <td className="muted small">{p.company_name}</td>
                   </tr>

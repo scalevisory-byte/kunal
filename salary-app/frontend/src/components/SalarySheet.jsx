@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, totalRows } from '../../../shared/calc.js';
 import { days, rupees, rupees2 } from '../format.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 /**
  * The calculation sheet. Typing in a cell recalculates the row immediately with
@@ -82,7 +83,6 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
   const [sending, setSending] = useState(false);
-  const scroller = useRef(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -150,7 +150,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
         <SendPayslips period={period} rows={filtered} onClose={() => setSending(false)} />
       )}
 
-      <div className={`table-wrap${dense ? ' dense' : ''}`} ref={scroller}>
+      <ScrollFrame className={dense ? 'dense' : ''}>
         <table className="sheet numbered">
           <thead>
             <tr>
@@ -241,7 +241,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
             </tfoot>
           )}
         </table>
-      </div>
+      </ScrollFrame>
     </section>
   );
 }

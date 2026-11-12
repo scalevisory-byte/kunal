@@ -8,6 +8,7 @@ import {
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 /**
  * The day-by-day grid from the left of the sheet.
@@ -256,7 +257,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         {locked && <span className="pill locked">Locked</span>}
       </div>
 
-      <div className="table-wrap dense">
+      <ScrollFrame className="dense">
         <table className="sheet attendance">
           <thead>
             <tr>
@@ -367,7 +368,7 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollFrame>
 
       {picker && (() => {
         const row = rows.find((r) => r.employee_id === picker.employeeId);

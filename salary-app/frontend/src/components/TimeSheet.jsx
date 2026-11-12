@@ -13,6 +13,7 @@ import {
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
+import ScrollFrame from './ScrollFrame.jsx';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -256,7 +257,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
         </div>
       )}
 
-      <div className="table-wrap">
+      <ScrollFrame>
         <table className="sheet timesheet">
           <thead>
             <tr>
@@ -312,7 +313,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
             </tfoot>
           )}
         </table>
-      </div>
+      </ScrollFrame>
 
       <p className="muted small">
         Worked hours are <strong>out − in, less the lunch break</strong>. Anything more or less than

@@ -254,10 +254,22 @@ test('a stage move is logged and comes back with the message to send', async () 
   assert.equal((await api('POST', `/api/hiring/applications/${applicationId}/stage`, {})).status, 400);
 });
 
+/*
+ * A fortnight from today, not a date typed into the file.
+ *
+ * It was '2026-11-05T11:00', and the overview test below asks whether that
+ * interview is still UPCOMING - which the server answers with
+ * at >= datetime('now','-1 day'). So the suite passed until 6 Nov 2026 and
+ * has failed every day since, on correct code: an interview in the past is
+ * not upcoming, and the test was asserting it was. The same trap the monthly
+ * rules hit on the 26th-31st.
+ */
+const interviewDay = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+
 test('scheduling an interview puts it on the office list too', async () => {
   const scheduled = await api('POST', '/api/hiring/interviews', {
     application_id: applicationId,
-    at: '2026-11-05T11:00',
+    at: `${interviewDay}T11:00`,
     mode: 'in-person',
     location_or_link: 'Office, Alkapuri',
   });
@@ -265,7 +277,7 @@ test('scheduling an interview puts it on the office list too', async () => {
   assert.ok(scheduled.body.notify.text.includes('Alkapuri'));
 
   const tasks = (await api('GET', '/api/hiring/tasks?status=open')).body.tasks;
-  assert.ok(tasks.some((t) => /Interview: Rohit Shah/.test(t.title) && t.due_on === '2026-11-05'));
+  assert.ok(tasks.some((t) => /Interview: Rohit Shah/.test(t.title) && t.due_on === interviewDay));
 });
 
 test('editing an opening re-scores everyone already on it', async () => {
