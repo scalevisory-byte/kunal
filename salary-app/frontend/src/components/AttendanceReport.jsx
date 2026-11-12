@@ -6,6 +6,7 @@ import {
   daywiseCsv,
 } from '../../../shared/attendanceReport.js';
 import { toCsv } from '../../../shared/statutory.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 const save = (body, filename, type = 'text/csv;charset=utf-8') => {
   const url = URL.createObjectURL(new Blob([body], { type }));
@@ -87,7 +88,7 @@ export default function AttendanceReport({ payroll }) {
       ) : null}
 
       {view === 'summary' ? (
-        <div className="scroll">
+        <ScrollFrame box="scroll">
           <table className="sheet">
             <thead>
               <tr>
@@ -167,9 +168,9 @@ export default function AttendanceReport({ payroll }) {
               </tr>
             </tfoot>
           </table>
-        </div>
+        </ScrollFrame>
       ) : (
-        <div className="scroll">
+        <ScrollFrame box="scroll">
           <table className="sheet">
             <thead>
               <tr>
@@ -201,7 +202,7 @@ export default function AttendanceReport({ payroll }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollFrame>
       )}
 
       <p className="muted small" style={{ marginTop: '0.6rem' }}>

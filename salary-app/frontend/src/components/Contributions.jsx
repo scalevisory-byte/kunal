@@ -1,5 +1,6 @@
 import { MODES, esiFor, isAuto, isNone, pfFor, ptFor } from '../../../shared/contributions.js';
 import { salaryStructure } from '../../../shared/structure.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 const inr = (n) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`;
 
@@ -40,7 +41,7 @@ export default function Contributions({ employee, onPatch }) {
     <div className="structure">
       <h3 style={{ margin: '0 0 0.5rem' }}>PF, ESI and professional tax</h3>
 
-      <div className="scroll">
+      <ScrollFrame box="scroll">
         <table className="sheet">
           <thead>
             <tr>
@@ -107,7 +108,7 @@ export default function Contributions({ employee, onPatch }) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollFrame>
 
       {extraDeduction !== 0 ? (
         <p className="banner">

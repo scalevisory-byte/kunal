@@ -14,16 +14,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * "there is more over here" about a table with nothing hidden, which is the
  * one thing a hint like this must never do.
  *
+ * `box` is the scrolling element's own class - .table-wrap on a sheet,
+ * .scroll on a report. Two kinds of frame existed already; what must not
+ * exist is two answers to "does this table carry on past the edge", because
+ * then a fade means "there is more" on one page and nothing on the next.
+ *
  * It measures rather than guesses, because the frame's width changes with the
  * window, with the sidebar folding away, and with a filter that drops a
  * column - and a breakpoint cannot know about any of those.
  */
-export default function ScrollFrame({ className = '', children, ...rest }) {
-  const box = useRef(null);
+export default function ScrollFrame({ className = '', box = 'table-wrap', children, ...rest }) {
+  const ref = useRef(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
   const measure = useCallback(() => {
-    const el = box.current;
+    const el = ref.current;
     if (!el) return;
     // 1px of slack: a fractional scrollWidth on a zoomed or scaled screen
     // otherwise leaves the fade on for ever at the far end.
@@ -33,7 +38,7 @@ export default function ScrollFrame({ className = '', children, ...rest }) {
   }, []);
 
   useEffect(() => {
-    const el = box.current;
+    const el = ref.current;
     if (!el) return undefined;
     measure();
     el.addEventListener('scroll', measure, { passive: true });
@@ -55,7 +60,7 @@ export default function ScrollFrame({ className = '', children, ...rest }) {
 
   return (
     <div className={`scroll-frame${edges.left ? ' more-left' : ''}${edges.right ? ' more-right' : ''}`}>
-      <div className={`table-wrap ${className}`.trim()} ref={box} {...rest}>
+      <div className={`${box} ${className}`.trim()} ref={ref} {...rest}>
         {children}
       </div>
     </div>

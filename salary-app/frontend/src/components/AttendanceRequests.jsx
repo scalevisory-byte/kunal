@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, STANDALONE } from '../api.js';
 import { describe as describeRequest, kindLabel } from '../../../shared/attendanceRequests.js';
 import { formatDistance } from '../../../shared/punchClock.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 const when = (v) => String(v || '').replace('T', ' ').slice(0, 16);
 
@@ -102,7 +103,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
 
       {view === 'requests' ? (
         requests.length ? (
-          <div className="scroll">
+          <ScrollFrame box="scroll">
             <table className="sheet">
               <thead>
                 <tr>
@@ -152,7 +153,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollFrame>
         ) : (
           <p className="empty">Nothing asked for. Requests arrive from the staff punch links.</p>
         )
@@ -160,7 +161,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
 
       {view === 'punches' ? (
         punches.length ? (
-          <div className="scroll">
+          <ScrollFrame box="scroll">
             <table className="sheet">
               <thead>
                 <tr>
@@ -188,7 +189,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollFrame>
         ) : (
           <p className="empty">Nobody has punched from a phone yet.</p>
         )

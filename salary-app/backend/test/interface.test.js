@@ -131,3 +131,24 @@ test('no visually-hidden span inside a scrolling sheet', () => {
   assert.ok(!/\.sr-only\s*\{/.test(css), 'an unused .sr-only is a trap for the next person');
   assert.match(src('components/Dashboard.jsx'), /aria-label="not decided"/);
 });
+
+test('a sheet is the width of its columns, not of its card', () => {
+  /*
+   * The slack used to go entirely into the LAST column so that the figure
+   * columns kept their own width - which is right until the last column is
+   * itself a figure. On the Time tab "Would cost" was 601px wide for a 79px
+   * number: a row read "11h 30m", then six hundred pixels of nothing, then
+   * "944". Measured slack on four sheets before the change: Time 522px,
+   * Attendance 823, Dashboard 603, Leave 321. After: none over 80 anywhere.
+   */
+  assert.ok(
+    !/table\.sheet th:last-child,\s*table\.sheet td:last-child\s*\{[^}]*width:\s*100%/.test(css),
+    'the last column is taking all the slack again'
+  );
+  // And the table no longer stretches to fill the card to get that slack.
+  const rule = css.slice(css.indexOf('table.sheet {'), css.indexOf('}', css.indexOf('table.sheet {')));
+  assert.ok(!/min-width:\s*100%/.test(rule), 'table.sheet is stretching to its card again');
+  // The last column keeps losing its right-hand rule - that is the sheet's
+  // outer edge, not a missing gridline.
+  assert.match(css, /table\.sheet td:last-child \{ border-right: none; \}/);
+});

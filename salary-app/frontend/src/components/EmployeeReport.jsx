@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { MONTH_COLUMNS } from '../../../shared/employeeReport.js';
 import { toCsv } from '../../../shared/statutory.js';
+import ScrollFrame from './ScrollFrame.jsx';
 
 const inr = (n) => (Number(n) ? `₹${Number(n).toLocaleString('en-IN')}` : '');
 const hours = (minutes) => (minutes ? `${Math.floor(minutes / 60).toLocaleString('en-IN')}h` : '');
@@ -99,7 +100,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
             </div>
 
             <h3>Leave</h3>
-            <div className="scroll">
+            <ScrollFrame box="scroll">
               <table className="sheet">
                 <thead>
                   <tr>
@@ -131,7 +132,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </ScrollFrame>
             <p className="muted small">
               Counted from the marks on the grid, not kept as a running balance, so it cannot
               drift away from the attendance. The quota is a year&apos;s worth
@@ -140,7 +141,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
             </p>
 
             <h3 style={{ marginTop: '1.2rem' }}>Month by month</h3>
-            <div className="scroll">
+            <ScrollFrame box="scroll">
               <table className="sheet">
                 <thead>
                   <tr>
@@ -210,7 +211,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </ScrollFrame>
 
             {totals.unmarked_days ? (
               <p className="banner">
