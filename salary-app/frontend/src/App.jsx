@@ -75,6 +75,14 @@ const BUILT_ON = (() => {
 })();
 /** Is this the blank copy? It keeps its own data, apart from the real file. */
 const IS_BLANK = typeof __BLANK__ !== 'undefined' && __BLANK__ === true;
+/*
+ * A test copy built WITH a seed is not empty, and the badge must not say it
+ * is. A demo file full of invented names is the one to hand somebody who
+ * wants to click around - but "starts empty" over eighteen people is the
+ * small kind of lie that costs trust in every other line on the screen.
+ */
+const IS_BLANK_SEEDED =
+  IS_BLANK && typeof __SEED__ !== 'undefined' && !!__SEED__ && (__SEED__.employees || []).length > 0;
 
 const COMPANY_KEY = 'salary-app-company';
 
@@ -463,9 +471,9 @@ function Shell() {
             {IS_BLANK ? (
               <span
                 className="built blank-badge"
-                title="A blank copy for testing. It keeps its own data, separate from the real file."
+                title="A test copy. It keeps its own data, separate from the real file - nothing typed here can reach the real payroll, and nothing there can be seen from here."
               >
-                TEST COPY — starts empty
+                TEST COPY{IS_BLANK_SEEDED ? ' — made-up people' : ' — starts empty'}
               </span>
             ) : null}
           </span>
