@@ -47,6 +47,7 @@ export default function Payslip({ period, row, onClose }) {
     ['ESI', calc.esi],
     ['PF', calc.pf],
     ['Loan / advance', calc.loan_deduction],
+    ['Penalty', calc.penalty_deduction],
     [
       `Late / early (${calc.late_chargeable_minutes} min past ${calc.late_concession_minutes} free)`,
       calc.late_salary,

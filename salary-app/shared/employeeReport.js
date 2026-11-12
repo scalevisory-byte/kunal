@@ -70,6 +70,7 @@ export function employeeReport({ employee, months = [] } = {}) {
         esi: money(row.esi),
         pt: money(row.pt),
         loan_deduction: money(row.loan_deduction),
+        penalty_deduction: money(row.penalty_deduction),
         net_salary: money(row.net_salary),
         // Settled on its own register, so it is shown beside the salary and
         // never added into it.
@@ -115,7 +116,7 @@ const SUMMED = [
   'casual_leave', 'sick_leave', 'paid_leave', 'unpaid_leave',
   'holiday', 'sunday_worked', 'days_lost', 'payable_days', 'unmarked_days',
   'gross_salary', 'ot_amount', 'addition', 'deduction',
-  'pf', 'esi', 'pt', 'loan_deduction', 'net_salary', 'sunday_salary',
+  'pf', 'esi', 'pt', 'loan_deduction', 'penalty_deduction', 'net_salary', 'sunday_salary',
   'worked_minutes',
 ];
 
@@ -176,6 +177,7 @@ export const MONTH_COLUMNS = [
   ['Salary', 'salary'], ['Gross', 'gross_salary'],
   ['OT / LT', 'ot_amount'], ['Addition', 'addition'], ['Deduction', 'deduction'],
   ['PF', 'pf'], ['ESI', 'esi'], ['PT', 'pt'], ['Loan', 'loan_deduction'],
+  ['Penalty', 'penalty_deduction'],
   ['Net', 'net_salary'], ['Sunday pay', 'sunday_salary'],
   ['Status', 'status'], ['Paid by', 'payment_mode'],
 ];

@@ -56,6 +56,7 @@ const CALC_COLUMNS = [
   { head: 'ESI', get: (r) => r.esi, money: MONEY0, total: 'esi' },
   { head: 'PF', get: (r) => r.pf, money: MONEY0, total: 'pf' },
   { head: 'Loan', get: (r) => r.loan_deduction || 0, money: MONEY0, total: 'loan_deduction' },
+  { head: 'Penalty', get: (r) => r.penalty_deduction || 0, money: MONEY0, total: 'penalty_deduction' },
   { head: 'Net Payable', get: (r) => r.net_salary, money: MONEY0, total: 'net_salary' },
   { head: 'Paid Leave', get: (r) => r.mark_counts?.PL || 0 },
   { head: 'Unpaid Leave', get: (r) => r.mark_counts?.UL || 0 },

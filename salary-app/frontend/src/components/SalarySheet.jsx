@@ -174,6 +174,9 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <th>ESI</th>
               <th>PF</th>
               <th title="This month's instalment against a loan or advance - set it on the Loans tab">Loan</th>
+              <th title="This month's instalment against a fine, a loss or damage - recorded in People - Penalties, and taken every month until it is paid off, like a loan">
+                Penalty
+              </th>
               <th title="Gross - PT - ESI - PF - loan. Sunday duty is paid apart, on the Sunday tab.">Net payable</th>
               <th>Mode</th>
               <th>Status</th>
@@ -235,6 +238,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
                 <td>{rupees(totals.esi)}</td>
                 <td>{rupees(totals.pf)}</td>
                 <td>{rupees(totals.loan_deduction)}</td>
+                <td>{rupees(totals.penalty_deduction)}</td>
                 <td className="grand">{rupees(totals.net_salary)}</td>
                 <td colSpan={3} />
               </tr>
@@ -434,6 +438,12 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip }) {
       <td><EditableCell row={row} field="esi" disabled={locked} onCommit={commit} /></td>
       <td><EditableCell row={row} field="pf" disabled={locked} onCommit={commit} /></td>
       <td className="num deduct">{calc.loan_deduction ? `-${rupees(calc.loan_deduction)}` : '-'}</td>
+      <td
+        className="num deduct"
+        title={(row.penalty_notes || []).filter(Boolean).join('; ') || undefined}
+      >
+        {calc.penalty_deduction ? `-${rupees(calc.penalty_deduction)}` : '-'}
+      </td>
       <td className="num grand">{rupees(calc.net_salary)}</td>
       <td>
         <select

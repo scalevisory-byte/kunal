@@ -93,6 +93,19 @@ export default function Penalties({ employees, period, onError, onReload }) {
     }
   };
 
+  /** On hold, or off it. The money is owed either way. */
+  const setHold = async (row) => {
+    try {
+      await api.patch(`/people/penalties/${row.id}`, {
+        status: row.status === 'held' ? 'open' : 'held',
+      });
+      await load();
+      onReload?.();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   const recover = async () => {
     if (!open || !period) return;
     setBusy(true);
@@ -166,8 +179,10 @@ export default function Penalties({ employees, period, onError, onReload }) {
       <div className="card">
         <h3>Deduct a penalty, a loss or damage</h3>
         <p className="muted small">
-          Recording one takes <strong>nothing</strong> out. It is recovered from a month you
-          name, below — and the reason you type here goes onto that payslip.
+          It comes off the salary <strong>by itself, every month</strong>, like a loan
+          instalment — spread over however many months you choose below, until it is paid
+          off. The reason you type here goes onto each of those payslips. Put it on hold any
+          time to stop the next one.
         </p>
         <div className="vf-grid">
           <label className="vf-field">
@@ -278,6 +293,7 @@ export default function Penalties({ employees, period, onError, onReload }) {
             <select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">Everything</option>
               <option value="open">Still coming out</option>
+              <option value="held">On hold</option>
               <option value="recovered">Recovered in full</option>
               <option value="waived">Waived</option>
             </select>
@@ -355,7 +371,22 @@ export default function Penalties({ employees, period, onError, onReload }) {
                       {r.status === 'waived' ? (
                         <span className="muted">waived</span>
                       ) : r.outstanding > 0 ? (
-                        rupees(r.outstanding)
+                        <>
+                          {rupees(r.outstanding)}
+                          {/* An automatic deduction that nobody can see is
+                              the one thing this must not be. Every row says
+                              whether it is running, and what comes off next. */}
+                          <div className="muted small">
+                            {r.status === 'held'
+                              ? 'on hold — nothing coming off'
+                              : `${rupees(
+                                  Math.min(
+                                    Math.round(r.amount / Math.max(1, r.months || 1)),
+                                    r.outstanding
+                                  )
+                                )} a month`}
+                          </div>
+                        </>
                       ) : (
                         <span className="muted">done</span>
                       )}
@@ -372,11 +403,20 @@ export default function Penalties({ employees, period, onError, onReload }) {
                       )}
                     </td>
                     <td>
-                      {r.status === 'open' && r.outstanding > 0 ? (
+                      {r.outstanding > 0 && r.status !== 'waived' ? (
                         <>
-                          <button className="ghost small" onClick={() => lookAt(r)}>
-                            take it from {period?.label || 'a month'}
+                          {/* Hold is a loan's On hold: the money is still
+                              owed, it is simply not being taken. Deliberately
+                              NOT the same button as waive, which writes it
+                              off for good and wants a reason. */}
+                          <button className="ghost small" onClick={() => setHold(r)}>
+                            {r.status === 'held' ? 'start taking it again' : 'hold'}
                           </button>{' '}
+                          {r.status === 'open' ? (
+                            <button className="ghost small" onClick={() => lookAt(r)}>
+                              take it now
+                            </button>
+                          ) : null}{' '}
                           <button className="ghost small" onClick={() => waive(r)}>waive</button>{' '}
                         </>
                       ) : null}

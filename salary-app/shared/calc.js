@@ -303,7 +303,17 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const pf = isNone(row.pf_mode) ? 0 : isAuto(row.pf_mode) ? workedOut.pf.employee : num(row.pf); // AY
   // This month's instalment against a loan or advance, posted on the ledger.
   const loan = num(row.loan_deduction);
-  const netSalary = round0(grossSalary - pt - esi - pf - loan); // AZ
+  /*
+   * This month's instalment against a fine, a loss or damage - posted on the
+   * penalty ledger exactly as a loan instalment is.
+   *
+   * It is its OWN column and deliberately not folded into `deduction`, which
+   * is the box somebody types a one-off into. Two things writing one number
+   * is how a hand-typed figure gets overwritten by a job, and how the same
+   * money gets taken twice when the job runs again.
+   */
+  const penalty = num(row.penalty_deduction);
+  const netSalary = round0(grossSalary - pt - esi - pf - loan - penalty); // AZ
 
   const sundaySalary = isSet(row.sunday_salary_override) // AM / BD
     ? num(row.sunday_salary_override)
@@ -368,6 +378,7 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     esi: round2(esi),
     pf: round2(pf),
     loan_deduction: round2(loan),
+    penalty_deduction: round2(penalty),
     net_salary: netSalary,
     // Clock hours typed on the Time tab, or read off the punch machine. They
     // do not price the month on their own - the day's short hours already went
@@ -399,6 +410,7 @@ export function totalRows(rows = []) {
     'esi',
     'pf',
     'loan_deduction',
+    'penalty_deduction',
     'net_salary',
     'sunday_salary',
     'final_payable',

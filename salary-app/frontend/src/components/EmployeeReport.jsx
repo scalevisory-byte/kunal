@@ -157,6 +157,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
                     <th className="num">ESI</th>
                     <th className="num">PT</th>
                     <th className="num">Loan</th>
+                    <th className="num">Penalty</th>
                     <th className="num">Net</th>
                     <th className="num">Sunday</th>
                     <th>Status</th>
@@ -181,6 +182,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
                       <td className="num">{inr(m.esi)}</td>
                       <td className="num">{inr(m.pt)}</td>
                       <td className="num">{inr(m.loan_deduction)}</td>
+                      <td className="num">{inr(m.penalty_deduction)}</td>
                       <td className="num"><strong>{inr(m.net_salary)}</strong></td>
                       <td className="num">{inr(m.sunday_salary)}</td>
                       <td className="small">{m.status}</td>
@@ -205,6 +207,7 @@ export default function EmployeeReport({ employeeId, onClose, onError }) {
                     <td className="num">{inr(totals.esi)}</td>
                     <td className="num">{inr(totals.pt)}</td>
                     <td className="num">{inr(totals.loan_deduction)}</td>
+                    <td className="num">{inr(totals.penalty_deduction)}</td>
                     <td className="num"><strong>{inr(totals.net_salary)}</strong></td>
                     <td className="num">{inr(totals.sunday_salary)}</td>
                     <td />

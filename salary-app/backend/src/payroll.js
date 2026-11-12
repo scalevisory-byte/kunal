@@ -4,6 +4,8 @@ import {
   getPeriod,
   listPayrollRows,
   loanDeductions,
+  penaltyDeductions,
+  postPenaltyRecoveries,
   postRepayments,
   syncPayrollRows,
 } from './db.js';
@@ -20,10 +22,14 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
     syncPayrollRows(periodId);
     // Loans take their instalment the first time the month is looked at.
     postRepayments(periodId);
+    // And so does a penalty, which is the whole of what "like a loan" means:
+    // recording one is no longer a note somebody has to act on every month.
+    postPenaltyRecoveries(periodId);
   }
 
   const attendance = attendanceByEmployee(periodId);
   const loans = loanDeductions(periodId);
+  const penalties = penaltyDeductions(periodId);
   const rows = listPayrollRows(periodId, { company_id }).map((row) => {
     const marks = attendance.get(row.employee_id) || {};
     return {
@@ -34,6 +40,10 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
       // The dates behind the Sunday count, for the register.
       sunday_days: sundayDaysFromAttendance(marks),
       loan_deduction: loans.get(row.employee_id) || 0,
+      penalty_deduction: penalties.get(row.employee_id)?.amount || 0,
+      // What it was for, so the payslip can say it without the free-text
+      // remark having to carry a sentence appended to it every month.
+      penalty_notes: penalties.get(row.employee_id)?.notes || [],
       // Which columns are hand-typed over the formula, so the UI can flag them.
       overrides: {
         absent_days: row.absent_days_override !== null,
@@ -42,7 +52,25 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
         ot_amount: row.ot_amount_override !== null,
         sunday_salary: row.sunday_salary_override !== null,
       },
-      ...calculateRow({ ...row, loan_deduction: loans.get(row.employee_id) || 0 }, period, marks),
+      /*
+       * The ledger figures are handed in EXPLICITLY, because this is called
+       * with the stored row rather than with the object being built above -
+       * so anything set up there and not repeated here never reaches the
+       * sum. The penalty was added above and silently did nothing until a
+       * test went looking for the money rather than for the ledger row.
+       */
+      ...calculateRow(
+        {
+          ...row,
+          loan_deduction: loans.get(row.employee_id) || 0,
+          penalty_deduction: penalties.get(row.employee_id)?.amount || 0,
+        },
+        period,
+        marks
+      ),
+      // calculateRow hands these back, and the spread above would otherwise
+      // drop the notes, which it knows nothing about.
+      penalty_notes: penalties.get(row.employee_id)?.notes || [],
     };
   });
 

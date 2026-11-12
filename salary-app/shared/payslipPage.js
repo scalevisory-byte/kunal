@@ -108,6 +108,12 @@ export function payslipHtml({ employee = {}, period = {}, row = {}, leave = null
   if (row.esi) line('ESI', 'your share', -row.esi);
   if (row.pt) line('Professional tax', 'charged on the gross above', -row.pt);
   if (row.loan_deduction) line('Loan instalment', '', -row.loan_deduction);
+  if (row.penalty_deduction) {
+    // "kyu kata he kis chiz ka kata he uska note" - the reason rides on the
+    // line itself, so a slip can never say only "Penalty".
+    const why = (row.penalty_notes || []).filter(Boolean).join('; ');
+    line('Penalty', why, -row.penalty_deduction);
+  }
   line('Net pay', '', row.net_salary, 'strong');
 
   const sum = lines

@@ -158,9 +158,15 @@ export function wageRegister(rows) {
     esi: round0(row.esi),
     pf: round0(row.pf),
     loan: round0(row.loan_deduction),
+    penalty: round0(row.penalty_deduction),
     other_deduction: round0(row.deduction),
     deductions:
-      row.pt + round0(row.esi) + round0(row.pf) + round0(row.loan_deduction) + round0(row.deduction),
+      row.pt +
+      round0(row.esi) +
+      round0(row.pf) +
+      round0(row.loan_deduction) +
+      round0(row.penalty_deduction) +
+      round0(row.deduction),
     net: round0(row.net_salary),
     // Sunday duty is paid on its own register rather than with the salary, but
     // it is still wages this month, and a muster roll that left it out would

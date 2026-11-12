@@ -385,6 +385,12 @@ if (assetColumns().includes('value')) {
 // One asset code, used once. Partial, because most rows carry no code yet.
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_code ON assets(code) WHERE code IS NOT NULL`);
 
+/* True only on the run that adds in_deduction - see the back-fill below. */
+const penaltyLedgerWasManual = !db
+  .prepare(`PRAGMA table_info(penalty_recoveries)`)
+  .all()
+  .some((c) => c.name === 'in_deduction');
+
 const addColumns = (table, columns) => {
   const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
   for (const [column, type] of columns) {
@@ -2125,6 +2131,24 @@ db.exec(`
  * created - migrating it at the top of the file ran before the table existed
  * and took every test with it.
  */
+/*
+ * Penalties used to be recovered by hand, one press per month, and that press
+ * wrote the money straight into payroll_rows.deduction - the same box a
+ * one-off is typed into. Now they post themselves every month like a loan
+ * instalment and are summed off this ledger instead.
+ *
+ * Which makes the rows taken under the old rule dangerous: their money is
+ * ALREADY inside payroll_rows.deduction, so summing them here too would
+ * charge a closed month twice. in_deduction marks them, and every row that
+ * existed when this shipped is marked - back-filled in the UPDATE below,
+ * which can only ever run once, because the column does not exist until then.
+ */
+addColumns('penalty_recoveries', [['in_deduction', 'INTEGER NOT NULL DEFAULT 0']]);
+if (penaltyLedgerWasManual) {
+  const marked = db.prepare(`UPDATE penalty_recoveries SET in_deduction = 1`).run().changes;
+  if (marked) log.info(`Migrated penalty_recoveries: ${marked} already inside the Deduct column.`);
+}
+
 addColumns('asset_handovers', [
   // When it is due back. Null is open-ended, which is how most allocations
   // are - and why an overdue alert must only count the ones that said a date.
@@ -2647,6 +2671,23 @@ export function updatePenalty(id, patch = {}, by) {
   if (before.recovered > 0 && 'amount' in patch && Number(patch.amount) < before.recovered) {
     throw new Error(`${before.recovered} has already come out — it cannot be worth less than that`);
   }
+  /*
+   * Hold and resume, which is a loan's On hold: a month somebody cannot pay,
+   * or a penalty being argued about. Only those two values are settable here
+   * - 'recovered' is reached by the ledger adding up and 'waived' is a
+   * decision with its own route and its own required reason, so neither may
+   * be reachable by a PATCH that could be sent by mistake.
+   */
+  if ('status' in patch) {
+    const want = String(patch.status || '').trim();
+    if (want !== 'open' && want !== 'held') {
+      throw new Error('a penalty can only be put on hold or taken off it here');
+    }
+    if (before.status === 'waived') throw new Error('this penalty was waived');
+    if (before.status === 'recovered') throw new Error('this has been recovered in full');
+    db.prepare(`UPDATE penalties SET status = ? WHERE id = ?`).run(want, id);
+  }
+
   const fields = [];
   const values = [];
   for (const key of ['kind', 'amount', 'what', 'note', 'happened_on', 'told_on', 'acknowledged_on', 'months']) {
@@ -2660,7 +2701,9 @@ export function updatePenalty(id, patch = {}, by) {
           : String(patch[key]).trim()
     );
   }
-  if (!fields.length) return before;
+  // A status-only change has already been written above, so this must read
+  // the row back rather than hand out the copy taken before it.
+  if (!fields.length) return getPenalty(id);
   db.prepare(`UPDATE penalties SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
   const after = getPenalty(id);
   audit({
@@ -2806,18 +2849,23 @@ export function recoverPenalty(id, { period_id, amount, by } = {}) {
   );
   if (!(take > 0)) throw new Error('nothing to take');
 
-  const deduction = (Number(row.deduction) || 0) + take;
-  // On the payslip, in the person's own words: what it was for.
-  const remark = [row.adjustment_note, `${penalty.kind_label}: ${penalty.note}`]
-    .filter(Boolean)
-    .join('; ');
-  db.prepare(`UPDATE payroll_rows SET deduction = ?, adjustment_note = ? WHERE id = ?`).run(
-    deduction,
-    remark,
-    row.id
-  );
+  /*
+   * The LEDGER, and nothing else.
+   *
+   * This used to add the money to payroll_rows.deduction and append the
+   * reason to the remark. It no longer does, because the recovery is now
+   * summed off this table into its own penalty_deduction column - writing
+   * both would take it twice. It also means a recovery can be undone by
+   * removing its row, instead of un-picking one number somebody may since
+   * have typed into by hand.
+   *
+   * Taking it early, by hand, is still allowed: it posts the row this month
+   * that the monthly run would otherwise post, which is why the run then
+   * skips the month (a row already exists for it).
+   */
   db.prepare(
-    `INSERT INTO penalty_recoveries (penalty_id, period_id, amount, by_whom) VALUES (?, ?, ?, ?)`
+    `INSERT INTO penalty_recoveries (penalty_id, period_id, amount, by_whom, in_deduction)
+     VALUES (?, ?, ?, ?, 0)`
   ).run(id, period.id, take, by || null);
 
   const after = getPenalty(id);

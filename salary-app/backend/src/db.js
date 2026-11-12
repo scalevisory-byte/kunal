@@ -1493,6 +1493,117 @@ export function loanDeductions(periodId) {
   return new Map(rows.map((r) => [r.employee_id, r.amount]));
 }
 
+/* ----------------------------------------------------------------- *
+ * Penalties, recovered the way a loan is.
+ *
+ * Asked for as "ek loan ki tarah penalty deduction ka option banavo - jo add
+ * kiya ho wo salary me se auto deduct ho jaye". Until now recording a penalty
+ * deducted NOTHING and somebody had to press a button, month by month, for
+ * every running penalty - which is why one gets recorded and then forgotten.
+ *
+ * These two live HERE rather than in people.js, where the penalty tables are
+ * created, for one reason: people.js imports buildPayroll from payroll.js, so
+ * payroll.js importing people.js would be a cycle. Loans sit in this file for
+ * the same reason, and the penalty now rides exactly their rails.
+ *
+ * The table is created by people.js, so a caller that has not loaded it yet
+ * (a test importing payroll.js on its own) would otherwise throw and take the
+ * whole salary sheet down. It reports no penalties instead, which is true.
+ * ----------------------------------------------------------------- */
+
+let penaltyTablesChecked = null;
+const havePenaltyTables = () => {
+  if (penaltyTablesChecked === null) {
+    penaltyTablesChecked = Boolean(
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM sqlite_master
+           WHERE type = 'table' AND name IN ('penalties', 'penalty_recoveries')`
+        )
+        .get().n === 2
+    );
+  }
+  return penaltyTablesChecked;
+};
+
+/**
+ * Makes sure every running penalty has a recovery row for this month, set to
+ * the instalment or whatever is left of it, whichever is smaller.
+ *
+ * Rows that already exist are left alone, so a month set to nothing by hand
+ * stays nothing - the same promise the loan ledger makes. A penalty that is
+ * waived or on hold posts nothing.
+ */
+export const postPenaltyRecoveries = (periodId) => {
+  if (!havePenaltyTables()) return 0;
+  return db.transaction((pid) => {
+    const penalties = db
+      .prepare(
+        `SELECT p.*,
+                (SELECT COALESCE(SUM(r.amount), 0) FROM penalty_recoveries r WHERE r.penalty_id = p.id) AS taken
+         FROM penalties p WHERE p.status = 'open'`
+      )
+      .all();
+    const existing = new Set(
+      db.prepare(`SELECT penalty_id FROM penalty_recoveries WHERE period_id = ?`).all(pid)
+        .map((r) => r.penalty_id)
+    );
+    const insert = db.prepare(
+      `INSERT INTO penalty_recoveries (penalty_id, period_id, amount, by_whom, in_deduction)
+       VALUES (?, ?, ?, 'automatic', 0)`
+    );
+    let added = 0;
+    for (const penalty of penalties) {
+      if (existing.has(penalty.id)) continue;
+      const outstanding = Number(penalty.amount) - (Number(penalty.taken) || 0);
+      if (outstanding <= 0) continue;
+      const months = Math.max(1, Number(penalty.months) || 1);
+      // The last month carries the rounding, so the instalments add up to the
+      // penalty exactly rather than leaving a rupee behind for ever.
+      const instalment = Math.round(Number(penalty.amount) / months);
+      const amount = Math.min(instalment > 0 ? instalment : outstanding, outstanding);
+      if (amount <= 0) continue;
+      insert.run(penalty.id, pid, amount);
+      added++;
+    }
+    // Anything now fully taken stops being open, so it posts nothing next month.
+    db.exec(`
+      UPDATE penalties SET status = 'recovered'
+      WHERE status = 'open'
+        AND amount <= (SELECT COALESCE(SUM(r.amount), 0) FROM penalty_recoveries r
+                       WHERE r.penalty_id = penalties.id)
+    `);
+    return added;
+  })(periodId);
+};
+
+/**
+ * employee_id -> what comes off their salary this month, and what for.
+ *
+ * `in_deduction = 1` marks the rows taken BEFORE this was automatic, whose
+ * money was written straight into payroll_rows.deduction by the old button.
+ * Counting those here would charge an already-closed month a second time, so
+ * they are left where they are and only the ledger's own rows are summed.
+ */
+export function penaltyDeductions(periodId) {
+  if (!havePenaltyTables()) return new Map();
+  const rows = db
+    .prepare(
+      `SELECT p.employee_id, r.amount, p.note, p.kind
+       FROM penalty_recoveries r JOIN penalties p ON p.id = r.penalty_id
+       WHERE r.period_id = ? AND COALESCE(r.in_deduction, 0) = 0`
+    )
+    .all(periodId);
+  const out = new Map();
+  for (const r of rows) {
+    const at = out.get(r.employee_id) || { amount: 0, notes: [] };
+    at.amount += Number(r.amount) || 0;
+    if (r.note) at.notes.push(r.note);
+    out.set(r.employee_id, at);
+  }
+  return out;
+}
+
 /** This month's instalments, loan by loan, for the ledger screen. */
 export function listRepayments(periodId) {
   return db

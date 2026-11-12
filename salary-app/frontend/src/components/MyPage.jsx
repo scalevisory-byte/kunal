@@ -209,6 +209,14 @@ function MyPay({ months, onError }) {
                 {row.pt ? (
                   <Line what="Professional tax" note="charged on the gross above" amount={-row.pt} />
                 ) : null}
+                {row.penalty_deduction ? (
+                  <Line
+                    what={
+                      (row.penalty_notes || []).filter(Boolean).join('; ') || 'Penalty'
+                    }
+                    amount={-row.penalty_deduction}
+                  />
+                ) : null}
                 {row.loan_deduction ? (
                   <Line what="Loan instalment" amount={-row.loan_deduction} />
                 ) : null}

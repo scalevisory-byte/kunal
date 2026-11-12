@@ -356,6 +356,76 @@ function postRepayments(periodId) {
   return added;
 }
 
+/*
+ * Penalties, recovered the way a loan is - the same rule the server runs.
+ *
+ * "ek loan ki tarah penalty deduction ka option banavo / jo add kiya ho wo
+ * salary me se auto deduct ho jaye". A month already posted is skipped, so
+ * opening the salary sheet twice cannot fine anybody twice, and a penalty on
+ * hold or waived posts nothing.
+ */
+function postPenaltyRecoveries(periodId) {
+  const db = load();
+  let added = 0;
+  for (const pen of db.penalties) {
+    if (pen.status !== 'open') continue;
+    if (db.penalty_recoveries.some((r) => r.penalty_id === pen.id && r.period_id === periodId)) continue;
+    const taken = db.penalty_recoveries
+      .filter((r) => r.penalty_id === pen.id)
+      .reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    const outstanding = (Number(pen.amount) || 0) - taken;
+    if (outstanding <= 0) continue;
+    const months = Math.max(1, Number(pen.months) || 1);
+    // The last month carries the rounding, so the instalments come to the
+    // penalty exactly rather than leaving a rupee behind for ever.
+    const instalment = Math.round((Number(pen.amount) || 0) / months);
+    const amount = Math.min(instalment > 0 ? instalment : outstanding, outstanding);
+    if (amount <= 0) continue;
+    db.penalty_recoveries.push({
+      id: nextId(),
+      penalty_id: pen.id,
+      period_id: periodId,
+      amount,
+      by_whom: 'automatic',
+      in_deduction: 0,
+      posted_at: stampNow(),
+    });
+    added++;
+  }
+  // Anything now fully taken stops being open, so it posts nothing next month.
+  for (const pen of db.penalties) {
+    if (pen.status !== 'open') continue;
+    const taken = db.penalty_recoveries
+      .filter((r) => r.penalty_id === pen.id)
+      .reduce((t, r) => t + (Number(r.amount) || 0), 0);
+    if (taken >= (Number(pen.amount) || 0)) pen.status = 'recovered';
+  }
+  return added;
+}
+
+/*
+ * employee_id -> what comes off this month, and what for.
+ *
+ * in_deduction = 1 marks rows taken BEFORE this was automatic, whose money
+ * was written straight into the row's own deduction column by the old
+ * button. Counting those here would charge a closed month twice.
+ */
+function penaltyDeductions(periodId) {
+  const db = load();
+  const map = new Map();
+  for (const r of db.penalty_recoveries) {
+    if (r.period_id !== periodId) continue;
+    if (Number(r.in_deduction) === 1) continue;
+    const pen = db.penalties.find((x) => x.id === r.penalty_id);
+    if (!pen) continue;
+    const at = map.get(pen.employee_id) || { amount: 0, notes: [] };
+    at.amount += Number(r.amount) || 0;
+    if (pen.note) at.notes.push(pen.note);
+    map.set(pen.employee_id, at);
+  }
+  return map;
+}
+
 function loanDeductions(periodId) {
   const db = load();
   const map = new Map();
@@ -374,9 +444,11 @@ function buildPayroll(periodId, { sync = true } = {}) {
   if (sync && !period.locked) {
     syncRows(periodId);
     postRepayments(periodId);
+    postPenaltyRecoveries(periodId);
     save();
   }
   const loans = loanDeductions(periodId);
+  const penalties = penaltyDeductions(periodId);
 
   const rows = load()
     .payroll_rows.filter((r) => r.period_id === periodId)
@@ -426,6 +498,8 @@ function buildPayroll(periodId, { sync = true } = {}) {
         mark_counts: countMarks(marks),
         sunday_days: sundayDaysFromAttendance(marks),
         loan_deduction: loans.get(row.employee_id) || 0,
+        penalty_deduction: penalties.get(row.employee_id)?.amount || 0,
+        penalty_notes: penalties.get(row.employee_id)?.notes || [],
         overrides: {
           absent_days: row.absent_days_override !== null,
           sundays: row.sundays_override !== null,
@@ -434,7 +508,12 @@ function buildPayroll(periodId, { sync = true } = {}) {
           sunday_salary: row.sunday_salary_override !== null,
         },
         ...calculateRow(
-          { ...row, ...fromMaster, loan_deduction: loans.get(row.employee_id) || 0 },
+          {
+            ...row,
+            ...fromMaster,
+            loan_deduction: loans.get(row.employee_id) || 0,
+            penalty_deduction: penalties.get(row.employee_id)?.amount || 0,
+          },
           period,
           marks,
         ),
@@ -2853,16 +2932,20 @@ export async function handle(method, path, body) {
         const take = Math.min(wanted > 0 ? wanted : full.instalment, full.outstanding);
         if (!(take > 0)) throw new HttpError(400, 'nothing to take');
 
-        row.deduction = (Number(row.deduction) || 0) + take;
-        row.adjustment_note = [row.adjustment_note, `${full.kind_label}: ${pen.note}`]
-          .filter(Boolean)
-          .join('; ');
+        /*
+         * The LEDGER, and nothing else. This used to add the money to the
+         * row's own deduction column - the box a one-off is typed into - and
+         * append the reason to its remark. The recovery is now summed off
+         * this table into its own penalty_deduction column, so writing both
+         * would take it twice.
+         */
         db.penalty_recoveries.push({
           id: nextId(),
           penalty_id: pen.id,
           period_id: period.id,
           amount: take,
           by_whom: by || null,
+          in_deduction: 0,
           posted_at: stampNow(),
         });
         if (outstandingOf(dress(pen)) <= 0) pen.status = 'recovered';
@@ -2885,6 +2968,50 @@ export async function handle(method, path, body) {
           label: `${penaltyKindLabel(pen.kind)} — ${nameOf(pen.employee_id)}`,
           from_value: 'open', to_value: 'waived', note: pen.waived_note,
         });
+        save();
+        return dress(pen);
+      }
+
+      if (parts.length === 3 && method === 'PATCH') {
+        /*
+         * Hold and resume, which is a loan's On hold: a month somebody cannot
+         * pay, or a penalty being argued about. Only those two values are
+         * settable here - 'recovered' is reached by the ledger adding up and
+         * 'waived' is a decision with its own route and its own required
+         * reason, so neither may be reachable by a PATCH sent by mistake.
+         *
+         * Held is NOT waived. The money is still owed and still counted as
+         * outstanding; it is simply not being taken this month.
+         */
+        if ('status' in (body || {})) {
+          const want = String(body.status || '').trim();
+          if (want !== 'open' && want !== 'held') {
+            throw new HttpError(400, 'a penalty can only be put on hold or taken off it here');
+          }
+          if (pen.status === 'waived') throw new HttpError(400, 'this penalty was waived');
+          if (pen.status === 'recovered') throw new HttpError(400, 'this has been recovered in full');
+          auditLine({
+            who: by, action: 'changed', entity: 'penalties', entity_id: pen.id,
+            label: `${penaltyKindLabel(pen.kind)} — ${nameOf(pen.employee_id)}`,
+            from_value: pen.status, to_value: want,
+          });
+          pen.status = want;
+        }
+        for (const key of ['kind', 'amount', 'what', 'note', 'happened_on', 'told_on', 'acknowledged_on', 'months']) {
+          if (!(key in (body || {}))) continue;
+          if (key === 'amount' && dress(pen).recovered > Number(body[key])) {
+            throw new HttpError(
+              400,
+              `${dress(pen).recovered} has already come out — it cannot be worth less than that`
+            );
+          }
+          pen[key] =
+            key === 'amount' || key === 'months'
+              ? Number(body[key]) || (key === 'months' ? 1 : 0)
+              : body[key] === '' || body[key] === null
+                ? null
+                : String(body[key]).trim();
+        }
         save();
         return dress(pen);
       }
@@ -4407,6 +4534,7 @@ export async function file(path) {
     ['Late/Early Charged', 'late_salary'],
     ['Gross Salary', 'gross_salary'], ['PT', 'pt'], ['ESI', 'esi'], ['PF', 'pf'],
     ['Loan', 'loan_deduction'],
+    ['Penalty', 'penalty_deduction'],
     ['Net Payable', 'net_salary'],
     ['Mode', 'payment_mode'], ['Status', 'status'],
   ];

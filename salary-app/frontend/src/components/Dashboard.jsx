@@ -149,7 +149,13 @@ export default function Dashboard({
         .filter((r) => r.status !== 'paid' && r.status !== 'hold')
         .reduce((s, r) => s + r.final_payable, 0),
       pendingCount: rows.filter((r) => r.status !== 'paid' && r.status !== 'hold').length,
-      deductions: totals.pt + totals.esi + totals.pf + totals.loan_deduction + totals.deduction,
+      deductions:
+        totals.pt +
+        totals.esi +
+        totals.pf +
+        totals.loan_deduction +
+        totals.penalty_deduction +
+        totals.deduction,
     };
   }, [rows, totals]);
 

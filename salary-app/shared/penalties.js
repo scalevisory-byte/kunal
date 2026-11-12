@@ -54,7 +54,21 @@ export const kindLabel = (key) =>
 
 const kindOf = (key) => PENALTY_KINDS.find((k) => k.key === key) || null;
 
-export const STATUSES = ['open', 'recovered', 'waived'];
+/*
+ * open     - posting an instalment every month, like a running loan
+ * held     - posts nothing more; what has come out stays out
+ * recovered- nothing left to take, reached by itself once it is paid off
+ * waived   - written off, deliberately, by somebody
+ *
+ * 'held' is what a loan's On hold is: a month somebody cannot pay, or a
+ * penalty being argued about. It is NOT the same as waived - the money is
+ * still owed, it is simply not being taken right now, and those two must not
+ * be one button.
+ */
+export const STATUSES = ['open', 'held', 'recovered', 'waived'];
+
+/** Is this one still taking money off a salary each month? */
+export const isRunning = (penalty) => penalty?.status === 'open';
 
 const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
@@ -187,8 +201,16 @@ export function penaltyReport(penalties = [], { from, to } = {}) {
       amount: sum((r) => r.amount),
       recovered: sum((r) => r.recovered),
       // Waived money is not outstanding - it is money nobody is collecting.
+      // Held money is still owed - it is simply not being taken this month -
+      // so it belongs in outstanding beside the running ones. Only waived
+      // money leaves, because that is the one nobody is collecting.
       outstanding: money(
-        rows.filter((r) => r.status === 'open').reduce((t, r) => t + outstandingOf(r), 0)
+        rows
+          .filter((r) => r.status === 'open' || r.status === 'held')
+          .reduce((t, r) => t + outstandingOf(r), 0)
+      ),
+      held: money(
+        rows.filter((r) => r.status === 'held').reduce((t, r) => t + outstandingOf(r), 0)
       ),
       waived: sum((r) => (r.status === 'waived' ? outstandingOf(r) : 0)),
     },

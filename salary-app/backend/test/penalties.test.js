@@ -2,10 +2,20 @@
  * Fines, losses and damage recovered from salary.
  *
  * Dinesh asked for a penalty that comes out of the salary, a report of it, and
- * a note saying what it was for. Two rules hold the whole thing up:
+ * a note saying what it was for — and then, pointing at the Loans page:
+ * "ek loan ki tarah penalty deduction ka option banavo / jo add kiya ho wo
+ * salary me se auto deduct ho jaye". So it now posts its instalment every
+ * month by itself, exactly as a running loan does.
  *
- *   1. recording a penalty deducts NOTHING — recovery names the month;
- *   2. the Payment of Wages Act's limits are REPORTED, never enforced silently.
+ * Three rules hold the whole thing up:
+ *
+ *   1. the money is summed off the LEDGER into its own penalty_deduction
+ *      column, and never written into payroll_rows.deduction — that is the
+ *      box a one-off is typed into, and two writers on one number is how a
+ *      typed figure gets overwritten and how the same money is taken twice;
+ *   2. a month already posted is never posted again, so looking at the salary
+ *      sheet twice cannot fine anybody twice;
+ *   3. the Payment of Wages Act's limits are REPORTED, never enforced silently.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -76,7 +86,7 @@ test('damage and loss have to name what it was', async () => {
 
 let penaltyId;
 
-test('recording one deducts nothing at all', async () => {
+test('recording one takes nothing on its own — the MONTH takes it', async () => {
   const before = await rowOf(amit.id);
 
   const made = await api('POST', '/api/people/penalties', {
@@ -94,10 +104,30 @@ test('recording one deducts nothing at all', async () => {
   assert.equal(made.body.recovered, 0);
   // Three months, so an instalment is a third.
   assert.equal(made.body.instalment, 2000);
+  // The POST itself moves no money - it writes a penalty, not a deduction.
+  assert.equal(made.body.recovered, 0);
 
+  // ...and then the month is opened, which is when a loan takes its
+  // instalment too. This is the whole of what was asked for: nobody presses
+  // anything, and a penalty recorded in November comes off November.
   const after = await rowOf(amit.id);
-  assert.equal(after.net_salary, before.net_salary, 'nobody has been docked yet');
-  assert.equal(after.deduction, before.deduction);
+  assert.equal(after.penalty_deduction, 2000, 'the first instalment posted by itself');
+  assert.equal(before.net_salary - after.net_salary, 2000);
+
+  // RULE 1. The hand-typed Deduct box is not where this money lives.
+  assert.equal(after.deduction, before.deduction, 'the typed Deduct column is untouched');
+});
+
+test('looking at the month again does not fine anybody twice', async () => {
+  const once = await rowOf(amit.id);
+  const twice = await rowOf(amit.id);
+  const thrice = await rowOf(amit.id);
+  assert.equal(once.penalty_deduction, 2000);
+  assert.equal(twice.penalty_deduction, 2000);
+  assert.equal(thrice.penalty_deduction, 2000);
+  assert.equal(twice.net_salary, once.net_salary);
+  const { body } = await api('GET', `/api/people/penalties/${penaltyId}`);
+  assert.equal(body.penalty.recovered, 2000, 'one instalment, however often the sheet is read');
 });
 
 test('the preview says what it would do before it does it', async () => {
@@ -110,25 +140,15 @@ test('the preview says what it would do before it does it', async () => {
   assert.deepEqual(look.body.warnings, []);
 });
 
-test('recovering takes it from the named month, with the reason on the payslip', async () => {
-  const before = await rowOf(amit.id);
-  const done = await api('POST', `/api/people/penalties/${penaltyId}/recover`, {
-    period_id: periodId,
-    by: 'Dinesh',
-  });
-  assert.equal(done.status, 200);
-  assert.equal(done.body.recovered, 2000);
-  assert.equal(done.body.outstanding, 4000);
-  assert.equal(done.body.status, 'open', 'two instalments still to come');
-
-  const after = await rowOf(amit.id);
-  assert.equal(after.deduction, (before.deduction || 0) + 2000);
-  assert.equal(before.net_salary - after.net_salary, 2000);
-  // "kyu kata he kis chiz ka kata he" — on the row, so on the payslip.
-  assert.match(after.adjustment_note, /Damage to company property: Dropped in the cab/);
+test('"kyu kata he kis chiz ka kata he" reaches the payslip', async () => {
+  const row = await rowOf(amit.id);
+  // The reason travels with the money rather than being appended to the
+  // row's free-text remark - which, posting every month, would grow a
+  // sentence longer each time.
+  assert.deepEqual(row.penalty_notes, ['Dropped in the cab, screen replaced']);
 });
 
-test('it cannot be taken from the same month twice', async () => {
+test('November is already taken, so taking it by hand is refused', async () => {
   const again = await api('POST', `/api/people/penalties/${penaltyId}/recover`, {
     period_id: periodId,
   });
@@ -136,13 +156,48 @@ test('it cannot be taken from the same month twice', async () => {
   assert.match(again.body.error, /already taken from/i);
 });
 
-test('the register adds up, and says what is still to come', async () => {
+test('the next month takes the next instalment, and the last one finishes it', async () => {
+  const months = [];
+  for (const month of [12, 1]) {
+    const year = month === 12 ? 2026 : 2027;
+    const made = await api('POST', '/api/periods', { year, month });
+    months.push(made.body.id);
+    const { body } = await api('GET', `/api/periods/${made.body.id}/payroll`);
+    const row = body.rows.find((r) => r.employee_id === amit.id);
+    assert.equal(row.penalty_deduction, 2000, `${year}-${month} took its instalment`);
+    assert.equal(row.deduction, 0, 'still not in the typed Deduct box');
+  }
+
+  const { body } = await api('GET', `/api/people/penalties/${penaltyId}`);
+  assert.equal(body.penalty.recovered, 6000);
+  assert.equal(body.penalty.outstanding, 0);
+  assert.equal(body.penalty.status, 'recovered', 'it closed itself — nobody pressed anything');
+
+  // And a fourth month takes nothing, because there is nothing left.
+  const extra = await api('POST', '/api/periods', { year: 2027, month: 2 });
+  const later = await api('GET', `/api/periods/${extra.body.id}/payroll`);
+  const row = later.body.rows.find((r) => r.employee_id === amit.id);
+  assert.equal(row.penalty_deduction, 0, 'a paid-off penalty keeps taking nothing');
+});
+
+test('the register adds up, and the ledger is what it adds', async () => {
   const { body } = await api('GET', '/api/people/penalties');
   assert.equal(body.report.totals.count, 1);
   assert.equal(body.report.totals.amount, 6000);
-  assert.equal(body.report.totals.recovered, 2000);
-  assert.equal(body.report.totals.outstanding, 4000);
+  // Three months have been opened above and each took its own instalment,
+  // so the whole 6,000 has come out and nothing is left to chase. Every
+  // rupee of that figure is a penalty_recoveries row - the register reads
+  // the ledger rather than keeping a second count of its own.
+  assert.equal(body.report.totals.recovered, 6000);
+  assert.equal(body.report.totals.outstanding, 0);
   assert.equal(body.report.by_kind[0].label, 'Damage to company property');
+
+  const paid = await api('GET', `/api/people/penalties/${penaltyId}`);
+  assert.equal(paid.body.recoveries.length, 3, 'one row per month it came out of');
+  assert.equal(
+    paid.body.recoveries.reduce((t, r) => t + r.amount, 0),
+    body.report.totals.recovered
+  );
 });
 
 test('the law’s limits are reported, not enforced', async () => {
@@ -200,4 +255,36 @@ test('a penalty money has come out of cannot be deleted', async () => {
   const gone = await api('DELETE', `/api/people/penalties/${penaltyId}`);
   assert.equal(gone.status, 400);
   assert.match(gone.body.error, /waive it instead/i);
+});
+
+test('a penalty on hold takes nothing, and is still owed', async () => {
+  const made = await api('POST', '/api/people/penalties', {
+    employee_id: amit.id,
+    kind: 'fine',
+    amount: 1200,
+    note: 'Phone on the shop floor',
+    months: 2,
+  });
+  const held = await api('PATCH', `/api/people/penalties/${made.body.id}`, { status: 'held' });
+  assert.equal(held.status, 200);
+  assert.equal(held.body.status, 'held');
+
+  const period = await api('POST', '/api/periods', { year: 2027, month: 3 });
+  const { body } = await api('GET', `/api/periods/${period.body.id}/payroll`);
+  const row = body.rows.find((r) => r.employee_id === amit.id);
+  assert.equal(row.penalty_deduction, 0, 'on hold means nothing comes off');
+
+  // Held is NOT waived: the money is still owed, it is simply not being
+  // taken. Those two must never be one button.
+  const list = await api('GET', '/api/people/penalties');
+  const mine = list.body.report.rows.find((r) => r.id === made.body.id);
+  assert.equal(mine.status, 'held');
+  assert.ok(list.body.report.totals.outstanding >= 1200, 'still counted as owed');
+
+  // Taking it off hold puts it back on the next month it is asked for.
+  await api('PATCH', `/api/people/penalties/${made.body.id}`, { status: 'open' });
+  const again = await api('POST', '/api/periods', { year: 2027, month: 4 });
+  const back = await api('GET', `/api/periods/${again.body.id}/payroll`);
+  const row2 = back.body.rows.find((r) => r.employee_id === amit.id);
+  assert.equal(row2.penalty_deduction, 600, 'running again, half of 1200 over two months');
 });
