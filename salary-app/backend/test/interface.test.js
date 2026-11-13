@@ -275,3 +275,38 @@ test('a long toolbar wraps in groups, never one orphan', () => {
     assert.ok(group.slice(0, 1400).includes(text), `${text} is outside the group again`);
   }
 });
+
+test('a service cost can be recorded on the day the register is new', () => {
+  /*
+   * Fifth time, and the worst shape of it: "log a service" existed ONLY as a
+   * button on a table row, and the Maintenance tab opens on "Due or overdue"
+   * - a filter that is empty until something already carries a next-service
+   * date. So on day one the screen read "Nothing is due" with no way anywhere
+   * on it to record the first repair, and the question was "maintenance cost
+   * kaise update hoga".
+   *
+   * Driven after: toolbar button -> pick the asset -> 3,500 -> the headline
+   * moves to SPENT KEEPING THEM 3,500, IN ALL 45,500, 8.3% to keep.
+   */
+  const m = src('components/people/Maintenance.jsx');
+  assert.match(m, /Record a service/, 'there is no way in that does not need a row');
+  // It is on the toolbar, not inside the table.
+  // ...from the toolbar to the table AFTER it: there is a second table in the
+  // costing card above, and slicing to the first one gave an empty string that
+  // every assertion then "passed" against until one of them did not.
+  const at = m.indexOf('<div className="toolbar');
+  const toolbar = m.slice(at, m.indexOf('<table', at));
+  assert.match(toolbar, /setLogging\('pick'\)/);
+  // ...and only when there is something to service.
+  assert.match(toolbar, /disabled=\{!assets\.length\}/);
+
+  // The form asks which asset when it was not opened from one, and refuses to
+  // save until that is answered - a service against nothing is not a record.
+  assert.match(m, /function ServiceForm\(\{ asset, assets = \[\]/);
+  assert.match(m, /\{!asset && \([\s\S]{0,200}Which one/);
+  assert.match(m, /disabled=\{busy \|\| !on\}/);
+
+  // The empty "due" state no longer dead-ends: it says why nothing is due and
+  // offers the whole list.
+  assert.match(m, /Show all \{assets\.length\}/);
+});

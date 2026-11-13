@@ -263,27 +263,62 @@ export default function Maintenance({ companies, onError }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button
-          className="ghost"
-          onClick={() => download('/people/maintenance/services.csv', 'asset-services.csv').catch((e) => setSaid(e.message))}
-        >
-          Services (CSV)
+        {/*
+          * The way in, independent of which filter you are on.
+          *
+          * "log a service" existed only as a button ON A ROW, and this tab
+          * opens on "Due or overdue" - which is empty until something already
+          * HAS a next-service date. So on day one the screen read "Nothing is
+          * due" with no way anywhere on it to record the first repair, and
+          * the question became "maintenance cost kaise update hoga".
+          *
+          * Opened from here the form asks which asset first; opened from a
+          * row it already knows. One form either way.
+          */}
+        <button onClick={() => setLogging('pick')} disabled={!assets.length}>
+          Record a service
         </button>
-        <button
-          className="ghost"
-          onClick={() =>
-            download('/people/maintenance/ownership.csv', 'asset-cost-of-ownership.csv').catch((e) => setSaid(e.message))
-          }
-        >
-          Cost of ownership (CSV)
-        </button>
+        <span className="push-right">
+          <button
+            className="ghost"
+            onClick={() => download('/people/maintenance/services.csv', 'asset-services.csv').catch((e) => setSaid(e.message))}
+          >
+            Services (CSV)
+          </button>
+          <button
+            className="ghost"
+            onClick={() =>
+              download('/people/maintenance/ownership.csv', 'asset-cost-of-ownership.csv').catch((e) => setSaid(e.message))
+            }
+          >
+            Cost of ownership (CSV)
+          </button>
+        </span>
       </div>
 
       {said && <p className="error">{said}</p>}
 
       {!shown.length ? (
         <p className="muted small">
-          {view === 'due' ? 'Nothing is due. Nothing is overdue either.' : 'Nothing here.'}
+          {view === 'due' ? (
+            <>
+              Nothing is due. Nothing is overdue either
+              {assets.length ? (
+                <>
+                  {' '}— a date is only ever what somebody put there, so an asset nobody has
+                  scheduled is not overdue.{' '}
+                  <button className="link" onClick={() => setView('all')}>
+                    Show all {assets.length}
+                  </button>
+                  .
+                </>
+              ) : (
+                '. Nothing is on the asset register yet.'
+              )}
+            </>
+          ) : (
+            'Nothing here.'
+          )}
         </p>
       ) : (
         <table className="sheet">
@@ -341,7 +376,8 @@ export default function Maintenance({ companies, onError }) {
 
       {logging && (
         <ServiceForm
-          asset={logging}
+          asset={logging === 'pick' ? null : logging}
+          assets={assets}
           onClose={() => setLogging(null)}
           onDone={async () => {
             setLogging(null);
@@ -360,8 +396,15 @@ export default function Maintenance({ companies, onError }) {
  * carries the row it resembles, which is shown, and the same button then says
  * "add it anyway" — asking, not refusing.
  */
-function ServiceForm({ asset, onClose, onDone }) {
-  const own = asset.ownership;
+function ServiceForm({ asset, assets = [], onClose, onDone }) {
+  /*
+   * Opened from a row the asset is settled; opened from the toolbar it is the
+   * first thing asked. Held in state rather than taken from the prop so the
+   * rest of the form is one piece of code either way.
+   */
+  const [chosenId, setChosenId] = useState(asset ? String(asset.id) : '');
+  const on = asset || assets.find((a) => String(a.id) === chosenId) || null;
+  const own = on?.ownership || {};
   const [form, setForm] = useState({
     serviced_on: today(),
     kind: 'Service',
@@ -369,7 +412,7 @@ function ServiceForm({ asset, onClose, onDone }) {
     vendor: '',
     invoice_no: '',
     cost: '',
-    under_warranty: own.under_warranty || own.under_amc,
+    under_warranty: false,
     next_service_on: '',
     note: '',
   });
@@ -377,11 +420,22 @@ function ServiceForm({ asset, onClose, onDone }) {
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
 
+  /*
+   * Cover follows the asset, so picking one ticks it - but only as a default:
+   * a repair on a machine still under warranty is sometimes paid for anyway.
+   */
+  useEffect(() => {
+    if (!on) return;
+    setForm((f) => ({ ...f, under_warranty: Boolean(own.under_warranty || own.under_amc) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on?.id]);
+
   const save = async (force) => {
+    if (!on) return;
     setBusy(true);
     setProblem('');
     try {
-      await api.post(`/people/assets/${asset.id}/services`, { ...form, force });
+      await api.post(`/people/assets/${on.id}/services`, { ...form, force });
       onDone();
     } catch (err) {
       // 409 is the duplicate check. The server sent back the row it resembles.
@@ -409,10 +463,14 @@ function ServiceForm({ asset, onClose, onDone }) {
         <div className="late-head">
           <div>
             <h3>
-              {asset.code} — {asset.kind} {asset.label}
+              {on ? `${on.code || 'No code'} — ${on.kind} ${on.label}` : 'Record a service'}
             </h3>
             <p className="muted small">
-              {own.times ? `${own.times} services so far, ${rupees(own.service)}.` : 'Nothing done to it yet.'}
+              {!on
+                ? 'Pick what was serviced.'
+                : own.times
+                  ? `${own.times} services so far, ${rupees(own.service)}.`
+                  : 'Nothing done to it yet.'}
               {own.under_amc
                 ? ` Under AMC until ${own.amc_until}.`
                 : own.under_warranty
@@ -426,6 +484,19 @@ function ServiceForm({ asset, onClose, onDone }) {
         </div>
 
         <div className="form-grid">
+          {!asset && (
+            <label>
+              Which one
+              <select value={chosenId} onChange={(e) => setChosenId(e.target.value)}>
+                <option value="">Pick an asset</option>
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {[a.code, `${a.kind} — ${a.label}`].filter(Boolean).join('  ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label>
             When
             <input type="date" value={form.serviced_on} onChange={(e) => set({ serviced_on: e.target.value })} />
@@ -502,7 +573,7 @@ function ServiceForm({ asset, onClose, onDone }) {
           </div>
         )}
 
-        <button onClick={() => save(Boolean(twin))} disabled={busy}>
+        <button onClick={() => save(Boolean(twin))} disabled={busy || !on}>
           {busy ? 'Saving…' : twin ? 'Add it anyway' : 'Record it'}
         </button>
       </div>
