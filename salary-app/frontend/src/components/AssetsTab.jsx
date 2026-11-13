@@ -34,8 +34,10 @@ export default function AssetsTab({
         * genuinely needs a server and says so where it is - a PHOTOGRAPH is a
         * file, and a file cannot live inside an HTML page.
         */}
+      {/* no-print: it printed across the top of a handover slip somebody was
+          about to sign. */}
       {STANDALONE && (
-        <p className="muted small">
+        <p className="muted small no-print">
           Offline: the register, codes and labels, handovers, the stock take and the service
           history all work in this file — including the invoice <strong>number</strong>, the
           date, the vendor and the purchase voucher. What needs the server version is{' '}

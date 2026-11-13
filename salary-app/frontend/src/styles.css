@@ -1423,6 +1423,13 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 @media print {
   .no-print, nav, .toolbar, .sub-tabs { display: none !important; }
   .slip { border: none; max-width: none; }
+  /*
+   * The handover slip's table sits in a scroll frame so a phone does not move
+   * sideways - but a frame that scrolls on screen CLIPS on paper, and a slip
+   * somebody signs must show every item. On paper it is not a frame.
+   */
+  .table-wrap { overflow: visible !important; max-height: none !important; border: none; }
+  .scroll-frame::before, .scroll-frame::after { display: none !important; }
 }
 
 
@@ -2333,5 +2340,13 @@ table.my-sum tr.my-strong td { font-weight: 600; border-top: 1px solid var(--lin
  * stage), which table.sheet's one-line rows would clip - so those rows are
  * allowed their own height here, the same exception the roll call takes.
  */
+/*
+ * A cell holding a LIST rather than a figure. "Who holds what" joins
+ * everything one person has into one line, and table.sheet's nowrap then
+ * made it 289px wider than a phone. A list is the one thing in a sheet
+ * that is meant to run on, so it wraps instead of scrolling.
+ */
+table.sheet td.wrap { white-space: normal; height: auto; min-width: 12rem; }
+
 table.sheet.hiring-table td { white-space: normal; height: auto; }
 table.sheet.hiring-table td.name-cell { min-width: 11rem; }

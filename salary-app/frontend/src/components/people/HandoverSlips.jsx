@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
+import ScrollFrame from '../ScrollFrame.jsx';
 import { rupees } from '../../format.js';
 
 /**
@@ -71,7 +72,8 @@ export default function HandoverSlips({ onError }) {
           {!slip.items.length ? (
             <p className="muted small">They are not holding anything.</p>
           ) : (
-            <table className="sheet">
+            <ScrollFrame>
+              <table className="sheet">
               <thead>
                 <tr>
                   <th>Code</th>
@@ -93,6 +95,7 @@ export default function HandoverSlips({ onError }) {
                 ))}
               </tbody>
             </table>
+              </ScrollFrame>
           )}
 
           <p className="undertaking">{slip.undertaking}</p>
@@ -116,7 +119,8 @@ export default function HandoverSlips({ onError }) {
       {!people.length ? (
         <p className="muted small">Nothing is out with anybody.</p>
       ) : (
-        <table className="sheet">
+        <ScrollFrame>
+              <table className="sheet">
           <thead>
             <tr>
               <th>Who</th>
@@ -132,7 +136,7 @@ export default function HandoverSlips({ onError }) {
                 <td className="sticky-name">{person.name}</td>
                 <td className="num">{person.items.length}</td>
                 <td className="num">{rupees(person.worth)}</td>
-                <td className="muted small">
+                <td className="muted small wrap">
                   {person.items.map((i) => `${i.code} ${i.label}`).join('; ')}
                 </td>
                 <td>
@@ -144,6 +148,7 @@ export default function HandoverSlips({ onError }) {
             ))}
           </tbody>
         </table>
+              </ScrollFrame>
       )}
       <p className="muted small">
         A slip lists only what that person still has, and carries the undertaking above the

@@ -381,3 +381,39 @@ test('the asset sub-tabs scroll their own tables', () => {
     assert.equal(frames, tables, `${f}: ${tables} tables but ${frames} frames`);
   }
 });
+
+test('a handover slip prints whole, and the register does not move a phone', () => {
+  /*
+   * "Who holds what" works and always did - one line per person, what they
+   * have, what it is worth, and a slip to sign. Driven: two laptops and a SIM
+   * issued to two people, the slip listing only what each still has.
+   *
+   * Two things about the SCREEN did not. On a 390px phone the list pushed the
+   * page 289px sideways and the slip 132px, because neither table was in the
+   * ScrollFrame every other wide table already uses. And the "What" column
+   * joins everything one person holds into a single line, which `table.sheet`
+   * keeps on one line - a list is the one thing in a sheet that is meant to
+   * run on, so it wraps. Measured after: 0 at 1440, 950 and 390.
+   */
+  const h = src('components/people/HandoverSlips.jsx');
+  assert.match(h, /import ScrollFrame from '\.\.\/ScrollFrame\.jsx'/);
+  assert.equal(
+    (h.match(/<ScrollFrame>/g) || []).length,
+    (h.match(/<table className="sheet"/g) || []).length
+  );
+  assert.match(h, /className="muted small wrap"/);
+  assert.match(css, /table\.sheet td\.wrap \{[^}]*white-space:\s*normal/);
+
+  /*
+   * ...and a frame that scrolls on screen CLIPS on paper. A slip somebody
+   * signs must show every item, so on paper it is not a frame. Driven with
+   * eight items in a 700x500 window (where `max-height: 65vh` is in play):
+   * all eight rows, the undertaking and both signature lines on the PDF.
+   */
+  const print = css.slice(css.lastIndexOf('@media print'));
+  assert.match(print, /\.table-wrap \{[^}]*overflow:\s*visible !important/);
+  assert.match(print, /max-height:\s*none !important/);
+
+  // The offline note printed across the top of that slip. It does not now.
+  assert.match(src('components/AssetsTab.jsx'), /className="muted small no-print"/);
+});
