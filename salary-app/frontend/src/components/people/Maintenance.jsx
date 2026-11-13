@@ -53,6 +53,9 @@ export default function Maintenance({ companies, onError }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
 
+  /* " in 2025", or nothing when the picker is on every year. */
+  const inYear = year && year !== 'all' ? ` in ${year}` : '';
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = assets;
@@ -73,7 +76,7 @@ export default function Maintenance({ companies, onError }) {
           <span className="n">{rupees(totals.purchase || 0)}</span>
         </div>
         <div className="figure">
-          <span className="k">Spent keeping them</span>
+          <span className="k">Spent keeping them, ever</span>
           <span className="n">{rupees(totals.service || 0)}</span>
         </div>
         <div className="figure">
@@ -115,16 +118,22 @@ export default function Maintenance({ companies, onError }) {
               <span className="k">Office kit, nobody holding it</span>
               <span className="n">{spend.office.assets}</span>
             </div>
+            {/*
+              * These three follow the year picker; the four figures ABOVE this
+              * card do not - they are the lifetime totals. Picking 2025 made the
+              * page read "Spent keeping them 7,000" over "Repairs on it 2,000"
+              * with nothing saying why, so each figure that moves names its year.
+              */}
             <div className="figure">
-              <span className="k">Repairs on it</span>
+              <span className="k">Repairs{inYear}</span>
               <span className="n">{rupees(spend.office.service)}</span>
             </div>
             <div className="figure">
-              <span className="k">AMC on it</span>
+              <span className="k">AMC{inYear}</span>
               <span className="n">{rupees(spend.office.amc)}</span>
             </div>
             <div className="figure">
-              <span className="k">Costing in all</span>
+              <span className="k">{inYear ? `Both together${inYear}` : 'Costing in all'}</span>
               <span className="n">{rupees(spend.office.upkeep)}</span>
             </div>
           </div>

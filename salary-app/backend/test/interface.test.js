@@ -543,3 +543,24 @@ test('the dashboard filter survives the click into the register', () => {
   assert.match(a, /Narrowed to/);
   assert.match(a, /Show everything/);
 });
+
+test('a figure that follows the year picker says which year', () => {
+  /*
+   * The maintenance screen has a year picker, and it governs the costing card
+   * only - the four figures above it are lifetime totals. So picking 2025 put
+   * "Spent keeping them 7,000" directly above "Repairs on it 2,000" with
+   * nothing on the page saying why the two disagreed.
+   *
+   * Driven, now: "Spent keeping them, EVER 5,500" over "Repairs IN 2025
+   * 2,000 | AMC in 2025 0 | Both together in 2025 2,000", and with the
+   * picker on every year those read plainly "Repairs 5,500 | AMC 0 | Costing
+   * in all 5,500".
+   */
+  const m = src('components/people/Maintenance.jsx');
+  assert.match(m, /const inYear = year && year !== 'all' \? ` in \$\{year\}` : '';/);
+  assert.match(m, /Repairs\{inYear\}/);
+  assert.match(m, /AMC\{inYear\}/);
+  assert.match(m, /Spent keeping them, ever/);
+  // Not "Costing in all in 2025".
+  assert.ok(!/Costing in all\{inYear\}/.test(m), 'that label reads "Costing in all in 2025"');
+});
