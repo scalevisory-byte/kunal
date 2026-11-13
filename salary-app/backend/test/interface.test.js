@@ -723,3 +723,50 @@ test('the attendance register carries what §3 asks of it', () => {
   // nobody asked for.
   assert.match(src('components/Employees.jsx'), /onOpened\?\.\(\);/);
 });
+
+test('Pending Actions keeps the lines that were being thrown away', () => {
+  /*
+   * The digest tags each line with a kind, and the dashboard kept ONLY
+   * `kind === 'queue'`. Everything tagged `dates` was computed, sent to this
+   * page, and dropped on the floor: probation finished and nobody has
+   * confirmed it, a document already expired, an appraisal past its date -
+   * four of the eight things §4 asks this section for.
+   *
+   * It now keeps everything except `payroll`, which the alerts list below
+   * already says - two cards repeating each other is how a dashboard stops
+   * being read.
+   */
+  const d = src('components/Dashboard.jsx');
+  assert.match(d, /item\.kind !== 'payroll'/);
+  assert.ok(!/item\.kind === 'queue'/.test(d), 'the dates lines are being dropped again');
+  // ...and those lines really are tagged that way.
+  const dg = fs.readFileSync(path.join(here, '../../shared/digest.js'), 'utf8');
+  assert.match(dg, /probation'\)\} finished and not confirmed/);
+  assert.match(dg, /document'\)\} already expired/);
+
+  /*
+   * Two more the dashboard can work out for itself. Driven: clearing one
+   * out-time on 31 October put "1 clocked in on 31 October and never clocked
+   * out — Daksh Trivedi" on the list.
+   */
+  assert.match(d, /key: 'clockout'/);
+  assert.match(d, /if \(parseTime\(times\.out_time\) === null\) out\.noClockOut\.push\(person\);/);
+  /*
+   * The uniform line counts the NOT-LOOKED-AT, not the offenders. Nobody
+   * looked is not "they turned up wrong" - that is the whole reason the
+   * column is three-state.
+   */
+  assert.match(d, /roll\.uniformChecked < roll\.atWork\.length/);
+  assert.match(d, /have not been checked for uniform/);
+
+  /*
+   * Both belong to `alerts`, not to `filings`. The first attempt put them in
+   * the filing list by mistake: the PF/ESI/PT card would have carried two
+   * attendance lines, and the page crashed outright with "Cannot access
+   * 'naming' before initialization" because that array is built before
+   * `naming` exists. Reproduced 3/3 and fixed, so this pins the boundary.
+   */
+  const filings = d.slice(d.indexOf('const filings = useMemo'), d.indexOf('const alerts = ['));
+  assert.ok(!/noClockOut|uniformChecked/.test(filings), 'they are back in the filing list');
+  assert.match(filings, /\{ label: 'ESI'[^\n]*\n\s*\{ label: 'Professional tax'/);
+});

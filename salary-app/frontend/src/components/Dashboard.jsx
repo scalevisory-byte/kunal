@@ -214,721 +214,754 @@ export default function Dashboard({
 
     const out = {
       present: [], absent: [], leave: [], halfDay: [], holiday: [], sunday: [],
-      unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
-      /* Clock hours actually worked on this day, across everybody. */
-      workedMinutes: 0,
-      /*
-       * The uniform check.
-       *
-       * `atWork` is who there is anything to check - present, a half day, or
-       * in on a Sunday or a holiday. There is no uniform to inspect on
-       * somebody who was not there, so an absence is never "not in uniform".
-       */
-      atWork: [], outOfUniform: [], uniformProper: 0, uniformChecked: 0,
-    };
-
-    for (const row of rows) {
-      const entry = row.attendance?.[shownDay];
-      const times = typeof entry === 'object' && entry ? entry : {};
-      const code = (typeof entry === 'object' ? entry?.code : entry) || '';
-      const minutes = Number(times.minutes) || 0;
-      const person = {
-        id: row.employee_id,
-        employee_name: row.employee_name,
-        company_name: row.company_name,
-        code,
-        minutes,
-        in_time: times.in_time || '',
-        out_time: times.out_time || '',
-        // Why they were not at work, and whether somebody allowed it. Both
-        // live on the attendance day itself. `approved` is three-state: null
-        // is "nobody has decided", which is not "not approved".
-        reason: times.reason || '',
-        approved: times.approved === undefined ? null : times.approved,
-        // Was this person in proper uniform. null is "nobody looked", which
-        // is not "turned up wrong".
-        uniform: times.uniform === undefined ? null : times.uniform,
-        employee_code: row.employee_code || '',
-        department: row.department || '',
-        /* What the clock says, or null for a day nobody clocked - which is
-           "not known", not "worked none of it". */
-        workedMinutes: readTimes(times).worked,
+        unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
+        /* Clocked in and never clocked out: a day whose hours cannot be worked
+           out at all until somebody says when they left. */
+        noClockOut: [],
+        /* Clock hours actually worked on this day, across everybody. */
+        workedMinutes: 0,
+        /*
+         * The uniform check.
+         *
+         * `atWork` is who there is anything to check - present, a half day, or
+         * in on a Sunday or a holiday. There is no uniform to inspect on
+         * somebody who was not there, so an absence is never "not in uniform".
+         */
+        atWork: [], outOfUniform: [], uniformProper: 0, uniformChecked: 0,
       };
 
-      if (!code) out.unmarked.push(person);
-      else if (code === 'A' || code === 'AD' || code === 'UL') out.absent.push(person);
-      else if (code === 'CL' || code === 'SL' || code === 'PL') out.leave.push(person);
-      else if (code === 'HF') out.halfDay.push(person);
-      else if (code === 'PH') out.holiday.push(person);
-      else if (code === 'S') out.sunday.push(person);
-      else out.present.push(person);
-
-      if (parseTime(times.in_time) !== null) out.clocked++;
-      const workedToday = readTimes(times).worked;
-      if (workedToday !== null && workedToday > 0) out.workedMinutes += workedToday;
-      if (judgedOnTime(code)) {
-        if (isLateIn(times, { start: standard.in_time, grace })) {
-          out.late.push({ ...person, lateBy: lateByMinutes(times, { start: standard.in_time }) });
-        }
-        if (isEarlyOut(times, { end: standard.out_time, grace })) out.early.push(person);
-      }
-      // Overtime and short hours are the day's own minutes, whether they came
-      // off the clock or were typed straight onto the grid.
-      if (minutes > 0) out.overtime.push(person);
-      if (minutes < 0) out.short.push(person);
-
-      if (code && WORKED_MARKS.has(code)) {
-        out.atWork.push(person);
-        if (person.uniform === true) out.uniformProper++;
-        if (person.uniform !== null) out.uniformChecked++;
-        if (person.uniform === false) out.outOfUniform.push(person);
-      }
-    }
-
-    out.atWork.sort((a, b) =>
-      String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
-    );
-    out.late.sort((a, b) => b.lateBy - a.lateBy);
-    out.overtime.sort((a, b) => b.minutes - a.minutes);
-    out.short.sort((a, b) => a.minutes - b.minutes);
-    /*
-     * The headcount, and the day accounted for.
-     *
-     * Every person on the visible payroll lands in exactly one of the seven
-     * buckets - the classification above is a single if/else chain - so these
-     * add up by construction rather than by hope. `accounted` is asserted in
-     * a test, because a bucket added later and not shown is precisely the
-     * fault this is here to stop.
-     */
-    out.people = rows.length;
-    out.accounted =
-      out.present.length + out.absent.length + out.leave.length + out.halfDay.length +
-      out.holiday.length + out.sunday.length + out.unmarked.length;
-
-    /*
-     * Attendance for the DAY, by the report's own rule: out of the people who
-     * were expected, not out of the staff list. A weekly off and a paid
-     * holiday are in neither half - nobody failed to attend them - and a half
-     * day is half a day lost. A day nobody has marked is "not known", never
-     * 100%.
-     */
-    out.rate = (() => {
-      /*
-       * One day's marks, counted the way a month's are - each person keeps
-       * their own code, so CL/SL/PL land in paid-time-off and AD in absence,
-       * rather than being folded into a bucket the rule does not know.
-       */
-      const counts = {};
-      const add = (code) => { if (code) counts[code] = (counts[code] || 0) + 1; };
-      for (const group of [out.present, out.absent, out.leave, out.halfDay, out.holiday, out.sunday]) {
-        for (const p of group) add(p.code);
-      }
-      const pct = attendancePercent([{ mark_counts: counts }]);
-      return pct === null ? '—' : `${Math.round(pct)}%`;
-    })();
-
-    return {
-      ...out,
-      startsAt: standard.in_time,
-      endsAt: standard.out_time,
-      grace,
-      dayHours: Number(period.hours_per_day) || 9,
-    };
-  }, [rows, shownDay, period]);
-
-  /*
-   * The month, day by day.
-   *
-   * Counted the same way the roll call counts one day - the same marks, the
-   * same `attendancePercent` - so a bar and the card under it cannot
-   * disagree. Clicking one moves the roll call to that day, which is the
-   * whole point of a trend on a page that also shows a single day.
-   *
-   * A day nobody has marked is a gap, not a zero: zero would read as "nobody
-   * came in", which is a different and much more alarming thing.
-   */
-  const daily = useMemo(() => {
-    if (!period || !rows.length) return [];
-    const length = daysInMonth(period.year, period.month);
-    const out = [];
-    for (let day = 1; day <= length; day++) {
-      const counts = {};
-      let marked = 0;
       for (const row of rows) {
-        const entry = row.attendance?.[day];
+        const entry = row.attendance?.[shownDay];
+        const times = typeof entry === 'object' && entry ? entry : {};
         const code = (typeof entry === 'object' ? entry?.code : entry) || '';
-        if (!code) continue;
-        counts[code] = (counts[code] || 0) + 1;
-        marked++;
+        const minutes = Number(times.minutes) || 0;
+        const person = {
+          id: row.employee_id,
+          employee_name: row.employee_name,
+          company_name: row.company_name,
+          code,
+          minutes,
+          in_time: times.in_time || '',
+          out_time: times.out_time || '',
+          // Why they were not at work, and whether somebody allowed it. Both
+          // live on the attendance day itself. `approved` is three-state: null
+          // is "nobody has decided", which is not "not approved".
+          reason: times.reason || '',
+          approved: times.approved === undefined ? null : times.approved,
+          // Was this person in proper uniform. null is "nobody looked", which
+          // is not "turned up wrong".
+          uniform: times.uniform === undefined ? null : times.uniform,
+          employee_code: row.employee_code || '',
+          department: row.department || '',
+          /* What the clock says, or null for a day nobody clocked - which is
+             "not known", not "worked none of it". */
+          workedMinutes: readTimes(times).worked,
+        };
+
+        if (!code) out.unmarked.push(person);
+        else if (code === 'A' || code === 'AD' || code === 'UL') out.absent.push(person);
+        else if (code === 'CL' || code === 'SL' || code === 'PL') out.leave.push(person);
+        else if (code === 'HF') out.halfDay.push(person);
+        else if (code === 'PH') out.holiday.push(person);
+        else if (code === 'S') out.sunday.push(person);
+        else out.present.push(person);
+
+        if (parseTime(times.in_time) !== null) {
+          out.clocked++;
+          if (parseTime(times.out_time) === null) out.noClockOut.push(person);
+        }
+        const workedToday = readTimes(times).worked;
+        if (workedToday !== null && workedToday > 0) out.workedMinutes += workedToday;
+        if (judgedOnTime(code)) {
+          if (isLateIn(times, { start: standard.in_time, grace })) {
+            out.late.push({ ...person, lateBy: lateByMinutes(times, { start: standard.in_time }) });
+          }
+          if (isEarlyOut(times, { end: standard.out_time, grace })) out.early.push(person);
+        }
+        // Overtime and short hours are the day's own minutes, whether they came
+        // off the clock or were typed straight onto the grid.
+        if (minutes > 0) out.overtime.push(person);
+        if (minutes < 0) out.short.push(person);
+
+        if (code && WORKED_MARKS.has(code)) {
+          out.atWork.push(person);
+          if (person.uniform === true) out.uniformProper++;
+          if (person.uniform !== null) out.uniformChecked++;
+          if (person.uniform === false) out.outOfUniform.push(person);
+        }
       }
+
+      out.atWork.sort((a, b) =>
+        String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+      );
+      out.late.sort((a, b) => b.lateBy - a.lateBy);
+      out.overtime.sort((a, b) => b.minutes - a.minutes);
+      out.short.sort((a, b) => a.minutes - b.minutes);
       /*
-       * Classified EXACTLY as the roll call classifies its one day, final
-       * else included - anything not recognised counts as present, which is
-       * what the grid shows and what the card below says. Listing the known
-       * codes here instead made the two disagree on a day carrying a mark
-       * from an imported sheet: the trend read "2 in" where the roll call
-       * under it read 18.
+       * The headcount, and the day accounted for.
+       *
+       * Every person on the visible payroll lands in exactly one of the seven
+       * buckets - the classification above is a single if/else chain - so these
+       * add up by construction rather than by hope. `accounted` is asserted in
+       * a test, because a bucket added later and not shown is precisely the
+       * fault this is here to stop.
        */
-      const absent = (counts.A || 0) + (counts.AD || 0) + (counts.UL || 0);
-      const leave = (counts.CL || 0) + (counts.SL || 0) + (counts.PL || 0);
-      const halfDay = counts.HF || 0;
-      const off = (counts.S || 0) + (counts.PH || 0);
-      out.push({
-        day,
-        marked,
-        present: marked - absent - leave - halfDay - off,
-        absent,
-        leave,
-        halfDay,
-        off,
-        rate: marked ? attendancePercent([{ mark_counts: counts }]) : null,
-        sunday: isSunday(period.year, period.month, day),
-      });
-    }
-    return out;
-  }, [rows, period]);
+      out.people = rows.length;
+      out.accounted =
+        out.present.length + out.absent.length + out.leave.length + out.halfDay.length +
+        out.holiday.length + out.sunday.length + out.unmarked.length;
 
-  /*
-   * By department, beside the existing by-company split.
-   *
-   * `department` is already on the payroll row (the query joins it), so this
-   * is a group-by and not a second source of truth. Anybody with none is
-   * named "Not set" rather than dropped - a department nobody filled in is a
-   * thing to fix, not a thing to hide.
-   */
-  const departments = useMemo(() => {
-    const by = new Map();
-    for (const row of rows) {
-      const name = (row.department || '').trim() || 'Not set';
-      if (!by.has(name)) by.set(name, { name, rows: [] });
-      by.get(name).rows.push(row);
-    }
-    return [...by.values()]
-      .map((d) => ({ ...d, count: d.rows.length, rate: presentRate(d.rows) }))
-      .sort((a, b) => b.count - a.count);
-  }, [rows]);
+      /*
+       * Attendance for the DAY, by the report's own rule: out of the people who
+       * were expected, not out of the staff list. A weekly off and a paid
+       * holiday are in neither half - nobody failed to attend them - and a half
+       * day is half a day lost. A day nobody has marked is "not known", never
+       * 100%.
+       */
+      out.rate = (() => {
+        /*
+         * One day's marks, counted the way a month's are - each person keeps
+         * their own code, so CL/SL/PL land in paid-time-off and AD in absence,
+         * rather than being folded into a bucket the rule does not know.
+         */
+        const counts = {};
+        const add = (code) => { if (code) counts[code] = (counts[code] || 0) + 1; };
+        for (const group of [out.present, out.absent, out.leave, out.halfDay, out.holiday, out.sunday]) {
+          for (const p of group) add(p.code);
+        }
+        const pct = attendancePercent([{ mark_counts: counts }]);
+        return pct === null ? '—' : `${Math.round(pct)}%`;
+      })();
 
-  /*
-   * The one list the morning actually needs: who is not simply at work.
-   *
-   * Eight separate strips of names answered "who is late" and "who is absent"
-   * separately, and neither answered "who do I have to ring this morning".
-   * This is ONE row per person, carrying every reason that applies to them -
-   * somebody can be late AND short of hours, and two chips in two strips never
-   * said that was the same person.
-   *
-   * Present is deliberately NOT in it. It is usually everybody, and a list of
-   * seventy-eight people nobody needs to do anything about buries the five who
-   * matter. It stays behind "show all".
-   */
-  const needsLooking = useMemo(() => {
-    if (!roll) return [];
-    const by = new Map();
-    const note = (person, rank, what, when = '', bucketKey = '') => {
-      const seen = by.get(person.id) || {
-        ...person,
-        rank,
-        reasons: [],
-        // Which lists this person belongs to, so one table can be filtered
-        // instead of being split back into a strip per reason.
-        in: new Set(),
-        in_time: person.in_time,
-        out_time: person.out_time,
+      return {
+        ...out,
+        startsAt: standard.in_time,
+        endsAt: standard.out_time,
+        grace,
+        dayHours: Number(period.hours_per_day) || 9,
       };
-      seen.rank = Math.min(seen.rank, rank);
-      seen.reasons.push({ what, when });
-      if (bucketKey) seen.in.add(bucketKey);
-      by.set(person.id, seen);
+    }, [rows, shownDay, period]);
+
+    /*
+     * The month, day by day.
+     *
+     * Counted the same way the roll call counts one day - the same marks, the
+     * same `attendancePercent` - so a bar and the card under it cannot
+     * disagree. Clicking one moves the roll call to that day, which is the
+     * whole point of a trend on a page that also shows a single day.
+     *
+     * A day nobody has marked is a gap, not a zero: zero would read as "nobody
+     * came in", which is a different and much more alarming thing.
+     */
+    const daily = useMemo(() => {
+      if (!period || !rows.length) return [];
+      const length = daysInMonth(period.year, period.month);
+      const out = [];
+      for (let day = 1; day <= length; day++) {
+        const counts = {};
+        let marked = 0;
+        for (const row of rows) {
+          const entry = row.attendance?.[day];
+          const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+          if (!code) continue;
+          counts[code] = (counts[code] || 0) + 1;
+          marked++;
+        }
+        /*
+         * Classified EXACTLY as the roll call classifies its one day, final
+         * else included - anything not recognised counts as present, which is
+         * what the grid shows and what the card below says. Listing the known
+         * codes here instead made the two disagree on a day carrying a mark
+         * from an imported sheet: the trend read "2 in" where the roll call
+         * under it read 18.
+         */
+        const absent = (counts.A || 0) + (counts.AD || 0) + (counts.UL || 0);
+        const leave = (counts.CL || 0) + (counts.SL || 0) + (counts.PL || 0);
+        const halfDay = counts.HF || 0;
+        const off = (counts.S || 0) + (counts.PH || 0);
+        out.push({
+          day,
+          marked,
+          present: marked - absent - leave - halfDay - off,
+          absent,
+          leave,
+          halfDay,
+          off,
+          rate: marked ? attendancePercent([{ mark_counts: counts }]) : null,
+          sunday: isSunday(period.year, period.month, day),
+        });
+      }
+      return out;
+    }, [rows, period]);
+
+    /*
+     * By department, beside the existing by-company split.
+     *
+     * `department` is already on the payroll row (the query joins it), so this
+     * is a group-by and not a second source of truth. Anybody with none is
+     * named "Not set" rather than dropped - a department nobody filled in is a
+     * thing to fix, not a thing to hide.
+     */
+    const departments = useMemo(() => {
+      const by = new Map();
+      for (const row of rows) {
+        const name = (row.department || '').trim() || 'Not set';
+        if (!by.has(name)) by.set(name, { name, rows: [] });
+        by.get(name).rows.push(row);
+      }
+      return [...by.values()]
+        .map((d) => ({ ...d, count: d.rows.length, rate: presentRate(d.rows) }))
+        .sort((a, b) => b.count - a.count);
+    }, [rows]);
+
+    /*
+     * The one list the morning actually needs: who is not simply at work.
+     *
+     * Eight separate strips of names answered "who is late" and "who is absent"
+     * separately, and neither answered "who do I have to ring this morning".
+     * This is ONE row per person, carrying every reason that applies to them -
+     * somebody can be late AND short of hours, and two chips in two strips never
+     * said that was the same person.
+     *
+     * Present is deliberately NOT in it. It is usually everybody, and a list of
+     * seventy-eight people nobody needs to do anything about buries the five who
+     * matter. It stays behind "show all".
+     */
+    const needsLooking = useMemo(() => {
+      if (!roll) return [];
+      const by = new Map();
+      const note = (person, rank, what, when = '', bucketKey = '') => {
+        const seen = by.get(person.id) || {
+          ...person,
+          rank,
+          reasons: [],
+          // Which lists this person belongs to, so one table can be filtered
+          // instead of being split back into a strip per reason.
+          in: new Set(),
+          in_time: person.in_time,
+          out_time: person.out_time,
+        };
+        seen.rank = Math.min(seen.rank, rank);
+        seen.reasons.push({ what, when });
+        if (bucketKey) seen.in.add(bucketKey);
+        by.set(person.id, seen);
+      };
+
+      // Ordered by how much somebody has to do about it, not alphabetically.
+      for (const p of roll.absent) note(p, 0, ATTENDANCE_CODES[p.code]?.label || 'Absent', '', 'absent');
+      for (const p of roll.late) {
+        note(p, 1, `Late by ${formatDuration(p.lateBy)}`, p.in_time, 'late');
+        // Kept on the row so the late list can sort by it and show the minutes.
+        const seen = by.get(p.id);
+        if (seen) seen.lateBy = p.lateBy;
+      }
+      for (const p of roll.early) note(p, 2, 'Left early', p.out_time, 'early');
+      // Somebody present in the wrong uniform is not on any other list, and it
+      // is exactly the sort of thing the morning is for.
+      for (const p of roll.outOfUniform) note(p, 2, 'Not in proper uniform', '', 'uniform');
+      for (const p of roll.halfDay) note(p, 3, 'Half day', '', 'halfDay');
+      /*
+       * Said against the day it fell short OF.
+       *
+       * Dinesh: "error where 9 hrs not completed" - "Short 50m" on its own
+       * never said what the day was supposed to be, so nobody could tell
+       * whether it mattered.
+       */
+      for (const p of roll.short) {
+        note(p, 4, `Short ${formatDuration(-p.minutes)} of ${roll.dayHours}h`, '', 'short');
+      }
+      for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
+      for (const p of roll.unmarked) note(p, 6, 'Not marked yet', '', 'unmarked');
+
+      return [...by.values()].sort(
+        (a, b) =>
+          a.rank - b.rank ||
+          String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+      );
+    }, [roll]);
+
+    /*
+     * One list, filtered - not eight strips of names again.
+     *
+     * Dinesh asked for "a list like this for late coming also", pointing at the
+     * absent list. Eight separate strips were what this page HAD, and they could
+     * not say that the same person was late and short of hours. So the chips
+     * narrow the one table instead: "Late in 3" gives exactly the late list,
+     * with the minutes and how many times this month, and every row still
+     * carries every reason that applies to them.
+     */
+    const buckets = useMemo(
+      () =>
+        roll
+          ? [
+              ['all', 'Everyone', needsLooking.length],
+              ['absent', 'Absent', roll.absent.length],
+              ['late', 'Late coming', roll.late.length],
+              ['early', 'Early out', roll.early.length],
+              ['halfDay', 'Half day', roll.halfDay.length],
+              ['leave', 'On leave', roll.leave.length],
+              ['short', 'Short hours', roll.short.length],
+              ['uniform', 'Out of uniform', roll.outOfUniform.length],
+              ['unmarked', 'Not marked', roll.unmarked.length],
+            ]
+          : [],
+      [roll, needsLooking]
+    );
+
+    const listed = useMemo(() => {
+      let only = bucket === 'all' ? needsLooking : needsLooking.filter((p) => p.in?.has(bucket));
+
+      // Name, code, department or company - whatever somebody has in mind.
+      const q = find.trim().toLowerCase();
+      if (q) {
+        only = only.filter((p) =>
+          [p.employee_name, p.employee_code, p.department, p.company_name]
+            .filter(Boolean)
+            .some((v) => String(v).toLowerCase().includes(q))
+        );
+      }
+
+      /*
+       * Sorted only when somebody asks. The default order is by how much has to
+       * be done about each person, which is the order the morning is read in -
+       * sorting by name would bury the one absence among seventy-eight names.
+       */
+      if (sort.by) {
+        const key = (p) => {
+          if (sort.by === 'name') return String(p.employee_name || '').toLowerCase();
+          if (sort.by === 'mark') return String(p.code || '');
+          if (sort.by === 'department') return String(p.department || '').toLowerCase();
+          if (sort.by === 'company') return String(p.company_name || '').toLowerCase();
+          if (sort.by === 'hours') return p.workedMinutes ?? -1;
+          if (sort.by === 'lateBy') return p.lateBy || 0;
+          return '';
+        };
+        only = [...only].sort((a, b) => {
+          const x = key(a);
+          const y = key(b);
+          if (typeof x === 'number' && typeof y === 'number') return (x - y) * sort.dir;
+          return String(x).localeCompare(String(y)) * sort.dir;
+        });
+      } else if (bucket === 'late') {
+        // The late list reads by how late, worst first - which is the question.
+        only = [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
+      }
+      return only;
+    }, [needsLooking, bucket, find, sort]);
+
+    /* Attendance, counted off the marks rather than the payroll columns, so an
+       unmarked day shows as unmarked instead of quietly counting as present. */
+    const attendance = useMemo(() => {
+      if (!period) return null;
+      const total = daysInMonth(period.year, period.month);
+      const acc = { present: 0, absent: 0, leave: 0, holiday: 0, sunday: 0, blank: 0, expected: 0 };
+      const hours = { worked: 0, expected: 0, short: 0, overtime: 0, days: 0 };
+      for (const row of rows) {
+        const marks = row.attendance || {};
+        acc.expected += total;
+        for (let d = 1; d <= total; d++) {
+          const entry = marks[d];
+          const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+          if (!code) acc.blank++;
+          else if (code === 'A' || code === 'AD' || code === 'UL') acc.absent++;
+          else if (code === 'CL' || code === 'SL' || code === 'PL') acc.leave++;
+          else if (code === 'PH') acc.holiday++;
+          else if (code === 'S') acc.sunday++;
+          else acc.present++;
+        }
+        const month = monthTotals(Object.values(marks), { hoursPerDay: period.hours_per_day });
+        hours.days += month.days;
+        hours.worked += month.worked;
+        hours.expected += month.expected;
+        hours.short += month.short;
+        hours.overtime += month.overtime;
+      }
+      return { ...acc, hours };
+    }, [rows, period]);
+
+    // The register sends quotas and days taken; the balance is the difference,
+    // worked out the same way the Leave tab does.
+    const overLeave = useMemo(
+      () => leave.filter((r) => LEAVE_TYPES.some((t) => (r.taken?.[t.code] || 0) > (r.quotas?.[t.code] || 0))),
+      [leave]
+    );
+
+    const statutory = useMemo(() => {
+      if (!payroll) return null;
+      try {
+        return statutoryReport({ period: payroll.period, rows });
+      } catch {
+        // A register that cannot be built is not worth taking the page down for.
+        return null;
+      }
+    }, [payroll, rows]);
+
+    /* Grouped from the rows on screen rather than from payroll.companies, so a
+       company filter narrows this table the way it narrows every other tab. */
+    const companies = useMemo(() => {
+      const groups = new Map();
+      for (const row of rows) {
+        if (!groups.has(row.company_id)) {
+          groups.set(row.company_id, { id: row.company_id, name: row.company_name, rows: [] });
+        }
+        groups.get(row.company_id).rows.push(row);
+      }
+      return [...groups.values()].map((group) => ({ ...group, totals: totalRows(group.rows) }));
+    }, [rows]);
+
+    const loans = useMemo(
+      () => ({
+        thisMonth: totals.loan_deduction,
+        people: rows.filter((r) => r.loan_deduction > 0).length,
+      }),
+      [rows, totals]
+    );
+
+    /* Each month in the history, narrowed to the company on screen and run back
+       through the engine, so the trend is measuring the same thing the headline
+       figures are. */
+    const trend = useMemo(
+      () =>
+        history.map(({ period: p, rows: raw }) => {
+          const own = companyId ? raw.filter((r) => r.company_id === companyId) : raw;
+          const calculated = own.map((r) => ({ ...r, ...calculateRow(r, p, r.attendance) }));
+          const t = totalRows(calculated);
+          return {
+            period: p,
+            label: `${MONTHS[p.month - 1].slice(0, 3)} ${String(p.year).slice(2)}`,
+            staff: calculated.length,
+            net: t.net_salary,
+            gross: t.gross_salary,
+            absent: calculated.reduce((sum, r) => sum + r.absent_days, 0),
+            sunday: t.sunday_salary,
+          };
+        }),
+      [history, companyId]
+    );
+
+    /* Last month, for the "compared with" strip. Only the month immediately
+       before this one counts - a gap in the history is not a comparison. */
+    const previous = useMemo(() => {
+      if (!period || trend.length < 2) return null;
+      const before = trend[trend.length - 2];
+      const gap = period.year * 12 + period.month - (before.period.year * 12 + before.period.month);
+      return gap === 1 ? before : null;
+    }, [trend, period]);
+
+    const thisMonth = useMemo(
+      () => ({
+        staff: rows.length,
+        net: totals.net_salary,
+        gross: totals.gross_salary,
+        absent: rows.reduce((sum, r) => sum + r.absent_days, 0),
+      }),
+      [rows, totals]
+    );
+
+    /* Who came, who left, and whose day it is - all off the master, so it holds
+       even for a month nothing has been marked on yet. */
+    const people = useMemo(() => {
+      if (!period) return null;
+      const on = (value) => {
+        if (!value) return null;
+        const d = new Date(value);
+        return Number.isNaN(d.getTime()) ? null : d;
+      };
+      const inMonth = (value) => {
+        const d = on(value);
+        return !!d && d.getFullYear() === period.year && d.getMonth() + 1 === period.month;
+      };
+      const sameMonth = (value) => {
+        const d = on(value);
+        return !!d && d.getMonth() + 1 === period.month;
+      };
+      const mine = companyId ? employees.filter((e) => e.company_id === companyId) : employees;
+      const active = mine.filter((e) => e.active);
+      const withDates = active.filter((e) => e.dob || e.joined_on).length;
+      return {
+        active: active.length,
+        inactive: mine.length - active.length,
+        withDates,
+        missingDates: active.length - withDates,
+        joined: active
+          .filter((e) => inMonth(e.joined_on))
+          .map((e) => ({ ...e, dayOfMonth: on(e.joined_on).getDate() }))
+          .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+        left: mine
+          .filter((e) => inMonth(e.left_on))
+          .map((e) => ({ ...e, dayOfMonth: on(e.left_on).getDate() }))
+          .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+        birthdays: active
+          .filter((e) => sameMonth(e.dob))
+          .map((e) => ({ ...e, dayOfMonth: on(e.dob).getDate(), turning: period.year - on(e.dob).getFullYear() }))
+          .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+        // A first month is a joining, not an anniversary - that is the row above.
+        anniversaries: active
+          .filter((e) => sameMonth(e.joined_on) && on(e.joined_on).getFullYear() < period.year)
+          .map((e) => ({
+            ...e,
+            dayOfMonth: on(e.joined_on).getDate(),
+            years: period.year - on(e.joined_on).getFullYear(),
+          }))
+          .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
+      };
+    }, [employees, companyId, period]);
+
+    /** Whose day it is on the day the roll call is showing. */
+    const todaysDates = useMemo(() => {
+      if (!people) return { birthdays: [], anniversaries: [], joined: [] };
+      return {
+        birthdays: people.birthdays.filter((e) => e.dayOfMonth === shownDay),
+        anniversaries: people.anniversaries.filter((e) => e.dayOfMonth === shownDay),
+        joined: people.joined.filter((e) => e.dayOfMonth === shownDay),
+      };
+    }, [people, shownDay]);
+
+    /**
+     * The month per person: days actually worked, days lost, hours on the clock,
+     * and how often they came in after the usual start or left before the usual
+     * finish. The late and early counts need clock times, so they only mean
+     * anything for people whose hours are being recorded.
+     */
+    const monthly = useMemo(() => {
+      const standard = shiftOfMonth(period);
+      // The month's own grace, so the roll call calls somebody late exactly when
+      // the payroll would charge them for it.
+      const grace = standard.grace;
+
+      return rows.map((row) => {
+        const marks = Object.values(row.attendance || {});
+        let present = 0;
+        let late = 0;
+        let early = 0;
+        let clocked = 0;
+        for (const entry of marks) {
+          const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+          if (code === 'P' || code === 'WH' || code === 'SP' || code === 'HP') present++;
+          if (code === 'HF') present += 0.5;
+          const times = typeof entry === 'object' && entry ? entry : {};
+          const cameAt = parseTime(times.in_time);
+          const leftAt = parseTime(times.out_time);
+          if (cameAt !== null || leftAt !== null) clocked++;
+          if (!judgedOnTime(code)) continue;
+          if (isLateIn(times, { start: standard.in_time, grace })) late++;
+          if (isEarlyOut(times, { end: standard.out_time, grace })) early++;
+        }
+        return {
+          id: row.employee_id,
+          employee_name: row.employee_name,
+          company_name: row.company_name,
+          present,
+          absent: row.absent_days,
+          worked: row.worked_minutes || 0,
+          clocked,
+          late,
+          early,
+          ot: row.ot_minutes,
+        };
+      });
+    }, [rows]);
+
+    /** How many times each person has been late so far this month. */
+    const lateThisMonth = useMemo(() => new Map(monthly.map((m) => [m.id, m.late])), [monthly]);
+
+    /*
+     * Recording why somebody was out, and whether it was allowed, FROM HERE.
+     *
+     * This is the screen somebody is looking at when they find out - the morning
+     * roll call - so it is the screen that takes the answer. It writes through
+     * the same `setAttendance` the grid uses, which only touches the columns it
+     * names, so recording a reason cannot disturb a mark or an hour.
+     *
+     * Neither field moves a rupee. An approved absence is still an absence; paid
+     * time off is CL/SL/PL, which it already was.
+     */
+    const saveDay = async (person, patch) => {
+      if (!onSaveAttendance || locked) return;
+      setSaving((n) => n + 1);
+      try {
+        await onSaveAttendance([{ employee_id: person.id, day: shownDay, ...patch }]);
+      } finally {
+        setSaving((n) => n - 1);
+      }
     };
 
-    // Ordered by how much somebody has to do about it, not alphabetically.
-    for (const p of roll.absent) note(p, 0, ATTENDANCE_CODES[p.code]?.label || 'Absent', '', 'absent');
-    for (const p of roll.late) {
-      note(p, 1, `Late by ${formatDuration(p.lateBy)}`, p.in_time, 'late');
-      // Kept on the row so the late list can sort by it and show the minutes.
-      const seen = by.get(p.id);
-      if (seen) seen.lateBy = p.lateBy;
-    }
-    for (const p of roll.early) note(p, 2, 'Left early', p.out_time, 'early');
-    // Somebody present in the wrong uniform is not on any other list, and it
-    // is exactly the sort of thing the morning is for.
-    for (const p of roll.outOfUniform) note(p, 2, 'Not in proper uniform', '', 'uniform');
-    for (const p of roll.halfDay) note(p, 3, 'Half day', '', 'halfDay');
-    /*
-     * Said against the day it fell short OF.
-     *
-     * Dinesh: "error where 9 hrs not completed" - "Short 50m" on its own
-     * never said what the day was supposed to be, so nobody could tell
-     * whether it mattered.
-     */
-    for (const p of roll.short) {
-      note(p, 4, `Short ${formatDuration(-p.minutes)} of ${roll.dayHours}h`, '', 'short');
-    }
-    for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
-    for (const p of roll.unmarked) note(p, 6, 'Not marked yet', '', 'unmarked');
+    /** The same thing for a whole floor at once - one call, one reload. */
+    const saveMany = async (entries) => {
+      if (!onSaveAttendance || locked || !entries.length) return;
+      setSaving((n) => n + 1);
+      try {
+        await onSaveAttendance(entries);
+      } finally {
+        setSaving((n) => n - 1);
+      }
+    };
 
-    return [...by.values()].sort(
-      (a, b) =>
-        a.rank - b.rank ||
-        String(a.employee_name || '').localeCompare(String(b.employee_name || ''))
+    /** The same month, added up across everybody. */
+    const monthTotalsOf = useMemo(
+      () =>
+        monthly.reduce(
+          (acc, m) => ({
+            present: acc.present + m.present,
+            absent: acc.absent + m.absent,
+            worked: acc.worked + m.worked,
+            late: acc.late + m.late,
+            early: acc.early + m.early,
+          }),
+          { present: 0, absent: 0, worked: 0, late: 0, early: 0 }
+        ),
+      [monthly]
     );
-  }, [roll]);
 
-  /*
-   * One list, filtered - not eight strips of names again.
-   *
-   * Dinesh asked for "a list like this for late coming also", pointing at the
-   * absent list. Eight separate strips were what this page HAD, and they could
-   * not say that the same person was late and short of hours. So the chips
-   * narrow the one table instead: "Late in 3" gives exactly the late list,
-   * with the minutes and how many times this month, and every row still
-   * carries every reason that applies to them.
-   */
-  const buckets = useMemo(
-    () =>
-      roll
-        ? [
-            ['all', 'Everyone', needsLooking.length],
-            ['absent', 'Absent', roll.absent.length],
-            ['late', 'Late coming', roll.late.length],
-            ['early', 'Early out', roll.early.length],
-            ['halfDay', 'Half day', roll.halfDay.length],
-            ['leave', 'On leave', roll.leave.length],
-            ['short', 'Short hours', roll.short.length],
-            ['uniform', 'Out of uniform', roll.outOfUniform.length],
-            ['unmarked', 'Not marked', roll.unmarked.length],
-          ]
-        : [],
-    [roll, needsLooking]
-  );
+    /* The names worth opening, each list only as long as it has entries. */
+    const outliers = useMemo(() => {
+      const top = (list, by, keep = (x) => true) =>
+        list.filter(keep).sort(by).slice(0, 5);
+      const clocked = monthly.filter((m) => m.clocked > 0);
+      return {
+        mostPresent: top(monthly, (a, b) => b.present - a.present, (m) => m.present > 0),
+        mostAbsent: top(monthly, (a, b) => b.absent - a.absent, (m) => m.absent > 0),
+        mostHours: top(clocked, (a, b) => b.worked - a.worked, (m) => m.worked > 0),
+        leastHours: top(clocked, (a, b) => a.worked - b.worked, (m) => m.worked > 0),
+        late: top(monthly, (a, b) => b.late - a.late, (m) => m.late > 0),
+        early: top(monthly, (a, b) => b.early - a.early, (m) => m.early > 0),
+        short: top(rows, (a, b) => a.ot_minutes - b.ot_minutes, (r) => r.ot_minutes < 0),
+        over: top(rows, (a, b) => b.ot_minutes - a.ot_minutes, (r) => r.ot_minutes > 0),
+        anyClocked: clocked.length,
+      };
+    }, [monthly, rows]);
 
-  const listed = useMemo(() => {
-    let only = bucket === 'all' ? needsLooking : needsLooking.filter((p) => p.in?.has(bucket));
+    /**
+     * What has to be paid over, and roughly when. The dates are the ordinary
+     * ones for a Gujarat employer - PF and ESI by the 15th of the following
+     * month, Gujarat PT by the 15th - and they are stated as a reminder, not as
+     * advice: the note under the list says to check them.
+     */
+    const filings = useMemo(() => {
+      if (!period) return [];
+      const next = period.month === 12
+        ? { year: period.year + 1, month: 1 }
+        : { year: period.year, month: period.month + 1 };
+      const by = (day) => `${day} ${MONTHS[next.month - 1].slice(0, 3)} ${next.year}`;
+      return [
+        { label: 'PF', note: 'employee + employer share', due: by(15) },
+        { label: 'ESI', note: 'employee + employer share', due: by(15) },
+      { label: 'Professional tax', note: 'per company', due: by(15) },
+      ];
+    }, [period, totals]);
 
-    // Name, code, department or company - whatever somebody has in mind.
-    const q = find.trim().toLowerCase();
-    if (q) {
-      only = only.filter((p) =>
-        [p.employee_name, p.employee_code, p.department, p.company_name]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q))
+    if (!period || !payroll) {
+      return (
+        <p className="card muted">
+          No month is open yet. Use <strong>New month</strong> above to start one.
+        </p>
       );
     }
 
-    /*
-     * Sorted only when somebody asks. The default order is by how much has to
-     * be done about each person, which is the order the morning is read in -
-     * sorting by name would bury the one absence among seventy-eight names.
-     */
-    if (sort.by) {
-      const key = (p) => {
-        if (sort.by === 'name') return String(p.employee_name || '').toLowerCase();
-        if (sort.by === 'mark') return String(p.code || '');
-        if (sort.by === 'department') return String(p.department || '').toLowerCase();
-        if (sort.by === 'company') return String(p.company_name || '').toLowerCase();
-        if (sort.by === 'hours') return p.workedMinutes ?? -1;
-        if (sort.by === 'lateBy') return p.lateBy || 0;
-        return '';
-      };
-      only = [...only].sort((a, b) => {
-        const x = key(a);
-        const y = key(b);
-        if (typeof x === 'number' && typeof y === 'number') return (x - y) * sort.dir;
-        return String(x).localeCompare(String(y)) * sort.dir;
-      });
-    } else if (bucket === 'late') {
-      // The late list reads by how late, worst first - which is the question.
-      only = [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
-    }
-    return only;
-  }, [needsLooking, bucket, find, sort]);
-
-  /* Attendance, counted off the marks rather than the payroll columns, so an
-     unmarked day shows as unmarked instead of quietly counting as present. */
-  const attendance = useMemo(() => {
-    if (!period) return null;
-    const total = daysInMonth(period.year, period.month);
-    const acc = { present: 0, absent: 0, leave: 0, holiday: 0, sunday: 0, blank: 0, expected: 0 };
-    const hours = { worked: 0, expected: 0, short: 0, overtime: 0, days: 0 };
-    for (const row of rows) {
-      const marks = row.attendance || {};
-      acc.expected += total;
-      for (let d = 1; d <= total; d++) {
-        const entry = marks[d];
-        const code = (typeof entry === 'object' ? entry?.code : entry) || '';
-        if (!code) acc.blank++;
-        else if (code === 'A' || code === 'AD' || code === 'UL') acc.absent++;
-        else if (code === 'CL' || code === 'SL' || code === 'PL') acc.leave++;
-        else if (code === 'PH') acc.holiday++;
-        else if (code === 'S') acc.sunday++;
-        else acc.present++;
-      }
-      const month = monthTotals(Object.values(marks), { hoursPerDay: period.hours_per_day });
-      hours.days += month.days;
-      hours.worked += month.worked;
-      hours.expected += month.expected;
-      hours.short += month.short;
-      hours.overtime += month.overtime;
-    }
-    return { ...acc, hours };
-  }, [rows, period]);
-
-  // The register sends quotas and days taken; the balance is the difference,
-  // worked out the same way the Leave tab does.
-  const overLeave = useMemo(
-    () => leave.filter((r) => LEAVE_TYPES.some((t) => (r.taken?.[t.code] || 0) > (r.quotas?.[t.code] || 0))),
-    [leave]
-  );
-
-  const statutory = useMemo(() => {
-    if (!payroll) return null;
-    try {
-      return statutoryReport({ period: payroll.period, rows });
-    } catch {
-      // A register that cannot be built is not worth taking the page down for.
-      return null;
-    }
-  }, [payroll, rows]);
-
-  /* Grouped from the rows on screen rather than from payroll.companies, so a
-     company filter narrows this table the way it narrows every other tab. */
-  const companies = useMemo(() => {
-    const groups = new Map();
-    for (const row of rows) {
-      if (!groups.has(row.company_id)) {
-        groups.set(row.company_id, { id: row.company_id, name: row.company_name, rows: [] });
-      }
-      groups.get(row.company_id).rows.push(row);
-    }
-    return [...groups.values()].map((group) => ({ ...group, totals: totalRows(group.rows) }));
-  }, [rows]);
-
-  const loans = useMemo(
-    () => ({
-      thisMonth: totals.loan_deduction,
-      people: rows.filter((r) => r.loan_deduction > 0).length,
-    }),
-    [rows, totals]
-  );
-
-  /* Each month in the history, narrowed to the company on screen and run back
-     through the engine, so the trend is measuring the same thing the headline
-     figures are. */
-  const trend = useMemo(
-    () =>
-      history.map(({ period: p, rows: raw }) => {
-        const own = companyId ? raw.filter((r) => r.company_id === companyId) : raw;
-        const calculated = own.map((r) => ({ ...r, ...calculateRow(r, p, r.attendance) }));
-        const t = totalRows(calculated);
-        return {
-          period: p,
-          label: `${MONTHS[p.month - 1].slice(0, 3)} ${String(p.year).slice(2)}`,
-          staff: calculated.length,
-          net: t.net_salary,
-          gross: t.gross_salary,
-          absent: calculated.reduce((sum, r) => sum + r.absent_days, 0),
-          sunday: t.sunday_salary,
-        };
-      }),
-    [history, companyId]
-  );
-
-  /* Last month, for the "compared with" strip. Only the month immediately
-     before this one counts - a gap in the history is not a comparison. */
-  const previous = useMemo(() => {
-    if (!period || trend.length < 2) return null;
-    const before = trend[trend.length - 2];
-    const gap = period.year * 12 + period.month - (before.period.year * 12 + before.period.month);
-    return gap === 1 ? before : null;
-  }, [trend, period]);
-
-  const thisMonth = useMemo(
-    () => ({
-      staff: rows.length,
-      net: totals.net_salary,
-      gross: totals.gross_salary,
-      absent: rows.reduce((sum, r) => sum + r.absent_days, 0),
-    }),
-    [rows, totals]
-  );
-
-  /* Who came, who left, and whose day it is - all off the master, so it holds
-     even for a month nothing has been marked on yet. */
-  const people = useMemo(() => {
-    if (!period) return null;
-    const on = (value) => {
-      if (!value) return null;
-      const d = new Date(value);
-      return Number.isNaN(d.getTime()) ? null : d;
+    /** The first few names behind a count, so the line says who as well as how many. */
+    const naming = (list, get = (x) => x.name) => {
+      const names = list.slice(0, 3).map(get).filter(Boolean);
+      if (!names.length) return '';
+      const more = list.length - names.length;
+      return ` — ${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
     };
-    const inMonth = (value) => {
-      const d = on(value);
-      return !!d && d.getFullYear() === period.year && d.getMonth() + 1 === period.month;
-    };
-    const sameMonth = (value) => {
-      const d = on(value);
-      return !!d && d.getMonth() + 1 === period.month;
-    };
-    const mine = companyId ? employees.filter((e) => e.company_id === companyId) : employees;
-    const active = mine.filter((e) => e.active);
-    const withDates = active.filter((e) => e.dob || e.joined_on).length;
-    return {
-      active: active.length,
-      inactive: mine.length - active.length,
-      withDates,
-      missingDates: active.length - withDates,
-      joined: active
-        .filter((e) => inMonth(e.joined_on))
-        .map((e) => ({ ...e, dayOfMonth: on(e.joined_on).getDate() }))
-        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
-      left: mine
-        .filter((e) => inMonth(e.left_on))
-        .map((e) => ({ ...e, dayOfMonth: on(e.left_on).getDate() }))
-        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
-      birthdays: active
-        .filter((e) => sameMonth(e.dob))
-        .map((e) => ({ ...e, dayOfMonth: on(e.dob).getDate(), turning: period.year - on(e.dob).getFullYear() }))
-        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
-      // A first month is a joining, not an anniversary - that is the row above.
-      anniversaries: active
-        .filter((e) => sameMonth(e.joined_on) && on(e.joined_on).getFullYear() < period.year)
-        .map((e) => ({
-          ...e,
-          dayOfMonth: on(e.joined_on).getDate(),
-          years: period.year - on(e.joined_on).getFullYear(),
-        }))
-        .sort((a, b) => a.dayOfMonth - b.dayOfMonth),
-    };
-  }, [employees, companyId, period]);
 
-  /** Whose day it is on the day the roll call is showing. */
-  const todaysDates = useMemo(() => {
-    if (!people) return { birthdays: [], anniversaries: [], joined: [] };
-    return {
-      birthdays: people.birthdays.filter((e) => e.dayOfMonth === shownDay),
-      anniversaries: people.anniversaries.filter((e) => e.dayOfMonth === shownDay),
-      joined: people.joined.filter((e) => e.dayOfMonth === shownDay),
-    };
-  }, [people, shownDay]);
-
-  /**
-   * The month per person: days actually worked, days lost, hours on the clock,
-   * and how often they came in after the usual start or left before the usual
-   * finish. The late and early counts need clock times, so they only mean
-   * anything for people whose hours are being recorded.
-   */
-  const monthly = useMemo(() => {
-    const standard = shiftOfMonth(period);
-    // The month's own grace, so the roll call calls somebody late exactly when
-    // the payroll would charge them for it.
-    const grace = standard.grace;
-
-    return rows.map((row) => {
-      const marks = Object.values(row.attendance || {});
-      let present = 0;
-      let late = 0;
-      let early = 0;
-      let clocked = 0;
-      for (const entry of marks) {
-        const code = (typeof entry === 'object' ? entry?.code : entry) || '';
-        if (code === 'P' || code === 'WH' || code === 'SP' || code === 'HP') present++;
-        if (code === 'HF') present += 0.5;
-        const times = typeof entry === 'object' && entry ? entry : {};
-        const cameAt = parseTime(times.in_time);
-        const leftAt = parseTime(times.out_time);
-        if (cameAt !== null || leftAt !== null) clocked++;
-        if (!judgedOnTime(code)) continue;
-        if (isLateIn(times, { start: standard.in_time, grace })) late++;
-        if (isEarlyOut(times, { end: standard.out_time, grace })) early++;
-      }
-      return {
-        id: row.employee_id,
-        employee_name: row.employee_name,
-        company_name: row.company_name,
-        present,
-        absent: row.absent_days,
-        worked: row.worked_minutes || 0,
-        clocked,
-        late,
-        early,
-        ot: row.ot_minutes,
-      };
+    const unmarkedPeople = rows.filter((row) => {
+      const marked = Object.values(row.attendance || {}).filter(
+        (e) => ((typeof e === 'object' ? e?.code : e) || '') !== ''
+      ).length;
+      return marked === 0;
     });
-  }, [rows]);
 
-  /** How many times each person has been late so far this month. */
-  const lateThisMonth = useMemo(() => new Map(monthly.map((m) => [m.id, m.late])), [monthly]);
-
-  /*
-   * Recording why somebody was out, and whether it was allowed, FROM HERE.
-   *
-   * This is the screen somebody is looking at when they find out - the morning
-   * roll call - so it is the screen that takes the answer. It writes through
-   * the same `setAttendance` the grid uses, which only touches the columns it
-   * names, so recording a reason cannot disturb a mark or an hour.
-   *
-   * Neither field moves a rupee. An approved absence is still an absence; paid
-   * time off is CL/SL/PL, which it already was.
-   */
-  const saveDay = async (person, patch) => {
-    if (!onSaveAttendance || locked) return;
-    setSaving((n) => n + 1);
-    try {
-      await onSaveAttendance([{ employee_id: person.id, day: shownDay, ...patch }]);
-    } finally {
-      setSaving((n) => n - 1);
-    }
-  };
-
-  /** The same thing for a whole floor at once - one call, one reload. */
-  const saveMany = async (entries) => {
-    if (!onSaveAttendance || locked || !entries.length) return;
-    setSaving((n) => n + 1);
-    try {
-      await onSaveAttendance(entries);
-    } finally {
-      setSaving((n) => n - 1);
-    }
-  };
-
-  /** The same month, added up across everybody. */
-  const monthTotalsOf = useMemo(
-    () =>
-      monthly.reduce(
-        (acc, m) => ({
-          present: acc.present + m.present,
-          absent: acc.absent + m.absent,
-          worked: acc.worked + m.worked,
-          late: acc.late + m.late,
-          early: acc.early + m.early,
-        }),
-        { present: 0, absent: 0, worked: 0, late: 0, early: 0 }
-      ),
-    [monthly]
-  );
-
-  /* The names worth opening, each list only as long as it has entries. */
-  const outliers = useMemo(() => {
-    const top = (list, by, keep = (x) => true) =>
-      list.filter(keep).sort(by).slice(0, 5);
-    const clocked = monthly.filter((m) => m.clocked > 0);
-    return {
-      mostPresent: top(monthly, (a, b) => b.present - a.present, (m) => m.present > 0),
-      mostAbsent: top(monthly, (a, b) => b.absent - a.absent, (m) => m.absent > 0),
-      mostHours: top(clocked, (a, b) => b.worked - a.worked, (m) => m.worked > 0),
-      leastHours: top(clocked, (a, b) => a.worked - b.worked, (m) => m.worked > 0),
-      late: top(monthly, (a, b) => b.late - a.late, (m) => m.late > 0),
-      early: top(monthly, (a, b) => b.early - a.early, (m) => m.early > 0),
-      short: top(rows, (a, b) => a.ot_minutes - b.ot_minutes, (r) => r.ot_minutes < 0),
-      over: top(rows, (a, b) => b.ot_minutes - a.ot_minutes, (r) => r.ot_minutes > 0),
-      anyClocked: clocked.length,
-    };
-  }, [monthly, rows]);
-
-  /**
-   * What has to be paid over, and roughly when. The dates are the ordinary
-   * ones for a Gujarat employer - PF and ESI by the 15th of the following
-   * month, Gujarat PT by the 15th - and they are stated as a reminder, not as
-   * advice: the note under the list says to check them.
-   */
-  const filings = useMemo(() => {
-    if (!period) return [];
-    const next = period.month === 12
-      ? { year: period.year + 1, month: 1 }
-      : { year: period.year, month: period.month + 1 };
-    const by = (day) => `${day} ${MONTHS[next.month - 1].slice(0, 3)} ${next.year}`;
-    return [
-      { label: 'PF', note: 'employee + employer share', due: by(15) },
-      { label: 'ESI', note: 'employee + employer share', due: by(15) },
-      { label: 'Professional tax', note: 'per company', due: by(15) },
-    ];
-  }, [period, totals]);
-
-  if (!period || !payroll) {
-    return (
-      <p className="card muted">
-        No month is open yet. Use <strong>New month</strong> above to start one.
-      </p>
-    );
-  }
-
-  /** The first few names behind a count, so the line says who as well as how many. */
-  const naming = (list, get = (x) => x.name) => {
-    const names = list.slice(0, 3).map(get).filter(Boolean);
-    if (!names.length) return '';
-    const more = list.length - names.length;
-    return ` — ${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
-  };
-
-  const unmarkedPeople = rows.filter((row) => {
-    const marked = Object.values(row.attendance || {}).filter(
-      (e) => ((typeof e === 'object' ? e?.code : e) || '') !== ''
-    ).length;
-    return marked === 0;
-  });
-
-  const alerts = [
-    money.pendingCount > 0 && {
-      key: 'pending',
-      tone: 'warn',
-      text: `${money.pendingCount} ${money.pendingCount === 1 ? 'salary' : 'salaries'} still to pay`,
-      go: 'sheet',
-    },
-    sunday.unpaidCount > 0 && {
-      key: 'sunday',
-      tone: 'warn',
-      text: `${sunday.unpaidCount} Sunday payments still to make`,
-      go: 'attendance',
-    },
-    unmarkedPeople.length > 0 &&
-      unmarkedPeople.length === rows.length && {
-        key: 'no-attendance',
+    const alerts = [
+      money.pendingCount > 0 && {
+        key: 'pending',
         tone: 'warn',
-        text:
-          'No attendance for this month yet — import the punch machine\u2019s file from Reports, ' +
-          'or mark the grid by hand. Until then the salary is a full month for everybody.',
+        text: `${money.pendingCount} ${money.pendingCount === 1 ? 'salary' : 'salaries'} still to pay`,
+        go: 'sheet',
+      },
+      sunday.unpaidCount > 0 && {
+        key: 'sunday',
+        tone: 'warn',
+        text: `${sunday.unpaidCount} Sunday payments still to make`,
+        go: 'attendance',
+      },
+      unmarkedPeople.length > 0 &&
+        unmarkedPeople.length === rows.length && {
+          key: 'no-attendance',
+          tone: 'warn',
+          text:
+            'No attendance for this month yet — import the punch machine\u2019s file from Reports, ' +
+            'or mark the grid by hand. Until then the salary is a full month for everybody.',
+          go: 'reports',
+        },
+      unmarkedPeople.length > 0 &&
+        unmarkedPeople.length < rows.length && {
+          key: 'unmarked',
+          tone: 'warn',
+          text: `${unmarkedPeople.length} people have no attendance marked at all${naming(
+            unmarkedPeople,
+            (r) => r.employee_name
+          )}`,
+          go: 'attendance',
+        },
+      attendance?.blank > 0 &&
+        unmarkedPeople.length === 0 && {
+          key: 'blank',
+          tone: 'warn',
+          text: `${attendance.blank} days across the month have no mark`,
+          go: 'attendance',
+        },
+      overLeave.length > 0 && {
+        key: 'leave',
+        tone: 'bad',
+        text: `${overLeave.length} over their leave entitlement — those days should be unpaid${naming(overLeave)}`,
+        go: 'leave',
+      },
+      statutory?.pf.missing > 0 && {
+        key: 'uan',
+        tone: 'bad',
+        text: `${statutory.pf.missing} on PF have no UAN — the return cannot go up without one${naming(
+          statutory.pf.rows.filter((r) => r.missing?.includes('UAN')),
+          (r) => r.name
+        )}`,
         go: 'reports',
       },
-    unmarkedPeople.length > 0 &&
-      unmarkedPeople.length < rows.length && {
-        key: 'unmarked',
-        tone: 'warn',
-        text: `${unmarkedPeople.length} people have no attendance marked at all${naming(
-          unmarkedPeople,
-          (r) => r.employee_name
+      statutory?.esi.missing > 0 && {
+        key: 'esic',
+        tone: 'bad',
+        text: `${statutory.esi.missing} on ESI have no ESIC number${naming(
+          statutory.esi.rows.filter((r) => r.missing?.length),
+          (r) => r.name
         )}`,
-        go: 'attendance',
+        go: 'reports',
       },
-    attendance?.blank > 0 &&
-      unmarkedPeople.length === 0 && {
-        key: 'blank',
-        tone: 'warn',
-        text: `${attendance.blank} days across the month have no mark`,
-        go: 'attendance',
-      },
-    overLeave.length > 0 && {
-      key: 'leave',
-      tone: 'bad',
-      text: `${overLeave.length} over their leave entitlement — those days should be unpaid${naming(overLeave)}`,
-      go: 'leave',
-    },
-    statutory?.pf.missing > 0 && {
-      key: 'uan',
-      tone: 'bad',
-      text: `${statutory.pf.missing} on PF have no UAN — the return cannot go up without one${naming(
-        statutory.pf.rows.filter((r) => r.missing?.includes('UAN')),
-        (r) => r.name
+    /*
+     * Clocked in and never clocked out. The hours for that day cannot be
+     * worked out at all until somebody says when they left, so it is not a
+     * tidiness problem - it is a day with no pay attached to it.
+     */
+    roll.noClockOut.length > 0 && {
+      key: 'clockout',
+      tone: 'warn',
+      text: `${roll.noClockOut.length} clocked in on ${shownDay} ${MONTHS[period.month - 1]} and never clocked out${naming(
+        roll.noClockOut,
+        (p) => p.employee_name
       )}`,
-      go: 'reports',
+      go: 'time',
     },
-    statutory?.esi.missing > 0 && {
-      key: 'esic',
-      tone: 'bad',
-      text: `${statutory.esi.missing} on ESI have no ESIC number${naming(
-        statutory.esi.rows.filter((r) => r.missing?.length),
-        (r) => r.name
-      )}`,
-      go: 'reports',
+    /*
+     * The uniform walk, half done. Nobody looked is NOT "they turned up
+     * wrong" - that is the whole reason the column is three-state - so this
+     * counts the not-looked-at rather than the offenders.
+     */
+    roll.atWork.length > 0 && roll.uniformChecked < roll.atWork.length && {
+      key: 'uniform',
+      tone: 'muted',
+      text: `${roll.atWork.length - roll.uniformChecked} of ${roll.atWork.length} at work on ${shownDay} ${
+        MONTHS[period.month - 1]
+      } have not been checked for uniform`,
+      go: 'attendance',
     },
     money.holdCount > 0 && {
       key: 'hold',
@@ -947,7 +980,17 @@ export default function Dashboard({
    * already says - and two cards repeating each other is how a dashboard stops
    * being read.
    */
-  const queues = (waiting?.items || []).filter((item) => item.kind === 'queue');
+  /*
+   * Everything except the payroll lines, which the "Needs attention" list
+   * below already says - two cards repeating each other is how a dashboard
+   * stops being read.
+   *
+   * It used to keep ONLY `kind === 'queue'`, which silently threw away every
+   * `dates` line: probation finished and nobody has confirmed it, a document
+   * already expired, an appraisal past its date. All of them were computed,
+   * sent to this page, and dropped on the floor.
+   */
+  const queues = (waiting?.items || []).filter((item) => item.kind !== 'payroll');
 
   const now = new Date();
   // Nothing at all on this day is a different thing from a day with a few gaps
