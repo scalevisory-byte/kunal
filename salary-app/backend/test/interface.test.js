@@ -310,3 +310,43 @@ test('a service cost can be recorded on the day the register is new', () => {
   // offers the whole list.
   assert.match(m, /Show all \{assets\.length\}/);
 });
+
+test('the AMC can be typed somewhere', () => {
+  /*
+   * Sixth time, and the clearest case yet: `amc_until`, `amc_vendor` and
+   * `amc_cost` were columns on the asset, accepted by the API and by the
+   * offline store, counted in their own figure ("AMC ON IT"), shown in the
+   * register's Cover column, and ALERTED ON when they lapsed - on the
+   * maintenance screen and on the main dashboard. There was no box anywhere
+   * in the app to put one in. Every one of those features was reporting a
+   * number that could never be anything but zero.
+   *
+   * Driven offline after: AMC until 2027-03-31, Sai Computers, 6,000 ->
+   * "AMC ON IT 6,000", cover "AMC to 2027-03-31", 14.3% to keep; renewed from
+   * Maintenance to 2028-03-31 at 7,500 -> 17.9%; a past date is named as "1
+   * with a lapsed AMC".
+   */
+  const assets = src('components/people/Assets.jsx');
+  for (const f of ['amc_until', 'amc_vendor', 'amc_cost']) {
+    assert.match(assets, new RegExp(`draft\\.${f}`), `the asset form cannot set ${f}`);
+  }
+
+  /*
+   * ...and renewing it is on the Maintenance screen, because setting it once
+   * on the way in is not the thing that happens repeatedly - a contract is
+   * renewed every year.
+   */
+  const m = src('components/people/Maintenance.jsx');
+  assert.match(m, /Set an AMC/);
+  assert.match(m, /renew AMC/);
+  assert.match(m, /function AmcForm/);
+  // It writes the three AMC columns and nothing else, so renewing a contract
+  // cannot disturb the purchase price, the warranty, or who is holding it.
+  const form = m.slice(m.indexOf('function AmcForm'));
+  const patch = form.slice(form.indexOf('api.patch'), form.indexOf('api.patch') + 320);
+  assert.ok(!/purchase_cost|warranty|employee_id/.test(patch), 'the AMC save touches other columns');
+  // A contract with no end date is not a contract.
+  assert.match(form, /disabled=\{busy \|\| !on \|\| !form\.amc_until\}/);
+  // Clearing one is explicit, never a blank date slipping through.
+  assert.match(form, /There is no AMC on this/);
+});

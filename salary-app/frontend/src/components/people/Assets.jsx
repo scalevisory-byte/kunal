@@ -56,6 +56,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     floor_room: '',
     warranty_from: '',
     warranty_provider: '',
+    amc_until: '',
+    amc_vendor: '',
+    amc_cost: '',
     purchase_remarks: '',
   });
   const [branches, setBranches] = useState([]);
@@ -488,7 +491,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             * and a form that opens with twenty boxes does not get used.
             */}
           <details className="fold" style={{ marginTop: '0.6rem' }}>
-            <summary>More about it — brand, where it lives, the warranty</summary>
+            <summary>More about it — brand, where it lives, warranty and AMC</summary>
             <div className="grid" style={{ marginTop: '0.6rem' }}>
               <label>
                 Brand
@@ -548,6 +551,39 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                   value={draft.warranty_provider}
                   placeholder="who honours it"
                   onChange={(e) => setDraft({ ...draft, warranty_provider: e.target.value })}
+                />
+              </label>
+              {/*
+                * The AMC. It was stored, reported beside repairs, and alerted
+                * on when it lapsed - on this page's own Maintenance tab and on
+                * the main dashboard - with no box anywhere in the app to type
+                * it into. It is also set HERE only once; renewing it every year
+                * is done from Maintenance, which is where somebody is standing
+                * when they think about it.
+                */}
+              <label>
+                AMC until
+                <input
+                  type="date"
+                  value={draft.amc_until}
+                  onChange={(e) => setDraft({ ...draft, amc_until: e.target.value })}
+                />
+              </label>
+              <label>
+                AMC by
+                <input
+                  value={draft.amc_vendor}
+                  placeholder="who holds the contract"
+                  onChange={(e) => setDraft({ ...draft, amc_vendor: e.target.value })}
+                />
+              </label>
+              <label>
+                AMC a year
+                <input
+                  type="number"
+                  value={draft.amc_cost}
+                  placeholder="what the contract costs"
+                  onChange={(e) => setDraft({ ...draft, amc_cost: e.target.value })}
                 />
               </label>
             </div>

@@ -31,6 +31,8 @@ export default function Maintenance({ companies, onError }) {
   const [view, setView] = useState('due');
   const [query, setQuery] = useState('');
   const [logging, setLogging] = useState(null);
+  /* The AMC contract, which is a FIELD on the asset - not a service event. */
+  const [amc, setAmc] = useState(null);
   const [said, setSaid] = useState('');
 
   const load = async (forYear = year) => {
@@ -278,6 +280,16 @@ export default function Maintenance({ companies, onError }) {
         <button onClick={() => setLogging('pick')} disabled={!assets.length}>
           Record a service
         </button>
+        {/*
+          * An AMC was stored, reported in its own column, and alerted on when
+          * it lapsed - here, and on the main dashboard in the server build -
+          * with nowhere in the whole app to type one. The form takes it once; this is
+          * where it gets RENEWED, every year, which is the thing that actually
+          * happens repeatedly.
+          */}
+        <button onClick={() => setAmc('pick')} disabled={!assets.length}>
+          Set an AMC
+        </button>
         <span className="push-right">
           <button
             className="ghost"
@@ -365,6 +377,9 @@ export default function Maintenance({ companies, onError }) {
                   <td>
                     <button className="ghost small" onClick={() => setLogging(asset)}>
                       log a service
+                    </button>{' '}
+                    <button className="ghost small" onClick={() => setAmc(asset)}>
+                      {own.amc_until ? 'renew AMC' : 'AMC'}
                     </button>
                   </td>
                 </tr>
@@ -372,6 +387,18 @@ export default function Maintenance({ companies, onError }) {
             })}
           </tbody>
         </table>
+      )}
+
+      {amc && (
+        <AmcForm
+          asset={amc === 'pick' ? null : amc}
+          assets={assets}
+          onClose={() => setAmc(null)}
+          onDone={async () => {
+            setAmc(null);
+            await load();
+          }}
+        />
       )}
 
       {logging && (
@@ -576,6 +603,139 @@ function ServiceForm({ asset, assets = [], onClose, onDone }) {
         <button onClick={() => save(Boolean(twin))} disabled={busy || !on}>
           {busy ? 'Saving…' : twin ? 'Add it anyway' : 'Record it'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The AMC contract on one asset.
+ *
+ * Deliberately NOT a service row. A service is a thing that happened once and
+ * cost what it cost; an AMC is a state the asset is in until a date, and it is
+ * renewed rather than repeated. They are counted separately for the same
+ * reason — a contract is money committed for the year whether or not anything
+ * breaks, a repair bill is money already gone.
+ *
+ * It only ever writes the three AMC columns, so renewing a contract cannot
+ * disturb the purchase price, the warranty or who is holding the thing.
+ */
+function AmcForm({ asset, assets = [], onClose, onDone }) {
+  const [chosenId, setChosenId] = useState(asset ? String(asset.id) : '');
+  const on = asset || assets.find((a) => String(a.id) === chosenId) || null;
+  const own = on?.ownership || {};
+  const [form, setForm] = useState({ amc_until: '', amc_vendor: '', amc_cost: '' });
+  const [problem, setProblem] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  /*
+   * Renewing starts from what is there, so a year's renewal is one date
+   * change and not three fields retyped. A blank contract starts blank.
+   */
+  useEffect(() => {
+    if (!on) return;
+    setForm({
+      amc_until: own.amc_until || '',
+      amc_vendor: on.amc_vendor || '',
+      amc_cost: on.amc_cost ?? '',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on?.id]);
+
+  const save = async (clear) => {
+    if (!on) return;
+    setBusy(true);
+    setProblem('');
+    try {
+      await api.patch(`/people/assets/${on.id}`, clear
+        ? { amc_until: '', amc_vendor: '', amc_cost: '' }
+        : { ...form, amc_cost: form.amc_cost === '' ? '' : Number(form.amc_cost) });
+      onDone();
+    } catch (err) {
+      setProblem(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stands = own.under_amc
+    ? `Covered until ${own.amc_until}.`
+    : own.amc_until
+      ? `The AMC ran out on ${own.amc_until}.`
+      : 'No AMC on it.';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="late-head">
+          <div>
+            <h3>{on ? `${on.code || 'No code'} — ${on.kind} ${on.label}` : 'Set an AMC'}</h3>
+            <p className="muted small">{on ? stands : 'Pick what the contract is on.'}</p>
+          </div>
+          <button className="ghost" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="form-grid">
+          {!asset && (
+            <label>
+              Which one
+              <select value={chosenId} onChange={(e) => setChosenId(e.target.value)}>
+                <option value="">Pick an asset</option>
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {[a.code, `${a.kind} — ${a.label}`].filter(Boolean).join('  ')}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label>
+            Covered until
+            <input
+              type="date"
+              value={form.amc_until}
+              onChange={(e) => setForm({ ...form, amc_until: e.target.value })}
+            />
+          </label>
+          <label>
+            Who holds it
+            <input
+              value={form.amc_vendor}
+              placeholder="Sai Computers"
+              onChange={(e) => setForm({ ...form, amc_vendor: e.target.value })}
+            />
+          </label>
+          <label>
+            What it costs a year
+            <input
+              type="number"
+              value={form.amc_cost}
+              onChange={(e) => setForm({ ...form, amc_cost: e.target.value })}
+            />
+          </label>
+        </div>
+
+        <p className="muted small">
+          The cost is counted beside repairs, never inside them — a contract is money
+          committed for the year whether or not anything breaks. The date is what somebody
+          signed: when it passes, the asset is named as having a lapsed AMC on this screen
+          (and on the main dashboard, which needs the server version). Nothing renews itself.
+        </p>
+
+        {problem && <p className="error">{problem}</p>}
+
+        <div className="button-row">
+          <button onClick={() => save(false)} disabled={busy || !on || !form.amc_until}>
+            {busy ? 'Saving…' : own.amc_until ? 'Renew it' : 'Set it'}
+          </button>
+          {on && own.amc_until && (
+            <button className="ghost" onClick={() => save(true)} disabled={busy}>
+              There is no AMC on this
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
