@@ -2378,3 +2378,16 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
   position: absolute; left: 0; right: 0; bottom: 0;
   height: 1px; background: var(--line);
 }
+
+/* The morning register's own search, count and export. */
+.roll-tools { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin: 0.6rem 0 0.4rem; }
+.roll-tools .search { flex: 1 1 16rem; }
+/* A sortable header: the header text IS the button, so the whole cell is the
+   target rather than a tiny arrow beside it. */
+.th-sort {
+  border: none; background: none; padding: 0; font: inherit; color: inherit;
+  letter-spacing: inherit; text-transform: inherit; cursor: pointer; white-space: nowrap;
+}
+.th-sort:hover { color: var(--text); }
+/* The mark itself, said in words rather than left as a two-letter code. */
+.mark-pill { white-space: nowrap; font-size: 0.74rem; }

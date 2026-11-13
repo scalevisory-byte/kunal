@@ -134,6 +134,15 @@ function Shell() {
   const [me, setMe] = useState(null);
 
   const [tab, setTab] = useState('dashboard');
+  /*
+   * Which person a tab change is about, when it is about one.
+   *
+   * "View" on the dashboard's attendance register opens that employee's
+   * record rather than dropping somebody on a list of eighty names to find
+   * them again. Employees clears it once it has opened them, so coming back
+   * to the tab later does not reopen a drawer nobody asked for.
+   */
+  const [openEmployee, setOpenEmployee] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState(Number(localStorage.getItem(PERIOD_KEY)) || null);
   const [payroll, setPayroll] = useState(null);
@@ -610,7 +619,10 @@ function Shell() {
             employees={employees}
             companyId={companyId}
             companyName={companies.find((c) => c.id === companyId)?.name || ''}
-            onGo={setTab}
+            onGo={(toTab, employeeId) => {
+              setTab(toTab);
+              if (employeeId) setOpenEmployee(employeeId);
+            }}
             onPeriod={setPeriodId}
             onSaveAttendance={saveAttendance}
             locked={locked}
@@ -731,6 +743,8 @@ function Shell() {
 
         {tab === 'employees' && (
           <Employees
+            openFor={openEmployee}
+            onOpened={() => setOpenEmployee(null)}
             companies={companies}
             employees={employees}
             companyId={companyId}

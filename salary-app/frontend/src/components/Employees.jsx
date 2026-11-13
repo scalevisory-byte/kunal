@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
@@ -48,6 +48,9 @@ const listNames = (people, limit = 6) =>
 
 /** The employee master: who gets paid, and what their monthly salary is. */
 export default function Employees({
+  /* Somebody the dashboard asked to open; cleared once it has been. */
+  openFor,
+  onOpened,
   companies,
   employees,
   companyId,
@@ -83,6 +86,16 @@ export default function Employees({
   const [bulkDepartment, setBulkDepartment] = useState('');
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
+  /*
+   * Opened from elsewhere - the dashboard's register has a "view" beside each
+   * name. Cleared straight away so returning to this tab later does not
+   * reopen a drawer nobody asked for.
+   */
+  useEffect(() => {
+    if (!openFor) return;
+    setProfileFor(openFor);
+    onOpened?.();
+  }, [openFor, onOpened]);
   // The same people, read two ways: down a list, or up a reporting line.
   const [asChart, setAsChart] = useState(false);
   const [reportFor, setReportFor] = useState(null);

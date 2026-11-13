@@ -661,3 +661,65 @@ test('attendance is broken down by department as well as by company', () => {
   // The same percentage rule as everywhere else on the page.
   assert.match(d, /rate: presentRate\(d\.rows\)/);
 });
+
+test('the attendance register carries what §3 asks of it', () => {
+  /*
+   * Driven in the single file, 18 people:
+   *   headers  NAME | STATUS | WHAT | IN | OUT | HOURS | WHY | ALLOWED? |
+   *            DEPARTMENT | COMPANY | (view)
+   *   a row    "Himanshu Rana / E106 | Absent | Absent | — | — | — | Family
+   *            function | yes no — | — | SCALE VISORY | view"
+   *   search   "nidhi" -> 1 of 18, with a clear
+   *   sort     Name ▲ -> Ankita first, ▼ -> Vishal first, third click back to
+   *            the page's own order with Himanshu (the absence) first
+   *   export   attendance-2026-10-31.csv, 18 rows, BOM, "Not decided" and
+   *            "Not checked" written as words
+   *   view     opens that person's record
+   */
+  const d = src('components/Dashboard.jsx');
+
+  // The employee code rides under the name rather than taking a column of its
+  // own; department, hours and the mark get columns.
+  assert.match(d, /\{p\.employee_code\}/);
+  assert.match(d, /by="department"/);
+  assert.match(d, /by="hours"/);
+  assert.match(d, /className=\{`mark-pill code-\$\{p\.code\}`\}/);
+
+  /*
+   * A day nobody clocked shows a dash, never 0h - "not known" is not "stayed
+   * for none of it" - and the export leaves that cell blank for the same
+   * reason.
+   */
+  assert.match(d, /p\.workedMinutes === null \? \(/);
+  assert.match(d, /p\.workedMinutes === null \? '' : formatDuration/);
+
+  // Search, sort and export.
+  assert.match(d, /className="roll-tools"/);
+  assert.match(d, /function Th\(\{ by, sort, setSort/);
+  assert.match(d, /function exportRegister/);
+  /*
+   * Three sort states, not two: the default order is "how much has to be done
+   * about this person", which is the order a morning list is read in. Sorting
+   * by name buries the one absence among seventy-eight, and without a way
+   * back somebody is stuck there.
+   */
+  assert.match(d, /if \(sort\.dir === 1\) return \{ by, dir: -1 \};\s*\n\s*return \{ by: '', dir: 1 \};/);
+  // The file is what is on screen - the chip, the search and the sort already
+  // applied - because an export that differs from the table is worse than none.
+  assert.match(d, /exportRegister\(listed, period, shownDay\)/);
+  assert.match(d, /'\\ufeff' \+ lines\.join/);
+  // Three states written as words, never a bare No for a day nobody looked at.
+  assert.match(d, /'Yes' : p\.approved === false \? 'No' : 'Not decided'/);
+  assert.match(d, /'Proper' : p\.uniform === false \? 'Not proper' : 'Not checked'/);
+
+  /*
+   * "View" opens that person's record. The morning list is where somebody
+   * notices a problem; making them go to Employees and find the name again
+   * among eighty is how the noticing stops happening.
+   */
+  assert.match(d, /onGo\('employees', p\.id\)/);
+  assert.match(src('App.jsx'), /if \(employeeId\) setOpenEmployee\(employeeId\);/);
+  // ...and Employees clears it, so coming back later does not reopen a drawer
+  // nobody asked for.
+  assert.match(src('components/Employees.jsx'), /onOpened\?\.\(\);/);
+});

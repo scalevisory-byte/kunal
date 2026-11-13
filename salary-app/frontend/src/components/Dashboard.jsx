@@ -57,6 +57,9 @@ export default function Dashboard({
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
   // asked for by name; 'all' is the morning's whole list.
   const [bucket, setBucket] = useState('all');
+  /* The register's own search and sort. Neither touches anything stored. */
+  const [find, setFind] = useState('');
+  const [sort, setSort] = useState({ by: '', dir: 1 });
   const [saving, setSaving] = useState(0);
 
   useEffect(() => {
@@ -245,6 +248,11 @@ export default function Dashboard({
         // Was this person in proper uniform. null is "nobody looked", which
         // is not "turned up wrong".
         uniform: times.uniform === undefined ? null : times.uniform,
+        employee_code: row.employee_code || '',
+        department: row.department || '',
+        /* What the clock says, or null for a day nobody clocked - which is
+           "not known", not "worked none of it". */
+        workedMinutes: readTimes(times).worked,
       };
 
       if (!code) out.unmarked.push(person);
@@ -495,12 +503,45 @@ export default function Dashboard({
   );
 
   const listed = useMemo(() => {
-    if (bucket === 'all') return needsLooking;
-    const only = needsLooking.filter((p) => p.in?.has(bucket));
-    // The late list reads by how late, worst first - which is the question.
-    if (bucket === 'late') return [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
+    let only = bucket === 'all' ? needsLooking : needsLooking.filter((p) => p.in?.has(bucket));
+
+    // Name, code, department or company - whatever somebody has in mind.
+    const q = find.trim().toLowerCase();
+    if (q) {
+      only = only.filter((p) =>
+        [p.employee_name, p.employee_code, p.department, p.company_name]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q))
+      );
+    }
+
+    /*
+     * Sorted only when somebody asks. The default order is by how much has to
+     * be done about each person, which is the order the morning is read in -
+     * sorting by name would bury the one absence among seventy-eight names.
+     */
+    if (sort.by) {
+      const key = (p) => {
+        if (sort.by === 'name') return String(p.employee_name || '').toLowerCase();
+        if (sort.by === 'mark') return String(p.code || '');
+        if (sort.by === 'department') return String(p.department || '').toLowerCase();
+        if (sort.by === 'company') return String(p.company_name || '').toLowerCase();
+        if (sort.by === 'hours') return p.workedMinutes ?? -1;
+        if (sort.by === 'lateBy') return p.lateBy || 0;
+        return '';
+      };
+      only = [...only].sort((a, b) => {
+        const x = key(a);
+        const y = key(b);
+        if (typeof x === 'number' && typeof y === 'number') return (x - y) * sort.dir;
+        return String(x).localeCompare(String(y)) * sort.dir;
+      });
+    } else if (bucket === 'late') {
+      // The late list reads by how late, worst first - which is the question.
+      only = [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
+    }
     return only;
-  }, [needsLooking, bucket]);
+  }, [needsLooking, bucket, find, sort]);
 
   /* Attendance, counted off the marks rather than the payroll columns, so an
      unmarked day shows as unmarked instead of quietly counting as present. */
@@ -1197,24 +1238,70 @@ export default function Dashboard({
               ))}
             </div>
 
+            <div className="roll-tools">
+              <input
+                className="search"
+                placeholder="Name, code, department or company"
+                value={find}
+                onChange={(e) => setFind(e.target.value)}
+              />
+              {find ? (
+                <span className="muted small">
+                  {listed.length} of {needsLooking.length}{' '}
+                  <button className="link" onClick={() => setFind('')}>clear</button>
+                </span>
+              ) : null}
+              <button
+                className="ghost"
+                disabled={!listed.length}
+                onClick={() => exportRegister(listed, period, shownDay)}
+                title="Opens in Excel"
+              >
+                Export (CSV)
+              </button>
+            </div>
+
             <div className="table-wrap">
             <table className="sheet roll-table">
               <thead>
                 <tr>
-                  <th className="sticky-name">Name</th>
+                  <Th sort={sort} setSort={setSort} by="name" className="sticky-name">Name</Th>
+                  <Th sort={sort} setSort={setSort} by="mark">Status</Th>
                   <th>What</th>
-                  {bucket === 'late' ? <th className="num">Late this month</th> : null}
+                  {bucket === 'late' ? (
+                    <Th sort={sort} setSort={setSort} by="lateBy" className="num">Late this month</Th>
+                  ) : null}
                   <th>In</th>
                   <th>Out</th>
+                  <Th sort={sort} setSort={setSort} by="hours" className="num">Hours</Th>
                   <th>Why</th>
                   <th>Allowed?</th>
-                  <th>Company</th>
+                  <Th sort={sort} setSort={setSort} by="department">Department</Th>
+                  <Th sort={sort} setSort={setSort} by="company">Company</Th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {listed.map((p) => (
                   <tr key={p.id} className={`r${p.rank}`}>
-                    <td className="sticky-name">{p.employee_name}</td>
+                    <td className="sticky-name">
+                      {p.employee_name}
+                      {p.employee_code ? <div className="muted small">{p.employee_code}</div> : null}
+                    </td>
+                    {/*
+                      * The MARK, in words. "What" beside it is why somebody is
+                      * on this list, which is a different question - a person
+                      * can be Present and also an hour short.
+                      */}
+                    <td className="small">
+                      {p.code ? (
+                        <span className={`mark-pill code-${p.code}`}>
+                          {ATTENDANCE_CODES[p.code]?.label || p.code}
+                        </span>
+                      ) : (
+                        <span className="muted">not marked</span>
+                      )}
+                    </td>
                     <td>
                       {p.reasons.map((r, i) => (
                         <span key={i} className="why">
@@ -1236,6 +1323,16 @@ export default function Dashboard({
                     ) : null}
                     <td>{p.in_time || <span className="muted">—</span>}</td>
                     <td>{p.out_time || <span className="muted">—</span>}</td>
+                    {/* What the clock says they actually worked. A day nobody
+                        clocked is a dash, never 0h - "not known" is not
+                        "stayed for none of it". */}
+                    <td className="num">
+                      {p.workedMinutes === null ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        formatDuration(p.workedMinutes)
+                      )}
+                    </td>
                     {/*
                       * Typed here, saved on blur, and kept on the attendance
                       * day itself - so it shows on the grid's day menu, on the
@@ -1317,7 +1414,21 @@ export default function Dashboard({
                         </button>
                       </span>
                     </td>
+                    <td className="muted small">
+                      {p.department || <span className="muted">—</span>}
+                    </td>
                     <td className="muted small">{p.company_name}</td>
+                    {/*
+                      * Straight to that person's record. The morning list is
+                      * where somebody notices a problem; making them go to
+                      * Employees and find the name again among eighty is how
+                      * the noticing stops happening.
+                      */}
+                    <td>
+                      <button className="link" onClick={() => onGo('employees', p.id)}>
+                        view
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -2263,4 +2374,81 @@ function DayTrend({ daily, shown, onDay, people }) {
       })}
     </div>
   );
+}
+
+/**
+ * A column header that sorts.
+ *
+ * Clicking cycles up, down, and back to the page's own order. The third state
+ * matters: the default order is "how much has to be done about this person",
+ * which is the order a morning list is read in. Sorting by name buries the
+ * one absence among seventy-eight names, and without a way back somebody is
+ * stuck there.
+ */
+function Th({ by, sort, setSort, className, children }) {
+  const on = sort.by === by;
+  const next = () => {
+    if (!on) return { by, dir: 1 };
+    if (sort.dir === 1) return { by, dir: -1 };
+    return { by: '', dir: 1 };
+  };
+  return (
+    <th className={className}>
+      <button className="th-sort" onClick={() => setSort(next())}>
+        {children}
+        <span className="muted">{on ? (sort.dir === 1 ? ' \u25b2' : ' \u25bc') : ''}</span>
+      </button>
+    </th>
+  );
+}
+
+/**
+ * The day's register, as a file.
+ *
+ * CSV with a BOM - what every other export here writes, and what opens in
+ * Excel without a dialogue about encoding. It writes exactly what is on
+ * screen, chip and search and sort already applied, because an export that
+ * quietly differs from the table above it is worse than no export.
+ */
+function exportRegister(listed, period, day) {
+  const head = [
+    'Date', 'Code', 'Name', 'Department', 'Company', 'Status', 'Why they are listed',
+    'In', 'Out', 'Hours worked', 'Late by', 'Reason', 'Allowed', 'Uniform',
+  ];
+  const date = `${period.year}-${String(period.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const cell = (v) => {
+    const text = v === null || v === undefined ? '' : String(v);
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  };
+  const lines = [head.map(cell).join(',')];
+  for (const p of listed) {
+    lines.push([
+      date,
+      p.employee_code,
+      p.employee_name,
+      p.department,
+      p.company_name,
+      p.code ? ATTENDANCE_CODES[p.code]?.label || p.code : 'Not marked',
+      p.reasons.map((r) => r.what + (r.when ? ` at ${r.when}` : '')).join('; '),
+      p.in_time,
+      p.out_time,
+      /* Blank, never 0, for a day nobody clocked. */
+      p.workedMinutes === null ? '' : formatDuration(p.workedMinutes),
+      p.lateBy ? formatDuration(p.lateBy) : '',
+      p.reason,
+      /* Three states, and the file says so rather than writing No for a day
+         nobody has looked at. */
+      p.approved === true ? 'Yes' : p.approved === false ? 'No' : 'Not decided',
+      p.uniform === true ? 'Proper' : p.uniform === false ? 'Not proper' : 'Not checked',
+    ].map(cell).join(','));
+  }
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance-${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
