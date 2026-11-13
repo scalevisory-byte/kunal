@@ -770,3 +770,37 @@ test('Pending Actions keeps the lines that were being thrown away', () => {
   assert.ok(!/noClockOut|uniformChecked/.test(filings), 'they are back in the filing list');
   assert.match(filings, /\{ label: 'ESI'[^\n]*\n\s*\{ label: 'Professional tax'/);
 });
+
+test('the dashboard says what it is counting, and says it shortly', () => {
+  /*
+   * §5 asked for the explanatory paragraphs to go and §6 for employee-days to
+   * be labelled. Four paragraphs of 90-317 characters became one line each,
+   * with what they said moved onto the hover - nothing lost, nothing read
+   * every morning by somebody who already knows it.
+   *
+   * The facts that stayed ON the page are the ones a reader cannot infer:
+   * that Why and Allowed? are stored on the DAY (so typing there is not a
+   * note to self), that neither moves a rupee, and the actual start/end/grace
+   * the page is judging against.
+   */
+  const d = src('components/Dashboard.jsx');
+  assert.match(d, /are saved on the day itself and\s*\n\s*change nobody's pay\./);
+  assert.ok(
+    !/live on the day itself, not on\s*\n\s*this screen/.test(d),
+    'the six-line explanation is back'
+  );
+
+  /*
+   * "23 days absent" is 23 employee-days - one person absent for 23 days, or
+   * 23 people absent once - and the page has to say which it is counting.
+   */
+  assert.match(d, /employee-days absent this month/);
+
+  /*
+   * And the "need looking at" denominator is `roll.accounted`, not five
+   * buckets added by hand. The hand-written sum left out holiday and weekly
+   * off, so on a Sunday it read "0 of 0 need looking at" with eighteen people
+   * on the card directly above it.
+   */
+  assert.match(d, /\$\{needsLooking\.length\} of \$\{roll\.accounted\} need looking at\./);
+});

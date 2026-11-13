@@ -1055,7 +1055,9 @@ export default function Dashboard({
       caption:
         attendedRate === '-'
           ? 'nothing marked yet'
-          : `${attendance.absent} days absent this month`,
+          : // Employee-DAYS, which is what it is: 23 is one person absent for
+            // 23 days or 23 people absent once, and the page has to say which.
+            `${attendance.absent} employee-days absent this month`,
       to: 'reports',
     },
     {
@@ -1477,27 +1479,38 @@ export default function Dashboard({
               </tbody>
             </table>
             </div>
-            <p className="muted small">
-              <strong>Why</strong> and <strong>Allowed?</strong> live on the day itself, not on
-              this screen — the same two boxes are in the day's menu on the{' '}
-              <strong>Attendance</strong> grid, and an approved leave application fills them in
-              by itself. Neither changes what anybody is paid: an allowed absence is still an
-              absence, and paid time off is Casual, Sick or Privilege leave.
-              {saving > 0 ? ' Saving…' : ''}
+            {/*
+              * Six lines became one, the rest on the hover. The two facts that
+              * MUST stay on screen: these boxes are stored on the DAY, so
+              * typing here is not a note to self, and neither moves a rupee.
+              */}
+            <p
+              className="muted small"
+              title={
+                "The same two boxes are in the day's menu on the Attendance grid, and an " +
+                'approved leave application fills them in by itself. An allowed absence is ' +
+                'still an absence; paid time off is Casual, Sick or Privilege leave.'
+              }
+            >
+              <strong>Why</strong> and <strong>Allowed?</strong> are saved on the day itself and
+              change nobody's pay.{saving > 0 ? ' Saving…' : ''}
             </p>
           </>
         )}
-        <p className="muted small">
+        {/*
+          * `roll.accounted`, not five buckets added by hand - the hand-written
+          * sum left out holiday and weekly off, so on a Sunday this read
+          * "0 of 0 need looking at" with eighteen people on the card above it.
+          */}
+        <p
+          className="muted small"
+          title={`Late is judged against ${roll.startsAt} plus ${roll.grace} minutes and early against ${roll.endsAt}. A day with no clock time is never called late, only "not known". A full day is ${roll.dayHours} hours; anybody short of them is on the Short hours list with how far.`}
+        >
           {bucket === 'all'
-            ? `${needsLooking.length} of ${
-                roll.present.length + roll.absent.length + roll.leave.length +
-                roll.halfDay.length + roll.unmarked.length
-              } need looking at.`
+            ? `${needsLooking.length} of ${roll.accounted} need looking at.`
             : `${listed.length} of ${needsLooking.length} on this list.`}{' '}
-          Late is judged against {roll.startsAt} plus {roll.grace} minutes, and early against{' '}
-          {roll.endsAt} — a day with no clock time is never called late, only "not known". A full
-          day is <strong>{roll.dayHours} hours</strong>; anybody who did not complete them is on
-          the <strong>Short hours</strong> list with how far short they fell.
+          Late after {roll.startsAt} + {roll.grace}m, early before {roll.endsAt}, a full day{' '}
+          {roll.dayHours}h.
         </p>
 
         {roll.present.length > 0 && (
@@ -1614,10 +1627,12 @@ export default function Dashboard({
             short hours are still counted from the minutes marked on the grid.
           </p>
         ) : (
-          <p className="muted small">
-            {roll.clocked} of {rows.length} clocked in. Late is measured against{' '}
-            {roll.startsAt}, the usual start set on the Time tab, with {roll.grace} minutes'
-            grace.
+          <p
+            className="muted small"
+            title={`${roll.startsAt} is the usual start, set on the Time tab, with ${roll.grace} minutes' grace before anybody is called late.`}
+          >
+            {roll.clocked} of {rows.length} clocked in · late after {roll.startsAt} +{' '}
+            {roll.grace}m.
           </p>
         )}
           </>
@@ -2024,8 +2039,7 @@ export default function Dashboard({
             ))}
           </ul>
           <p className="muted small">
-            The usual dates for a Gujarat employer. Check them against the portal for the year —
-            they move, and a state can change its own.
+            Usual Gujarat dates — check the portal for the year, they move.
           </p>
         </div>
       </div>
