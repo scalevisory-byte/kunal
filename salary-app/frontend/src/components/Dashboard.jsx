@@ -329,6 +329,78 @@ export default function Dashboard({
   }, [rows, shownDay, period]);
 
   /*
+   * The month, day by day.
+   *
+   * Counted the same way the roll call counts one day - the same marks, the
+   * same `attendancePercent` - so a bar and the card under it cannot
+   * disagree. Clicking one moves the roll call to that day, which is the
+   * whole point of a trend on a page that also shows a single day.
+   *
+   * A day nobody has marked is a gap, not a zero: zero would read as "nobody
+   * came in", which is a different and much more alarming thing.
+   */
+  const daily = useMemo(() => {
+    if (!period || !rows.length) return [];
+    const length = daysInMonth(period.year, period.month);
+    const out = [];
+    for (let day = 1; day <= length; day++) {
+      const counts = {};
+      let marked = 0;
+      for (const row of rows) {
+        const entry = row.attendance?.[day];
+        const code = (typeof entry === 'object' ? entry?.code : entry) || '';
+        if (!code) continue;
+        counts[code] = (counts[code] || 0) + 1;
+        marked++;
+      }
+      /*
+       * Classified EXACTLY as the roll call classifies its one day, final
+       * else included - anything not recognised counts as present, which is
+       * what the grid shows and what the card below says. Listing the known
+       * codes here instead made the two disagree on a day carrying a mark
+       * from an imported sheet: the trend read "2 in" where the roll call
+       * under it read 18.
+       */
+      const absent = (counts.A || 0) + (counts.AD || 0) + (counts.UL || 0);
+      const leave = (counts.CL || 0) + (counts.SL || 0) + (counts.PL || 0);
+      const halfDay = counts.HF || 0;
+      const off = (counts.S || 0) + (counts.PH || 0);
+      out.push({
+        day,
+        marked,
+        present: marked - absent - leave - halfDay - off,
+        absent,
+        leave,
+        halfDay,
+        off,
+        rate: marked ? attendancePercent([{ mark_counts: counts }]) : null,
+        sunday: isSunday(period.year, period.month, day),
+      });
+    }
+    return out;
+  }, [rows, period]);
+
+  /*
+   * By department, beside the existing by-company split.
+   *
+   * `department` is already on the payroll row (the query joins it), so this
+   * is a group-by and not a second source of truth. Anybody with none is
+   * named "Not set" rather than dropped - a department nobody filled in is a
+   * thing to fix, not a thing to hide.
+   */
+  const departments = useMemo(() => {
+    const by = new Map();
+    for (const row of rows) {
+      const name = (row.department || '').trim() || 'Not set';
+      if (!by.has(name)) by.set(name, { name, rows: [] });
+      by.get(name).rows.push(row);
+    }
+    return [...by.values()]
+      .map((d) => ({ ...d, count: d.rows.length, rate: presentRate(d.rows) }))
+      .sort((a, b) => b.count - a.count);
+  }, [rows]);
+
+  /*
    * The one list the morning actually needs: who is not simply at work.
    *
    * Eight separate strips of names answered "who is late" and "who is absent"
@@ -1609,6 +1681,21 @@ export default function Dashboard({
         </p>
       </div>
 
+      {daily.some((d) => d.marked > 0) && (
+        <div className="card" data-go="attendance">
+          <h2>
+            Day by day — {MONTHS[period.month - 1]} {period.year}
+            <button className="ghost tiny" onClick={() => onGo('attendance')}>open</button>
+          </h2>
+          <DayTrend
+            daily={daily}
+            shown={shownDay}
+            onDay={setDay}
+            people={rows.length}
+          />
+        </div>
+      )}
+
       {trend.length > 1 && (
         <div className="card" data-go="attendance">
           <h2>
@@ -1788,6 +1875,26 @@ export default function Dashboard({
           </p>
         </div>
       </div>
+
+      {departments.length > 1 && (
+        <div className="card" data-go="employees">
+          <h2>
+            By department
+            <button className="ghost tiny" onClick={() => onGo('employees')}>open</button>
+          </h2>
+          <BarRows
+            rows={departments.map((d) => ({
+              label: d.name,
+              value: d.count,
+              text: `${d.count}`,
+              rate: d.rate,
+            }))}
+            note={(r) => `${r.rate} attendance`}
+          />
+          {/* Only worth a card when there is more than one of them: a single
+              "Not set" bar says nothing anybody can act on. */}
+        </div>
+      )}
 
       <div className="card" data-go="employees">
         <h2>
@@ -2109,6 +2216,51 @@ function BarRows({ rows, note }) {
           {note && <span className="viz-row-note muted small">{note(r)}</span>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The month, one bar a day.
+ *
+ * Height is attendance for that day, by the same rule as everything else on
+ * this page. Three things it refuses to do:
+ *
+ * - a day nobody has marked is a GAP, not a zero bar. Zero would read as
+ *   "nobody came in", which is a different and much more alarming thing;
+ * - a weekly off is drawn faint rather than left out, so the shape of the
+ *   month is still the shape of the month;
+ * - and the day the roll call is on is marked, so the two are visibly the
+ *   same day. Clicking a bar moves it.
+ */
+function DayTrend({ daily, shown, onDay, people }) {
+  return (
+    <div className="trend day-trend">
+      {daily.map((d) => {
+        const height = d.rate === null ? 0 : Math.max(2, Math.round(d.rate));
+        const title =
+          d.marked === 0
+            ? `${d.day} — nothing marked`
+            : `${d.day} — ${d.present} in, ${d.absent} absent, ${d.leave} on leave, ${d.halfDay} half, ${d.off} off` +
+              (d.rate === null ? '' : ` · ${Math.round(d.rate)}%`);
+        return (
+          <button
+            key={d.day}
+            className={`trend-bar${d.day === shown ? ' now' : ''}${d.sunday ? ' off-day' : ''}`}
+            title={title}
+            onClick={() => onDay(d.day)}
+          >
+            <span className="trend-track">
+              {d.marked === 0 ? (
+                <span className="trend-gap" title="nothing marked" />
+              ) : (
+                <span className="trend-fill" style={{ height: `${height}%` }} />
+              )}
+            </span>
+            <span className="trend-label">{d.day}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

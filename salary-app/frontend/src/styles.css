@@ -2358,3 +2358,23 @@ table.sheet td.wrap { white-space: normal; height: auto; min-width: 12rem; }
 
 table.sheet.hiring-table td { white-space: normal; height: auto; }
 table.sheet.hiring-table td.name-cell { min-width: 11rem; }
+
+/*
+ * The day-by-day attendance trend.
+ *
+ * Thirty-one bars where the month trend has six, so they are thin and carry
+ * no value label - the tooltip and the roll call under it say the numbers.
+ * A day with nothing marked draws a hairline GAP rather than a zero bar:
+ * zero reads as "nobody came in", which is a different and much more alarming
+ * thing than "nobody has filled this in yet".
+ */
+.day-trend { gap: 2px; }
+.day-trend .trend-bar { padding: 0; min-width: 0; flex: 1 1 0; }
+.day-trend .trend-track { height: 54px; }
+.day-trend .trend-label { font-size: 0.6rem; }
+.day-trend .trend-bar.off-day .trend-fill { opacity: 0.35; }
+.day-trend .trend-bar.now .trend-track { outline: 1px solid var(--brand); outline-offset: 1px; }
+.trend-gap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1px; background: var(--line);
+}

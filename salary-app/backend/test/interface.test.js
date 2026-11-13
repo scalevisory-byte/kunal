@@ -609,3 +609,55 @@ test('every person on the roll call lands in a figure somebody can see', () => {
   assert.ok(!/label="On the payroll"/.test(card), 'the staff count is repeated inside the roll call');
   assert.ok(!/label="Needs attention"/.test(card), 'the alert count is repeated inside the roll call');
 });
+
+test('the month has a day-by-day trend, and it agrees with the day below it', () => {
+  /*
+   * Spec §2 asked for a daily attendance trend. One bar a day, height is that
+   * day's attendance by the same `attendancePercent` everything else uses,
+   * and clicking one moves the roll call to that day - which is the point of
+   * a trend on a page that also shows a single day.
+   *
+   * Driven in the single file: 31 bars for October, tooltips carrying the
+   * real counts ("3 — 15 in, 2 absent, 1 on leave, 0 half, 0 off · 89%"),
+   * clicking bar 10 put the roll call on Sat 10 October and marked that bar.
+   */
+  const d = src('components/Dashboard.jsx');
+  assert.match(d, /function DayTrend/);
+  assert.match(d, /onClick=\{\(\) => onDay\(d\.day\)\}/);
+
+  /*
+   * It classifies EXACTLY as the roll call does, final else included -
+   * anything not recognised counts as present. Listing the known codes
+   * instead made the two disagree on a day carrying a mark from an imported
+   * sheet: the trend read "2 in" where the roll call under it read 18.
+   */
+  assert.match(d, /present: marked - absent - leave - halfDay - off,/);
+
+  // A day nobody has marked draws a GAP, not a zero bar: zero reads as
+  // "nobody came in", which is a different and much more alarming thing.
+  assert.match(d, /d\.marked === 0 \?/);
+  assert.match(d, /className="trend-gap"/);
+  assert.match(css, /\.trend-gap \{/);
+});
+
+test('attendance is broken down by department as well as by company', () => {
+  /*
+   * Spec §2. `department` is already on the payroll row - the query joins it
+   * and the offline store merges it - so this is a group-by, not a second
+   * source of truth.
+   *
+   * Driven offline after setting six people: Not set 12 (97%), Accounts 3
+   * (95%), Sales 2 (89%), Operations 1 (92%).
+   */
+  const d = src('components/Dashboard.jsx');
+  assert.match(d, /const departments = useMemo/);
+  assert.match(d, /By department/);
+  // Anybody with none is NAMED, not dropped: a department nobody filled in is
+  // a thing to fix, not a thing to hide.
+  assert.match(d, /\|\| 'Not set';/);
+  // ...and the card only appears when there is more than one, because a
+  // single "Not set" bar says nothing anybody can act on.
+  assert.match(d, /departments\.length > 1 &&/);
+  // The same percentage rule as everywhere else on the page.
+  assert.match(d, /rate: presentRate\(d\.rows\)/);
+});
