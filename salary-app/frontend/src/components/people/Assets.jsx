@@ -4,6 +4,7 @@ import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
+import { matchesFilter } from '../../../../shared/assetDashboard.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
@@ -26,8 +27,23 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const [assets, setAssets] = useState([]);
   const [totals, setTotals] = useState({});
   const [view, setView] = useState('dashboard');
-  /* What the dashboard asked the register to show, so the two agree. */
+  /*
+   * What the dashboard asked the register to show, so the two agree.
+   *
+   * It was SET and never READ. The dashboard narrows by company, branch,
+   * category and financial year, and all four were thrown away the moment a
+   * card was clicked - so "2 Laptops registered" opened a list of every asset
+   * there is. Dead state, which is why nobody noticed.
+   *
+   * The status half is already turned into a chip by `onOpen`, so only the
+   * four dropdowns are kept here; applying both would narrow twice.
+   */
   const [from, setFrom] = useState(null);
+  const narrowed = useMemo(() => {
+    const { company_id, branch_id, category, year } = from || {};
+    const kept = { company_id, branch_id, category, year };
+    return Object.values(kept).some(Boolean) ? kept : null;
+  }, [from]);
   const [allBranches, setAllBranches] = useState([]);
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -182,12 +198,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
        */
       if (filter === 'gone' && !a.written_off_on) return false;
       if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+      /* The dashboard's own filter, applied by the dashboard's own code. */
+      if (narrowed && !matchesFilter(a, narrowed)) return false;
       if (!q) return true;
       return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [assets, filter, query]);
+  }, [assets, filter, query, narrowed]);
 
   const act = async (call) => {
     try {
@@ -445,6 +463,30 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           </button>
         </span>
       </div>
+
+      {/*
+        * Say what is being hidden. A register silently showing a subset is how
+        * somebody concludes a row has gone missing.
+        */}
+      {narrowed && (
+        <p className="muted small">
+          Narrowed to{' '}
+          {[
+            narrowed.company_id &&
+              (companies.find((c) => Number(c.id) === Number(narrowed.company_id))?.name || 'one company'),
+            narrowed.branch_id &&
+              (allBranches.find((b) => Number(b.id) === Number(narrowed.branch_id))?.name || 'one branch'),
+            narrowed.category,
+            narrowed.year,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+          , from the dashboard.{' '}
+          <button className="link" onClick={() => setFrom(null)}>
+            Show everything
+          </button>
+        </p>
+      )}
 
       {importing && (
         <AssetImport onDone={load} onError={(err) => setSaid(err.message)} />

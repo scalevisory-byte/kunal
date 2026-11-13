@@ -520,3 +520,26 @@ test('an asset can be said to be at the repair shop', () => {
   assert.match(a, /disabled=\{Boolean\(allocationProblem\(asset\)\)\}/);
   assert.match(a, /title=\{allocationProblem\(asset\) \|\| undefined\}/);
 });
+
+test('the dashboard filter survives the click into the register', () => {
+  /*
+   * The asset dashboard narrows by company, branch, category and financial
+   * year. The register stored that in `from` and NEVER READ IT - dead state,
+   * which is why nobody noticed. Driven before: with Category = Laptop the
+   * card read "2 REGISTERED" and opened a list of all four assets; with
+   * Financial year = 2025-26 it read 2 and opened four.
+   *
+   * After: "2 REGISTERED" opens exactly the two laptops, and 2025-26 opens
+   * exactly the two bought in that year.
+   */
+  const a = src('components/people/Assets.jsx');
+  assert.match(a, /import \{ matchesFilter \}/);
+  assert.match(a, /if \(narrowed && !matchesFilter\(a, narrowed\)\) return false;/);
+  // The status half is already a chip, so only the four dropdowns are kept -
+  // applying both would narrow twice.
+  assert.match(a, /const \{ company_id, branch_id, category, year \} = from \|\| \{\};/);
+  // ...and the register SAYS it is narrowed, with the way out. A register
+  // silently showing a subset is how somebody concludes a row has gone.
+  assert.match(a, /Narrowed to/);
+  assert.match(a, /Show everything/);
+});
