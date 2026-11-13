@@ -188,3 +188,90 @@ test('the hiring module uses the same tables as the rest of the app', () => {
   // would clip - the same exception the roll call takes.
   assert.match(css, /table\.sheet\.hiring-table td \{[^}]*white-space:\s*normal/);
 });
+
+test('the asset screen offers the thing its own sentence names', () => {
+  /*
+   * The Assets tab opens on the Dashboard. "Add an asset" lived only on the
+   * Register tab, and the empty dashboard read:
+   *
+   *   Nothing on the register yet for this filter. Add an asset, or import
+   *   the list you already keep in Excel.
+   *
+   * ...as grey text, with no button anywhere on the screen. The first
+   * question asked about it was "new asset add ka option kaha he".
+   *
+   * Fourth time now (hiring's "add vacancy", People, the asset invoice, this):
+   * a feature reachable only from somewhere you are not is a feature that
+   * does not exist. A sentence that names an action has to BE the action.
+   */
+  const dash = src('components/people/AssetDashboard.jsx');
+  assert.match(dash, /onAdd/, 'the asset dashboard has no way to add one');
+  assert.match(dash, /onImport/);
+  // ...and the sentence's own words are the buttons, not prose beside them.
+  assert.ok(
+    !/Nothing on the register yet for this filter\. Add an asset, or import/.test(dash),
+    'the empty state is back to naming an action it does not offer'
+  );
+  // Both land on the Register with the right panel already open, so there is
+  // still exactly one add form in the module.
+  const assets = src('components/people/Assets.jsx');
+  assert.match(assets, /onAdd=\{\(\) => \{[^}]*setAdding\(true\)[^}]*setView\('register'\)/);
+  assert.match(assets, /onImport=\{\(\) => \{[^}]*setImporting\(true\)[^}]*setView\('register'\)/);
+});
+
+test('a filter strip is a row on every screen that uses one', () => {
+  /*
+   * `.pf-find-row` was written as `.person-find .pf-find-row`, so the asset
+   * dashboard's copy of the same markup matched NO rule: its four fields fell
+   * into ordinary inline flow and "Financial year" wrapped onto two lines,
+   * standing 38px against its neighbours' 31px and dropping its select 9px
+   * out of line. Measured after: 31/31/31/31, one baseline, at 1680, 1440,
+   * 950, 390 and in dark.
+   */
+  assert.match(css, /^\.pf-find-row \{[^}]*display:\s*flex/m);
+  assert.ok(
+    !/^\.person-find \.pf-find-row \{/m.test(css),
+    'the filter strip is scoped to one screen again'
+  );
+  // A two-word caption stays beside its box rather than wrapping above it.
+  assert.match(css, /^\.field\.inline \{[^}]*white-space:\s*nowrap/m);
+});
+
+test('a form field with a hint does not drag its row out of line', () => {
+  /*
+   * `.form-grid { align-items: end }` bottom-aligns each field, so the one
+   * carrying a hint under its box ("Invoice - the number; attaching the PDF
+   * needs the server version") rode UP by the height of that hint while the
+   * three beside it stayed down. The asset form's second row read as four
+   * boxes at four different heights.
+   *
+   * Measured after, at 1680/1440/950/390: 11 fields, every box in a row on
+   * one line, and no sideways scroll.
+   */
+  assert.match(css, /^\.form-grid \{[^}]*align-items:\s*start/m);
+  // Comments stripped first: the rule explains itself by quoting the old
+  // declaration, and the first version of this check matched its own comment.
+  const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(
+    !/^\.form-grid \{[^}]*align-items:\s*end/m.test(code),
+    'the form grid is bottom-aligned again'
+  );
+  /*
+   * And the boxes fill their cell. Chromium's date input has an intrinsic
+   * 209px it will not give up, so "Bought on" and "Warranty until" pushed the
+   * page 6-20px sideways the moment the label became a grid.
+   */
+  assert.match(css, /\.form-grid label > input[^{]*\{[^}]*min-width:\s*0/);
+  assert.match(css, /grid-template-columns:\s*minmax\(0, 1fr\)/);
+});
+
+test('a long toolbar wraps in groups, never one orphan', () => {
+  // "Handovers (CSV)" wrapped onto a line of its own under everything else.
+  // The three ways out now wrap as one block pushed to the right-hand end.
+  assert.match(css, /\.toolbar \.push-right \{[^}]*margin-left:\s*auto/);
+  const assets = src('components/people/Assets.jsx');
+  const group = assets.slice(assets.indexOf('className="push-right"'));
+  for (const text of ['Labels to print', 'Register (CSV)', 'Handovers (CSV)']) {
+    assert.ok(group.slice(0, 1400).includes(text), `${text} is outside the group again`);
+  }
+});

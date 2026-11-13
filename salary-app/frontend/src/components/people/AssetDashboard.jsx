@@ -14,7 +14,7 @@ import { rupees } from '../../format.js';
  * counting, on the server and in the single file alike.
  */
 
-export default function AssetDashboard({ companies, branches = [], onOpen, onError }) {
+export default function AssetDashboard({ companies, branches = [], onOpen, onAdd, onImport, onError }) {
   const [filter, setFilter] = useState({ company_id: '', branch_id: '', category: '', year: '' });
   const [data, setData] = useState(null);
 
@@ -84,6 +84,24 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onErr
               ))}
             </select>
           </label>
+          {/*
+            * The way in, on the screen the tab opens on.
+            *
+            * "Add an asset" lived only on the Register tab, and the empty
+            * dashboard said "Add an asset, or import the list you already
+            * keep in Excel" as grey text with no button anywhere on it -
+            * which is how the first question about this screen came to be
+            * "new asset add ka option kaha he". A sentence that names an
+            * action has to be the action. Both open the Register with the
+            * right panel already unfolded, so there is still only one form.
+            */}
+          <span className="push-right">
+            {/* Bordered, not ghost: on an empty register this IS the screen's
+                point, and a ghost button beside a ghost button reads as two
+                captions. */}
+            <button onClick={() => onAdd?.()}>Add an asset</button>
+            <button className="ghost" onClick={() => onImport?.()}>Import from Excel</button>
+          </span>
         </div>
       </div>
 
@@ -107,7 +125,9 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onErr
             </div>
             {!data.counted ? (
               <p className="muted small">
-                Nothing on the register yet for this filter. Add an asset, or import the list
+                Nothing on the register yet for this filter.{' '}
+                <button className="link" onClick={() => onAdd?.()}>Add an asset</button>, or{' '}
+                <button className="link" onClick={() => onImport?.()}>import the list</button>{' '}
                 you already keep in Excel.
               </p>
             ) : null}

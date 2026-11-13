@@ -253,9 +253,42 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: 0.7rem;
-  align-items: end;
+  /*
+   * start, not end.
+   *
+   * `align-items: end` bottom-aligns each field in its row, so one field
+   * carrying a hint under its box rides UP by the height of that hint while
+   * its neighbours stay down - which is what made the asset form's second row
+   * read as four boxes at four different heights. Topped out, every caption is
+   * on one line and every box lands on one line with it.
+   */
+  align-items: start;
 }
 .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
+/* ...and the boxes themselves fill the cell rather than claiming an
+   intrinsic width. A date box is 209px until told otherwise. */
+.form-grid label > input, .form-grid label > select, .form-grid label > textarea { width: 100%; min-width: 0; }
+/*
+ * ...and where the browser has subgrid, the three parts (caption, box, hint)
+ * line up across the whole row even when a caption DOES wrap onto two lines,
+ * which `start` alone cannot do. Progressive: without it the rule above is
+ * already right for every caption that fits on one line.
+ */
+@supports (grid-template-rows: subgrid) {
+  .form-grid label {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    row-gap: 0.25rem;
+    /*
+     * One column that is allowed to be NARROWER than its contents. Without
+     * it the label is an auto column sized to max-content, and Chromium's
+     * date box has an intrinsic 209px it will not give up - so "Bought on"
+     * and "Warranty until" pushed the page sideways.
+     */
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 .muted { color: var(--muted); }
 .small { font-size: 0.79rem; }
@@ -546,7 +579,10 @@ table.sheet td.num, table.sheet th.num { text-align: right; }
  * its select 6px below the three beside it, which is what made that row look
  * broken rather than merely narrow.
  */
-.field.inline { display: inline-flex; align-items: center; gap: 0.35rem; }
+/* nowrap so a two-word caption stays beside its box and the row keeps one
+   baseline; the box itself is free to shrink. */
+.field.inline { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.field.inline select, .field.inline input { min-width: 0; }
 
 
 table.sheet .cell-input {
@@ -2150,9 +2186,28 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 
 /* ---------- People: one person's file ---------- */
 
-.person-find .pf-find-row { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
-.person-find .search { flex: 1 1 18rem; min-width: 0; }
-.person-find label.field.inline { flex: 0 0 auto; }
+/*
+ * The filter strip over a register: label+select pairs on one line, with the
+ * way in pushed to the right-hand end.
+ *
+ * This was written as `.person-find .pf-find-row`, so the asset dashboard's
+ * copy of the same markup matched NO rule at all - the fields fell into
+ * ordinary inline flow and "Financial year" wrapped onto two lines, standing
+ * 7px taller than the three fields beside it and dragging its select out of
+ * line. Scoped to the row itself, both screens get it. (`.search` and the
+ * fields live inside the row on both, so nothing moves on People.)
+ */
+.pf-find-row { display: flex; gap: 0.6rem; align-items: flex-end; flex-wrap: wrap; }
+.pf-find-row .search { flex: 1 1 18rem; min-width: 0; }
+.pf-find-row label.field.inline { flex: 0 0 auto; }
+/*
+ * A group pushed to the far end of a strip, which wraps as ONE block.
+ * Loose buttons at the end of a long toolbar wrap one at a time and leave
+ * a single orphan on a line of its own (the asset register's "Handovers
+ * (CSV)" sat alone under everything else).
+ */
+.pf-find-row .push-right,
+.toolbar .push-right { margin-left: auto; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
 .pf-results { margin-top: 0.7rem; display: flex; flex-direction: column; }
 .pf-hit {

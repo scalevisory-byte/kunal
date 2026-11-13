@@ -222,6 +222,8 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           companies={companies}
           branches={allBranches}
           onError={onError}
+          onAdd={() => { setImporting(false); setAdding(true); setView('register'); }}
+          onImport={() => { setAdding(false); setImporting(true); setView('register'); }}
           onOpen={(f) => {
             setFrom(f);
             setFilter(
@@ -327,7 +329,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="ghost" onClick={() => setAdding(!adding)}>
+        {/* Same weight as on the dashboard, so the way in looks the same on
+            both screens. */}
+        <button className={adding ? 'ghost' : undefined} onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Add an asset'}
         </button>
         <button className="ghost" onClick={() => setImporting((v) => !v)}>
@@ -338,26 +342,30 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           * identifies this browser - a link works on a session cookie and
           * 401s for somebody here on the API key.
           */}
-        <button
-          className="ghost"
-          onClick={labelSheet}
-          disabled={!shown.some((a) => a.code)}
-          title="A page of QR stickers for everything on screen, to print and cut"
-        >
-          Labels to print
-        </button>
-        <button
-          className="ghost"
-          onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}
-        >
-          Register (CSV)
-        </button>
-        <button
-          className="ghost"
-          onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch((err) => setSaid(err.message))}
-        >
-          Handovers (CSV)
-        </button>
+        {/* The three ways OUT, as one block at the far end: loose, they wrap
+            one at a time and leave "Handovers (CSV)" alone on its own line. */}
+        <span className="push-right">
+          <button
+            className="ghost"
+            onClick={labelSheet}
+            disabled={!shown.some((a) => a.code)}
+            title="A page of QR stickers for everything on screen, to print and cut"
+          >
+            Labels to print
+          </button>
+          <button
+            className="ghost"
+            onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}
+          >
+            Register (CSV)
+          </button>
+          <button
+            className="ghost"
+            onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch((err) => setSaid(err.message))}
+          >
+            Handovers (CSV)
+          </button>
+        </span>
       </div>
 
       {importing && (
