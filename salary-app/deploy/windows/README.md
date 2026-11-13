@@ -12,13 +12,32 @@ file holds the whole payroll. A login per person needs an address.
 
 ## 1. Install it (about ten minutes)
 
-On TSRV, open a browser and download this one file:
+On TSRV: **Start → type `powershell` → right-click Windows PowerShell →
+Run as administrator.** Then paste this one line and press Enter:
 
-```
-https://raw.githubusercontent.com/scalevisory-byte/kunal/claude/salary-calculation-software-ujbufn/salary-app/deploy/windows/install-all.ps1
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $f = "$env:TEMP\hrms-install.ps1"; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/scalevisory-byte/kunal/claude/salary-calculation-software-ujbufn/salary-app/deploy/windows/install-all.ps1' -OutFile $f; Unblock-File $f; & $f
 ```
 
-Right-click it → **Run with PowerShell**. It asks for Administrator itself.
+That is the whole install. Watch it in that window.
+
+**Why a pasted line rather than downloading the file and double-clicking it.**
+Three things go wrong that way on Server 2019, and all three look like the
+app is broken rather than like Windows being careful:
+
+- its PowerShell offers **TLS 1.0 first**, which github.com refuses — so
+  the download fails with a connection error that says nothing useful. The
+  line above sets TLS 1.2 before it fetches anything;
+- a file downloaded in a browser is **marked as from the internet**, and
+  PowerShell then either refuses it or asks a question about an untrusted
+  publisher. `Unblock-File` clears that mark;
+- double-clicking makes the script **ask for Administrator and open a
+  second window**, so if anything fails you watch it vanish. Starting from
+  an Administrator window means it runs in front of you.
+
+If you would rather do it by hand, the file is at the URL above and
+right-click → **Run with PowerShell** does work — it asks for
+Administrator itself — but expect the two prompts.
 
 It installs Git and Node only if the machine has none, fetches NSSM, clones
 the code into `C:\bnf-hrms`, builds the dashboard, installs the server
