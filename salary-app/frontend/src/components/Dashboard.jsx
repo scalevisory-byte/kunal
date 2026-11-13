@@ -1193,6 +1193,20 @@ export default function Dashboard({
           * stops being read. "Hours today" is a different figure from the
           * band's month, and says so.
           */}
+        {/*
+          * Two rows, not thirteen figures left to wrap wherever they land.
+          *
+          * The first is WHO: seven buckets that are exhaustive and exclusive,
+          * so they add to the headcount exactly, plus the day's attendance.
+          * The second is HOW THE DAY WENT for the people who were in. One
+          * row of thirteen wrapped into eleven and two, and the orphaned two
+          * read as a broken grid rather than a continuation.
+          *
+          * `holiday` and `sunday` appear only on a day that has any - an
+          * ordinary Tuesday is not given two permanent zeroes - and they used
+          * to be counted and drawn NOWHERE, so a weekly off showed every
+          * figure here as 0 as though the day had not happened.
+          */}
         <div className="stat-row">
           <Stat label="Present" value={roll.present.length} plain strong go={onGo} to="attendance" />
           <Stat label="Absent" value={roll.absent.length} plain go={onGo} to="attendance" />
@@ -1205,6 +1219,16 @@ export default function Dashboard({
             <Stat label="Weekly off" value={roll.sunday.length} plain go={onGo} to="attendance" />
           )}
           <Stat label="Not marked" value={roll.unmarked.length} plain go={onGo} to="attendance" />
+          {/*
+            * Out of the people who were EXPECTED, not out of the staff list -
+            * a weekly off and a paid holiday are in neither half, and a half
+            * day is half a day lost. The report's own function, so this
+            * figure and Reports cannot disagree.
+            */}
+          <Stat label="Attendance" value={roll.rate} plain go={onGo} to="reports" />
+        </div>
+
+        <div className="stat-row">
           <Stat label="Late in" value={roll.late.length} plain go={onGo} to="time" />
           <Stat label="Early out" value={roll.early.length} plain go={onGo} to="time" />
           <Stat label="On overtime" value={roll.overtime.length} plain go={onGo} to="time" />
@@ -1217,13 +1241,6 @@ export default function Dashboard({
             go={onGo}
             to="time"
           />
-          {/*
-            * Out of the people who were EXPECTED, not out of the staff list -
-            * a weekly off and a paid holiday are in neither half, and a half
-            * day is half a day lost. The report's own function, so this
-            * figure and Reports cannot disagree.
-            */}
-          <Stat label="Attendance" value={roll.rate} plain go={onGo} to="reports" />
         </div>
 
         <SegBar
