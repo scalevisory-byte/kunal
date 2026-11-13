@@ -804,3 +804,64 @@ test('the dashboard says what it is counting, and says it shortly', () => {
    */
   assert.match(d, /\$\{needsLooking\.length\} of \$\{roll\.accounted\} need looking at\./);
 });
+
+test('the dashboard wears the corporate look and nothing else does', () => {
+  /*
+   * Dinesh sent a mock-up and asked for it by picture: a navy rail, tinted
+   * KPI tiles, cards with a navy head, a line chart, a donut, quick stats and
+   * pending actions. It is a deliberate change of register - this page is
+   * read for ten seconds at the start of a day, not for an hour - so it is
+   * SCOPED to `.dash`, and the other eleven tabs keep the quiet hairline
+   * sheet they were built for.
+   */
+  assert.match(src('App.jsx'), /tab === 'dashboard' \? 'dash' : undefined/);
+  assert.match(css, /\.dash \.kpi\.t1 \{/);
+  assert.match(css, /\.dash \.pcard-head \{/);
+
+  /*
+   * `pcard`, NOT `panel`. `.panel` was already the slide-in drawer, which
+   * carries `height: 100%` and a 4rem bottom padding - the three cards
+   * silently inherited both, came out the height of the tallest with half of
+   * each empty, and `align-self: start` could not fix it because nothing was
+   * stretching them. Measured in the browser, not guessed.
+   */
+  const d = src('components/Dashboard.jsx');
+  assert.ok(!/className="panel"/.test(d), 'the dashboard cards are back on the drawer class');
+  assert.match(d, /className="pcard"/);
+
+  /*
+   * Both charts are inline SVG - no charting library, because the whole of
+   * what they need is a polyline and some arcs and the single file has to
+   * stay small enough to send on WhatsApp.
+   */
+  assert.match(d, /function LineChart/);
+  assert.match(d, /function Donut/);
+  /*
+   * The line starts at a FLOOR, not at zero: real attendance sits between 85
+   * and 100 and a 0-100 axis draws a flat line across the top that says
+   * nothing. The floor is labelled, so a half-height point is not read as
+   * 50%. And a day with nothing marked is a GAP in the line, never a zero.
+   */
+  assert.match(d, /const lo = Math\.max\(0, Math\.floor/);
+  assert.match(d, /if \(p\.value === null\) \{/);
+  /*
+   * The donut's middle is the OVERALL rate, not the average of the slices -
+   * four companies of different sizes do not average. Slices are sized by
+   * headcount and each is labelled with its own rate.
+   */
+  assert.match(d, /weight: c\.totals\.count,/);
+
+  // Three readings of ONE figure, never three figures.
+  assert.match(d, /trendBy === 'monthly'/);
+  assert.match(d, /trendBy === 'company'/);
+
+  /*
+   * The register pages, and the page resets whenever what is listed changes -
+   * narrowing to one company while on page 4 would otherwise show an empty
+   * table, which reads as "nobody matched".
+   */
+  assert.match(d, /const PER_PAGE = 10;/);
+  assert.match(d, /\}, \[bucket, find, sort, regCompany, regDept, shownDay\]\);/);
+  assert.match(d, /All companies<\/option>/);
+  assert.match(d, /All departments<\/option>/);
+});

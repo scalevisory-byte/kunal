@@ -2391,3 +2391,202 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
 .th-sort:hover { color: var(--text); }
 /* The mark itself, said in words rather than left as a two-letter code. */
 .mark-pill { white-space: nowrap; font-size: 0.74rem; }
+
+/* ======================================================================
+ * The corporate look.
+ *
+ * Dinesh showed a mock-up and asked for it by picture: a navy rail down the
+ * side, tinted KPI tiles, cards with a navy head, a line chart and a donut.
+ * It is a deliberate change of register from the quiet sheet above - this
+ * page is read for ten seconds at the start of a day, not for an hour - so
+ * these rules are SCOPED to the shell and to .dash. Every other tab keeps the
+ * hairline look it was built with.
+ * ====================================================================== */
+
+:root {
+  --navy: #16264a;
+  --navy-2: #1d3461;
+  --navy-line: #27406e;
+  --gold: #f5a524;
+  --tile-1: #eaf1fe; --tile-1-ink: #2563eb;
+  --tile-2: #e7f8ef; --tile-2-ink: #10925f;
+  --tile-3: #fdecec; --tile-3-ink: #d63b36;
+  --tile-4: #fff4e3; --tile-4-ink: #c07703;
+  --tile-5: #f1ecfd; --tile-5-ink: #6d44c9;
+  --tile-6: #e8f6fb; --tile-6-ink: #0d7490;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --tile-1: #16233d; --tile-1-ink: #7fa9f5;
+    --tile-2: #11291f; --tile-2-ink: #4ec78d;
+    --tile-3: #2d1715; --tile-3-ink: #f2857c;
+    --tile-4: #2a2008; --tile-4-ink: #e8b55a;
+    --tile-5: #1f1733; --tile-5-ink: #b094ef;
+    --tile-6: #10242c; --tile-6-ink: #5fc0da;
+  }
+}
+:root[data-theme='dark'] {
+  --tile-1: #16233d; --tile-1-ink: #7fa9f5;
+  --tile-2: #11291f; --tile-2-ink: #4ec78d;
+  --tile-3: #2d1715; --tile-3-ink: #f2857c;
+  --tile-4: #2a2008; --tile-4-ink: #e8b55a;
+  --tile-5: #1f1733; --tile-5-ink: #b094ef;
+  --tile-6: #10242c; --tile-6-ink: #5fc0da;
+}
+
+/* ---- the rail ---- */
+.sidebar {
+  background: var(--navy);
+  border-right: none;
+  color: #e9eef8;
+}
+.side-brand { border-bottom: 1px solid var(--navy-line); padding-bottom: 0.7rem; }
+.side-mark { background: var(--gold); color: var(--navy); font-weight: 700; }
+.side-name, .side-name strong { color: #fff; }
+.side-name .built { color: #93a4c4; }
+.side-nav button { color: #c3cfe6; border-radius: 8px; }
+.side-nav button:hover:not(:disabled) { background: var(--navy-2); color: #fff; border-color: transparent; }
+.side-nav button.active {
+  background: var(--navy-2);
+  color: #fff;
+  font-weight: 600;
+  /* The gold is the only thing on the rail that is not navy or white, so it
+     is the one place the eye lands - which is what "you are here" needs. */
+  box-shadow: inset 3px 0 var(--gold);
+}
+.side-foot, .side-foot button, .side-close { color: #93a4c4; }
+.side-foot { border-top: 1px solid var(--navy-line); }
+.side-foot button:hover:not(:disabled) { color: #fff; background: var(--navy-2); border-color: transparent; }
+
+/* ---- the KPI tiles ---- */
+/*
+ * Six tiles, and auto-fit with a 11.5rem floor ran the sixth off the right of
+ * a 1500px screen. `minmax(0, 1fr)` lets them share whatever there is instead
+ * of each demanding a minimum, and the two steps below wrap them 3x2 and then
+ * 2x3 rather than letting one fall off the edge.
+ */
+.dash .kpi-band { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1500px) { .dash .kpi-band { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 860px) { .dash .kpi-band { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/*
+ * One tile a row on a phone. Two of them at 390px left each 180px wide while
+ * the icon and its caption wanted 202, and the band pushed the whole page 28px
+ * sideways. Measured at 390, not guessed from a breakpoint.
+ */
+@media (max-width: 520px) { .dash .kpi-band { grid-template-columns: minmax(0, 1fr); } }
+/* Every box in the tile allowed to be narrower than its contents, or the
+   longest caption decides the width of the grid column. */
+.dash .kpi, .dash .kpi-head, .dash .kpi-body, .dash .kpi-label { min-width: 0; }
+.dash .kpi-head { flex-wrap: wrap; }
+.dash .kpi-value { overflow-wrap: anywhere; }
+.dash .kpi-caption { overflow-wrap: anywhere; }
+.dash .kpi {
+  flex-direction: column;
+  gap: 0.55rem;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+.dash .kpi-head { display: flex; align-items: center; gap: 0.6rem; width: 100%; }
+.dash .kpi-icon { width: 2.3rem; height: 2.3rem; border-radius: 10px; }
+.dash .kpi-label { font-size: 0.72rem; letter-spacing: 0.01em; text-transform: none; color: var(--muted); font-weight: 600; }
+.dash .kpi-value { font-size: 1.85rem; line-height: 1.1; }
+.dash .kpi-caption { font-size: 0.72rem; }
+/* Each tile tinted, the icon solid in the same hue. Six tiles, six hues, in
+   the order the morning is read: how many, in, out, off, unknown, the rate. */
+.dash .kpi.t1 { background: var(--tile-1); border-color: transparent; }
+.dash .kpi.t1 .kpi-icon { background: var(--tile-1-ink); }
+.dash .kpi.t2 { background: var(--tile-2); border-color: transparent; }
+.dash .kpi.t2 .kpi-icon { background: var(--tile-2-ink); }
+.dash .kpi.t3 { background: var(--tile-3); border-color: transparent; }
+.dash .kpi.t3 .kpi-icon { background: var(--tile-3-ink); }
+.dash .kpi.t4 { background: var(--tile-4); border-color: transparent; }
+.dash .kpi.t4 .kpi-icon { background: var(--tile-4-ink); }
+.dash .kpi.t5 { background: var(--tile-5); border-color: transparent; }
+.dash .kpi.t5 .kpi-icon { background: var(--tile-5-ink); }
+.dash .kpi.t6 { background: var(--tile-6); border-color: transparent; }
+.dash .kpi.t6 .kpi-icon { background: var(--tile-6-ink); }
+.kpi-delta { font-size: 0.72rem; font-weight: 600; }
+.kpi-delta.up { color: var(--good); }
+.kpi-delta.down { color: var(--bad); }
+.kpi-delta.flat { color: var(--muted); }
+
+/* ---- a card with a navy head ----
+ *
+ * `pcard`, not `panel`: `.panel` was already taken by the slide-in drawer,
+ * which carries `height: 100%` and a 4rem bottom padding. These cards
+ * silently inherited both - all three came out the height of the tallest
+ * with half of each one empty, and `align-self: start` could not fix it
+ * because nothing was stretching them. Measured, not guessed.
+ */
+.dash .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.dash .pcard-head {
+  background: var(--navy);
+  color: #fff;
+  padding: 0.6rem 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.dash .pcard-head .spacer { flex: 1 1 auto; }
+.dash .pcard-head button { background: transparent; border-color: var(--navy-line); color: #c3cfe6; font-size: 0.74rem; padding: 0.2rem 0.6rem; }
+.dash .pcard-head button.on { background: #fff; color: var(--navy); border-color: #fff; }
+.dash .pcard-head button:hover:not(:disabled) { color: #fff; border-color: #fff; }
+.dash .pcard-body { padding: 0.9rem 1rem 1rem; }
+
+/* The three across: trend, donut, quick stats. */
+/*
+ * `align-items: start` on the grid is not enough on its own here - the panels
+ * are grid ITEMS and a stretched item was drawing a card half of which was
+ * empty, with the quick-stats column setting the height for all three. Each
+ * panel sizes to its own contents.
+ */
+.dash-3 { display: grid; grid-template-columns: 1.5fr 1.1fr 1fr; gap: 0.9rem; align-items: start; }
+.dash-2 { display: grid; grid-template-columns: 2.2fr 1fr; gap: 0.9rem; align-items: start; }
+.dash-3 > *, .dash-2 > * { align-self: start; }
+@media (max-width: 1100px) { .dash-3, .dash-2 { grid-template-columns: 1fr; } }
+
+/* ---- quick stats and pending actions ---- */
+.qs-row, .pa-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 0.55rem 0.2rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line-soft);
+  cursor: pointer;
+}
+.qs-row:last-child, .pa-row:last-child { border-bottom: none; }
+.qs-row:hover, .pa-row:hover { background: var(--line-soft); }
+.qs-ico, .pa-ico {
+  flex: 0 0 auto; width: 1.9rem; height: 1.9rem; border-radius: 8px;
+  display: grid; place-items: center; color: #fff;
+}
+.qs-name, .pa-name { flex: 1 1 auto; min-width: 0; font-size: 0.86rem; }
+.pa-name { white-space: normal; }
+.qs-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pa-num {
+  flex: 0 0 auto; min-width: 1.5rem; text-align: center;
+  font-size: 0.75rem; font-weight: 700; border-radius: 999px;
+  padding: 0.05rem 0.45rem; background: var(--tile-4); color: var(--tile-4-ink);
+}
+.qs-go { color: var(--muted); }
+
+/* ---- the two charts ---- */
+.chart { width: 100%; display: block; }
+.donut-wrap { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.donut-legend { flex: 1 1 10rem; display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.donut-legend div { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+.donut-legend .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; flex: 0 0 auto; }
+.donut-legend .v { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---- pagination ---- */
+.pager { display: flex; align-items: center; gap: 0.35rem; justify-content: flex-end; margin-top: 0.6rem; flex-wrap: wrap; }
+.pager .count { margin-right: auto; color: var(--muted); font-size: 0.79rem; }
+.pager button { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+.pager button.on { background: var(--brand); color: #fff; border-color: var(--brand); }

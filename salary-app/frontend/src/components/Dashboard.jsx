@@ -60,6 +60,12 @@ export default function Dashboard({
   /* The register's own search and sort. Neither touches anything stored. */
   const [find, setFind] = useState('');
   const [sort, setSort] = useState({ by: '', dir: 1 });
+  /* Which way the attendance trend is read: by day, by month, or by company. */
+  const [trendBy, setTrendBy] = useState('daily');
+  /* The register's own company and department narrowing, and its page. */
+  const [regCompany, setRegCompany] = useState('');
+  const [regDept, setRegDept] = useState('');
+  const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(0);
 
   useEffect(() => {
@@ -511,6 +517,9 @@ export default function Dashboard({
     const listed = useMemo(() => {
       let only = bucket === 'all' ? needsLooking : needsLooking.filter((p) => p.in?.has(bucket));
 
+      if (regCompany) only = only.filter((p) => p.company_name === regCompany);
+      if (regDept) only = only.filter((p) => (p.department || '') === regDept);
+
       // Name, code, department or company - whatever somebody has in mind.
       const q = find.trim().toLowerCase();
       if (q) {
@@ -547,7 +556,23 @@ export default function Dashboard({
         only = [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
       }
       return only;
-    }, [needsLooking, bucket, find, sort]);
+    }, [needsLooking, bucket, find, sort, regCompany, regDept]);
+
+    /*
+     * A page at a time. Eighteen people fit; eighty-five do not, and a table
+     * that runs past the fold is one nobody scrolls to the end of.
+     *
+     * The page resets whenever what is listed changes - otherwise narrowing
+     * to one company while on page 4 shows an empty table, which reads as
+     * "nobody matched".
+     */
+    const PER_PAGE = 10;
+    const pages = Math.max(1, Math.ceil(listed.length / PER_PAGE));
+    const onPage = Math.min(page, pages);
+    const shownRows = listed.slice((onPage - 1) * PER_PAGE, onPage * PER_PAGE);
+    useEffect(() => {
+      setPage(1);
+    }, [bucket, find, sort, regCompany, regDept, shownDay]);
 
     /* Attendance, counted off the marks rather than the payroll columns, so an
        unmarked day shows as unmarked instead of quietly counting as present. */
@@ -850,6 +875,63 @@ export default function Dashboard({
       ];
     }, [period, totals]);
 
+  /*
+   * The six figures somebody opens this page to see, each a tile of its own
+   * hue. Every one is a figure already computed below - this reads them, it
+   * works nothing out - and every one opens where it came from.
+   *
+   * `pct` is "of the staff on screen", so the six read against one
+   * denominator. A month with nothing marked shows a dash rather than 0%,
+   * because "nobody has filled this in" is not "nobody came in".
+   */
+  /*
+   * Last month, for the two tiles that compare. Only the month immediately
+   * before this one counts - a gap in the history is not a comparison - and
+   * its attendance goes through the same `attendancePercent` as everything
+   * else, so the arrow and the figure beside it cannot disagree.
+   */
+  const was = useMemo(() => {
+    if (!previous) return null;
+    const entry = history.find((h) => h.period?.id === previous.period?.id);
+    if (!entry) return null;
+    const own = companyId ? entry.rows.filter((r) => r.company_id === companyId) : entry.rows;
+    return { staff: own.length, rate: attendancePercent(own) };
+  }, [previous, history, companyId]);
+
+  /*
+   * The trend, in whichever of the three readings is asked for. One figure,
+   * three ways of cutting it - never three different figures.
+   */
+  const trendPoints = useMemo(() => {
+    if (trendBy === 'monthly') {
+      return history.map((h) => {
+        const own = companyId ? h.rows.filter((r) => r.company_id === companyId) : h.rows;
+        return {
+          label: `${MONTHS[h.period.month - 1].slice(0, 3)} ${String(h.period.year).slice(2)}`,
+          value: attendancePercent(own),
+          periodId: h.period.id,
+          note: `${own.length} staff`,
+        };
+      });
+    }
+    if (trendBy === 'company') {
+      return companies.map((c) => ({
+        label: c.name.split(' ').slice(0, 2).join(' '),
+        value: attendancePercent(c.rows),
+        note: `${c.totals.count} staff`,
+      }));
+    }
+    /* Daily: this month, day by day. A day nobody marked is null, which the
+       chart draws as a gap rather than as a zero. */
+    return daily.map((d) => ({
+      label: String(d.day),
+      value: d.rate,
+      day: d.day,
+      note: d.marked ? `${d.present} in, ${d.absent} absent` : 'nothing marked',
+    }));
+  }, [trendBy, daily, history, companies, companyId]);
+
+
     if (!period || !payroll) {
       return (
         <p className="card muted">
@@ -1012,62 +1094,73 @@ export default function Dashboard({
   // days present out of days that carry any mark. A month with nothing marked
   // reads as a dash, never 100%.
   const attendedRate = presentRate(rows);
+  const pct = (n) => (rows.length ? `${Math.round((n / rows.length) * 1000) / 10}% of the staff` : '');
   const kpis = [
-    {
-      key: 'present',
-      icon: 'people',
-      tone: 'present',
-      label: 'In today',
-      value: nothingMarked ? '—' : `${roll.present.length}/${rows.length}`,
-      caption: nothingMarked
-        ? 'nothing marked for this day'
-        : `${roll.absent.length} absent · ${roll.leave.length} on leave`,
-      to: 'attendance',
-    },
     {
       key: 'staff',
       icon: 'people',
-      tone: 'paid',
-      label: 'On the payroll',
+      tile: 't1',
+      label: 'Total employees',
       value: rows.length,
       caption: `${companies.length} ${companies.length === 1 ? 'company' : 'companies'}`,
+      delta: was ? rows.length - was.staff : null,
       to: 'employees',
     },
     {
-      key: 'hours',
+      key: 'present',
+      icon: 'check',
+      tile: 't2',
+      label: 'Present today',
+      value: nothingMarked ? '—' : roll.present.length,
+      caption: nothingMarked ? 'nothing marked for this day' : pct(roll.present.length),
+      to: 'attendance',
+    },
+    {
+      key: 'absent',
+      icon: 'alert',
+      tile: 't3',
+      label: 'Absent today',
+      value: nothingMarked ? '—' : roll.absent.length,
+      caption: nothingMarked ? '' : pct(roll.absent.length),
+      to: 'attendance',
+    },
+    {
+      key: 'leave',
+      icon: 'calendar',
+      tile: 't4',
+      label: 'On leave today',
+      value: nothingMarked ? '—' : roll.leave.length,
+      caption: nothingMarked ? '' : pct(roll.leave.length),
+      to: 'leave',
+    },
+    {
+      key: 'unmarked',
       icon: 'clock',
-      tone: attendance.hours.short > attendance.hours.overtime ? 'half' : 'present',
-      label: 'Hours worked',
-      value: attendance.hours.days ? formatDuration(attendance.hours.worked) : '—',
-      caption: attendance.hours.days
-        ? `${formatDuration(attendance.hours.short)} short · ${formatDuration(
-            attendance.hours.overtime
-          )} over`
-        : 'no clock times yet',
-      to: 'time',
+      tile: 't5',
+      label: 'Attendance not marked',
+      value: roll.unmarked.length,
+      caption: pct(roll.unmarked.length),
+      to: 'attendance',
     },
     {
       key: 'rate',
-      icon: 'calendar',
-      tone: 'leave',
+      icon: 'chart',
+      tile: 't6',
       label: 'Attendance',
       value: attendedRate === '-' ? '—' : attendedRate,
       caption:
         attendedRate === '-'
           ? 'nothing marked yet'
-          : // Employee-DAYS, which is what it is: 23 is one person absent for
-            // 23 days or 23 people absent once, and the page has to say which.
-            `${attendance.absent} employee-days absent this month`,
+          : `${attendance.absent} employee-days absent this month`,
+      /*
+       * Against the month before, in percentage POINTS - "2% better" would
+       * be ambiguous between 94 to 96 and 94 to 95.9.
+       */
+      delta: was && was.rate !== null && attendedRate !== '-'
+        ? Math.round((parseFloat(attendedRate) - was.rate) * 10) / 10
+        : null,
+      deltaUnit: 'pts',
       to: 'reports',
-    },
-    {
-      key: 'attention',
-      icon: 'alert',
-      tone: alerts.length ? 'half' : 'present',
-      label: 'Needs attention',
-      value: alerts.length + queues.length,
-      caption: alerts.length + queues.length === 0 ? 'nothing waiting' : 'things to deal with',
-      to: 'people',
     },
   ];
 
@@ -1095,17 +1188,113 @@ export default function Dashboard({
     <section className="stack dashboard" onClick={openCard}>
       <div className="kpi-band">
         {kpis.map((k) => (
-          <button key={k.key} className="kpi" onClick={() => onGo(k.to)} title={`Open ${k.to}`}>
-            <span className="kpi-icon" style={{ background: `var(--viz-${k.tone})` }}>
-              <Glyph name={k.icon} />
+          <button key={k.key} className={`kpi ${k.tile}`} onClick={() => onGo(k.to)} title={`Open ${k.to}`}>
+            <span className="kpi-head">
+              <span className="kpi-icon">
+                <Glyph name={k.icon} />
+              </span>
+              <span className="kpi-label">{k.label}</span>
             </span>
             <span className="kpi-body">
-              <span className="kpi-label">{k.label}</span>
               <span className="kpi-value">{k.value}</span>
-              <span className="kpi-caption">{k.caption}</span>
+              <span className="kpi-caption">
+                {k.caption}
+                {/* Only when there IS a month before to compare against -
+                    "0% vs last month" on a first month is a made-up zero. */}
+                {k.delta !== null && k.delta !== undefined ? (
+                  <span
+                    className={`kpi-delta ${k.delta > 0 ? 'up' : k.delta < 0 ? 'down' : 'flat'}`}
+                  >
+                    {' '}
+                    {k.delta > 0 ? '▲' : k.delta < 0 ? '▼' : '='} {Math.abs(k.delta)}
+                    {k.deltaUnit ? ` ${k.deltaUnit}` : ''} vs last month
+                  </span>
+                ) : null}
+              </span>
             </span>
           </button>
         ))}
+      </div>
+
+      <div className="dash-3">
+        <div className="pcard">
+          <div className="pcard-head">
+            <Glyph name="chart" size={16} />
+            Attendance trend
+            <span className="spacer" />
+            {[['daily', 'Daily'], ['monthly', 'Monthly'], ['company', 'Company']].map(([key, label]) => (
+              <button
+                key={key}
+                className={trendBy === key ? 'on' : undefined}
+                onClick={() => setTrendBy(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="pcard-body">
+            {/*
+              * Three readings of one figure, never three figures. Daily is
+              * this month day by day, monthly is the last few months, and
+              * company is each company's own rate - all from
+              * `attendancePercent`, so no two of them can disagree.
+              */}
+            <LineChart
+              points={trendPoints}
+              onPoint={(p) => {
+                if (trendBy === 'daily' && p.day) setDay(p.day);
+                if (trendBy === 'monthly' && p.periodId && onPeriod) onPeriod(p.periodId);
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="pcard">
+          <div className="pcard-head">
+            <Glyph name="people" size={16} />
+            Company wise attendance
+          </div>
+          <div className="pcard-body">
+            <Donut
+              slices={companies.map((c, i) => ({
+                label: c.name,
+                /* Sized by HEADCOUNT, labelled with its own rate - a company
+                   of four and a company of forty are not the same slice. */
+                weight: c.totals.count,
+                text: presentRate(c.rows),
+                colour: `var(--viz-s${(i % 4) + 1})`,
+              }))}
+              middle={attendedRate === '-' ? '—' : attendedRate}
+              caption="overall"
+            />
+          </div>
+        </div>
+
+        <div className="pcard">
+          <div className="pcard-head">
+            <Glyph name="clock" size={16} />
+            Quick stats
+          </div>
+          <div className="pcard-body">
+            {[
+              ['Late coming', roll.late.length, 'var(--tile-4-ink)', 'time'],
+              ['Early leaving', roll.early.length, 'var(--tile-3-ink)', 'time'],
+              ['Half day', roll.halfDay.length, 'var(--tile-5-ink)', 'attendance'],
+              ['Overtime', roll.overtime.length, 'var(--tile-2-ink)', 'time'],
+              ['Short hours', roll.short.length, 'var(--tile-6-ink)', 'time'],
+              ['Out of uniform', roll.outOfUniform.length, 'var(--tile-1-ink)', 'attendance'],
+            ].map(([label, n, colour, to]) => (
+              <button key={label} className="qs-row" onClick={() => onGo(to)}>
+                <span className="qs-ico" style={{ background: colour }}>
+                  <Glyph name="clock" size={14} />
+                </span>
+                <span className="qs-name">{label}</span>
+                <span className="qs-num">{n}</span>
+                <span className="qs-go">›</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="card roll-call" data-go="attendance">
@@ -1307,6 +1496,18 @@ export default function Dashboard({
                 value={find}
                 onChange={(e) => setFind(e.target.value)}
               />
+              <select value={regCompany} onChange={(e) => setRegCompany(e.target.value)}>
+                <option value="">All companies</option>
+                {[...new Set(needsLooking.map((p) => p.company_name).filter(Boolean))].sort().map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <select value={regDept} onChange={(e) => setRegDept(e.target.value)}>
+                <option value="">All departments</option>
+                {[...new Set(needsLooking.map((p) => p.department).filter(Boolean))].sort().map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
               {find ? (
                 <span className="muted small">
                   {listed.length} of {needsLooking.length}{' '}
@@ -1344,7 +1545,7 @@ export default function Dashboard({
                 </tr>
               </thead>
               <tbody>
-                {listed.map((p) => (
+                {shownRows.map((p) => (
                   <tr key={p.id} className={`r${p.rank}`}>
                     <td className="sticky-name">
                       {p.employee_name}
@@ -1495,6 +1696,41 @@ export default function Dashboard({
                 ))}
               </tbody>
             </table>
+            </div>
+
+            {/* Always shown, even on one page: "Showing 1 to 10 of 85" is the
+                sentence that tells somebody there IS more. */}
+            <div className="pager">
+              <span className="count">
+                Showing {listed.length === 0 ? 0 : (onPage - 1) * PER_PAGE + 1} to{' '}
+                {Math.min(onPage * PER_PAGE, listed.length)} of {listed.length}
+                {listed.length === 1 ? ' person' : ' people'}
+              </span>
+              {pages > 1 && (
+                <>
+                  <button className="ghost" disabled={onPage <= 1} onClick={() => setPage(onPage - 1)}>
+                    ‹
+                  </button>
+                  {Array.from({ length: pages }, (_, i) => i + 1)
+                    /* Five at a time around where you are, so a long month
+                       does not draw thirty numbered buttons. */
+                    .filter((n) => Math.abs(n - onPage) <= 2 || n === 1 || n === pages)
+                    .map((n, i, all) => (
+                      <span key={n}>
+                        {i > 0 && all[i - 1] !== n - 1 ? <span className="muted"> … </span> : null}
+                        <button
+                          className={n === onPage ? 'on' : 'ghost'}
+                          onClick={() => setPage(n)}
+                        >
+                          {n}
+                        </button>
+                      </span>
+                    ))}
+                  <button className="ghost" disabled={onPage >= pages} onClick={() => setPage(onPage + 1)}>
+                    ›
+                  </button>
+                </>
+              )}
             </div>
             {/*
               * Six lines became one, the rest on the hover. The two facts that
@@ -1752,20 +1988,42 @@ export default function Dashboard({
       )}
 
       {alerts.length > 0 && (
-        <div className="card">
-          <h2>Needs attention</h2>
-          <ul className="alerts">
-            {alerts.map((alert) => (
-              /* Each row goes somewhere different, so the row is the target
-                 rather than only the word at the end of it. */
-              <li key={alert.key} className={alert.tone} onClick={() => onGo(alert.go)}>
-                <span>{alert.text}</span>
-                <button className="ghost tiny" onClick={() => onGo(alert.go)}>
-                  open
-                </button>
-              </li>
+        <div className="pcard">
+          <div className="pcard-head">
+            <Glyph name="alert" size={16} />
+            Pending actions
+            <span className="pa-num">{alerts.length + queues.length}</span>
+            <span className="spacer" />
+            <button onClick={() => onGo('reports')}>View all →</button>
+          </div>
+          <div className="pcard-body">
+            {/* Each row goes somewhere different, so the whole row is the
+                target rather than only a word at the end of it. */}
+            {alerts.map((alert, i) => (
+              <button key={alert.key} className="pa-row" onClick={() => onGo(alert.go)}>
+                <span
+                  className="pa-ico"
+                  style={{ background: `var(--tile-${(i % 6) + 1}-ink)` }}
+                >
+                  <Glyph name="alert" size={13} />
+                </span>
+                <span className="pa-name">{alert.text}</span>
+              </button>
             ))}
-          </ul>
+            {/*
+              * The queues come from the digest and are server-only, so this
+              * half of the list is simply absent in the single file rather
+              * than showing an empty box that looks broken.
+              */}
+            {queues.map((item) => (
+              <button key={item.text} className="pa-row" onClick={() => onGo('people')}>
+                <span className="pa-ico" style={{ background: 'var(--tile-5-ink)' }}>
+                  <Glyph name="people" size={13} />
+                </span>
+                <span className="pa-name">{item.text}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -2525,4 +2783,156 @@ function exportRegister(listed, period, day) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/**
+ * A line of attendance over time.
+ *
+ * Inline SVG, no charting library - the whole of what this needs is a
+ * polyline and some text, and the single-file build has to stay small enough
+ * to send on WhatsApp.
+ *
+ * Two rules it keeps. The scale starts at a floor rather than at zero,
+ * because real attendance sits between 85 and 100 and a 0-100 axis draws a
+ * flat line across the top that says nothing; the floor is LABELLED so
+ * nobody reads a half-height point as 50%. And a point with nothing marked
+ * is a GAP in the line, not a zero - zero would read as "nobody came in".
+ */
+function LineChart({ points, onPoint, height = 190 }) {
+  const real = points.filter((p) => p.value !== null);
+  if (real.length < 2) {
+    return <p className="muted small">Not enough marked days yet to draw a line.</p>;
+  }
+  const lo = Math.max(0, Math.floor(Math.min(...real.map((p) => p.value)) / 5) * 5 - 5);
+  const hi = 100;
+  const W = 760;
+  const H = height;
+  const padL = 34;
+  const padR = 10;
+  const padT = 18;
+  const padB = 26;
+  const x = (i) => padL + (i * (W - padL - padR)) / Math.max(1, points.length - 1);
+  const y = (v) => padT + ((hi - v) / (hi - lo)) * (H - padT - padB);
+
+  /* Broken into runs, so a day with no marks leaves a gap rather than a line
+     dropping to the floor and back. */
+  const runs = [];
+  let run = [];
+  points.forEach((p, i) => {
+    if (p.value === null) {
+      if (run.length > 1) runs.push(run);
+      run = [];
+    } else {
+      run.push([x(i), y(p.value)]);
+    }
+  });
+  if (run.length > 1) runs.push(run);
+
+  const ticks = [lo, Math.round((lo + hi) / 2), hi];
+  return (
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Attendance over time">
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth="1" />
+          <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill="var(--muted)">
+            {t}%
+          </text>
+        </g>
+      ))}
+      {runs.map((r, i) => (
+        <polyline
+          key={i}
+          points={r.map(([px, py]) => `${px},${py}`).join(' ')}
+          fill="none"
+          stroke="var(--tile-1-ink)"
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      ))}
+      {points.map((p, i) =>
+        p.value === null ? null : (
+          <g key={p.label} onClick={() => onPoint?.(p)} style={{ cursor: onPoint ? 'pointer' : 'default' }}>
+            <circle cx={x(i)} cy={y(p.value)} r="4" fill="var(--surface)" stroke="var(--tile-1-ink)" strokeWidth="2.5" />
+            {/* A generous invisible target, because a 4px dot is not something
+                anybody hits with a finger. */}
+            <circle cx={x(i)} cy={y(p.value)} r="14" fill="transparent">
+              <title>{`${p.label} — ${Math.round(p.value)}%${p.note ? ` · ${p.note}` : ''}`}</title>
+            </circle>
+            {points.length <= 14 && (
+              <text x={x(i)} y={y(p.value) - 11} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--text)">
+                {Math.round(p.value)}%
+              </text>
+            )}
+          </g>
+        )
+      )}
+      {points.map((p, i) =>
+        i % Math.ceil(points.length / 10) ? null : (
+          <text key={`l${p.label}`} x={x(i)} y={H - 7} textAnchor="middle" fontSize="11" fill="var(--muted)">
+            {p.label}
+          </text>
+        )
+      )}
+    </svg>
+  );
+}
+
+/**
+ * A donut, drawn with one circle per slice and a dash offset.
+ *
+ * The number in the middle is the OVERALL figure, not the sum of the slices -
+ * attendance across everybody, which is not the average of four company
+ * percentages when the companies are different sizes. Each slice is sized by
+ * headcount and labelled with its own rate, so the two readings stay apart.
+ */
+function Donut({ slices, middle, caption, size = 150 }) {
+  const total = slices.reduce((n, s) => n + s.weight, 0);
+  if (!total) return <p className="muted small">Nothing to show yet.</p>;
+  const r = 54;
+  const c = 2 * Math.PI * r;
+  let at = 0;
+  return (
+    <div className="donut-wrap">
+      <svg width={size} height={size} viewBox="0 0 140 140" role="img" aria-label={caption}>
+        <g transform="rotate(-90 70 70)">
+          {slices.map((s) => {
+            const len = (s.weight / total) * c;
+            const el = (
+              <circle
+                key={s.label}
+                cx="70"
+                cy="70"
+                r={r}
+                fill="none"
+                stroke={s.colour}
+                strokeWidth="22"
+                strokeDasharray={`${Math.max(0, len - 2)} ${c}`}
+                strokeDashoffset={-at}
+              >
+                <title>{`${s.label} — ${s.text}`}</title>
+              </circle>
+            );
+            at += len;
+            return el;
+          })}
+        </g>
+        <text x="70" y="68" textAnchor="middle" fontSize="22" fontWeight="700" fill="var(--text)">
+          {middle}
+        </text>
+        <text x="70" y="86" textAnchor="middle" fontSize="10" fill="var(--muted)">
+          {caption}
+        </text>
+      </svg>
+      <div className="donut-legend">
+        {slices.map((s) => (
+          <div key={s.label} title={`${s.label} — ${s.text}`}>
+            <span className="dot" style={{ background: s.colour }} />
+            <span className="ellipsis">{s.label}</span>
+            <span className="v">{s.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }

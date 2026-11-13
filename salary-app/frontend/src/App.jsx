@@ -603,7 +603,10 @@ function Shell() {
         </p>
       )}
 
-      <main>
+      {/* `dash` scopes the corporate look - tinted tiles, navy card heads,
+          charts - to this one page. Every other tab keeps the quiet hairline
+          sheet it was built with, which is what they are read for. */}
+      <main className={tab === 'dashboard' ? 'dash' : undefined}>
         {!period && !['employees', 'dashboard', 'hiring'].includes(tab) && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
