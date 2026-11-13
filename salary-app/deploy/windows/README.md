@@ -192,9 +192,14 @@ They sign in → **My page → Leave → Apply**.
 request is a request; only an approval writes attendance. That is the rule
 the whole module hangs on.
 
-You approve it at **Attendance → Requests**. On approval every day in the
-span is written in one go — a half-approved fortnight cannot exist — with
-the reason they typed carried onto each day and the day marked as allowed.
+You approve it at **Reports → Attendance → "Attendance corrections and
+approvals"** — under Reports, not under the Attendance tab. It asks you to
+confirm, because approving is the one thing on that page that changes what
+somebody is paid.
+
+On approval every day in the span is written in one go — a half-approved
+fortnight cannot exist — with the reason they typed carried onto each day
+and the day marked as allowed.
 
 Proven end to end on a real server: Nidhi applies for 18–20 November as
 casual leave → pending, **0 marks on the grid** → approved → days 18, 19 and

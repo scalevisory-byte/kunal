@@ -194,6 +194,29 @@ test('the guide says to retire the shared password', () => {
   assert.match(read('setup.ps1'), /DELETE this line/);
 });
 
+test('the guide points at the screen approvals are actually on', () => {
+  /*
+   * It said "Attendance -> Requests" for two days. Approvals are not on the
+   * Attendance tab at all - AttendanceRequests is rendered by Reports.jsx,
+   * under Reports -> Attendance -> "Attendance corrections and approvals".
+   * Found by driving it rather than by reading, because reading is what
+   * wrote it wrong in the first place.
+   */
+  const md = fs.readFileSync(path.join(kit, 'README.md'), 'utf8');
+  assert.match(md, /Attendance corrections and/);
+  assert.ok(
+    !/\*\*Attendance . Requests\*\*/.test(md),
+    'the guide names a screen that does not exist'
+  );
+  // ...and that really is where the app puts it.
+  const reports = fs.readFileSync(
+    path.join(kit, '../../frontend/src/components/Reports.jsx'),
+    'utf8'
+  );
+  assert.match(reports, /attendance-approvals/);
+  assert.match(reports, /<AttendanceRequests/);
+});
+
 test('the guide says what has not been tested', () => {
   // These scripts have never been run. Saying so is the difference between
   // a step that fails and a step that fails and surprises somebody.
