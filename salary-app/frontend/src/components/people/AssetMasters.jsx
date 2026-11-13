@@ -30,7 +30,7 @@ const LISTS = [
   ['vendor', 'Vendors', 'Who it was bought from'],
 ];
 
-export default function AssetMasters({ onError }) {
+export default function AssetMasters({ onError, onChanged }) {
   const [kind, setKind] = useState('category');
   const [rows, setRows] = useState([]);
   const [name, setName] = useState('');
@@ -44,6 +44,13 @@ export default function AssetMasters({ onError }) {
     try {
       const { masters } = await api.get('/people/asset-masters');
       setRows(masters);
+      /*
+       * ...and tell the register, which holds its own copy for the pickers
+       * and loads it once. Without this, a Type added here did not reach the
+       * "What" picker until the whole page was reloaded - which reads exactly
+       * like the list not working.
+       */
+      onChanged?.(masters);
     } catch (err) {
       onError(err);
     }

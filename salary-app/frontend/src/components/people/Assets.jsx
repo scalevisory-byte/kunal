@@ -66,6 +66,35 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const [masters, setMasters] = useState([]);
 
   /*
+   * What goes in the "What" picker.
+   *
+   * It was a hard-coded list of ten, and the Lists tab said it held "the four
+   * lists behind the pickers" - but only Brands and Vendors were behind one.
+   * A Type added there ("Printer", "Desk") appeared NOWHERE, and a Category
+   * appeared nowhere at all. Two of the four lists took typing and did
+   * nothing with it.
+   *
+   * So the picker is the built-in ten PLUS whatever Types have been added,
+   * grouped under their category. The built-ins are kept rather than replaced
+   * because nothing here is a gate: a kind that could be picked yesterday has
+   * to be pickable today, and an asset stores its kind as TEXT anyway.
+   */
+  const kindGroups = useMemo(() => {
+    const types = masters.filter((m) => m.kind === 'type' && m.name);
+    const groups = new Map();
+    for (const t of types) {
+      const label = t.parent_name || 'Your list';
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(t.name);
+    }
+    const taken = new Set(types.map((t) => t.name.toLowerCase()));
+    return {
+      added: [...groups.entries()],
+      builtIn: KINDS.filter((k) => !taken.has(k.toLowerCase())),
+    };
+  }, [masters]);
+
+  /*
    * Every branch, for the dashboard's filter. The add form loads one
    * company's branches on demand; this is the whole list, once.
    */
@@ -244,7 +273,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return (
       <section className="stack">
         <Tabs view={view} setView={setView} />
-        <AssetMasters onError={onError} />
+        <AssetMasters onError={onError} onChanged={setMasters} />
       </section>
     );
   }
@@ -403,11 +432,31 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             <label>
               What
               <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
-                {KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
+                {kindGroups.added.map(([category, names]) => (
+                  <optgroup key={category} label={category}>
+                    {names.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
+                {kindGroups.builtIn.length > 0 &&
+                  (kindGroups.added.length ? (
+                    <optgroup label="The usual ones">
+                      {kindGroups.builtIn.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    kindGroups.builtIn.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))
+                  ))}
               </select>
             </label>
             <label>

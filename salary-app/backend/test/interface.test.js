@@ -417,3 +417,45 @@ test('a handover slip prints whole, and the register does not move a phone', () 
   // The offline note printed across the top of that slip. It does not now.
   assert.match(src('components/AssetsTab.jsx'), /className="muted small no-print"/);
 });
+
+test('all four asset lists are behind a picker', () => {
+  /*
+   * The Lists tab calls itself "the four lists behind the pickers" and only
+   * TWO of them were. Brands fed a datalist and Vendors fed one; a Type added
+   * there ("Printer", "Desk") appeared NOWHERE, because the "What" picker was
+   * a hard-coded list of ten, and a Category appeared nowhere at all. Two of
+   * the four lists took typing and did nothing with it - which is worse than
+   * a screen that is hard to find.
+   *
+   * Driven offline after: 2 categories, 2 types, 1 brand, 1 vendor added, and
+   * the register's picker reads
+   *   «Furniture: Desk» | «IT equipment: Printer» | «The usual ones: Laptop,
+   *   Desktop, Mobile, SIM card, ID card, Access card, Vehicle, Tools,
+   *   Furniture, Other»
+   * with Epson and Sai Computers suggested on brand and vendor.
+   */
+  const a = src('components/people/Assets.jsx');
+  assert.match(a, /const kindGroups = useMemo/);
+  assert.match(a, /m\.kind === 'type'/);
+  assert.match(a, /<optgroup key=\{category\} label=\{category\}>/);
+  /*
+   * The built-in ten are KEPT, not replaced. Nothing here is a gate: a kind
+   * that could be picked yesterday has to be pickable today, and an asset
+   * stores its kind as text anyway.
+   */
+  assert.match(a, /builtIn: KINDS\.filter/);
+  assert.match(a, /label="The usual ones"/);
+
+  /*
+   * ...and a Type added on the Lists tab reaches that picker with no reload.
+   * The register holds its own copy of the masters and loads it once, so
+   * without this the new Type simply was not there - which reads exactly like
+   * the list not working.
+   */
+  assert.match(a, /<AssetMasters onError=\{onError\} onChanged=\{setMasters\} \/>/);
+  assert.match(src('components/people/AssetMasters.jsx'), /onChanged\?\.\(masters\)/);
+
+  // The chip counts had no space before them - "Categories2" - because .chip
+  // is inline-flex and flex drops a whitespace-only child.
+  assert.match(css, /\.chip > \.muted \{[^}]*margin-left/);
+});

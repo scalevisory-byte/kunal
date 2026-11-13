@@ -366,6 +366,14 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
 .chip button:hover { background: var(--brand-soft); }
 .chip .chip-action { color: var(--muted); border-left: 1px solid var(--line); }
 .chip .chip-action.danger:hover { background: var(--bad); color: #fff; }
+/*
+ * A count beside a chip's name. `.chip` is inline-FLEX, and flex drops a
+ * whitespace-only child - so the space written in the JSX vanished and the
+ * asset Lists chips read "Categories2", "Brands1". Scoped to a direct
+ * .muted child so the company chips, whose two buttons are deliberately
+ * flush against their divider, are untouched.
+ */
+.chip > .muted { margin-left: 0.35rem; }
 
 /* The company filter that follows you across the tabs */
 .company-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
