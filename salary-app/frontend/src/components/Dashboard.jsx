@@ -3,6 +3,7 @@ import { STANDALONE, api } from '../api.js';
 import { LEAVE_TYPES, calculateRow, totalRows } from '../../../shared/calc.js';
 import { statutoryReport } from '../../../shared/statutory.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import { attendancePercent } from '../../../shared/attendanceReport.js';
 import {
   formatDuration,
   isEarlyOut,
@@ -10,6 +11,7 @@ import {
   lateByMinutes,
   monthTotals,
   parseTime,
+  readTimes,
 } from '../../../shared/timesheet.js';
 import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import Glyph from '../icons.jsx';
@@ -210,6 +212,8 @@ export default function Dashboard({
     const out = {
       present: [], absent: [], leave: [], halfDay: [], holiday: [], sunday: [],
       unmarked: [], late: [], early: [], overtime: [], short: [], clocked: 0,
+      /* Clock hours actually worked on this day, across everybody. */
+      workedMinutes: 0,
       /*
        * The uniform check.
        *
@@ -252,6 +256,8 @@ export default function Dashboard({
       else out.present.push(person);
 
       if (parseTime(times.in_time) !== null) out.clocked++;
+      const workedToday = readTimes(times).worked;
+      if (workedToday !== null && workedToday > 0) out.workedMinutes += workedToday;
       if (judgedOnTime(code)) {
         if (isLateIn(times, { start: standard.in_time, grace })) {
           out.late.push({ ...person, lateBy: lateByMinutes(times, { start: standard.in_time }) });
@@ -277,6 +283,42 @@ export default function Dashboard({
     out.late.sort((a, b) => b.lateBy - a.lateBy);
     out.overtime.sort((a, b) => b.minutes - a.minutes);
     out.short.sort((a, b) => a.minutes - b.minutes);
+    /*
+     * The headcount, and the day accounted for.
+     *
+     * Every person on the visible payroll lands in exactly one of the seven
+     * buckets - the classification above is a single if/else chain - so these
+     * add up by construction rather than by hope. `accounted` is asserted in
+     * a test, because a bucket added later and not shown is precisely the
+     * fault this is here to stop.
+     */
+    out.people = rows.length;
+    out.accounted =
+      out.present.length + out.absent.length + out.leave.length + out.halfDay.length +
+      out.holiday.length + out.sunday.length + out.unmarked.length;
+
+    /*
+     * Attendance for the DAY, by the report's own rule: out of the people who
+     * were expected, not out of the staff list. A weekly off and a paid
+     * holiday are in neither half - nobody failed to attend them - and a half
+     * day is half a day lost. A day nobody has marked is "not known", never
+     * 100%.
+     */
+    out.rate = (() => {
+      /*
+       * One day's marks, counted the way a month's are - each person keeps
+       * their own code, so CL/SL/PL land in paid-time-off and AD in absence,
+       * rather than being folded into a bucket the rule does not know.
+       */
+      const counts = {};
+      const add = (code) => { if (code) counts[code] = (counts[code] || 0) + 1; };
+      for (const group of [out.present, out.absent, out.leave, out.halfDay, out.holiday, out.sunday]) {
+        for (const p of group) add(p.code);
+      }
+      const pct = attendancePercent([{ mark_counts: counts }]);
+      return pct === null ? '—' : `${Math.round(pct)}%`;
+    })();
+
     return {
       ...out,
       startsAt: standard.in_time,
@@ -969,22 +1011,61 @@ export default function Dashboard({
           </p>
         )}
 
+        {/*
+          * On the staff, and how many of them this day accounts for.
+          *
+          * The seven buckets below are exhaustive and exclusive - the
+          * classification is one if/else chain - so they add to the headcount
+          * exactly. They did NOT all used to be here: `holiday` and `sunday`
+          * were counted and shown NOWHERE, so on a Sunday or a festival every
+          * figure on this card read 0 and the bar was empty, as though the day
+          * had not happened. `accounted` is the arithmetic said out loud.
+          */}
+        {/*
+          * The seven buckets are exhaustive and exclusive - the classification
+          * above is one if/else chain - so they add to the headcount exactly.
+          * Two of them used to be counted and shown NOWHERE: on a Sunday or a
+          * festival every figure here read 0 and the bar was empty, as though
+          * the day had not happened. They appear only on a day that has any,
+          * so an ordinary Tuesday is not given two permanent zeroes.
+          *
+          * The staff count, the month's hours, the attendance rate and the
+          * pending count are NOT repeated here - they are the band at the top
+          * of the page, and two cards saying the same thing is how a dashboard
+          * stops being read. "Hours today" is a different figure from the
+          * band's month, and says so.
+          */}
         <div className="stat-row">
           <Stat label="Present" value={roll.present.length} plain strong go={onGo} to="attendance" />
           <Stat label="Absent" value={roll.absent.length} plain go={onGo} to="attendance" />
           <Stat label="On leave" value={roll.leave.length} plain go={onGo} to="leave" />
           <Stat label="Half day" value={roll.halfDay.length} plain go={onGo} to="attendance" />
+          {roll.holiday.length > 0 && (
+            <Stat label="Holiday" value={roll.holiday.length} plain go={onGo} to="attendance" />
+          )}
+          {roll.sunday.length > 0 && (
+            <Stat label="Weekly off" value={roll.sunday.length} plain go={onGo} to="attendance" />
+          )}
+          <Stat label="Not marked" value={roll.unmarked.length} plain go={onGo} to="attendance" />
           <Stat label="Late in" value={roll.late.length} plain go={onGo} to="time" />
           <Stat label="Early out" value={roll.early.length} plain go={onGo} to="time" />
           <Stat label="On overtime" value={roll.overtime.length} plain go={onGo} to="time" />
+          <Stat label="Short hours" value={roll.short.length} plain go={onGo} to="time" />
           <Stat label="Out of uniform" value={roll.outOfUniform.length} plain />
           <Stat
-            label="Not marked"
-            value={roll.unmarked.length}
+            label="Hours today"
+            value={roll.workedMinutes ? formatDuration(roll.workedMinutes) : '—'}
             plain
             go={onGo}
-            to="attendance"
+            to="time"
           />
+          {/*
+            * Out of the people who were EXPECTED, not out of the staff list -
+            * a weekly off and a paid holiday are in neither half, and a half
+            * day is half a day lost. The report's own function, so this
+            * figure and Reports cannot disagree.
+            */}
+          <Stat label="Attendance" value={roll.rate} plain go={onGo} to="reports" />
         </div>
 
         <SegBar
@@ -992,6 +1073,8 @@ export default function Dashboard({
             { label: 'Present', value: roll.present.length, tone: 'present' },
             { label: 'Half day', value: roll.halfDay.length, tone: 'half' },
             { label: 'On leave', value: roll.leave.length, tone: 'leave' },
+            { label: 'Holiday', value: roll.holiday.length, tone: 'leave' },
+            { label: 'Weekly off', value: roll.sunday.length, tone: 'none' },
             { label: 'Absent', value: roll.absent.length, tone: 'absent' },
             { label: 'Not marked', value: roll.unmarked.length, tone: 'none' },
           ]}
@@ -1795,18 +1878,19 @@ const judgedOnTime = (code) => FULL_DAY_MARKS.has(String(code || '').toUpperCase
 const WORKED_MARKS = new Set(['P', 'HF', 'WH', 'SP', 'HP']);
 
 /** Days marked present out of the days that carry any mark at all. */
+/*
+ * Attendance, as the absent/present report works it out - not as this page
+ * used to.
+ *
+ * It counted every marked day and called anything that was not A/AD/UL
+ * "present", so a Sunday OFF and a paid holiday both read as attendance and a
+ * half day read as a whole one. On an ordinary month (18 P, 2 A, 2 HF, 4 S,
+ * 2 PH) this page said 93% where Reports said 87%, for the same person and
+ * the same month. The rule now lives in one place and both read it.
+ */
 function presentRate(rows) {
-  let marked = 0;
-  let present = 0;
-  for (const row of rows) {
-    for (const entry of Object.values(row.attendance || {})) {
-      const code = (typeof entry === 'object' ? entry?.code : entry) || '';
-      if (!code) continue;
-      marked++;
-      if (code !== 'A' && code !== 'AD' && code !== 'UL') present++;
-    }
-  }
-  return marked ? `${Math.round((present / marked) * 100)}%` : '-';
+  const pct = attendancePercent(rows);
+  return pct === null ? '-' : `${Math.round(pct)}%`;
 }
 
 /**

@@ -564,3 +564,48 @@ test('a figure that follows the year picker says which year', () => {
   // Not "Costing in all in 2025".
   assert.ok(!/Costing in all\{inYear\}/.test(m), 'that label reads "Costing in all in 2025"');
 });
+
+test('every person on the roll call lands in a figure somebody can see', () => {
+  /*
+   * The roll call classifies the day into seven buckets with one if/else
+   * chain, so they are exhaustive and exclusive - but only FIVE of them were
+   * ever drawn. `holiday` and `sunday` were counted and shown nowhere, so on
+   * a weekly off or a festival every figure on the card read 0 and the bar
+   * was empty, as though the day had not happened.
+   *
+   * Driven in the single file, 18 people:
+   *   Sun 25 Oct, everyone marked Sunday (off) -> weekly off=18, sum=18,
+   *     attendance "—" (nobody was expected, so it is not known - never 100%)
+   *   Sat 24 Oct, everyone marked Paid Holiday -> holiday=18, sum=18,
+   *     attendance 100% (paid time off is in both halves of the fraction)
+   *   and every ordinary day of that month reconciles to the headcount too.
+   */
+  const d = src('components/Dashboard.jsx');
+  for (const label of ['Holiday', 'Weekly off', 'Not marked', 'Half day', 'On leave']) {
+    assert.ok(d.includes(`label="${label}"`), `the roll call has no ${label} figure`);
+  }
+  // Shown only on a day that has any, so an ordinary Tuesday is not given two
+  // permanent zeroes.
+  assert.match(d, /roll\.holiday\.length > 0 &&/);
+  assert.match(d, /roll\.sunday\.length > 0 &&/);
+  // ...and the bar carries them too, or the bar and the figures disagree.
+  assert.match(d, /label: 'Weekly off', value: roll\.sunday\.length/);
+  assert.match(d, /label: 'Holiday', value: roll\.holiday\.length/);
+
+  /*
+   * The arithmetic is said out loud rather than hoped for: a bucket added
+   * later and not drawn is exactly the fault this is here to stop.
+   */
+  assert.match(d, /out\.accounted =/);
+  assert.match(d, /out\.people = rows\.length;/);
+
+  // The day's attendance comes from the report's own function, so this figure
+  // and Reports cannot disagree.
+  assert.match(d, /import \{ attendancePercent \}/);
+  assert.match(d, /const pct = attendancePercent\(\[\{ mark_counts: counts \}\]\);/);
+
+  // The band at the top is not repeated inside the card.
+  const card = d.slice(d.indexOf('className="card roll-call"'), d.indexOf('<SegBar'));
+  assert.ok(!/label="On the payroll"/.test(card), 'the staff count is repeated inside the roll call');
+  assert.ok(!/label="Needs attention"/.test(card), 'the alert count is repeated inside the roll call');
+});

@@ -26,6 +26,63 @@ const sum = (counts, codes) => codes.reduce((n, code) => n + (counts[code] || 0)
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 /**
+ * The marks on one row, counted.
+ *
+ * A payroll row usually carries `mark_counts` already; a row that does not
+ * (the dashboard reads the same rows a different way) is counted from its
+ * attendance map, so one rule serves both.
+ */
+export function markCounts(row = {}) {
+  if (row.mark_counts) return row.mark_counts;
+  const counts = {};
+  for (const entry of Object.values(row.attendance || {})) {
+    const code = codeOf(entry);
+    if (code) counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Attendance as a percentage, over one row or many.
+ *
+ * **Out of the days somebody was EXPECTED, not out of the calendar.** A Sunday
+ * off is not a day anybody failed to attend, so it is in neither the top nor
+ * the bottom of the fraction; a half day is half a day lost, not a whole day
+ * present.
+ *
+ * This exists because the dashboard had its own version that counted every
+ * marked day and called anything that was not A/AD/UL "present" - so a Sunday
+ * and a paid holiday both read as attendance and a half day read as a whole
+ * one. On an ordinary month (18 P, 2 A, 2 HF, 4 S, 2 PH) the dashboard said
+ * 93% where this report said 87%, for the same person and the same month.
+ * Two screens cannot hold two opinions about one number.
+ *
+ * @returns a number, or null when nobody was expected at all.
+ */
+export function attendancePercent(rows = []) {
+  let worked = 0;
+  let paidOff = 0;
+  let lost = 0;
+  for (const row of [].concat(rows)) {
+    const counts = markCounts(row);
+    worked += sum(counts, WORKED);
+    paidOff += sum(counts, PAID_OFF);
+    lost += (counts.A || 0) + (counts.UL || 0) + (counts.AD || 0) * 2 + (counts.HF || 0) * 0.5;
+  }
+  return percentOf(worked, paidOff, lost);
+}
+
+/**
+ * The formula itself, over days already counted - for a totals row, which has
+ * summed its parts and no longer has the marks. ONE formula, two ways in, so
+ * a row and the footer under it cannot disagree.
+ */
+export function percentOf(worked, paidOff, lost) {
+  const expected = worked + paidOff + lost;
+  return expected > 0 ? Math.round(((worked + paidOff) / expected) * 1000) / 10 : null;
+}
+
+/**
  * One line per person. `days_lost` is in days of pay, not in marks: AD costs
  * two and HF costs a half, which is the whole reason it is not a count.
  */
@@ -80,10 +137,7 @@ export function attendanceSummary(payroll) {
       unmarked_days: Math.max(0, daysInMonth - marked),
       // Out of the days somebody was expected, not out of the calendar: a
       // Sunday off is not a day anybody failed to attend.
-      attendance_percent: (() => {
-        const expected = worked + paidOff + daysLost;
-        return expected > 0 ? Math.round(((worked + paidOff) / expected) * 1000) / 10 : null;
-      })(),
+      attendance_percent: attendancePercent([{ mark_counts: counts }]),
     };
   });
 
@@ -121,9 +175,7 @@ const TOTALLED = [
 export function totalsOf(rows) {
   const totals = { people: rows.length };
   for (const key of TOTALLED) totals[key] = round2(rows.reduce((n, r) => n + (r[key] || 0), 0));
-  const expected = totals.worked_days + totals.paid_off_days + totals.days_lost;
-  totals.attendance_percent =
-    expected > 0 ? Math.round(((totals.worked_days + totals.paid_off_days) / expected) * 1000) / 10 : null;
+  totals.attendance_percent = percentOf(totals.worked_days, totals.paid_off_days, totals.days_lost);
   return totals;
 }
 

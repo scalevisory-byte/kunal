@@ -5,6 +5,8 @@ import {
   attendanceDaywise,
   attendanceSummary,
   daywiseCsv,
+  attendancePercent,
+  percentOf,
 } from '../../shared/attendanceReport.js';
 
 const period = { id: 1, year: 2026, month: 10, label: 'October 2026', working_days: 26, hours_per_day: 9 };
@@ -173,4 +175,57 @@ test('the summary export names every column it writes', () => {
     assert.ok(label, 'a column with no heading');
     assert.ok(key in r, `the export asks for ${key}, which the row does not carry`);
   }
+});
+
+test('the dashboard and the report cannot hold two opinions about attendance %', () => {
+  /*
+   * The dashboard had its own version: it counted every MARKED day and called
+   * anything that was not A/AD/UL "present". So a Sunday OFF and a paid
+   * holiday both read as attendance - in the numerator AND the denominator -
+   * and a half day read as a whole day present.
+   *
+   * On an ordinary month the two screens said different things about the same
+   * person. The rule now lives in one place.
+   */
+  const counts = { P: 18, A: 2, HF: 2, S: 4, PH: 2 };
+
+  // What the old dashboard did, kept here so the difference is on the record.
+  const marked = Object.values(counts).reduce((n, c) => n + c, 0);
+  const notAbsent = marked - counts.A;
+  assert.equal(Math.round((notAbsent / marked) * 100), 93);
+
+  // What it says now, which is what Reports has always said.
+  assert.equal(attendancePercent([{ mark_counts: counts }]), 87);
+
+  /*
+   * Why: a Sunday off is in NEITHER half of the fraction - nobody failed to
+   * attend it - and a half day is half a day lost, not a whole day present.
+   * 18 worked + 2 paid off = 20, over 20 + (2 absent + 1 for two half days)
+   * = 23.
+   */
+  assert.equal(percentOf(18, 2, 3), 87);
+
+  // Sundays move nothing at all...
+  assert.equal(
+    attendancePercent([{ mark_counts: { P: 18, A: 2, HF: 2, PH: 2 } }]),
+    attendancePercent([{ mark_counts: counts }])
+  );
+  // ...and a month of nothing but Sundays is "not known", never 100%.
+  assert.equal(attendancePercent([{ mark_counts: { S: 5 } }]), null);
+  assert.equal(attendancePercent([]), null);
+
+  // It reads a row that carries only an attendance map, which is how the
+  // dashboard holds them.
+  assert.equal(
+    attendancePercent([{ attendance: { 1: 'P', 2: 'P', 3: 'A', 4: 'S' } }]),
+    // 2 of 3 expected. One decimal place, like every other figure on the
+    // report - the dashboard is what rounds it to a whole number for display.
+    66.7
+  );
+
+  // Many rows add up as one fraction, not an average of percentages.
+  assert.equal(
+    attendancePercent([{ mark_counts: { P: 9, A: 1 } }, { mark_counts: { P: 18, A: 2 } }]),
+    90
+  );
 });
