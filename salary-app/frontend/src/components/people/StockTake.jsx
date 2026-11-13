@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
+import ScrollFrame from '../ScrollFrame.jsx';
 import { rupees } from '../../format.js';
 
 const thisMonth = () => {
@@ -161,7 +162,10 @@ export default function StockTake({ onError }) {
         onChange={(e) => setQuery(e.target.value)}
       />
 
-      <table className="sheet">
+      {/* Nine columns of register on a 390px phone pushed the PAGE 268px
+          sideways; inside the frame the table scrolls and the page does not. */}
+      <ScrollFrame>
+        <table className="sheet">
         <thead>
           <tr>
             <th>Code</th>
@@ -203,10 +207,12 @@ export default function StockTake({ onError }) {
           ))}
         </tbody>
       </table>
+      </ScrollFrame>
 
       {progress?.missing_assets?.length > 0 && (
         <div className="card">
           <h4>Not found in {round}</h4>
+          <ScrollFrame>
           <table className="sheet">
             <tbody>
               {progress.missing_assets.map((a) => (
@@ -221,6 +227,7 @@ export default function StockTake({ onError }) {
               ))}
             </tbody>
           </table>
+          </ScrollFrame>
           <p className="muted small">
             Worth {rupees(progress.missing_value)}. Nothing is deducted from anybody on the
             strength of this — if an asset is genuinely lost, that is a conversation, and the

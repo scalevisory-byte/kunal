@@ -234,6 +234,14 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
   margin-bottom: 0.75rem;
 }
 .search { min-width: 12rem; flex: 1 1 12rem; }
+/*
+ * ...but `flex: 1 1 12rem` sizes the MAIN axis, and `.stack` is a COLUMN.
+ * A search box that sits straight in a stack rather than in a toolbar row
+ * therefore took a 12rem flex-basis VERTICALLY and grew from there: the
+ * stock take's "Narrow the list" was a 250px-tall empty box eating a third
+ * of that screen. In a column it is an ordinary one-line box the full width.
+ */
+.stack > .search { flex: 0 0 auto; width: 100%; }
 .grow { flex: 1 1 auto; }
 .check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.79rem; color: var(--muted); }
 .button-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }

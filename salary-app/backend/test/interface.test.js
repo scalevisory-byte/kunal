@@ -350,3 +350,34 @@ test('the AMC can be typed somewhere', () => {
   // Clearing one is explicit, never a blank date slipping through.
   assert.match(form, /There is no AMC on this/);
 });
+
+test('a search box in a column is one line, not twelve rems tall', () => {
+  /*
+   * `.search { flex: 1 1 12rem }` sizes the MAIN axis, and `.stack` is a
+   * COLUMN. A search box sitting straight in a stack rather than in a toolbar
+   * row therefore took a 12rem flex-basis VERTICALLY and grew from there: the
+   * stock take's "Narrow the list" was a 250px-tall empty box eating a third
+   * of that screen. Measured after: an ordinary 31px line, full width.
+   */
+  assert.match(css, /\.stack > \.search \{[^}]*flex:\s*0 0 auto/);
+});
+
+test('the asset sub-tabs scroll their own tables', () => {
+  /*
+   * Nine columns of stock take on a 390px phone pushed the PAGE 268px
+   * sideways (maintenance, 149px). Every wide table elsewhere in the app is
+   * already inside a ScrollFrame - these three were the ones that never got
+   * one. Measured after: all six asset sub-tabs clean at 1440, 950 and 390.
+   *
+   * One ScrollFrame, not a second answer to "does this table carry on past
+   * the edge" - a fade that means "there is more" on one page and nothing on
+   * the next is worse than no fade at all.
+   */
+  for (const f of ['StockTake', 'Maintenance']) {
+    const s = src(`components/people/${f}.jsx`);
+    assert.match(s, /import ScrollFrame from '\.\.\/ScrollFrame\.jsx'/, `${f} has no scroll frame`);
+    const tables = (s.match(/<table className="sheet"/g) || []).length;
+    const frames = (s.match(/<ScrollFrame>/g) || []).length;
+    assert.equal(frames, tables, `${f}: ${tables} tables but ${frames} frames`);
+  }
+});

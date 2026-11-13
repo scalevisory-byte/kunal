@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, download } from '../../api.js';
+import ScrollFrame from '../ScrollFrame.jsx';
 import { SERVICE_KINDS } from '../../../../shared/maintenance.js';
 import { rupees } from '../../format.js';
 
@@ -129,7 +130,8 @@ export default function Maintenance({ companies, onError }) {
           </div>
 
           {spend.years.length > 1 && (
-            <table className="sheet" style={{ marginTop: '0.8rem' }}>
+            <ScrollFrame>
+          <table className="sheet" style={{ marginTop: '0.8rem' }}>
               <thead>
                 <tr>
                   <th className="sticky-name">Year</th>
@@ -154,8 +156,10 @@ export default function Maintenance({ companies, onError }) {
                 )}
               </tbody>
             </table>
+          </ScrollFrame>
           )}
 
+          <ScrollFrame>
           <table className="sheet" style={{ marginTop: '0.8rem' }}>
             <thead>
               <tr>
@@ -205,6 +209,7 @@ export default function Maintenance({ companies, onError }) {
               )}
             </tbody>
           </table>
+          </ScrollFrame>
 
           <p className="muted small">
             <strong>AMC is counted beside repairs, never inside them.</strong> A contract is
@@ -333,7 +338,8 @@ export default function Maintenance({ companies, onError }) {
           )}
         </p>
       ) : (
-        <table className="sheet">
+        <ScrollFrame>
+          <table className="sheet">
           <thead>
             <tr>
               <th>Code</th>
@@ -387,6 +393,7 @@ export default function Maintenance({ companies, onError }) {
             })}
           </tbody>
         </table>
+          </ScrollFrame>
       )}
 
       {amc && (
