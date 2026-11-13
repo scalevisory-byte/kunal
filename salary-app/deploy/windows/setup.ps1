@@ -108,7 +108,7 @@ if (Test-Path $envFile) {
     '# name on it, and the trail records what it does as "the API key" rather',
     '# than as a person. Sign in with it once, make your own admin login on',
     '# the sign-in screen, then DELETE this line and restart. The app still',
-    '# starts without it once a login exists. See deploy\\windows\\README.md.',
+    '# starts without it once a login exists. See deploy\windows\README.md.',
     ('APP_PASSWORD=' + (NewSecret 12)),
     '',
     '# Signs the personal links (punch links, apply links). Changing it voids',

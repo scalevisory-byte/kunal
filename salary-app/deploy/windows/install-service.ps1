@@ -68,7 +68,7 @@ Write-Host "Logs:    $logs"
 $port = 3002
 $envFile = Join-Path $backend '.env'
 if (Test-Path $envFile) {
-  $line = Select-String -Path $envFile -Pattern '^PORT=(\d+)' -ErrorAction SilentlyContinue
+  $line = Select-String -Path $envFile -Pattern '^PORT=(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($line) { $port = [int]$line.Matches[0].Groups[1].Value }
 }
 try {

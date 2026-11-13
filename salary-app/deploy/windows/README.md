@@ -229,8 +229,15 @@ written to the grid, the balance following, and the data intact across a
 restart.
 
 **Not tested here:** the PowerShell itself. There is no Windows and no
-PowerShell in the machine these were written on, so they have been read and
-reasoned about but never run. They follow the same shape as the ZynTask kit
+PowerShell on the machine these were written on, so they have been read,
+structure-checked and reasoned about, but never run. Since then a review
+found and fixed two real faults in them — one that would have put a
+doubled backslash in the settings file, and one that would have **deleted
+`C:\bnf-hrms` and the payroll inside it** if the folder existed without a
+`.git` in it, which is exactly what a clone that failed halfway leaves
+behind. It now stops and says so instead. That is the kind of thing a
+reading finds and a run would have found the hard way, so read the log as
+it goes. They follow the same shape as the ZynTask kit
 that did install on TSRV, and the traps that one hit the first time — TLS
 1.2, the Node version, the BOM on `.env`, stopping the service before
 replacing its files, NSSM not being on the PATH — are all handled here. Run

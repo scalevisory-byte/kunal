@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { psProblems } from './helpers/psStructure.js';
 
 const kit = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../deploy/windows');
 const scripts = fs.readdirSync(kit).filter((f) => f.endsWith('.ps1'));
@@ -101,6 +102,79 @@ test('it does not collide with ZynTask on the same machine', () => {
   assert.match(read('install-service.ps1'), /\$service = 'BNFHRMS'/);
   for (const f of scripts) {
     assert.ok(!/WATasks|3001/.test(read(f)), `${f} names ZynTask's service or port`);
+  }
+});
+
+test('the scripts are at least structurally sound', () => {
+  /*
+   * There is no PowerShell on the machine this is built on, so nothing
+   * parses these until they run on the server - where a missing brace is a
+   * trip to the office. This is not a parser and a clean result is not a
+   * promise that they work; it catches the class of mistake that is
+   * otherwise invisible here.
+   */
+  for (const f of scripts) {
+    assert.deepEqual(psProblems(read(f), f), [], `${f} does not hold together`);
+  }
+});
+
+test('the checker catches real breakage', () => {
+  // Otherwise the case above is a green light nobody earned.
+  const must = [
+    ["if ($true) {\n  Write-Host 'x'\n", /never closed/],
+    ['Write-Host "unclosed\nWrite-Host 1\n', /never closed/],
+    ["try {\n  Write-Host 'x'\n}\n", /try blocks but only 0/],
+    ['$x = (1 + 2]\n', /closes a/],
+  ];
+  for (const [src, wanted] of must) {
+    const found = psProblems(src, 'broken').join(' ');
+    assert.match(found, wanted, `missed: ${JSON.stringify(src)}`);
+  }
+  // ...and does not cry wolf over the awkward but valid things these
+  // scripts actually use.
+  const fine = [
+    "# a comment with a stray } brace\nWrite-Host 'fine'",
+    "$s = 'it''s ok'",
+    '$t = "a $(1 + (2 * 3)) b"',
+    '$q = "a `\"quoted`\" word"',
+    "$h = @'\nanything { in here\n'@",
+  ];
+  for (const src of fine) {
+    assert.deepEqual(psProblems(src, 'fine'), [], `false alarm on ${JSON.stringify(src)}`);
+  }
+});
+
+test('a half-finished install is never deleted', () => {
+  /*
+   * C:\bnf-hrms holds the clone AND, inside it, salary-app\data - the
+   * payroll, the documents, the asset photos, the CVs. The first version
+   * ran `Remove-Item $InstallTo -Recurse -Force` whenever the folder had no
+   * .git in it, which is exactly the state a clone that failed halfway
+   * leaves behind. "Run it again" would have been the thing that lost the
+   * payroll, on a page that says running it again is safe.
+   */
+  const s = read('install-all.ps1');
+  assert.ok(
+    !/Remove-Item \$InstallTo -Recurse -Force/.test(s),
+    'it deletes the install folder again'
+  );
+  assert.match(s, /already exists and is not a clone/);
+  assert.match(s, /Nothing has been changed/);
+});
+
+test('a git command that failed is not built on', () => {
+  // A native command that fails does not throw on $ErrorActionPreference in
+  // Windows PowerShell 5.1, so a fetch that could not reach GitHub went
+  // straight on to reset --hard and then to building stale code.
+  const s = read('install-all.ps1');
+  for (const cmd of ['git fetch', 'git checkout', 'git reset', 'git clone']) {
+    const at = s.indexOf(cmd);
+    assert.ok(at > 0, `${cmd} is not there any more`);
+    assert.match(
+      s.slice(at, at + 200),
+      /LASTEXITCODE -ne 0/,
+      `${cmd} runs without its exit code being checked`
+    );
   }
 });
 

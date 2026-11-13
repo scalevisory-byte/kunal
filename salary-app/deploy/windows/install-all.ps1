@@ -75,12 +75,26 @@ if (Test-Path (Join-Path $InstallTo '.git')) {
   Push-Location $InstallTo
   try {
     & git fetch --all --prune
+    if ($LASTEXITCODE -ne 0) { throw 'git fetch failed - is the network up, and can this machine reach GitHub?' }
     & git checkout $Branch
+    if ($LASTEXITCODE -ne 0) { throw "git checkout $Branch failed" }
     & git reset --hard "origin/$Branch"
+    if ($LASTEXITCODE -ne 0) { throw 'git reset failed' }
   } finally { Pop-Location }
 } else {
+  # Something is here that is not a clone. It is NOT deleted: the data
+  # folder lives inside this one, and a clone that failed halfway leaves
+  # exactly this state - so "run it again" would be the thing that loses
+  # the payroll. An empty folder is fine to clone into; anything else stops.
+  if (Test-Path $InstallTo) {
+    $inside = Get-ChildItem -LiteralPath $InstallTo -Force -ErrorAction SilentlyContinue
+    if ($inside) {
+      $data = Join-Path $InstallTo 'salary-app\data'
+      $warn = if (Test-Path $data) { " It contains $data, which is your payroll." } else { '' }
+      throw "$InstallTo already exists and is not a clone.$warn Move it aside (or pass -InstallTo somewhere else) and run this again. Nothing has been changed."
+    }
+  }
   Write-Host "Cloning into $InstallTo ..."
-  if (Test-Path $InstallTo) { Remove-Item $InstallTo -Recurse -Force }
   & git clone --branch $Branch --single-branch $RepoUrl $InstallTo
   if ($LASTEXITCODE -ne 0) { throw 'git clone failed' }
 }
@@ -149,7 +163,7 @@ if ($TunnelToken) {
 $port = 3002
 $envFile = Join-Path $app 'backend\.env'
 if (Test-Path $envFile) {
-  $line = Select-String -Path $envFile -Pattern '^PORT=(\d+)' -ErrorAction SilentlyContinue
+  $line = Select-String -Path $envFile -Pattern '^PORT=(\d+)' -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($line) { $port = [int]$line.Matches[0].Groups[1].Value }
 }
 
