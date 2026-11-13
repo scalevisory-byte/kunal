@@ -81,7 +81,13 @@ test('every dashboard card hands back the filter that produced it', () => {
   ];
   const { cards, spent } = assetDashboard({ assets, today: '2026-11-04' });
   const card = (key) => cards.find((c) => c.key === key);
-  assert.equal(card('all').n, 4);
+  /*
+   * "Registered" means ON the register, so NOT the written-off one - the
+   * register itself says those are not on it any more. It used to count all
+   * four while the list it opens showed three, which is the one thing this
+   * module's own comment promises cannot happen.
+   */
+  assert.equal(card('all').n, 3);
   assert.equal(card('assigned').n, 1);
   assert.equal(card('available').n, 1);
   assert.equal(card('maintenance').n, 1);

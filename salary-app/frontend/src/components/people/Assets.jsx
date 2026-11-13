@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download, openPage } from '../../api.js';
 import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
-import { assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
+import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
@@ -172,6 +172,16 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return assets.filter((a) => {
       if (filter === 'out' && !isOut(a)) return false;
       if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
+      /*
+       * `?written_off=true` means "INCLUDE the written-off ones", not "only
+       * them" - so this filter was fetching the whole register and narrowing
+       * it by nothing. Clicking "Written off" to see what had been scrapped
+       * listed every live asset too, which reads as if they all had been.
+       * The dashboard's written-off card opens this same filter, so its count
+       * and this list disagreed by the size of the register.
+       */
+      if (filter === 'gone' && !a.written_off_on) return false;
+      if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
       if (!q) return true;
       return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
         .filter(Boolean)
@@ -217,6 +227,30 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return act(() => api.post(`/people/assets/${asset.id}/write-off`, { why }));
   };
 
+  /*
+   * Under maintenance, damaged, missing, disposed - or back in use.
+   *
+   * `statusLabel` was imported and never used, and nothing anywhere in the
+   * app could set one of the four: the dashboard counted "Under maintenance",
+   * the API had a route for it and the single file had none. A laptop at the
+   * repair shop could not be said to be at the repair shop.
+   *
+   * A note is asked for but not required - "missing" with no word about where
+   * it was last seen is still worth recording the day somebody notices.
+   */
+  const setState = (asset, state) => {
+    if (state && state !== 'available') {
+      const label = statusLabel(state);
+      const note = window.prompt(
+        `${asset.code} ${asset.label} — ${label}.\n\nA note? (where it is, who took it, what happened)`,
+        ''
+      );
+      if (note === null) return undefined;
+      return act(() => api.post(`/people/assets/${asset.id}/state`, { state, note }));
+    }
+    return act(() => api.post(`/people/assets/${asset.id}/state`, { state: '' }));
+  };
+
   const remove = (asset) =>
     window.confirm(`Remove ${asset.code} ${asset.label} from the register?`) &&
     act(() => api.del(`/people/assets/${asset.id}`));
@@ -258,9 +292,20 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           onImport={() => { setAdding(false); setImporting(true); setView('register'); }}
           onOpen={(f) => {
             setFrom(f);
+            /*
+             * The card's status, in the register's own words. 'available'
+             * used to map to 'in', which NO filter knows about - so the
+             * Available card opened with no chip lit and nothing narrowed,
+             * showing the whole register under a card that said 2. And
+             * "Under maintenance" had no filter at all, so it fell through
+             * to Everything.
+             */
             setFilter(
-              f.status === 'assigned' ? 'out' : f.status === 'written_off' ? 'gone'
-                : f.status === 'available' ? 'in' : 'all'
+              f.status === 'assigned' ? 'out'
+                : f.status === 'written_off' ? 'gone'
+                  : f.status === 'available' ? 'office'
+                    : f.status === 'maintenance' ? 'maintenance'
+                      : 'all'
             );
             setView('register');
           }}
@@ -347,7 +392,8 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
 
       <div className="toolbar">
         <div className="sub-tabs toolbar">
-          {[['all', 'Everything'], ['out', 'Out with staff'], ['office', 'In the office'], ['gone', 'Written off']].map(
+          {[['all', 'Everything'], ['out', 'Out with staff'], ['office', 'In the office'],
+            ['maintenance', 'Being repaired'], ['gone', 'Written off']].map(
             ([key, text]) => (
               <button key={key} className={filter === key ? 'active' : undefined} onClick={() => setFilter(key)}>
                 {text}
@@ -745,6 +791,21 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     ) : null}
                   </td>
                   <td>
+                    {/*
+                      * What state it is in, when it is one somebody set. The
+                      * three derived ones (available / assigned / written off)
+                      * are already said by the rest of this row, so repeating
+                      * them would be noise.
+                      */}
+                    {!asset.written_off_on && ASSET_STATES.some(([k]) => k === asset.state) && (
+                      <div className="muted small">
+                        {statusLabel(asset.state)}
+                        {asset.state_since ? ` since ${asset.state_since}` : ''}{' '}
+                        <button className="link" onClick={() => setState(asset, '')}>
+                          back in use
+                        </button>
+                      </div>
+                    )}
                     {asset.written_off_on ? (
                       <span className="muted small">written off {asset.written_off_on}</span>
                     ) : out ? (
@@ -754,8 +815,23 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                         </button>{' '}
                       </>
                     ) : (
-                      <select value="" onChange={(e) => issue(asset, e.target.value)}>
-                        <option value="">issue to…</option>
+                      /*
+                       * `allocationProblem` exists to answer exactly this and
+                       * nothing used it: a laptop marked as away at the repair
+                       * shop still offered "issue to…", so it could be handed
+                       * to somebody from the screen that says where it is.
+                       * Disabled with the reason on it, not hidden - "no"
+                       * without a reason sends people hunting.
+                       */
+                      <select
+                        value=""
+                        disabled={Boolean(allocationProblem(asset))}
+                        title={allocationProblem(asset) || undefined}
+                        onChange={(e) => issue(asset, e.target.value)}
+                      >
+                        <option value="">
+                          {allocationProblem(asset) ? statusLabel(assetStatus(asset)) : 'issue to…'}
+                        </option>
                         {employees.map((e) => (
                           <option key={e.id} value={e.id}>
                             {e.name}
@@ -776,6 +852,16 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                       >
                         voucher
                       </button>
+                    )}{' '}
+                    {!asset.written_off_on && !asset.state && (
+                      <select value="" onChange={(e) => e.target.value && setState(asset, e.target.value)}>
+                        <option value="">mark it…</option>
+                        {ASSET_STATES.map(([key, label, hint]) => (
+                          <option key={key} value={key} title={hint}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
                     )}{' '}
                     {!asset.written_off_on &&
                       (asset.handovers ? (

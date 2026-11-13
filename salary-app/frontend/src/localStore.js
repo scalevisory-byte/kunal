@@ -905,6 +905,9 @@ const ASSET_FIELDS = [
   'warranty_from', 'warranty_provider', 'purchase_remarks', 'state_note',
 ];
 
+/* The four somebody actually sets; null is the normal case. */
+const ASSET_STATE_KEYS = ['maintenance', 'damaged', 'missing', 'disposed'];
+
 const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
 /** Only a vendor has these; the other three keep them null. */
 const VENDOR_FIELDS = ['contact_person', 'phone', 'email', 'address', 'gstin'];
@@ -3794,6 +3797,33 @@ export async function handle(method, path, body) {
       }
 
       /* One verdict per asset per round: checking again REPLACES it. */
+      /*
+       * Under maintenance, damaged, missing, disposed - or back in use.
+       * The route existed on the server and not here, so the four states the
+       * dashboard counts could not be set in the single file at all.
+       */
+      if (parts[3] === 'state' && method === 'POST') {
+        if (asset.written_off_on) throw new HttpError(400, 'that asset is written off');
+        const wanted = String(body?.state || '').trim();
+        const next = wanted && wanted !== 'available' ? wanted : null;
+        if (next && !ASSET_STATE_KEYS.includes(next)) {
+          throw new HttpError(400, `a state is one of ${ASSET_STATE_KEYS.join(', ')}, or blank for none`);
+        }
+        if (next !== (asset.state || null)) {
+          auditLine({
+            who: body?.by, action: next || 'back in use', entity: 'assets', entity_id: asset.id,
+            label: `${asset.code || ''} ${asset.label}`.trim(),
+            from_value: asset.state || 'in use', to_value: next || 'in use',
+            note: body?.note || null,
+          });
+          asset.state = next;
+          asset.state_note = next ? body?.note || null : null;
+          asset.state_since = next ? body?.on || dayNow() : null;
+          save();
+        }
+        return assetRow(asset);
+      }
+
       if (parts[3] === 'verify' && method === 'POST') {
         const round = String(body?.round || '').trim();
         if (!round) throw new HttpError(400, 'which round is this?');

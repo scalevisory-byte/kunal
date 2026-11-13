@@ -459,3 +459,64 @@ test('all four asset lists are behind a picker', () => {
   // is inline-flex and flex drops a whitespace-only child.
   assert.match(css, /\.chip > \.muted \{[^}]*margin-left/);
 });
+
+test('the register agrees with the dashboard that opens it', () => {
+  /*
+   * The dashboard's own comment promises "a card that says 14 and a list that
+   * shows 13 cannot happen - clicking a card hands back the exact filter that
+   * produced it". Three of its five cards broke that promise. Driven, before:
+   *
+   *   "4 REGISTERED"        -> Everything      -> 3 rows
+   *   "2 AVAILABLE"         -> no chip lit     -> 3 rows
+   *   "0 UNDER MAINTENANCE" -> Everything      -> 3 rows
+   *
+   * After: all five agree.
+   */
+  const a = src('components/people/Assets.jsx');
+
+  // 1. `?written_off=true` means INCLUDE them, not only them - so the Written
+  //    off chip fetched the whole register and narrowed it by nothing.
+  assert.match(a, /filter === 'gone' && !a\.written_off_on/);
+
+  // 2. 'available' mapped to 'in', which no filter knows about.
+  assert.match(a, /f\.status === 'available' \? 'office'/);
+  assert.ok(!/f\.status === 'available' \? 'in'/.test(a), "'available' maps to a filter nothing reads again");
+
+  // 3. "Under maintenance" had no filter at all and fell through to Everything.
+  assert.match(a, /filter === 'maintenance' && assetStatus\(a\) !== 'maintenance'/);
+  assert.match(a, /\['maintenance', 'Being repaired'\]/);
+
+  // ...and Registered counts what is ON the register. "Bought, in all" still
+  // counts the scrapped ones, because that question is about money spent.
+  const dash = fs.readFileSync(path.join(here, '../../shared/assetDashboard.js'), 'utf8');
+  assert.match(dash, /label: 'Registered',\s*\n\s*n: withStatus\.filter\(\(a\) => a\.status !== 'written_off' && a\.status !== 'disposed'\)\.length/);
+});
+
+test('an asset can be said to be at the repair shop', () => {
+  /*
+   * `ASSET_STATES` lists four states somebody sets, the dashboard counts
+   * "Under maintenance", the API has a route for it - and NOTHING in the app
+   * could set one. `statusLabel` was imported into the register and never
+   * used. A laptop away being repaired could not be said to be away being
+   * repaired, and the single file had no route for it at all.
+   *
+   * Driven offline: mark it... -> Under maintenance -> the row reads "Under
+   * maintenance since 2026-11-13 / back in use", the "Being repaired" chip
+   * finds it, the dashboard reads 1 UNDER MAINTENANCE and 1 AVAILABLE.
+   */
+  const a = src('components/people/Assets.jsx');
+  assert.match(a, /mark it…/);
+  assert.match(a, /\/state`, \{ state, note \}/);
+  assert.match(a, /back in use/);
+  // The offline store had no route for it, so the single file silently could not.
+  assert.match(src('localStore.js'), /parts\[3\] === 'state' && method === 'POST'/);
+
+  /*
+   * ...and a thing at the repair shop cannot be handed to somebody.
+   * `allocationProblem` exists to answer exactly that and nothing used it.
+   * Disabled with the reason on it, not hidden: "no" without a reason sends
+   * people hunting.
+   */
+  assert.match(a, /disabled=\{Boolean\(allocationProblem\(asset\)\)\}/);
+  assert.match(a, /title=\{allocationProblem\(asset\) \|\| undefined\}/);
+});

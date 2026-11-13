@@ -24,7 +24,22 @@ export function assetDashboard({
   const count = (key) => withStatus.filter((a) => a.status === key).length;
 
   const cards = [
-    { key: 'all', label: 'Registered', n: withStatus.length, filter: {} },
+    /*
+     * ON the register - so NOT the ones written off or disposed of, which the
+     * register itself says are "not on the register any more". This counted
+     * every asset ever bought, so the card read 4 beside a list of 3 - the one
+     * thing the comment above promises cannot happen. "Bought, in all" below
+     * still counts them, because that question is about money spent and a
+     * laptop scrapped last year was still bought.
+     */
+    {
+      key: 'all',
+      label: 'Registered',
+      n: withStatus.filter((a) => a.status !== 'written_off' && a.status !== 'disposed').length,
+      /* ...and the filter it hands back selects exactly those, so the card
+         and the list it opens still cannot disagree. */
+      filter: { live: true },
+    },
     { key: 'assigned', label: 'With staff', n: count('assigned'), filter: { status: 'assigned' } },
     { key: 'available', label: 'Available', n: count('available'), filter: { status: 'available' } },
     {
@@ -159,5 +174,14 @@ export function matchesFilter(asset, filter = {}) {
   if (filter.category && asset.kind !== filter.category) return false;
   if (filter.year && financialYear(asset.purchase_date) !== filter.year) return false;
   if (filter.status && assetStatus(asset) !== filter.status) return false;
+  /*
+   * On the register: not written off, not disposed of. The "Registered" card
+   * carries this, because it counted every asset ever bought while the list
+   * it opened showed only the live ones - 4 beside a list of 3.
+   */
+  if (filter.live) {
+    const status = assetStatus(asset);
+    if (status === 'written_off' || status === 'disposed') return false;
+  }
   return true;
 }
