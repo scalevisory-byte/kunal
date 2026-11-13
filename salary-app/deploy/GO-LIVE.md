@@ -62,9 +62,9 @@ the script; do not start fixing it by hand.
 
 TSRV already runs the **WATASK** tunnel (that is how `tasks.scalevisory.in`
 works). Add a second hostname to that **same** tunnel — do not install another
-one. `hrms` → `scalevisory.in` → `HTTP` → `localhost:3002`.
+one. `bnfhrms` → `scalevisory.in` → `HTTP` → `localhost:3002`.
 
-Within a minute **https://hrms.scalevisory.in** is live, with https, and **no
+Within a minute **https://bnfhrms.scalevisory.in** is live, with https, and **no
 port is opened on the office router** — the tunnel dials out, nothing dials in.
 
 Then set `PUBLIC_URL` and `SECURE_COOKIES=true` in

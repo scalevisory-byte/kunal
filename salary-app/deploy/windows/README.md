@@ -75,19 +75,19 @@ Published application routes → Add**:
 
 | Field | Value |
 |---|---|
-| Subdomain | `hrms` |
+| Subdomain | `bnfhrms` |
 | Domain | `scalevisory.in` |
 | Service type | `HTTP` |
 | URL | `localhost:3002` |
 
-Saving it creates the `hrms` DNS record automatically. Within a minute
-**https://hrms.scalevisory.in** is live, with https, and **no port is open
+Saving it creates the `bnfhrms` DNS record automatically. Within a minute
+**https://bnfhrms.scalevisory.in** is live, with https, and **no port is open
 on your office router** — the tunnel dials out, nothing dials in.
 
 Then open `C:\bnf-hrms\salary-app\backend\.env` and check:
 
 ```
-PUBLIC_URL=https://hrms.scalevisory.in
+PUBLIC_URL=https://bnfhrms.scalevisory.in
 SECURE_COOKIES=true
 ```
 
@@ -106,7 +106,7 @@ time.
 
 So, once:
 
-1. Sign in at **https://hrms.scalevisory.in** with that password.
+1. Sign in at **https://bnfhrms.scalevisory.in** with that password.
 2. The sign-in screen offers to **make the first admin** — do it. Pick your
    own username and a password only you know.
 3. Open `C:\bnf-hrms\salary-app\backend\.env`, **delete the

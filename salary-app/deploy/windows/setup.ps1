@@ -117,7 +117,7 @@ if (Test-Path $envFile) {
     '',
     '# The address staff will open. Set this to the Cloudflare Tunnel hostname',
     '# once it is routed, so apply links point at the right place.',
-    'PUBLIC_URL=https://hrms.scalevisory.in',
+    'PUBLIC_URL=https://bnfhrms.scalevisory.in',
     '',
     '# The tunnel terminates https, so the sign-in cookie may be marked Secure.',
     'SECURE_COOKIES=true',

@@ -177,7 +177,7 @@ Write-Host "   Logs:             $(Join-Path $app 'logs')"
 Write-Host "   The office password is in: $envFile"
 Write-Host ''
 Write-Host ' Next: route a hostname to this port on your Cloudflare tunnel'
-Write-Host "       (hrms.scalevisory.in -> http://localhost:$port)"
+Write-Host "       (bnfhrms.scalevisory.in -> http://localhost:$port)"
 Write-Host '================================================'
 
 } finally {
