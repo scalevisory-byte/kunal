@@ -1110,6 +1110,55 @@ under `backend/src`.
 - **Not changed and worth knowing:** `GET /api/config` 401s while signed out, so the browser
   console shows one per load. That is pre-existing and not the login screen's doing.
 
+## Working from home — asked for, not just markable
+
+Dinesh: *"रिमोट वर्क अप्लाई कर सकते हैं।"* **Inspected first, and half of it already
+existed:** `WH` (Work From Home) has been one of the thirteen attendance marks all along —
+`absent: 0, paid: true` — wired through `calc.js`, the absent/present report, late/early, the
+timesheet, the monthly pack and the dashboard's present count. What was missing is that
+**nobody could ASK for it**: a remote day happened only if somebody in the office remembered
+to type it.
+
+- **A new request kind `remote`, and it `needs` NOTHING.** Every other kind asks the employee
+  for something only they know; here the mark is always WH, and a picker would be a chance to
+  choose the wrong one. `writes: 'WH'` sits on the KIND, and `entryFor` takes the mark from
+  there — so a remote request arriving with `code: 'A'` on it, from a stale form or from
+  somebody poking at the API, still marks the day WH and **cannot write an absence**. Tested.
+- It **spans**, like leave: a week at home is one request and one decision. The old rule still
+  holds unchanged — *a request never writes attendance; an approval does* — with an API test
+  that the net is untouched while it is pending.
+- **The claim the whole thing rests on: a day worked from home is a day worked.** There is a
+  calc test over six salaries and a month carrying real absences asserting gross, net, PT, PF,
+  ESI, absent days and final payable all come out identical with `WH` and with `P`; and an
+  end-to-end API test where two approved remote days leave ₹25,800 at ₹25,800.
+- **The GPS fence was the real bug.** On a WH day a punch from home read as `punched away from
+  the office` — so every approved remote day would land on the list of things to check, which
+  is how a list of things to check stops being read. Worse, with `PUNCH_ALLOW_OUTSIDE=false`
+  the punch was **refused**, making an approved remote day unpunchable: the hours would be
+  typed from memory a week later, which is the thing punching exists to stop.
+  `punchesToDay(punches, { code })` and `punchAllowed(judgement, restrictions, { code })` now
+  take the day's mark, and `recordPunch` works the day out BEFORE judging the punch so it can
+  look it up. `REMOTE_MARKS` is `{WH}` only — **an absence is not remote work**, and leave is
+  not either; tests pin that A and CL are still refused, that the mark does not switch punching
+  on, and that it does not excuse a punch with no location.
+- **Nobody is asked about the uniform of somebody at home.** `WORKED_MARKS` drives the roll
+  call's uniform fold **and is its denominator** ("3 of 40 at work not looked at"), so leaving
+  WH in would hold the morning's walk open for ever on a name nobody could ever tick. A first
+  attempt added a second set and kept WH in the denominator — exactly that bug — and was
+  rewritten rather than patched. WH still counts as a day present, which is a different
+  question.
+- Raised from **both** staff surfaces: the punch link's form picks it up automatically (it maps
+  over `REQUEST_KINDS` and renders by `needs`), and MyPage's Leave tab gained it beside the
+  leave codes, with the hint and the footnote following the kind — *"Working from home is paid
+  in full and uses no leave"*, not "a leave application".
+- **Driven end to end in a real browser** at phone width: staff sign-in, the forced password
+  change, Leave tab, apply for the 26th–27th, net unchanged while pending, office approves,
+  grid reads WH/WH, net still unchanged.
+- An existing test enumerating the allowed `needs` values caught `'none'` on the first run —
+  the list is a deliberate contract. It now also asserts that a kind asking for nothing must
+  name the mark it writes, or approving it would land a reason on the grid with no mark, which
+  reads as a day somebody looked at and left blank.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

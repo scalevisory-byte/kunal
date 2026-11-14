@@ -433,3 +433,47 @@ test('an addition reaches the gross exactly once', () => {
   const asTheSheetDoes = calculateRow(withClaim, period, {});
   assert.equal(asTheSheetDoes.gross_salary, withClaim.gross_salary);
 });
+
+/*
+ * Working from home.
+ *
+ * The WH mark is older than the request that now asks for it, and this is the
+ * claim the whole feature rests on: letting somebody work from home must not
+ * change what they are paid. A remote day is a day's work, so it is worth
+ * exactly what a day at a desk is worth - not a leave day, not a free day,
+ * and not an absence.
+ */
+
+test('a day worked from home is paid exactly like a day at the office', () => {
+  // The mark itself: no absence against it, and paid.
+  assert.equal(ATTENDANCE_CODES.WH.absent, 0);
+  assert.equal(ATTENDANCE_CODES.WH.paid, true);
+  assert.equal(ATTENDANCE_CODES.WH.sunday, 0);
+
+  // A fortnight at home counts for nothing absent, the same as a fortnight
+  // in the office - and it is NOT a Sunday worked, so it never reaches the
+  // Sunday register to be paid a second time.
+  const home = {};
+  const desk = {};
+  for (let d = 1; d <= 14; d++) {
+    home[d] = 'WH';
+    desk[d] = 'P';
+  }
+  assert.equal(absentDaysFromAttendance(home), absentDaysFromAttendance(desk));
+  assert.equal(absentDaysFromAttendance(home), 0);
+  assert.equal(sundaysFromAttendance(home), 0);
+  assert.deepEqual(sundayDaysFromAttendance(home), []);
+
+  // And the month comes out the same to the rupee, over salaries that round
+  // awkwardly and a month that carries real absences beside the remote days.
+  for (const salary of [11000, 14500, 22000, 26000, 60000, 100000]) {
+    const mixed = (code) => ({ ...{ 3: 'A', 11: 'HF', 20: 'CL' }, 5: code, 6: code, 7: code });
+    const at = (code) =>
+      calculateRow({ salary, attendance: mixed(code), pf: 1800, esi: 0 }, { hours_per_day: 9 });
+    const remote = at('WH');
+    const office = at('P');
+    for (const field of ['gross_salary', 'net_salary', 'pt', 'pf', 'esi', 'absent_days', 'final_payable']) {
+      assert.equal(remote[field], office[field], `${field} moved at ${salary}`);
+    }
+  }
+});

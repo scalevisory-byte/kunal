@@ -1215,3 +1215,44 @@ test('the remember tick is handed back to the browser', () => {
     assert.match(rule[0], undo);
   }
 });
+
+test('nobody is asked about the uniform of somebody working from home', () => {
+  const dash = src('components/Dashboard.jsx');
+
+  /*
+   * WORKED_MARKS is the uniform check's list AND its denominator - the roll
+   * call reads "3 of 40 at work not looked at" off it, and the alert clears
+   * only when the two match. A person working from home is at work and is
+   * nowhere anybody can see what they are wearing, so leaving WH in would
+   * hold the morning's walk open for ever on a name nobody can ever tick.
+   */
+  const set = dash.match(/const WORKED_MARKS = new Set\(\[([^\]]*)\]\)/);
+  assert.ok(set, 'WORKED_MARKS is gone');
+  assert.ok(!/'WH'/.test(set[1]), 'somebody at home is being asked about their uniform');
+  for (const code of ["'P'", "'HF'", "'SP'", "'HP'"]) {
+    assert.ok(set[1].includes(code), `${code} fell out of the uniform check`);
+  }
+
+  // It still counts as a day present, which is a different question.
+  assert.match(dash, /code === 'WH'/);
+});
+
+test('working from home can be asked for, and only ever marks WH', () => {
+  const requests = fs.readFileSync(
+    path.join(here, '../../shared/attendanceRequests.js'),
+    'utf8'
+  );
+
+  // The mark is a property of the KIND. Offering a picker would only be a
+  // chance to choose the wrong one, and a stale form could post anything.
+  assert.match(requests, /key: 'remote'/);
+  assert.match(requests, /writes: 'WH'/);
+  assert.match(requests, /const fixed = markOf\(request\.kind\)/);
+
+  // A week at home is one request and one decision.
+  assert.match(requests, /key: 'remote',[\s\S]{0,200}span: true/);
+
+  // Both places the staff can raise one.
+  assert.match(src('components/MyPage.jsx'), /kind: 'remote'/);
+  assert.match(src('components/PunchPage.jsx'), /REQUEST_KINDS\.map/);
+});

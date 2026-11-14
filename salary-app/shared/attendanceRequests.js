@@ -68,6 +68,30 @@ export const REQUEST_KINDS = [
     hint: 'two or three hours, not the whole day',
     needs: 'minutes',
   },
+  /*
+   * Working from home.
+   *
+   * The WH mark already existed and is paid in full - what was missing is any
+   * way to ASK for it, so a remote day could only be arranged by someone in
+   * the office remembering to type it.
+   *
+   * It `needs` nothing. Every other kind asks the employee for something,
+   * because only they know it; here the mark is always WH, and offering a
+   * picker would just be a chance to choose the wrong one. `writes` says what
+   * approving it puts on the day, so the mark is a property of the KIND and
+   * not of the request - and the rule still holds, because asking is not
+   * getting: nothing reaches the grid until somebody approves it.
+   *
+   * It spans, like leave: a week at home is one request and one decision.
+   */
+  {
+    key: 'remote',
+    label: 'Work from home',
+    hint: 'I will be working, away from the office',
+    needs: 'none',
+    writes: 'WH',
+    span: true,
+  },
 ];
 
 /** The shortest and longest a few hours off can sensibly be. */
@@ -78,6 +102,15 @@ export const STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'];
 export const kindLabel = (key) => REQUEST_KINDS.find((k) => k.key === key)?.label || key;
 
 const needsOf = (kind) => REQUEST_KINDS.find((k) => k.key === kind)?.needs || 'both';
+
+/**
+ * The mark this KIND of request always writes, if it is one of those.
+ *
+ * Only work-from-home so far. It is held on the kind rather than asked for,
+ * because there is exactly one right answer and a picker would only let
+ * somebody get it wrong.
+ */
+export const markOf = (kind) => REQUEST_KINDS.find((k) => k.key === kind)?.writes || '';
 
 /** Whether this kind of request can cover a run of days. */
 export const spans = (kind) => Boolean(REQUEST_KINDS.find((k) => k.key === kind)?.span);
@@ -182,7 +215,14 @@ export function entryFor(request = {}, day = Number(request.day), stored = null)
     entry.short_leave_charged = minutes > 0 && !clocked;
   }
 
-  if ((needs === 'mark' || needs === 'both') && request.code) entry.code = request.code;
+  /*
+   * A kind that always writes the same mark writes it here, whatever the
+   * request happens to carry - a work-from-home request that arrived with
+   * `code: 'A'` on it still marks the day WH and nothing else.
+   */
+  const fixed = markOf(request.kind);
+  if (fixed) entry.code = fixed;
+  else if ((needs === 'mark' || needs === 'both') && request.code) entry.code = request.code;
   if (needs === 'times' || needs === 'both') {
     for (const field of TIME_FIELDS) {
       if (request[field] === undefined || request[field] === null || request[field] === '') continue;
@@ -231,7 +271,8 @@ export function describe(request = {}) {
   const bits = [];
   const days = daysOf(request);
   if (days.length > 1) bits.push(`days ${days[0]}\u2013${days[days.length - 1]} (${days.length} days)`);
-  if (request.code) bits.push(`mark it ${ATTENDANCE_CODES[request.code]?.label || request.code}`);
+  const mark = markOf(request.kind) || request.code;
+  if (mark) bits.push(`mark it ${ATTENDANCE_CODES[mark]?.label || mark}`);
   if (request.kind === 'short_leave' && request.minutes) {
     bits.push(`${describeMinutes(request.minutes)} off`);
   }

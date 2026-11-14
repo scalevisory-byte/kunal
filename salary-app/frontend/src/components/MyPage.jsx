@@ -364,6 +364,13 @@ function MyLeave({ onError }) {
     reason: '',
   });
   const hours = form.code === 'HOURS';
+  /*
+   * Working from home is not time OFF, so it spends no quota and docks
+   * nothing - the WH mark is paid in full. It rides on this same form because
+   * this is where somebody already goes to say "I will not be at my desk on
+   * Tuesday", which is the thought they are actually having.
+   */
+  const remote = form.code === 'WH';
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
 
@@ -400,11 +407,18 @@ function MyLeave({ onError }) {
         day: Number(form.day),
         ...(hours
           ? { kind: 'short_leave', minutes: Number(form.minutes) }
-          : {
-              kind: 'leave',
-              code: form.code,
-              to_day: form.to_day ? Number(form.to_day) : undefined,
-            }),
+          : remote
+            ? {
+                // No `code`: the mark is a property of the kind, so a
+                // work-from-home request can only ever mark the day WH.
+                kind: 'remote',
+                to_day: form.to_day ? Number(form.to_day) : undefined,
+              }
+            : {
+                kind: 'leave',
+                code: form.code,
+                to_day: form.to_day ? Number(form.to_day) : undefined,
+              }),
         reason: form.reason,
       });
       setForm({ ...form, day: '', to_day: '', reason: '' });
@@ -449,7 +463,7 @@ function MyLeave({ onError }) {
       </div>
 
       <div className="card">
-        <h3>Apply for leave</h3>
+        <h3>Apply for leave, or to work from home</h3>
         <div className="vf-grid">
           <label className="vf-field">
             <span className="vf-label">Month</span>
@@ -467,6 +481,7 @@ function MyLeave({ onError }) {
                 <option key={c} value={c}>{ATTENDANCE_CODES[c]?.label || c}</option>
               ))}
               <option value="HOURS">A few hours off</option>
+              <option value="WH">Work from home</option>
             </select>
           </label>
           {/*
@@ -513,14 +528,18 @@ function MyLeave({ onError }) {
                 disabled={!chosen}
                 onChange={(e) => setForm({ ...form, to_day: dayOf(e.target.value) })}
               />
-              <span className="vf-hint">Leave empty for one day</span>
+              <span className="vf-hint">
+                {remote
+                  ? 'Leave empty for one day. Working from home is paid in full and uses no leave.'
+                  : 'Leave empty for one day'}
+              </span>
             </label>
           )}
           <label className="vf-field wide">
             <span className="vf-label">Why</span>
             <input
               value={form.reason}
-              placeholder="Family function in Surat"
+              placeholder={remote ? 'Internet work, at home all day' : 'Family function in Surat'}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
             />
           </label>
@@ -534,7 +553,10 @@ function MyLeave({ onError }) {
             Send it
           </button>
           <span className="muted small">
-            {said || 'A leave application changes nothing by itself — the office decides.'}
+            {said ||
+              (remote
+                ? 'Asking to work from home changes nothing by itself — the office decides.'
+                : 'A leave application changes nothing by itself — the office decides.')}
           </span>
         </div>
       </div>

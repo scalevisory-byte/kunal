@@ -147,8 +147,13 @@ const minutesOf = (iso) => {
  * Returns the two clock times as strings, for the SAME `in_time`/`out_time`
  * columns the Time tab writes, so a phone punch and a typed time are worth the
  * same money with nothing else touched.
+ *
+ * `code` is the day's mark, when it is known. On a work-from-home day being
+ * away from the office is the ARRANGEMENT, not something for the office to
+ * look at - flagging it would put every approved remote day on a list of
+ * things to check, which is how a list of things to check stops being read.
  */
-export function punchesToDay(punches = []) {
+export function punchesToDay(punches = [], { code = '' } = {}) {
   const stamps = punches
     .map((p) => ({ ...p, minutes: minutesOf(p.at) }))
     .filter((p) => p.minutes !== null)
@@ -171,7 +176,9 @@ export function punchesToDay(punches = []) {
     flags: [
       !ins.length && 'never punched in',
       !outs.length && 'never punched out',
-      stamps.some((p) => p.inside_fence === 0 || p.inside_fence === false) && 'punched away from the office',
+      !REMOTE_MARKS.has(String(code || '').trim().toUpperCase()) &&
+        stamps.some((p) => p.inside_fence === 0 || p.inside_fence === false) &&
+        'punched away from the office',
       stamps.some((p) => p.inside_fence === null && p.located) && 'location too vague to place',
       stamps.some((p) => !p.located) && 'location not shared',
     ].filter(Boolean),
@@ -185,6 +192,14 @@ export function nextKind(todaysPunches = []) {
 }
 
 /* ---------------- what the office allows ---------------- */
+
+/**
+ * Marks on which being away from the office is the point of the day.
+ *
+ * Only WH. An absence is not here - somebody who is not working is not
+ * working from somewhere else - and neither is leave.
+ */
+export const REMOTE_MARKS = new Set(['WH']);
 
 export const DEFAULT_RESTRICTIONS = {
   // Punching from a phone at all. Off until somebody turns it on.
@@ -200,7 +215,7 @@ export const DEFAULT_RESTRICTIONS = {
  * Whether a punch may be recorded. The only hard refusals are the ones that
  * would otherwise store a meaningless row.
  */
-export function punchAllowed(judgement, restrictions = {}) {
+export function punchAllowed(judgement, restrictions = {}, { code = '' } = {}) {
   const rules = { ...DEFAULT_RESTRICTIONS, ...(restrictions || {}) };
   if (!rules.enabled) {
     return { ok: false, reason: 'Punching from a phone is switched off. Ask the office.' };
@@ -211,7 +226,14 @@ export function punchAllowed(judgement, restrictions = {}) {
       reason: 'Your location is needed to punch. Allow location access and try again.',
     };
   }
-  if (!rules.allowOutsideFence && judgement.inside_fence === false) {
+  /*
+   * The strict setting refuses a punch from outside the fence. It must not
+   * refuse one on a day the office has already APPROVED as working from home -
+   * that would make an approved remote day unpunchable, so the hours would be
+   * typed in from memory a week later, which is exactly what punching was for.
+   */
+  const remote = REMOTE_MARKS.has(String(code || '').trim().toUpperCase());
+  if (!rules.allowOutsideFence && !remote && judgement.inside_fence === false) {
     return { ok: false, reason: `You are ${formatDistance(judgement.distance_m)} from the office.` };
   }
   return { ok: true, reason: '' };

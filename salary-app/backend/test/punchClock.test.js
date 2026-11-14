@@ -159,3 +159,61 @@ test('a punch with no location is refused while location is required', () => {
   assert.equal(punchAllowed(blind, { enabled: true }).ok, false);
   assert.equal(punchAllowed(blind, { enabled: true, requireLocation: false }).ok, true);
 });
+
+/*
+ * Working from home, and the fence.
+ *
+ * The fence exists to notice somebody punching in from somewhere they should
+ * not be. On a day the office has APPROVED as working from home, away from
+ * the office is the arrangement - so the same reading must stop being an
+ * exception, in both places the fence is consulted.
+ */
+
+const away = (at, kind) => punch(at, kind, { inside_fence: false, distance_m: 4700 });
+
+test('a punch from home is not flagged on a work-from-home day', () => {
+  const stamps = [away('09:31', 'in'), away('18:22', 'out')];
+
+  // The same two punches on an ordinary day are worth looking at...
+  assert.deepEqual(punchesToDay(stamps, { code: 'P' }).flags, ['punched away from the office']);
+  assert.deepEqual(punchesToDay(stamps).flags, ['punched away from the office']);
+
+  // ...and on a WH day they are simply the day working as arranged. Leaving
+  // them flagged would put every approved remote day on the list of things to
+  // check, which is how a list of things to check stops being read.
+  assert.deepEqual(punchesToDay(stamps, { code: 'WH' }).flags, []);
+  assert.deepEqual(punchesToDay(stamps, { code: 'wh' }).flags, []);
+
+  // The times still land, because that is what the salary sheet pays from.
+  assert.equal(punchesToDay(stamps, { code: 'WH' }).in_time, '09:31');
+  assert.equal(punchesToDay(stamps, { code: 'WH' }).out_time, '18:22');
+
+  // Everything else the office should see is untouched by the mark.
+  assert.deepEqual(punchesToDay([away('09:31', 'in')], { code: 'WH' }).flags, ['never punched out']);
+});
+
+test('the strict fence still lets an approved work-from-home day be punched', () => {
+  const strict = { ...DEFAULT_RESTRICTIONS, enabled: true, allowOutsideFence: false };
+  const outside = { located: true, inside_fence: false, distance_m: 4700 };
+
+  // Strict means strict on an ordinary day.
+  assert.equal(punchAllowed(outside, strict).ok, false);
+  assert.equal(punchAllowed(outside, strict, { code: 'P' }).ok, false);
+
+  /*
+   * But refusing it on a WH day would make an approved remote day
+   * unpunchable - so the hours get typed in from memory a week later, which
+   * is the thing punching was built to stop.
+   */
+  assert.equal(punchAllowed(outside, strict, { code: 'WH' }).ok, true);
+
+  // An absence is NOT remote work. Somebody who is not working is not
+  // working from somewhere else, so the fence still applies.
+  assert.equal(punchAllowed(outside, strict, { code: 'A' }).ok, false);
+  assert.equal(punchAllowed(outside, strict, { code: 'CL' }).ok, false);
+
+  // And the mark excuses the fence only - it does not switch punching on,
+  // and it does not excuse a punch with no location at all.
+  assert.equal(punchAllowed(outside, { ...strict, enabled: false }, { code: 'WH' }).ok, false);
+  assert.equal(punchAllowed({ located: false }, strict, { code: 'WH' }).ok, false);
+});

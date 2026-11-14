@@ -11,13 +11,24 @@ import {
   sortForReview,
   validateRequest,
 } from '../../shared/attendanceRequests.js';
+import { ATTENDANCE_CODES } from '../../shared/calc.js';
 
 const base = { period_id: 1, employee_id: 7, day: 15, reason: 'Machine did not read my finger' };
 
 test('every kind of request says what it is and what it needs', () => {
   for (const kind of REQUEST_KINDS) {
     assert.ok(kind.label && kind.hint, `${kind.key} does not explain itself`);
-    assert.ok(['times', 'mark', 'both', 'minutes'].includes(kind.needs));
+    assert.ok(['times', 'mark', 'both', 'minutes', 'none'].includes(kind.needs));
+
+    /*
+     * A kind that asks the employee for NOTHING has to know what approving it
+     * writes, or it is a request that lands on the grid as a reason with no
+     * mark - which reads as a day somebody looked at and left blank.
+     */
+    if (kind.needs === 'none') {
+      assert.ok(kind.writes, `${kind.key} asks for nothing and names no mark`);
+      assert.ok(ATTENDANCE_CODES[kind.writes], `${kind.key} writes an unknown mark`);
+    }
   }
 });
 
@@ -197,4 +208,50 @@ test('the one-line summary says how many days a leave application is for', () =>
   const line = describeRequest({ kind: 'leave', day: 12, to_day: 15, code: 'CL' });
   assert.match(line, /days 12–15 \(4 days\)/);
   assert.match(line, /Casual Leave/);
+});
+
+/*
+ * Working from home.
+ *
+ * The WH mark already existed and was paid in full; what was missing was any
+ * way to ask for it.
+ */
+
+test('a work-from-home request asks for nothing but a reason', () => {
+  // No mark, no times, no minutes - and that is a complete request.
+  assert.equal(validateRequest({ ...base, kind: 'remote' }).ok, true);
+
+  // The reason still is not optional: the office is deciding something.
+  assert.deepEqual(
+    validateRequest({ ...base, kind: 'remote', reason: '   ' }).problems,
+    ['say why — the office has to decide on something']
+  );
+
+  // A week at home is one request and one decision, like leave.
+  assert.equal(spans('remote'), true);
+  assert.deepEqual(daysOf({ kind: 'remote', day: 10, to_day: 14 }), [10, 11, 12, 13, 14]);
+});
+
+test('approving a work-from-home request marks the day WH, whatever it carried', () => {
+  const entries = entriesFor({ ...base, kind: 'remote', day: 10, to_day: 12 });
+  assert.equal(entries.length, 3);
+  for (const e of entries) {
+    assert.equal(e.code, 'WH');
+    assert.equal(e.approved, true);
+    assert.equal(e.reason, base.reason);
+    // Nothing about the hours: working from home is a full day's work, so
+    // there is no shortfall to write and no minutes to dock.
+    assert.equal(e.minutes, undefined);
+  }
+
+  /*
+   * The mark belongs to the KIND, not to the request. A remote request that
+   * arrives carrying `code: 'A'` - from a stale form, or from somebody poking
+   * at the API - still marks the day WH and cannot write an absence.
+   */
+  assert.equal(entryFor({ ...base, kind: 'remote', code: 'A' }).code, 'WH');
+  assert.equal(entryFor({ ...base, kind: 'remote', code: 'UL' }).code, 'WH');
+
+  // And the approval list says what it would do without anybody opening it.
+  assert.match(describeRequest({ ...base, kind: 'remote', day: 10, to_day: 12 }), /Work From Home/i);
 });

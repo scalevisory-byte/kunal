@@ -102,6 +102,26 @@ export const listPunches = ({ employee_id, day, from, to, limit = 500 } = {}) =>
 };
 
 /**
+ * The mark already on that day, uppercased, or '' when there is none.
+ *
+ * A day nobody has marked, or one in a month that is not open yet, reads as
+ * '' - which is "not known", NOT "ordinary office day". Everything that uses
+ * this falls back to the behaviour it has always had when it gets ''.
+ */
+export function markOn(employeeId, isoDay) {
+  const [year, month, dayOfMonth] = String(isoDay || '').split('-').map(Number);
+  if (!year || !month || !dayOfMonth) return '';
+  const row = db
+    .prepare(
+      `SELECT a.code FROM attendance a
+         JOIN periods p ON p.id = a.period_id
+        WHERE p.year = ? AND p.month = ? AND a.employee_id = ? AND a.day = ?`
+    )
+    .get(year, month, employeeId, dayOfMonth);
+  return String(row?.code || '').trim().toUpperCase();
+}
+
+/**
  * Record one punch and roll the day up onto the attendance row.
  *
  * The roll-up only ever writes `in_time` and `out_time`; the mark is left to
@@ -113,11 +133,18 @@ export function recordPunch({ employee, kind, point, accuracy, source = 'phone',
     (o) => !o.company_id || !employee.company_id || o.company_id === employee.company_id
   );
   const judgement = judgePunch({ point, accuracy, offices }, restrictions);
-  const allowed = punchAllowed(judgement, restrictions);
-  if (!allowed.ok) return { ok: false, reason: allowed.reason, judgement };
 
+  /*
+   * The day is worked out BEFORE the punch is judged, because the judgement
+   * now depends on what the day already is: on an approved work-from-home day
+   * being away from the office is the arrangement, so the strict setting must
+   * not refuse the punch.
+   */
   const stamp = at instanceof Date ? at : new Date(at);
   const day = stamp.toISOString().slice(0, 10);
+
+  const allowed = punchAllowed(judgement, restrictions, { code: markOn(employee.id, day) });
+  if (!allowed.ok) return { ok: false, reason: allowed.reason, judgement };
 
   db.prepare(
     `INSERT INTO punch_events
@@ -153,7 +180,7 @@ export function recordPunch({ employee, kind, point, accuracy, source = 'phone',
  */
 export function rollUpDay(employeeId, isoDay) {
   const punches = listPunches({ employee_id: employeeId, day: isoDay });
-  const rolled = punchesToDay(punches);
+  const rolled = punchesToDay(punches, { code: markOn(employeeId, isoDay) });
   if (!rolled) return null;
 
   const [year, month, dayOfMonth] = isoDay.split('-').map(Number);

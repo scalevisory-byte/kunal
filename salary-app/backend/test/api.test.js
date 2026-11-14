@@ -950,6 +950,77 @@ test('a leave application cannot be raised without saying which kind of leave', 
   assert.equal(thin.status, 400);
 });
 
+test('working from home: asked for, approved, and not a rupee moved', async () => {
+  const netOf = async () => {
+    const { body } = await api('GET', `/api/periods/${periodId}/payroll`);
+    return body.rows.find((r) => r.employee_id === employeeId)?.net_salary;
+  };
+  const before = await netOf();
+
+  /*
+   * No mark, no times, no minutes - a work-from-home request names only the
+   * days and the reason, because there is exactly one mark it could mean.
+   */
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 27,
+    to_day: 28,
+    kind: 'remote',
+    reason: 'Broadband man coming, working from home',
+  });
+  assert.equal(raised.status, 201);
+  assert.equal(raised.body.status, 'pending');
+
+  // Asking is not getting.
+  const whilePending = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const pendingMe = whilePending.employees.find((e) => e.employee_id === employeeId);
+  assert.notEqual(pendingMe.attendance[27]?.code, 'WH', 'a pending request wrote on the grid');
+  assert.equal(await netOf(), before, 'a pending request moved the pay');
+
+  const decided = await api('POST', `/api/attendance/requests/${raised.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+  assert.equal(decided.body.status, 'approved');
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const mine = grid.employees.find((e) => e.employee_id === employeeId);
+  for (const day of [27, 28]) {
+    assert.equal(mine.attendance[day]?.code, 'WH', `day ${day} should be work from home`);
+    // A day written BY an approval is approved by definition, and the reason
+    // travels with it rather than being typed onto the grid a second time.
+    assert.equal(mine.attendance[day]?.approved, true);
+    assert.match(String(mine.attendance[day]?.reason || ''), /Broadband/);
+  }
+  assert.notEqual(mine.attendance[29]?.code, 'WH', 'the day after is untouched');
+
+  /*
+   * THE CLAIM THE WHOLE THING RESTS ON: a day worked from home is a day
+   * worked. Two of them changed nothing about what this person is paid.
+   */
+  assert.equal(await netOf(), before, 'working from home changed the pay');
+});
+
+test('a work-from-home request cannot smuggle in a different mark', async () => {
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 30,
+    kind: 'remote',
+    // A stale form, or somebody poking at the API directly.
+    code: 'A',
+    reason: 'at home on the 30th',
+  });
+  assert.equal(raised.status, 201);
+
+  await api('POST', `/api/attendance/requests/${raised.body.id}/decide`, { approve: true, by: 'Dinesh' });
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body;
+  const mine = grid.employees.find((e) => e.employee_id === employeeId);
+  // The mark belongs to the kind, so this could never have marked an absence.
+  assert.equal(mine.attendance[30]?.code, 'WH');
+});
+
 test('the rate limits do not interfere with each other', async () => {
   /*
    * Each route has its own bucket per link per minute. It used to be one bucket

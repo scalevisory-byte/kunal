@@ -2426,8 +2426,14 @@ const judgedOnTime = (code) => FULL_DAY_MARKS.has(String(code || '').toUpperCase
  * on somebody who was not there, and an absence must never read as a uniform
  * failure. A day with no mark is left out too, because nobody has said whether
  * they were in at all.
+ *
+ * WH is deliberately NOT here, and it is the one that needs saying. Somebody
+ * working from home IS at work - they just are not anywhere anybody can see
+ * what they are wearing. This set is also the check's DENOMINATOR ("3 of 40
+ * at work not looked at"), so leaving them in would hold the morning's walk
+ * open for ever on people nobody could ever tick off.
  */
-const WORKED_MARKS = new Set(['P', 'HF', 'WH', 'SP', 'HP']);
+const WORKED_MARKS = new Set(['P', 'HF', 'SP', 'HP']);
 
 /** Days marked present out of the days that carry any mark at all. */
 /*
