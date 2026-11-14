@@ -420,7 +420,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
         Worked hours are <strong>out − in, less the lunch break</strong>. Anything more or less than
         the day's {days(period.hours_per_day)} hours goes into that day's OT/LT minutes, which the
         salary sheet pays or deducts at the per-minute rate — a few minutes either way is ignored.
-        A day under 4½ hours is marked <strong>HF</strong> and paid at half, so its short hours are
+        {/* Half of the month's OWN day, not a fixed 4½ - that was only right
+            because the default day is nine, and the note went stale the
+            moment the day changed. */}
+        A day under {formatDuration(Math.round(((Number(period.hours_per_day) || 9) * 60) / 2))} is
+        marked <strong>HF</strong> and paid at half, so its short hours are
         not charged again. Marks that were set on purpose — leave, a holiday, a Sunday — are left
         as they are.
       </p>
