@@ -6,6 +6,7 @@ import {
   formatDuration,
   formatTime,
   hasTimes,
+  readTimes,
   monthTotals,
   parseTime,
   timesToDay,
@@ -170,6 +171,31 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
 
   /* What the usual timings come to against the day the month is paid on. */
   const usual = timesToDay(standard, { hoursPerDay: period.hours_per_day });
+  /*
+   * The lunch break: recorded, or taken off the day?
+   *
+   * Dinesh asked for the times to be kept without the half hour coming out
+   * of anybody's pay - "9 hrs including lunch". Deducting is what the app has
+   * always done and stays the default, so no month already paid can move.
+   * What a switch WOULD give back is counted here, over the whole month and
+   * everybody, so the figure is on screen before the box is ticked.
+   */
+  const lunchPaid = !!period.lunch_paid;
+  const lunchEffect = (() => {
+    let days = 0;
+    let minutes = 0;
+    for (const row of rows) {
+      for (const d of dayList) {
+        const e = entryOf(row, d);
+        const read = readTimes(e);
+        if (!read.lunch || read.worked === null) continue;
+        days += 1;
+        minutes += read.lunch;
+      }
+    }
+    return { days, minutes };
+  })();
+
   /* What the gap is worth a month, at the per-minute rate the sheet pays on. */
   const gapCost = usual.minutes
     ? Math.round(
@@ -276,6 +302,48 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
         <button className="ghost tiny" onClick={() => setShowStandard((s) => !s)}>
           {showStandard ? 'done' : 'change'}
         </button>
+      </div>
+
+      <div className="toolbar">
+        <label className="field inline" title="Whether the break comes off the day's hours">
+          <input
+            type="checkbox"
+            checked={lunchPaid}
+            disabled={locked || !onPatchPeriod}
+            onChange={(e) => {
+              const on = e.target.checked;
+              if (
+                lunchEffect.days &&
+                !window.confirm(
+                  on
+                    ? `Stop deducting the lunch break?\n\n` +
+                        `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
+                        `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
+                        `${formatDuration(lunchEffect.minutes)} in all. Those hours go back into ` +
+                        `the month, so short hours fall and overtime rises.\n\n` +
+                        'Only this month changes. The times themselves are not touched.'
+                    : `Deduct the lunch break again?\n\n` +
+                        `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
+                        `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
+                        `${formatDuration(lunchEffect.minutes)} in all, which will come off the ` +
+                        'hours worked.',
+                )
+              ) {
+                return;
+              }
+              onPatchPeriod({ lunch_paid: on ? 1 : 0 });
+            }}
+          />
+          Lunch is inside the day
+        </label>
+        <span className="muted small">
+          {lunchPaid
+            ? 'Lunch times are recorded and NOT taken off the hours — the break sits inside the day.'
+            : 'Lunch times are taken off the hours worked.'}{' '}
+          {lunchEffect.days
+            ? `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ${lunchEffect.days === 1 ? 'carries' : 'carry'} one, ${formatDuration(lunchEffect.minutes)} in all.`
+            : 'No lunch times have been entered this month.'}
+        </span>
       </div>
 
       {/*

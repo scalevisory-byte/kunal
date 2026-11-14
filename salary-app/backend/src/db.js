@@ -176,6 +176,7 @@ db.exec(`
     pt_amount     REAL NOT NULL DEFAULT 200,
     -- The late/early rule this month is paid on. 'hours' is the long-standing
     -- behaviour and the default: nothing is charged for lateness as such.
+    lunch_paid              INTEGER NOT NULL DEFAULT 0,
     late_policy             TEXT NOT NULL DEFAULT 'hours',
     late_concession_minutes INTEGER NOT NULL DEFAULT 300,
     late_grace_minutes      INTEGER NOT NULL DEFAULT 0,
@@ -466,6 +467,16 @@ for (const column of ['shift_in', 'shift_out']) {
  * never rewrites a month already paid.
  */
 const periodLateColumns = [
+  /*
+   * Is the lunch break taken OFF the day, or is it inside it?
+   *
+   * Dinesh's office is "9 hrs including lunch" - the half hour sits within
+   * the nine - so he wants the times recorded and NOT subtracted. Defaults
+   * to 0, meaning deducted, which is what the app has always done, so the
+   * migration cannot move a rupee on any month already paid. Held per month
+   * like the rest, so switching it in December never rewrites October.
+   */
+  ['lunch_paid', 'INTEGER NOT NULL DEFAULT 0'],
   ["late_policy", "TEXT NOT NULL DEFAULT 'hours'"],
   ['late_concession_minutes', 'INTEGER NOT NULL DEFAULT 300'],
   ['late_grace_minutes', 'INTEGER NOT NULL DEFAULT 0'],
@@ -1176,6 +1187,7 @@ export function updatePeriod(id, patch) {
     'hours_per_day',
     'pt_threshold',
     'pt_amount',
+    'lunch_paid',
     'late_policy',
     'late_concession_minutes',
     'late_grace_minutes',
@@ -1185,7 +1197,7 @@ export function updatePeriod(id, patch) {
   ]) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
-    values.push(key === 'locked' ? (patch[key] ? 1 : 0) : patch[key]);
+    values.push(key === 'locked' || key === 'lunch_paid' ? (patch[key] ? 1 : 0) : patch[key]);
   }
   if (!fields.length) return getPeriod(id);
   const before = getPeriod(id);
@@ -1803,8 +1815,11 @@ export const setAttendance = db.transaction((periodId, entries) => {
   );
   // The month's own hours, so the half-day line and the shortfall are judged
   // against the day this month is actually paid on.
-  const hoursPerDay =
-    Number(db.prepare(`SELECT hours_per_day FROM periods WHERE id = ?`).get(periodId)?.hours_per_day) || 9;
+  const month = db.prepare(`SELECT hours_per_day, lunch_paid FROM periods WHERE id = ?`).get(periodId);
+  const hoursPerDay = Number(month?.hours_per_day) || 9;
+  // ...and whether the lunch break comes off it. Off by default, so no month
+  // already paid moves; see the column's note above.
+  const deductLunch = !month?.lunch_paid;
   /*
    * The attendance trail. A mark REPLACED by a different mark is recorded; a
    * blank day being filled in is not. That is the line worth drawing: "Mark
@@ -1942,7 +1957,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
        * the day on the Sunday register, outside the salary this would come
        * out of.
        */
-      minutes = minutesForMark(times, { hoursPerDay, code });
+      minutes = minutesForMark(times, { hoursPerDay, code, deductLunch });
     }
 
     // A day with no mark, no minutes and no times has nothing left to record.

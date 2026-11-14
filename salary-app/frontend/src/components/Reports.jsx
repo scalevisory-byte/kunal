@@ -325,8 +325,34 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
           <span className="muted small"> — bringing data in, and taking a backup out</span>
         </summary>
         <div className="stack">
-          {period && <MonthlyStatusImport period={period} onReload={onReload} />}
-          {period && <PunchImport period={period} onReload={onReload} />}
+          {/*
+            * With no month open, both attendance importers simply VANISHED -
+            * they write onto a month's grid and there was none. What was left
+            * was the salary-sheet importer, which is the one Dinesh then put
+            * his BasicWorkDurationReport.xls into, and it told him to re-save
+            * the file as .xlsx. Perfectly true, and completely the wrong
+            * advice: his file was fine, the month was missing.
+            *
+            * So the gap says what it is and offers the way out of it.
+            */}
+          {period ? (
+            <>
+              <MonthlyStatusImport period={period} onReload={onReload} />
+              <PunchImport period={period} onReload={onReload} />
+            </>
+          ) : (
+            <div className="card">
+              <h2>Attendance needs a month first</h2>
+              <p className="muted small">
+                The two attendance importers — the machine's month-wide report and the punch log —
+                write onto a month's grid, and no month is open yet. Open one with{' '}
+                <strong>New month</strong> at the top of this page and they will appear here.
+              </p>
+              <p className="muted small">
+                Importing the staff list below works without one; attendance does not.
+              </p>
+            </div>
+          )}
       <div className="card">
         <h2>Import a salary sheet</h2>
         <p className="muted small">

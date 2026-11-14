@@ -1417,6 +1417,9 @@ export async function handle(method, path, body) {
         hours_per_day: 9,
         pt_threshold: 12000,
         pt_amount: 200,
+        // Deducted, as the server has it, so the file and the server agree
+        // and nothing already paid moves.
+        lunch_paid: 0,
         late_policy: 'hours',
         late_concession_minutes: 300,
         late_grace_minutes: 0,
@@ -1726,6 +1729,7 @@ export async function handle(method, path, body) {
       hours_per_day: Number(body.hours_per_day) || 9,
       pt_threshold: body.pt_threshold === undefined ? 12000 : Number(body.pt_threshold),
       pt_amount: body.pt_amount === undefined ? 200 : Number(body.pt_amount),
+      lunch_paid: body.lunch_paid ? 1 : 0,
       // The late/early rule, per month. 'hours' is the default and charges
       // nothing for lateness as such - exactly as the server has it.
       late_policy: body.late_policy === 'concession' ? 'concession' : 'hours',
@@ -1827,6 +1831,7 @@ export async function handle(method, path, body) {
           'hours_per_day',
           'pt_threshold',
           'pt_amount',
+          'lunch_paid',
           'late_policy',
           'late_concession_minutes',
           'late_grace_minutes',
@@ -1834,7 +1839,8 @@ export async function handle(method, path, body) {
           'shift_out',
           'locked',
         ]) {
-          if (key in (body || {})) period[key] = key === 'locked' ? (body[key] ? 1 : 0) : body[key];
+          if (key in (body || {}))
+            period[key] = key === 'locked' || key === 'lunch_paid' ? (body[key] ? 1 : 0) : body[key];
         }
         save();
         return period;
@@ -1952,7 +1958,7 @@ export async function handle(method, path, body) {
             // "A half day is already paid at half" only holds if the day IS
             // a half day - minutesForMark is the one place that decides, so
             // the file and the server cannot pay differently.
-            minutes = minutesForMark(times, { hoursPerDay, code });
+            minutes = minutesForMark(times, { hoursPerDay, code, deductLunch: !period?.lunch_paid });
           }
 
           /*

@@ -384,7 +384,13 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     // do not price the month on their own - the day's short hours already went
     // into ot_minutes above - but the total is what a wage-hour question is
     // actually asking, so it travels with the row into the export.
-    worked_minutes: round0(monthTotals(Object.values(attendance || {})).worked),
+    worked_minutes: round0(
+      monthTotals(Object.values(attendance || {}), {
+        hoursPerDay,
+        // The month's own answer on whether the break comes off the day.
+        deductLunch: !period.lunch_paid,
+      }).worked,
+    ),
     sunday_salary: round0(sundaySalary),
     // Sunday pay is settled on its own register, so it is deliberately NOT
     // added here - the month's salary and the Sunday duty are paid apart,

@@ -127,7 +127,7 @@ export function formatDuration(minutes) {
  *   warning  what looks wrong about the times, if anything
  * }
  */
-export function readTimes(times = {}) {
+export function readTimes(times = {}, { deductLunch = true } = {}) {
   const at = {
     in: parseTime(times.in_time),
     lunchOut: parseTime(times.lunch_out),
@@ -165,11 +165,23 @@ export function readTimes(times = {}) {
     warning = 'no out time';
   }
 
+  /*
+   * Whether the break comes OFF the day.
+   *
+   * Dinesh's office is "9 hrs including lunch" - the half hour sits inside
+   * the nine, so the times are worth recording and must not be subtracted.
+   * An office that stops the clock for lunch deducts it, which is what this
+   * has always done and remains the default, so no month already paid can
+   * move on the strength of a new setting.
+   */
+  const taken = deductLunch ? lunch : 0;
+
   return {
     ...at,
     gross,
     lunch,
-    worked: gross === null ? null : gross - lunch,
+    lunchDeducted: taken,
+    worked: gross === null ? null : gross - taken,
     overnight,
     warning,
   };
@@ -189,7 +201,7 @@ export const hasTimes = (times = {}) => TIME_FIELDS.some((f) => parseTime(times[
  *   minutes  what goes in the day's OT/short column, grace already applied
  *   code     'P' or 'HF', or '' when there is nothing to say
  */
-export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
+export function timesToDay(times, { hoursPerDay = 9, rules, deductLunch = true } = {}) {
   const hours = Number(hoursPerDay) || 9;
   /*
    * The half-day line follows the configured day: half of whatever the month's
@@ -199,7 +211,7 @@ export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
    * day now breaks at four, not at four and a half.
    */
   const settings = { halfDayHours: hours / 2, ...TIME_RULES_WITHOUT_HALF, ...(rules || {}) };
-  const read = readTimes(times);
+  const read = readTimes(times, { deductLunch });
   const expected = Math.round(hours * 60);
 
   if (read.worked === null) {
@@ -253,13 +265,13 @@ export const HOURS_EXPECTED = new Set(['', 'P', 'WH']);
  * One function so the server, the offline file and the import preview cannot
  * give three answers for the same day.
  */
-export function minutesForMark(times, { hoursPerDay = 9, code = '' } = {}) {
-  const judged = timesToDay(times, { hoursPerDay });
+export function minutesForMark(times, { hoursPerDay = 9, code = '', deductLunch = true } = {}) {
+  const judged = timesToDay(times, { hoursPerDay, deductLunch });
   const mark = String(code || '').trim().toUpperCase();
   const owesTheDay = HOURS_EXPECTED.has(mark);
 
   if (judged.code === 'HF' && owesTheDay) {
-    return timesToDay(times, { hoursPerDay, rules: { halfDayHours: 0 } }).minutes;
+    return timesToDay(times, { hoursPerDay, deductLunch, rules: { halfDayHours: 0 } }).minutes;
   }
 
   /*
@@ -281,6 +293,7 @@ export function minutesForMark(times, { hoursPerDay = 9, code = '' } = {}) {
 
 /** Everything typed on one person's month, added up. */
 export function monthTotals(daysWithTimes = [], options = {}) {
+  // options carries hoursPerDay and deductLunch straight through to timesToDay.
   const totals = { days: 0, worked: 0, expected: 0, short: 0, overtime: 0, lunch: 0 };
   for (const times of daysWithTimes) {
     if (!hasTimes(times)) continue;

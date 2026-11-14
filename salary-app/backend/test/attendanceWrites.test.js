@@ -645,3 +645,46 @@ test('but overtime is still paid on whatever day it was worked', async () => {
     assert.equal((await dayOf(who, day)).minutes, 660 - 540, `${code} is paid its overtime`);
   }
 });
+
+test('the lunch break can be recorded without being deducted', async () => {
+  const who = staff.Requested;
+  /*
+   * Dinesh: "9 hrs including lunch", then "haan lunch time record wala bhi
+   * bana do". Both halves matter - he wants the times on the record AND the
+   * half hour inside the nine, not taken off anybody's pay.
+   *
+   * Until this the only way to stop the deduction was to leave the two
+   * columns blank, which loses the information.
+   */
+  const day = { employee_id: who, day: 26, code: 'P', in_time: '09:30', lunch_out: '13:00', lunch_in: '13:30', out_time: '18:30' };
+  await api('POST', `/api/periods/${periodId}/attendance`, { entries: [day] });
+  let d = await dayOf(who, 26);
+  assert.equal(d.minutes, -30, 'deducted by default - what the app has always done');
+  assert.equal(d.lunch_out, '13:00');
+
+  await api('PATCH', `/api/periods/${periodId}`, { lunch_paid: 1 });
+  // Re-saving the day recomputes it; nothing is rewritten behind anybody.
+  await api('POST', `/api/periods/${periodId}/attendance`, { entries: [{ employee_id: who, day: 26, in_time: '09:30' }] });
+  d = await dayOf(who, 26);
+  assert.equal(d.minutes, 0, 'the break is inside the day now, so nothing is short');
+  assert.equal(d.lunch_out, '13:00', 'and the times are STILL on the record');
+  assert.equal(d.lunch_in, '13:30');
+
+  await api('PATCH', `/api/periods/${periodId}`, { lunch_paid: 0 });
+});
+
+test('turning it on does not reach back into a month already paid', async () => {
+  /*
+   * Held per period, like the late/early rule, and the column defaults to 0.
+   * A stored figure is only recomputed when that day is saved again, so
+   * switching it in December cannot rewrite October.
+   */
+  const who = staff.Requested;
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 27, code: 'P', in_time: '09:30', lunch_out: '13:00', lunch_in: '13:30', out_time: '18:30' }],
+  });
+  assert.equal((await dayOf(who, 27)).minutes, -30);
+  await api('PATCH', `/api/periods/${periodId}`, { lunch_paid: 1 });
+  assert.equal((await dayOf(who, 27)).minutes, -30, 'the stored figure is untouched until that day is saved again');
+  await api('PATCH', `/api/periods/${periodId}`, { lunch_paid: 0 });
+});
