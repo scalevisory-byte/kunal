@@ -22,8 +22,116 @@ import { punchLink } from './punch.js';
 import { config } from '../config.js';
 import { buildPayroll } from '../payroll.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
+import ExcelJS from 'exceljs';
+import multer from 'multer';
+import {
+  planEmployeeImport,
+  readEmployeeSheet,
+  writeEmployeeSheet,
+} from '../../../shared/employeeSheet.js';
+import { listCompanies, upsertCompany } from '../db.js';
 
 export const employeesRouter = Router();
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+
+/* ---------------- the staff master as a spreadsheet ---------------- */
+
+/**
+ * The template AND the export, deliberately one file.
+ *
+ * `?blank=true` leaves the rows out. Everything else hands back the staff as
+ * they stand, which is the form worth editing: an office updating eighty-five
+ * UANs wants the eighty-five names already down the page.
+ */
+employeesRouter.get('/sheet', async (req, res, next) => {
+  try {
+    const blank = req.query.blank === 'true';
+    const wb = await writeEmployeeSheet(ExcelJS, {
+      employees: blank ? [] : listEmployees(),
+      companies: listCompanies(),
+    });
+    const name = blank ? 'Employees-template.xlsx' : 'Employees.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * The same file coming back. Nothing is written on a dry run, and the plan
+ * names every field that would change, by person.
+ */
+employeesRouter.post('/sheet', upload.single('file'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  try {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+
+    // The sheet with a Name column in it, whatever it is called - somebody
+    // will rename the tab, and the second sheet here is the notes.
+    let read = null;
+    for (const ws of wb.worksheets) {
+      const rows = [];
+      ws.eachRow({ includeEmpty: true }, (row, index) => {
+        const values = [];
+        row.eachCell({ includeEmpty: true }, (cell, column) => {
+          values[column - 1] = cell.value;
+        });
+        rows[index - 1] = values;
+      });
+      const attempt = readEmployeeSheet(rows);
+      if (!attempt.error) { read = { ...attempt, sheet: ws.name }; break; }
+    }
+    if (!read) {
+      return res.status(400).json({
+        error: 'no sheet in that file has a Name column. Download the template and fill that in.',
+      });
+    }
+
+    const plan = planEmployeeImport({
+      people: read.people,
+      employees: listEmployees(),
+      companies: listCompanies(),
+    });
+
+    const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
+    let created = 0;
+    let updated = 0;
+    if (!dryRun) {
+      const companyId = new Map(listCompanies().map((c) => [c.name.toLowerCase().trim(), c.id]));
+      const idFor = (name) => {
+        const key = String(name).toLowerCase().trim();
+        if (!companyId.has(key)) companyId.set(key, upsertCompany(name).id);
+        return companyId.get(key);
+      };
+      for (const person of plan.create) {
+        const { row, company, ...fields } = person;
+        createEmployee({ ...fields, company_id: idFor(company) });
+        created += 1;
+      }
+      for (const change of plan.update) {
+        const patch = {};
+        for (const c of change.changes) patch[c.field] = c.to;
+        updateEmployee(change.id, patch);
+        updated += 1;
+      }
+    }
+
+    res.json({
+      ...plan,
+      sheet: read.sheet,
+      unknownColumns: read.unknown,
+      dryRun,
+      created,
+      updated,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 employeesRouter.get('/', (req, res) => {
   const active = req.query.active === undefined ? undefined : req.query.active !== 'false';

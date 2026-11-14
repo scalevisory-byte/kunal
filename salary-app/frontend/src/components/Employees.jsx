@@ -10,6 +10,7 @@ import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { rupees } from '../format.js';
 import ScrollFrame from './ScrollFrame.jsx';
 
+import BulkEmployees from './BulkEmployees.jsx';
 /* The people with nothing in that field - a group, not a gap. */
 const NOT_SET = '\u0000none';
 
@@ -62,6 +63,8 @@ export default function Employees({
   onCreateCompany,
   onPatchCompany,
   onDeleteCompany,
+  onReload,
+  onError,
 }) {
   const [form, setForm] = useState(BLANK);
   const [companyName, setCompanyName] = useState('');
@@ -926,6 +929,8 @@ export default function Employees({
       </div>
 
       <OnboardingQueue employees={filtered} onOpen={(emp) => setProfileFor(emp.id)} />
+
+      <BulkEmployees onReload={onReload} onError={(m) => (onError ? onError(m) : setError(m))} />
 
       <div className="card">
         <h2>Add employee</h2>
