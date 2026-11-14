@@ -366,13 +366,13 @@ test('the bundle script copies the freshly built dashboard into backend/public',
   );
 });
 
-test('the dashboard updater survives its own errors and finds the real install', () => {
-  const ps = fs.readFileSync(path.join(kit, '../windows-local/UPDATE-DASHBOARD.ps1'), 'utf8');
+test('the updater survives its own errors and finds the real install', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/UPDATE.ps1'), 'utf8');
 
   // Same rule as the rest of the kit: PowerShell 5.1 reads a BOM-less UTF-8
   // file as ANSI, so one accented character can break parsing.
   assert.deepEqual([...ps].filter((c) => c.charCodeAt(0) > 127), []);
-  assert.deepEqual(psProblems(ps, 'UPDATE-DASHBOARD.ps1'), []);
+  assert.deepEqual(psProblems(ps, 'UPDATE.ps1'), []);
 
   /*
    * 1. The window must not vanish on an error.
@@ -407,14 +407,24 @@ test('the dashboard updater survives its own errors and finds the real install',
   // Derived from the entry point the task actually runs.
   assert.match(ps, /Split-Path -Parent \(Split-Path -Parent \$entry\)/);
 
-  // 3. A replace, not a merge: asset filenames are content-hashed, so
-  //    copying over the old folder leaves both builds sitting there.
-  assert.match(ps, /Move-Item \$public \$backup/);
-  assert.match(ps, /New-Item -ItemType Directory -Path \$public/);
-  // ...and the old one comes back if the copy fails part way through.
-  assert.match(ps, /Move-Item \$backup \$public/);
+  // 3. A replace, not a merge: the screens' filenames are content-hashed so
+  //    a merge leaves both builds sitting there, and a stale .js left behind
+  //    in src would do worse.
+  assert.match(ps, /Move-Item \$to \$backup/);
+  assert.match(ps, /New-Item -ItemType Directory -Path \$to -Force/);
+  // ...and ALL of it comes back if any part fails, rather than leaving the
+  // office with new screens on an old server.
+  assert.match(ps, /foreach \(\$m in \$moved\)/);
+  assert.match(ps, /Move-Item \$m\.Backup \$m\.To/);
 
-  // 4. It says what it is about to change before it changes it, because
+  // 4. Each part proves itself before anything is moved, so half an
+  //    extraction cannot wipe a working folder and put nothing back.
+  assert.match(ps, /Proof = 'index\.html'/);
+  assert.match(ps, /Proof = 'index\.js'/);
+  assert.match(ps, /Proof = 'calc\.js'/);
+  assert.match(ps, /is not \$\(\$part\.What\)/);
+
+  // 5. It says what it is about to change before it changes it, because
   //    "which copy did that just update" has to be answerable.
-  assert.match(ps, /Write-Host "Updating:\s+\$public"/);
+  assert.match(ps, /Write-Host "Updating:\s+\$root"/);
 });
