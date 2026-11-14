@@ -11,6 +11,8 @@ import {
   findPeriod,
   getPeriod,
   listPeriods,
+  listAttendance,
+  listEmployees,
   listHolidays,
   listReligions,
   setAttendance,
@@ -22,7 +24,114 @@ import { buildPayroll, buildPayslip } from '../payroll.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { TIME_FIELDS, parseTime } from '../../../shared/timesheet.js';
 
+import ExcelJS from 'exceljs';
+import multer from 'multer';
+import {
+  planAttendanceImport,
+  readAttendanceSheet,
+  writeAttendanceSheet,
+} from '../../../shared/attendanceSheet.js';
+
 export const periodsRouter = Router();
+
+const sheetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+
+/* ---------------- the month's register as a spreadsheet ---------------- */
+
+/**
+ * The grid, as it stands. Template and export in one file, like the staff
+ * sheet: an office typing up a paper register wants the names already down
+ * the page and the days already numbered across the top.
+ *
+ * `?blank=true` leaves the marks out but keeps the people - a fresh grid.
+ */
+periodsRouter.get('/:id/attendance-sheet', async (req, res, next) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  try {
+    const blank = req.query.blank === 'true';
+    const marksOf = new Map();
+    if (!blank) {
+      for (const row of listAttendance(period.id)) {
+        if (!row.code) continue;
+        if (!marksOf.has(row.employee_id)) marksOf.set(row.employee_id, {});
+        marksOf.get(row.employee_id)[row.day] = row.code;
+      }
+    }
+    const people = listEmployees().map((e) => ({
+      code: e.code || '',
+      name: e.name,
+      company: e.company_name || '',
+      marks: marksOf.get(e.id) || {},
+    }));
+    const wb = await writeAttendanceSheet(ExcelJS, { period, people });
+    const name = `Attendance-${period.label || `${period.year}-${period.month}`}.xlsx`.replace(/\s+/g, '-');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** The same file coming back. Nothing is written on a dry run. */
+periodsRouter.post('/:id/attendance-sheet', sheetUpload.single('file'), async (req, res, next) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'period not found' });
+  if (period.locked) return res.status(409).json({ error: 'period is locked' });
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  try {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+
+    // Whichever sheet holds the grid - the second one here is the legend,
+    // and somebody will rename the first.
+    let read = null;
+    for (const ws of wb.worksheets) {
+      const rows = [];
+      ws.eachRow({ includeEmpty: true }, (row, index) => {
+        const values = [];
+        row.eachCell({ includeEmpty: true }, (cell, column) => {
+          values[column - 1] = cell.value;
+        });
+        rows[index - 1] = values;
+      });
+      const attempt = readAttendanceSheet(rows);
+      if (!attempt.error) { read = { ...attempt, sheet: ws.name }; break; }
+    }
+    if (!read) {
+      return res.status(400).json({
+        error: 'no grid was found in that file. Download the month first and fill that in.',
+      });
+    }
+
+    const existing = {};
+    for (const row of listAttendance(period.id)) {
+      if (row.code) existing[`${row.employee_id}:${row.day}`] = row.code;
+    }
+
+    const plan = planAttendanceImport({
+      people: read.people,
+      employees: listEmployees(),
+      period,
+      existing,
+    });
+
+    const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
+    if (!dryRun && plan.entries.length) setAttendance(period.id, plan.entries);
+
+    res.json({
+      ...plan,
+      // A few thousand rows; the screen only needs what they add up to.
+      entries: undefined,
+      sheet: read.sheet,
+      dryRun,
+      written: dryRun ? 0 : plan.entries.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 periodsRouter.get('/', (req, res) => res.json({ periods: listPeriods(), codes: ATTENDANCE_CODES }));
 

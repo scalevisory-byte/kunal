@@ -17,6 +17,7 @@ import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
 import { rupees } from '../format.js';
 
+import AttendanceSheet from './AttendanceSheet.jsx';
 /**
  * Every report in one place, by category.
  *
@@ -337,6 +338,12 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
             */}
           {period ? (
             <>
+              <AttendanceSheet
+                period={period}
+                locked={!!period.locked}
+                onReload={onReload}
+                onError={setError}
+              />
               <MonthlyStatusImport period={period} onReload={onReload} />
               <PunchImport period={period} onReload={onReload} />
             </>
