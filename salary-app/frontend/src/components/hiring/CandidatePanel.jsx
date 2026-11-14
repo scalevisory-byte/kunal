@@ -23,6 +23,9 @@ const FIELDS = [
 
 export default function CandidatePanel({ candidateId, config, onClose, onChanged, onOpenApplication, onToast, onError }) {
   const [data, setData] = useState(null);
+  const [openings, setOpenings] = useState([]);
+  const [picked, setPicked] = useState('');
+  const [sending, setSending] = useState(false);
   const file = useRef(null);
 
   const load = async () => {
@@ -37,6 +40,45 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateId]);
+
+  /*
+   * The openings somebody could be put forward for.
+   *
+   * A CLOSED one is left out - putting somebody on a seat that is already
+   * filled is never what was meant. A draft is offered, because an opening
+   * often exists before anybody gets round to publishing it, and its status
+   * is shown so nobody thinks the advert is live.
+   */
+  useEffect(() => {
+    if (STANDALONE) return;
+    api
+      .get('/hiring/vacancies')
+      .then(({ vacancies }) => setOpenings((vacancies || []).filter((v) => v.status !== 'closed')))
+      .catch(() => setOpenings([]));
+  }, []);
+
+  const putForward = async () => {
+    if (!picked) return;
+    setSending(true);
+    try {
+      // The route answers { application, created } - `created` is false when
+      // they were already on this opening, which the filter above should make
+      // impossible, but a stale list is a stale list.
+      const { application, created } = await api.post('/hiring/applications', {
+        vacancy_id: Number(picked),
+        candidate_id: candidateId,
+      });
+      setPicked('');
+      await load();
+      onChanged?.();
+      onToast(created ? 'Put forward - shortlist or interview from here' : 'Already on that opening');
+      onOpenApplication?.(application.id);
+    } catch (err) {
+      onError(err);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const patch = async (body) => {
     try {
@@ -64,6 +106,8 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
 
   if (!data) return null;
   const { candidate, applications, tests, resume } = data;
+  const alreadyOn = new Set(applications.map((a) => a.vacancy_id));
+  const spare = openings.filter((v) => !alreadyOn.has(v.id));
   const chase = resumeRequest({
     candidate,
     vacancy: applications[0]
@@ -189,6 +233,44 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
           ) : (
             <p className="muted small">Not on any vacancy yet.</p>
           )}
+
+          {/*
+            * The way in.
+            *
+            * This card used to only LIST the openings somebody was already on,
+            * so from the candidate list - where anybody looking at a person is
+            * actually standing - there was no way to put them forward at all.
+            * The only route was Vacancies, open the opening, "On file". That is
+            * a feature nobody can find.
+            *
+            * Openings the candidate is already on are left out: the vacancy and
+            * candidate pair is unique, so offering it again can only produce an
+            * error message.
+            */}
+          {!STANDALONE ? (
+            spare.length ? (
+              <div className="put-forward">
+                <select value={picked} onChange={(e) => setPicked(e.target.value)}>
+                  <option value="">Put forward for an opening…</option>
+                  {spare.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.ref_no} · {v.title} · {v.company_name}
+                      {v.status === 'published' ? '' : ` (${v.status})`}
+                    </option>
+                  ))}
+                </select>
+                <button className="primary" disabled={!picked || sending} onClick={putForward}>
+                  {sending ? 'Adding…' : 'Put forward'}
+                </button>
+              </div>
+            ) : (
+              <p className="muted small">
+                {openings.length
+                  ? 'Already on every open vacancy.'
+                  : 'No open vacancy to put them forward for - make one on the Vacancies tab.'}
+              </p>
+            )
+          ) : null}
         </div>
 
         {tests.length ? (

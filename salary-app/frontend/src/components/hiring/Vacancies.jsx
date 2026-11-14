@@ -56,13 +56,13 @@ export default function Vacancies({
           )}
         </div>
         <span className="spacer" />
-        {/* While the form is open it owns the buttons - a second Cancel above
-            it, in navy, competing with Publish, is one button too many. */}
-        {adding ? null : (
-          <button className="primary" onClick={() => setAdding(true)}>
-            + New vacancy
-          </button>
-        )}
+        {/*
+          * No "+ New vacancy" here.
+          *
+          * The tab bar carries one on EVERY screen of this tab, so on this
+          * screen there were two of them, a few centimetres apart, in the same
+          * navy. Two buttons that do one thing read as two different things.
+          */}
       </div>
 
       {adding ? (
@@ -80,7 +80,7 @@ export default function Vacancies({
           <thead>
             <tr>
               <th>Ref</th>
-              <th>Job</th>
+              <th className="grow">Job</th>
               <th>Company</th>
               <th>Location</th>
               <th className="num">Seats</th>

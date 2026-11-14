@@ -1338,3 +1338,90 @@ test('the candidate list opens from the whole row, and the CV opens from the lis
   assert.match(list, /c\.has_cv/);
   assert.ok(!/c\.resume_path/.test(list), 'the list still reads the server filename');
 });
+
+test('a candidate can be put forward for an opening from their own record', () => {
+  const panel = src('components/hiring/CandidatePanel.jsx');
+
+  /*
+   * Sixth time for this shape of bug.
+   *
+   * The "Put forward for" card only LISTED the openings somebody was already
+   * on. From the candidate list - where anybody looking at a person is
+   * actually standing - there was no way to put them forward at all; the only
+   * route was Vacancies, open the opening, "On file". Dinesh asked how to
+   * select somebody for an interview and the honest answer was "not from
+   * where you are".
+   */
+  assert.match(panel, /api\.post\('\/hiring\/applications'/);
+  assert.match(panel, /Put forward for an opening/);
+
+  // The route answers { application, created } - reading it as the application
+  // itself gave an undefined id and no way onto the card.
+  assert.match(panel, /const \{ application, created \} = await api\.post/);
+
+  // ...and the openings route answers { vacancies }, not { rows }. Destructuring
+  // the wrong key gave an empty picker that said "no open vacancy" with three
+  // of them on file.
+  assert.match(panel, /\.then\(\(\{ vacancies \}\)/);
+
+  // A CLOSED opening is never offered: putting somebody on a filled seat is
+  // not what was meant.
+  assert.match(panel, /filter\(\(v\) => v\.status !== 'closed'\)/);
+
+  // Nor one they are already on - the pair is unique, so offering it again can
+  // only produce an error message.
+  assert.match(panel, /alreadyOn/);
+});
+
+test('the pipeline board fits its stages on an ordinary screen', () => {
+  /*
+   * Eight columns at `flex: 1 0 15rem` need 120rem. A 1920px screen with the
+   * rail gives 1656px, so "Joined" was cut in half and "Rejected" was off the
+   * screen entirely - and you cannot drag somebody into a column you cannot
+   * see.
+   */
+  const column = css.match(/\.column \{[^}]*\}/);
+  assert.ok(column, 'the board column rule is gone');
+  assert.match(column[0], /flex: 1 1 /);
+  assert.ok(!/flex: 1 0 15rem/.test(column[0]), 'the column still refuses to shrink');
+  assert.match(css, /\.board \{[^}]*overflow-x: auto/);
+});
+
+test('"+ New vacancy" is on the tab bar only, never twice on one screen', () => {
+  const hiring = src('components/hiring/Hiring.jsx');
+  const vacancies = src('components/hiring/Vacancies.jsx');
+
+  // The tab bar carries it on every screen of the tab, deliberately.
+  assert.match(hiring, /\+ New vacancy/);
+
+  /*
+   * So the Vacancies screen must NOT carry its own: there were two of them a
+   * few centimetres apart, in the same navy, and two buttons that do one thing
+   * read as two different things. Comments are stripped first - a test that
+   * matches its own explanation proves nothing.
+   */
+  const code = vacancies.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/\+ New vacancy/.test(code), 'Vacancies.jsx has its own New vacancy button again');
+
+  // ...and the tab bar's button must still be able to open the form here.
+  assert.match(vacancies, /if \(askNew\) setAdding\(true\)/);
+});
+
+test('the hiring tables fill their card, without one column eating the slack', () => {
+  assert.match(css, /table\.hiring-table \{ width: 100%; \}/);
+
+  /*
+   * `width: 100%` on the name column was the first attempt: "Riya Pal" then
+   * sat in 860px of white while Skills wrapped onto two lines beside it. Auto
+   * layout shares the slack in proportion to what each column holds.
+   */
+  assert.ok(
+    !/table\.hiring-table td\.grow[^}]*width: 100%/.test(css),
+    'the name column is greedy again'
+  );
+  // The buttons take none of it.
+  assert.match(css, /table\.hiring-table td:last-child[^}]*width: 1%/);
+
+  // And the salary sheet keeps the width it was given on purpose.
+  assert.match(css, /table\.sheet \{[^}]*width: auto/);
+});

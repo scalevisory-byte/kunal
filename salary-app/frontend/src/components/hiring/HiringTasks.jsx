@@ -83,7 +83,7 @@ export default function Followups({ followups, digest, onReload, onOpen, onError
         <table className="sheet hiring-table">
           <thead>
             <tr>
-              <th>What</th>
+              <th className="grow">What</th>
               <th>Due</th>
               <th>Who</th>
               <th>Priority</th>

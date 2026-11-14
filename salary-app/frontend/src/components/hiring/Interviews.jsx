@@ -19,7 +19,7 @@ export default function Interviews({ interviews, onOpen, onReload, onError }) {
         <thead>
           <tr>
             <th>When</th>
-            <th>Candidate</th>
+            <th className="grow">Candidate</th>
             <th>Job</th>
             <th>Mode</th>
             <th>Where / link</th>

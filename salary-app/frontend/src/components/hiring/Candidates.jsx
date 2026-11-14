@@ -111,7 +111,7 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
           <thead>
             <tr>
               <th>Ref</th>
-              <th>Name</th>
+              <th className="grow">Name</th>
               <th>Contact</th>
               <th>Experience</th>
               <th>Place</th>

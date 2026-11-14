@@ -1193,9 +1193,21 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 /* ---------- the pipeline board ---------- */
 
 .board { display: flex; gap: 0.7rem; overflow-x: auto; padding-bottom: 0.5rem; align-items: stretch; }
+/*
+ * Seven stages, and the last one has to be reachable.
+ *
+ * These were `flex: 1 0 15rem` - no shrink. Seven of them need 105rem, and a
+ * 1920px screen with the rail gives 1656px, so "Joined" was cut in half and
+ * only a sideways scroll nobody looks for could reach it. You cannot drag
+ * somebody into a column you cannot see.
+ *
+ * Shrinking to 11rem fits all seven on an ordinary laptop and they grow to
+ * share whatever is going. Below that the board still scrolls, which is what
+ * a phone needs.
+ */
 .column {
-  min-width: 15rem;
-  flex: 1 0 15rem;
+  min-width: 11rem;
+  flex: 1 1 11rem;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -3173,3 +3185,51 @@ table.rows-open tbody tr:hover .opens { text-decoration: underline; text-underli
 .skills-cell { max-width: 16rem; white-space: normal; line-height: 1.4; }
 /* A reference is one word, however narrow the column gets. */
 table.rows-open td.num.small.muted { white-space: nowrap; }
+
+/*
+ * Putting a candidate forward, from the candidate's own record.
+ *
+ * The select grows to fit the opening's title; the button never shrinks away
+ * from it. On a phone the two stack rather than squeezing the button to an
+ * unreadable sliver.
+ */
+.put-forward {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+.put-forward select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.put-forward button {
+  flex: 0 0 auto;
+}
+
+/*
+ * The hiring tables fill their card.
+ *
+ * `table.sheet` is deliberately `width: auto` - that was fixed once already,
+ * because stretching made the Time tab's six columns enormous. But the hiring
+ * tables carry nine or ten narrow columns, so on a 1920px screen an 855px
+ * table sat stranded in a 1656px card with half the page blank beside it,
+ * which is what reads as "the screen is not right".
+ *
+ * Scoped to these tables only, so the salary sheet and the Time tab keep the
+ * behaviour they were given on purpose.
+ */
+table.hiring-table { width: 100%; }
+
+/*
+ * The slack is shared across the columns, NOT handed to one of them.
+ *
+ * First attempt gave it all to the name column with `width: 100%`: "Riya Pal"
+ * then sat in 860px of white while Skills wrapped onto two lines beside it.
+ * Auto layout spreads it in proportion to what each column holds, which is
+ * what was wanted - so the only rules left are the two that stop the buttons
+ * and the narrow columns taking any of it.
+ */
+table.hiring-table td:last-child, table.hiring-table th:last-child { white-space: nowrap; width: 1%; }
+table.hiring-table td.grow, table.hiring-table th.grow { min-width: 11rem; }
