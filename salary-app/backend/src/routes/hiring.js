@@ -48,6 +48,10 @@ import {
   savePaper,
   saveQuestion,
   saveReference,
+  saveScreening,
+  screeningFor,
+  screeningQueue,
+  screeningSummary,
   submitAttempt,
   suggestForVacancy,
   updateApplication,
@@ -691,4 +695,32 @@ hiringRouter.get('/candidates/:id/attempts', (req, res) =>
 hiringRouter.get('/attempts/:id', (req, res) => {
   const found = attemptReview(Number(req.params.id));
   return found ? res.json(found) : res.status(404).json({ error: 'no such attempt' });
+});
+
+/* ---------------- initial screening ---------------- */
+
+hiringRouter.get('/screening/queue', (req, res) =>
+  res.json({
+    queue: screeningQueue({
+      company_id: num(req.query.company_id),
+      vacancy_id: num(req.query.vacancy_id),
+    }),
+  })
+);
+
+hiringRouter.get('/screening/summary', (req, res) =>
+  res.json(screeningSummary({ company_id: num(req.query.company_id) }))
+);
+
+hiringRouter.get('/applications/:id/screening', (req, res) => {
+  const found = screeningFor(Number(req.params.id));
+  return found ? res.json(found) : res.status(404).json({ error: 'no such application' });
+});
+
+hiringRouter.put('/applications/:id/screening', (req, res) => {
+  try {
+    res.json(saveScreening(Number(req.params.id), req.body || {}, { by: actorName(req) }));
+  } catch (err) {
+    sendProblem(res, err);
+  }
 });

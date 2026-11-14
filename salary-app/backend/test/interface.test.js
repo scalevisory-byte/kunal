@@ -1564,3 +1564,37 @@ test('the candidate’s test page keeps no secret and no second chance', () => {
   // The token is the whole of the identity - nothing else is sent.
   assert.ok(!/candidate_id/.test(code), 'the test page sends a candidate id');
 });
+
+test('the screening report is advice and cannot stop a verdict', () => {
+  const screen = src('components/hiring/Screening.jsx');
+
+  /*
+   * The whole rule, checked where it could be broken: there must be no state
+   * in which the eligibility report disables the save. People are hired
+   * against the criteria every day and are usually right to be.
+   */
+  assert.match(screen, /disabled=\{busy \|\| problems\.length\}/);
+  assert.ok(!/report.*disabled|disabled.*report\.meets/.test(screen), 'the report gates the button');
+  // Matched on the claim, not on where JSX happened to wrap the line - a
+  // reflow of the prose is not a regression.
+  assert.match(screen.replace(/\s+/g, ' '), /you can take somebody who misses every line of it/);
+
+  // Three states, and the third is drawn differently from a miss.
+  assert.match(css, /\.scr-line\.unknown \.scr-mark \{ color: var\(--muted\)/);
+  assert.match(css, /\.scr-line\.no \.scr-mark \{ color: var\(--bad/);
+});
+
+test('screening is reachable from the tab AND from the application', () => {
+  const hiring = src('components/hiring/Hiring.jsx');
+  assert.match(hiring, /\['screening', 'Screening'\]/);
+
+  /*
+   * Dinesh asked, standing on the candidate list, how to move somebody
+   * forward. So the verdict is also on the application card, which is what
+   * opens from there - ninth time this codebase has learnt that a feature
+   * reachable only from somewhere nobody is standing does not exist.
+   */
+  const panel = src('components/hiring/ApplicationPanel.jsx');
+  assert.match(panel, /<ScreeningForm/);
+  assert.match(panel, /<ReportLines report=\{screening\.report\}/);
+});

@@ -14,6 +14,11 @@ import {
   stageForDecision,
 } from '../../shared/interviewForm.js';
 import {
+  checkScreening,
+  eligibility,
+  stageForVerdict,
+} from '../../shared/screening.js';
+import {
   checkPaper,
   checkQuestion,
   drawPaper,
@@ -1983,5 +1988,228 @@ export function attemptReview(id) {
     candidate: getCandidate(attempt.candidate_id),
     paper: getPaper(attempt.paper_id),
     marked,
+  };
+}
+
+/* ================= initial screening ===================================== */
+
+/*
+ * One screening per application, and the history is the audit trail.
+ *
+ * Not a row per look, deliberately. The question a screening answers is "where
+ * does this application stand NOW" - two rows saying Eligible and Rejected
+ * would need a rule about which one counted, and a rule like that is how two
+ * screens come to disagree. A verdict that changes is recorded by name, time,
+ * old value and new on the audit trail, which is where "who said this was
+ * fine" has always been answered in this app.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS screenings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+    candidate_id   INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    verdict        TEXT NOT NULL,
+    remarks        TEXT,
+    rejection_reason TEXT,
+    hold_reason    TEXT,
+    screened_on    TEXT,
+    reviewed_by    TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_screening_verdict ON screenings(verdict);
+`);
+
+/*
+ * The age range an opening asks for.
+ *
+ * Nullable at both ends, and an opening with neither is an opening that does
+ * not care - the screening report simply leaves the line out rather than
+ * inventing a range nobody set.
+ */
+for (const column of ['age_min', 'age_max']) {
+  if (!columnsOf('vacancies').has(column)) {
+    db.exec(`ALTER TABLE vacancies ADD COLUMN ${column} INTEGER`);
+    log.info(`Migrated vacancies: added ${column}.`);
+  }
+}
+
+export const getScreening = (applicationId) =>
+  db.prepare(`SELECT * FROM screenings WHERE application_id = ?`).get(applicationId);
+
+/**
+ * The screening of one application, with the report beside it.
+ *
+ * The report is worked out fresh on every read rather than stored. It is a
+ * comparison of two records that both move - an opening's salary band gets
+ * edited, a candidate's CV arrives with their real experience on it - and a
+ * stored copy would quietly go stale and be believed.
+ */
+export function screeningFor(applicationId) {
+  const application = getApplication(applicationId);
+  if (!application) return null;
+  const candidate = getCandidate(application.candidate_id);
+  const vacancy = getVacancy(application.vacancy_id);
+  return {
+    application,
+    screening: getScreening(applicationId) || null,
+    report: eligibility(candidate || {}, vacancy || {}),
+  };
+}
+
+/**
+ * Record a verdict.
+ *
+ * The eligibility report is NOT consulted here. A screener may take somebody
+ * who misses every line of it and that has to go through without an argument -
+ * people are hired against the criteria every day and are usually right to be.
+ *
+ * Eligible moves them to Shortlisted and a rejection moves them to Rejected,
+ * because both are somebody deciding. A hold moves nobody: "retain the
+ * candidate in the pipeline" is the whole point of a hold.
+ */
+export function saveScreening(applicationId, body = {}, { by = 'office' } = {}) {
+  const problems = checkScreening(body);
+  if (problems.length) {
+    const error = new Error(problems[0]);
+    error.problems = problems;
+    throw error;
+  }
+  const application = getApplication(applicationId);
+  if (!application) throw new Error('no such application');
+
+  const existing = getScreening(applicationId);
+  const values = writable('screenings', body, {
+    skip: ['application_id', 'candidate_id'],
+  });
+  values.screened_on = body.screened_on || existing?.screened_on || nowIso().slice(0, 10);
+  values.reviewed_by = by;
+  values.updated_at = nowIso();
+
+  /*
+   * A reason belonging to a verdict that is no longer held is cleared.
+   *
+   * Somebody rejected in March and picked up in June must not keep "not enough
+   * experience" sitting on their record under a verdict of Eligible, where the
+   * rejection report would still count it.
+   */
+  if (body.verdict !== 'Rejected') values.rejection_reason = null;
+  if (body.verdict !== 'On Hold') values.hold_reason = null;
+
+  if (existing) update('screenings', existing.id, values);
+  else {
+    insert('screenings', {
+      ...values,
+      application_id: applicationId,
+      candidate_id: application.candidate_id,
+    });
+  }
+
+  const changed = existing && existing.verdict !== body.verdict;
+  audit({
+    who: by,
+    action: existing ? 'changed' : 'created',
+    entity: 'screening',
+    entity_id: applicationId,
+    label: `${application.candidate_name} — ${application.job_title}`,
+    field: 'verdict',
+    from_value: existing?.verdict || null,
+    to_value: body.verdict,
+    note: body.rejection_reason || body.hold_reason || body.remarks || null,
+  });
+
+  const stage = stageForVerdict(body.verdict);
+  if (stage && application.stage !== stage && (!existing || changed)) {
+    moveApplication(applicationId, stage, {
+      by,
+      note: `screening: ${body.verdict}${
+        body.rejection_reason ? ` — ${body.rejection_reason}` : ''
+      }${body.hold_reason ? ` — ${body.hold_reason}` : ''}`,
+    });
+  }
+  return screeningFor(applicationId);
+}
+
+/**
+ * The queue: applications nobody has screened yet, oldest first.
+ *
+ * Oldest first on purpose. A screening list sorted by match score puts the
+ * strongest candidate on top for ever and leaves a merely good one from three
+ * weeks ago at the bottom until they take another job.
+ *
+ * `Rejected` is left out - somebody already turned down does not need
+ * screening - but every other stage is in, because an application can reach
+ * Shortlisted by hand without ever being screened.
+ */
+export function screeningQueue({ company_id, vacancy_id } = {}) {
+  const where = ['s.id IS NULL', `a.stage <> 'Rejected'`, 'a.employee_id IS NULL'];
+  const params = {};
+  if (company_id) { where.push('v.company_id = @company_id'); params.company_id = company_id; }
+  if (vacancy_id) { where.push('a.vacancy_id = @vacancy_id'); params.vacancy_id = vacancy_id; }
+
+  return db
+    .prepare(
+      `SELECT a.id AS application_id, a.stage, a.match_score, a.created_at,
+              c.id AS candidate_id, c.ref_no, c.name, c.phone, c.dob, c.experience,
+              c.expected_salary, c.education, c.skills, c.location, c.preferred_location,
+              (c.resume_path IS NOT NULL) AS has_cv,
+              v.id AS vacancy_id, v.title AS job_title, v.age_min, v.age_max,
+              v.experience_band, v.salary_max, v.location AS job_location,
+              v.skills AS job_skills, v.education AS job_education,
+              co.name AS company_name
+         FROM applications a
+         JOIN candidates c ON c.id = a.candidate_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         JOIN companies co ON co.id = v.company_id
+         LEFT JOIN screenings s ON s.application_id = a.id
+        WHERE ${where.join(' AND ')}
+        ORDER BY a.created_at ASC, a.id ASC`
+    )
+    .all(params)
+    .map((row) => ({
+      ...row,
+      report: eligibility(row, {
+        age_min: row.age_min, age_max: row.age_max,
+        experience_band: row.experience_band, salary_max: row.salary_max,
+        location: row.job_location, skills: row.job_skills, education: row.job_education,
+      }),
+    }));
+}
+
+/**
+ * What screening has turned up, for the reports.
+ *
+ * Counts by verdict, and the rejection reasons tallied - which is the figure
+ * the whole "reason is required" rule exists to produce. Six people writing
+ * "exp less", "not enough experience" and "under qualified" cannot be counted,
+ * which is why the form offers a list to pick from.
+ */
+export function screeningSummary({ company_id } = {}) {
+  const where = [];
+  const params = {};
+  if (company_id) { where.push('v.company_id = @company_id'); params.company_id = company_id; }
+  const filter = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const base = `FROM screenings s
+     JOIN applications a ON a.id = s.application_id
+     JOIN vacancies v ON v.id = a.vacancy_id ${filter}`;
+
+  return {
+    verdicts: db.prepare(`SELECT s.verdict, COUNT(*) AS n ${base} GROUP BY s.verdict`).all(params),
+    rejection_reasons: db
+      .prepare(
+        `SELECT s.rejection_reason AS reason, COUNT(*) AS n ${base}
+          ${filter ? 'AND' : 'WHERE'} s.verdict = 'Rejected' AND s.rejection_reason IS NOT NULL
+          GROUP BY s.rejection_reason ORDER BY n DESC`
+      )
+      .all(params),
+    hold_reasons: db
+      .prepare(
+        `SELECT s.hold_reason AS reason, COUNT(*) AS n ${base}
+          ${filter ? 'AND' : 'WHERE'} s.verdict = 'On Hold' AND s.hold_reason IS NOT NULL
+          GROUP BY s.hold_reason ORDER BY n DESC`
+      )
+      .all(params),
+    waiting: screeningQueue({ company_id }).length,
   };
 }

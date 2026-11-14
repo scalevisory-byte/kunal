@@ -7,6 +7,7 @@ import HiringTasks from './HiringTasks.jsx';
 import Interviews from './Interviews.jsx';
 import { EvaluationPanel, InterviewFormPanel } from './InterviewForms.jsx';
 import QuestionBank from './QuestionBank.jsx';
+import Screening from './Screening.jsx';
 import NotifyBar from './NotifyBar.jsx';
 import Pipeline from './Pipeline.jsx';
 import VacancyPanel from './VacancyPanel.jsx';
@@ -16,6 +17,7 @@ import Candidates from './Candidates.jsx';
 const VIEWS = [
   ['overview', 'Overview'],
   ['pipeline', 'Pipeline'],
+  ['screening', 'Screening'],
   ['openings', 'Vacancies'],
   ['candidates', 'Candidates'],
   ['interviews', 'Interviews'],
@@ -206,6 +208,15 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onMove={move}
           onOpen={setOpenApplication}
           onExport={() => exportCsv('pipeline')}
+        />
+      ) : null}
+
+      {view === 'screening' ? (
+        <Screening
+          companyId={companyId}
+          onOpen={setOpenApplication}
+          onError={onError}
+          onToast={say}
         />
       ) : null}
 

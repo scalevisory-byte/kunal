@@ -3444,3 +3444,38 @@ table.hiring-table td.grow, table.hiring-table th.grow { min-width: 11rem; }
 
 /* A retired question still shows, greyed, so a finished paper can be read. */
 tr.retired td { opacity: 0.55; }
+
+/* ---------------- screening ---------------- */
+
+.scr-row {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.scr-row:last-child { border-bottom: 0; }
+.scr-who { margin-bottom: 0.4rem; }
+
+/*
+ * The report, read at a glance.
+ *
+ * Three states, and the third one is the point: a dash means the opening did
+ * not ask or the candidate did not say. It is deliberately NOT drawn in the
+ * same red as a miss - reading silence as a failure would paint every fresh
+ * application red and the report would be ignored within a week.
+ */
+.scr-lines { display: grid; gap: 0.15rem; margin: 0.3rem 0 0.5rem; }
+.scr-lines.compact { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.scr-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+}
+.scr-mark { width: 0.9rem; text-align: center; font-weight: 700; }
+.scr-line.ok .scr-mark { color: var(--good, #1c7a4a); }
+.scr-line.no .scr-mark { color: var(--bad, #b4232a); }
+.scr-line.unknown .scr-mark { color: var(--muted); }
+.scr-label { min-width: 6.5rem; color: var(--muted); }
+.scr-said { font-weight: 600; }
+
+.scr-form { padding-top: 0.3rem; }
+.scr-form .field { max-width: 26rem; }

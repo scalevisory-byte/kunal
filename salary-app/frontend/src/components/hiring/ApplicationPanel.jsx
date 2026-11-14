@@ -3,6 +3,7 @@ import { STANDALONE, api } from '../../api.js';
 import { ALL_STAGES, STAGES, aging, matchBand, stageMeta } from '../../../../shared/stages.js';
 import { waLink } from '../../../../shared/hiringMessages.js';
 import { readAnswers, spell } from '../../../../shared/testAnswers.js';
+import { ReportLines, ScreeningForm } from './Screening.jsx';
 
 /**
  * One person against one job: why they scored what they scored, where they are,
@@ -109,6 +110,14 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
   const [paperId, setPaperId] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [sentLink, setSentLink] = useState('');
+  const [screening, setScreening] = useState(null);
+  const loadScreening = () => {
+    if (STANDALONE) return;
+    api
+      .get(`/hiring/applications/${applicationId}/screening`)
+      .then(setScreening)
+      .catch(() => setScreening(null));
+  };
   const fullLink =
     sentLink && !sentLink.startsWith('http')
       ? `${window.location.origin}${sentLink}`
@@ -123,6 +132,11 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
       onError(err);
     }
   };
+
+  useEffect(() => {
+    loadScreening();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId]);
 
   useEffect(() => {
     if (STANDALONE) return;
@@ -468,6 +482,34 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             </div>
           </form>
         </div>
+
+        {/*
+          * Screening, where somebody is already looking at this one person.
+          *
+          * Dinesh asked, standing on the candidate list, how to move somebody
+          * forward - "if selected aage ki process k liye jayega, on hold or
+          * rejected". This card is the answer, and it is on the application
+          * because that is the thing being decided about: the same person can
+          * be right for one opening and wrong for another.
+          */}
+        {!STANDALONE && screening ? (
+          <div className="card">
+            <h3>Screening</h3>
+            <p className="muted small">
+              How they measure against what this opening asked for. It is advice — you can take
+              somebody who misses every line of it.
+            </p>
+            <ReportLines report={screening.report} />
+            <ScreeningForm
+              applicationId={applicationId}
+              screening={screening.screening}
+              report={screening.report}
+              onSaved={() => { loadScreening(); load(); }}
+              onError={onError}
+              onToast={onToast}
+            />
+          </div>
+        ) : null}
 
         {/*
           * Sending an in-house paper.
