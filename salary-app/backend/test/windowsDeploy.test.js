@@ -428,3 +428,57 @@ test('the updater survives its own errors and finds the real install', () => {
   //    "which copy did that just update" has to be answerable.
   assert.match(ps, /Write-Host "Updating:\s+\$root"/);
 });
+
+test('going live looks before it touches the tunnel that serves ZynTask', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/GO-LIVE.ps1'), 'utf8');
+  assert.deepEqual([...ps].filter((c) => c.charCodeAt(0) > 127), []);
+  assert.deepEqual(psProblems(ps, 'GO-LIVE.ps1'), []);
+
+  /*
+   * The one real risk here: TSRV's cloudflared is what serves
+   * tasks.scalevisory.in. A clumsy edit takes ZynTask off the internet.
+   *
+   * So the script reports everything it found FIRST, asks for the word GO,
+   * and never removes or rewrites a rule that is already there.
+   */
+  assert.match(ps, /WHAT IS ON THIS MACHINE/);
+  assert.match(ps, /WHAT WOULD CHANGE/);
+  assert.match(ps, /Read-Host 'Type GO to make these changes/);
+  assert.match(ps, /if \(\$go -ne 'GO'\)/);
+  assert.match(ps, /Nothing was changed\./);
+
+  // A dated backup before the file is touched at all.
+  assert.match(ps, /\$backup = "\$configPath\.before-/);
+  assert.match(ps, /Copy-Item \$configPath \$backup/);
+
+  /*
+   * The new rule goes in BEFORE the catch-all, because cloudflared takes
+   * the first rule that matches and a catch-all above it would swallow the
+   * hostname. Simulated against a real two-rule config: tasks keeps its
+   * rule, the catch-all stays last, a second run is a no-op, and a config
+   * with no catch-all is REFUSED rather than guessed at.
+   */
+  assert.match(ps, /\^\\s\*-\\s\*service:\\s/);
+  assert.match(ps, /Could not find the catch-all rule/);
+  assert.match(ps, /is already in the config - leaving it alone/);
+
+  // A dashboard-run tunnel keeps its routes in Cloudflare, so the script
+  // says what to click instead of pretending it can edit them here.
+  assert.match(ps, /--token/);
+  assert.match(ps, /Public Hostname/);
+
+  /*
+   * Without this the sign-in cookie is dropped over https and it reads to
+   * everybody as "the login is broken".
+   */
+  assert.match(ps, /SECURE_COOKIES=true/);
+
+  /*
+   * And it deliberately does NOT remove APP_PASSWORD. That shared key is
+   * the only way in until a real admin login is proved to work, and a
+   * script that removes it on the same run as the hostname could lock the
+   * office out of an app that is now on the internet.
+   */
+  assert.match(ps, /NOT done by this script: removing APP_PASSWORD/);
+  assert.ok(!/Remove.*APP_PASSWORD=|-notmatch 'APP_PASSWORD'/.test(ps), 'it strips the shared password itself');
+});
