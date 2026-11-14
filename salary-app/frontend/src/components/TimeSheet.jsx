@@ -12,7 +12,7 @@ import {
   timesToDay,
 } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
-import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
+import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import ScrollFrame from './ScrollFrame.jsx';
 
@@ -44,7 +44,12 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
   const [personId, setPersonId] = useState(rows[0]?.employee_id || null);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState({}); // "employeeId:day" -> the four times
-  const [standard, setStandard] = useState(readStandardTimes);
+  /*
+   * The month's own usual day, falling back to this browser's. Set in Admin
+   * -> Month settings, so everybody filling the month works to one day
+   * rather than to whatever their PC remembers.
+   */
+  const [standard, setStandard] = useState(() => shiftOfMonth(period));
   const [showStandard, setShowStandard] = useState(false);
   const [status, setStatus] = useState('');
   const saveTimer = useRef(null);

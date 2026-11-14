@@ -181,6 +181,8 @@ db.exec(`
     late_concession_minutes INTEGER NOT NULL DEFAULT 300,
     late_grace_minutes      INTEGER NOT NULL DEFAULT 0,
     shift_in                TEXT NOT NULL DEFAULT '09:30',
+    shift_lunch_out         TEXT NOT NULL DEFAULT '',
+    shift_lunch_in          TEXT NOT NULL DEFAULT '',
     shift_out               TEXT NOT NULL DEFAULT '18:30',
     locked        INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL DEFAULT (datetime('now')),
@@ -482,6 +484,17 @@ const periodLateColumns = [
   ['late_grace_minutes', 'INTEGER NOT NULL DEFAULT 0'],
   ['shift_in', "TEXT NOT NULL DEFAULT '09:30'"],
   ['shift_out', "TEXT NOT NULL DEFAULT '18:30'"],
+  /*
+   * The usual lunch, as a SETTING rather than a browser preference.
+   *
+   * These two lived only in localStorage, so the office's usual timings were
+   * whatever each PC happened to remember - two people filling a month on
+   * two machines got two different days, and neither could be seen or set in
+   * Settings. Blank by default, which with lunch_paid = 0 is exactly what
+   * the app did before, so no month can move.
+   */
+  ['shift_lunch_out', "TEXT NOT NULL DEFAULT ''"],
+  ['shift_lunch_in', "TEXT NOT NULL DEFAULT ''"],
 ];
 for (const [column, type] of periodLateColumns) {
   if (!db.prepare(`PRAGMA table_info(periods)`).all().some((c) => c.name === column)) {
@@ -1193,6 +1206,8 @@ export function updatePeriod(id, patch) {
     'late_grace_minutes',
     'shift_in',
     'shift_out',
+    'shift_lunch_out',
+    'shift_lunch_in',
     'locked',
   ]) {
     if (!(key in patch)) continue;

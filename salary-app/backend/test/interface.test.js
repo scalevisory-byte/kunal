@@ -1072,3 +1072,64 @@ test('the build stamp carries the time, not just the date', () => {
   // 2:17 pm on a machine in India - which is when it arrived.
   assert.match(app, /__BUILT__/);
 });
+
+test('every setting is settable in Settings, and the rest says why not', () => {
+  /*
+   * Dinesh: "sare configration manlau set kar sake wese option dena setting
+   * me". Most of it already was. The one that was not: the usual lunch
+   * lived in localStorage only, so the office's usual day was whatever each
+   * PC happened to remember - two people filling the same month on two
+   * machines worked to two different days, and neither could see or change
+   * it in Settings.
+   */
+  const settings = src('components/admin/Settings.jsx');
+  for (const field of [
+    'hours_per_day',
+    'lunch_paid',
+    'shift_in',
+    'shift_out',
+    'shift_lunch_out',
+    'shift_lunch_in',
+    'pt_threshold',
+    'pt_amount',
+    'late_policy',
+    'late_concession_minutes',
+    'late_grace_minutes',
+  ]) {
+    assert.match(settings, new RegExp(field), `${field} cannot be set in Settings`);
+  }
+
+  // The usual day states what it comes to against the day the month pays on,
+  // the same arithmetic the Time tab shows, so the two cannot disagree.
+  assert.match(settings, /timesToDay\(/);
+  assert.match(settings, /deductLunch: !period\.lunch_paid/);
+  assert.match(settings, /SHORT of the/);
+
+  // And what is deliberately NOT a setting is listed, so nobody hunts for it.
+  assert.match(settings, /What is deliberately not a setting/);
+  for (const why of ['26 working days', 'half-day line', 'Sunday pay', 'Weekly off']) {
+    assert.ok(settings.includes(why), `${why} is not explained`);
+  }
+
+  // The month wins over the browser for the lunch too, not just the shift.
+  const std = src('standardTimes.js');
+  assert.match(std, /period\?\.shift_lunch_out/);
+  assert.match(std, /period\?\.shift_lunch_in/);
+  assert.match(src('components/TimeSheet.jsx'), /useState\(\(\) => shiftOfMonth\(period\)\)/);
+});
+
+test('a tick in a form grid is a tick, not a 357-pixel box', () => {
+  /*
+   * `.form-grid label > input { width: 100%; min-width: 0 }` was written for
+   * date boxes, which Chromium gives an intrinsic 209px. Applied to a
+   * checkbox inside a flex label it collapsed the thing to ZERO PIXELS wide:
+   * the caption and the hint rendered perfectly and the box simply was not
+   * there. Excluding it then left it stretching the full column, because a
+   * flex basis of auto reads the width property.
+   *
+   * Measured in a real browser: 0px before, 13px after.
+   */
+  assert.match(css, /\.form-grid label > input:not\(\[type='checkbox'\]\):not\(\[type='radio'\]\)/);
+  assert.match(css, /\.form-grid label\.inline > input\[type='checkbox'\][^}]*width: auto/);
+  assert.match(css, /\.form-grid label\.inline \{[^}]*flex-direction: row/);
+});

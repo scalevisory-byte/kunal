@@ -77,11 +77,21 @@ export function writeStandardTimes(times) {
 export function shiftOfMonth(period) {
   const stored = readStandardTimes();
   const rules = readLateRules(period || {});
+  /*
+   * The MONTH wins over the browser, for the lunch as well now.
+   *
+   * These two used to be localStorage only, so the office's usual day was
+   * whatever each PC remembered: two people filling the same month on two
+   * machines got two different days, and neither could see or set it in
+   * Settings. The stored copy is now only the fallback, same as the shift.
+   */
+  const monthLunchOut = parseTime(period?.shift_lunch_out) !== null ? period.shift_lunch_out : null;
+  const monthLunchIn = parseTime(period?.shift_lunch_in) !== null ? period.shift_lunch_in : null;
   return {
     in_time: parseTime(period?.shift_in) !== null ? period.shift_in : stored.in_time,
     out_time: parseTime(period?.shift_out) !== null ? period.shift_out : stored.out_time,
-    lunch_out: stored.lunch_out,
-    lunch_in: stored.lunch_in,
+    lunch_out: monthLunchOut ?? stored.lunch_out,
+    lunch_in: monthLunchIn ?? stored.lunch_in,
     // On the default policy nothing is charged for lateness, so the roll call
     // keeps the usual quarter-hour grace rather than flagging every minute.
     grace: onConcession(period || {}) ? rules.grace_minutes : TIME_RULES.graceMinutes,

@@ -274,8 +274,22 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
 }
 .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.74rem; color: var(--muted); }
 /* ...and the boxes themselves fill the cell rather than claiming an
-   intrinsic width. A date box is 209px until told otherwise. */
-.form-grid label > input, .form-grid label > select, .form-grid label > textarea { width: 100%; min-width: 0; }
+   intrinsic width. A date box is 209px until told otherwise.
+   
+   NOT a checkbox or a radio. Those have no intrinsic width worth filling,
+   and `width: 100%` with `min-width: 0` inside a flex label shrank one to
+   ZERO PIXELS WIDE - the label and its hint rendered perfectly and the box
+   itself was simply not there. Found by trying to tick the lunch setting on
+   Month settings and having Playwright report the element as not visible. */
+.form-grid label > input:not([type='checkbox']):not([type='radio']),
+.form-grid label > select,
+.form-grid label > textarea { width: 100%; min-width: 0; }
+/* A tick sits BESIDE its words, not above them. */
+.form-grid label.inline { flex-direction: row; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+/* `flex: 0 0 auto` resolves its basis from `width`, which a tick inherits
+   from somewhere as 100% - so it has to be said outright. */
+.form-grid label.inline > input[type='checkbox'] { flex: 0 0 auto; width: auto; min-width: 0; margin: 0; }
+.form-grid label.inline > .small { flex: 1 0 100%; }
 /*
  * ...and where the browser has subgrid, the three parts (caption, box, hint)
  * line up across the whole row even when a caption DOES wrap onto two lines,

@@ -1425,6 +1425,8 @@ export async function handle(method, path, body) {
         late_grace_minutes: 0,
         shift_in: '09:30',
         shift_out: '18:30',
+        shift_lunch_out: '',
+        shift_lunch_in: '',
       },
     };
   }
@@ -1737,6 +1739,8 @@ export async function handle(method, path, body) {
         body.late_concession_minutes === undefined ? 300 : Number(body.late_concession_minutes),
       late_grace_minutes: Number(body.late_grace_minutes) || 0,
       shift_in: body.shift_in || '09:30',
+      shift_lunch_out: body.shift_lunch_out || '',
+      shift_lunch_in: body.shift_lunch_in || '',
       shift_out: body.shift_out || '18:30',
       locked: 0,
     };
@@ -1837,6 +1841,8 @@ export async function handle(method, path, body) {
           'late_grace_minutes',
           'shift_in',
           'shift_out',
+          'shift_lunch_out',
+          'shift_lunch_in',
           'locked',
         ]) {
           if (key in (body || {}))
