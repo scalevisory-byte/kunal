@@ -14,6 +14,12 @@ import {
   stageForDecision,
 } from '../../shared/interviewForm.js';
 import {
+  canMoveOffer,
+  checkOffer,
+  offerFileName,
+  offerLetterHtml,
+} from '../../shared/offer.js';
+import {
   checkScreening,
   eligibility,
   stageForVerdict,
@@ -2213,3 +2219,258 @@ export function screeningSummary({ company_id } = {}) {
     waiting: screeningQueue({ company_id }).length,
   };
 }
+
+/* ================= the offer ============================================= */
+
+/*
+ * One offer per application, with the approval ON it.
+ *
+ * Not a separate "selection" row and an "offer" row: they would have to be
+ * kept in step, and the first time they were not, nobody could say which
+ * salary had actually been approved. One record, one approved figure, one
+ * letter built from it.
+ *
+ * `salary` is the APPROVED monthly salary and the only figure the letter ever
+ * prints. The candidate's expectation and the opening's band are elsewhere and
+ * stay there - a letter that recalculated anything could disagree with what
+ * was approved, and the person holding the letter would be right.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS job_offers (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    application_id INTEGER NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+    candidate_id   INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    status         TEXT NOT NULL DEFAULT 'draft',
+
+    salary         REAL,
+    designation    TEXT,
+    department     TEXT,
+    location       TEXT,
+    reports_to     TEXT,
+    probation      TEXT,
+    working_hours  TEXT,
+    joining_date   TEXT,
+    valid_till     TEXT,
+    terms          TEXT,
+
+    prepared_by    TEXT,
+    approved_by    TEXT, approved_at TEXT, approval_remarks TEXT,
+    sent_by        TEXT, sent_at TEXT,
+    answered_at    TEXT, decline_reason TEXT,
+    withdrawn_reason TEXT,
+
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_offer_status ON job_offers(status);
+`);
+
+export const getOffer = (applicationId) =>
+  db.prepare(`SELECT * FROM job_offers WHERE application_id = ?`).get(applicationId);
+
+/**
+ * The offer for one application, with everything the letter needs attached.
+ *
+ * The candidate's name and the company's come from their own records at read
+ * time rather than being copied onto the offer: a name corrected after the
+ * letter was approved should correct the letter, not leave a misspelling
+ * frozen on it.
+ */
+export function offerFor(applicationId) {
+  const application = getApplication(applicationId);
+  if (!application) return null;
+  const offer = getOffer(applicationId);
+  return {
+    application,
+    offer: offer
+      ? {
+          ...offer,
+          candidate_name: application.candidate_name,
+          company_name: application.company_name,
+        }
+      : null,
+    /*
+     * What to put in the boxes when there is no offer yet. The opening already
+     * knows the job title, the department and where the work is; asking again
+     * is how a letter ends up disagreeing with the advert it came from.
+     */
+    suggested: offer
+      ? null
+      : {
+          designation: application.job_title,
+          department: application.department || '',
+          location: application.job_location || '',
+          salary: application.offer_salary || '',
+          joining_date: application.joining_date || '',
+        },
+  };
+}
+
+/**
+ * Write or rewrite the draft.
+ *
+ * Only a DRAFT is editable. Once somebody has approved it, the thing they
+ * approved has to stay the thing they approved - otherwise the salary on the
+ * letter and the salary that was agreed can part company, and the trail cannot
+ * say which was which. Changing an approved offer means withdrawing it.
+ */
+export function saveOffer(applicationId, body = {}, { by = 'office' } = {}) {
+  const application = getApplication(applicationId);
+  if (!application) throw new Error('no such application');
+  const existing = getOffer(applicationId);
+
+  if (existing && existing.status !== 'draft') {
+    const error = new Error(
+      `This offer has been ${existing.status} and can no longer be edited. Withdraw it to start again.`
+    );
+    error.status = 409;
+    throw error;
+  }
+
+  const values = writable('job_offers', body, {
+    skip: [
+      'application_id', 'candidate_id', 'status', 'prepared_by',
+      'approved_by', 'approved_at', 'sent_by', 'sent_at', 'answered_at',
+    ],
+  });
+  values.updated_at = nowIso();
+
+  if (existing) update('job_offers', existing.id, values);
+  else {
+    insert('job_offers', {
+      ...values,
+      application_id: applicationId,
+      candidate_id: application.candidate_id,
+      status: 'draft',
+      prepared_by: by,
+    });
+  }
+  return offerFor(applicationId);
+}
+
+/**
+ * Approve, send, or record the answer.
+ *
+ * `abilities` comes off the SIGNED-IN SESSION, never the body. The gate lives
+ * in shared/offer.js, so a greyed-out button and a server refusal have one
+ * reason behind them.
+ *
+ * Approving checks the offer is complete FIRST. An approval of a letter with
+ * no salary on it is an approval of nothing, and the hole would only be found
+ * when the letter printed "₹" and a blank.
+ */
+export function moveOffer(applicationId, to, { by = 'office', abilities = [], remarks } = {}) {
+  const offer = getOffer(applicationId);
+  if (!offer) throw new Error('there is no offer to move');
+
+  const verdict = canMoveOffer(offer, to, abilities);
+  if (!verdict.ok) {
+    const error = new Error(verdict.why);
+    error.status = verdict.code === 'forbidden' ? 403 : 400;
+    throw error;
+  }
+
+  if (to === 'approved') {
+    const problems = checkOffer(offer);
+    if (problems.length) {
+      const error = new Error(problems[0]);
+      error.problems = problems;
+      throw error;
+    }
+  }
+
+  const now = nowIso();
+  const patch = { status: to, updated_at: now };
+  if (to === 'approved') {
+    patch.approved_by = by;
+    patch.approved_at = now;
+    patch.approval_remarks = remarks || null;
+    /*
+     * The approved figure is written back onto the application.
+     *
+     * hireApplication and the WhatsApp offer message have always read
+     * applications.offer_salary, and the panel used to have its own box for
+     * it - two numbers for one fact, which is how a letter and a first
+     * payslip come to disagree. The offer is now the only place it is typed
+     * and this keeps the old readers correct without them changing.
+     */
+    update('applications', applicationId, {
+      offer_salary: Number(offer.salary) || null,
+      joining_date: offer.joining_date || null,
+    });
+  } else if (to === 'sent') {
+    patch.sent_by = by;
+    patch.sent_at = now;
+  } else if (to === 'accepted' || to === 'declined') {
+    patch.answered_at = now;
+    if (to === 'declined') patch.decline_reason = remarks || null;
+  } else if (to === 'withdrawn') {
+    patch.withdrawn_reason = remarks || null;
+  }
+  update('job_offers', offer.id, patch);
+
+  const application = getApplication(applicationId);
+  audit({
+    who: by,
+    action: to === 'approved' ? 'approved' : 'changed',
+    entity: 'job_offer',
+    entity_id: offer.id,
+    label: `${application?.candidate_name} — ${application?.job_title}`,
+    field: 'status',
+    from_value: offer.status,
+    to_value: to,
+    note: remarks || (to === 'approved' ? `₹${Math.round(offer.salary)} a month` : null),
+  });
+
+  /*
+   * A DECLINE moves them to Rejected, because the application is closed and
+   * that is the only terminal stage this pipeline has - but the offer record
+   * keeps `declined` and the reason, so no report can confuse "we turned them
+   * down" with "they turned us down". Those are different facts and only the
+   * offer knows which happened.
+   */
+  if (verdict.move.stage && application && application.stage !== verdict.move.stage) {
+    moveApplication(applicationId, verdict.move.stage, {
+      by,
+      note: `offer ${to}${remarks ? ` — ${remarks}` : ''}`,
+    });
+  }
+  return offerFor(applicationId);
+}
+
+/**
+ * The letter, as a file.
+ *
+ * Refuses outright while the offer is a draft. An unapproved letter that can
+ * be downloaded is an unapproved letter that gets sent, and the whole of this
+ * module exists to stop that.
+ */
+export function offerLetter(applicationId, { note } = {}) {
+  const found = offerFor(applicationId);
+  if (!found?.offer) return null;
+  if (found.offer.status === 'draft') {
+    const error = new Error('This offer has not been approved yet, so there is no letter to send.');
+    error.status = 409;
+    throw error;
+  }
+  return {
+    filename: offerFileName(found.offer),
+    html: offerLetterHtml(found.offer, { note }),
+  };
+}
+
+/** Every offer that is still in the air, for the dashboard and the reports. */
+export const openOffers = () =>
+  db
+    .prepare(
+      `SELECT o.*, c.name AS candidate_name, v.title AS job_title, co.name AS company_name,
+              a.stage
+         FROM job_offers o
+         JOIN applications a ON a.id = o.application_id
+         JOIN candidates c ON c.id = o.candidate_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         JOIN companies co ON co.id = v.company_id
+        WHERE o.status IN ('draft', 'approved', 'sent')
+        ORDER BY o.updated_at DESC`
+    )
+    .all();

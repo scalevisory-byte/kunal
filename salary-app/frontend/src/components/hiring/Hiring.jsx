@@ -354,6 +354,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
       {openApplication ? (
         <ApplicationPanel
           applicationId={openApplication}
+          abilities={abilities}
           config={config}
           onClose={() => setOpenApplication(null)}
           onChanged={afterChange}

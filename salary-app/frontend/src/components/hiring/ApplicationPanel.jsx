@@ -4,6 +4,7 @@ import { ALL_STAGES, STAGES, aging, matchBand, stageMeta } from '../../../../sha
 import { waLink } from '../../../../shared/hiringMessages.js';
 import { readAnswers, spell } from '../../../../shared/testAnswers.js';
 import { ReportLines, ScreeningForm } from './Screening.jsx';
+import Offer from './Offer.jsx';
 
 /**
  * One person against one job: why they scored what they scored, where they are,
@@ -101,7 +102,7 @@ function QuestionTimes({ detail }) {
   );
 }
 
-export default function ApplicationPanel({ applicationId, config, onClose, onChanged, onToast, onError }) {
+export default function ApplicationPanel({ applicationId, config, onClose, onChanged, onToast, onError, abilities = [] }) {
   const [data, setData] = useState(null);
   // Which sitting is opened out, question by question.
   const [openTest, setOpenTest] = useState(null);
@@ -327,35 +328,16 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
           ) : null}
         </div>
 
-        <div className="card">
-          <h3>Offer</h3>
-          <div className="grid">
-            <label className="field">
-              Monthly salary
-              <input
-                type="number"
-                key={`sal-${application.id}-${application.offer_salary ?? ''}`}
-                defaultValue={application.offer_salary ?? ''}
-                placeholder={application.expected_salary || ''}
-                onBlur={(e) => save({ offer_salary: e.target.value === '' ? null : Number(e.target.value) })}
-              />
-            </label>
-            <label className="field">
-              Joining date
-              <input
-                type="date"
-                key={`jd-${application.id}-${application.joining_date ?? ''}`}
-                defaultValue={application.joining_date ?? ''}
-                onBlur={(e) => save({ joining_date: e.target.value || null })}
-              />
-            </label>
-          </div>
-          <p className="muted small">
-            What was agreed. The offer message and the employee record both use this number, so
-            there is only ever one of it.
-          </p>
-        </div>
-
+        {/*
+          * The Offer card that used to live here is gone.
+          *
+          * It held offer_salary and joining_date on the application, and the
+          * new offer record holds its own - two numbers for one fact, which is
+          * exactly how a letter and a payslip come to disagree. The offer is
+          * now the single place the figure is typed, and approving it writes
+          * that figure back onto the application, which is what hireApplication
+          * and the WhatsApp offer message have always read.
+          */}
         <div className="card">
           <h3>Payroll</h3>
           {application.employee_id ? (
@@ -510,6 +492,14 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             />
           </div>
         ) : null}
+
+        <Offer
+          applicationId={applicationId}
+          abilities={abilities}
+          onChanged={load}
+          onError={onError}
+          onToast={onToast}
+        />
 
         {/*
           * Sending an in-house paper.

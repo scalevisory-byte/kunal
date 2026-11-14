@@ -20,10 +20,35 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.6.0';
+export const VERSION = '1.7.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.7.0',
+    date: '15 Nov 2026',
+    title: 'Hiring: screening, interview forms, tests and the offer letter',
+    items: [
+      '**Screening** — a tab of its own. Mark somebody Eligible, On hold or Not eligible, with the reason. A hold keeps them exactly where they are; a rejection has to say why, because that is what the rejection report counts.',
+      'Beside each name, how they measure against what the opening asked for — age, experience, expected salary, skills. **It is advice, not a gate**: you can take somebody who misses every line of it.',
+      'Somebody who told us nothing shows a dash, never a cross. Nobody asked, so nothing failed.',
+      'The screening list is **oldest first**, so a merely good candidate from three weeks ago is not left at the bottom until they take another job.',
+      '**A candidate can be put forward for an opening from their own record** — the picker is on their card, where you are already standing.',
+      '**The physical interview form**: who they are, qualifications, experience, languages, computer knowledge, ten questions, salary and joining, address and references. No ratings — it records what was said.',
+      'A date of birth or an address corrected during an interview is corrected **on their record**, not just on that form. Three rounds cannot produce three addresses.',
+      '**The interviewer’s evaluation** is a separate form: ten things rated 1–5 with remarks, practical knowledge, strengths and concerns, a recommendation and what should happen next.',
+      'The score counts **what you rated, not all ten** — rating three is 12 out of 15, not 12 out of 50 — and nothing anywhere uses the score to decide.',
+      '**A recommendation is not a selection.** Submitting an evaluation sends the paperwork to HR or management and moves the candidate nowhere. Only an approval moves anybody, and approving is an Admin’s.',
+      'Every round keeps its own form and its own evaluation. Nothing is overwritten, and the whole history is on the candidate’s record.',
+      '**Tests of our own** — a question bank by position, and papers that say how many to draw from each. Every candidate gets a **different selection, in a different order, with the options shuffled**.',
+      'The candidate sits it from a link on their phone. Timer, auto-submit when the time runs out, and the score works itself out. **The right answer never reaches their browser.**',
+      'A question you leave blank costs you nothing extra — negative marking is there to discourage guessing, not to punish an honest blank.',
+      'The ZYNTA test is untouched. An opening uses its own link or draws from the bank.',
+      '**The offer letter** — one self-contained file per person, opens on any phone with no login, prints to PDF.',
+      '**There is no letter until somebody has approved the offer**, and approving is an Admin’s. An approved offer is locked: changing it means withdrawing it.',
+      'Approving tells the candidate nothing — only marking it sent moves them to Offer Sent. A decline is recorded as a decline, so “we turned them down” and “they turned us down” never get counted as the same thing.',
+    ],
+  },
   {
     version: '1.6.0',
     date: '14 Nov 2026',

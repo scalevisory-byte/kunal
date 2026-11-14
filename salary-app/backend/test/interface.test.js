@@ -1598,3 +1598,50 @@ test('screening is reachable from the tab AND from the application', () => {
   assert.match(panel, /<ScreeningForm/);
   assert.match(panel, /<ReportLines report=\{screening\.report\}/);
 });
+
+test('there is no download button until the offer is approved', () => {
+  const offer = src('components/hiring/Offer.jsx');
+
+  /*
+   * The server refuses an unapproved letter too; this is so nobody is offered
+   * a button that cannot work. An unapproved letter that can be downloaded is
+   * an unapproved letter that gets sent.
+   */
+  assert.match(offer, /status !== 'draft' \? \(/);
+  assert.match(offer, /Download the letter/);
+  assert.match(offer, /there is no letter until somebody has/);
+
+  // The letter downloads as a file, no tab - the CV button learnt that the
+  // hard way, through a pop-up blocker and an about:blank.
+  assert.match(offer, /a\.download = ''/);
+  assert.ok(!/window\.open/.test(offer), 'the letter opens a tab again');
+});
+
+test('the application panel has ONE place a salary is offered', () => {
+  const panel = src('components/hiring/ApplicationPanel.jsx');
+  const code = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  /*
+   * There used to be an Offer card here with its own salary and joining date,
+   * written straight onto the application. The offer record has its own, and
+   * two numbers for one fact is how a letter and a first payslip come to
+   * disagree. Approving writes the figure back to where hireApplication has
+   * always read it.
+   */
+  assert.ok(!/offer_salary: e\.target\.value/.test(code), 'the old offer box is back');
+  assert.match(panel, /<Offer\n/);
+});
+
+test('the version and the history move together', () => {
+  const version = fs.readFileSync(path.join(here, '../../shared/version.js'), 'utf8');
+  const named = version.match(/export const VERSION = '([^']+)'/)[1];
+  const newest = version.match(/CHANGELOG = \[\s*\{\s*version: '([^']+)'/)[1];
+
+  /*
+   * Dinesh opened "What's new" and it still said 1.6.0 with four modules
+   * shipped since. The version is written by hand, which means it is written
+   * by somebody who can forget - so the test is that the top of the changelog
+   * and the version number are the same string.
+   */
+  assert.equal(named, newest, 'VERSION and the newest changelog entry disagree');
+});

@@ -37,7 +37,11 @@ import {
   listTests,
   listVacancies,
   moveApplication,
+  moveOffer,
+  offerFor,
+  offerLetter,
   openAttempt,
+  openOffers,
   paperReadiness,
   recordTest,
   removeQuestion,
@@ -45,6 +49,7 @@ import {
   reviewEvaluation,
   saveEvaluation,
   saveInterviewForm,
+  saveOffer,
   savePaper,
   saveQuestion,
   saveReference,
@@ -724,3 +729,53 @@ hiringRouter.put('/applications/:id/screening', (req, res) => {
     sendProblem(res, err);
   }
 });
+
+/* ---------------- the offer ---------------- */
+
+hiringRouter.get('/applications/:id/offer', (req, res) => {
+  const found = offerFor(Number(req.params.id));
+  return found ? res.json(found) : res.status(404).json({ error: 'no such application' });
+});
+
+hiringRouter.put('/applications/:id/offer', (req, res) => {
+  try {
+    res.json(saveOffer(Number(req.params.id), req.body || {}, { by: actorName(req) }));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.post('/applications/:id/offer/move', (req, res) => {
+  try {
+    res.json(
+      moveOffer(Number(req.params.id), String(req.body?.to || ''), {
+        by: actorName(req),
+        abilities: actorAbilities(req),
+        remarks: req.body?.remarks,
+      })
+    );
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+/*
+ * The letter itself, as a download.
+ *
+ * Served as a file rather than as JSON the browser assembles, for the same
+ * reason the payslip is: what reaches the candidate has to be exactly what the
+ * server wrote, and nothing on the page can have added to it on the way out.
+ */
+hiringRouter.get('/applications/:id/offer/letter', (req, res) => {
+  try {
+    const letter = offerLetter(Number(req.params.id), { note: req.query.note });
+    if (!letter) return res.status(404).json({ error: 'no offer for this application' });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${letter.filename}"`);
+    return res.send(letter.html);
+  } catch (err) {
+    return sendProblem(res, err);
+  }
+});
+
+hiringRouter.get('/offers', (req, res) => res.json({ offers: openOffers() }));
