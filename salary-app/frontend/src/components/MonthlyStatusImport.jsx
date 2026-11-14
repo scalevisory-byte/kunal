@@ -69,8 +69,17 @@ export default function MonthlyStatusImport({ period, onReload }) {
   return (
     <section className="card">
       <h2>Monthly status from the attendance machine</h2>
+      {/*
+        * The file is NAMED, because three Choose File boxes in a row all look
+        * the same and Dinesh opened the wrong one. eTimeTrackLite's two
+        * month-wide reports both land here; the punch LOG is the panel below.
+        */}
       <p className="muted small">
-        The month-wide report, one sheet per company — not the punch log.{' '}
+        <strong>
+          eTimeTrackLite&rsquo;s <code>BasicWorkDurationReport</code> or{' '}
+          <code>MonthlyStatus_BasicReport</code>
+        </strong>{' '}
+        — the month-wide report, one sheet per company, not the punch log.{' '}
         {STANDALONE ? (
           <>
             This single file reads <code>.xlsx</code> only; the old <code>.xls</code> these

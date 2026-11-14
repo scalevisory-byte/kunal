@@ -115,13 +115,26 @@ export default function PunchImport({ period, onReload }) {
     <div className="card">
       <h2>Attendance machine — import punches</h2>
       <p className="muted small">
-        Take the attendance report out of the machine's software (eSSL eTimeTrackLite, SmartOffice
-        and the like all export to Excel) and bring it in here. Whoever punched in gets{' '}
+        <strong>The punch LOG</strong> — one row per punch, or per person per day. For
+        eTimeTrackLite&rsquo;s month-wide reports use the panel above instead. Take the log out of
+        the machine's software (eSSL eTimeTrackLite, SmartOffice and the like all export to Excel)
+        and bring it in here. Whoever punched in gets{' '}
         <strong>P</strong>, whoever did not gets <strong>A</strong>, a short day becomes{' '}
         <strong>HF</strong>, and time worked under the day's hours goes in as short-hours minutes.
       </p>
 
-      <input type="file" accept=".xlsx,.xlsm,.csv" onChange={(e) => pickFile(e.target.files?.[0] || null)} />
+      {/*
+        * .xls is listed although this importer cannot read one. Hiding it
+        * showed Dinesh an EMPTY FOLDER with his report sitting in it, and
+        * the honest conclusion from that is "it cannot show Excel". The
+        * server now answers a .xls with a sentence saying which panel does
+        * read it - which is a far better answer than an invisible file.
+        */}
+      <input
+        type="file"
+        accept=".xls,.xlsx,.xlsm,.csv"
+        onChange={(e) => pickFile(e.target.files?.[0] || null)}
+      />
 
       {read && (
         <>

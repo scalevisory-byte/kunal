@@ -9,6 +9,7 @@ import {
   DEFAULT_MARK_MAP,
   monthlyStatusToMarks,
   readMonthlyStatus,
+  isLegacyXls,
   sheetsFromSheetJS,
 } from '../../../shared/monthlyStatus.js';
 import * as XLSX from 'xlsx';
@@ -170,11 +171,34 @@ reportsRouter.get('/periods/:id/statutory/:which.csv', (req, res) => {
   res.send(toCsv(columns, rows));
 });
 
+/**
+ * The old .xls these machines and some offices still produce.
+ *
+ * ExcelJS cannot open one, and it fails with something about a zip file -
+ * which reads as "my file is broken" rather than "this importer wants the
+ * other format". The pickers deliberately no longer HIDE a .xls either:
+ * Dinesh picked a perfectly good report, the file dialog showed him an empty
+ * folder, and the honest conclusion was "it cannot show Excel". A filter that
+ * hides the file is worse than a sentence that explains it.
+ */
+const SAVE_AS = 'Open it in Excel and use File - Save As - Excel Workbook (.xlsx).';
+const legacyXls = (buffer, hint) =>
+  isLegacyXls(buffer)
+    ? { error: 'That is the old .xls format, which this importer cannot open. ' + hint }
+    : null;
+
 /* ---------------- punches from the attendance machine ---------------- */
 
 /** Step one: what does this file look like? Nothing is saved. */
 reportsRouter.post('/punches/read', upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  const old = legacyXls(
+    req.file.buffer,
+    'If it is the attendance machine\'s month-wide report, use "Monthly status from the attendance machine" above - that one reads .xls. ' +
+      'If it really is a punch log, ' +
+      SAVE_AS.charAt(0).toLowerCase() + SAVE_AS.slice(1),
+  );
+  if (old) return res.status(400).json(old);
   try {
     const read = await readPunchFile(ExcelJS, req.file.buffer, {
       sheetName: req.body.sheet || undefined,
@@ -291,6 +315,8 @@ reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (
 
 reportsRouter.post('/import/sheets', upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  const old = legacyXls(req.file.buffer, SAVE_AS);
+  if (old) return res.status(400).json(old);
   try {
     res.json({ sheets: await listSheetNames(req.file.buffer) });
   } catch (err) {

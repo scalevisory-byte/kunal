@@ -334,7 +334,13 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
           monthly salary in AL. Employees are matched by company and name, so importing the same sheet
           twice updates rather than duplicates.
         </p>
-        <input type="file" accept=".xlsx,.xlsm" onChange={(e) => pickFile(e.target.files?.[0] || null)} />
+        {/* .xls is listed although this one needs a .xlsx - see PunchImport.
+            An invisible file is a worse answer than an explained one. */}
+        <input
+          type="file"
+          accept=".xls,.xlsx,.xlsm"
+          onChange={(e) => pickFile(e.target.files?.[0] || null)}
+        />
 
         {sheets.length > 0 && (
           <div className="inline-form">

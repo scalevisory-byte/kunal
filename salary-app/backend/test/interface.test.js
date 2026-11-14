@@ -943,3 +943,43 @@ test('the importers have a way in from where somebody is actually standing', () 
   // Handed back, so returning to the tab later does not re-open it.
   assert.match(reports, /onFocused\?\.\(\)/);
 });
+
+test('a file dialog never hides the file somebody is holding', () => {
+  /*
+   * Dinesh: "CANT SHOW EXCEL", with his BasicWorkDurationReport.xls sitting
+   * in the folder the dialog showed as empty.
+   *
+   * He had opened "Import a salary sheet", whose accept was ".xlsx,.xlsm" -
+   * so Windows filtered his file out of its own folder. The conclusion
+   * anybody draws from an empty folder is that the app cannot read Excel,
+   * not that they are at the wrong one of three identical Choose File boxes.
+   *
+   * So every Excel picker lists .xls even where the importer cannot read
+   * one, and the server answers with a sentence saying which panel can. An
+   * explained file beats an invisible file.
+   */
+  for (const file of ['components/PunchImport.jsx', 'components/Reports.jsx', 'components/MonthlyStatusImport.jsx']) {
+    const text = src(file);
+    const accepts = text.match(/accept="[^"]*xls[^"]*"/g) || [];
+    assert.ok(accepts.length, `${file} has no Excel picker`);
+    for (const a of accepts) {
+      assert.ok(/\.xls[",]/.test(a), `${file}: ${a} hides a plain .xls`);
+    }
+  }
+
+  // And the two that genuinely cannot read one say so rather than failing
+  // with ExcelJS complaining about a zip file.
+  const routes = fs.readFileSync(path.join(here, '../src/routes/reports.js'), 'utf8');
+  assert.match(routes, /const legacyXls =/);
+  assert.match(routes, /isLegacyXls\(buffer\)/);
+  assert.match(routes, /Monthly status from the attendance machine" above/);
+  assert.match(routes, /Save As - Excel Workbook/);
+
+  /*
+   * Three Choose File boxes in a row look identical, so each says which file
+   * it wants by name.
+   */
+  assert.match(src('components/MonthlyStatusImport.jsx'), /BasicWorkDurationReport/);
+  assert.match(src('components/MonthlyStatusImport.jsx'), /MonthlyStatus_BasicReport/);
+  assert.match(src('components/PunchImport.jsx'), /The punch LOG/);
+});
