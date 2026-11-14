@@ -1683,3 +1683,17 @@ test('the application panel reads in the order the work happens', () => {
   assert.ok(at('Offer') < at('Payroll'), 'Payroll is above the Offer again');
   assert.ok(at('Payroll') < at('What happened'), 'the history is not last');
 });
+
+test('the age range shows its error, rather than silently refusing to save', () => {
+  const form = src('components/hiring/VacancyForm.jsx');
+
+  /*
+   * The `error` prop was missing on the first attempt, so validateVacancy
+   * refused to save a range of 35 to 21 and the screen said nothing at all -
+   * the Publish button simply did not work. A rule that blocks without a
+   * reason is worse than no rule.
+   */
+  assert.match(form, /error=\{bad\('age_min'\)\}/);
+  assert.match(form, /error=\{bad\('age_max'\)\}/);
+  assert.match(form, /data-field=\{name\}/);
+});

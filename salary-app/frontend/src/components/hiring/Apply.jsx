@@ -30,6 +30,10 @@ export default function Apply({ ref_no }) {
     expected_salary: '',
     notice_period: '',
     skills: '',
+    dob: '',
+    current_line2: '',
+    current_city: '',
+    current_pin: '',
   });
   const file = useRef(null);
   const [test, setTest] = useState(null);
@@ -228,21 +232,38 @@ export default function Apply({ ref_no }) {
             ['name', 'Your name', true],
             ['phone', 'Mobile number', true],
             ['email', 'Email', false],
+            ['dob', 'Date of birth', false, 'date'],
             ['location', 'Where you live', false],
+            /*
+             * Three address boxes, not six.
+             *
+             * Dinesh asked for address details on the application. The
+             * interview form has the full six - house number, landmark and
+             * all - and asks for them with the candidate sitting there. A
+             * stranger filling in a form on a phone before anybody has even
+             * read their CV should not be made to type their landmark, and a
+             * long form is a form people abandon. Street, city and PIN is the
+             * part that is actually useful for working out whether they can
+             * travel in daily.
+             */
+            ['current_line2', 'Street / area', false],
+            ['current_city', 'City', false],
+            ['current_pin', 'PIN code', false],
             ['education', 'Qualification', false],
             ['experience', 'Experience', false],
             ['current_company', 'Current company', false],
             ['current_salary', 'Current salary', false],
             ['expected_salary', 'Expected salary', false],
             ['notice_period', 'Notice period', false],
-          ].map(([key, label, required]) => (
+          ].map(([key, label, required, type]) => (
             <label className="field" key={key}>
               {label}
               {required ? ' *' : ''}
               <input
+                type={type || 'text'}
                 value={form[key]}
                 required={required}
-                inputMode={key === 'phone' ? 'numeric' : undefined}
+                inputMode={key === 'phone' ? 'numeric' : key === 'current_pin' ? 'numeric' : undefined}
                 autoComplete={key === 'name' ? 'name' : key === 'phone' ? 'tel' : undefined}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
               />

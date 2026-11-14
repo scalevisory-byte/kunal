@@ -233,3 +233,55 @@ test('the summary counts the reasons, which is why one is required', async () =>
   assert.deepEqual(body.rejection_reasons[0], { reason: 'Not enough experience', n: 2 });
   assert.equal(body.waiting, 0);
 });
+
+test('the apply form takes a date of birth and an address, and screening uses them', async () => {
+  const v = (await api('POST', '/api/hiring/vacancies', {
+    company_id: company.id, title: 'Travel Consultant', status: 'published',
+    age_min: 21, age_max: 35, location: 'Surat',
+  })).body;
+
+  const form = new URLSearchParams({
+    name: 'Nikita Rao', phone: '9876500011', dob: '1998-04-12',
+    current_line2: 'Adajan', current_city: 'Surat', current_pin: '395009',
+  });
+  const res = await fetch(`${base}/api/public/vacancies/${v.ref_no}/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: form,
+  });
+  assert.equal(res.status, 201);
+
+  const list = (await api('GET', '/api/hiring/candidates?q=Nikita')).body.rows;
+  const her = list.find((c) => c.name === 'Nikita Rao');
+  assert.equal(her.dob, '1998-04-12');
+  // Three boxes, not six. A stranger on a phone should not be made to type
+  // their landmark before anybody has read their CV; the interview form has
+  // the rest, asked with them sitting there.
+  assert.equal(her.current_city, 'Surat');
+  assert.equal(her.current_pin, '395009');
+
+  const { body } = await api('GET', '/api/hiring/applications');
+  const mine = (body.rows || body.applications).find((a) => a.candidate_name === 'Nikita Rao');
+  const screening = (await api('GET', `/api/hiring/applications/${mine.id}/screening`)).body;
+  const age = screening.report.lines.find((l) => l.label === 'Age');
+  assert.ok(age, 'the age line is missing although the opening asked for a range');
+  assert.equal(age.ok, true);
+  assert.equal(age.wanted, '21–35');
+});
+
+test('an age range nothing can satisfy is refused, with a reason', async () => {
+  const { validateVacancy } = await import('../../shared/vacancyForm.js');
+  const base_ = { company_id: 1, title: 'X', location: 'Surat', positions: 1 };
+
+  /*
+   * Both ends are optional - an opening that does not care leaves them blank.
+   * But 35 to 21 would mark every single candidate as failing the age
+   * criterion and the screener would reasonably conclude the report was
+   * broken.
+   */
+  assert.equal(validateVacancy({ ...base_, age_min: '35', age_max: '21' }).age_max,
+    'The oldest cannot be younger than the youngest');
+  assert.equal(validateVacancy({ ...base_, age_min: '21', age_max: '35' }).age_max, undefined);
+  assert.equal(validateVacancy({ ...base_, age_min: '', age_max: '' }).age_max, undefined);
+  assert.equal(validateVacancy({ ...base_, age_min: '21', age_max: '' }).age_max, undefined);
+});

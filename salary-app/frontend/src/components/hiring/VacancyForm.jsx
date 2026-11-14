@@ -67,7 +67,8 @@ export const vacancyToDraft = (v = {}) => ({
     ['department', 'reports_to', 'location', 'education', 'skills', 'salary_min',
      'salary_max', 'apply_by', 'needed_by', 'description', 'internal_notes',
      'responsibilities', 'requirements', 'benefits',
-     'test_url', 'test_pass_percent', 'test_seconds_per_question', 'test_duration_minutes']
+     'test_url', 'test_pass_percent', 'test_seconds_per_question', 'test_duration_minutes',
+     'age_min', 'age_max']
       .map((k) => [k, v[k] ?? ''])
   ),
   experience_min: fromBand(v.experience_band).min,
@@ -234,6 +235,41 @@ export default function VacancyForm({ companies, companyId, onSave, onCancel, bu
             value={draft.experience_max}
             placeholder="3"
             onChange={(e) => set({ experience_max: e.target.value })}
+          />
+        </Field>
+        {/*
+          * The age range, and it is OPTIONAL at both ends.
+          *
+          * An opening with neither is an opening that does not care, and the
+          * screening report simply leaves the line out rather than inventing
+          * a range nobody set. It is reported there, never enforced: nothing
+          * stops a screener taking somebody outside it, and they are often
+          * right to.
+          */}
+        <Field label="Youngest" hint="Years. Blank means it does not matter." error={bad('age_min')} name="age_min">
+          <input
+            type="number"
+            min="14"
+            max="99"
+            value={draft.age_min}
+            placeholder="21"
+            onChange={(e) => set({ age_min: e.target.value })}
+          />
+        </Field>
+        {/*
+          * `error` was missing here on the first attempt, so validateVacancy
+          * refused to save a range of 35 to 21 and the screen said nothing at
+          * all - the Publish button simply did not work. A rule that blocks
+          * without a reason is worse than no rule.
+          */}
+        <Field label="Oldest" hint="Blank means no ceiling" error={bad('age_max')} name="age_max">
+          <input
+            type="number"
+            min="14"
+            max="99"
+            value={draft.age_max}
+            placeholder="35"
+            onChange={(e) => set({ age_max: e.target.value })}
           />
         </Field>
         {/*

@@ -129,6 +129,12 @@ publicRouter.post('/vacancies/:ref/apply', rateLimit(10), uploadResumeSafely, (r
       current_salary: body.current_salary,
       expected_salary: body.expected_salary,
       notice_period: body.notice_period,
+      // Where they live, so the screening report can say whether they can
+      // travel in daily. The interview form fills in the rest of the address
+      // with the candidate sitting there.
+      current_line2: body.current_line2,
+      current_city: body.current_city,
+      current_pin: body.current_pin,
       role: body.role || vacancy.title,
       skills: body.skills,
       source: body.source || 'apply',

@@ -27,6 +27,20 @@ export function validateVacancy(draft = {}, { assessment = false } = {}) {
   if (!String(draft.title || '').trim()) problems.title = REQUIRED.title;
   if (!String(draft.location || '').trim()) problems.location = REQUIRED.location;
 
+  /*
+   * An age range nothing can satisfy.
+   *
+   * Both ends are optional - an opening that does not care leaves them blank
+   * and the screening report drops the line. But 35 to 21 is a typo that
+   * would mark every single candidate as failing the age criterion, and the
+   * screener would reasonably conclude the report was broken.
+   */
+  const youngest = Number(draft.age_min);
+  const oldest = Number(draft.age_max);
+  if (Number.isFinite(youngest) && Number.isFinite(oldest) && youngest > oldest && draft.age_min !== '' && draft.age_max !== '') {
+    problems.age_max = 'The oldest cannot be younger than the youngest';
+  }
+
   const seats = Number(draft.positions);
   if (!Number.isFinite(seats) || seats < 1) problems.positions = 'At least one seat';
   else if (seats > 999) problems.positions = 'That many seats is almost certainly a typo';
