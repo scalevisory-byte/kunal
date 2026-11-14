@@ -32,8 +32,28 @@ trap 'rm -rf "$WORK"' EXIT
 say() { printf '\n== %s\n' "$1"; }
 
 say "Building the dashboard"
+#
+# `vite build` writes frontend/dist. Copying that into backend/public is a
+# SEPARATE step, and leaving it out is silent: backend/public already exists
+# from some earlier build, so a test for index.html passes and the bundle
+# ships whatever was there last time. That happened - a bundle went to the
+# server carrying a dashboard eight days older than the source, and the only
+# symptom was Dinesh saying "i think this is old version".
+#
+# So: build, wipe public, copy, and then prove the copy is NEWER than the
+# newest source file. A stale public can never ride along again.
 npm --prefix "$HERE/frontend" run build >/dev/null
-test -f "$HERE/backend/public/index.html" || { echo "the build produced no public/index.html"; exit 1; }
+test -f "$HERE/frontend/dist/index.html" || { echo "the build produced no dist/index.html"; exit 1; }
+
+rm -rf "$HERE/backend/public"
+mkdir -p "$HERE/backend/public"
+cp -r "$HERE/frontend/dist/." "$HERE/backend/public/"
+test -f "$HERE/backend/public/index.html" || { echo "nothing was copied into backend/public"; exit 1; }
+
+newest_src="$(find "$HERE/frontend/src" "$HERE/shared" -type f -newer "$HERE/backend/public/index.html" -print -quit)"
+if [ -n "$newest_src" ]; then
+  echo "backend/public is older than $newest_src - the build did not take"; exit 1
+fi
 
 say "Staging the app"
 B="$WORK/BNFHRMS"

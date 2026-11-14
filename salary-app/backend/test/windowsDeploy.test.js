@@ -329,3 +329,39 @@ test('the offline bundle is built by a script, not by remembering', () => {
   // reporting that it registered a task.
   assert.match(install, /healthz/);
 });
+
+test('the bundle script copies the freshly built dashboard into backend/public', () => {
+  const sh = fs.readFileSync(path.join(kit, '../make-bundle.sh'), 'utf8');
+
+  /*
+   * The bundle that went to TSRV carried a dashboard EIGHT DAYS older than
+   * the source, and the only symptom was Dinesh saying "i think this is old
+   * version".
+   *
+   * `vite build` writes frontend/dist. Copying that into backend/public -
+   * which is what the server actually serves - is a separate step, and the
+   * script did not do it. It only tested that backend/public/index.html
+   * existed, which it did, left over from an earlier build. So the test
+   * passed, the zip was made, and the old look shipped.
+   *
+   * Three things pinned here, because any one of them missing brings it back:
+   */
+  const code = sh.replace(/^\s*#.*$/gm, '');
+
+  // 1. public is wiped first, so a renamed asset from the old build (the
+  //    filenames are content-hashed) cannot linger beside the new one.
+  assert.match(code, /rm -rf "\$HERE\/backend\/public"/);
+  // 2. dist is actually copied in.
+  assert.match(code, /cp -r "\$HERE\/frontend\/dist\/\." "\$HERE\/backend\/public\//);
+  // 3. and the copy is proved NEWER than the newest source file, so a build
+  //    that silently did not run stops the bundle instead of shipping.
+  assert.match(code, /-newer "\$HERE\/backend\/public\/index\.html"/);
+  assert.match(code, /the build did not take/);
+
+  // The old test-for-existence must NOT be what gates it any more.
+  const gate = code.slice(0, code.indexOf('Staging the app'));
+  assert.ok(
+    gate.includes('frontend/dist/index.html'),
+    'the build is still gated on a file that an old build leaves behind',
+  );
+});
