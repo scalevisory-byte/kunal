@@ -12,7 +12,13 @@ import {
 } from '../db.js';
 import { buildPayroll } from '../payroll.js';
 import { documentFile } from '../documents.js';
-import { createRequest, decideRequest, getRequest, listRequests } from '../attendanceSelf.js';
+import {
+  createRequest,
+  decideRequest,
+  getRequest,
+  listRequests,
+  withdrawRequest,
+} from '../attendanceSelf.js';
 import { listTickets, createTicket, getTicket, replyToTicket, listAssets } from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
@@ -209,6 +215,28 @@ meRouter.post('/requests', (req, res) => {
   }
 });
 
+/**
+ * Taking one back.
+ *
+ * The punch link could already do this and the staff login could not, so
+ * somebody with a login could ask for a day off and then had to ring the
+ * office to un-ask. `withdrawRequest` checks the id against the LOGIN's
+ * employee, so this cannot cancel anybody else's.
+ *
+ * It works while the request is still open - including after a manager has
+ * backed it, because the office has not acted on it yet. Once it is approved
+ * the day is on the grid and taking it back is the office's call.
+ */
+meRouter.delete('/requests/:id', (req, res) => {
+  try {
+    const request = withdrawRequest(Number(req.params.id), req.employeeId);
+    if (!request) return res.status(404).json({ error: 'not found' });
+    res.json(request);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 /* ---------------- a manager's own team ---------------- */
 
 /*
@@ -235,7 +263,10 @@ meRouter.get('/team', (req, res) => {
   res.json({
     // Name, code, what they do. Not what they are paid.
     team: reports.map(forTeam),
+    // Only what is still theirs to answer. One they have already backed is
+    // with the office now, and counting it would read as work undone.
     waiting: requests.filter((r) => r.status === 'pending').length,
+    sent_on: requests.filter((r) => r.status === 'recommended').length,
   });
 });
 
@@ -265,9 +296,17 @@ meRouter.post('/team/requests/:id/decide', (req, res) => {
     res.json(
       decideRequest(request.id, {
         approve: Boolean(req.body?.approve),
-        // Their own name, so the trail says who decided rather than "office".
+        // Their own name, so the trail says who backed it rather than "office".
         by: me?.name || 'manager',
         note: req.body?.note,
+        /*
+         * A manager RECOMMENDS. Approving here moves the request to
+         * `recommended` and writes nothing on the grid; the office confirms
+         * it, and that call is the one that reaches attendance. Rejecting
+         * ends it, because a refusal costs nothing and needs no second
+         * opinion.
+         */
+        asManager: true,
       })
     );
   } catch (err) {

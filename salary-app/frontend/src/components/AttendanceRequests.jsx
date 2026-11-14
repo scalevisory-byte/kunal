@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, STANDALONE } from '../api.js';
-import { describe as describeRequest, kindLabel } from '../../../shared/attendanceRequests.js';
+import {
+  STATUS_LABEL,
+  describe as describeRequest,
+  isOpen,
+  kindLabel,
+} from '../../../shared/attendanceRequests.js';
 import { formatDistance } from '../../../shared/punchClock.js';
 import ScrollFrame from './ScrollFrame.jsx';
 
@@ -81,7 +86,12 @@ export default function AttendanceRequests({ period, onReload, onError }) {
     }
   };
 
-  const pending = requests.filter((r) => r.status === 'pending');
+  /*
+   * Open means pending OR recommended. A manager backing something does not
+   * take it off the office's list - it puts it one click from done, which is
+   * the opposite of finished.
+   */
+  const pending = requests.filter(isOpen);
 
   return (
     <section className="card">
@@ -141,11 +151,16 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                     <td className="small">{r.reason}</td>
                     <td className="small muted">{when(r.created_at)}</td>
                     <td className="small">
-                      {r.status}
+                      {STATUS_LABEL[r.status] || r.status}
+                      {/* Both halves of a two-step decision, so the row says
+                          who backed it as well as who confirmed it. */}
+                      {r.recommended_by ? (
+                        <div className="muted small">backed by {r.recommended_by}</div>
+                      ) : null}
                       {r.decided_by ? <div className="muted small">by {r.decided_by}</div> : null}
                     </td>
                     <td className="right decide">
-                      {r.status === 'pending' ? (
+                      {isOpen(r) ? (
                         <>
                           <button className="tiny primary" disabled={busy === r.id} onClick={() => decide(r, true)}>
                             Approve

@@ -558,6 +558,21 @@ if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.na
   db.exec(`ALTER TABLE attendance_requests ADD COLUMN to_day INTEGER`);
   log.info('Migrated attendance_requests: added to_day, so a leave application can cover a run of days.');
 }
+/*
+ * Two-step approval: who backed it, and when.
+ *
+ * Kept apart from decided_by/decided_at rather than reusing them, because a
+ * request that a manager backed and the office then approved has TWO people
+ * and two times on it, and one pair of columns could only ever hold the
+ * second - which is the half that answers "who said this was fine" worst.
+ */
+for (const [column, type] of [['recommended_by', 'TEXT'], ['recommended_at', 'TEXT']]) {
+  if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE attendance_requests ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated attendance_requests: added ${column}, for a manager's recommendation.`);
+  }
+}
+
 if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'minutes')) {
   db.exec(`ALTER TABLE attendance_requests ADD COLUMN minutes INTEGER`);
   log.info('Migrated attendance_requests: added minutes, so a few hours off can be asked for.');

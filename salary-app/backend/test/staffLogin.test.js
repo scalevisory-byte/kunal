@@ -545,30 +545,136 @@ test('somebody who manages nobody cannot decide anything', async () => {
   assert.equal(nope.status, 403);
 });
 
-test('the manager approves, and it lands on the grid under their own name', async () => {
+test('a manager only RECOMMENDS — the grid is untouched until the office confirms', async () => {
+  /*
+   * Dinesh: "manager approve kare phir hr confirm kare".
+   *
+   * This test used to assert the opposite - that a manager's approval landed
+   * on the grid - and it is rewritten rather than patched, because the rule
+   * it states has changed, not the way it is checked.
+   */
   const before = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
   const hers = before.employees.find((e) => e.employee_id === riya.id);
-  assert.notEqual(hers.attendance[12]?.code, 'CL', 'already written before the decision');
+  assert.notEqual(hers.attendance[12]?.code, 'CL', 'already written before any decision');
 
-  const done = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+  const backed = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
     approve: true,
+  });
+  assert.equal(backed.status, 200);
+  assert.equal(backed.body.status, 'recommended');
+  assert.equal(backed.body.recommended_by, 'Amit Shah');
+  assert.ok(backed.body.recommended_at, 'no time on the recommendation');
+  // Not decided. That word is reserved for the call that moves money.
+  assert.equal(backed.body.decided_by, null);
+
+  // THE POINT: nothing reached the grid.
+  const mid = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
+  const still = mid.employees.find((e) => e.employee_id === riya.id);
+  for (const day of [12, 13]) {
+    assert.notEqual(still.attendance[day]?.code, 'CL', `day ${day} was written by a manager`);
+  }
+
+  // A manager recommends once; sending it round again would overwrite what
+  // the office was asked to confirm.
+  const again = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+    approve: true,
+  });
+  // 400, not 403: it IS their team's request - it has simply moved on. 403 is
+  // reserved for "that is not yours to decide", which is a different answer.
+  assert.equal(again.status, 400);
+  assert.match(again.body.error, /already sent this to the office/);
+
+  // It is still on the manager's own list, under what they have sent on.
+  const team = await staff('GET', '/api/me/team');
+  assert.equal(team.body.waiting, 0, 'it is no longer waiting on the manager');
+  assert.equal(team.body.sent_on, 1);
+});
+
+test('the office confirms it, and THEN it lands — with both names on the row', async () => {
+  // It is still on the office's list: a manager backing something hands it
+  // over, it does not settle it.
+  const open = (await admin('GET', '/api/attendance/requests?status=recommended')).body.requests;
+  assert.ok(open.some((r) => r.id === riyasRequestId), 'the office lost sight of it');
+
+  const done = await admin('POST', `/api/attendance/requests/${riyasRequestId}/decide`, {
+    approve: true, by: 'Dinesh',
   });
   assert.equal(done.status, 200);
   assert.equal(done.body.status, 'approved');
-  // Their own name, not "office" - the trail has to say who decided.
-  assert.equal(done.body.decided_by, 'Amit Shah');
+  assert.equal(done.body.decided_by, 'Dinesh');
+  // Who backed it is kept beside who confirmed it - one row, two people.
+  assert.equal(done.body.recommended_by, 'Amit Shah');
+  assert.match(done.body.decision_note, /recommended by Amit Shah/);
 
   const after = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
   const now = after.employees.find((e) => e.employee_id === riya.id);
   for (const day of [12, 13]) assert.equal(now.attendance[day]?.code, 'CL', `day ${day}`);
   assert.equal(now.attendance[12]?.approved, true);
 
-  // The same rules as the office queue, because it is the same call.
-  const twice = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+  // And it cannot be decided twice, from either side.
+  const twice = await admin('POST', `/api/attendance/requests/${riyasRequestId}/decide`, {
     approve: false,
   });
   assert.equal(twice.status, 400);
   assert.match(twice.body.error, /already approved/);
+});
+
+test('a manager REJECTING ends it — a refusal needs no second opinion', async () => {
+  const asked = await riyaSession('POST', '/api/me/requests', {
+    period_id: periodId, day: 27, kind: 'leave', code: 'CL', reason: 'A day out',
+  });
+  assert.equal(asked.status, 201);
+
+  const no = await staff('POST', `/api/me/team/requests/${asked.body.id}/decide`, {
+    approve: false,
+  });
+  assert.equal(no.status, 200);
+  assert.equal(no.body.status, 'rejected', 'a refusal was left for the office to confirm');
+  assert.equal(no.body.decided_by, 'Amit Shah');
+
+  // Nothing written either way.
+  const grid = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
+  const hers = grid.employees.find((e) => e.employee_id === riya.id);
+  assert.notEqual(hers.attendance[27]?.code, 'CL');
+});
+
+test('HR can still finish a request outright, for somebody with no manager', async () => {
+  /*
+   * Kiran reports to nobody, so no recommendation could ever come. The middle
+   * step constrains the MANAGER, not the office - otherwise their leave would
+   * wait for ever on a step that cannot happen.
+   */
+  const asked = await kiranSession('POST', '/api/me/requests', {
+    period_id: periodId, day: 28, kind: 'leave', code: 'CL', reason: 'Nobody to ask',
+  });
+  assert.equal(asked.status, 201);
+  assert.equal(asked.body.status, 'pending');
+
+  const done = await admin('POST', `/api/attendance/requests/${asked.body.id}/decide`, {
+    approve: true, by: 'Dinesh',
+  });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.status, 'approved');
+  assert.equal(done.body.recommended_by, null);
+
+  const grid = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
+  const his = grid.employees.find((e) => e.employee_id === third.id);
+  assert.equal(his.attendance[28]?.code, 'CL');
+});
+
+test('an employee can take back something their manager has already backed', async () => {
+  const asked = await riyaSession('POST', '/api/me/requests', {
+    period_id: periodId, day: 29, kind: 'leave', code: 'CL', reason: 'Might not need it',
+  });
+  await staff('POST', `/api/me/team/requests/${asked.body.id}/decide`, { approve: true });
+
+  const gone = await riyaSession('DELETE', `/api/me/requests/${asked.body.id}`);
+  assert.equal(gone.status, 200);
+  assert.equal(gone.body.status, 'withdrawn');
+
+  // ...but not once the office has acted on it.
+  const settled = await riyaSession('DELETE', `/api/me/requests/${riyasRequestId}`);
+  assert.equal(settled.status, 400);
 });
 
 test('HR still sees and can decide everything, manager or no manager', async () => {

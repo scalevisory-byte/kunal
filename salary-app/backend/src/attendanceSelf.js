@@ -14,6 +14,7 @@ import {
   daysOf,
   describeMinutes,
   entriesFor,
+  isOpen,
   validateRequest,
 } from '../../shared/attendanceRequests.js';
 
@@ -271,11 +272,35 @@ export function createRequest(body) {
  * The decision. Approving is the ONLY thing in this module that writes
  * attendance; rejecting writes nothing at all beyond the decision itself.
  */
-export function decideRequest(id, { approve, by = 'office', note: req_note } = {}) {
+export function decideRequest(id, { approve, by = 'office', note: req_note, asManager = false } = {}) {
   const request = getRequest(id);
   const period = request ? getPeriod(request.period_id) : null;
-  const may = canDecide(request, { periodLocked: !!period?.locked });
+  const may = canDecide(request, { periodLocked: !!period?.locked, asManager });
   if (!may.ok) throw new Error(may.reason);
+
+  /*
+   * A MANAGER ONLY RECOMMENDS.
+   *
+   * Dinesh: "manager approve kare phir hr confirm kare". So a manager's
+   * approval moves the request to `recommended` and writes NOTHING on the
+   * grid - the rule is now "a request never writes attendance; the FINAL
+   * approval does". This return is before any `setAttendance` on purpose:
+   * there is one place attendance is written and the manager path does not
+   * reach it.
+   *
+   * A refusal is different and ends here: it costs nothing either way, and a
+   * no that needs confirming is a no the employee hears twice.
+   */
+  if (asManager && approve) {
+    db.prepare(
+      `UPDATE attendance_requests
+          SET status = 'recommended', recommended_by = ?, recommended_at = datetime('now'),
+              decision_note = ?
+        WHERE id = ?`
+    ).run(by, req_note || null, id);
+    log.info(`Attendance request ${id} recommended by ${by} - waiting for the office`);
+    return getRequest(id);
+  }
 
   let note = null;
   if (approve) {
@@ -309,17 +334,29 @@ export function decideRequest(id, { approve, by = 'office', note: req_note } = {
     );
   }
 
+  /*
+   * The manager's name rides onto the note when they backed it, so the row
+   * says who recommended AND who confirmed. `decided_by` is the office.
+   */
+  const backed = request.recommended_by ? `recommended by ${request.recommended_by}` : null;
   db.prepare(
     `UPDATE attendance_requests SET status = ?, decided_by = ?, decided_at = datetime('now'), decision_note = ?
      WHERE id = ?`
-  ).run(approve ? 'approved' : 'rejected', by, [note, req_note].filter(Boolean).join(' · ') || null, id);
+  ).run(
+    approve ? 'approved' : 'rejected',
+    by,
+    [backed, note, req_note].filter(Boolean).join(' · ') || null,
+    id
+  );
   return getRequest(id);
 }
 
 export const withdrawRequest = (id, employeeId) => {
   const request = getRequest(id);
   if (!request || request.employee_id !== Number(employeeId)) return null;
-  if (request.status !== 'pending') throw new Error(`this was already ${request.status}`);
+  // Still theirs to take back while it is open - including after a manager
+  // has backed it, because the office has not acted on it yet.
+  if (!isOpen(request)) throw new Error(`this was already ${request.status}`);
   db.prepare(`UPDATE attendance_requests SET status = 'withdrawn' WHERE id = ?`).run(id);
   return getRequest(id);
 };

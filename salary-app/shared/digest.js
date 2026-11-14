@@ -101,7 +101,9 @@ export function digest(input = {}) {
 
   /* --- waiting on a decision --- */
 
-  const pendingRequests = requests.filter((r) => r.status === 'pending');
+  // Pending AND recommended: a manager backing one hands it to the office,
+  // it does not settle it.
+  const pendingRequests = requests.filter((r) => r.status === 'pending' || r.status === 'recommended');
   if (pendingRequests.length) {
     add(
       `• ${plural(pendingRequests.length, 'attendance request')} waiting: ${names(

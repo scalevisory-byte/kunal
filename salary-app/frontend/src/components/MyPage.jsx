@@ -3,8 +3,10 @@ import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import {
+  STATUS_LABEL,
   describe as describeRequest,
   describeMinutes,
+  isOpen,
   kindLabel,
 } from '../../../shared/attendanceRequests.js';
 import Payslip from './Payslip.jsx';
@@ -755,7 +757,8 @@ function MyTeam({ onError }) {
       approve &&
       !window.confirm(
         `Approve ${request.employee_name}'s ${kindLabel(request.kind).toLowerCase()}?\n\n` +
-          `${describeRequest(request)}\n\nIt goes onto their attendance straight away.`
+          `${describeRequest(request)}\n\nThis sends it to the office to confirm. ` +
+          `It reaches their attendance only once the office has.`
       )
     ) {
       return;
@@ -764,7 +767,11 @@ function MyTeam({ onError }) {
     setSaid('');
     try {
       await api.post(`/me/team/requests/${request.id}/decide`, { approve });
-      setSaid(approve ? 'Approved. It is on their attendance now.' : 'Rejected. Nothing was written.');
+      setSaid(
+        approve
+          ? 'Sent to the office to confirm. Nothing is on their attendance yet.'
+          : 'Rejected. Nothing was written.'
+      );
       await load();
     } catch (err) {
       onError(err);
@@ -773,8 +780,17 @@ function MyTeam({ onError }) {
     }
   };
 
+  /*
+   * Three piles on a manager's page, not two.
+   *
+   * What is still theirs to answer; what they have already backed and sent to
+   * the office; and what is settled. Lumping the middle one in with "waiting
+   * on you" would ask them to decide the same thing twice; lumping it in with
+   * "decided" would tell them it is done when it is not.
+   */
   const pending = requests.filter((r) => r.status === 'pending');
-  const decided = requests.filter((r) => r.status !== 'pending');
+  const sentOn = requests.filter((r) => r.status === 'recommended');
+  const decided = requests.filter((r) => !isOpen(r));
 
   return (
     <div className="stack">
@@ -813,7 +829,31 @@ function MyTeam({ onError }) {
           </div>
         )}
         {said ? <p className="muted small">{said}</p> : null}
+        <p className="muted small">
+          Approving sends it to the office to confirm. It goes onto their attendance only once
+          the office has.
+        </p>
       </div>
+
+      {sentOn.length > 0 && (
+        <div className="card">
+          <h3>With the office</h3>
+          <p className="muted small">
+            You have approved these. They are waiting for the office to confirm, and nothing is
+            on anybody&rsquo;s attendance yet.
+          </p>
+          <ul className="plain-list">
+            {sentOn.map((r) => (
+              <li key={r.id}>
+                <strong>{r.employee_name}</strong>{' '}
+                <span className="muted small">
+                  {kindLabel(r.kind)} · {describeRequest(r)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card">
         <h3>Your team</h3>
@@ -848,7 +888,8 @@ function MyTeam({ onError }) {
               <li key={r.id}>
                 <strong>{r.employee_name}</strong>{' '}
                 <span className="muted small">
-                  {kindLabel(r.kind)} · {describeRequest(r)} · {r.status}
+                  {kindLabel(r.kind)} · {describeRequest(r)} ·{' '}
+                  {STATUS_LABEL[r.status] || r.status}
                   {r.decided_by ? ` by ${r.decided_by}` : ''}
                 </span>
               </li>

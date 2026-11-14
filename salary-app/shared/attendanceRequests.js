@@ -97,7 +97,28 @@ export const REQUEST_KINDS = [
 /** The shortest and longest a few hours off can sensibly be. */
 export const SHORT_LEAVE_MIN_MINUTES = 15;
 
-export const STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'];
+/*
+ * `recommended` is the middle step Dinesh asked for: *"manager approve kare
+ * phir hr confirm kare"*.
+ *
+ * A manager can only ever RECOMMEND. Their approval moves a request from
+ * `pending` to `recommended` and writes NOTHING - the old rule becomes "a
+ * request never writes attendance; the FINAL approval does". HR then confirms
+ * it, and that is the call that reaches the grid.
+ *
+ * A refusal needs no second opinion, and costs nothing either way, so a
+ * manager's reject ends it at `rejected`. The asymmetry is deliberate: it is
+ * the APPROVAL that moves money.
+ *
+ * HR is never blocked by the middle step. They can finish a `pending` request
+ * outright, which is what happens for somebody who has no manager at all -
+ * otherwise their leave would wait for a recommendation that could never come.
+ */
+export const STATUSES = ['pending', 'recommended', 'approved', 'rejected', 'withdrawn'];
+
+/** Still waiting on somebody — not yet settled either way. */
+export const OPEN_STATUSES = ['pending', 'recommended'];
+export const isOpen = (request) => OPEN_STATUSES.includes(String(request?.status || ''));
 
 export const kindLabel = (key) => REQUEST_KINDS.find((k) => k.key === key)?.label || key;
 
@@ -286,10 +307,18 @@ export function describe(request = {}) {
  * request already decided is not re-decidable - a second approval would write
  * the grid twice and leave two entries in the history saying different things.
  */
-export function canDecide(request, { periodLocked = false } = {}) {
+export function canDecide(request, { periodLocked = false, asManager = false } = {}) {
   if (!request) return { ok: false, reason: 'not found' };
-  if (request.status !== 'pending') {
+  if (!isOpen(request)) {
     return { ok: false, reason: `this was already ${request.status}` };
+  }
+  /*
+   * A manager recommends once. Sending it back round would let them overwrite
+   * their own recommendation while HR was looking at it, and the trail would
+   * no longer say what HR was asked to confirm.
+   */
+  if (asManager && request.status === 'recommended') {
+    return { ok: false, reason: 'you have already sent this to the office' };
   }
   if (periodLocked) return { ok: false, reason: 'that month is locked' };
   return { ok: true, reason: '' };
@@ -299,6 +328,18 @@ export function canDecide(request, { periodLocked = false } = {}) {
 export const sortForReview = (requests = []) =>
   [...requests].sort(
     (a, b) =>
-      Number(a.status !== 'pending') - Number(b.status !== 'pending') ||
+      // Anything still open first, and within that the ones a manager has
+      // already backed - they are one click from done.
+      Number(!isOpen(a)) - Number(!isOpen(b)) ||
+      Number(a.status !== 'recommended') - Number(b.status !== 'recommended') ||
       String(a.created_at).localeCompare(String(b.created_at))
   );
+
+/** What the state means to the person reading it, in the office's own words. */
+export const STATUS_LABEL = {
+  pending: 'waiting',
+  recommended: 'manager approved — waiting for the office',
+  approved: 'approved',
+  rejected: 'rejected',
+  withdrawn: 'withdrawn',
+};

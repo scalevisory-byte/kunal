@@ -1225,9 +1225,44 @@ instead of forwarding it to the office to type in.
 - **Driven in a browser at phone width**: Alpesh signs in, gets the tab, sees Amit's 3-day CL and
   Priya's work-from-home and *not* Kiran (who reports to nobody), no salary anywhere on screen,
   approves, and the grid reads CL CL CL on 18–20 with `decided_by` = Alpesh Shah.
-- **Still open, and deliberately not assumed:** whether a manager's approval should be the final
-  word (what this does) or a recommendation HR then confirms. Two-step approval is a different
-  shape and he has not asked for it.
+### Two steps: the manager backs it, the office confirms it
+
+Dinesh then answered the open question himself: *"manager approve kare phir hr confirm kare, wo
+bana do"*. So a manager's approval is now a **recommendation**, and only the office's
+confirmation reaches the grid.
+
+- **A fifth status, `recommended`**, between pending and approved. The old rule becomes **"a
+  request never writes attendance; the FINAL approval does"** — `decideRequest` returns from the
+  manager branch **before any `setAttendance`**, so there is one place attendance is written and
+  the manager path does not reach it. The browser run confirms the grid is still blank between
+  the two steps.
+- **A manager's REJECT ends it.** The asymmetry is deliberate and stated: a refusal costs
+  nothing either way, and a no that needs confirming is a no the employee hears twice. It is the
+  approval that moves money.
+- **HR is never blocked by the middle step** — they can finish a `pending` request outright,
+  which is what happens for somebody with no manager at all. Otherwise Kiran's leave would wait
+  for a recommendation that could never come. There is a test for exactly that person.
+- **A manager recommends once.** Sending it round again is refused (400, not 403 — it IS their
+  team's request, it has simply moved on), because overwriting their own recommendation while
+  the office was looking at it would leave the trail unable to say what HR was asked to confirm.
+- **`recommended_by` / `recommended_at` are their own columns**, not a reuse of
+  `decided_by`/`decided_at`: a two-step request has two people and two times on it, and one pair
+  could only ever hold the second — the half that answers "who said this was fine" worst. The
+  office row reads *"backed by Alpesh Shah"* above *"by Dinesh"*, and the decision note carries
+  `recommended by Alpesh Shah`.
+- **Three piles on the manager's page, not two** — waiting on you / with the office / decided.
+  Lumping the middle one into the first asks them to decide the same thing twice; lumping it
+  into the last tells them it is done when it is not. `GET /api/me/team` returns `waiting` and
+  `sent_on` separately for the same reason.
+- **Everything that assumed `pending` meant "open" was found and fixed**: the office queue's
+  count and its Approve/Reject buttons, the dashboard digest line, and `withdrawRequest`.
+  `isOpen()` is now the one answer to that question.
+- **An employee can take back a request their manager has already backed**, but not one the
+  office has approved — by then the day is on the grid. This also closed a real gap: withdraw
+  existed only on the punch link, so somebody with a staff *login* had to ring the office to
+  un-ask. `DELETE /api/me/requests/:id` now exists, with the id checked against the login.
+- The one test asserting the old one-step behaviour **failed on the first run and was rewritten
+  to state the new rule**, not patched.
 
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
