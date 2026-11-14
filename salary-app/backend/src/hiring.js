@@ -14,6 +14,16 @@ import {
   stageForDecision,
 } from '../../shared/interviewForm.js';
 import {
+  checkPaper,
+  checkQuestion,
+  drawPaper,
+  forCandidate,
+  isOverdue,
+  markAttempt,
+  paperSize,
+  secondsLeft,
+} from '../../shared/questionBank.js';
+import {
   PARAMETER_KEYS,
   canMove,
   checkEvaluation,
@@ -1554,4 +1564,424 @@ export function interviewHistory(candidateId) {
       ratings: undefined,
       summary: summarise(json(row.ratings, {})),
     }));
+}
+
+/* ================= the question bank and the papers drawn from it ======== */
+
+/*
+ * Four tables, and the one that matters is test_attempts.
+ *
+ * An attempt stores the QUESTIONS THAT WERE DRAWN and the order their options
+ * were shown in, because every candidate gets a different paper. Without that
+ * there is no way to say six months later what somebody was actually asked, a
+ * result cannot be explained, and a disputed answer cannot be checked.
+ *
+ * It also stores started_at, which is the only clock that counts. The browser
+ * runs a countdown for the person watching; the server decides whether a
+ * submission is in time, because a clock on the candidate's machine is a clock
+ * the candidate can change.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS question_bank (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    category    TEXT NOT NULL,
+    question    TEXT NOT NULL,
+    option_a    TEXT, option_b TEXT, option_c TEXT, option_d TEXT,
+    correct     TEXT NOT NULL,
+    marks       REAL NOT NULL DEFAULT 1,
+    negative_marks REAL NOT NULL DEFAULT 0,
+    difficulty  TEXT,
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_by  TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS test_papers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    company_id  INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+    pass_percent     INTEGER NOT NULL DEFAULT 50,
+    duration_minutes INTEGER NOT NULL DEFAULT 20,
+    validity_days    INTEGER,
+    instructions TEXT,
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS test_paper_sections (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id  INTEGER NOT NULL REFERENCES test_papers(id) ON DELETE CASCADE,
+    category  TEXT NOT NULL,
+    count     INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS test_attempts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id      INTEGER NOT NULL REFERENCES test_papers(id) ON DELETE CASCADE,
+    candidate_id  INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    application_id INTEGER REFERENCES applications(id) ON DELETE SET NULL,
+    token         TEXT NOT NULL UNIQUE,
+    drawn         TEXT NOT NULL DEFAULT '[]',
+    answers       TEXT NOT NULL DEFAULT '{}',
+    assigned_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    assigned_by   TEXT,
+    started_at    TEXT,
+    submitted_at  TEXT,
+    auto_submitted INTEGER NOT NULL DEFAULT 0,
+    score         REAL, max_score REAL, percentage REAL, passed INTEGER,
+    right_count   INTEGER, wrong_count INTEGER, skipped_count INTEGER,
+    pass_percent  INTEGER,
+    duration_minutes INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_qbank_cat ON question_bank(category, active);
+  CREATE INDEX IF NOT EXISTS idx_psection_paper ON test_paper_sections(paper_id);
+  CREATE INDEX IF NOT EXISTS idx_attempt_candidate ON test_attempts(candidate_id);
+`);
+
+/*
+ * Which paper this opening uses.
+ *
+ * Null means the opening either points at an external test with its own URL -
+ * the ZYNTA one that is set up and working - or has no test at all. Both
+ * remain exactly as they were; nothing already configured changes because this
+ * column appeared.
+ */
+if (!columnsOf('vacancies').has('test_paper_id')) {
+  db.exec(`ALTER TABLE vacancies ADD COLUMN test_paper_id INTEGER REFERENCES test_papers(id) ON DELETE SET NULL`);
+  log.info('Migrated vacancies: added test_paper_id.');
+}
+
+/* ---------------- the bank ---------------- */
+
+export const listCategories = () =>
+  db
+    .prepare(
+      `SELECT category,
+              COUNT(*) AS total,
+              SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS usable
+         FROM question_bank GROUP BY category ORDER BY category`
+    )
+    .all();
+
+export function listQuestions({ category, q, limit = 500 } = {}) {
+  const where = [];
+  const params = { limit: Number(limit) || 500 };
+  if (category) { where.push('category = @category'); params.category = category; }
+  if (q) { where.push('question LIKE @q'); params.q = `%${q}%`; }
+  return db
+    .prepare(
+      `SELECT * FROM question_bank
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY category, id DESC LIMIT @limit`
+    )
+    .all(params);
+}
+
+export function saveQuestion(body = {}, { by = 'office' } = {}) {
+  const problems = checkQuestion(body);
+  if (problems.length) {
+    const error = new Error(problems[0]);
+    error.problems = problems;
+    throw error;
+  }
+  const values = writable('question_bank', body, { skip: ['created_by'] });
+  values.correct = String(values.correct).trim().toLowerCase();
+  values.updated_at = nowIso();
+  if (body.id) {
+    update('question_bank', Number(body.id), values);
+    return db.prepare(`SELECT * FROM question_bank WHERE id = ?`).get(Number(body.id));
+  }
+  const id = insert('question_bank', { ...values, created_by: by });
+  return db.prepare(`SELECT * FROM question_bank WHERE id = ?`).get(id);
+}
+
+/*
+ * Retired, not deleted, once it has ever been asked.
+ *
+ * An attempt stores the ids it drew, so deleting a question would leave a
+ * finished paper unable to say what question three was - and a result nobody
+ * can explain is a result nobody can defend.
+ */
+export function removeQuestion(id) {
+  const asked = db
+    .prepare(`SELECT COUNT(*) AS n FROM test_attempts WHERE drawn LIKE ?`)
+    .get(`%"id":${Number(id)},%`).n;
+  if (asked) {
+    update('question_bank', Number(id), { active: 0, updated_at: nowIso() });
+    return { retired: true };
+  }
+  db.prepare(`DELETE FROM question_bank WHERE id = ?`).run(Number(id));
+  return { deleted: true };
+}
+
+/* ---------------- the papers ---------------- */
+
+const sectionsOf = (paperId) =>
+  db
+    .prepare(`SELECT * FROM test_paper_sections WHERE paper_id = ? ORDER BY sort_order, id`)
+    .all(paperId);
+
+export function listPapers() {
+  return db
+    .prepare(
+      `SELECT p.*, co.name AS company_name,
+              (SELECT COUNT(*) FROM test_attempts a WHERE a.paper_id = p.id) AS attempts
+         FROM test_papers p
+         LEFT JOIN companies co ON co.id = p.company_id
+        ORDER BY p.name`
+    )
+    .all()
+    .map((p) => {
+      const sections = sectionsOf(p.id);
+      return { ...p, sections, questions: paperSize(sections) };
+    });
+}
+
+export function getPaper(id) {
+  const paper = db.prepare(`SELECT * FROM test_papers WHERE id = ?`).get(id);
+  if (!paper) return null;
+  const sections = sectionsOf(id);
+  return { ...paper, sections, questions: paperSize(sections) };
+}
+
+export function savePaper(body = {}) {
+  const sections = (body.sections || []).filter((s) => String(s.category || '').trim());
+  const problems = checkPaper(body, sections);
+  if (problems.length) {
+    const error = new Error(problems[0]);
+    error.problems = problems;
+    throw error;
+  }
+  const values = writable('test_papers', body, { skip: ['sections'] });
+  values.updated_at = nowIso();
+  const id = body.id ? Number(body.id) : insert('test_papers', values);
+  if (body.id) update('test_papers', id, values);
+
+  db.prepare(`DELETE FROM test_paper_sections WHERE paper_id = ?`).run(id);
+  sections.forEach((s, i) =>
+    insert('test_paper_sections', {
+      paper_id: id,
+      category: String(s.category).trim(),
+      count: Number(s.count) || 0,
+      sort_order: i,
+    })
+  );
+  return getPaper(id);
+}
+
+export const deletePaper = (id) =>
+  db.prepare(`DELETE FROM test_papers WHERE id = ?`).run(Number(id)).changes;
+
+/**
+ * Can this paper actually be set right now?
+ *
+ * Reported on the office's screen BEFORE anybody is sent a link, because a
+ * section the bank cannot fill is only discovered at the moment a candidate
+ * opens the test otherwise - by which point it is their problem.
+ */
+export function paperReadiness(paperId) {
+  const paper = getPaper(paperId);
+  if (!paper) return null;
+  const pool = db.prepare(`SELECT * FROM question_bank WHERE active = 1`).all();
+  const { short } = drawPaper(pool, paper.sections);
+  return { paper, short, ready: short.length === 0 };
+}
+
+/* ---------------- sitting the test ---------------- */
+
+const readAttempt = (row) =>
+  row ? { ...row, drawn: json(row.drawn, []), answers: json(row.answers, {}) } : null;
+
+/**
+ * Give one candidate a paper of their own.
+ *
+ * The draw happens HERE, once, and is stored - not at the moment they open the
+ * link. Two reasons: the office can see what somebody was asked before they
+ * sit down, and refreshing the page cannot deal a fresh, easier hand.
+ *
+ * The token is the whole of the candidate's identity on the public side. It
+ * reaches one attempt and nothing else, which is why nothing in this app
+ * accepts a candidate id from a public caller.
+ */
+export function assignTest(paperId, candidateId, { application_id, by = 'office' } = {}) {
+  const paper = getPaper(paperId);
+  if (!paper) throw new Error('no such test paper');
+  const candidate = getCandidate(candidateId);
+  if (!candidate) throw new Error('no such candidate');
+
+  const pool = db.prepare(`SELECT * FROM question_bank WHERE active = 1`).all();
+  const { questions, short } = drawPaper(pool, paper.sections);
+  if (!questions.length) {
+    throw new Error('There are no questions in the bank for this paper yet.');
+  }
+  if (short.length) {
+    const first = short[0];
+    throw new Error(
+      `The bank has only ${first.have} usable ${first.category} questions and this paper asks for ${first.want}.`
+    );
+  }
+
+  const token = `TST-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+  const id = insert('test_attempts', {
+    paper_id: paper.id,
+    candidate_id: candidateId,
+    application_id: application_id || null,
+    token,
+    // Everything needed to reproduce the paper exactly, answers included -
+    // this row never leaves the server as it stands.
+    drawn: JSON.stringify(
+      questions.map((q) => ({
+        id: q.id, question: q.question, correct: q.correct,
+        marks: q.marks, negative_marks: q.negative_marks, order: q.order,
+        option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
+      }))
+    ),
+    assigned_by: by,
+    pass_percent: paper.pass_percent,
+    duration_minutes: paper.duration_minutes,
+  });
+
+  audit({
+    who: by, action: 'created', entity: 'test_attempt', entity_id: id,
+    label: `${candidate.name} — ${paper.name}`,
+    note: `${questions.length} questions, ${paper.duration_minutes} minutes`,
+  });
+  return readAttempt(db.prepare(`SELECT * FROM test_attempts WHERE id = ?`).get(id));
+}
+
+export const listAttempts = (candidateId) =>
+  db
+    .prepare(
+      `SELECT a.*, p.name AS paper_name FROM test_attempts a
+         JOIN test_papers p ON p.id = a.paper_id
+        WHERE a.candidate_id = ? ORDER BY a.id DESC`
+    )
+    .all(candidateId)
+    .map(readAttempt);
+
+/**
+ * What the candidate's browser is sent.
+ *
+ * `forCandidate` strips the answers; this adds the clock and the name of the
+ * person sitting it. Nothing else from the attempt row travels - not the
+ * marks per question, which would say which ones carry the weight, and
+ * certainly not `drawn` as stored.
+ *
+ * Opening it for the first time starts the clock. Opening it again does NOT
+ * restart it: a refresh is not a second chance, and a candidate who found that
+ * out would simply refresh at nineteen minutes for ever.
+ */
+export function openAttempt(token) {
+  const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
+  if (!row) return null;
+  const attempt = readAttempt(row);
+  const paper = getPaper(attempt.paper_id);
+  const candidate = getCandidate(attempt.candidate_id);
+
+  if (attempt.submitted_at) {
+    return {
+      done: true,
+      name: candidate?.name,
+      paper: paper?.name,
+      submitted_at: attempt.submitted_at,
+      // The score is shown back only if the office wanted it to be; what is
+      // never shown is which answers were wrong, because the same paper may
+      // be drawn for the next candidate.
+      percentage: attempt.percentage,
+      passed: attempt.passed === null ? null : Boolean(attempt.passed),
+    };
+  }
+
+  if (!attempt.started_at) {
+    update('test_attempts', attempt.id, { started_at: nowIso() });
+    attempt.started_at = nowIso();
+  }
+
+  return {
+    done: false,
+    name: candidate?.name,
+    paper: paper?.name,
+    instructions: paper?.instructions || '',
+    duration_minutes: attempt.duration_minutes,
+    started_at: attempt.started_at,
+    seconds_left: Math.max(0, secondsLeft(attempt.started_at, attempt.duration_minutes) ?? 0),
+    questions: forCandidate(attempt.drawn),
+  };
+}
+
+/**
+ * Mark it, and write the result where everything downstream already looks.
+ *
+ * A submission after the clock ran out is still MARKED, and flagged as
+ * auto-submitted rather than thrown away - the answers were given, and binning
+ * a paper because the last request took a second too long is the harshest
+ * possible reading of a rule that exists to stop somebody taking an hour.
+ *
+ * It cannot be submitted twice. The first answers are the answers.
+ */
+export function submitAttempt(token, answers = {}, { auto = false } = {}) {
+  const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
+  if (!row) return null;
+  const attempt = readAttempt(row);
+  if (attempt.submitted_at) {
+    const error = new Error('This test has already been submitted.');
+    error.status = 409;
+    throw error;
+  }
+
+  const late = isOverdue(attempt.started_at, attempt.duration_minutes);
+  const marked = markAttempt(attempt.drawn, answers, { passPercent: attempt.pass_percent });
+
+  update('test_attempts', attempt.id, {
+    answers: JSON.stringify(answers || {}),
+    submitted_at: nowIso(),
+    auto_submitted: auto || late ? 1 : 0,
+    score: marked.score,
+    max_score: marked.max_score,
+    percentage: marked.percentage,
+    passed: marked.passed === null ? null : marked.passed ? 1 : 0,
+    right_count: marked.right,
+    wrong_count: marked.wrong,
+    skipped_count: marked.skipped,
+  });
+
+  /*
+   * The result is also written to the `tests` table the app already had, so
+   * the candidate card, the application panel and every existing report show
+   * an in-house paper exactly as they show a ZYNTA one. Two places showing
+   * scores would be two places to look.
+   */
+  recordTest({
+    candidate_id: attempt.candidate_id,
+    application_id: attempt.application_id,
+    type: 'In-house test',
+    score: marked.score,
+    max_score: marked.max_score,
+    percentage: marked.percentage,
+    passed: marked.passed,
+    source: 'question-bank',
+    pass_percent: attempt.pass_percent,
+    answers: JSON.stringify(marked.detail),
+  });
+
+  return { submitted: true, percentage: marked.percentage, passed: marked.passed, late };
+}
+
+/** The office's view of one attempt — this one DOES carry the answers. */
+export function attemptReview(id) {
+  const attempt = readAttempt(db.prepare(`SELECT * FROM test_attempts WHERE id = ?`).get(id));
+  if (!attempt) return null;
+  const marked = attempt.submitted_at
+    ? markAttempt(attempt.drawn, attempt.answers, { passPercent: attempt.pass_percent })
+    : null;
+  return {
+    attempt,
+    candidate: getCandidate(attempt.candidate_id),
+    paper: getPaper(attempt.paper_id),
+    marked,
+  };
 }

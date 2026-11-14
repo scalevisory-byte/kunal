@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { Router } from 'express';
 import {
+  assignTest,
+  attemptReview,
   createApplication,
   createCandidate,
   createInterview,
@@ -9,6 +11,7 @@ import {
   deleteApplication,
   deleteCandidate,
   deleteInterview,
+  deletePaper,
   deleteReference,
   deleteTask,
   deleteVacancy,
@@ -17,24 +20,35 @@ import {
   getCandidate,
   getEvaluation,
   getInterviewForm,
+  getPaper,
   getVacancy,
   hireApplication,
   hiringOverview,
   interviewHistory,
   listApplications,
+  listAttempts,
   listCandidates,
+  listCategories,
   listInterviews,
+  listPapers,
+  listQuestions,
   listReferences,
   listTasks,
   listTests,
   listVacancies,
   moveApplication,
+  openAttempt,
+  paperReadiness,
   recordTest,
+  removeQuestion,
   rescoreVacancy,
   reviewEvaluation,
   saveEvaluation,
   saveInterviewForm,
+  savePaper,
+  saveQuestion,
   saveReference,
+  submitAttempt,
   suggestForVacancy,
   updateApplication,
   updateCandidate,
@@ -609,3 +623,72 @@ hiringRouter.put('/candidates/:id/references', (req, res) => {
 hiringRouter.delete('/references/:id', (req, res) =>
   res.json({ removed: deleteReference(Number(req.params.id)) })
 );
+
+/* ---------------- the question bank ---------------- */
+
+hiringRouter.get('/bank/categories', (req, res) => res.json({ categories: listCategories() }));
+
+hiringRouter.get('/bank/questions', (req, res) =>
+  res.json({ questions: listQuestions({ category: req.query.category, q: req.query.q }) })
+);
+
+hiringRouter.put('/bank/questions', (req, res) => {
+  try {
+    res.json(saveQuestion(req.body || {}, { by: actorName(req) }));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.delete('/bank/questions/:id', (req, res) =>
+  res.json(removeQuestion(Number(req.params.id)))
+);
+
+hiringRouter.get('/papers', (req, res) => res.json({ papers: listPapers() }));
+
+hiringRouter.get('/papers/:id', (req, res) => {
+  const paper = paperReadiness(Number(req.params.id));
+  return paper ? res.json(paper) : res.status(404).json({ error: 'no such paper' });
+});
+
+hiringRouter.put('/papers', (req, res) => {
+  try {
+    res.json(savePaper(req.body || {}));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.delete('/papers/:id', (req, res) =>
+  res.json({ removed: deletePaper(Number(req.params.id)) })
+);
+
+/*
+ * Giving somebody a paper.
+ *
+ * The link that comes back is the whole of what the candidate needs and the
+ * whole of what they can reach: one attempt, theirs.
+ */
+hiringRouter.post('/papers/:id/assign', (req, res) => {
+  try {
+    const attempt = assignTest(Number(req.params.id), Number(req.body?.candidate_id), {
+      application_id: Number(req.body?.application_id) || null,
+      by: actorName(req),
+    });
+    res.status(201).json({
+      attempt,
+      link: `${publicBase()}/sit/${attempt.token}`,
+    });
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.get('/candidates/:id/attempts', (req, res) =>
+  res.json({ attempts: listAttempts(Number(req.params.id)) })
+);
+
+hiringRouter.get('/attempts/:id', (req, res) => {
+  const found = attemptReview(Number(req.params.id));
+  return found ? res.json(found) : res.status(404).json({ error: 'no such attempt' });
+});

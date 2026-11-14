@@ -1,16 +1,6 @@
 import fs from 'node:fs';
 import { Router } from 'express';
-import {
-  createApplication,
-  getApplication,
-  getCandidate,
-  getVacancy,
-  getVacancyByRef,
-  listVacancies,
-  recordTest,
-  updateCandidate,
-  upsertCandidate,
-} from '../hiring.js';
+import { createApplication, getApplication, getCandidate, getVacancy, getVacancyByRef, listVacancies, openAttempt, recordTest, submitAttempt, updateCandidate, upsertCandidate } from '../hiring.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { publicVacancy } from '../../../shared/hiringMessages.js';
@@ -281,6 +271,36 @@ publicRouter.post('/test-result/:token', rateLimit(30), (req, res) => {
     res.status(201).json({ ok: true, percentage: test.percentage });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- sitting an in-house test ---------------- */
+
+/*
+ * Two unauthenticated routes, and the token is the whole of the identity.
+ *
+ * Nothing here takes a candidate id, a paper id or a question id from the
+ * caller: the token reaches exactly one attempt and everything else is read
+ * off it. A caller who changes the token gets a 404, not somebody else's test.
+ *
+ * And what comes back carries NO correct answers. That is enforced in
+ * shared/questionBank.js by forCandidate(), which builds the candidate's copy
+ * field by field rather than deleting fields from the stored one - a delete
+ * list is a list somebody forgets to add to.
+ */
+publicRouter.get('/sit/:token', (req, res) => {
+  const paper = openAttempt(req.params.token);
+  return paper ? res.json(paper) : res.status(404).json({ error: 'no such test' });
+});
+
+publicRouter.post('/sit/:token', (req, res) => {
+  try {
+    const out = submitAttempt(req.params.token, req.body?.answers || {}, {
+      auto: Boolean(req.body?.auto),
+    });
+    return out ? res.json(out) : res.status(404).json({ error: 'no such test' });
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 });
 
