@@ -649,8 +649,22 @@ function vacancyRow(v) {
   };
 }
 
-const candidateRow = (c) =>
-  c && { ...c, applications: load().applications.filter((a) => a.candidate_id === c.id).length };
+/*
+ * The server's candidate list shape, by hand - including the two it works out
+ * in SQL. A column the offline build simply does not answer renders as an
+ * empty box, which reads as broken rather than as "not here".
+ */
+const candidateRow = (c) => {
+  if (!c) return c;
+  const mine = load().applications.filter((a) => a.candidate_id === c.id);
+  const { resume_path, ...rest } = c;
+  return {
+    ...rest,
+    has_cv: Boolean(resume_path),
+    applications: mine.length,
+    latest_stage: mine.length ? mine[mine.length - 1].stage : null,
+  };
+};
 
 /** The server's APPLICATION_COLUMNS join, by hand. */
 function applicationRow(a) {
@@ -676,6 +690,10 @@ function applicationRow(a) {
     role: c.role,
     resume_path: c.resume_path || null,
     resume_name: c.resume_name || null,
+    // The same flag the server sends. Offline there are no files at all, so
+    // it is always false - which is the honest answer, not a missing field
+    // that would render as a broken column.
+    has_cv: Boolean(c.resume_path),
     source: c.source,
     vacancy_ref: v.ref_no,
     job_title: v.title,

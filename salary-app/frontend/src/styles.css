@@ -3163,3 +3163,13 @@ button.side-version .pip {
 /* Help sits with the tabs, so it looks like one. */
 .side-nav .side-help { opacity: 0.85; }
 .side-nav .side-help:hover { opacity: 1; }
+
+/* A list whose rows open something says so. */
+table.rows-open tbody tr { cursor: pointer; }
+table.rows-open tbody tr:hover { background: var(--brand-soft); }
+table.rows-open .opens { color: var(--brand); font-weight: 600; }
+table.rows-open tbody tr:hover .opens { text-decoration: underline; text-underline-offset: 2px; }
+/* Long skill lists wrap rather than stretching the table off the screen. */
+.skills-cell { max-width: 16rem; white-space: normal; line-height: 1.4; }
+/* A reference is one word, however narrow the column gets. */
+table.rows-open td.num.small.muted { white-space: nowrap; }

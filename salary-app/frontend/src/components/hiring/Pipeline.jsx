@@ -114,7 +114,7 @@ export default function Pipeline({ applications, vacancies, onMove, onOpen, onEx
                         <div className="meta">
                           <span className={`age ${age.tone}`}>{age.label}</span>
                           {a.test_score != null ? <span>test {a.test_score}%</span> : null}
-                          {!a.resume_path ? <span style={{ color: 'var(--warn)' }}>no CV</span> : null}
+                          {!a.has_cv ? <span style={{ color: 'var(--warn)' }}>no CV</span> : null}
                         </div>
                       </div>
                     );

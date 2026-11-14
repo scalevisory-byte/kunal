@@ -897,8 +897,18 @@ Three decisions he made before any of it was built, which still hold:
   which keeps running alongside. (The CRM holds the lead/requirement/fee side and **84
   candidates**; this is the employment side.)
 - **"Node + SQLite, salary-app jaisa"** — which it now literally is.
-- **"Mera test system embed karo"** — his own test system in an iframe. **URL still to be
-  supplied** (`TEST_EMBED_URL`); blank means the test step is not offered.
+- **"Mera test system embed karo"** — his own test system in an iframe. **The URL WAS supplied
+  and is built against**, contrary to an earlier note here: his test is on the ZYNTA site at
+  `/skills-test`, reached as `https://test.zyntajobs.in/?embed=1` (the `embed=1` is what puts it
+  in iframe mode, not decoration), and `https://crm.zyntajobs.in/test?t=office-admin` names
+  WHICH test. Tests assert that appending the candidate's `ref`, `callback_token` and
+  `seconds_per_question` never loses `embed=1` or `t=` — drop `t` and every candidate sits the
+  default test, scores come back, and nothing says they answered the wrong questions.
+  **What is actually missing is that no vacancy on the live server has a test link typed into
+  it yet.** The office types it per opening (Hiring → Vacancies → Test link), because an
+  accounts seat is not tested like a travel seat; `TEST_EMBED_URL` remains the app-wide
+  fallback. Still unknown: whether his system can POST the score back to
+  `/api/public/test-result/<callback_token>`.
 
 ### What changed when it became an HRMS module
 - A vacancy belongs to a **`company_id`** that already exists here, and is refused without one.
@@ -1309,6 +1319,39 @@ mil jaye"*. `shared/version.js`, `shared/help.js`, `frontend/src/components/Help
 - **And a process note:** the first browser run showed the OLD help, because `shared/` was edited
   after the last `npm run build`. The stale build reproduced the exact bug the test had just
   caught — "Open it" landed on no tab at all. Rebuild before driving.
+
+## The candidate list — a row that opens, and a CV that does not leak
+
+Dinesh: *"click karne se candidate ki proper details with attached resume aana chahiye / list ka
+view bhi proper banavo"*. **The detail panel already had everything** — CV behind an expiring
+signed link, every field editable on blur, applications, test scores. What was wrong was both
+ends of getting to it.
+
+- **The whole row opens the candidate now.** The name was a bare `<button>`, which renders as
+  plain bold text, so the one way into everything about somebody did not look like a way in.
+  **Fifth time for that exact shape** (hiring's "add vacancy", People, assets, the asset
+  invoice, this). Pointer cursor, hover, and the name in the brand colour — measured.
+- **The CV column was the word "yes".** It is a `download` button now. Clicking it does not also
+  open the row (`stopPropagation`).
+- **`resume_path` stopped travelling.** `listCandidates` was `SELECT c.*`, so the browser got the
+  server's own filename for every CV on the list; the applications join carried it too. Now
+  `forOffice()` strips it at every candidate response and the lists send **`has_cv`** instead —
+  the same rule employee documents already follow. Two tests assert it is nowhere in either
+  payload, and the two older tests that reached through the API for the path were rewritten to
+  check the disk, which is where that fact actually lives.
+- **The list says something now:** contact (phone + email), experience, place (and where they
+  will work if different), expected salary, skills, **where they are** (latest stage, or "on the
+  list only"), CV and when they were added.
+- **Three attempts at the download, and the first two are worth remembering.** (1) `window.open`
+  after an `await` is no longer inside the click, so the browser treats it as a pop-up and
+  blocks it **silently** — the button looked dead and said nothing. (2) Opening the tab inside
+  the click fixed that, and then it sat on `about:blank`, because the route returns a
+  **relative** URL and a relative URL cannot resolve against `about:blank`. (3) `/files/resume/
+  :id` is served with `res.download` anyway, so there is nothing to show in a tab — an anchor
+  with `download` and an absolute href, no tab at all. Each step was found by driving it.
+- A test asserting the old wording failed the moment the label changed, and **matched its own
+  explanatory comment** when first written — the same trap as `readable()`. Comments are
+  stripped before the negative assertion.
 
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday

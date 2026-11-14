@@ -19,7 +19,7 @@ const BLANK = {
 };
 
 /** Everybody who has ever applied for anything, kept for the next opening. */
-export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onExport }) {
+export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport }) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(BLANK);
   const [error, setError] = useState('');
@@ -99,35 +99,82 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
       ) : null}
 
       <div className="card scroll">
-        <table className="sheet hiring-table">
+        {/*
+          * The WHOLE ROW opens the candidate, not just the name.
+          *
+          * The name was a bare <button>, which rendered as plain bold text -
+          * so the one way into everything about somebody did not look like a
+          * way in, and Dinesh reported the detail view as missing when it had
+          * been there all along. Fifth time for that shape of bug in this app.
+          */}
+        <table className="sheet hiring-table rows-open">
           <thead>
             <tr>
               <th>Ref</th>
               <th>Name</th>
-              <th>Mobile</th>
+              <th>Contact</th>
               <th>Experience</th>
               <th>Place</th>
+              <th>Expected</th>
               <th>Skills</th>
-              <th className="num">Applied</th>
+              <th>Where they are</th>
               <th>CV</th>
+              <th>Added</th>
             </tr>
           </thead>
           <tbody>
             {candidates.map((c) => (
-              <tr key={c.id}>
+              <tr key={c.id} onClick={() => onOpen(c.id)} title="Open their record">
                 <td className="num small muted">{c.ref_no}</td>
                 <td className="name-cell">
-                  <button onClick={() => onOpen(c.id)}>{c.name}</button>
+                  <span className="opens">{c.name}</span>
                   <div className="muted small">{c.role || c.industry || ''}</div>
                 </td>
-                <td className="num small">{c.phone}</td>
-                <td className="small">{c.experience || '—'}</td>
-                <td className="small">{c.location || '—'}</td>
-                <td className="small" style={{ maxWidth: '14rem' }}>
-                  {c.skills || '—'}
+                <td className="small">
+                  {c.phone}
+                  {c.email ? <div className="muted small">{c.email}</div> : null}
                 </td>
-                <td className="num">{c.applications ?? 0}</td>
-                <td className="small">{c.resume_path ? 'yes' : <span className="muted">—</span>}</td>
+                <td className="small">{c.experience || <span className="muted">—</span>}</td>
+                <td className="small">
+                  {c.location || <span className="muted">—</span>}
+                  {c.preferred_location && c.preferred_location !== c.location ? (
+                    <div className="muted small">will work in {c.preferred_location}</div>
+                  ) : null}
+                </td>
+                <td className="small">{c.expected_salary || <span className="muted">—</span>}</td>
+                <td className="small skills-cell">{c.skills || <span className="muted">—</span>}</td>
+                <td className="small">
+                  {c.applications ? (
+                    <>
+                      {c.latest_stage || 'applied'}
+                      {c.applications > 1 ? (
+                        <div className="muted small">{c.applications} applications</div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="muted">on the list only</span>
+                  )}
+                </td>
+                {/*
+                  * A way to OPEN it, not the word "yes". Clicking it must not
+                  * also open the row behind it.
+                  */}
+                <td className="small">
+                  {c.has_cv ? (
+                    <button
+                      className="link"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenCv(c.id);
+                      }}
+                    >
+                      download
+                    </button>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+                <td className="small muted">{String(c.created_at || '').slice(0, 10)}</td>
               </tr>
             ))}
           </tbody>

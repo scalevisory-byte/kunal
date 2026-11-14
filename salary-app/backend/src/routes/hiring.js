@@ -12,6 +12,7 @@ import {
   deleteTask,
   deleteVacancy,
   getApplication,
+  forOffice,
   getCandidate,
   getVacancy,
   hireApplication,
@@ -206,7 +207,7 @@ hiringRouter.get('/candidates', (req, res) =>
 
 hiringRouter.post('/candidates', (req, res) => {
   try {
-    res.status(201).json(createCandidate(req.body || {}));
+    res.status(201).json(forOffice(createCandidate(req.body || {})));
   } catch (err) {
     const already = /UNIQUE/i.test(err.message);
     res.status(already ? 409 : 400).json({
@@ -220,7 +221,9 @@ hiringRouter.get('/candidates/:id', (req, res) => {
   if (!candidate) return res.status(404).json({ error: 'not found' });
   const { rows } = listApplications({ candidate_id: candidate.id });
   res.json({
-    candidate,
+    // The link is built HERE, from the path, and the path does not travel -
+    // the browser gets a signed URL that expires, never a filename on disk.
+    candidate: forOffice(candidate),
     applications: rows,
     tests: listTests(candidate.id),
     resume: resumeLink(candidate),
@@ -230,7 +233,7 @@ hiringRouter.get('/candidates/:id', (req, res) => {
 hiringRouter.patch('/candidates/:id', (req, res) => {
   const candidate = updateCandidate(Number(req.params.id), req.body || {});
   if (!candidate) return res.status(404).json({ error: 'not found' });
-  res.json(candidate);
+  res.json(forOffice(candidate));
 });
 
 hiringRouter.delete('/candidates/:id', (req, res) => {
@@ -267,7 +270,7 @@ hiringRouter.post('/candidates/:id/resume', uploadResumeSafely, (req, res) => {
   if (previous && previous !== req.file.filename) {
     deleteResumeFile({ ...candidate, resume_path: previous });
   }
-  res.status(201).json({ candidate: updated, resume: resumeLink(updated) });
+  res.status(201).json({ candidate: forOffice(updated), resume: resumeLink(updated) });
 });
 
 /* ---------------- the pipeline ---------------- */

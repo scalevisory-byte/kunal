@@ -1295,3 +1295,46 @@ test('the decision on a request cannot be the one thing off the edge', () => {
   assert.match(queue, /className="right decide"/);
   assert.match(queue, /<th className="decide" \/>/);
 });
+
+test('the candidate list opens from the whole row, and the CV opens from the list', () => {
+  const list = src('components/hiring/Candidates.jsx');
+
+  /*
+   * The name was a bare <button>, which renders as plain bold text - so the
+   * one way into everything about a candidate did not look like a way in, and
+   * it was reported as missing when it had been there all along. Fifth time
+   * for that shape of bug (hiring's "add vacancy", People, assets, the asset
+   * invoice, this).
+   */
+  assert.match(list, /<tr key=\{c\.id\} onClick=\{\(\) => onOpen\(c\.id\)\}/);
+  assert.match(list, /className="rows-open"|hiring-table rows-open/);
+  assert.match(css, /table\.rows-open tbody tr \{[^}]*cursor: pointer/);
+  assert.match(css, /table\.rows-open tbody tr:hover/);
+  assert.ok(!/<button onClick=\{\(\) => onOpen\(c\.id\)\}>\{c\.name\}<\/button>/.test(list));
+
+  // The CV column is a way to GET it, not the word "yes".
+  assert.match(list, /onOpenCv\(c\.id\)/);
+  assert.match(list, /download/);
+  // ...and clicking it must not also open the row behind it.
+  assert.match(list, /e\.stopPropagation\(\);\s*\n\s*onOpenCv/);
+
+  /*
+   * No new tab, and the href is absolute. Two attempts failed first and both
+   * are worth keeping out: a `window.open` after an `await` is outside the
+   * click and the browser blocks it silently, and a tab left on about:blank
+   * cannot resolve the relative URL the route returns. `/files/resume/:id`
+   * is served with res.download anyway, so a tab would only sit there empty.
+   */
+  // Comments stripped first: this file EXPLAINS why window.open is wrong, and
+  // a test that matched its own explanation caught itself once already.
+  const hiring = src('components/hiring/Hiring.jsx')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/window\.open/.test(hiring), 'a tab is opened for a file that downloads');
+  assert.match(hiring, /new URL\(link\.url, window\.location\.origin\)/);
+  assert.match(hiring, /a\.download = link\.filename/);
+
+  // It asks whether there is one; it is never told where it is.
+  assert.match(list, /c\.has_cv/);
+  assert.ok(!/c\.resume_path/.test(list), 'the list still reads the server filename');
+});

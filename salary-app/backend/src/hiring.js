@@ -421,6 +421,21 @@ export const getCandidate = (id) => db.prepare(`SELECT * FROM candidates WHERE i
 export const getCandidateByPhone = (phone) =>
   db.prepare(`SELECT * FROM candidates WHERE phone = ?`).get(normalisePhone(phone));
 
+/**
+ * A candidate row as the office may see it.
+ *
+ * `resume_path` is the name the file sits under on the server's disk. It is
+ * not a secret worth much, but it is not the browser's business either, and
+ * `has_cv` is the only thing any screen actually asks. Everything that sends
+ * a candidate anywhere goes through here, so one route cannot start leaking
+ * it again.
+ */
+export function forOffice(row) {
+  if (!row) return row;
+  const { resume_path, ...rest } = row;
+  return { ...rest, has_cv: Boolean(resume_path) };
+}
+
 export function listCandidates({ q, limit = 500, offset = 0 } = {}) {
   const params = { limit, offset };
   let where = '';
@@ -429,12 +444,29 @@ export function listCandidates({ q, limit = 500, offset = 0 } = {}) {
              OR c.location LIKE @q OR c.role LIKE @q)`;
     params.q = `%${q}%`;
   }
+  /*
+   * `has_cv`, never `resume_path`.
+   *
+   * The list used to be `SELECT c.*`, which handed the browser the server's
+   * own filename for every CV on the list. A screen that only has to say
+   * whether there IS one has no business being told where it lives - the same
+   * rule employee documents already follow, where the API strips `file_path`
+   * from every response. The file itself is still only reachable through a
+   * signed link bound to that candidate.
+   *
+   * `latest_stage` comes along because "where are they" is the question
+   * somebody scanning this list is actually asking.
+   */
   const rows = db
     .prepare(
-      `SELECT c.*, (SELECT COUNT(*) FROM applications a WHERE a.candidate_id = c.id) AS applications
+      `SELECT c.*,
+              (SELECT COUNT(*) FROM applications a WHERE a.candidate_id = c.id) AS applications,
+              (SELECT a.stage FROM applications a WHERE a.candidate_id = c.id
+                ORDER BY a.id DESC LIMIT 1) AS latest_stage
        FROM candidates c ${where} ORDER BY c.id DESC LIMIT @limit OFFSET @offset`
     )
-    .all(params);
+    .all(params)
+    .map(forOffice);
   const total = db.prepare(`SELECT COUNT(*) AS n FROM candidates c ${where}`).get(params).n;
   return { rows, total };
 }
@@ -490,7 +522,7 @@ const APPLICATION_COLUMNS = `
   c.ref_no AS candidate_ref, c.name AS candidate_name, c.phone, c.email,
   c.location, c.preferred_location, c.education, c.experience, c.skills,
   c.expected_salary, c.current_salary, c.current_company, c.notice_period,
-  c.role, c.resume_path, c.resume_name, c.source,
+  c.role, (c.resume_path IS NOT NULL) AS has_cv, c.resume_name, c.source,
   v.ref_no AS vacancy_ref, v.title AS job_title, v.department,
   v.location AS job_location, v.status AS vacancy_status,
   v.company_id, co.name AS company_name

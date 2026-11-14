@@ -225,6 +225,32 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onQuery={setCandidateQuery}
           onCreate={createCandidate}
           onOpen={setOpenCandidate}
+          /*
+           * The CV link is signed and expires, so it is fetched when somebody
+           * asks for it rather than handed out with the list - eighty rows
+           * would be eighty links, all stale by the time anybody clicked one.
+           *
+           * NO NEW TAB. `/files/resume/:id` is served with `res.download`, so
+           * the browser saves the file rather than displaying it - a tab
+           * opened for it just sits there empty afterwards. Two earlier
+           * attempts failed in ways worth remembering: `window.open` after an
+           * `await` is outside the click and is blocked silently, and a tab
+           * on about:blank cannot resolve the relative URL the route returns.
+           * An anchor click downloads without either problem.
+           */
+          onOpenCv={async (id) => {
+            try {
+              const link = await api.get(`/hiring/candidates/${id}/resume-link`);
+              const a = document.createElement('a');
+              a.href = new URL(link.url, window.location.origin).toString();
+              a.download = link.filename || 'cv';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (err) {
+              onError(err);
+            }
+          }}
           onExport={() => exportCsv('candidates')}
         />
       ) : null}

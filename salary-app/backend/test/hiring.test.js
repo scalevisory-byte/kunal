@@ -194,9 +194,22 @@ test('a CV goes on disk and comes back through a signed link', async () => {
   assert.equal((await fetch(`${base}/api/public/resume/${uploadToken}`, { method: 'POST', body: form })).status, 201);
 
   const { candidate, resume } = (await api('GET', `/api/hiring/candidates/${candidateId}`)).body;
-  assert.ok(!candidate.resume_path.includes(' '));
+
+  /*
+   * The API says there IS one; it does not say where it lives. `resume_path`
+   * is the server's own filename and no screen asks for it, so it stops at
+   * the route - the same rule employee documents already follow. This test
+   * used to reach through the API for it, which is how it noticed.
+   */
+  assert.equal(candidate.has_cv, true);
+  assert.equal(candidate.resume_path, undefined, 'the server filename reached the browser');
   assert.equal(candidate.resume_name, 'Rohit CV.pdf');
-  assert.ok(fs.existsSync(path.join(config.resumeDir, candidate.resume_path)));
+
+  // The file is really on disk, checked from disk - the uploaded name is
+  // discarded, so nothing on it carries the space in "Rohit CV.pdf".
+  const onDisk = fs.readdirSync(config.resumeDir);
+  assert.equal(onDisk.length, 1);
+  assert.ok(!onDisk[0].includes(' '));
 
   const download = await fetch(`${base}${resume.url}`);
   assert.equal(download.status, 200);
@@ -400,11 +413,15 @@ test('the candidate export says whether there is a CV, never what is in it', asy
 });
 
 test('deleting a candidate takes their CV off the disk with them', async () => {
+  // Checked from DISK, because the API deliberately no longer says where the
+  // file is - only that there is one.
   const { candidate } = (await api('GET', `/api/hiring/candidates/${candidateId}`)).body;
-  const file = path.join(config.resumeDir, candidate.resume_path);
-  assert.ok(fs.existsSync(file));
+  assert.equal(candidate.has_cv, true);
+  const before = fs.readdirSync(config.resumeDir);
+  assert.equal(before.length, 1);
+
   assert.equal((await api('DELETE', `/api/hiring/candidates/${candidateId}`)).status, 204);
-  assert.ok(!fs.existsSync(file), 'the CV was left behind on disk');
+  assert.deepEqual(fs.readdirSync(config.resumeDir), [], 'the CV was left behind on disk');
 });
 
 /* ---------------- last, because it trips the limiter ---------------- */
@@ -593,4 +610,36 @@ test('a deleted opening never hands its reference number to the next one', async
   })).body;
   assert.notEqual(open3.ref_no, open2.ref_no, `${open2.ref_no} is on an advert already`);
   assert.equal(n(open3.ref_no), n(open2.ref_no) + 1);
+});
+
+test('the candidate list opens, and never says where a CV lives', async () => {
+  const { rows } = (await api('GET', '/api/hiring/candidates')).body;
+  assert.ok(rows.length, 'no candidates to check');
+
+  for (const row of rows) {
+    /*
+     * The list used to be `SELECT c.*`, which handed the browser the server's
+     * own filename for every CV on it. A screen that only has to say whether
+     * there IS one has no business being told where it lives - the same rule
+     * employee documents already follow.
+     */
+    assert.equal(row.resume_path, undefined, `${row.name}: the server filename is in the list`);
+    assert.equal(typeof row.has_cv, 'boolean', `${row.name}: has_cv is not a boolean`);
+
+    // ...and the two figures the list is scanned for.
+    assert.equal(typeof row.applications, 'number');
+    assert.ok('latest_stage' in row, 'the list cannot say where anybody is');
+  }
+
+  // Nothing anywhere in the payload carries the resumes directory either.
+  const whole = JSON.stringify(rows);
+  assert.ok(!whole.includes('resume_path'), 'resume_path is somewhere in the list');
+});
+
+test('an application says whether there is a CV, not where it is', async () => {
+  const { rows } = (await api('GET', '/api/hiring/applications')).body;
+  for (const row of rows) {
+    assert.equal(row.resume_path, undefined, 'an application carries the server filename');
+    assert.ok(row.has_cv === 0 || row.has_cv === 1 || typeof row.has_cv === 'boolean');
+  }
 });
