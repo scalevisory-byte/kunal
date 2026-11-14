@@ -2621,3 +2621,397 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
 /* A caption that is telling you something costs money. Not a banner - it sits
    inline beside the control it is about, which is where it gets read. */
 .warn-text { color: var(--warn); }
+
+/* ---------- the sign-in screen ---------- */
+
+/*
+ * Its own class names, NOT `.login`. That one is shared with the forced
+ * change-password screen (ChangePassword.jsx renders `login` + `login-card`),
+ * so restyling it into a split screen would have quietly rebuilt a screen
+ * nobody was looking at - and that one stands between a reset password and
+ * the app.
+ *
+ * The brand colours live here and only here. They are not added to `:root`,
+ * because the rest of the app is deliberately quiet and one accent, and a
+ * navy/gold pair loose in the theme would start turning up in tables.
+ */
+.signin {
+  --signin-navy: #082B57;
+  --signin-navy-2: #123F73;
+  --signin-gold: #E5AA32;
+  --signin-bg: #eef2f7;
+  --signin-card: #ffffff;
+  --signin-card-line: #e2e8f0;
+  --signin-text: #0f1b2d;
+  --signin-muted: #5c6b7f;
+  --signin-field: #ffffff;
+  --signin-field-line: #cfd8e3;
+
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 57fr 43fr;
+  color: var(--signin-text);
+}
+.signin-waiting { display: grid; place-items: center; background: var(--signin-bg); }
+
+/* ---- the brand half ---- */
+
+.signin-brand {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  background: var(--signin-navy);
+  color: #ffffff;
+}
+.signin-sky { position: absolute; inset: 0; width: 100%; height: 100%; }
+.signin-brand-body {
+  position: relative;
+  z-index: 1;
+  margin: auto;
+  width: 100%;
+  max-width: 34rem;
+  padding: 3rem clamp(1.8rem, 5vw, 4.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 2.2rem;
+}
+
+.signin-mark { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+/* White whatever is behind it: the wordmark is dark navy and would vanish. */
+.signin-plate {
+  display: block;
+  background: #ffffff;
+  border-radius: 9px;
+  padding: 0.45rem 0.65rem;
+  line-height: 0;
+}
+.signin-plate img { display: block; width: 8.5rem; height: auto; }
+.signin-tagline {
+  font-size: 0.8rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--signin-gold);
+  font-weight: 600;
+}
+
+.signin-pitch h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+.signin-kicker {
+  margin: 0.7rem 0 0;
+  font-size: 0.84rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--signin-gold);
+}
+.signin-promise {
+  margin: 1rem 0 0;
+  max-width: 28rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.signin-features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem 1.4rem;
+}
+.signin-features li { display: flex; gap: 0.7rem; align-items: flex-start; min-width: 0; }
+.signin-feature-icon {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(229, 170, 50, 0.14);
+  border: 1px solid rgba(229, 170, 50, 0.3);
+  color: var(--signin-gold);
+}
+.signin-feature-icon svg { width: 1.05rem; height: 1.05rem; }
+.signin-feature-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.signin-feature-text strong { font-size: 0.88rem; font-weight: 600; }
+.signin-feature-text span { font-size: 0.76rem; line-height: 1.45; color: rgba(255, 255, 255, 0.62); }
+
+/* ---- the card half ---- */
+
+.signin-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem clamp(1rem, 3vw, 2.5rem);
+  background: var(--signin-bg);
+}
+.signin-panel-inner {
+  width: min(25rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* Only on a phone, where the panel beside it is gone. */
+.signin-compact { display: none; align-items: center; gap: 0.75rem; }
+.signin-compact .signin-plate { padding: 0.35rem 0.5rem; border: 1px solid var(--signin-card-line); }
+.signin-compact .signin-plate img { width: 6rem; }
+.signin-compact-text { display: flex; flex-direction: column; min-width: 0; }
+.signin-compact-text strong { font-size: 0.9rem; letter-spacing: 0.01em; color: var(--signin-navy); }
+.signin-compact-text span {
+  font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--signin-muted);
+}
+
+.signin-card {
+  background: var(--signin-card);
+  border: 1px solid var(--signin-card-line);
+  border-radius: 16px;
+  padding: 2rem 1.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  box-shadow: 0 1px 2px rgba(8, 43, 87, 0.05), 0 18px 40px -22px rgba(8, 43, 87, 0.35);
+}
+.signin-badge {
+  width: 2.9rem;
+  height: 2.9rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--signin-navy);
+  color: #ffffff;
+  margin-bottom: 0.2rem;
+}
+.signin-badge svg { width: 1.45rem; height: 1.45rem; }
+.signin-card h1 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: var(--signin-navy);
+}
+.signin-sub { margin: -0.45rem 0 0.35rem; font-size: 0.86rem; color: var(--signin-muted); }
+.signin-note {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--signin-muted);
+  background: #f5f8fc;
+  border: 1px solid var(--signin-card-line);
+  border-radius: 9px;
+  padding: 0.6rem 0.7rem;
+}
+.signin-note code { font-size: 0.74rem; }
+
+.signin-field { display: flex; flex-direction: column; gap: 0.32rem; min-width: 0; }
+.signin-field > span { font-size: 0.78rem; font-weight: 600; color: var(--signin-text); }
+.signin-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.92rem;
+  background: var(--signin-field);
+  border: 1px solid var(--signin-field-line);
+  border-radius: 9px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.signin-field input:focus {
+  outline: none;
+  border-color: var(--signin-navy-2);
+  box-shadow: 0 0 0 3px rgba(18, 63, 115, 0.14);
+}
+
+.signin-password { position: relative; display: block; }
+.signin-password input { padding-right: 2.8rem; }
+.signin-peek {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 7px;
+  color: var(--signin-muted);
+}
+.signin-peek svg { width: 1.05rem; height: 1.05rem; }
+.signin-peek:hover { color: var(--signin-navy); background: #eef2f7; }
+.signin-peek:focus-visible { outline: 2px solid var(--signin-navy-2); outline-offset: 1px; }
+
+.signin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+.signin-remember { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; min-width: 0; }
+/*
+ * The global `input, select` rule gives every input a border, a background and
+ * padding, which on a checkbox replaces the native tick with an empty box - a
+ * checkbox has been lost to exactly that once already. These four lines hand
+ * it back to the browser.
+ */
+.signin-remember input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  accent-color: var(--signin-navy);
+  cursor: pointer;
+}
+.signin-remember > span { font-size: 0.84rem; }
+/* The explanation sits on its own full-width line. Inside the label it made
+   the row tall enough to wrap, which pushed "Forgot password?" underneath. */
+.signin-aside { margin: -0.45rem 0 0; font-size: 0.72rem; line-height: 1.5; color: var(--signin-muted); }
+
+.signin-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--signin-navy-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+.signin-link:hover { color: var(--signin-navy); }
+
+.signin-help {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--signin-text);
+  background: #fdf6e8;
+  border: 1px solid rgba(229, 170, 50, 0.45);
+  border-radius: 9px;
+  padding: 0.6rem 0.7rem;
+}
+
+.signin-error {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #8f2a1c;
+  background: #fdeeec;
+  border: 1px solid #f3c9c2;
+  border-radius: 9px;
+  padding: 0.55rem 0.7rem;
+}
+.signin-error svg { flex: 0 0 auto; width: 1rem; height: 1rem; margin-top: 0.08rem; }
+
+.signin-submit {
+  margin-top: 0.35rem;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.72rem 1rem;
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  background: var(--signin-navy);
+  border: 1px solid var(--signin-navy);
+  border-radius: 10px;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+.signin-submit:hover:not(:disabled) {
+  background: var(--signin-navy-2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -8px rgba(8, 43, 87, 0.65);
+}
+.signin-submit:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+.signin-submit:focus-visible { outline: 2px solid var(--signin-gold); outline-offset: 2px; }
+.signin-submit:disabled { opacity: 0.72; cursor: default; }
+
+.signin-spinner {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: signin-spin 0.7s linear infinite;
+}
+@keyframes signin-spin { to { transform: rotate(360deg); } }
+
+.signin-switch { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.1rem; }
+.signin-open { font-size: 0.76rem; line-height: 1.5; color: #8a5a00; }
+
+.signin-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  color: var(--signin-muted);
+}
+
+/* ---- tablet: still two columns, but the brand half gives up its detail ---- */
+
+@media (max-width: 1100px) {
+  .signin { grid-template-columns: 1fr 1fr; }
+  .signin-brand-body { padding: 2.4rem 2rem; gap: 1.8rem; }
+  .signin-features { grid-template-columns: minmax(0, 1fr); gap: 0.85rem; }
+  .signin-feature-text span { display: none; }
+}
+
+/* ---- phone: one column, compact branding, no big graphics ---- */
+
+@media (max-width: 820px) {
+  .signin { grid-template-columns: minmax(0, 1fr); min-height: 100dvh; }
+  .signin-brand { display: none; }
+  .signin-compact { display: flex; }
+  .signin-panel { padding: 1.5rem 1rem 1.25rem; align-items: flex-start; }
+  .signin-panel-inner { width: 100%; }
+  .signin-card { padding: 1.5rem 1.15rem; border-radius: 14px; }
+  .signin-foot { flex-direction: column; align-items: center; gap: 0.25rem; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signin-submit, .signin-field input { transition: none; }
+  .signin-submit:hover:not(:disabled) { transform: none; }
+  .signin-spinner { animation-duration: 2s; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .signin {
+    --signin-bg: #071320;
+    --signin-card: #0e1d2f;
+    --signin-card-line: #22364e;
+    --signin-text: #e6ecf4;
+    --signin-muted: #93a6bd;
+    --signin-field: #0a1727;
+    --signin-field-line: #2a3e57;
+  }
+  .signin-card h1 { color: #dce6f5; }
+  .signin-note { background: #0a1727; }
+  .signin-help { background: #241d0d; border-color: rgba(229, 170, 50, 0.4); color: #f0dcb4; }
+  .signin-error { background: #2a1512; border-color: #5e2a22; color: #f3b5aa; }
+  .signin-peek:hover { background: #18293d; color: #cdd7e4; }
+  .signin-link { color: #8fb4e8; }
+  .signin-link:hover { color: #b8d1f5; }
+  .signin-submit { background: var(--signin-navy-2); border-color: var(--signin-navy-2); }
+  .signin-submit:hover:not(:disabled) { background: #1b5496; }
+  .signin-open { color: #d9a93c; }
+  .signin-compact-text strong { color: #dce6f5; }
+}

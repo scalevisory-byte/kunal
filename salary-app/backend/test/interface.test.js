@@ -1133,3 +1133,85 @@ test('a tick in a form grid is a tick, not a 357-pixel box', () => {
   assert.match(css, /\.form-grid label\.inline > input\[type='checkbox'\][^}]*width: auto/);
   assert.match(css, /\.form-grid label\.inline \{[^}]*flex-direction: row/);
 });
+
+/*
+ * The sign-in screen. It was redesigned into a brand panel and a card, which
+ * is the kind of change that can quietly take a way in with it.
+ */
+
+test('the sign-in screen talks to the same three auth routes and no others', () => {
+  const login = src('components/Login.jsx');
+
+  // The three the server exposes without a session, and nothing else. A
+  // redesign that invented `/api/auth/forgot` or `/api/auth/remember` would
+  // be shipping a door the backend does not have.
+  const called = [...login.matchAll(/['"`](\/api\/[a-z0-9/_-]+)['"`]/gi)].map((m) => m[1]);
+  assert.deepEqual([...new Set(called)].sort(), ['/api/auth/login', '/api/auth/setup', '/api/auth/state']);
+
+  // All three ways in survive. The dashboard-password one is how an
+  // installation with APP_PASSWORD and no logins yet is reached at all.
+  for (const mode of ["'setup'", "'signin'", "'key'"]) assert.ok(login.includes(mode), `mode ${mode} is gone`);
+  assert.match(login, /authorization: `Bearer \$\{form\.password\}`/);
+
+  // One answer for a bad name and a bad password is a property of the server.
+  // The screen may tidy the wording - it must not read the answer and decide
+  // which of the two it was. So: one place the server's refusal is raised,
+  // and one place it is shown, straight through `readable`.
+  assert.equal([...login.matchAll(/body\?\.error/g)].length, 1);
+  assert.match(login, /<span>\{readable\(problem\)\}<\/span>/);
+  assert.equal([...login.matchAll(/\{readable\(/g)].length, 1);
+});
+
+test('remember me stores the username, never a password', () => {
+  const login = src('components/Login.jsx');
+
+  // Exactly one thing is written, and it is the username. `form.password`
+  // must never reach a storage call - a login screen that keeps the password
+  // in localStorage is the whole point of the box being a lie.
+  assert.match(login, /localStorage\.setItem\(REMEMBER_KEY, username\)/);
+  const writes = [...login.matchAll(/localStorage\.setItem\(([^)]*)\)/g)].map((m) => m[1]);
+  assert.equal(writes.length, 1);
+  for (const w of writes) assert.ok(!/password/i.test(w), `a password is being stored: ${w}`);
+
+  // Reading and writing it are both wrapped: a private window throws on even
+  // touching localStorage, and a convenience must not take the screen down.
+  assert.match(login, /try \{\s*return localStorage\.getItem\(REMEMBER_KEY\)/);
+});
+
+test('forgot password says what really happens instead of inventing a flow', () => {
+  const login = src('components/Login.jsx');
+
+  // There is no self-service reset in this app. The link has to say so and
+  // point at the admin, not open an email box that goes nowhere.
+  assert.match(login, /Forgot password\?/);
+  assert.match(login, /no self-service reset/i);
+  assert.match(login, /Admin . Logins/);
+  assert.ok(!/type="email"|sendReset|resetLink/i.test(login));
+});
+
+test('the sign-in screen leaves .login alone, because ChangePassword uses it', () => {
+  const login = src('components/Login.jsx');
+  const change = src('components/ChangePassword.jsx');
+
+  // ChangePassword stands between a reset password and the app, and renders
+  // `login` + `login-card`. Restyling those into a split screen would have
+  // rebuilt a screen nobody was looking at.
+  assert.match(change, /className="card login-card"/);
+  assert.ok(!/className="login-card"|className="card login-card"/.test(login));
+  assert.match(login, /className="signin-card"/);
+
+  // And the old rules are still there for it to land on.
+  assert.match(css, /^\.login \{/m);
+  assert.match(css, /^\.login-card \{/m);
+});
+
+test('the remember tick is handed back to the browser', () => {
+  // `input, select` gives every input a border, a background and padding,
+  // which on a checkbox replaces the native tick with an empty box. A
+  // checkbox has been lost to exactly that once already; measured at 15px.
+  const rule = css.match(/\.signin-remember input\[type='checkbox'\] \{[^}]*\}/);
+  assert.ok(rule, 'the checkbox has no rule of its own');
+  for (const undo of [/border: 0/, /background: none/, /padding: 0/, /width: 0\.95rem/]) {
+    assert.match(rule[0], undo);
+  }
+});

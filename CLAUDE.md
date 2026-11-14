@@ -1040,6 +1040,60 @@ server he / tsrv jo me kam kar rahahu o he"*. All of `deploy/` has been renamed.
 - `GO-LIVE.ps1` deliberately does **not** remove `APP_PASSWORD`: that shared key is the only
   way in until a real admin login is proved to work from the new address.
 
+## The sign-in screen — `Login.jsx`, premium split screen
+
+Dinesh sent a full brief: navy/gold aviation theme, split screen, Fly Beyond, four feature
+highlights, show/hide password, Remember Me, Forgot Password, footer, responsive — and
+**"CRITICAL: this is only a UI/UX redesign"**, do not touch auth, validation, roles, session
+handling or endpoints. Inspected first; the three auth fetches are byte-for-byte the three
+that were always there, and the backend suite went 915 → **920 passing** with nothing changed
+under `backend/src`.
+
+- **Its own class names (`.signin-*`), NOT `.login`.** `ChangePassword.jsx` renders
+  `login` + `login-card`, and that screen stands between a reset password and the app.
+  Restyling `.login` into a split screen would have silently rebuilt a screen nobody was
+  looking at. There is a test pinning that the two stay apart.
+- **All three modes survive** — first-admin `setup`, `signin`, and the `key` mode that signs
+  in with `APP_PASSWORD` as a Bearer token. A test asserts the screen calls exactly
+  `/api/auth/state`, `/setup`, `/login` and nothing else, so a future redesign cannot invent
+  `/api/auth/forgot` against a backend that has no such door.
+- **Remember Me remembers the USERNAME, not the session.** The session is one 14-day signed
+  HttpOnly cookie, the same whether a box is ticked or not; there is no short session to
+  extend. A tick claiming otherwise would be decoration over a thing that already happens. So
+  it fills the username in next time and the line under it says exactly that, plus "your
+  password is never stored". A test asserts there is exactly ONE `localStorage.setItem` in
+  the file and that `form.password` is nowhere near it; the browser run checks nothing
+  matching the password reached storage. Reads and writes are wrapped in try/catch — a
+  private window throws on even touching localStorage, and a convenience must not take the
+  sign-in screen down.
+- **Forgot Password tells the truth.** There is no self-service reset in this app: an admin
+  resets in Admin → Logins and `must_change` forces a change on first use. The link opens
+  that sentence rather than an email box that goes nowhere. A test asserts no `type="email"`
+  and no invented reset call.
+- **Empty fields are named here, not sent to the server.** The server answers a wrong name
+  and a wrong password with one deliberately vague sentence; that is right for a wrong
+  password and useless for an empty box. `readable()` only capitalises and full-stops what
+  the server said — one message stays one message, and a test pins that it is raised in one
+  place and rendered in one place.
+- **Drawn, not photographed.** The aviation background is inline SVG — a gradient, a gold
+  curve and an aircraft. A background image off the internet would be a request this app
+  makes to somewhere else every time the login screen opens, on a server behind a tunnel.
+  No new dependency, nothing external, same as every other graphic here.
+- **Measured in a real browser at three widths**, which is how three things were caught: the
+  aeroplane sat on top of "FLY BEYOND", the gold curve ran through the feature wording, and
+  the Remember Me row wrapped so "Forgot password?" fell onto its own line. Also dark mode,
+  which came out near-black beside a navy panel and is now the same family.
+- **The checkbox trap, again.** The global `input, select` rule gives every input a border, a
+  background and padding, which on a checkbox replaces the native tick with an empty box —
+  the same bug as the Settings panel. Explicitly handed back to the browser, measured at
+  15px, and pinned by a test that reads the rule.
+- `deploy/make-update.sh` now builds the screens-only update zip (`--server` adds
+  `backend/src` + `shared`), with the same build → wipe → copy → **prove it is newer**
+  sequence as `make-bundle.sh`. It existed only as an ad-hoc command before, which is how a
+  bundle once shipped a dashboard eight days older than its source.
+- **Not changed and worth knowing:** `GET /api/config` 401s while signed out, so the browser
+  console shows one per load. That is pre-existing and not the login screen's doing.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
