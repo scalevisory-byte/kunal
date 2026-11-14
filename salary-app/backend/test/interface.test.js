@@ -1047,3 +1047,28 @@ test("the office's usual timings add up to the day, and say so", () => {
     'gapCost is declared before `lines` and will crash the tab',
   );
 });
+
+test('the build stamp carries the time, not just the date', () => {
+  /*
+   * Three updates went out on one afternoon and every one of them read
+   * "14 Nov 2026" in the rail, so there was no way to tell from the screen
+   * which was running - "vesruon nahi dikh rahahe".
+   *
+   * The build stamp IS the version here: no semver, no release notes, just
+   * the moment the file was built. A date alone stops being a version the
+   * moment two builds share a day.
+   *
+   * Measured in the rail: 194px inside a 224px sidebar, not clipped.
+   */
+  const app = src('App.jsx');
+  assert.match(app, /hour: '2-digit'/);
+  assert.match(app, /minute: '2-digit'/);
+  assert.match(app, /toLocaleString\('en-IN'/);
+  assert.ok(
+    !/toLocaleDateString\('en-IN'[\s\S]{0,200}?__BUILT__/.test(app),
+    'the stamp is back to a date with no time on it',
+  );
+  // Rendered in the VIEWER's timezone, so a build made at 08:47 UTC reads as
+  // 2:17 pm on a machine in India - which is when it arrived.
+  assert.match(app, /__BUILT__/);
+});

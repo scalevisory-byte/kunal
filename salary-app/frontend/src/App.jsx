@@ -69,11 +69,24 @@ const PERIOD_KEY = 'salary-app-period';
  */
 const BUILT_ON = (() => {
   try {
-    return new Date(__BUILT__).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
+    /*
+     * The TIME as well as the date.
+     *
+     * Three updates went out on one afternoon and all three read "14 Nov
+     * 2026", so there was no way to tell from the screen which one was
+     * running - "version nahi dikh raha he". The build stamp IS the version
+     * here; a date alone stops being one the moment two builds share a day.
+     */
+    return new Date(__BUILT__)
+      .toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+      .replace(/\u202f/g, ' ');
   } catch {
     return '';
   }
