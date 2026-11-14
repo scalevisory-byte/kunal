@@ -53,6 +53,19 @@ if ($haveMajor -eq $wantMajor) {
   }
   Write-Host "Using the private Node: $nodeExe"
 }
+# And PATH, not just the exe we launch.
+#
+# npm does NOT reuse the node it was started with for its children: it looks
+# up `node` on PATH. So the private Node 22 installed the packages while
+# "C:\Program Files\nodejs\node.exe" - Node 24 - was handed node-gyp to
+# BUILD them. better-sqlite3 has no prebuilt binary for 24, so it fell
+# through to node-gyp, which wants Python and Visual Studio and found
+# neither. That is the exact failure this whole block exists to avoid, and
+# choosing the right node.exe was not enough on its own.
+#
+# Scoped to this process, so nothing on the server's PATH changes.
+$env:PATH = (Split-Path -Parent $nodeExe) + ';' + $env:PATH
+
 $npmCli = Join-Path (Split-Path -Parent $nodeExe) 'node_modules\npm\bin\npm-cli.js'
 if (-not (Test-Path $npmCli)) { throw "npm not found beside $nodeExe" }
 
@@ -62,6 +75,20 @@ function Npm([string]$where, [string[]]$npmArgs) {
     & $nodeExe $npmCli @npmArgs
     if ($LASTEXITCODE -ne 0) { throw "npm $($npmArgs -join ' ') failed in $where" }
   } finally { Pop-Location }
+}
+
+# A half-built node_modules from an attempt that failed.
+#
+# better-sqlite3 is the one package here that compiles, so it is the one that
+# is left unbuilt when an install dies. npm will not rebuild it on its own -
+# the folder is there, so it is "installed" - and the second run fails the
+# same way for a reason that has already been fixed.
+foreach ($mods in @((Join-Path $backend 'node_modules'), (Join-Path $frontend 'node_modules'))) {
+  $sqlite = Join-Path $mods 'better-sqlite3'
+  if ((Test-Path $sqlite) -and -not (Test-Path (Join-Path $sqlite 'build'))) {
+    Write-Host "A previous install left $mods half-built; clearing it."
+    Remove-Item $mods -Recurse -Force
+  }
 }
 
 # ------------------------------------------------------- the dashboard

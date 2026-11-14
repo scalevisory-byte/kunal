@@ -224,3 +224,44 @@ test('the guide says what has not been tested', () => {
   assert.match(md, /Not tested here/i);
   assert.match(md, /PowerShell/);
 });
+
+test('the private Node is on PATH, not just the exe we launch', () => {
+  /*
+   * This one failed on the real server, on the first real run.
+   *
+   * The script downloads a private Node 22 because better-sqlite3 ships a
+   * prebuilt binary for 22 and for nothing newer, and it correctly ran npm
+   * with that node. But npm does NOT reuse the node it was started with for
+   * its children - it looks `node` up on PATH. So Node 22 installed the
+   * packages and "C:\Program Files\nodejs\node.exe", Node 24, was handed
+   * node-gyp to BUILD them:
+   *
+   *   gyp ERR! find Python - Could not find any Python installation to use
+   *   gyp ERR! command "C:\\Program Files\\nodejs\\node.exe" ... "rebuild"
+   *   gyp ERR! node -v v24.19.0
+   *
+   * ...which is the exact failure the whole Node block exists to avoid.
+   * Choosing the right node.exe was not enough on its own.
+   */
+  const s = read('setup.ps1');
+  assert.match(s, /\$env:PATH = \(Split-Path -Parent \$nodeExe\) \+ ';' \+ \$env:PATH/);
+  // ...and it is set BEFORE the first npm call, or it has done nothing.
+  assert.ok(
+    s.indexOf('$env:PATH =') < s.indexOf('Npm $frontend'),
+    'PATH is set after the first npm install'
+  );
+});
+
+test('a half-built node_modules from a failed run is cleared, not reused', () => {
+  /*
+   * better-sqlite3 is the one package here that compiles, so it is the one
+   * left unbuilt when an install dies. npm will not rebuild it on a second
+   * run - the folder is there, so as far as npm is concerned it is
+   * installed - and the rerun fails exactly as before, for a reason that has
+   * already been fixed. That reads as "the fix did not work".
+   */
+  const s = read('setup.ps1');
+  assert.match(s, /better-sqlite3/);
+  assert.match(s, /-not \(Test-Path \(Join-Path \$sqlite 'build'\)\)/);
+  assert.match(s, /Remove-Item \$mods -Recurse -Force/);
+});
