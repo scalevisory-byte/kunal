@@ -957,6 +957,67 @@ Three decisions he made before any of it was built, which still hold:
 The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
 and where this is hosted, so `PUBLIC_URL` can be set and the apply links actually work.
 
+## The eSSL Basic Work Duration export — `shared/monthlyStatus.js`
+
+Dinesh sent `BasicWorkDurationReport.xls` off his **eTimeTrackLite 12.0**: *"this is essl
+punching report / earlier we are using bizcompass / usme essl se direct punching utha leta tha"*.
+
+- Same machine and codes as the Monthly Status report, **printed the other way round**: a BLOCK
+  of four rows per person (Status / InTime / OutTime / Total) instead of one row. The old reader
+  returned **zero people from all four sheets without complaining**. `readSheet` now dispatches on
+  "Status" in the first column with an "Emp. Code:" row above it — not on the file's name.
+  Company, date range, codes and everything downstream are shared, so the two readers cannot
+  drift on what WOP means. His file: 114 people across BNF/BNFV/Default/SCALE, 1–14 Nov, 1,596
+  marks, every figure checked against the raw cells.
+- **The grid reader needs ≥20 day columns; the block reader does not** — his export is a
+  half-month (14 days), which is apparently how he exports.
+- **Clock times ride onto `in_time`/`out_time`**, the columns the Time tab writes and the sheet
+  pays short hours from. The machine's own **Total is deliberately ignored** — the app works the
+  day out itself, and a second figure would mean nobody could say which the payslip used.
+- **NOTHING INVENTS A DEPARTURE.** 105 days in his file have an in time, no out time, and a Total
+  the machine worked to some cut-off of its own (13:12 in, total 9:48, implies 23:00 — nobody
+  punched that). The out time is sent as `''`, **not omitted**, because `setAttendance` merges per
+  field and omitting it would leave a stale out time paying hours nobody worked.
+- **`thinDays()`** — `daysWithoutData` catches the clean case (nobody present at all). The nasty
+  case is partial: his 10th and 11th read **22 and 23 present against ~75** every other working
+  day. Writing it through books **183 absences nobody earned**. Measured as the share of people at
+  work out of those who *could* have been, so a Sunday 99 people have off is not a collapse. The
+  days are **NAMED with their figures and NOT skipped** — treating a quiet day as missing would be
+  its own guess.
+- Also names the **34 people absent on every day the machine has** (the never-enrolled, same as
+  October).
+
+### The bug this found: a full day's pay for two hours' work
+
+`timesToDay` zeroes the shortfall under the half-day line — *"already paid at half, charging the
+missing hours again would be double"*. **That rests on the day BEING a half day.** The import
+names the mark itself (the device's own P), so a 13:21–16:19 day was paid in full with nothing
+deducted — neither the machine's answer nor ours. In 14 days: **38 days the clock calls a half
+day, 24 of them marked P, 149 hours uncharged.**
+
+- Fixed: when the hours say half day and the mark says full day, **the shortfall is charged**.
+  **Only for P** — A/UL/AD already dock a day, leave and holidays expect no hours, and SP/HP are
+  paid by the day on the Sunday register, outside the salary this would come out of. Tests for all
+  four; the A and SP cases fail if the condition is written too broadly.
+- The rule is **`minutesForMark` in `shared/timesheet.js`**, called by `db.js`, `localStore.js`
+  **and the import preview**, so the server, the offline file and the figure shown before the
+  button cannot give three answers.
+- The dry run now **says what it costs first**: 483h 09m short across 267 days, 144h 26m overtime
+  across 136 days, with a line noting that somebody on an afternoon shift is judged against the
+  month's full day and so reads as short.
+
+### Direct from eSSL (what Bizcompass did) — not built, and what it needs
+
+His screenshot shows eTimeTrackLite 12.0 on **DESKTOP-6OKJT47** with four devices on the LAN
+(B&F / USB / out 192.168.1.9 / IN 192.168.1.7), **"Auto Clear After Download" ticked** — so the
+devices are wiped after each pull and **the eTimeTrackLite database is the only durable store**.
+That is almost certainly what Bizcompass read. eTimeTrackLite supports MS Access, SQL Server and
+Oracle; **which one his install uses, and the punch table's name, are not known — do not guess
+them, look.** Reading that database on a schedule is the route; repointing the devices at our own
+ADMS endpoint would break eTimeTrackLite's own pull and is the wrong trade.
+Still needed from him: whether TSRV can reach that machine, which database engine it is, and a
+read-only login.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
@@ -971,7 +1032,10 @@ and where this is hosted, so `PUBLIC_URL` can be set and the apply links actuall
    month; the panel prices it first. His own figure is 300 minutes.
 5. **Whether paid leave should close a sandwich.** Default is absence only (A/UL); CL/SL/PL
    is available as the harsher reading.
-6. **Which channel the reminder digest should go out on**, and its credentials — the text is
+6. **Whether to pull eSSL punches directly** from the eTimeTrackLite database rather than
+   importing a file — needs the database engine, whether TSRV can reach DESKTOP-6OKJT47, and a
+   read-only login. The file import works today either way.
+7. **Which channel the reminder digest should go out on**, and its credentials — the text is
    ready and the endpoint is there; nothing sends it yet.
 
 ## Alternative architecture considered (not being built, for reference)
