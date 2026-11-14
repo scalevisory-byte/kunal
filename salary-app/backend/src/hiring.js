@@ -825,9 +825,19 @@ export function listInterviews({ application_id, upcoming } = {}) {
   if (upcoming) where.push(`i.at >= datetime('now', '-1 day') AND i.status = 'Scheduled'`);
   return db
     .prepare(
+      /*
+       * The two form statuses ride along, because the list is where somebody
+       * decides whether to fill one in. Without them the button could only
+       * ever say "Fill form", so a round already written up looked untouched
+       * and got written up twice.
+       */
       `SELECT i.*, c.name AS candidate_name, c.phone, v.title AS job_title, v.ref_no AS vacancy_ref,
-              co.name AS company_name
+              co.name AS company_name,
+              f.status AS form_status, f.decision,
+              e.status AS evaluation_status, e.recommendation
        FROM interviews i
+       LEFT JOIN interview_forms f ON f.interview_id = i.id
+       LEFT JOIN interview_evaluations e ON e.interview_id = i.id
        JOIN applications a ON a.id = i.application_id
        JOIN candidates c ON c.id = a.candidate_id
        JOIN vacancies v ON v.id = a.vacancy_id

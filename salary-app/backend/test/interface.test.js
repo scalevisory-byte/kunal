@@ -1444,3 +1444,83 @@ test('a reference and a date never break across two lines', () => {
   // ...and the cells that are MEANT to run on still do.
   assert.match(css, /table\.sheet\.hiring-table td \{ white-space: normal/);
 });
+
+test('the two interview forms are reachable from the interviews list', () => {
+  const list = src('components/hiring/Interviews.jsx');
+
+  /*
+   * Seventh time for this shape of bug, so it gets a test. Somebody about to
+   * interview is looking at THIS list; a form reachable only from somewhere
+   * else is a form that does not exist.
+   */
+  assert.match(list, /onForm\(i\.id\)/);
+  assert.match(list, /onEvaluate\(i\.id\)/);
+
+  // The button says which it is, so a round already written up is not written
+  // up twice.
+  assert.match(list, /form_status === 'submitted'/);
+  assert.match(list, /evaluation_status === 'approved'/);
+});
+
+test('the evaluation offers only the review steps this login may take', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+
+  // The gate is the shared one, so a greyed-out button and a server refusal
+  // have the same reason behind them.
+  assert.match(panel, /movesFrom\(status, abilities\)/);
+  assert.match(panel, /approving is an Admin/);
+
+  // Abilities come down from the signed-in session, not from the component.
+  assert.match(src('App.jsx'), /abilities=\{me\?\.abilities \|\| \[\]\}/);
+});
+
+test('the interview sections fold with state, never an uncontrolled details', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+
+  /*
+   * The panel reloads itself after every save, and a <details> resets when
+   * React re-renders around it - so an open section would shut under the
+   * person's hands halfway through typing. That exact bug cost a morning on
+   * the roll call's uniform fold.
+   */
+  const code = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/<details/.test(code), 'the interview form uses an uncontrolled details again');
+  assert.match(panel, /open === section\.key/);
+});
+
+test('the rating dot is drawn, not a native control a global rule would collapse', () => {
+  /*
+   * `input, select` gives every input a border, a background and padding,
+   * which on a radio replaces the native control with an empty box - the same
+   * trap the Settings panel and the sign-in screen both hit. So the rating is
+   * a plain button that paints itself.
+   */
+  const panel = src('components/hiring/InterviewForms.jsx');
+  assert.ok(!/type="radio"/.test(panel), 'the rating is a radio again');
+  assert.match(css, /\.iv-rate \.dot \{[^}]*border-radius: 50%/);
+  assert.match(css, /\.iv-rate \.dot\.on \{[^}]*background: var\(--brand\)/);
+});
+
+test('the wide panel overrides the width, not just the max-width', () => {
+  /*
+   * .panel sets `width: min(560px, 100%)`, so a max-width alone did nothing
+   * and the interview form sat in a 560px slot with its remarks column off the
+   * screen. And its 4rem bottom padding pushed the sticky action bar 64px up
+   * the page, where it read as a bar floating in the middle of the form.
+   */
+  const wide = css.match(/\.panel\.wide \{[\s\S]*?\n\}/);
+  assert.ok(wide, 'the wide panel rule is gone');
+  assert.match(wide[0], /width: min\(1040px, 100%\)/);
+  assert.match(wide[0], /padding-bottom: 0/);
+});
+
+test('there is one print block, and it carries the interview form', () => {
+  /*
+   * Two @media print blocks is how a rule ends up in the one nobody is
+   * reading - and it broke the asset handover's own print test, which takes
+   * the last block on the page.
+   */
+  const print = css.slice(css.lastIndexOf('@media print'));
+  assert.match(print, /\.panel\.interview-form \{[^}]*overflow: visible/);
+  assert.match(print, /\.iv-actions/);
+});

@@ -900,6 +900,7 @@ function Shell() {
             <Hiring
               companies={companies}
               companyId={companyId}
+              abilities={me?.abilities || []}
               onEmployeesChanged={loadAll}
               onError={handle}
             />

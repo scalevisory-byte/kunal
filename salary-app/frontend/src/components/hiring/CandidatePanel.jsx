@@ -23,6 +23,7 @@ const FIELDS = [
 
 export default function CandidatePanel({ candidateId, config, onClose, onChanged, onOpenApplication, onToast, onError }) {
   const [data, setData] = useState(null);
+  const [history, setHistory] = useState([]);
   const [openings, setOpenings] = useState([]);
   const [picked, setPicked] = useState('');
   const [sending, setSending] = useState(false);
@@ -31,6 +32,10 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
   const load = async () => {
     try {
       setData(await api.get(`/hiring/candidates/${candidateId}`));
+      if (!STANDALONE) {
+        const { history: rows } = await api.get(`/hiring/candidates/${candidateId}/interviews`);
+        setHistory(rows || []);
+      }
     } catch (err) {
       onError(err);
     }
@@ -272,6 +277,49 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
             )
           ) : null}
         </div>
+
+        {/*
+          * Every round they have sat, newest first.
+          *
+          * One row per interview carrying BOTH records, because each round has
+          * its own form and its own evaluation and neither is ever merged into
+          * the next. A round nobody has written up yet says so rather than
+          * showing the previous round's verdict.
+          */}
+        {history.length ? (
+          <div className="card">
+            <h3>Interview history</h3>
+            <div className="lines">
+              {history.map((h) => (
+                <div key={h.interview_id}>
+                  <span className="what">
+                    <strong>
+                      {h.round_name ? `Round ${h.round} — ${h.round_name}` : `Round ${h.round}`}
+                    </strong>
+                    <span className="muted small">
+                      {' '}· {String(h.at).replace('T', ' ').slice(0, 16)}
+                      {h.interviewer ? ` · ${h.interviewer}` : ''} · {h.job_title}
+                    </span>
+                    <div className="muted small">
+                      {h.form_id
+                        ? `Form: ${h.decision || 'no decision yet'}${
+                            h.rejection_reason ? ` — ${h.rejection_reason}` : ''
+                          }`
+                        : 'Form: not filled in'}
+                      {' · '}
+                      {h.evaluation_id
+                        ? `Evaluation: ${h.recommendation || 'no recommendation yet'}${
+                            h.summary.average !== null ? ` (avg ${h.summary.average})` : ''
+                          } — ${h.evaluation_status}`
+                        : 'Evaluation: none'}
+                      {h.approved_by ? ` · decided by ${h.approved_by}` : ''}
+                    </div>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {tests.length ? (
           <div className="card">

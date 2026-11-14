@@ -1464,6 +1464,16 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
    */
   .table-wrap { overflow: visible !important; max-height: none !important; border: none; }
   .scroll-frame::before, .scroll-frame::after { display: none !important; }
+
+  /*
+   * Printing an interview form or an evaluation: the form, nothing around it.
+   * Folded in here rather than opened as a second print block - two of them is
+   * how a rule ends up in the one nobody is reading.
+   */
+  .backdrop { position: static; background: none; }
+  .panel.interview-form { width: auto; max-width: none; height: auto; overflow: visible; border: 0; }
+  .panel.interview-form .iv-body { display: block !important; }
+  .side-nav, .iv-actions, .iv-chev, .panel header .row { display: none; }
 }
 
 
@@ -3246,3 +3256,112 @@ table.hiring-table { width: 100%; }
  */
 table.hiring-table td:last-child, table.hiring-table th:last-child { white-space: nowrap; width: 1%; }
 table.hiring-table td.grow, table.hiring-table th.grow { min-width: 11rem; }
+
+/* ---------------- the two interview forms ---------------- */
+
+/*
+ * A wide panel, because these forms are wide.
+ *
+ * The standard .panel is sized for a record you read. An interview form is
+ * filled in with somebody sitting opposite, so it gets the width to put three
+ * fields on a line - and still collapses to one column on a phone, which is
+ * where an interviewer standing in a branch will actually open it.
+ */
+/*
+ * .panel sets `width: min(560px, 100%)`, so a max-width alone does nothing -
+ * the first attempt left the interview form in a 560px slot with its remarks
+ * column off the screen. The width itself has to be overridden.
+ */
+.panel.wide {
+  width: min(1040px, 100%);
+  /*
+   * .panel carries `padding-bottom: 4rem`, and a sticky bottom sticks to the
+   * PADDING box - so the action bar came to rest 64px up the screen with the
+   * next section showing underneath it, reading as a bar floating in the
+   * middle of the form rather than one pinned to the bottom. The form supplies
+   * its own bottom spacing instead.
+   */
+  padding-bottom: 0;
+}
+
+.iv-who {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.4rem;
+}
+
+.iv-section { border-bottom: 1px solid var(--line); }
+.iv-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.iv-head.static { cursor: default; }
+.iv-title { font-weight: 600; font-size: 0.86rem; }
+.iv-done { font-size: 0.72rem; color: var(--muted); }
+.iv-chev { margin-left: auto; color: var(--muted); font-size: 1rem; }
+.iv-body { padding: 0.2rem 0 0.8rem; }
+
+/* Three to a row on a desktop, one on a phone. */
+.iv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.5rem 0.7rem;
+}
+.iv-grid .field.wide { grid-column: 1 / -1; }
+.iv-questions .field { margin-bottom: 0.4rem; }
+.iv-ref { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem; margin-bottom: 0.5rem; }
+
+.iv-decisions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.3rem 0 0.5rem; }
+
+/*
+ * The rating dot.
+ *
+ * A row of five, one click each. The global `input, select` rule would turn a
+ * radio into an empty box - the same trap the Settings panel and the sign-in
+ * screen both hit - so this is a plain button that paints itself, with no
+ * native control to be restyled out of existence.
+ */
+.iv-rate .dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong, var(--muted));
+  background: var(--surface);
+  padding: 0;
+  cursor: pointer;
+}
+.iv-rate .dot.on { background: var(--brand); border-color: var(--brand); }
+.iv-rate .dot:disabled { cursor: default; opacity: 0.5; }
+.iv-rate td.num { text-align: center; }
+
+.iv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  padding-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.iv-actions {
+  display: flex;
+  margin-top: 0.4rem;
+  padding-bottom: 0.9rem;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+}
+
+.row-actions { display: flex; gap: 0.3rem; white-space: nowrap; }

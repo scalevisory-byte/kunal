@@ -1,6 +1,6 @@
 import { api } from '../../api.js';
 
-export default function Interviews({ interviews, onOpen, onReload, onError }) {
+export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError }) {
   const set = async (id, body) => {
     try {
       await api.patch(`/hiring/interviews/${id}`, body);
@@ -24,7 +24,17 @@ export default function Interviews({ interviews, onOpen, onReload, onError }) {
             <th>Mode</th>
             <th>Where / link</th>
             <th>Round</th>
+            <th>Interviewer</th>
             <th>Status</th>
+            {/*
+              * The way in to both forms.
+              *
+              * Sixth and seventh time this lesson has been learnt here: a form
+              * reachable only from somewhere nobody is standing is a form that
+              * does not exist. Somebody about to interview is looking at this
+              * list, so the two things they do are on the row.
+              */}
+            <th>Interview record</th>
           </tr>
         </thead>
         <tbody>
@@ -44,13 +54,29 @@ export default function Interviews({ interviews, onOpen, onReload, onError }) {
               <td className="small">{i.job_title}</td>
               <td className="small">{i.mode}</td>
               <td className="small">{i.location_or_link || '—'}</td>
-              <td className="num">{i.round}</td>
+              <td className="num">
+                {i.round}
+                {i.round_name ? <div className="muted small">{i.round_name}</div> : null}
+              </td>
+              <td className="small">{i.interviewer || '—'}</td>
               <td>
                 <select value={i.status} onChange={(e) => set(i.id, { status: e.target.value })}>
                   {['Scheduled', 'Done', 'No show', 'Cancelled', 'Rescheduled'].map((s) => (
                     <option key={s}>{s}</option>
                   ))}
                 </select>
+              </td>
+              <td className="row-actions">
+                <button onClick={() => onForm(i.id)}>
+                  {i.form_status === 'submitted' ? 'Form ✓' : i.form_status ? 'Form…' : 'Fill form'}
+                </button>
+                <button onClick={() => onEvaluate(i.id)}>
+                  {i.evaluation_status === 'approved'
+                    ? 'Evaluation ✓'
+                    : i.evaluation_status
+                      ? 'Evaluation…'
+                      : 'Evaluate'}
+                </button>
               </td>
             </tr>
           ))}

@@ -5,6 +5,7 @@ import CandidatePanel from './CandidatePanel.jsx';
 import HiringOverview from './HiringOverview.jsx';
 import HiringTasks from './HiringTasks.jsx';
 import Interviews from './Interviews.jsx';
+import { EvaluationPanel, InterviewFormPanel } from './InterviewForms.jsx';
 import NotifyBar from './NotifyBar.jsx';
 import Pipeline from './Pipeline.jsx';
 import VacancyPanel from './VacancyPanel.jsx';
@@ -29,7 +30,7 @@ const VIEWS = [
  * opening belongs to one of our companies, so "BOOKNFLY" on the strip above
  * means this tab shows BOOKNFLY's hiring.
  */
-export default function Hiring({ companies, companyId, onEmployeesChanged, onError }) {
+export default function Hiring({ companies, companyId, onEmployeesChanged, onError, abilities = []}) {
   const [view, setView] = useState('overview');
   const [askNewVacancy, setAskNewVacancy] = useState(0);
   const [shareNow, setShareNow] = useState(0);
@@ -45,6 +46,8 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
 
   const [openVacancy, setOpenVacancy] = useState(null);
   const [openCandidate, setOpenCandidate] = useState(null);
+  const [openForm, setOpenForm] = useState(null);
+  const [openEvaluation, setOpenEvaluation] = useState(null);
   const [openApplication, setOpenApplication] = useState(null);
   const [notify, setNotify] = useState(null);
   const [toast, setToast] = useState('');
@@ -256,7 +259,14 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
       ) : null}
 
       {view === 'interviews' ? (
-        <Interviews interviews={interviews} onOpen={setOpenApplication} onReload={load} onError={onError} />
+        <Interviews
+          interviews={interviews}
+          onOpen={setOpenApplication}
+          onForm={setOpenForm}
+          onEvaluate={setOpenEvaluation}
+          onReload={load}
+          onError={onError}
+        />
       ) : null}
 
       {view === 'tasks' ? (
@@ -283,6 +293,27 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
             setOpenVacancy(null);
             setOpenApplication(id);
           }}
+          onToast={say}
+          onError={onError}
+        />
+      ) : null}
+
+      {openForm ? (
+        <InterviewFormPanel
+          interviewId={openForm}
+          onClose={() => setOpenForm(null)}
+          onSaved={load}
+          onToast={say}
+          onError={onError}
+        />
+      ) : null}
+
+      {openEvaluation ? (
+        <EvaluationPanel
+          interviewId={openEvaluation}
+          abilities={abilities}
+          onClose={() => setOpenEvaluation(null)}
+          onSaved={load}
           onToast={say}
           onError={onError}
         />
