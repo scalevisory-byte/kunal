@@ -108,6 +108,35 @@ export default function MonthlyStatusImport({ period, onReload }) {
             </div>
           ) : null}
 
+          {/*
+            * The partial version of the same trap the banner above catches.
+            *
+            * Nobody present at all is obvious. Twenty-two present where
+            * seventy-five is normal is not, and it writes ninety absences
+            * that may be a festival or a reader that did not sync. So it is
+            * named with its figures and NOT skipped - treating a quiet day as
+            * missing would be its own guess.
+            */}
+          {preview.thinDays?.length ? (
+            <div className="banner">
+              <strong>
+                Hardly anybody is marked present on{' '}
+                {preview.thinDays.length === 1
+                  ? `the ${preview.thinDays[0].day}`
+                  : `${preview.thinDays.length} days: ${preview.thinDays.map((d) => d.day).join(', ')}`}
+                .
+              </strong>{' '}
+              {preview.thinDays
+                .map(
+                  (d) =>
+                    `the ${d.day}: ${d.present} in, ${d.absent} absent (${d.percent}% against ${d.usualPercent}% most days)`,
+                )
+                .join('; ')}
+              . A festival, or a reader that did not sync — these days are being written as they
+              are, so check them before you write.
+            </div>
+          ) : null}
+
           {monthMismatch?.length ? (
             <div className="banner bad">
               {monthMismatch.length} sheet{monthMismatch.length === 1 ? ' is' : 's are'} for another
@@ -123,6 +152,15 @@ export default function MonthlyStatusImport({ period, onReload }) {
             <Fig n={preview.unmatched?.length || 0} k="Not on your list" />
             <Fig n={preview.skippedDays?.length || 0} k="Days skipped" />
           </div>
+
+          {preview.withTimes ? (
+            <p className="small" style={{ marginTop: '0.5rem' }}>
+              This export also carries the clock times: <strong>{preview.withTimes}</strong> days
+              get an in time, and the hours are worked out by the same rule as a day typed on the
+              Time tab. A day the machine saw no punch out for is left without one rather than
+              given a guessed finishing time.
+            </p>
+          ) : null}
 
           {Object.keys(preview.tally || {}).length ? (
             <p className="small" style={{ marginTop: '0.5rem' }}>
