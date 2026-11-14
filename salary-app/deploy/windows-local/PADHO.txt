@@ -46,7 +46,7 @@ Sab kuch:   E:\BNFHR\BNFHRMS\data\
 
 Roz ka backup galat update ya galat delete se bachata hai.
 MACHINE CHALI GAYI TO NAHI BACHATA.
-Is folder ko TSRV se bahar kahin copy karte rehna.
+Is folder ko the BNF server se bahar kahin copy karte rehna.
 
 
 SEVICE (Task Scheduler)

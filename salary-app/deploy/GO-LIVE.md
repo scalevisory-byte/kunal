@@ -4,7 +4,7 @@ The app is finished and tested. What has **not** happened is any of it running
 on a real server. This is the order to do that in, what each step costs, and
 what can go wrong.
 
-Everything here is on **TSRV**, your own office Windows server, which already
+Everything here is on **the BNF server**, your own office Windows server, which already
 runs ZynTask. Nothing new to buy.
 
 ---
@@ -32,7 +32,7 @@ two staff who will actually use "My page". Two weeks of that tells you what
 
 ## Stage 1 — Install it (about 30 minutes, one evening)
 
-**Who:** you or Vishal, at TSRV.
+**Who:** you or Vishal, at the BNF server.
 **Risk:** low. Nothing else on the server is touched.
 
 Full steps are in `deploy/windows/README.md`. In short: open PowerShell **as
@@ -58,17 +58,30 @@ the script; do not start fixing it by hand.
 ## Stage 2 — Give it an address (10 minutes)
 
 **Who:** you, in the Cloudflare dashboard.
-**Risk:** low, and reversible — removing the hostname undoes it.
+**Risk:** low, and reversible — removing the hostname undoes it. Nothing on the
+server is touched at all: this happens in Cloudflare, in your browser.
 
-TSRV already runs the **WATASK** tunnel (that is how `tasks.scalevisory.in`
-works). Add a second hostname to that **same** tunnel — do not install another
-one. `bnfhrms` → `scalevisory.in` → `HTTP` → `localhost:3002`.
+The account has four tunnels — **BNF, TALLY, WATASK, zynta-crm** — and they do
+not all run on the same machine. **The hostname must go on the tunnel whose
+connector runs on the BNF server**, because that is where the HRMS is and
+`localhost:3002` means *that* machine's port 3002. On any other tunnel the
+address will resolve and the page will not open.
+
+By name the **BNF** tunnel is the likely one, but check rather than assume:
+open each tunnel and read its **Connectors** section, which names the machine
+it is running on. `deploy/windows-local/GO-LIVE.ps1`, run on the BNF server
+without typing GO, prints the same thing from the other end — the service, its
+command line and its config file.
+
+Then add a hostname to that tunnel — do not create a new one.
+`bnfhrms` → `scalevisory.in` → `HTTP` → `localhost:3002`.
 
 Within a minute **https://bnfhrms.scalevisory.in** is live, with https, and **no
 port is opened on the office router** — the tunnel dials out, nothing dials in.
 
 Then set `PUBLIC_URL` and `SECURE_COOKIES=true` in
-`C:\bnf-hrms\salary-app\backend\.env` and restart the service. Without
+`E:\BNFHR\BNFHRMS\app\backend\.env` and restart the task. `GO-LIVE.ps1` does
+exactly that part, and on a dashboard-run tunnel it touches nothing else. Without
 `SECURE_COOKIES` the sign-in cookie is dropped over https and it reads to
 everybody as "the login is broken".
 
@@ -157,7 +170,7 @@ sheet stops being the source of truth and the app is.
 - **Backups.** The app takes its own nightly copy into `data\backups\`, kept
   14 days. That survives a bad update or a wrong delete. It does **not**
   survive losing the machine. **Copy `C:\bnf-hrms\salary-app\data\` somewhere
-  off TSRV on a schedule** — that folder is the business.
+  off the BNF server on a schedule** — that folder is the business.
 - **Updates.** Right-click `deploy\windows\update.ps1` → Run with PowerShell.
   It stops the service, pulls, rebuilds and starts it again in a `finally`, so
   a failed build never leaves the office without an HRMS. Your data is not

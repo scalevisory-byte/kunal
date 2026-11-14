@@ -1,6 +1,6 @@
 # Putting the HRMS online, on your own server
 
-This is for **TSRV** — the office Windows Server that already runs ZynTask.
+This is for **the BNF server** — the office Windows Server that already runs ZynTask.
 Nothing here costs anything: the machine is yours, the tunnel is already
 installed, and `scalevisory.in` is already on Cloudflare.
 
@@ -12,7 +12,7 @@ file holds the whole payroll. A login per person needs an address.
 
 ## 1. Install it (about ten minutes)
 
-On TSRV: **Start → type `powershell` → right-click Windows PowerShell →
+On the BNF server: **Start → type `powershell` → right-click Windows PowerShell →
 Run as administrator.** Then paste this one line and press Enter:
 
 ```powershell
@@ -58,7 +58,7 @@ Check it on the server itself: **http://localhost:3002**
 - **It does not touch the server's Node.** ZynTask runs on it. `better-sqlite3`
   only ships a ready-made binary for Node 22, and on anything else npm falls
   through to a compiler this server does not have — that cost a whole
-  install the first time ZynTask went on. So if TSRV's Node is not 22, the
+  install the first time ZynTask went on. So if the BNF server's Node is not 22, the
   HRMS keeps a private copy in its own folder and uses that.
 - **Port 3002**, so it cannot collide with ZynTask on 3001.
 
@@ -66,7 +66,7 @@ Check it on the server itself: **http://localhost:3002**
 
 ## 2. Give it an address
 
-TSRV already runs a Cloudflare Tunnel (the **WATASK** tunnel, installed as
+the BNF server already runs a Cloudflare Tunnel (the **WATASK** tunnel, installed as
 the `Cloudflared` service, which is how `tasks.scalevisory.in` works). Add a
 second hostname to that **same** tunnel — do not install another one.
 
@@ -225,7 +225,7 @@ on the PATH.
   rotated at 10 MB).
 - **Your data:** `C:\bnf-hrms\salary-app\data\` — `salary.db` plus the
   documents, asset photos and CVs. **This folder is the business.** Copy it
-  somewhere off TSRV on a schedule.
+  somewhere off the BNF server on a schedule.
 - The app also takes its own nightly SQLite copy into `data\backups\`, kept
   for 14 days. That survives a bad update or a wrong delete. It does **not**
   survive losing the machine, which is why the sentence above exists.
@@ -262,7 +262,7 @@ doubled backslash in the settings file, and one that would have **deleted
 behind. It now stops and says so instead. That is the kind of thing a
 reading finds and a run would have found the hard way, so read the log as
 it goes. They follow the same shape as the ZynTask kit
-that did install on TSRV, and the traps that one hit the first time — TLS
+that did install on the BNF server, and the traps that one hit the first time — TLS
 1.2, the Node version, the BOM on `.env`, stopping the service before
 replacing its files, NSSM not being on the PATH — are all handled here. Run
 `install-all.ps1` with the log open, and if a step fails, send me

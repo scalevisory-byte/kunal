@@ -141,7 +141,7 @@ if ($running -and $running.Status -ne 'Stopped') {
 
 # ---- Cloudflare tunnel, if a token was handed in ----------------------
 #
-# Optional, and skipped entirely without a token. TSRV already runs one
+# Optional, and skipped entirely without a token. the BNF server already runs one
 # tunnel for ZynTask; the usual thing is to add a second hostname to THAT
 # tunnel in the Cloudflare dashboard rather than install another here.
 if ($TunnelToken) {

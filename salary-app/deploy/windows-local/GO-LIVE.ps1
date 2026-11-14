@@ -1,6 +1,6 @@
 # BOOKNFLY HRMS - put it on bnfhrms.scalevisory.in
 #
-# TSRV ALREADY RUNS A TUNNEL, and that tunnel is what serves
+# the BNF server ALREADY RUNS A TUNNEL, and that tunnel is what serves
 # tasks.scalevisory.in. Breaking it takes ZynTask off the internet. So this
 # script LOOKS FIRST and shows you everything it found, backs the config up,
 # and only then asks whether to add the one hostname. It never removes or
@@ -73,7 +73,7 @@ try {
   $configPath = $null
   if ($cmdLine -match '--config\s+"?([^"\s]+)"?') { $configPath = $Matches[1] }
   if (-not $configPath) {
-    # Spelt whichever way it was typed. On TSRV the folder is E:\cloudfare -
+    # Spelt whichever way it was typed. On the BNF server the folder is E:\cloudfare -
     # no "l" - and a list of correctly spelt guesses walked straight past it.
     # Anything that looks like it is tried, and then the disks are searched
     # for a config.yml that actually has an ingress block in it.

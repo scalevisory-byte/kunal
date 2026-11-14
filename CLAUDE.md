@@ -1018,6 +1018,28 @@ ADMS endpoint would break eTimeTrackLite's own pull and is the wrong trade.
 Still needed from him: whether TSRV can reach that machine, which database engine it is, and a
 read-only login.
 
+## Where the HRMS actually runs — corrected
+
+**It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,
+port 3002, as the scheduled task `BNFHRMS`. **TSRV is the PC Dinesh works on**, not the
+server. Every deploy document said TSRV until he corrected it: *"ye tsrv pc nahi he o bnf
+server he / tsrv jo me kam kar rahahu o he"*. All of `deploy/` has been renamed.
+
+- The Cloudflare account has **four tunnels — BNF, TALLY, WATASK, zynta-crm** — and they do
+  not all run on the same machine. The hostname `bnfhrms.scalevisory.in` must go on the
+  tunnel whose **connector runs on the BNF server**, because `localhost:3002` means that
+  machine's port. By name `BNF` is the likely one; **check the Connectors section rather
+  than assume**, which is what the earlier TSRV/WATASK assumption got wrong.
+- **Do it in the Cloudflare dashboard, not by editing the config file.** The server is
+  crowded (ARROHAN, TAJ, Essl/eTimeTrackLite, ePrompt, Infozeal, cloudfare, BNFHR) and a
+  dashboard hostname touches nothing on it. `deploy/windows-local/GO-LIVE.ps1` can edit a
+  file-managed config, but it reports everything and waits for the word `GO` first, keeps a
+  dated backup, inserts before the catch-all and refuses a config with no catch-all.
+- **The tunnel folder on that machine is `E:\cloudfare`** — no `l`. A list of correctly spelt
+  guesses walked straight past it.
+- `GO-LIVE.ps1` deliberately does **not** remove `APP_PASSWORD`: that shared key is the only
+  way in until a real admin login is proved to work from the new address.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

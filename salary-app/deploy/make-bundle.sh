@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build the Windows bundle: one folder that runs on TSRV with NOTHING
+# Build the Windows bundle: one folder that runs on the BNF server with NOTHING
 # downloaded there - no GitHub, no npm, no internet.
 #
 # Dinesh asked for it this way ("github pe kuch nahi chahiye, Arrohan aur TAJ
@@ -16,7 +16,7 @@
 #      binary has to be swapped in by hand.
 #   2. The ABI has to match the Node that will RUN it. Node 22 is ABI 127.
 #      Ship Node 24 and the same binary will not load.
-#   3. node.exe is bundled so the server's own Node is never touched. TSRV
+#   3. node.exe is bundled so the server's own Node is never touched. the BNF server
 #      runs ZynTask on its Node, and the first install attempt failed exactly
 #      because npm found the server's Node 24 on PATH.
 #
