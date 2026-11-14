@@ -1425,3 +1425,22 @@ test('the hiring tables fill their card, without one column eating the slack', (
   // And the salary sheet keeps the width it was given on purpose.
   assert.match(css, /table\.sheet \{[^}]*width: auto/);
 });
+
+test('a reference and a date never break across two lines', () => {
+  /*
+   * `table.sheet.hiring-table td { white-space: normal }` lets every hiring
+   * cell run on, which is right for skills and for a place with a second line
+   * under it. Applied to a code it is nonsense: in a narrow window "CAN-002"
+   * broke as "CAN-" / "002" and "2026-11-14" as "2026-11-" / "14", which reads
+   * as corruption rather than as a narrow column.
+   */
+  assert.match(css, /table\.sheet\.hiring-table td\.num,[\s\S]{0,120}white-space: nowrap/);
+  assert.match(css, /table\.sheet\.hiring-table td\.nowrap/);
+
+  // The Added column is a date, so it carries the class.
+  const list = src('components/hiring/Candidates.jsx');
+  assert.match(list, /className="small muted nowrap">\{String\(c\.created_at/);
+
+  // ...and the cells that are MEANT to run on still do.
+  assert.match(css, /table\.sheet\.hiring-table td \{ white-space: normal/);
+});

@@ -174,7 +174,7 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
                     <span className="muted">—</span>
                   )}
                 </td>
-                <td className="small muted">{String(c.created_at || '').slice(0, 10)}</td>
+                <td className="small muted nowrap">{String(c.created_at || '').slice(0, 10)}</td>
               </tr>
             ))}
           </tbody>

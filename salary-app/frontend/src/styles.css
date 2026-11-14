@@ -2397,6 +2397,19 @@ table.sheet.hiring-table td { white-space: normal; height: auto; }
 table.sheet.hiring-table td.name-cell { min-width: 11rem; }
 
 /*
+ * A reference, a count and a date are never allowed to wrap.
+ *
+ * The rule above lets every hiring cell run on, which is right for skills and
+ * for a place with a second line under it. Applied to a code it is nonsense:
+ * in a narrow window "CAN-002" broke as "CAN-" / "002" and "2026-11-14" as
+ * "2026-11-" / "14", which reads as corruption rather than as a narrow column.
+ * Nothing here is long enough to need the break.
+ */
+table.sheet.hiring-table td.num,
+table.sheet.hiring-table th.num,
+table.sheet.hiring-table td.nowrap { white-space: nowrap; }
+
+/*
  * The day-by-day attendance trend.
  *
  * Thirty-one bars where the month trend has six, so they are thin and carry
