@@ -1,4 +1,4 @@
-import { db, createEmployee, getEmployee } from './db.js';
+import { db, createEmployee, getEmployee, audit } from './db.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { ALL_STAGES, REJECTED } from '../../shared/stages.js';
@@ -6,6 +6,20 @@ import { matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
 import { fromBand } from '../../shared/experienceBand.js';
+import {
+  CANDIDATE_FIELDS,
+  QUESTION_KEYS,
+  checkForm,
+  sameAsCurrent,
+  stageForDecision,
+} from '../../shared/interviewForm.js';
+import {
+  PARAMETER_KEYS,
+  canMove,
+  checkEvaluation,
+  stageOnApproval,
+  summarise,
+} from '../../shared/interviewEval.js';
 
 /*
  * Hiring, for Dinesh's OWN companies.
@@ -956,4 +970,578 @@ export function hiringOverview() {
       ).n,
     },
   };
+}
+
+/* ================= the physical interview form and its evaluation ========= */
+
+/*
+ * Two records per interview, never one.
+ *
+ * Dinesh asked for the information form and the interviewer's evaluation as
+ * two separate forms, linked by candidate and interview. They are kept apart
+ * because they answer different questions and are filled in by different
+ * people at different moments: the first records what the candidate said, the
+ * second what the interviewer made of it, and HR or management then review the
+ * second without touching the first.
+ *
+ * Both hang off interviews.id, which already carries the round, the date, the
+ * mode and the panel - so a second round is a second interview row and gets a
+ * form and an evaluation of its own. Nothing is ever overwritten across rounds
+ * because nothing is shared across them. UNIQUE on interview_id is what holds
+ * that: one form and one evaluation per round, no more.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS interview_forms (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id   INTEGER NOT NULL UNIQUE REFERENCES interviews(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    candidate_id   INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    status         TEXT NOT NULL DEFAULT 'draft',
+
+    degree TEXT, specialisation TEXT, college TEXT, passing_year TEXT,
+    additional_qualification TEXT, certifications TEXT,
+
+    fresher TEXT, exp_years INTEGER, exp_months INTEGER,
+    previous_responsibilities TEXT, relevant_experience TEXT,
+    employment_status TEXT, reason_for_leaving TEXT,
+
+    languages TEXT NOT NULL DEFAULT '[]',
+    english_level TEXT, hindi_level TEXT, gujarati_level TEXT, communication_remarks TEXT,
+
+    computer_level TEXT, word_level TEXT, excel_level TEXT, email_level TEXT,
+    tally TEXT, erp TEXT, software_name TEXT, other_technical TEXT, additional_software TEXT,
+
+    technical_skills TEXT, job_skills TEXT, other_skills TEXT,
+
+    answers TEXT NOT NULL DEFAULT '{}',
+
+    negotiable TEXT, recommended_salary REAL, last_working_date TEXT,
+    available_from TEXT, join_immediately TEXT, joining_conditions TEXT,
+
+    observations TEXT, additional_comments TEXT,
+
+    decision TEXT, decision_remarks TEXT, next_round TEXT,
+    next_interview_date TEXT, next_interviewer TEXT, rejection_reason TEXT,
+
+    filled_by      TEXT,
+    submitted_at   TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS interview_evaluations (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id   INTEGER NOT NULL UNIQUE REFERENCES interviews(id) ON DELETE CASCADE,
+    application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+    candidate_id   INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    status         TEXT NOT NULL DEFAULT 'draft',
+
+    ratings        TEXT NOT NULL DEFAULT '{}',
+    rating_remarks TEXT NOT NULL DEFAULT '{}',
+
+    practical_level TEXT, understands_role TEXT, software_knowledge TEXT,
+    can_handle_work TEXT, practical_test_required TEXT, practical_test_remarks TEXT,
+
+    strengths TEXT, weaknesses TEXT, positive_observations TEXT,
+    negative_observations TEXT, skill_gap TEXT,
+    training_required TEXT, training_remarks TEXT,
+
+    recommended_salary REAL, negotiable TEXT, suitable_for_role TEXT,
+    suitable_for_other TEXT, alternative_position TEXT,
+
+    recommendation TEXT, overall_remarks TEXT, recommendation_reason TEXT,
+    additional_comments TEXT,
+
+    next_action TEXT, next_round TEXT, next_interviewer TEXT, next_interview_date TEXT,
+
+    evaluated_by   TEXT,
+    submitted_at   TEXT,
+    reviewed_by    TEXT, reviewed_at TEXT, review_remarks TEXT,
+    approved_by    TEXT, approved_at TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS candidate_references (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    ref_type     TEXT,
+    person_name  TEXT,
+    organisation TEXT,
+    designation  TEXT,
+    phone        TEXT,
+    relationship TEXT,
+    remarks      TEXT,
+    verification TEXT,
+    verified_by  TEXT,
+    verified_on  TEXT,
+    verification_remarks TEXT,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_iform_candidate ON interview_forms(candidate_id);
+  CREATE INDEX IF NOT EXISTS idx_ieval_candidate ON interview_evaluations(candidate_id);
+  CREATE INDEX IF NOT EXISTS idx_ieval_status ON interview_evaluations(status);
+  CREATE INDEX IF NOT EXISTS idx_cref_candidate ON candidate_references(candidate_id);
+`);
+
+/*
+ * A round has a name as well as a number.
+ *
+ * "Round 2" does not say who is in the room, and the office schedules a
+ * technical round and a final management round quite differently. The number
+ * stays, because it orders the history and a name does not - "HR Round" twice
+ * is a real thing that happens.
+ *
+ * And the interviewer is their own column rather than part of the panel: the
+ * panel is who was there, the interviewer is who is answerable for the
+ * evaluation, and the interviewer-wise report needs one name to group by.
+ */
+for (const [column, type] of [
+  ['round_name', 'TEXT'],
+  ['interviewer', 'TEXT'],
+]) {
+  if (!columnsOf('interviews').has(column)) {
+    db.exec(`ALTER TABLE interviews ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated interviews: added ${column}.`);
+  }
+}
+
+/*
+ * Where somebody lives, on the CANDIDATE and not on the interview form.
+ *
+ * An address is a fact about a person, so three rounds must not produce three
+ * addresses with nothing to say which is current. The form fetches it in,
+ * corrects it in front of them, and writes it back here.
+ *
+ * Permanent is stored in full rather than as a "same as current" flag: a flag
+ * would leave the columns blank and make every report, export and letter
+ * reconstruct the rule, and the first one that forgot would print nothing.
+ */
+for (const which of ['current', 'permanent']) {
+  for (const part of ['line1', 'line2', 'landmark', 'city', 'state', 'pin']) {
+    const column = `${which}_${part}`;
+    if (!columnsOf('candidates').has(column)) {
+      db.exec(`ALTER TABLE candidates ADD COLUMN ${column} TEXT`);
+    }
+  }
+}
+log.info('Interview forms, evaluations and candidate addresses are ready.');
+
+/**
+ * Everything the two forms fetch rather than ask for.
+ *
+ * Dinesh: "Automatically fetch candidate details and interview information. Do
+ * not ask for information already available in the candidate profile or
+ * interview form." So this is the one place that assembles it, and both forms
+ * read it - the header on screen, the print view and the server's own
+ * validation cannot disagree about which candidate this is.
+ */
+export function interviewContext(interviewId) {
+  const interview = db.prepare(`SELECT * FROM interviews WHERE id = ?`).get(interviewId);
+  if (!interview) return null;
+  const application = getApplication(interview.application_id);
+  if (!application) return null;
+  const candidate = getCandidate(application.candidate_id);
+  return {
+    interview,
+    application,
+    candidate: candidate ? forOffice(candidate) : null,
+    // Named rather than left as ids, because this is what gets printed.
+    position: application.job_title,
+    department: application.department,
+    company: application.company_name,
+  };
+}
+
+/**
+ * Write the person's own facts back to the person.
+ *
+ * The form fetches a date of birth and a notice period from the candidate and
+ * lets the interviewer correct them in front of them. Those corrections belong
+ * on the candidate record, not on one round's form - three rounds must not
+ * produce three dates of birth with nothing to say which is right.
+ *
+ * A blank is never written over something already known. An interviewer who
+ * skipped the email box did not say the candidate has no email, and the
+ * uploaded-CV rule next door works the same way.
+ */
+function writeBackToCandidate(candidateId, body = {}) {
+  const current = getCandidate(candidateId);
+  if (!current) return;
+  const patch = {};
+  for (const { field, column } of CANDIDATE_FIELDS) {
+    const value = body[field];
+    if (value === undefined || value === null) continue;
+    const text = String(value).trim();
+    if (!text) continue;
+    if (String(current[column] ?? '') === text) continue;
+    patch[column] = value;
+  }
+  // The address comes as its own block and follows the same rule.
+  for (const key of Object.keys(body.address || {})) {
+    const value = body.address[key];
+    if (value === undefined || value === null) continue;
+    if (!columnsOf('candidates').has(key)) continue;
+    patch[key] = value;
+  }
+  if (Object.keys(patch).length) updateCandidate(candidateId, patch);
+}
+
+const readForm = (row) =>
+  row
+    ? {
+        ...row,
+        languages: json(row.languages, []),
+        answers: json(row.answers, {}),
+      }
+    : null;
+
+export function getInterviewForm(interviewId) {
+  const context = interviewContext(interviewId);
+  if (!context) return null;
+  const form = readForm(
+    db.prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`).get(interviewId)
+  );
+  return { ...context, form, references: listReferences(context.application.candidate_id) };
+}
+
+/**
+ * Save the information form, as a draft or submitted.
+ *
+ * A DRAFT checks nothing and moves nobody - it is somebody half way through
+ * typing with a candidate in front of them, and a form that refuses to save is
+ * a form that gets written up from memory that evening.
+ *
+ * SUBMITTING is where the decision counts. Even then only a rejection moves
+ * the application: see DECISIONS in shared/interviewForm.js for why "Selected"
+ * deliberately moves nobody.
+ */
+export function saveInterviewForm(interviewId, body = {}, { by = 'office', submit = false } = {}) {
+  const context = interviewContext(interviewId);
+  if (!context) throw new Error('no such interview');
+
+  const problems = checkForm(body, { submitting: submit });
+  if (problems.length) {
+    const error = new Error(problems[0]);
+    error.problems = problems;
+    throw error;
+  }
+
+  const existing = db
+    .prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`)
+    .get(interviewId);
+
+  const values = writable('interview_forms', body, {
+    skip: ['interview_id', 'application_id', 'candidate_id', 'status', 'submitted_at', 'filled_by'],
+  });
+  // The repeating parts travel as JSON: a list of languages and ten answers
+  // filed under keys that never change.
+  values.languages = JSON.stringify(Array.isArray(body.languages) ? body.languages : []);
+  values.answers = JSON.stringify(
+    Object.fromEntries(
+      QUESTION_KEYS.map((key) => [key, body.answers?.[key] ?? '']).filter(([, v]) => String(v).trim())
+    )
+  );
+  values.updated_at = nowIso();
+
+  let id;
+  if (existing) {
+    update('interview_forms', existing.id, values);
+    id = existing.id;
+  } else {
+    id = insert('interview_forms', {
+      ...values,
+      interview_id: interviewId,
+      application_id: context.application.id,
+      candidate_id: context.application.candidate_id,
+      status: 'draft',
+      filled_by: by,
+    });
+  }
+
+  writeBackToCandidate(context.application.candidate_id, body);
+
+  if (submit) {
+    const already = existing?.status === 'submitted';
+    update('interview_forms', id, {
+      status: 'submitted',
+      submitted_at: existing?.submitted_at || nowIso(),
+      filled_by: existing?.filled_by || by,
+    });
+    audit({
+      who: by,
+      action: already ? 'changed' : 'submitted',
+      entity: 'interview_form',
+      entity_id: id,
+      label: `${context.candidate?.name} — ${context.position}, round ${context.interview.round}`,
+      field: 'decision',
+      from_value: existing?.decision || null,
+      to_value: body.decision || null,
+      note: body.decision_remarks || null,
+    });
+
+    const stage = stageForDecision(body.decision);
+    if (stage && context.application.stage !== stage) {
+      moveApplication(context.application.id, stage, {
+        by,
+        note: `interview round ${context.interview.round}: ${body.decision}${
+          body.rejection_reason ? ` — ${body.rejection_reason}` : ''
+        }`,
+      });
+    }
+  }
+
+  return getInterviewForm(interviewId);
+}
+
+/* ---------------- the interviewer's evaluation ---------------- */
+
+const readEval = (row) =>
+  row
+    ? {
+        ...row,
+        ratings: json(row.ratings, {}),
+        rating_remarks: json(row.rating_remarks, {}),
+        summary: summarise(json(row.ratings, {})),
+      }
+    : null;
+
+export function getEvaluation(interviewId) {
+  const context = interviewContext(interviewId);
+  if (!context) return null;
+  const evaluation = readEval(
+    db.prepare(`SELECT * FROM interview_evaluations WHERE interview_id = ?`).get(interviewId)
+  );
+  return { ...context, evaluation };
+}
+
+/**
+ * Save the evaluation, as a draft or submitted by the interviewer.
+ *
+ * Submitting moves the PAPERWORK on - to HR or to management, whichever the
+ * next action says - and moves the CANDIDATE nowhere. That is the rule this
+ * whole module exists to hold, in Dinesh's own words: "interviewer
+ * recommendation must not automatically mean final selection".
+ *
+ * Ratings outside 1 to 5 are refused rather than clamped: a 7 is a mistake,
+ * and silently storing it as 5 invents an opinion nobody held. A rating left
+ * blank is kept blank, and summarise() counts what was rated rather than all
+ * ten.
+ */
+export function saveEvaluation(interviewId, body = {}, { by = 'office', submit = false } = {}) {
+  const context = interviewContext(interviewId);
+  if (!context) throw new Error('no such interview');
+
+  const problems = checkEvaluation(body, { submitting: submit });
+  if (problems.length) {
+    const error = new Error(problems[0]);
+    error.problems = problems;
+    throw error;
+  }
+
+  const existing = db
+    .prepare(`SELECT * FROM interview_evaluations WHERE interview_id = ?`)
+    .get(interviewId);
+
+  /*
+   * A decided evaluation is not editable here.
+   *
+   * "After submission, lock the submitted version from unauthorised changes."
+   * Once somebody has approved or rejected it, the thing they approved has to
+   * stay the thing they approved - otherwise the trail cannot say what the
+   * decision was made on.
+   */
+  if (existing && ['approved', 'rejected'].includes(existing.status)) {
+    throw new Error('This evaluation has already been decided and can no longer be changed.');
+  }
+
+  const values = writable('interview_evaluations', body, {
+    skip: [
+      'interview_id', 'application_id', 'candidate_id', 'status', 'submitted_at',
+      'evaluated_by', 'reviewed_by', 'reviewed_at', 'review_remarks',
+      'approved_by', 'approved_at',
+    ],
+  });
+  values.ratings = JSON.stringify(
+    Object.fromEntries(
+      PARAMETER_KEYS.map((key) => [key, body.ratings?.[key]])
+        .filter(([, v]) => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 5)
+        .map(([k, v]) => [k, Number(v)])
+    )
+  );
+  values.rating_remarks = JSON.stringify(
+    Object.fromEntries(
+      PARAMETER_KEYS.map((key) => [key, body.rating_remarks?.[key] ?? ''])
+        .filter(([, v]) => String(v).trim())
+    )
+  );
+  values.updated_at = nowIso();
+
+  let id;
+  if (existing) {
+    update('interview_evaluations', existing.id, values);
+    id = existing.id;
+  } else {
+    id = insert('interview_evaluations', {
+      ...values,
+      interview_id: interviewId,
+      application_id: context.application.id,
+      candidate_id: context.application.candidate_id,
+      status: 'draft',
+      evaluated_by: by,
+    });
+  }
+
+  if (submit) {
+    update('interview_evaluations', id, {
+      status: 'submitted',
+      submitted_at: existing?.submitted_at || nowIso(),
+      evaluated_by: existing?.evaluated_by || by,
+    });
+    audit({
+      who: by,
+      action: 'submitted',
+      entity: 'interview_evaluation',
+      entity_id: id,
+      label: `${context.candidate?.name} — ${context.position}, round ${context.interview.round}`,
+      field: 'recommendation',
+      to_value: body.recommendation || null,
+      note: body.next_action ? `next: ${body.next_action}` : null,
+    });
+  }
+
+  return getEvaluation(interviewId);
+}
+
+/**
+ * Move an evaluation through the review workflow.
+ *
+ * `abilities` comes off the SIGNED-IN USER, never off the request body, so a
+ * caller cannot award themselves the admin ability by typing it. The gate
+ * itself lives in shared/interviewEval.js, so the browser can grey out a
+ * button for exactly the reason the server would refuse it.
+ *
+ * An APPROVAL is the only thing in this file that may move a candidate, and
+ * even then only where the next action names a stage - which today is a
+ * rejection and nothing else, because sending an offer is a separate act.
+ */
+export function reviewEvaluation(id, { to, by = 'office', remarks, abilities = [] } = {}) {
+  const row = db.prepare(`SELECT * FROM interview_evaluations WHERE id = ?`).get(id);
+  if (!row) return null;
+
+  const verdict = canMove(row, to, abilities);
+  if (!verdict.ok) {
+    const error = new Error(verdict.why);
+    // Only a permission refusal is a 403. A step that does not exist is a bad
+    // request however many abilities the caller has.
+    error.status = verdict.code === 'forbidden' ? 403 : 400;
+    throw error;
+  }
+
+  const now = nowIso();
+  const patch = { status: to, updated_at: now };
+  if (['approved', 'rejected'].includes(to)) {
+    patch.approved_by = by;
+    patch.approved_at = now;
+  } else {
+    patch.reviewed_by = by;
+    patch.reviewed_at = now;
+  }
+  if (remarks !== undefined) patch.review_remarks = remarks || null;
+  update('interview_evaluations', id, patch);
+
+  const context = interviewContext(row.interview_id);
+  audit({
+    who: by,
+    action: to === 'approved' ? 'approved' : to === 'rejected' ? 'rejected' : 'changed',
+    entity: 'interview_evaluation',
+    entity_id: id,
+    label: `${context?.candidate?.name} — ${context?.position}, round ${context?.interview?.round}`,
+    field: 'status',
+    from_value: row.status,
+    to_value: to,
+    note: remarks || null,
+  });
+
+  const stage = stageOnApproval({ status: to, next_action: row.next_action });
+  if (stage && context && context.application.stage !== stage) {
+    moveApplication(context.application.id, stage, {
+      by,
+      note: `evaluation ${to}: ${row.next_action}${
+        row.recommendation_reason ? ` — ${row.recommendation_reason}` : ''
+      }`,
+    });
+  }
+
+  return getEvaluation(row.interview_id);
+}
+
+/* ---------------- references ---------------- */
+
+export const listReferences = (candidateId) =>
+  db
+    .prepare(`SELECT * FROM candidate_references WHERE candidate_id = ? ORDER BY id`)
+    .all(candidateId);
+
+/**
+ * References live on the CANDIDATE, not on one round's form.
+ *
+ * Dinesh: "Reference verification should be optional during the interview and
+ * can be completed later by HR." Finishing a verification a week later must
+ * not mean editing a submitted interview record - those are meant to stay
+ * exactly as they were submitted. So the reference is the person's and the
+ * verification is a field on it.
+ */
+export function saveReference(candidateId, body = {}) {
+  const values = writable('candidate_references', body, { skip: ['candidate_id'] });
+  values.updated_at = nowIso();
+  if (body.id) {
+    update('candidate_references', Number(body.id), values);
+    return db.prepare(`SELECT * FROM candidate_references WHERE id = ?`).get(Number(body.id));
+  }
+  const id = insert('candidate_references', { ...values, candidate_id: candidateId });
+  return db.prepare(`SELECT * FROM candidate_references WHERE id = ?`).get(id);
+}
+
+export const deleteReference = (id) =>
+  db.prepare(`DELETE FROM candidate_references WHERE id = ?`).run(id).changes;
+
+/* ---------------- the history on the candidate ---------------- */
+
+/**
+ * Every round this person has sat, newest first, with both records.
+ *
+ * One row per interview, carrying whether a form and an evaluation exist and
+ * where each got to - so the candidate's record can show the whole trail
+ * without fetching every form in full. "Each interview round must have its own
+ * separate information and evaluation records", and this is what proves it:
+ * the rows cannot merge, because each hangs off its own interview.
+ */
+export function interviewHistory(candidateId) {
+  return db
+    .prepare(
+      `SELECT i.id AS interview_id, i.at, i.round, i.round_name, i.mode, i.panel,
+              i.interviewer, i.status AS interview_status,
+              v.title AS job_title, co.name AS company_name,
+              f.id AS form_id, f.status AS form_status, f.decision, f.decision_remarks,
+              f.next_round, f.next_interview_date, f.rejection_reason, f.submitted_at AS form_submitted,
+              e.id AS evaluation_id, e.status AS evaluation_status, e.recommendation,
+              e.next_action, e.ratings, e.reviewed_by, e.approved_by, e.approved_at
+         FROM interviews i
+         JOIN applications a ON a.id = i.application_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         JOIN companies co ON co.id = v.company_id
+         LEFT JOIN interview_forms f ON f.interview_id = i.id
+         LEFT JOIN interview_evaluations e ON e.interview_id = i.id
+        WHERE a.candidate_id = ?
+        ORDER BY i.at DESC, i.id DESC`
+    )
+    .all(candidateId)
+    .map((row) => ({
+      ...row,
+      ratings: undefined,
+      summary: summarise(json(row.ratings, {})),
+    }));
 }

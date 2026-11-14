@@ -9,23 +9,32 @@ import {
   deleteApplication,
   deleteCandidate,
   deleteInterview,
+  deleteReference,
   deleteTask,
   deleteVacancy,
-  getApplication,
   forOffice,
+  getApplication,
   getCandidate,
+  getEvaluation,
+  getInterviewForm,
   getVacancy,
   hireApplication,
   hiringOverview,
+  interviewHistory,
   listApplications,
   listCandidates,
   listInterviews,
+  listReferences,
   listTasks,
   listTests,
   listVacancies,
   moveApplication,
   recordTest,
   rescoreVacancy,
+  reviewEvaluation,
+  saveEvaluation,
+  saveInterviewForm,
+  saveReference,
   suggestForVacancy,
   updateApplication,
   updateCandidate,
@@ -500,3 +509,103 @@ hiringRouter.get('/export/candidates.csv', (req, res) => {
     )
   );
 });
+
+/* ---------------- the physical interview form and its evaluation ---------- */
+
+/*
+ * Who did this, and what they are allowed to do.
+ *
+ * Both come off the SIGNED-IN SESSION and not off the request body. A caller
+ * who could name themselves in the body could sign somebody else's approval;
+ * one who could send their own abilities could approve without being an
+ * admin. The body's `by` is kept only as the fallback for the API-key path,
+ * which has no person behind it, exactly as people.js does it.
+ */
+const actorName = (req) =>
+  (req.actor?.via === 'session' ? req.actor.name : null) ||
+  req.body?.by ||
+  req.get('x-acted-by') ||
+  req.actor?.name ||
+  'office';
+
+const actorAbilities = (req) => req.actor?.abilities || [];
+
+const sendProblem = (res, err) =>
+  res.status(err.status || 400).json({ error: err.message, problems: err.problems });
+
+hiringRouter.get('/interviews/:id/form', (req, res) => {
+  const found = getInterviewForm(Number(req.params.id));
+  return found ? res.json(found) : res.status(404).json({ error: 'no such interview' });
+});
+
+hiringRouter.put('/interviews/:id/form', (req, res) => {
+  try {
+    res.json(
+      saveInterviewForm(Number(req.params.id), req.body || {}, {
+        by: actorName(req),
+        submit: req.query.submit === 'true',
+      })
+    );
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.get('/interviews/:id/evaluation', (req, res) => {
+  const found = getEvaluation(Number(req.params.id));
+  return found ? res.json(found) : res.status(404).json({ error: 'no such interview' });
+});
+
+hiringRouter.put('/interviews/:id/evaluation', (req, res) => {
+  try {
+    res.json(
+      saveEvaluation(Number(req.params.id), req.body || {}, {
+        by: actorName(req),
+        submit: req.query.submit === 'true',
+      })
+    );
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+/*
+ * The review workflow.
+ *
+ * `abilities` is read off the session here and handed to the shared gate, so
+ * an HR login gets the same "only an Admin can approve" the button showed
+ * them - and a Viewer who knows the URL gets it too.
+ */
+hiringRouter.post('/evaluations/:id/review', (req, res) => {
+  try {
+    const out = reviewEvaluation(Number(req.params.id), {
+      to: String(req.body?.to || ''),
+      by: actorName(req),
+      remarks: req.body?.remarks,
+      abilities: actorAbilities(req),
+    });
+    return out ? res.json(out) : res.status(404).json({ error: 'no such evaluation' });
+  } catch (err) {
+    return sendProblem(res, err);
+  }
+});
+
+hiringRouter.get('/candidates/:id/interviews', (req, res) =>
+  res.json({ history: interviewHistory(Number(req.params.id)) })
+);
+
+hiringRouter.get('/candidates/:id/references', (req, res) =>
+  res.json({ references: listReferences(Number(req.params.id)) })
+);
+
+hiringRouter.put('/candidates/:id/references', (req, res) => {
+  try {
+    res.json(saveReference(Number(req.params.id), req.body || {}));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+hiringRouter.delete('/references/:id', (req, res) =>
+  res.json({ removed: deleteReference(Number(req.params.id)) })
+);
