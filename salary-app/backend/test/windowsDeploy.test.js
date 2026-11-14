@@ -462,6 +462,16 @@ test('going live looks before it touches the tunnel that serves ZynTask', () => 
   assert.match(ps, /Could not find the catch-all rule/);
   assert.match(ps, /is already in the config - leaving it alone/);
 
+  /*
+   * The folder on TSRV is E:\cloudfare - no "l" - so a list of correctly
+   * spelt guesses walked straight past it. Both spellings are tried, and
+   * then the disks are searched for a config.yml that actually contains an
+   * ingress block, rather than reporting "not found" on a machine that
+   * plainly has one.
+   */
+  assert.match(ps, /cloudfare\\config\.yml/);
+  assert.match(ps, /-match 'ingress:'/);
+
   // A dashboard-run tunnel keeps its routes in Cloudflare, so the script
   // says what to click instead of pretending it can edit them here.
   assert.match(ps, /--token/);

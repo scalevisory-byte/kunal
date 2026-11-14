@@ -62,7 +62,7 @@ try {
     Write-Host '  No Windows service with cloudflared in its name.'
   }
   if (-not $exe) {
-    $guess = Get-ChildItem -Path 'C:\', 'E:\' -Filter 'cloudflared*.exe' -Recurse -ErrorAction SilentlyContinue |
+    $guess = Get-ChildItem -Path 'C:\', 'D:\', 'E:\' -Filter 'cloudflared*.exe' -Recurse -ErrorAction SilentlyContinue |
              Select-Object -First 3
     foreach ($g in $guess) { Write-Host ("  Found a cloudflared at: {0}" -f $g.FullName) }
     if ($guess) { $exe = $guess[0].FullName }
@@ -73,12 +73,28 @@ try {
   $configPath = $null
   if ($cmdLine -match '--config\s+"?([^"\s]+)"?') { $configPath = $Matches[1] }
   if (-not $configPath) {
+    # Spelt whichever way it was typed. On TSRV the folder is E:\cloudfare -
+    # no "l" - and a list of correctly spelt guesses walked straight past it.
+    # Anything that looks like it is tried, and then the disks are searched
+    # for a config.yml that actually has an ingress block in it.
     foreach ($p in @(
       "$env:USERPROFILE\.cloudflared\config.yml",
       "$env:ProgramData\Cloudflare\cloudflared\config.yml",
       'C:\cloudflared\config.yml',
-      'E:\cloudflared\config.yml'
+      'C:\cloudflare\config.yml',
+      'C:\cloudfare\config.yml',
+      'E:\cloudflared\config.yml',
+      'E:\cloudflare\config.yml',
+      'E:\cloudfare\config.yml'
     )) { if (Test-Path $p) { $configPath = $p; break } }
+  }
+  if (-not $configPath) {
+    Write-Host '  Looking for a config.yml on the disks...'
+    $found = Get-ChildItem -Path 'C:\', 'D:\', 'E:\' -Filter 'config.yml' -Recurse -ErrorAction SilentlyContinue |
+             Where-Object { (Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue) -match 'ingress:' } |
+             Select-Object -First 5
+    foreach ($f in $found) { Write-Host ("    found: {0}" -f $f.FullName) }
+    if ($found) { $configPath = $found[0].FullName }
   }
   $tokenRun = ($cmdLine -match '--token')
 
