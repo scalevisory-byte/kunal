@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
-import { timesToDay } from '../../shared/timesheet.js';
+import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -1918,6 +1918,31 @@ export const setAttendance = db.transaction((periodId, entries) => {
         if (judged.code) code = judged.code;
         else if (times.in_time) code = 'P';
       }
+
+      /*
+       * "A half day is already paid at half" only holds if the day IS a half
+       * day.
+       *
+       * timesToDay zeroes the shortfall once the hours fall under the
+       * half-day line, because charging the missing hours on top of half a
+       * day's pay would be double. That reasoning disappears the moment a
+       * CALLER names a full-day mark: the eSSL Basic Work Duration export
+       * marks the day P off the device's own shift rules, we write that P,
+       * and the person is then paid a whole day for two hours and fifty-eight
+       * minutes with nothing deducted - neither the machine's answer nor
+       * ours. In Dinesh's 14-day November file that is 24 days and 149 hours.
+       *
+       * So when the hours say half day and the mark says full day, the
+       * shortfall is charged. Re-asked of the same function with the half-day
+       * line removed, rather than re-stating the grace rule here, so there is
+       * still one rule.
+       *
+       * Only for P. A, UL and AD already dock a day; leave, a holiday and a
+       * Sunday are paid without hours being expected; SP and HP are paid by
+       * the day on the Sunday register, outside the salary this would come
+       * out of.
+       */
+      minutes = minutesForMark(times, { hoursPerDay, code });
     }
 
     // A day with no mark, no minutes and no times has nothing left to record.

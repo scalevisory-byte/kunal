@@ -28,7 +28,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
-import { parseTime, formatTime } from './timesheet.js';
+import { parseTime, formatTime, minutesForMark } from './timesheet.js';
 
 /* ---------------- what the machine's codes mean here ---------------- */
 
@@ -476,12 +476,17 @@ export function monthlyStatusToMarks({
   }
 
   const daysInMonth = new Date(Date.UTC(period.year, period.month, 0)).getUTCDate();
+  const hoursPerDay = Number(period.hours_per_day) || 9;
   const entries = [];
   const unmatched = [];
   const unknownMarks = new Map();
   const matched = [];
   let kept = 0;
   let withTimes = 0;
+  let shortMinutes = 0;
+  let shortDays = 0;
+  let overtimeMinutes = 0;
+  let overtimeDays = 0;
   let skippedExisting = 0;
 
   for (const sheet of sheets) {
@@ -538,7 +543,25 @@ export function monthlyStatusToMarks({
           if (t.in) entry.in_time = t.in;
           entry.out_time = t.out || '';
         }
-        if (entry.in_time) withTimes += 1;
+        if (entry.in_time) {
+          withTimes += 1;
+          /*
+           * What this will COST, worked out before the button rather than
+           * discovered on the payslip.
+           *
+           * The clock times become short hours and overtime by the same rule
+           * the Time tab and the grid use - minutesForMark, so the preview
+           * cannot promise one figure and the write produce another. In
+           * Dinesh's 14-day November file it comes to 483 hours short and 144
+           * over, which is far too much to find out about afterwards.
+           */
+          const m = minutesForMark(
+            { in_time: entry.in_time, out_time: entry.out_time },
+            { hoursPerDay, code },
+          );
+          if (m < 0) { shortMinutes -= m; shortDays += 1; }
+          else if (m > 0) { overtimeMinutes += m; overtimeDays += 1; }
+        }
         entries.push(entry);
         kept += 1;
       }
@@ -590,6 +613,10 @@ export function monthlyStatusToMarks({
     // report, which has none - so the screen can say which kind it just read
     // rather than silently doing more or less than last time.
     withTimes,
+    shortMinutes,
+    shortDays,
+    overtimeMinutes,
+    overtimeDays,
     companies: sheets.filter((s) => !s.error).map((s) => ({
       sheet: s.name,
       company: s.company,

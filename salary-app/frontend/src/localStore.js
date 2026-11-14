@@ -29,7 +29,7 @@ import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
-import { TIME_FIELDS, parseTime, timesToDay } from '../../shared/timesheet.js';
+import { TIME_FIELDS, minutesForMark, parseTime, timesToDay } from '../../shared/timesheet.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
   PENALTY_KINDS,
@@ -1949,6 +1949,10 @@ export async function handle(method, path, body) {
               if (judged.code) code = judged.code;
               else if (times.in_time) code = 'P';
             }
+            // "A half day is already paid at half" only holds if the day IS
+            // a half day - minutesForMark is the one place that decides, so
+            // the file and the server cannot pay differently.
+            minutes = minutesForMark(times, { hoursPerDay, code });
           }
 
           /*

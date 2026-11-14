@@ -168,6 +168,55 @@ test('a short day is a half day, and its hours are not deducted as well', async 
   assert.equal(day.minutes, 0, 'already paid at half — charging the hours again would be double');
 });
 
+test('but if the MARK says full day, the shortfall is charged after all', async () => {
+  const who = staff.Imported;
+  /*
+   * The half-day zeroing above rests on "already paid at half". That stops
+   * being true the moment a caller names a full-day mark.
+   *
+   * The eSSL Basic Work Duration export does exactly that: the device decides
+   * P off its own shift rules, we write that P, and the clock says two hours
+   * fifty-eight. Before this, the day was paid in full with nothing deducted
+   * - which is neither the machine's answer nor ours. In Dinesh's 14-day
+   * November file: 24 days, 149 hours, uncharged.
+   */
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 13, code: 'P', in_time: '13:21', out_time: '16:19' }],
+  });
+  const day = await dayOf(who, 13);
+  assert.equal(day.code, 'P', "the machine's verdict stands - we did not overrule it");
+  // 2h58m = 178 minutes against a 9h day.
+  assert.equal(day.minutes, 178 - 540, 'and the shortfall is charged, because a whole day is being paid');
+});
+
+test('an absence with a stray punch on it is not docked twice', async () => {
+  const who = staff.Imported;
+  /*
+   * Two days in the real file look like this: the machine marked A, and there
+   * is still an hour on the clock from somebody who came in and went home.
+   * The absence already costs the day; charging eight more hours short on top
+   * would take two days' pay for one.
+   */
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 14, code: 'A', in_time: '08:59', out_time: '10:07' }],
+  });
+  const day = await dayOf(who, 14);
+  assert.equal(day.code, 'A');
+  assert.equal(day.minutes, 0, 'the absence is the whole charge');
+});
+
+test('and a worked Sunday is not docked either - it is paid by the day', async () => {
+  const who = staff.Imported;
+  // SP is settled on the Sunday register at a day rate, outside the salary
+  // this deduction would come out of.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 15, code: 'SP', in_time: '13:12', out_time: '16:00' }],
+  });
+  const day = await dayOf(who, 15);
+  assert.equal(day.code, 'SP');
+  assert.equal(day.minutes, 0);
+});
+
 test('a caller that works the minutes out itself is left alone', async () => {
   const who = staff.Imported;
   // What the biometric importer and the Time tab send: times AND minutes.

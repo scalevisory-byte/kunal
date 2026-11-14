@@ -217,6 +217,31 @@ export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
   return { ...read, expected, diff, minutes, code };
 }
 
+/**
+ * The day's OT/short minutes **given the mark the day will actually carry**.
+ *
+ * timesToDay zeroes the shortfall once the hours fall under the half-day
+ * line, because charging the missing hours on top of half a day's pay would
+ * be double. That reasoning only holds if the day IS a half day. A caller
+ * that names a full-day mark - the eSSL export writes the device's own P -
+ * would otherwise pay a whole day for two hours and fifty-eight minutes with
+ * nothing deducted, which is neither the machine's answer nor ours.
+ *
+ * Only P is corrected. A, UL and AD already dock a day; leave, a holiday and
+ * a Sunday are paid without hours being expected; SP and HP are paid by the
+ * day on the Sunday register, outside the salary this would come out of.
+ *
+ * One function so the server, the offline file and the import preview cannot
+ * give three answers for the same day.
+ */
+export function minutesForMark(times, { hoursPerDay = 9, code = '' } = {}) {
+  const judged = timesToDay(times, { hoursPerDay });
+  if (judged.code === 'HF' && String(code).toUpperCase() === 'P') {
+    return timesToDay(times, { hoursPerDay, rules: { halfDayHours: 0 } }).minutes;
+  }
+  return judged.minutes;
+}
+
 /** Everything typed on one person's month, added up. */
 export function monthTotals(daysWithTimes = [], options = {}) {
   const totals = { days: 0, worked: 0, expected: 0, short: 0, overtime: 0, lunch: 0 };

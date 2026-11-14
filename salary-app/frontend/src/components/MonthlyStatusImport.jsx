@@ -14,6 +14,12 @@ import { ATTENDANCE_CODES } from '../../../shared/calc.js';
  * the 22nd. Writing that through costs each of them eight days' pay, so those
  * days are left alone unless they are asked for.
  */
+/** 28989 -> "483h 09m". Enough precision to recognise the figure, no more. */
+const hours = (minutes) => {
+  const m = Math.abs(Math.round(Number(minutes) || 0));
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+};
+
 export default function MonthlyStatusImport({ period, onReload }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -154,12 +160,26 @@ export default function MonthlyStatusImport({ period, onReload }) {
           </div>
 
           {preview.withTimes ? (
-            <p className="small" style={{ marginTop: '0.5rem' }}>
-              This export also carries the clock times: <strong>{preview.withTimes}</strong> days
-              get an in time, and the hours are worked out by the same rule as a day typed on the
-              Time tab. A day the machine saw no punch out for is left without one rather than
-              given a guessed finishing time.
-            </p>
+            <div className="banner" style={{ marginTop: '0.5rem' }}>
+              <strong>This export carries the clock times too.</strong>{' '}
+              {preview.withTimes} days get an in time, and the hours are turned into money by the
+              same rule as a day typed on the Time tab. A day the machine saw no punch out for is
+              left without one rather than given a guessed finishing time.
+              {preview.shortDays || preview.overtimeDays ? (
+                <>
+                  {' '}
+                  <strong>What that costs:</strong>{' '}
+                  {preview.shortDays
+                    ? `${hours(preview.shortMinutes)} short across ${preview.shortDays} days`
+                    : 'nothing short'}
+                  {preview.overtimeDays
+                    ? `, and ${hours(preview.overtimeMinutes)} overtime across ${preview.overtimeDays} days`
+                    : ''}
+                  . Worth a look before you write it: somebody on a part-time or afternoon shift
+                  is judged against the month's full day here, so their hours read as short.
+                </>
+              ) : null}
+            </div>
           ) : null}
 
           {Object.keys(preview.tally || {}).length ? (
