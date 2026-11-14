@@ -1264,6 +1264,52 @@ confirmation reaches the grid.
 - The one test asserting the old one-step behaviour **failed on the first run and was rewritten
   to state the new rule**, not patched.
 
+## A version, a history, and help inside the app
+
+Dinesh: *"version no and history bhi do jisse pata chale ki kya naya aaya he"* and *"ek
+software k andar hi help ka option bana do jisme search karne pe kisi bhi topic ki guidance
+mil jaye"*. `shared/version.js`, `shared/help.js`, `frontend/src/components/Help.jsx`.
+
+- **Two different questions, so both are shown.** `v1.6.0 · 14 Nov 2026, 04:02 pm` in the rail:
+  the **version** says which release this is, the **build stamp** says which COPY of it you are
+  holding — and that second one is the figure that settles "the update did not take". The
+  version is written by hand, because "small fix or new module" is a judgement a build script
+  cannot make.
+- **The history is written from the real commit log**, in the office's language — what somebody
+  can now do that they could not. Seven releases back to 1.0. Anything that moved money says so
+  (*"this was costing real money — 149 hours in one fortnight"*).
+- A dot on the rail marks anything unread; `since('')` and `since('9.9.9')` return **the lot**,
+  because never having looked is not the same as having seen everything — the opposite would
+  hide the history from exactly the person it is for. Tested.
+- **40 help topics, searchable**, each naming its tab with an "Open it →" that goes there.
+  Ranking is title > keyword > body, and **every word of the query has to land**, so "sunday
+  excel" narrows instead of widening. An empty box is a contents page, not an empty screen.
+- **Keywords carry the Hinglish somebody would actually type** — `chutti`, `pagar`, `hajri`,
+  `ghante`, `saman`, `foto`. There is a test for each, because searching "chutti" and getting
+  nothing is the fastest way to decide a help screen is useless.
+- **Each topic names the trap**, in its own marked block: a pending request pays nobody, "not
+  checked" is not "missing", the machine's blank day is not an absence, the concession and the
+  short-hours rule are alternatives so the same minutes are never charged twice, ONE FILE HOLDS
+  ONE PERSON. A test asserts those specific notes still exist — they are the valuable half, and
+  each cost a real bug to learn.
+- Both are **overlays, not tabs**: the moment somebody needs help is the moment they are halfway
+  through something. Escape closes. Neither reads anything from the server, so the single file
+  carries the same help.
+- Staff get the same panel **narrowed to the eight topics that apply to them** — their page has
+  no salary sheet, no imports and no asset register, and offering those would send somebody
+  looking for a tab that is not there.
+- **Two real inaccuracies in the help were caught by its own test**, before Dinesh could be:
+  a topic pointed at a `sunday` tab that does not exist (the register is a fold on Attendance),
+  and two titles were too short to be found by anything but themselves. The test reads the tab
+  list out of `App.jsx`, so help cannot drift from the app.
+- **The layout trap, third time:** the panel header is a `<header>`, and a global rule stacks
+  those into a column — so the close button landed on its own line and the header stood 111px
+  tall instead of 62. `flex-direction: row` is explicit and pinned by a test. Same family as the
+  checkbox a global `input` rule collapsed to 0px.
+- **And a process note:** the first browser run showed the OLD help, because `shared/` was edited
+  after the last `npm run build`. The stale build reproduced the exact bug the test had just
+  caught — "Open it" landed on no tab at all. Rebuild before driving.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

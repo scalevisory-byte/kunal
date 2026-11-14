@@ -3056,3 +3056,110 @@ table.sheet.request-queue tbody tr:hover td.decide {
 .team-ask .row { gap: 0.4rem; }
 .plain-list { list-style: none; margin: 0.3rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
 .plain-list li { font-size: 0.86rem; }
+
+/* ---------- help, and what's new ---------- */
+
+/*
+ * Both are overlays on the existing `.modal`, not tabs. The moment somebody
+ * needs help is the moment they are halfway through something, and a tab
+ * would make them leave it.
+ */
+.help-panel { width: min(42rem, 100%); max-height: 86vh; display: flex; flex-direction: column; }
+/*
+ * `flex-direction: row` is NOT redundant: this is a <header>, and a global
+ * rule stacks those into a column. Without it the close button landed on its
+ * own line under the subtitle and the header stood 111px tall instead of 50.
+ * The same family as the checkbox that collapsed to 0px - a global element
+ * rule reaching into a new component.
+ */
+.help-head-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.7rem;
+}
+.help-head-row > div { min-width: 0; }
+.help-head-row > button { flex: 0 0 auto; }
+.help-head-row h2 { margin: 0 0 0.15rem; font-size: 1.1rem; }
+.help-head-row p { margin: 0; }
+
+.help-search {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.help-list { overflow: auto; margin-top: 0.4rem; }
+.help-item { border-top: 1px solid var(--line-soft); }
+.help-item:first-child { border-top: 0; }
+.help-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 0.1rem;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.help-head:hover { color: var(--brand); }
+.help-item.open .help-title { font-weight: 600; }
+.help-chevron { color: var(--muted); font-size: 1rem; line-height: 1; flex: 0 0 auto; }
+
+.help-topic { padding: 0 0.1rem 0.8rem; }
+.help-topic h3 { display: none; }
+.help-topic p { margin: 0 0 0.5rem; font-size: 0.86rem; line-height: 1.6; }
+/* The trap, marked as one - running it in with the prose is how it gets
+   skimmed past, and these are the sentences that save money. */
+.help-note {
+  display: flex;
+  gap: 0.45rem;
+  align-items: flex-start;
+  background: var(--brand-soft);
+  border-left: 2px solid var(--brand);
+  border-radius: 0 6px 6px 0;
+  padding: 0.5rem 0.65rem;
+  color: var(--text);
+}
+.help-note svg { flex: 0 0 auto; margin-top: 0.15rem; color: var(--warn); }
+button.link-like {
+  border: 0; background: none; padding: 0; color: var(--brand);
+  font-size: 0.82rem; cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+
+.release { padding: 0.7rem 0; border-top: 1px solid var(--line-soft); }
+.release:first-child { border-top: 0; }
+.release h3 { margin: 0; font-size: 0.92rem; display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.release-title { margin: 0.15rem 0 0.4rem; font-size: 0.86rem; color: var(--muted); }
+.release ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.release li { font-size: 0.84rem; line-height: 1.55; }
+.new-dot {
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+}
+
+/* The version line in the rail, which opens the history. */
+button.side-version {
+  border: 0; background: none; padding: 0; text-align: left; cursor: pointer;
+  font-size: 0.62rem; color: var(--muted); display: flex; align-items: center; gap: 0.3rem;
+}
+button.side-version:hover { color: var(--text); text-decoration: underline; }
+button.side-version .pip {
+  width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--brand); flex: 0 0 auto;
+}
+
+/* Help sits with the tabs, so it looks like one. */
+.side-nav .side-help { opacity: 0.85; }
+.side-nav .side-help:hover { opacity: 1; }

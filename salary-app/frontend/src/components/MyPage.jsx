@@ -12,6 +12,7 @@ import {
 import Payslip from './Payslip.jsx';
 import ChangePassword from './ChangePassword.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
+import Help from './Help.jsx';
 
 /*
  * What an employee sees when they sign in.
@@ -42,6 +43,7 @@ export default function MyPage({ me, onError, onSignOut }) {
   // How many people report to them. A count, not the list - the page only has
   // to decide whether to offer the tab.
   const [manages, setManages] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -74,8 +76,19 @@ export default function MyPage({ me, onError, onSignOut }) {
               .join(' · ') || 'Your record'}
           </p>
         </div>
-        <button className="ghost" onClick={onSignOut}>Sign out</button>
+        <div className="row">
+          {/*
+            * Staff get the same help, narrowed to what applies to them: their
+            * page has no salary sheet, no asset register and no imports, and
+            * offering help for those would send somebody looking for a tab
+            * that is not there.
+            */}
+          <button className="ghost" onClick={() => setHelpOpen(true)}>Help</button>
+          <button className="ghost" onClick={onSignOut}>Sign out</button>
+        </div>
       </header>
+
+      {helpOpen && <Help scope="staff" onClose={() => setHelpOpen(false)} />}
 
       <nav className="tabs sub-tabs">
         {tabs.map(([key, label]) => (

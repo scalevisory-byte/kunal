@@ -24,6 +24,8 @@ import ChangePassword from './components/ChangePassword.jsx';
 import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
+import Help, { WhatsNew } from './components/Help.jsx';
+import { VERSION, hasNews } from '../../shared/version.js';
 
 
 /* The logo file itself. Vite inlines it as a data URI in the single-file
@@ -171,6 +173,29 @@ function Shell() {
    * already is and carries the destination with it.
    */
   const [focusOn, setFocusOn] = useState(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
+  /*
+   * The last version whose history was read, so the rail can carry a dot for
+   * anything newer. It is per browser and purely a convenience - wrapped,
+   * because a private window throws on even touching localStorage and a help
+   * dot must not take the app down.
+   */
+  const [seenVersion, setSeenVersion] = useState(() => {
+    try {
+      return localStorage.getItem('bnf-hrms-seen-version') || '';
+    } catch {
+      return '';
+    }
+  });
+  const markNewsRead = () => {
+    setSeenVersion(VERSION);
+    try {
+      localStorage.setItem('bnf-hrms-seen-version', VERSION);
+    } catch {
+      /* nice to have, never required */
+    }
+  };
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState(Number(localStorage.getItem(PERIOD_KEY)) || null);
   const [payroll, setPayroll] = useState(null);
@@ -507,7 +532,25 @@ function Shell() {
             </span>
             <span className="side-name">
               <strong>HRMS</strong>
-              <span className="built" title="When this file was built.">{BUILT_ON}</span>
+              {/*
+                * Two different questions, so both are here. The VERSION says
+                * which release this is; the build stamp says which copy of it
+                * you are holding, which is the figure that settles "the
+                * update did not take". Clicking says what changed.
+                */}
+              <button
+                className="side-version"
+                title="What changed, and when"
+                onClick={() => {
+                  setNewsOpen(true);
+                  markNewsRead();
+                }}
+              >
+                {hasNews(seenVersion) ? <span className="pip" /> : null}
+                <span>
+                  v{VERSION} · {BUILT_ON}
+                </span>
+              </button>
               {/*
                 * A blank copy says so, on every screen.
                 *
@@ -547,6 +590,16 @@ function Shell() {
               <span>{label}</span>
             </button>
           ))}
+          {/*
+            * Help sits with the tabs because that is where somebody looks for
+            * a thing in this app - a feature reachable only from somewhere
+            * nobody is standing is a feature that does not exist, which this
+            * app has now proved four times.
+            */}
+          <button className="side-help" onClick={() => setHelpOpen(true)}>
+            <Glyph name="help" size={16} />
+            <span>Help</span>
+          </button>
         </nav>
 
         {!STANDALONE && (
@@ -570,6 +623,17 @@ function Shell() {
           </div>
         )}
       </aside>
+
+      {helpOpen && (
+        <Help
+          onClose={() => setHelpOpen(false)}
+          onGo={(toTab) => {
+            setTab(toTab);
+            setNavOpen(false);
+          }}
+        />
+      )}
+      {newsOpen && <WhatsNew onClose={() => setNewsOpen(false)} seen={seenVersion} />}
 
       {/* Tapping the page behind the menu closes it, as it should. */}
       <div className="side-scrim" onClick={() => setNavOpen(false)} />
