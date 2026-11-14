@@ -3,6 +3,7 @@ import { requireSelf } from '../auth.js';
 import {
   getEmployee,
   listDocuments,
+  listEmployees,
   listLoans,
   listPeriods,
   leaveSummary,
@@ -11,9 +12,10 @@ import {
 } from '../db.js';
 import { buildPayroll } from '../payroll.js';
 import { documentFile } from '../documents.js';
-import { createRequest, listRequests } from '../attendanceSelf.js';
+import { createRequest, decideRequest, getRequest, listRequests } from '../attendanceSelf.js';
 import { listTickets, createTicket, getTicket, replyToTicket, listAssets } from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
+import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
 
 /**
  * The staff side: one person, their own records, and nothing else.
@@ -69,7 +71,15 @@ const mine = (employee) =>
 meRouter.get('/', (req, res) => {
   const employee = getEmployee(req.employeeId);
   if (!employee) return res.status(404).json({ error: 'not found' });
-  res.json({ employee: mine(employee) });
+  /*
+   * `manages` is how the page knows whether to offer a team tab at all. It is
+   * a COUNT and not the list: a page that only has to decide whether to show
+   * a tab has no business being handed everybody's name.
+   */
+  res.json({
+    employee: mine(employee),
+    manages: directReports(listEmployees({ active: true }), req.employeeId).length,
+  });
 });
 
 /**
@@ -192,6 +202,72 @@ meRouter.post('/requests', (req, res) => {
         ...req.body,
         // From the LOGIN, never the body.
         employee_id: req.employeeId,
+      })
+    );
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- a manager's own team ---------------- */
+
+/*
+ * The other half of approvals.
+ *
+ * HR works the whole queue in Reports. This is the person who actually knows
+ * whether Amit can be spared on Thursday deciding it from their own login,
+ * rather than forwarding it to the office to type in.
+ *
+ * The manager is `req.employeeId`, off the LOGIN. Their reports are worked
+ * out here from that id, so nothing the caller sends can widen the set - the
+ * same rule every other route in this file follows.
+ *
+ * It adds no ability: the staff role still carries no `read`, so none of the
+ * office routers answer a manager either. All they gain is their own team's
+ * names and their own team's requests.
+ */
+const myReports = (req) => directReports(listEmployees({ active: true }), req.employeeId);
+
+meRouter.get('/team', (req, res) => {
+  const reports = myReports(req);
+  const ids = new Set(reports.map((r) => Number(r.id)));
+  const requests = listRequests({}).filter((r) => ids.has(Number(r.employee_id)));
+  res.json({
+    // Name, code, what they do. Not what they are paid.
+    team: reports.map(forTeam),
+    waiting: requests.filter((r) => r.status === 'pending').length,
+  });
+});
+
+/** Their team's requests, pending first — the same list HR sees, narrowed. */
+meRouter.get('/team/requests', (req, res) => {
+  const ids = new Set(myReports(req).map((r) => Number(r.id)));
+  const requests = listRequests({}).filter((r) => ids.has(Number(r.employee_id)));
+  res.json({ requests });
+});
+
+/**
+ * Approve or reject one of their own team's requests.
+ *
+ * It goes through the SAME `decideRequest` the office uses - so "an approval
+ * writes attendance", "nothing is decided twice" and "nothing is written into
+ * a locked month" all hold here without being restated. Two code paths
+ * writing attendance is how two sets of rules come to disagree.
+ */
+meRouter.post('/team/requests/:id/decide', (req, res) => {
+  try {
+    const request = getRequest(Number(req.params.id));
+    const ids = new Set(myReports(req).map((r) => Number(r.id)));
+    const may = mayDecideFor(request, { managerId: req.employeeId, reportIds: ids });
+    if (!may.ok) return res.status(403).json({ error: may.reason });
+
+    const me = getEmployee(req.employeeId);
+    res.json(
+      decideRequest(request.id, {
+        approve: Boolean(req.body?.approve),
+        // Their own name, so the trail says who decided rather than "office".
+        by: me?.name || 'manager',
+        note: req.body?.note,
       })
     );
   } catch (err) {

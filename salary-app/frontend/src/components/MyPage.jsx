@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
-import { describeMinutes } from '../../../shared/attendanceRequests.js';
+import {
+  describe as describeRequest,
+  describeMinutes,
+  kindLabel,
+} from '../../../shared/attendanceRequests.js';
 import Payslip from './Payslip.jsx';
 import ChangePassword from './ChangePassword.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
@@ -33,18 +37,26 @@ export default function MyPage({ me, onError, onSignOut }) {
   const [tab, setTab] = useState('pay');
   const [employee, setEmployee] = useState(null);
   const [months, setMonths] = useState([]);
+  // How many people report to them. A count, not the list - the page only has
+  // to decide whether to offer the tab.
+  const [manages, setManages] = useState(0);
 
   useEffect(() => {
     (async () => {
       try {
         const [who, mine] = await Promise.all([api.get('/me'), api.get('/me/months')]);
         setEmployee(who.employee);
+        setManages(who.manages || 0);
         setMonths(mine.months);
       } catch (err) {
         onError(err);
       }
     })();
   }, []);
+
+  // The team tab exists only for somebody who actually manages people. An
+  // empty "My team" on a hundred and fifteen logins is noise on all of them.
+  const tabs = manages > 0 ? [...TABS, ['team', 'My team']] : TABS;
 
   return (
     <div className="my-page">
@@ -64,7 +76,7 @@ export default function MyPage({ me, onError, onSignOut }) {
       </header>
 
       <nav className="tabs sub-tabs">
-        {TABS.map(([key, label]) => (
+        {tabs.map(([key, label]) => (
           <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
             {label}
           </button>
@@ -75,6 +87,7 @@ export default function MyPage({ me, onError, onSignOut }) {
       {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
       {tab === 'leave' && <MyLeave onError={onError} />}
       {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
+      {tab === 'team' && <MyTeam onError={onError} />}
     </div>
   );
 }
@@ -693,6 +706,154 @@ function MyDetails({ employee, onSaved, onError }) {
             new one and you are asked to pick your own again.
           </p>
           <button onClick={() => setChanging(true)}>Change my password</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A manager's own team, and the decisions waiting on them.
+ *
+ * Dinesh asked whether leave could be approved from the employee login. HR
+ * works the whole queue in Reports; this is the person who actually knows
+ * whether somebody can be spared deciding it themselves, instead of
+ * forwarding it to the office to type in.
+ *
+ * What it deliberately is NOT: a small payroll screen. A manager sees the
+ * names of the people who report to them and the requests those people
+ * raised. Not salaries, not payslips, not attendance, and nobody outside
+ * their own team — the server sends nothing else, and there is a test for it.
+ */
+function MyTeam({ onError }) {
+  const [team, setTeam] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [busy, setBusy] = useState(0);
+  const [said, setSaid] = useState('');
+
+  const load = async () => {
+    try {
+      const [who, queue] = await Promise.all([api.get('/me/team'), api.get('/me/team/requests')]);
+      setTeam(who.team || []);
+      setRequests(queue.requests || []);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const decide = async (request, approve) => {
+    /*
+     * Approving writes somebody's attendance, which is what their month is
+     * paid from. It is worth one question before it happens - the office
+     * queue asks the same one.
+     */
+    if (
+      approve &&
+      !window.confirm(
+        `Approve ${request.employee_name}'s ${kindLabel(request.kind).toLowerCase()}?\n\n` +
+          `${describeRequest(request)}\n\nIt goes onto their attendance straight away.`
+      )
+    ) {
+      return;
+    }
+    setBusy(request.id);
+    setSaid('');
+    try {
+      await api.post(`/me/team/requests/${request.id}/decide`, { approve });
+      setSaid(approve ? 'Approved. It is on their attendance now.' : 'Rejected. Nothing was written.');
+      await load();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(0);
+    }
+  };
+
+  const pending = requests.filter((r) => r.status === 'pending');
+  const decided = requests.filter((r) => r.status !== 'pending');
+
+  return (
+    <div className="stack">
+      <div className="card">
+        <h3>Waiting on you</h3>
+        {!pending.length ? (
+          <p className="muted small">
+            Nothing to decide. Requests from the {team.length}{' '}
+            {team.length === 1 ? 'person who reports' : 'people who report'} to you arrive here.
+          </p>
+        ) : (
+          <div className="stack">
+            {pending.map((r) => (
+              <div className="team-ask" key={r.id}>
+                <div>
+                  <strong>{r.employee_name}</strong>
+                  <div className="muted small">
+                    {kindLabel(r.kind)} · {describeRequest(r)}
+                  </div>
+                  {r.reason ? <div className="small">“{r.reason}”</div> : null}
+                </div>
+                <div className="row">
+                  <button
+                    className="primary tiny"
+                    disabled={busy === r.id}
+                    onClick={() => decide(r, true)}
+                  >
+                    Approve
+                  </button>
+                  <button className="tiny" disabled={busy === r.id} onClick={() => decide(r, false)}>
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {said ? <p className="muted small">{said}</p> : null}
+      </div>
+
+      <div className="card">
+        <h3>Your team</h3>
+        {!team.length ? (
+          <p className="muted small">Nobody reports to you.</p>
+        ) : (
+          <ul className="plain-list">
+            {team.map((p) => (
+              <li key={p.id}>
+                <strong>{p.name}</strong>
+                {p.designation || p.department ? (
+                  <span className="muted small">
+                    {' '}
+                    — {[p.designation, p.department].filter(Boolean).join(' · ')}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted small">
+          You can see who reports to you and what they have asked for. Pay, payslips and records
+          stay with the office.
+        </p>
+      </div>
+
+      {decided.length > 0 && (
+        <div className="card">
+          <h3>Already decided</h3>
+          <ul className="plain-list">
+            {decided.slice(0, 20).map((r) => (
+              <li key={r.id}>
+                <strong>{r.employee_name}</strong>{' '}
+                <span className="muted small">
+                  {kindLabel(r.kind)} · {describeRequest(r)} · {r.status}
+                  {r.decided_by ? ` by ${r.decided_by}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

@@ -3040,3 +3040,19 @@ table.sheet.request-queue thead th.decide { background: var(--line-soft); }
 table.sheet.request-queue tbody tr:hover td.decide {
   background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
+
+/* A request waiting on a manager, on their own page. One line each: who, what
+   they want, and the two buttons - a table would not survive a phone. */
+.team-ask {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+.team-ask:first-child { border-top: 0; }
+.team-ask .row { gap: 0.4rem; }
+.plain-list { list-style: none; margin: 0.3rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.plain-list li { font-size: 0.86rem; }

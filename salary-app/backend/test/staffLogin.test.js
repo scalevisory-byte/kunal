@@ -426,3 +426,159 @@ test('a staff login sees their own face and cannot reach anybody else’s', asyn
   });
   assert.equal(ownViaOffice.status, 403, 'even their own, through the office door');
 });
+
+/* ---------------- a manager, deciding their own team ---------------- */
+
+/*
+ * Dinesh: "Leave apply and approval from employee login?" Applying already
+ * worked. This is the other half - the person who actually knows whether
+ * somebody can be spared deciding it from their own login, instead of
+ * forwarding it to HR to type in.
+ *
+ * Amit is the manager here. Riya is given to him; Kiran deliberately is NOT.
+ */
+
+let riyaSession;
+let kiranSession;
+let riyasRequestId;
+let kiransRequestId;
+
+const signInAs = async (employeeId, password) => {
+  const list = (await admin('GET', '/api/auth/staff')).body.staff;
+  let mine = list.find((s) => s.employee_id === employeeId);
+  if (!mine?.user_id) {
+    await admin('POST', '/api/auth/staff', { employee_ids: [employeeId] });
+    mine = (await admin('GET', '/api/auth/staff')).body.staff.find((s) => s.employee_id === employeeId);
+  }
+  await admin('POST', `/api/auth/users/${mine.user_id}/password`, { password });
+  const s = session();
+  await s('POST', '/api/auth/login', { username: mine.username, password });
+  // The slip password forces a change before anything else answers.
+  await s('POST', '/api/auth/password', { password: `${password}-chosen` });
+  return s;
+};
+
+test('somebody who manages nobody is offered no team', async () => {
+  const who = await staff('GET', '/api/me');
+  assert.equal(who.status, 200);
+  assert.equal(who.body.manages, 0);
+
+  const team = await staff('GET', '/api/me/team');
+  assert.equal(team.status, 200);
+  assert.deepEqual(team.body.team, []);
+  assert.equal(team.body.waiting, 0);
+});
+
+test('two people apply for leave from their own logins', async () => {
+  riyaSession = await signInAs(riya.id, 'riyas-own-long-password');
+  kiranSession = await signInAs(third.id, 'kirans-own-long-password');
+
+  const r = await riyaSession('POST', '/api/me/requests', {
+    period_id: periodId, day: 12, to_day: 13, kind: 'leave', code: 'CL', reason: 'Cousin wedding',
+  });
+  assert.equal(r.status, 201);
+  riyasRequestId = r.body.id;
+
+  const k = await kiranSession('POST', '/api/me/requests', {
+    period_id: periodId, day: 14, kind: 'leave', code: 'SL', reason: 'Fever',
+  });
+  assert.equal(k.status, 201);
+  kiransRequestId = k.body.id;
+});
+
+test('give Amit one report, and the team appears — names only, never pay', async () => {
+  const moved = await admin('PATCH', `/api/employees/${riya.id}`, { reports_to_id: amit.id });
+  assert.equal(moved.status, 200);
+
+  const who = await staff('GET', '/api/me');
+  assert.equal(who.body.manages, 1);
+
+  const team = await staff('GET', '/api/me/team');
+  assert.equal(team.body.team.length, 1);
+  assert.equal(team.body.team[0].name, 'Riya Pal');
+  assert.equal(team.body.waiting, 1);
+
+  /*
+   * The whole security claim of this feature: a manager gains names, not
+   * records. Riya earns 48,000 and the string must not be anywhere in what
+   * her manager is sent.
+   */
+  const sent = JSON.stringify(team.body);
+  for (const secret of ['48000', 'monthly_salary', 'pan', 'bank_account', 'ifsc']) {
+    assert.ok(!sent.includes(secret), `${secret} reached a manager`);
+  }
+
+  // And the queue is only their own team's.
+  const queue = await staff('GET', '/api/me/team/requests');
+  assert.equal(queue.body.requests.length, 1);
+  assert.equal(queue.body.requests[0].employee_name, 'Riya Pal');
+});
+
+test('a manager cannot decide for somebody who does not report to them', async () => {
+  const notMine = await staff('POST', `/api/me/team/requests/${kiransRequestId}/decide`, {
+    approve: true,
+  });
+  assert.equal(notMine.status, 403);
+  assert.match(notMine.body.error, /do not report to you/);
+
+  // ...and it really was not decided.
+  const still = (await admin('GET', '/api/attendance/requests')).body.requests
+    .find((r) => r.id === kiransRequestId);
+  assert.equal(still.status, 'pending');
+});
+
+test('a manager cannot approve their own time off', async () => {
+  const own = await staff('POST', '/api/me/requests', {
+    period_id: periodId, day: 20, kind: 'leave', code: 'CL', reason: 'My own day',
+  });
+  assert.equal(own.status, 201);
+
+  const self = await staff('POST', `/api/me/team/requests/${own.body.id}/decide`, { approve: true });
+  assert.equal(self.status, 403);
+  assert.match(self.body.error, /your own request/);
+});
+
+test('somebody who manages nobody cannot decide anything', async () => {
+  const nope = await kiranSession('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+    approve: true,
+  });
+  assert.equal(nope.status, 403);
+});
+
+test('the manager approves, and it lands on the grid under their own name', async () => {
+  const before = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
+  const hers = before.employees.find((e) => e.employee_id === riya.id);
+  assert.notEqual(hers.attendance[12]?.code, 'CL', 'already written before the decision');
+
+  const done = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+    approve: true,
+  });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.status, 'approved');
+  // Their own name, not "office" - the trail has to say who decided.
+  assert.equal(done.body.decided_by, 'Amit Shah');
+
+  const after = (await admin('GET', `/api/periods/${periodId}/attendance`)).body;
+  const now = after.employees.find((e) => e.employee_id === riya.id);
+  for (const day of [12, 13]) assert.equal(now.attendance[day]?.code, 'CL', `day ${day}`);
+  assert.equal(now.attendance[12]?.approved, true);
+
+  // The same rules as the office queue, because it is the same call.
+  const twice = await staff('POST', `/api/me/team/requests/${riyasRequestId}/decide`, {
+    approve: false,
+  });
+  assert.equal(twice.status, 400);
+  assert.match(twice.body.error, /already approved/);
+});
+
+test('HR still sees and can decide everything, manager or no manager', async () => {
+  const all = (await admin('GET', '/api/attendance/requests')).body.requests;
+  assert.ok(all.some((r) => r.id === kiransRequestId), 'the office lost sight of a request');
+  assert.ok(all.some((r) => r.id === riyasRequestId));
+
+  const byOffice = await admin('POST', `/api/attendance/requests/${kiransRequestId}/decide`, {
+    approve: true, by: 'Dinesh',
+  });
+  assert.equal(byOffice.status, 200);
+  assert.equal(byOffice.body.decided_by, 'Dinesh');
+});

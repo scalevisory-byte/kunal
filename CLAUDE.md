@@ -1190,6 +1190,45 @@ login — abilities `['self']` — cannot.
   work-from-home day), the dashboard line clicked, Reports opens on the queue with both visible,
   Approve pressed, grid reads CL CL CL on 18–20.
 
+## A manager approving their own team — `shared/team.js`, `/api/me/team/*`
+
+Dinesh: *"Leave apply and aproval from employee login ?"* **Applying already worked from the
+staff login. Approving did not** — the `employee` role carries abilities `['self']` and no
+`read`, so no office router answers it, and the queue is HR-only in Reports. So the missing
+half is the person who actually knows whether somebody can be spared deciding it themselves,
+instead of forwarding it to the office to type in.
+
+- **`reports_to_id` is the line**, which already existed with `wouldLoop` protection and a bulk
+  department-manager setter. **DIRECT reports only** — approving your report's report's leave
+  steps over the person whose job it is to know, and on a chart four deep it quietly makes the
+  top manager the approver for the whole company. There is a test for exactly that shape.
+- **Three routes under `/api/me/team/*`, and the manager id comes off the LOGIN**, never a URL
+  or a body — the rule every `/api/me` route already follows. The reports are worked out on the
+  server from that id, so nothing a caller sends can widen the set.
+- **No new ability.** The staff role still has no `read`; a manager gains their own team's names
+  and their own team's requests, nothing else. `TEAM_FIELDS` is the whole of what travels — id,
+  name, code, designation, department. An API test asserts Riya's 48,000, `monthly_salary`,
+  `pan`, `bank_account` and `ifsc` are **nowhere** in what her manager is sent, and the browser
+  run checks no salary is on the page.
+- **Nobody approves their own time off**, checked *before* the team list so a corrupt row that
+  put somebody in their own team could never be the way in. `directReports` also refuses a
+  self-reference outright.
+- **It goes through the SAME `decideRequest` the office uses**, so "an approval writes
+  attendance", "nothing is decided twice" and "nothing is written into a locked month" hold here
+  without being restated — two code paths writing attendance is how two sets of rules come to
+  disagree. `decided_by` is the manager's own name, not "office".
+- **HR still sees and can decide everything**, manager or no manager; the queue is one list, not
+  two. A request nobody acts on simply stays pending — there is no timeout and no auto-escalation.
+- The tab appears only for somebody who actually manages people (`GET /api/me` returns
+  `manages`, a **count** — a page deciding whether to show a tab has no business being handed
+  everybody's name). An empty "My team" on 115 logins is noise on all of them.
+- **Driven in a browser at phone width**: Alpesh signs in, gets the tab, sees Amit's 3-day CL and
+  Priya's work-from-home and *not* Kiran (who reports to nobody), no salary anywhere on screen,
+  approves, and the grid reads CL CL CL on 18–20 with `decided_by` = Alpesh Shah.
+- **Still open, and deliberately not assumed:** whether a manager's approval should be the final
+  word (what this does) or a recommendation HR then confirms. Two-step approval is a different
+  shape and he has not asked for it.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
