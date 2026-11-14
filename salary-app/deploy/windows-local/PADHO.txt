@@ -1,0 +1,100 @@
+BOOKNFLY HRMS
+=============
+
+Is folder me sab kuch hai. Server pe kuch download nahi hoga - na GitHub,
+na npm, na internet. Node bhi andar hai (node\node.exe), server ka apna
+Node chhua nahi jaata, isliye ZynTask ko kuch nahi hota.
+
+
+LAGANA KAISE
+------------
+
+1. Yeh zip E:\BNFHR me extract karo.
+   Baad me folder: E:\BNFHR\BNFHRMS\
+
+2. INSTALL.ps1 pe right-click -> "Run with PowerShell"
+   Administrator khud maang lega.
+
+3. Khatam hone pe ek OFFICE PASSWORD print karega. LIKH LO.
+
+4. Server pe kholo:  http://localhost:3002
+
+
+ANDAR KYA HAI
+-------------
+
+  node\node.exe      Node 22, sirf is app ke liye
+  app\backend\       server + 209 packages (pehle se laga hua)
+  app\backend\public dashboard (bana hua)
+  app\shared\        salary ka hisaab
+  data\              <-- AAPKA DATA. ISKA BACKUP LO.
+  logs\
+  INSTALL.ps1        ek baar
+  START.ps1 STOP.ps1 roz ke liye
+
+
+AAPKA DATA
+----------
+
+Sab kuch:   E:\BNFHR\BNFHRMS\data\
+
+   salary.db       poora database, ek file
+   documents\      employee ke kaagaz
+   asset-photos\   asset ki photo
+   resumes\        CV
+   backups\        app roz khud copy rakhti hai, 14 din
+
+Roz ka backup galat update ya galat delete se bachata hai.
+MACHINE CHALI GAYI TO NAHI BACHATA.
+Is folder ko TSRV se bahar kahin copy karte rehna.
+
+
+SEVICE (Task Scheduler)
+-----------------------
+
+NSSM nahi, Windows ka apna Task Scheduler - kuch extra install nahi hota.
+Task ka naam: BNFHRMS. Machine on hone pe apne aap chalu, koi login kiya
+ho ya na kiya ho. Band ho jaye to ek minute me apne aap wapas.
+
+  Start-ScheduledTask -TaskName BNFHRMS
+  Stop-ScheduledTask  -TaskName BNFHRMS
+  Get-ScheduledTaskInfo -TaskName BNFHRMS
+
+
+PEHLA KAAM SIGN IN KARNE KE BAAD
+--------------------------------
+
+Jo password installer ne diya wo BINA NAAM KA full admin hai - trail me
+"the API key" likha aata hai, aapka naam nahi.
+
+  1. Us password se sign in karo
+  2. Screen khud poochhegi "first admin banao" - apna username, apna password
+  3. app\backend\.env kholo, APP_PASSWORD= wali line DELETE karo
+  4. STOP.ps1 phir START.ps1
+
+Uske baad purana password 401 deta hai aur har kaam par aapka naam aata hai.
+
+
+ONLINE KARNA (baad me)
+----------------------
+
+Cloudflare -> Zero Trust -> Networks -> Tunnels -> WATASK (wahi tunnel,
+naya mat banao) -> Published application routes -> Add:
+
+   Subdomain     bnfhrms
+   Domain        scalevisory.in
+   Service type  HTTP
+   URL           localhost:3002
+
+Phir app\backend\.env me SECURE_COOKIES=true kar dena aur restart.
+Iske bina https pe sign-in cookie chup-chaap gir jaati hai, aur sabko
+lagta hai "login toot gaya".
+
+
+KUCH GADBAD HO TO
+-----------------
+
+  logs\install.log       install ne kya kiya
+  Get-ScheduledTaskInfo -TaskName BNFHRMS
+
+Wo log bhej dena.

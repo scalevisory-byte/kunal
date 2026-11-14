@@ -265,3 +265,67 @@ test('a half-built node_modules from a failed run is cleared, not reused', () =>
   assert.match(s, /-not \(Test-Path \(Join-Path \$sqlite 'build'\)\)/);
   assert.match(s, /Remove-Item \$mods -Recurse -Force/);
 });
+
+test('the offline bundle is built by a script, not by remembering', () => {
+  /*
+   * Dinesh: "github pe kuch nahi chahiye, Arrohan aur TAJ wala jaisa." So the
+   * server gets a folder it runs from, and reaches out for nothing at all.
+   *
+   * Three steps in building it are easy to forget and silently fatal, which
+   * is why it is a script and not a list in a document:
+   *
+   *   1. better-sqlite3 is NATIVE. `npm install` on the Linux machine this is
+   *      built on produces a Linux .node, which on Windows does not load at
+   *      all. The Windows prebuilt binary has to be swapped in by hand.
+   *   2. The ABI has to match the Node that will RUN it - Node 22 is ABI 127.
+   *      Ship Node 24 and the very same binary will not load.
+   *   3. node.exe is bundled so the server's own Node is never touched. The
+   *      first install attempt on TSRV failed for exactly that reason.
+   */
+  const sh = fs.readFileSync(path.join(kit, '../make-bundle.sh'), 'utf8');
+
+  assert.match(sh, /NODE_VER="v22\./);
+  assert.match(sh, /NODE_ABI="127"/);
+  // The swap, and a check that what landed really is a Windows binary - a
+  // Linux .node copied into the zip would only be found on the server.
+  assert.match(sh, /better-sqlite3-v\$\{SQLITE_VER\}-node-v\$\{NODE_ABI\}-win32-x64/);
+  assert.match(sh, /grep -q "MS Windows"/);
+  // ...and the same check on node.exe itself.
+  assert.ok((sh.match(/grep -q "MS Windows"/g) || []).length >= 2);
+  // It stops on any failure rather than zipping something half-made.
+  assert.match(sh, /set -euo pipefail/);
+
+  /*
+   * The scripts that go in the zip live in the repo, not in a scratch folder
+   * somewhere - otherwise the next bundle is built from whatever is lying
+   * around.
+   */
+  const local = path.join(kit, '../windows-local');
+  for (const f of ['INSTALL.ps1', 'START.ps1', 'STOP.ps1', 'PADHO.txt']) {
+    assert.ok(fs.existsSync(path.join(local, f)), `${f} is not in the repo`);
+  }
+
+  const install = fs.readFileSync(path.join(local, 'INSTALL.ps1'), 'utf8');
+  // Plain ASCII and no BOM, same as the other kit - PowerShell 5.1 reads a
+  // BOM-less UTF-8 file as ANSI.
+  assert.deepEqual([...install].filter((c) => c.charCodeAt(0) > 127), []);
+  /*
+   * Task Scheduler, not NSSM: it is part of Windows, so there is nothing to
+   * download - which is the whole point - and nssm.cc is not reachable from
+   * here anyway.
+   */
+  assert.match(install, /Register-ScheduledTask/);
+  /*
+   * Checked on USE, not on the word: the comment above that code explains
+   * why NSSM is not here, and a bare /nssm/i failed on its own explanation.
+   */
+  const code = install.replace(/^\s*#.*$/gm, '');
+  assert.ok(!/nssm/i.test(code), 'it is back to needing NSSM');
+  // The settings file is written once and never overwritten: it holds the
+  // office password and the key that signs every personal link.
+  assert.match(install, /if \(Test-Path \$envFile\)/);
+  assert.match(install, /UTF8Encoding\(\$false\)/);
+  // And it says whether the thing actually came up, rather than just
+  // reporting that it registered a task.
+  assert.match(install, /healthz/);
+});
