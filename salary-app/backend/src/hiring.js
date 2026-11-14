@@ -3176,3 +3176,35 @@ export function evaluationDocument(interviewId) {
     }),
   };
 }
+
+/**
+ * Evaluations waiting for somebody to decide.
+ *
+ * Dinesh asked where an interviewer's submitted evaluation ACTUALLY GOES. It
+ * went into the review chain and nowhere on screen - so the only way to find
+ * one was to remember which interview it was and open it. A queue nobody can
+ * see is a queue nothing comes out of.
+ *
+ * Decided ones are left out: a list that keeps showing finished work is a list
+ * people stop reading. The candidate's own history is where a decided
+ * evaluation lives afterwards.
+ */
+export const evaluationsWaiting = () =>
+  db
+    .prepare(
+      `SELECT e.id, e.status, e.recommendation, e.next_action, e.evaluated_by,
+              e.submitted_at, e.reviewed_by, e.ratings,
+              i.id AS interview_id, i.at, i.round, i.round_name,
+              c.name AS candidate_name, c.ref_no,
+              v.title AS job_title, co.name AS company_name
+         FROM interview_evaluations e
+         JOIN interviews i ON i.id = e.interview_id
+         JOIN applications a ON a.id = e.application_id
+         JOIN candidates c ON c.id = a.candidate_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         JOIN companies co ON co.id = v.company_id
+        WHERE e.status IN ('submitted', 'pending_hr', 'pending_management')
+        ORDER BY e.submitted_at ASC`
+    )
+    .all()
+    .map((row) => ({ ...row, summary: summarise(json(row.ratings, {})), ratings: undefined }));

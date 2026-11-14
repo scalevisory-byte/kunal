@@ -17,6 +17,7 @@ import {
   deleteTask,
   deleteVacancy,
   evaluationDocument,
+  evaluationsWaiting,
   forOffice,
   getApplication,
   getCandidate,
@@ -856,3 +857,7 @@ const asDocument = (make) => (req, res) => {
 
 hiringRouter.get('/interviews/:id/form/print', asDocument(interviewFormDocument));
 hiringRouter.get('/interviews/:id/evaluation/print', asDocument(evaluationDocument));
+
+hiringRouter.get('/evaluations/waiting', (req, res) =>
+  res.json({ waiting: evaluationsWaiting() })
+);

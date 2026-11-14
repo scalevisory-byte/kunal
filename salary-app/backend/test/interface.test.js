@@ -1801,11 +1801,14 @@ test('the news that a form came back is on the button that opens it', () => {
   /*
    * It was on the SEND button - "They filled it ✓" replaced "Send form" -
    * which hid the way to send it again and put the news where nobody would
-   * act on it. Dinesh asked where a candidate's form arrives; this is half
-   * the answer, the overview alert is the other half.
+   * act on it. The button that OPENS the form carries it now.
+   *
+   * Short labels, because four of these sit on one line: the dot IS the news
+   * and the tooltip carries the sentence.
    */
-  assert.match(list, /Read what they sent/);
-  assert.match(list, /i\.candidate_sent_at \? 'Send again' : 'Send form'/);
+  assert.match(list, /'Form ●'/);
+  assert.match(list, /They filled this in — open it to read what they sent/);
+  assert.match(list, /i\.candidate_sent_at \? 'Sent' : 'Send'/);
 
   const overview = src('components/hiring/HiringOverview.jsx');
   assert.match(overview, /sent their details/);
@@ -1870,14 +1873,54 @@ test('the interview process is shown as steps, on the tab where it happens', () 
   assert.match(strip, /catch \{/);
 });
 
-test('four buttons on an interview row wrap rather than fall off the table', () => {
+test('the row actions stay on one line, and the cell stays a table cell', () => {
   /*
-   * "Read what they sent" is a wide label, and with four actions the last
-   * button was cut off at the right edge. A button you cannot reach is a
-   * button that does not exist.
+   * REWRITTEN. This test used to assert that the buttons WRAP - and that was
+   * the wrong rule, as Dinesh pointed out the moment he saw it: four buttons
+   * stacked into a column and the row grew four times as tall. The one-line
+   * format was right; only the overflow was wrong.
    */
   const rule = css.match(/\.row-actions \{[^}]*\}/);
-  assert.match(rule[0], /flex-wrap: wrap/);
-  assert.ok(!/white-space: nowrap/.test(rule[0]), 'the row still refuses to wrap');
-  assert.match(css, /\.row-actions button \{ white-space: nowrap; \}/);
+  assert.match(rule[0], /flex-wrap: nowrap/);
+
+  /*
+   * The fix is short labels plus a cell pinned to the right - and the flex on
+   * a div INSIDE the cell. `display: flex` straight on a <td> takes the cell
+   * out of table layout: it collapsed to 14px and the buttons spilled out of
+   * it and off the screen, which looked exactly like the overflow it was
+   * meant to fix.
+   */
+  assert.match(css, /table\.hiring-table td\.actions-cell \{[^}]*position: sticky/);
+  assert.match(src('components/hiring/Interviews.jsx'), /<td className="actions-cell">/);
+});
+
+test('the row actions stay on one line and stay on the screen', () => {
+  const list = src('components/hiring/Interviews.jsx');
+
+  /*
+   * Letting them wrap was worse than the overflow it fixed: four buttons
+   * stacked into a column and the row grew four times as tall, which is what
+   * Dinesh reported. Short labels on one line instead.
+   */
+  assert.match(css, /\.row-actions \{[^}]*flex-wrap: nowrap/);
+  assert.match(list, /'Form ●'/);
+  assert.match(list, /i\.candidate_sent_at \? 'Sent' : 'Send'/);
+
+  /*
+   * And the flex goes on a div INSIDE the cell. `display: flex` straight on a
+   * <td> takes the cell out of table layout - it collapsed to 14px and the
+   * buttons spilled out of it and off the screen, which looked exactly like
+   * the overflow it was meant to fix.
+   */
+  assert.match(list, /<td className="actions-cell">/);
+  assert.match(list, /<div className="row-actions">/);
+  assert.match(css, /table\.hiring-table td\.actions-cell \{[^}]*position: sticky/);
+});
+
+test('evaluations waiting for a decision are listed where interviews are', () => {
+  const list = src('components/hiring/Interviews.jsx');
+  assert.match(list, /Waiting for a decision/);
+  assert.match(list, /\/hiring\/evaluations\/waiting/);
+  // Clicking one opens that evaluation, which is the point of listing it.
+  assert.match(list, /onEvaluate\(w\.interview_id\)/);
 });

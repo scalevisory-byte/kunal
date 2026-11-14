@@ -3386,13 +3386,44 @@ table.hiring-table td.grow, table.hiring-table th.grow { min-width: 11rem; }
 }
 
 /*
- * Four actions on an interview row, and "Read what they sent" is a wide one -
- * so they wrap onto a second line rather than pushing the last button off the
- * edge of the table. A button you cannot reach is a button that does not
- * exist, which this codebase has learnt often enough.
+ * One line, always.
+ *
+ * Letting these wrap was worse than the problem it fixed: four buttons stacked
+ * into a column and the row grew four times as tall. The labels are short
+ * instead, with the long version in the tooltip, and the card scrolls
+ * sideways if it ever has to.
  */
-.row-actions { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.row-actions { display: flex; gap: 0.3rem; flex-wrap: nowrap; }
 .row-actions button { white-space: nowrap; }
+
+/*
+ * ...and pinned to the right, the way the approvals queue's Decide column is.
+ *
+ * On a narrow laptop the last two buttons sat past the edge and needed a
+ * sideways scroll nobody looks for - which is the exact thing that made the
+ * pipeline board's last column unreachable. The one control a row exists for
+ * has to be on the screen.
+ */
+/*
+ * The sticky goes on the CELL; the flex goes on a div inside it.
+ *
+ * `display: flex` straight on a <td> takes the cell out of table layout, so it
+ * collapsed to 14px and the buttons spilled out of it and off the screen -
+ * which looked exactly like the overflow it was meant to fix.
+ */
+table.hiring-table th.row-actions-head,
+table.hiring-table td.actions-cell {
+  width: 1%;
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+table.hiring-table thead th.row-actions-head { background: var(--line-soft); }
+table.hiring-table tbody tr:hover td.actions-cell {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+}
 
 /* ---------------- sitting a test ---------------- */
 

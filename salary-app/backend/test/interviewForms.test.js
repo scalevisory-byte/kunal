@@ -484,3 +484,41 @@ test('a form the candidate sent shows up where somebody will see it', async () =
   overview = (await api('GET', '/api/hiring/overview')).body;
   assert.ok(!overview.candidateForms.who.some((f) => f.candidate_name === 'Arrived Back'));
 });
+
+test('a submitted evaluation shows up in a queue somebody can see', async () => {
+  const { interview } = await round(1, 'Waiting Person');
+
+  /*
+   * Dinesh asked where an interviewer's submitted evaluation ACTUALLY GOES.
+   * It went into the review chain and nowhere on screen, so the only way to
+   * find one was to remember which interview it was. A queue nobody can see
+   * is a queue nothing comes out of.
+   */
+  let waiting = (await api('GET', '/api/hiring/evaluations/waiting')).body.waiting;
+  assert.ok(!waiting.some((w) => w.candidate_name === 'Waiting Person'));
+
+  await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Priya Nair', recommendation: 'Recommended',
+    next_action: 'Final Selection', ratings: { communication: 5, attitude: 4 },
+  });
+
+  waiting = (await api('GET', '/api/hiring/evaluations/waiting')).body.waiting;
+  const mine = waiting.find((w) => w.candidate_name === 'Waiting Person');
+  assert.ok(mine, 'a submitted evaluation is not in the queue');
+  assert.equal(mine.evaluated_by, 'Priya Nair');
+  assert.equal(mine.recommendation, 'Recommended');
+  assert.equal(mine.summary.average, 4.5);
+  // The stored ratings themselves do not travel - the queue needs the summary.
+  assert.equal(mine.ratings, undefined);
+
+  // Decided work leaves the list: one that keeps showing finished work is one
+  // people stop reading.
+  const id = (await api('GET', `/api/hiring/interviews/${interview.id}/evaluation`)).body.evaluation.id;
+  await api('POST', `/api/hiring/evaluations/${id}/review`, { to: 'pending_management' });
+  assert.ok((await api('GET', '/api/hiring/evaluations/waiting')).body.waiting
+    .some((w) => w.candidate_name === 'Waiting Person'), 'still under review, still listed');
+
+  await api('POST', `/api/hiring/evaluations/${id}/review`, { to: 'approved' });
+  assert.ok(!(await api('GET', '/api/hiring/evaluations/waiting')).body.waiting
+    .some((w) => w.candidate_name === 'Waiting Person'), 'a decided evaluation is still listed');
+});

@@ -1,9 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import ProcessSteps from './ProcessSteps.jsx';
 
+
+/** The review statuses, in the office's words. */
+const STATUS_LABEL = {
+  submitted: 'with HR',
+  pending_hr: 'with HR',
+  pending_management: 'with management',
+};
+
 export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError, onToast, onGo}) {
   const [link, setLink] = useState(null);
+  const [waiting, setWaiting] = useState([]);
+
+  /*
+   * Evaluations an interviewer has submitted and nobody has decided.
+   *
+   * Dinesh asked where a submitted evaluation goes. It went into the review
+   * chain and nowhere on screen, so the only way to find one was to remember
+   * which interview it was. This is the answer, on the tab where interviews
+   * live.
+   */
+  useEffect(() => {
+    api
+      .get('/hiring/evaluations/waiting')
+      .then(({ waiting: rows }) => setWaiting(rows || []))
+      .catch(() => setWaiting([]));
+  }, [interviews]);
 
   /*
    * The link the candidate fills the form in from.
@@ -58,6 +82,37 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
         */}
       <ProcessSteps onGo={onGo} />
 
+      {waiting.length ? (
+        <div className="card">
+          <h2>Waiting for a decision</h2>
+          <p className="muted small">
+            Submitted by an interviewer and not decided yet. Approving is an Admin’s — and only an
+            approval moves anybody.
+          </p>
+          <div className="lines">
+            {waiting.map((w) => (
+              <div key={w.id}>
+                <span className="what">
+                  <button className="opens" onClick={() => onEvaluate(w.interview_id)}>
+                    {w.candidate_name}
+                  </button>
+                  <span className="muted small">
+                    {' '}· {w.job_title} · round {w.round}
+                    {w.evaluated_by ? ` · by ${w.evaluated_by}` : ''}
+                  </span>
+                  <div className="muted small">
+                    {w.recommendation || 'no recommendation'}
+                    {w.summary?.average !== null ? ` · average ${w.summary.average}` : ''}
+                    {w.next_action ? ` · wants: ${w.next_action}` : ''}
+                  </div>
+                </span>
+                <span className="tag">{STATUS_LABEL[w.status] || w.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="card scroll">
       <h2>Interviews</h2>
       <table className="sheet hiring-table">
@@ -79,7 +134,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
               * does not exist. Somebody about to interview is looking at this
               * list, so the two things they do are on the row.
               */}
-            <th>Interview record</th>
+            <th className="row-actions-head">Interview record</th>
           </tr>
         </thead>
         <tbody>
@@ -111,7 +166,8 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                   ))}
                 </select>
               </td>
-              <td className="row-actions">
+              <td className="actions-cell">
+                <div className="row-actions">
                 {/*
                   * The news goes on the button you press to SEE the form, not
                   * on the one that sends it. It was the other way round, so
@@ -128,13 +184,16 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                       : 'Open the particulars form'
                   }
                 >
+                  {/*
+                    * Short, because four of these have to sit on one line. The
+                    * dot is the news - they have sent theirs and nobody has
+                    * read it - and the tooltip carries the sentence.
+                    */}
                   {i.candidate_filled_at && i.form_status !== 'submitted'
-                    ? 'Read what they sent'
+                    ? 'Form ●'
                     : i.form_status === 'submitted'
                       ? 'Form ✓'
-                      : i.form_status
-                        ? 'Form…'
-                        : 'Fill form'}
+                      : 'Form'}
                 </button>
                 <button
                   onClick={() => sendLink(i.id)}
@@ -144,7 +203,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                       : 'Send them the form to fill in'
                   }
                 >
-                  {i.candidate_sent_at ? 'Send again' : 'Send form'}
+                  {i.candidate_sent_at ? 'Sent' : 'Send'}
                 </button>
                 <button
                   className="danger"
@@ -160,6 +219,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                       ? 'Evaluation…'
                       : 'Evaluate'}
                 </button>
+                </div>
               </td>
             </tr>
           ))}
