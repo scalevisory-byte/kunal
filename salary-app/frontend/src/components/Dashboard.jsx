@@ -1453,7 +1453,9 @@ export default function Dashboard({
               each person, so until one of these happens the day is simply blank.
             </p>
             <div className="button-row">
-              <button className="primary" onClick={() => onGo('reports')}>
+              {/* Straight to the importers, not just to the Reports tab -
+                  they sit behind a fold a third of the way down it. */}
+              <button className="primary" onClick={() => onGo('reports', 'import')}>
                 Import the punch machine's file
               </button>
               <button onClick={() => onGo('attendance')}>Mark attendance by hand</button>

@@ -22,7 +22,7 @@ import ScrollFrame from './ScrollFrame.jsx';
 /** Preset amounts of short time, the ones that actually come up. */
 const MINUTE_PRESETS = [15, 30, 40, 45, 60, 90, 120];
 
-export default function Attendance({ period, rows, codes, onSave, locked }) {
+export default function Attendance({ period, rows, codes, onSave, locked, onGo }) {
   const [draft, setDraft] = useState({}); // "employeeId:day" -> { code, minutes }
   const [query, setQuery] = useState('');
   const [picker, setPicker] = useState(null); // { employeeId, day, name }
@@ -251,6 +251,20 @@ export default function Attendance({ period, rows, codes, onSave, locked }) {
         <button className="primary" disabled={locked} onClick={markEveryonePresent}>
           Mark everyone Present
         </button>
+        {/*
+          * The way in to the importers, put where somebody marking attendance
+          * is already standing. They live behind a fold on the Reports tab,
+          * which is why Dinesh asked for an "excel import ka option" that had
+          * been there all along.
+          */}
+        {onGo ? (
+          <button
+            onClick={() => onGo('reports', 'import')}
+            title="Bring a month in from the attendance machine's Excel export instead of typing it"
+          >
+            Import from Excel
+          </button>
+        ) : null}
         <span className="muted small">Click any day to set the mark and its short hours.</span>
         <span className="grow" />
         {status && <span className="pill saving">{status}</span>}

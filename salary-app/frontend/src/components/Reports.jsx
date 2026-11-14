@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   STANDALONE,
   api,
@@ -33,7 +33,22 @@ import { rupees } from '../format.js';
  * that already produces it, which is why the totals reconcile with payroll by
  * construction rather than by checking.
  */
-export default function Reports({ period, payroll, onReload, onGo, employees = [], companies = [] }) {
+export default function Reports({ period, payroll, onReload, onGo, employees = [], companies = [], focus, onFocused}) {
+  const tools = useRef(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  /*
+   * Arriving here with "import" means somebody pressed a button on another
+   * tab to get to it. Open the fold, scroll to it, and hand the request back
+   * so switching away and returning does not keep re-opening it.
+   */
+  useEffect(() => {
+    if (focus !== 'import') return;
+    setToolsOpen(true);
+    const at = tools.current;
+    if (at) requestAnimationFrame(() => at.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    onFocused?.();
+  }, [focus, onFocused]);
+
   const [openId, setOpenId] = useState(null);
   const [filters, setFilters] = useState({
     company_id: '', branch_id: '', department: '', employee_id: '', from: '', to: '', q: '',
@@ -295,7 +310,16 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
 
       {error && <p className="error">{error}</p>}
 
-      <details className="card fold">
+      {/*
+        * Open on demand, and say so by scrolling to itself.
+        *
+        * Everything that brings data in lives behind this fold, and Dinesh
+        * asked for "excel import ka option" that was already here - which
+        * means it was not findable. The Attendance toolbar now sends people
+        * straight to it, so it has to arrive open and on screen rather than
+        * as one more closed line to notice.
+        */}
+      <details className="card fold" ref={tools} open={toolsOpen} onToggle={(e) => setToolsOpen(e.currentTarget.open)}>
         <summary>
           <strong>Tools</strong>
           <span className="muted small"> — bringing data in, and taking a backup out</span>

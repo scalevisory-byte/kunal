@@ -718,7 +718,14 @@ test('the attendance register carries what §3 asks of it', () => {
    * among eighty is how the noticing stops happening.
    */
   assert.match(d, /onGo\('employees', p\.id\)/);
-  assert.match(src('App.jsx'), /if \(employeeId\) setOpenEmployee\(employeeId\);/);
+  /*
+   * And App has to act on that second argument. It now carries two kinds of
+   * thing - an employee id to open, or the name of something on the
+   * destination tab to scroll to (the importers) - so the rule is checked,
+   * not the line: a NUMBER still opens the record.
+   */
+  assert.match(src('App.jsx'), /typeof what === 'number'\) setOpenEmployee\(what\)/);
+  assert.match(src('App.jsx'), /typeof what === 'string'\) setFocusOn\(what\)/);
   // ...and Employees clears it, so coming back later does not reopen a drawer
   // nobody asked for.
   assert.match(src('components/Employees.jsx'), /onOpened\?\.\(\);/);
@@ -903,4 +910,36 @@ test('the logo is imported, not linked, so the single file stays offline', () =>
    */
   assert.match(app, /className="side-plate"/);
   assert.match(css, /\.side-plate \{[^}]*background: #fff;/s);
+});
+
+test('the importers have a way in from where somebody is actually standing', () => {
+  const attendance = src('components/Attendance.jsx');
+  const reports = src('components/Reports.jsx');
+  const dashboard = src('components/Dashboard.jsx');
+
+  /*
+   * Fourth time this has come up - the hiring vacancy form, the People tab,
+   * the asset invoice, and now the importers. Dinesh asked for an "excel
+   * import ka option" that had been built for months, because the only way
+   * to it was the Reports tab, then a closed fold called Tools, then a
+   * scroll. A feature reachable only from somewhere nobody is standing is a
+   * feature that does not exist.
+   *
+   * Driven: Attendance -> Import from Excel lands on Reports with the fold
+   * open at the top of the viewport and all three importers on screen.
+   */
+  assert.match(attendance, /Import from Excel/);
+  assert.match(attendance, /onGo\('reports', 'import'\)/);
+
+  // The dashboard's empty-month button aims at the importers, not merely at
+  // the tab they are a third of the way down.
+  assert.match(dashboard, /onGo\('reports', 'import'\)/);
+
+  // And Reports has to act on it: open the fold AND scroll to it. Opening a
+  // fold below the fold is not arriving.
+  assert.match(reports, /focus !== 'import'/);
+  assert.match(reports, /setToolsOpen\(true\)/);
+  assert.match(reports, /scrollIntoView/);
+  // Handed back, so returning to the tab later does not re-open it.
+  assert.match(reports, /onFocused\?\.\(\)/);
 });

@@ -148,6 +148,16 @@ function Shell() {
    * to the tab later does not reopen a drawer nobody asked for.
    */
   const [openEmployee, setOpenEmployee] = useState(null);
+  /*
+   * What the tab we are about to switch to should open ON.
+   *
+   * Third time now: the importers, the hiring vacancy form and the asset
+   * paperwork were all reported missing while sitting behind a fold on
+   * another tab. A feature reachable only from somewhere nobody is standing
+   * is a feature that does not exist, so the way in goes where the person
+   * already is and carries the destination with it.
+   */
+  const [focusOn, setFocusOn] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState(Number(localStorage.getItem(PERIOD_KEY)) || null);
   const [payroll, setPayroll] = useState(null);
@@ -637,9 +647,10 @@ function Shell() {
             employees={employees}
             companyId={companyId}
             companyName={companies.find((c) => c.id === companyId)?.name || ''}
-            onGo={(toTab, employeeId) => {
+            onGo={(toTab, what) => {
               setTab(toTab);
-              if (employeeId) setOpenEmployee(employeeId);
+              if (typeof what === 'number') setOpenEmployee(what);
+              else if (typeof what === 'string') setFocusOn(what);
             }}
             onPeriod={setPeriodId}
             onSaveAttendance={saveAttendance}
@@ -689,6 +700,10 @@ function Shell() {
             codes={codes}
               locked={locked}
               onSave={saveAttendance}
+              onGo={(toTab, what) => {
+                setTab(toTab);
+                if (typeof what === 'string') setFocusOn(what);
+              }}
             />
 
             {/*
@@ -843,6 +858,8 @@ function Shell() {
             payroll={payroll}
             onReload={loadAll}
             onGo={setTab}
+            focus={focusOn}
+            onFocused={() => setFocusOn(null)}
             employees={employees}
             companies={companies}
           />
