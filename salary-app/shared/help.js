@@ -487,9 +487,26 @@ export const HELP = [
       'Pressing it again adds only what is missing, so a question you have reworded is never put back. Every question is yours to **edit or remove**.',
       'A **paper** says how many questions to draw from each position or topic. Add your own questions under a new position and a paper can draw from it.',
       'A test is handed out from the **candidate’s own application**, not from here — that is where somebody is deciding about one person. The link is theirs and works once.',
-      'It marks itself and the score shows on the candidate.',
+      'It marks itself. Open the candidate and **Written tests** lists every paper they were given: the score, and **Answer sheet** showing each question, what they chose and what was right, broken down by topic.',
+      'Not sat yet? The same row has **Send the link** (WhatsApp) and **Copy link**. It sends the SAME link \u2014 never a fresh paper.',
     ],
     note: 'The clock runs on the WHOLE paper, not on each question — thirty seconds is the pace, not a cut-off. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
+  },
+  {
+    id: 'candidate-file',
+    title: 'Printing a candidate\u2019s whole file',
+    tab: 'hiring',
+    keywords: [
+      'print', 'pdf', 'file', 'pack', 'resume', 'cv', 'download', 'boss',
+      'report', 'nikalna', 'print karna', 'poori detail',
+    ],
+    lines: [
+      'Open a candidate \u2192 **Print the whole file**. One document: the screening, each round\u2019s particulars form, the interviewer\u2019s evaluation, every test answer sheet and the offer.',
+      'It opens on any machine and prints to PDF \u2014 nothing is loaded from the internet.',
+      'The **CV comes down beside it** as its own file. A CV is a PDF or a Word document and cannot be put inside a printed page.',
+      'Anything not done yet is named in the contents \u2014 \u201cevaluation: not written up\u201d \u2014 rather than left out.',
+    ],
+    note: 'ONE FILE HOLDS ONE PERSON. It is built from one candidate\u2019s records and never from a list, because this is the file most likely to be forwarded. It also ASSEMBLES: every figure in it was worked out once and stored, so the file and the screen cannot disagree.',
   },
   {
     id: 'settings',

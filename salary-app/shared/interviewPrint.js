@@ -22,12 +22,12 @@
 import { ADDRESS_PARTS, DECLARATION, QUESTIONS, SECTIONS, roundLabel } from './interviewForm.js';
 import { PARAMETERS, RATINGS, ratingLabel, summarise } from './interviewEval.js';
 
-const esc = (v) =>
+export const esc = (v) =>
   String(v ?? '').replace(/[<>&'"]/g, (c) =>
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&#39;', '"': '&quot;' }[c])
   );
 
-const STYLE = `
+export const STYLE = `
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body {
@@ -59,6 +59,22 @@ const STYLE = `
               font-size: 0.8rem; }
   .print { margin: 1rem auto 0; display: block; padding: 0.5rem 1rem; border: 1px solid #15284b;
            background: #15284b; color: #fff; border-radius: 6px; font: inherit; cursor: pointer; }
+  /* The answer sheet. A chosen answer and the right answer are marked
+     DIFFERENTLY, never by one colour: when they are the same square it has to
+     read as both, and a printout in black and white has to carry it too. */
+  .ans { margin: 0.7rem 0; padding-left: 0.1rem; }
+  .ans .q { font-weight: 500; color: #16181d; }
+  .ans .tag { float: right; font-size: 0.78rem; color: #6a6f7a; font-weight: 400; }
+  .ans-right .tag { color: #16794f; }
+  .ans-wrong .tag { color: #b8402e; }
+  .opt { padding: 0.08rem 0 0.08rem 1rem; color: #6a6f7a; font-size: 0.88rem; }
+  .opt.is-correct { color: #16181d; }
+  .opt.is-chosen { font-weight: 600; color: #16181d; }
+  .opt.is-chosen:not(.is-correct) { text-decoration: line-through; }
+  /* Each part of a whole-candidate pack starts its own page. */
+  .part { break-before: page; }
+  .part:first-of-type { break-before: auto; }
+
   @media print {
     body { background: #fff; padding: 0; font-size: 11.5pt; }
     .sheet { border: 0; border-radius: 0; max-width: none; padding: 0; }
@@ -67,7 +83,7 @@ const STYLE = `
     .qa, tr { break-inside: avoid; }
   }`;
 
-const page = (title, body) => `<!doctype html>
+export const page = (title, body) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title><style>${STYLE}</style></head>
@@ -75,7 +91,7 @@ const page = (title, body) => `<!doctype html>
 <button class="print" onclick="window.print()">Print or save as PDF</button>
 </body></html>`;
 
-const header = (c) => `
+export const header = (c) => `
   <div class="head">
     <h1>${esc(c.company || 'BOOKNFLY')}</h1>
     <p class="muted">${esc(c.title)}</p>
@@ -92,7 +108,7 @@ const header = (c) => `
   </table>`;
 
 /** Blank rows are left OUT, not printed empty: a page of dashes reads as a form nobody filled in. */
-const rows = (pairs) =>
+export const rows = (pairs) =>
   pairs
     .filter(([, v]) => String(v ?? '').trim())
     .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`)
@@ -106,7 +122,14 @@ export function interviewFormFileName(ctx = {}) {
 }
 
 /** The candidate's particulars, every section open, ready to print. */
-export function interviewFormHtml({ context = {}, form = {}, candidate = {}, references = [] } = {}) {
+/**
+ * The particulars as a BLOCK, with no page around it.
+ *
+ * Exported because the whole-candidate pack prints this same block inside a
+ * larger document. Two copies of these sections would disagree the first time
+ * a field was added to one of them.
+ */
+export function interviewFormBody({ context = {}, form = {}, candidate = {}, references = [] } = {}) {
   const head = header({
     ...context,
     title: 'Candidate particulars',
@@ -165,14 +188,22 @@ export function interviewFormHtml({ context = {}, form = {}, candidate = {}, ref
     return inner ? `<h2>${esc(section.title)}</h2><table>${inner}</table>` : '';
   }).join('');
 
-  return page(`${candidate.name || 'Candidate'} — interview particulars`, `
+  return `
     ${head}
     ${body || '<p class="muted">Nothing has been filled in yet.</p>'}
     <div class="declare">${esc(DECLARATION)}</div>
     <div class="sign">
       <div>Candidate's signature<br><span class="muted">${esc(candidate.name || '')}</span></div>
       <div>Taken by<br><span class="muted">${esc(form.filled_by || '')}</span></div>
-    </div>`);
+    </div>`;
+}
+
+/** The particulars as a document of its own. */
+export function interviewFormHtml(input = {}) {
+  return page(
+    `${input.candidate?.name || 'Candidate'} — interview particulars`,
+    interviewFormBody(input)
+  );
 }
 
 export function evaluationFileName(ctx = {}) {
@@ -183,7 +214,8 @@ export function evaluationFileName(ctx = {}) {
 }
 
 /** The interviewer's evaluation, with the ratings drawn out as a table. */
-export function evaluationHtml({ context = {}, evaluation = {}, candidate = {} } = {}) {
+/** The evaluation as a BLOCK, for the whole-candidate pack to embed. */
+export function evaluationBody({ context = {}, evaluation = {}, candidate = {} } = {}) {
   const head = header({
     ...context,
     title: "Interviewer's evaluation",
@@ -225,7 +257,7 @@ export function evaluationHtml({ context = {}, evaluation = {}, candidate = {} }
     return inner ? `<h2>${esc(title)}</h2><table>${inner}</table>` : '';
   };
 
-  return page(`${candidate.name || 'Candidate'} — evaluation`, `
+  return `
     ${head}
     ${ratingTable}
     ${block('Practical knowledge', [
@@ -272,5 +304,10 @@ export function evaluationHtml({ context = {}, evaluation = {}, candidate = {} }
     <div class="sign">
       <div>Interviewer<br><span class="muted">${esc(evaluation.evaluated_by || '')}</span></div>
       <div>Approved by<br><span class="muted">${esc(evaluation.approved_by || '')}</span></div>
-    </div>`);
+    </div>`;
+}
+
+/** The evaluation as a document of its own. */
+export function evaluationHtml(input = {}) {
+  return page(`${input.candidate?.name || 'Candidate'} — evaluation`, evaluationBody(input));
 }

@@ -1,0 +1,190 @@
+/**
+ * The answer sheet - what they were asked, what they chose, what was right.
+ *
+ * Dinesh: *"Test ka result show ho / And uski puri answer sheet bhi show ho"*.
+ * A percentage on its own does not tell anybody whether somebody got the
+ * accounts questions right and the English ones wrong, which is the thing that
+ * actually decides whether to call them in.
+ *
+ * `answerRows` is the whole of it, and BOTH the screen and the printed pack
+ * build from it. Two renderers working the marking out separately is how a
+ * screen and a printout come to disagree about whether somebody passed.
+ *
+ * It ASSEMBLES, it does not mark. The marking happened once, on submission,
+ * from the questions as they were drawn for that person; this reads `drawn`
+ * and `answers` back and lays them out.
+ *
+ * THIS IS OFFICE-ONLY. The candidate's own copy of a question is built by
+ * forCandidate() with no `correct` on it; everything here is the other side of
+ * that line and must never be sent to a candidate's screen.
+ */
+
+import { OPTION_KEYS } from './questionBank.js';
+import { esc, page } from './interviewPrint.js';
+
+/**
+ * One row per question, in the order it was put to them.
+ *
+ * A skipped question is `given: null` - NOT an empty string and not a wrong
+ * answer. "Did not answer" and "answered wrongly" are different facts about a
+ * candidate, and a sheet that shows them the same way hides the one worth
+ * knowing: somebody who ran out of time looks identical to somebody who
+ * guessed badly.
+ */
+export function answerRows(attempt = {}) {
+  const drawn = attempt.drawn || [];
+  const answers = attempt.answers || {};
+
+  return drawn.map((q, i) => {
+    const raw = answers[q.id] ?? answers[String(q.id)] ?? '';
+    const given = String(raw || '').trim().toLowerCase() || null;
+    const correct = String(q.correct || '').trim().toLowerCase();
+    const options = (q.order || OPTION_KEYS)
+      .filter((k) => String(q[`option_${k}`] || '').trim())
+      .map((k) => ({
+        key: k,
+        text: q[`option_${k}`],
+        chosen: given === k,
+        correct: correct === k,
+      }));
+
+    return {
+      n: i + 1,
+      id: q.id,
+      category: q.category || '',
+      question: q.question,
+      options,
+      given,
+      correct,
+      given_text: given ? q[`option_${given}`] : null,
+      correct_text: q[`option_${correct}`] ?? null,
+      verdict: !given ? 'skipped' : given === correct ? 'right' : 'wrong',
+      marks: Number(q.marks ?? 1) || 1,
+    };
+  });
+}
+
+/** How the sheet reads at the top, from what was stored at submission. */
+export function sheetSummary(attempt = {}) {
+  const rows = answerRows(attempt);
+  const byCategory = [];
+  for (const r of rows) {
+    let group = byCategory.find((g) => g.category === r.category);
+    if (!group) {
+      group = { category: r.category, asked: 0, right: 0, wrong: 0, skipped: 0 };
+      byCategory.push(group);
+    }
+    group.asked += 1;
+    group[r.verdict] += 1;
+  }
+  return {
+    asked: rows.length,
+    right: rows.filter((r) => r.verdict === 'right').length,
+    wrong: rows.filter((r) => r.verdict === 'wrong').length,
+    skipped: rows.filter((r) => r.verdict === 'skipped').length,
+    by_category: byCategory,
+  };
+}
+
+/** How long they actually took, in minutes, or null when it cannot be known. */
+export function minutesTaken(attempt = {}) {
+  if (!attempt.started_at || !attempt.submitted_at) return null;
+  const from = Date.parse(attempt.started_at);
+  const to = Date.parse(attempt.submitted_at);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return null;
+  return Math.round((to - from) / 60000);
+}
+
+export function answerSheetFileName({ candidate_name, paper_name } = {}) {
+  const bits = [candidate_name, paper_name, 'answers']
+    .map((s) => String(s || '').trim().replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, ''))
+    .filter(Boolean);
+  return `${bits.join('-') || 'Answer-sheet'}.html`;
+}
+
+/* ---------------- the printed sheet ---------------- */
+
+const VERDICT = { right: '✓', wrong: '✗', skipped: '–' };
+
+/** The sheet as a BLOCK, so the whole-candidate pack can embed it. */
+export function answerSheetBody({ attempt = {}, candidate = {}, paper = {} } = {}) {
+  const rows = answerRows(attempt);
+  const sum = sheetSummary(attempt);
+  const took = minutesTaken(attempt);
+
+  if (!attempt.submitted_at) {
+    return `<h2>Written test</h2>
+      <p class="muted">${esc(paper.name || 'Test')} — sent${
+        attempt.assigned_at ? ` on ${esc(String(attempt.assigned_at).slice(0, 10))}` : ''
+      }, not sat yet. There is nothing to show until they send it.</p>`;
+  }
+
+  const head = `
+    <table>
+      <tr><th>Paper</th><td>${esc(paper.name || '')}</td></tr>
+      <tr><th>Taken</th><td>${esc(String(attempt.submitted_at).replace('T', ' ').slice(0, 16))}${
+        took === null ? '' : ` · ${took} min of ${esc(attempt.duration_minutes)}`
+      }${attempt.auto_submitted ? ' · time ran out' : ''}</td></tr>
+      <tr><th>Score</th><td><strong>${esc(attempt.score)} of ${esc(attempt.max_score)} · ${esc(
+        attempt.percentage
+      )}%</strong> — ${esc(sum.right)} right, ${esc(sum.wrong)} wrong, ${esc(
+        sum.skipped
+      )} not answered${
+        attempt.pass_percent == null
+          ? ''
+          : ` · pass mark ${esc(attempt.pass_percent)}% · ${attempt.passed ? 'above it' : 'below it'}`
+      }</td></tr>
+      ${/*
+           An attempt drawn before the category was stored has one unnamed
+           group. A blank row saying "14 of 20 right" tells nobody anything,
+           so it is left out rather than printed empty.
+         */ ''}
+      ${sum.by_category
+        .filter((g) => g.category)
+        .map(
+          (g) =>
+            `<tr><th>${esc(g.category)}</th><td>${esc(g.right)} of ${esc(g.asked)} right${
+              g.skipped ? `, ${esc(g.skipped)} not answered` : ''
+            }</td></tr>`
+        )
+        .join('')}
+    </table>`;
+
+  const sheet = rows
+    .map(
+      (r) => `
+      <div class="qa ans ans-${r.verdict}">
+        <div class="q">${r.n}. ${esc(r.question)}<span class="tag">${VERDICT[r.verdict]} ${esc(
+          r.verdict === 'skipped' ? 'not answered' : r.verdict
+        )}</span></div>
+        ${r.options
+          .map(
+            (o) =>
+              `<div class="opt${o.correct ? ' is-correct' : ''}${o.chosen ? ' is-chosen' : ''}">${
+                o.chosen ? '●' : '○'
+              } ${esc(o.text)}${o.correct ? ' <span class="muted">— the right answer</span>' : ''}</div>`
+          )
+          .join('')}
+      </div>`
+    )
+    .join('');
+
+  return `<h2>Written test — answer sheet</h2>${head}${sheet}`;
+}
+
+/** The answer sheet as a document of its own. */
+export function answerSheetHtml({ attempt = {}, candidate = {}, paper = {}, company } = {}) {
+  return page(
+    `${candidate.name || 'Candidate'} — answer sheet`,
+    `<div class="head">
+       <h1>${esc(company || 'BOOKNFLY')}</h1>
+       <p class="muted">Written test — answer sheet</p>
+     </div>
+     <table>
+       <tr><th>Candidate</th><td><strong>${esc(candidate.name || '')}</strong>${
+         candidate.ref_no ? ` · ${esc(candidate.ref_no)}` : ''
+       }</td></tr>
+     </table>
+     ${answerSheetBody({ attempt, candidate, paper })}`
+  );
+}

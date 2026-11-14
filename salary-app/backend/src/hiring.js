@@ -38,6 +38,8 @@ import {
   STARTER_QUESTIONS,
   starterPaper,
 } from '../../shared/starterQuestions.js';
+import { answerSheetFileName, answerSheetHtml } from '../../shared/testSheet.js';
+import { candidatePackFileName, candidatePackHtml } from '../../shared/candidatePack.js';
 import {
   checkPaper,
   checkQuestion,
@@ -2029,6 +2031,11 @@ export function assignTest(paperId, candidateId, { application_id, by = 'office'
     drawn: JSON.stringify(
       questions.map((q) => ({
         id: q.id, question: q.question, correct: q.correct,
+        // The category is kept so the answer sheet can say "4 of 5 accounts
+        // questions right", which is the part that decides anything. It is
+        // kept ON THE ATTEMPT rather than looked up later, because a question
+        // reclassified next month must not re-slice a test already sat.
+        category: q.category,
         marks: q.marks, negative_marks: q.negative_marks, order: q.order,
         option_a: q.option_a, option_b: q.option_b, option_c: q.option_c, option_d: q.option_d,
       }))
@@ -2055,6 +2062,24 @@ export const listAttempts = (candidateId) =>
     )
     .all(candidateId)
     .map(readAttempt);
+
+/**
+ * The same list WITHOUT the questions - how it goes to a screen.
+ *
+ * `drawn` carries every question and its right answer, twenty of them per
+ * attempt. The office is allowed to see that, but a panel listing somebody's
+ * three tests does not need sixty questions to draw three rows, and the
+ * answer key has no business travelling where it is not being read. It is
+ * fetched by the one screen that shows it, from /attempts/:id.
+ */
+export const listAttemptSummaries = (candidateId) =>
+  listAttempts(candidateId).map(({ drawn, answers, token, ...rest }) => ({
+    ...rest,
+    asked: (drawn || []).length,
+    /* The token is their private link - carried so the office can send it
+     * again, since a candidate who lost the message is the common case. */
+    token,
+  }));
 
 /**
  * What the candidate's browser is sent.
@@ -3245,6 +3270,94 @@ export function interviewFormDocument(interviewId) {
       candidate: getCandidate(found.application.candidate_id) || {},
       references: found.references || [],
     }),
+  };
+}
+
+/** One attempt's answer sheet as a document. Office only - it carries the key. */
+export function answerSheetDocument(attemptId) {
+  const found = attemptReview(attemptId);
+  if (!found) return null;
+  return {
+    filename: answerSheetFileName({
+      candidate_name: found.candidate?.name,
+      paper_name: found.paper?.name,
+    }),
+    html: answerSheetHtml({
+      attempt: found.attempt,
+      candidate: found.candidate || {},
+      paper: found.paper || {},
+    }),
+  };
+}
+
+/**
+ * Everything on one candidate, as one document.
+ *
+ * Reads what is stored and hands it to candidatePackHtml, which draws each
+ * section with the same function that draws it on its own. Nothing here works
+ * anything out - the test was marked at submission, the evaluation's totals
+ * come from summarise(), and this only fetches.
+ *
+ * The CV is NAMED but not embedded: it is a PDF or a Word file on disk and
+ * cannot go into an HTML page. The route sends it as its own download.
+ */
+export function candidatePackDocument(candidateId) {
+  const candidate = getCandidate(candidateId);
+  if (!candidate) return null;
+
+  const { rows: applications } = listApplications({ candidate_id: candidateId });
+
+  const rounds = interviewHistory(candidateId).map((row) => {
+    const form = getInterviewForm(row.interview_id);
+    const evaluation = getEvaluation(row.interview_id);
+    return {
+      interview: {
+        round: row.round,
+        round_name: row.round_name,
+        scheduled_at: row.at,
+        interviewer: row.interviewer,
+      },
+      context: {
+        company: row.company_name,
+        position: row.job_title,
+        candidate_name: candidate.name,
+      },
+      form: form?.form || null,
+      evaluation: evaluation?.evaluation || null,
+    };
+  });
+
+  const attempts = listAttempts(candidateId)
+    .map((a) => attemptReview(a.id))
+    .filter(Boolean);
+
+  /*
+   * One screening and one offer per APPLICATION, so the newest application
+   * that has them is what the file shows. Printing every application's
+   * screening would read as the same person screened three times.
+   */
+  let screening = null;
+  let offer = null;
+  for (const a of applications) {
+    screening = screening || screeningFor(a.id)?.screening || null;
+    offer = offer || offerFor(a.id)?.offer || null;
+  }
+
+  const resume = candidate.resume_path ? String(candidate.resume_path).split(/[\\/]/).pop() : '';
+
+  return {
+    filename: candidatePackFileName(candidate),
+    html: candidatePackHtml({
+      candidate: forOffice(candidate),
+      applications,
+      rounds,
+      attempts,
+      references: listReferences(candidateId),
+      screening,
+      offer,
+      resume_name: resume,
+    }),
+    has_resume: !!candidate.resume_path,
   };
 }
 

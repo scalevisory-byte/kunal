@@ -3660,3 +3660,21 @@ button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
   background: var(--brand-soft);
   color: var(--muted);
 }
+
+/* The answer sheet on screen. A chosen answer and the right answer are marked
+   differently, never by colour alone — when they are the same line it has to
+   read as both.
+   The verdict classes are PREFIXED: a bare `.right` is this stylesheet's
+   text-align utility, so `className="ans right"` quietly right-aligned every
+   question somebody got correct. */
+.ans { padding: 0.5rem 0; border-top: 1px solid var(--line-soft); }
+.ans:first-of-type { border-top: 0; }
+.ans .q { font-weight: 500; }
+.ans .q .n { color: var(--muted); font-weight: 400; margin-right: 0.15rem; }
+.ans .tag { float: right; font-size: 0.78rem; font-weight: 400; color: var(--muted); }
+.ans-right .tag { color: var(--good); }
+.ans-wrong .tag { color: var(--bad); }
+.ans .opt { padding: 0.1rem 0 0.1rem 1.1rem; color: var(--muted); font-size: 0.88rem; }
+.ans .opt.is-correct { color: var(--text); }
+.ans .opt.is-chosen { font-weight: 600; color: var(--text); }
+.ans .opt.is-chosen:not(.is-correct) { text-decoration: line-through; }

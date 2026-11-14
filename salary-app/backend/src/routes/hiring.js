@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import { Router } from 'express';
 import {
   assignTest,
+  answerSheetDocument,
   attemptReview,
+  candidatePackDocument,
   candidateFormLink,
   createApplication,
   createCandidate,
@@ -31,6 +33,7 @@ import {
   interviewFormDocument,
   interviewHistory,
   listApplications,
+  listAttemptSummaries,
   listAttempts,
   listCandidates,
   listCategories,
@@ -270,6 +273,9 @@ hiringRouter.get('/candidates/:id', (req, res) => {
     candidate: forOffice(candidate),
     applications: rows,
     tests: listTests(candidate.id),
+    /* The papers they actually sat. `tests` above is the older hand-typed
+     * score; these are the real attempts, with an answer sheet behind each. */
+    attempts: listAttemptSummaries(candidate.id),
     resume: resumeLink(candidate),
   });
 });
@@ -873,6 +879,22 @@ const asDocument = (make) => (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
   return res.send(doc.html);
 };
+
+/*
+ * The answer sheet. OFFICE ONLY - it carries the right answers beside what
+ * they chose, which is the whole point and exactly why it never goes near a
+ * candidate's screen.
+ */
+hiringRouter.get('/attempts/:id/sheet/print', asDocument(answerSheetDocument));
+
+/*
+ * Everything on one candidate as one document: screening, each round's
+ * particulars and evaluation, every answer sheet, the offer.
+ *
+ * The CV is NAMED in it but not inside it - it is a PDF or a Word file and
+ * cannot be poured into an HTML page. The panel downloads it alongside.
+ */
+hiringRouter.get('/candidates/:id/pack/print', asDocument(candidatePackDocument));
 
 hiringRouter.get('/interviews/:id/form/print', asDocument(interviewFormDocument));
 hiringRouter.get('/interviews/:id/evaluation/print', asDocument(evaluationDocument));

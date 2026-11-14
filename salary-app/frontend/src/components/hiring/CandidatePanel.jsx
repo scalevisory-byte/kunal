@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { STANDALONE, api } from '../../api.js';
 import { matchBand } from '../../../../shared/stages.js';
-import { resumeRequest, waLink } from '../../../../shared/hiringMessages.js';
+import { resumeRequest, testInvite, waLink } from '../../../../shared/hiringMessages.js';
+import TestResult from './TestResult.jsx';
 
 const FIELDS = [
   ['name', 'Name'],
@@ -21,6 +22,23 @@ const FIELDS = [
   ['referred_by', 'Referred by'],
 ];
 
+/**
+ * Fetch a document the server wrote and hand it over as a file.
+ *
+ * An anchor with `download`, never window.open after an await: the route
+ * answers an attachment, so a tab has nothing to show - and a tab opened
+ * after an await is pop-up blocked in silence, which the CV button learnt the
+ * hard way.
+ */
+const grab = (path) => {
+  const a = document.createElement('a');
+  a.href = `${window.location.origin}${path}`;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
 export default function CandidatePanel({ candidateId, config, onClose, onChanged, onOpenApplication, onToast, onError }) {
   const [data, setData] = useState(null);
   const [history, setHistory] = useState([]);
@@ -28,6 +46,7 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
   const [picked, setPicked] = useState('');
   const [sending, setSending] = useState(false);
   const file = useRef(null);
+  const [openSheet, setOpenSheet] = useState(null);
 
   const load = async () => {
     try {
@@ -110,7 +129,7 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
   };
 
   if (!data) return null;
-  const { candidate, applications, tests, resume } = data;
+  const { candidate, applications, tests, attempts = [], resume } = data;
   const alreadyOn = new Set(applications.map((a) => a.vacancy_id));
   const spare = openings.filter((v) => !alreadyOn.has(v.id));
   const chase = resumeRequest({
@@ -141,6 +160,35 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
             Close
           </button>
         </header>
+
+        {/*
+          * The whole file, at the top, because somebody printing it is doing
+          * that FIRST and not after scrolling past six cards. The CV comes
+          * down separately on purpose - it is a PDF or a Word file and cannot
+          * go inside an HTML page.
+          */}
+        {!STANDALONE ? (
+          <div className="card">
+            <h3>Print the whole file</h3>
+            <p className="muted small">
+              One document: screening, each round’s particulars form, the interviewer’s
+              evaluation, every test answer sheet and the offer. Opens on any machine and
+              prints to PDF.
+            </p>
+            <div className="row">
+              <button className="primary" onClick={() => grab(`/api/hiring/candidates/${candidate.id}/pack/print`)}>
+                Download the file
+              </button>
+              {resume ? (
+                <a className="btn" href={resume.url} target="_blank" rel="noreferrer" download>
+                  …and the CV ({resume.filename})
+                </a>
+              ) : (
+                <span className="muted small">No CV on file to go with it.</span>
+              )}
+            </div>
+          </div>
+        ) : null}
 
         <div className="card">
           <h3>CV</h3>
@@ -327,9 +375,117 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
           </div>
         ) : null}
 
+        {/*
+          * The papers they actually sat.
+          *
+          * `tests` below is the older hand-typed score - a number somebody
+          * keyed in from an outside test. These are the app's own, and they
+          * have an answer sheet behind them, so they get their own card: one
+          * is a figure somebody typed, the other is a paper with twenty
+          * questions on it.
+          */}
+        {attempts.length ? (
+          <div className="card">
+            <h3>Written tests</h3>
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>Paper</th>
+                  <th>When</th>
+                  <th className="num">Score</th>
+                  <th>Where it stands</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {attempts.map((a) => (
+                  <tr key={a.id}>
+                    <td>{a.paper_name}</td>
+                    <td className="small">
+                      {a.submitted_at
+                        ? String(a.submitted_at).replace('T', ' ').slice(0, 16)
+                        : `sent ${String(a.assigned_at).slice(0, 10)}`}
+                    </td>
+                    <td className="num">{a.submitted_at ? `${a.percentage}%` : '—'}</td>
+                    <td className="small">
+                      {!a.submitted_at ? (
+                        <span className="muted">not sat yet</span>
+                      ) : (
+                        <>
+                          {a.right_count} right, {a.wrong_count} wrong
+                          {a.skipped_count ? `, ${a.skipped_count} blank` : ''}
+                          {a.pass_percent == null ? null : (
+                            <span className={a.passed ? 'age fresh' : 'muted'}>
+                              {' \u00b7 '}
+                              {a.passed ? 'above' : 'below'} the pass mark
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        {a.submitted_at ? (
+                          <button onClick={() => setOpenSheet(a.id)}>Answer sheet</button>
+                        ) : (
+                          /*
+                           * Sending the link again is the common case - the
+                           * message got lost in a WhatsApp thread. It is the
+                           * SAME link and the same attempt, never a fresh
+                           * draw: a second paper would let somebody open the
+                           * questions, close it, and sit a new one.
+                           */
+                          <a
+                            className="btn"
+                            target="_blank"
+                            rel="noreferrer"
+                            href={
+                              waLink(
+                                candidate.phone,
+                                testInvite({
+                                  candidate,
+                                  vacancy: applications[0]
+                                    ? {
+                                        title: applications[0].job_title,
+                                        company_name: applications[0].company_name,
+                                      }
+                                    : null,
+                                  url: `${config?.public_url || window.location.origin}/sit/${a.token}`,
+                                })
+                              ) || '#'
+                            }
+                          >
+                            Send the link
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            navigator.clipboard?.writeText(
+                              `${config?.public_url || window.location.origin}/sit/${a.token}`
+                            );
+                            onToast('Link copied');
+                          }}
+                        >
+                          Copy link
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!config?.public_url ? (
+              <p className="muted small" style={{ marginTop: '0.5rem' }}>
+                The public web address is not set, so these links use the address you are on. If
+                that is not what candidates can reach, set it under Vacancies → Careers page.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {tests.length ? (
           <div className="card">
-            <h3>Tests</h3>
+            <h3>Tests recorded by hand</h3>
             <div className="lines">
               {tests.map((t) => (
                 <div key={t.id}>
@@ -350,6 +506,9 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
           </div>
         ) : null}
       </div>
+      {openSheet ? (
+        <TestResult attemptId={openSheet} onClose={() => setOpenSheet(null)} onError={onError} />
+      ) : null}
     </div>
   );
 }

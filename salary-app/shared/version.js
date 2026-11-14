@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.8.1';
+export const VERSION = '1.8.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.8.2',
+    date: '14 Nov 2026',
+    title: 'The test result, the answer sheet, and one candidate’s whole file',
+    items: [
+      '**Send the test link from the candidate** — open them, and every test they have been given is listed with a WhatsApp button and a Copy link beside it. It sends the SAME link, never a new paper, so nobody can look at the questions and then sit a fresh one.',
+      '**The result is on the candidate now** — the score, right, wrong and how many were left blank, for every test they have sat.',
+      '**The whole answer sheet** — every question, what they chose, what the right answer was, and which topic it came from, with a line per topic so you can see they got the accounts questions right and lost the English ones. Narrow it to just the wrong ones, or just the blanks.',
+      '**“Print the whole file”** at the top of a candidate — ONE document carrying the screening, each round’s particulars form, the interviewer’s evaluation, every answer sheet and the offer. Opens on any machine and prints to PDF, for when the boss wants to see the file.',
+      'The CV downloads beside it as its own file. A CV is a PDF or a Word document and cannot be put inside a printed page — the file names it rather than leaving a blank page where it should be.',
+      'The file also names what is **missing** — “evaluation: not written up” — because a pack that quietly leaves a section out reads as a complete file.',
+      'A question nobody answered is shown as **not answered**, never as a wrong answer. They are different facts about a candidate.',
+    ],
+  },
   {
     version: '1.8.1',
     date: '14 Nov 2026',
