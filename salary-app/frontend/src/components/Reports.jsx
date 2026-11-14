@@ -56,6 +56,22 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   });
   const [query, setQuery] = useState('');
   const [openCategory, setOpenCategory] = useState('attendance');
+
+  /*
+   * Arriving with "approvals" means somebody clicked the dashboard line
+   * saying staff are waiting on a decision. That line used to open People,
+   * which does not hold this queue - so the one line telling the office
+   * somebody had applied for leave led nowhere.
+   *
+   * It has to run after `openId` exists, which is why it is here rather than
+   * beside the "import" effect above.
+   */
+  useEffect(() => {
+    if (focus !== 'approvals') return;
+    setOpenCategory('attendance');
+    setOpenId('attendance-approvals');
+    onFocused?.();
+  }, [focus, onFocused]);
   const [file, setFile] = useState(null);
   const [sheets, setSheets] = useState([]);
   const [sheet, setSheet] = useState('');

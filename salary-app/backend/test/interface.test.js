@@ -1256,3 +1256,42 @@ test('working from home can be asked for, and only ever marks WH', () => {
   assert.match(src('components/MyPage.jsx'), /kind: 'remote'/);
   assert.match(src('components/PunchPage.jsx'), /REQUEST_KINDS\.map/);
 });
+
+test('the line saying staff are waiting opens the queue that can decide', () => {
+  const digest = fs.readFileSync(path.join(here, '../../shared/digest.js'), 'utf8');
+
+  /*
+   * Every digest line used to send the dashboard to People. That is right for
+   * a claim, a ticket or a job - and wrong for an attendance request, because
+   * the approvals queue lives in Reports. So the one line telling the office
+   * somebody had applied for leave opened a tab that does not hold it.
+   */
+  assert.match(digest, /const add = \(line, n = 1, kind = 'queue', go = 'people', focus = null\)/);
+  assert.match(digest, /attendance request[\s\S]{0,320}'reports',\s*\n\s*'approvals'/);
+
+  // The dashboard follows what the line says instead of always saying People.
+  const dash = src('components/Dashboard.jsx');
+  assert.equal([...dash.matchAll(/onGo\(item\.go \|\| 'people', item\.focus\)/g)].length, 2);
+  assert.ok(!/queues\.map\(\(item\) => \(\s*<li/.test(dash), 'the waiting lines are not clickable');
+
+  // ...and Reports knows what to do when it is handed that focus.
+  const reports = src('components/Reports.jsx');
+  assert.match(reports, /if \(focus !== 'approvals'\) return;/);
+  assert.match(reports, /setOpenId\('attendance-approvals'\)/);
+});
+
+test('the decision on a request cannot be the one thing off the edge', () => {
+  // Measured at 1280px, which is an ordinary laptop: the Approve button sat
+  // at 1393px, past the right edge of the scroller. Pinned right, it comes
+  // back to 1156px. The name column is pinned left for the same reason.
+  assert.match(css, /table\.sheet\.request-queue th\.decide,\s*\ntable\.sheet\.request-queue td\.decide \{/);
+  const rule = css.match(/table\.sheet\.request-queue th\.decide,[\s\S]*?\}/)[0];
+  for (const bit of [/position: sticky/, /right: 0/, /background: var\(--surface\)/]) {
+    assert.match(rule, bit);
+  }
+
+  const queue = src('components/AttendanceRequests.jsx');
+  assert.match(queue, /className="sheet request-queue"/);
+  assert.match(queue, /className="right decide"/);
+  assert.match(queue, /<th className="decide" \/>/);
+});

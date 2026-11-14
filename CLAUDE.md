@@ -1159,6 +1159,37 @@ to type it.
   name the mark it writes, or approving it would land a reason on the grid with no mark, which
   reads as a day somebody looked at and left blank.
 
+## Leave: how an employee asks and how the office decides
+
+Dinesh asked what the system actually is. **Inspected rather than described**, and the flow was
+already whole — one queue, one rule, no parallel paths. Two things were wrong at the edges, and
+both were the same old pattern: the work was done, the way IN was not.
+
+The flow, end to end: the employee applies from their own login (MyPage → Leave) or their punch
+link; it lands in `attendance_requests` as `pending`; the office sees it in **Reports →
+Attendance corrections and approvals**; approving writes every day in one transaction. *A request
+never writes attendance; an approval does* — a pending application moves nobody's pay, and there
+is an API test for it. Approving needs the `write` ability (`/api/attendance` is mounted behind
+`requireAuth, requireRead, requireWriteForChanges`), so HR and Admin can decide and an `employee`
+login — abilities `['self']` — cannot.
+
+- **The one line telling the office somebody applied opened the wrong tab.** The dashboard's
+  *Waiting on somebody* card carries "2 attendance requests waiting: Amit Shah, Priya Nair" off
+  `shared/digest.js` — but every digest line sent `onGo('people')`, and the approvals queue is
+  in Reports. Right for a claim, a ticket or a job; a dead end for a leave application. Lines now
+  carry `go` and `focus`, the attendance one points at `reports`/`approvals`, and `Reports.jsx`
+  learned that focus (it has to sit after `openId` exists, not beside the `import` effect).
+- **And those lines were plain `<li>`s** — the card whose entire job is "somebody is waiting on
+  you" could not be clicked at all. They are `pa-row` buttons now, and the card's "open People"
+  header button is gone, because most of what it lists is not in People.
+- **The Approve button was off the edge of the screen.** Measured at 1280px — an ordinary laptop
+  — the queue's last column sat at 1393px, so the one control the whole screen exists for needed
+  a sideways scroll to reach. `table.sheet.request-queue td.decide` is pinned right, the way the
+  name column is pinned left: 1393px → 1156px, checked at 1280 / 1400 / 1920.
+- **Driven end to end in a browser**: two applications raised from staff links (a 3-day CL and a
+  work-from-home day), the dashboard line clicked, Reports opens on the queue with both visible,
+  Approve pressed, grid reads CL CL CL on 18–20.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

@@ -104,7 +104,14 @@ export default function AttendanceRequests({ period, onReload, onError }) {
       {view === 'requests' ? (
         requests.length ? (
           <ScrollFrame box="scroll">
-            <table className="sheet">
+            {/*
+              * `request-queue` pins the last column. On a 1280px laptop the
+              * Approve button sat past the right edge of the scroller, so the
+              * one control this whole screen exists for was the one thing you
+              * had to scroll sideways to find. Measured: 1393px on a 1280px
+              * window.
+              */}
+            <table className="sheet request-queue">
               <thead>
                 <tr>
                   <th>Who</th>
@@ -113,7 +120,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                   <th>Why</th>
                   <th>Asked</th>
                   <th>Status</th>
-                  <th />
+                  <th className="decide" />
                 </tr>
               </thead>
               <tbody>
@@ -137,7 +144,7 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                       {r.status}
                       {r.decided_by ? <div className="muted small">by {r.decided_by}</div> : null}
                     </td>
-                    <td className="right">
+                    <td className="right decide">
                       {r.status === 'pending' ? (
                         <>
                           <button className="tiny primary" disabled={busy === r.id} onClick={() => decide(r, true)}>

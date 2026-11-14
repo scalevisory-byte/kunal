@@ -3015,3 +3015,28 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
   .signin-open { color: #d9a93c; }
   .signin-compact-text strong { color: #dce6f5; }
 }
+
+/* ---------- the approvals queue ---------- */
+
+/*
+ * The decision stays on screen.
+ *
+ * This table is wide - who, day, what they are asking for, why, when they
+ * asked, status - and the Approve/Reject buttons are the last column. On a
+ * 1280px laptop they sat at 1393px, i.e. past the right edge, so the one
+ * control the whole screen exists for was the one thing you had to scroll
+ * sideways to reach. Pinned right, the way the name column is pinned left.
+ */
+table.sheet.request-queue th.decide,
+table.sheet.request-queue td.decide {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.sheet.request-queue thead th.decide { background: var(--line-soft); }
+table.sheet.request-queue tbody tr:hover td.decide {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+}

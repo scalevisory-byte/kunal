@@ -85,9 +85,17 @@ export function digest(input = {}) {
    * lines, which its own "Needs attention" list already says - two cards
    * repeating each other is how a dashboard stops being read.
    */
-  const add = (line, n = 1, kind = 'queue') => {
+  /*
+   * `go` is the tab that can actually DO something about the line, and
+   * `focus` the panel inside it. Without them every line on the dashboard
+   * sent people to People - which is right for a claim, a ticket or a job,
+   * and wrong for an attendance request, because the approvals queue is in
+   * Reports. One line telling the office somebody applied for leave, and it
+   * opened the wrong tab.
+   */
+  const add = (line, n = 1, kind = 'queue', go = 'people', focus = null) => {
     lines.push(line);
-    items.push({ kind, text: line.replace(/^•\s*/, '') });
+    items.push({ kind, text: line.replace(/^•\s*/, ''), go, ...(focus ? { focus } : {}) });
     count += n;
   };
 
@@ -98,7 +106,13 @@ export function digest(input = {}) {
     add(
       `• ${plural(pendingRequests.length, 'attendance request')} waiting: ${names(
         pendingRequests.map((r) => r.employee_name)
-      )}`
+      )}`,
+      1,
+      'queue',
+      // Leave applications, corrections and work-from-home all land here, and
+      // the only screen that can approve one is in Reports.
+      'reports',
+      'approvals'
     );
   }
 

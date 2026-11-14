@@ -1909,15 +1909,21 @@ export default function Dashboard({
                 figures are under <em>Needs attention</em> below rather than repeated here.
               </p>
             </div>
-            <button className="ghost tiny" onClick={() => onGo('people')}>
-              open People
-            </button>
           </div>
-          <ul className="alerts">
+          <div className="pa-list">
             {queues.map((item) => (
-              <li key={item.text}>{item.text}</li>
+              <button
+                key={item.text}
+                className="pa-row"
+                onClick={() => onGo(item.go || 'people', item.focus)}
+              >
+                <span className="pa-ico" style={{ background: 'var(--tile-5-ink)' }}>
+                  <Glyph name="people" size={13} />
+                </span>
+                <span className="pa-name">{item.text}</span>
+              </button>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
@@ -2018,7 +2024,11 @@ export default function Dashboard({
               * than showing an empty box that looks broken.
               */}
             {queues.map((item) => (
-              <button key={item.text} className="pa-row" onClick={() => onGo('people')}>
+              <button
+                key={item.text}
+                className="pa-row"
+                onClick={() => onGo(item.go || 'people', item.focus)}
+              >
                 <span className="pa-ico" style={{ background: 'var(--tile-5-ink)' }}>
                   <Glyph name="people" size={13} />
                 </span>
