@@ -492,3 +492,58 @@ test('going live looks before it touches the tunnel that serves ZynTask', () => 
   assert.match(ps, /NOT done by this script: removing APP_PASSWORD/);
   assert.ok(!/Remove.*APP_PASSWORD=|-notmatch 'APP_PASSWORD'/.test(ps), 'it strips the shared password itself');
 });
+
+test('the HRMS tunnel is its own, and touches nobody else', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/TUNNEL.ps1'), 'utf8');
+  assert.deepEqual([...ps].filter((c) => c.charCodeAt(0) > 127), []);
+  assert.deepEqual(psProblems(ps, 'TUNNEL.ps1'), []);
+
+  /*
+   * Dinesh: "alag se banavo / kisi ke sath nahi jodna". He was right to
+   * push: the only reason the SENA tunnel had been proposed is that it was
+   * the first one the inspector found, which is an accident, not a reason.
+   * That server runs three other cloudflared processes - Cloudflared for
+   * senacantonfair.com, ArrohanTunnel for erp.arrohanliving.in, and a
+   * token-run one in E:\TAJ - and sharing one means a restart for either
+   * side blips the other for ever.
+   *
+   * So: nothing existing may be stopped, started, restarted or opened.
+   */
+  // Comments explain what it leaves alone, and one Write-Host says so on
+  // screen; neither is an action. Strip both before looking for one.
+  const code = ps
+    .replace(/^\s*#.*$/gm, '')
+    .replace(/Write-Host[^\n]*/g, '');
+  assert.ok(!/Restart-Service/.test(code), 'it restarts a service');
+  assert.ok(!/config\.yml/.test(code), 'it reads or writes a config file');
+  for (const other of ['Cloudflared', 'ArrohanTunnel', 'ArrohanERP']) {
+    assert.ok(
+      !new RegExp(`(Stop|Start|Restart)-Service[^\\n]*${other}`).test(code),
+      `it touches the ${other} service`,
+    );
+  }
+
+  /*
+   * A SCHEDULED TASK, not `cloudflared service install` - that command
+   * names its service "cloudflared", which already exists on this machine
+   * and would collide. A task is also how the HRMS itself runs there.
+   */
+  assert.match(ps, /Register-ScheduledTask -TaskName \$TaskName/);
+  assert.ok(!/service install/.test(code), 'it uses cloudflared service install');
+  assert.match(ps, /TaskName = 'BNFHRMS-Tunnel'/);
+
+  /*
+   * Its own copy of the exe. Borrowing E:\cloudfare's or E:\TAJ's would
+   * mean the HRMS stops the day somebody moves or replaces theirs.
+   */
+  assert.match(ps, /Join-Path \$mine 'cloudflared\.exe'/);
+  assert.match(ps, /Copy-Item \$source \$exe/);
+
+  // The token is checked for shape and never printed whole.
+  assert.match(ps, /notlike 'eyJ\*'/);
+  assert.match(ps, /\$Token\.Substring\(0, 12\)/);
+  assert.ok(!/Write-Host[^\n]*\$Token"/.test(ps), 'it prints the whole token');
+
+  // And it says out loud what it is leaving alone, before it does anything.
+  assert.match(ps, /Leaving these exactly as they are/);
+});
