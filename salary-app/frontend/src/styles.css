@@ -3365,3 +3365,82 @@ table.hiring-table td.grow, table.hiring-table th.grow { min-width: 11rem; }
 }
 
 .row-actions { display: flex; gap: 0.3rem; white-space: nowrap; }
+
+/* ---------------- sitting a test ---------------- */
+
+/*
+ * The candidate's page. It is opened on a phone in a waiting room as often as
+ * on a desk, so it is one column at every width and the options are big enough
+ * to hit with a thumb.
+ */
+.sit-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+}
+.sit-card {
+  width: min(44rem, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.1rem;
+}
+.sit-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.sit-head h1 { font-size: 1.1rem; margin: 0; letter-spacing: 0.04em; }
+
+/*
+ * The clock sticks to the top on a phone, because a countdown you have to
+ * scroll to is a countdown nobody looks at.
+ */
+.sit-clock {
+  margin-left: auto;
+  text-align: right;
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  position: sticky;
+  top: 0.5rem;
+}
+.sit-clock span { display: block; font-weight: 400; font-size: 0.72rem; }
+.sit-clock.low { color: var(--bad, #b4232a); }
+
+.sit-note {
+  background: var(--line-soft, rgba(0,0,0,0.03));
+  border-radius: var(--radius);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+}
+.sit-q { padding: 0.7rem 0; border-bottom: 1px solid var(--line); }
+.sit-qtext { margin: 0 0 0.5rem; }
+.sit-options { display: grid; gap: 0.4rem; }
+.sit-option {
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.sit-option:hover { border-color: var(--muted); }
+.sit-option.picked { border-color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+.sit-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.8rem;
+}
+.sit-foot .primary { margin-left: auto; }
+
+/* A retired question still shows, greyed, so a finished paper can be read. */
+tr.retired td { opacity: 0.55; }

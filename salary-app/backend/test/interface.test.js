@@ -1524,3 +1524,43 @@ test('there is one print block, and it carries the interview form', () => {
   assert.match(print, /\.panel\.interview-form \{[^}]*overflow: visible/);
   assert.match(print, /\.iv-actions/);
 });
+
+test('an in-house test is sent from the candidate’s own application', () => {
+  const panel = src('components/hiring/ApplicationPanel.jsx');
+
+  /*
+   * Eighth time for this shape. The Tests tab is a screen about PAPERS; the
+   * person deciding to test somebody is looking at that somebody. So the
+   * button lives on the application.
+   */
+  assert.match(panel, /Send an in-house test/);
+  assert.match(panel, /\/hiring\/papers\/\$\{paperId\}\/assign/);
+  assert.match(panel, /Draw their paper/);
+
+  /*
+   * And the link is made absolute in the browser. The server answers an
+   * absolute one only when the public address is configured; without it the
+   * link came back as "/sit/TST-…", which looks fine in the box and is dead
+   * the moment it is pasted into WhatsApp.
+   */
+  assert.match(panel, /window\.location\.origin\}\$\{sentLink\}/);
+  assert.match(panel, /The public web address is not set/);
+});
+
+test('the candidate’s test page keeps no secret and no second chance', () => {
+  const sit = src('components/hiring/SitTest.jsx');
+  const code = sit.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  // Nothing on this page renders an answer, because nothing is sent one.
+  assert.ok(!/\.correct/.test(code), 'the test page reads a correct answer');
+
+  // Reaching zero sends what they have rather than losing it.
+  assert.match(sit, /if \(left <= 0\) \{\s*submit\(true\);/);
+
+  // A double submit is impossible even if the timer and the button fire at
+  // once.
+  assert.match(sit, /if \(sent\.current\) return;\s*sent\.current = true;/);
+
+  // The token is the whole of the identity - nothing else is sent.
+  assert.ok(!/candidate_id/.test(code), 'the test page sends a candidate id');
+});

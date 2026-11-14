@@ -9,6 +9,7 @@ import Apply from './components/hiring/Apply.jsx';
 import Hiring from './components/hiring/Hiring.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
 import PunchPage from './components/PunchPage.jsx';
+import SitTest from './components/hiring/SitTest.jsx';
 import Leave from './components/Leave.jsx';
 import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
@@ -122,6 +123,10 @@ export default function App() {
     // An employee's own punch link. No password - the token is the identity.
     const punching = window.location.pathname.match(/^\/punch\/([^/]+)/);
     if (punching) return <PunchPage token={decodeURIComponent(punching[1])} />;
+    // A candidate sitting an in-house test. Same rule as the punch link: the
+    // token IS the identity, and it reaches exactly one attempt.
+    const sitting = window.location.pathname.match(/^\/sit\/([^/]+)/);
+    if (sitting) return <SitTest token={decodeURIComponent(sitting[1])} />;
   }
   return <Shell />;
 }

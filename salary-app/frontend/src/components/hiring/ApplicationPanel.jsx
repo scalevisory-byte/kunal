@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../../api.js';
+import { STANDALONE, api } from '../../api.js';
 import { ALL_STAGES, STAGES, aging, matchBand, stageMeta } from '../../../../shared/stages.js';
 import { waLink } from '../../../../shared/hiringMessages.js';
 import { readAnswers, spell } from '../../../../shared/testAnswers.js';
@@ -105,6 +105,14 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
   // Which sitting is opened out, question by question.
   const [openTest, setOpenTest] = useState(null);
   const [notify, setNotify] = useState(null);
+  const [papers, setPapers] = useState([]);
+  const [paperId, setPaperId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [sentLink, setSentLink] = useState('');
+  const fullLink =
+    sentLink && !sentLink.startsWith('http')
+      ? `${window.location.origin}${sentLink}`
+      : sentLink;
   const [test, setTest] = useState({ score: '', max_score: '', type: 'skills' });
   const [interview, setInterview] = useState({ at: '', mode: 'in-person', location_or_link: '', round: 1 });
 
@@ -115,6 +123,11 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
       onError(err);
     }
   };
+
+  useEffect(() => {
+    if (STANDALONE) return;
+    api.get('/hiring/papers').then(({ papers: rows }) => setPapers(rows || [])).catch(() => setPapers([]));
+  }, []);
 
   useEffect(() => {
     load();
@@ -129,6 +142,27 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
       onChanged?.();
     } catch (err) {
       onError(err);
+    }
+  };
+
+  /*
+   * Drawing the paper happens NOW, not when they open the link: the office can
+   * see what somebody was asked before they sit down, and a refresh cannot
+   * deal a fresh, easier hand.
+   */
+  const assignTest = async () => {
+    setAssigning(true);
+    try {
+      const res = await api.post(`/hiring/papers/${paperId}/assign`, {
+        candidate_id: application.candidate_id,
+        application_id: applicationId,
+      });
+      setSentLink(res.link);
+      onToast('Paper drawn — send them the link');
+    } catch (err) {
+      onError(err);
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -434,6 +468,66 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             </div>
           </form>
         </div>
+
+        {/*
+          * Sending an in-house paper.
+          *
+          * This is where somebody is deciding about ONE person, so this is
+          * where the button goes. A paper that could only be assigned from the
+          * Tests tab - a screen about papers, not about people - is the shape
+          * of bug this codebase has now learnt seven times.
+          */}
+        {!STANDALONE ? (
+          <div className="card">
+            <h3>Send an in-house test</h3>
+            {sentLink ? (
+              <>
+                <p className="muted small">
+                  Their own link. Every candidate gets a different selection of questions, so this
+                  one is theirs — it opens one test and nothing else.
+                </p>
+                {/*
+                  * The server answers an absolute link only when the public
+                  * address is set up. Without it the link came back as
+                  * "/sit/TST-…", which looks fine in the box and is dead the
+                  * moment it is pasted into WhatsApp. So it is made absolute
+                  * here against whatever address the office is using, and the
+                  * guess is admitted rather than hidden.
+                  */}
+                <div className="row">
+                  <input readOnly value={fullLink} onFocus={(e) => e.target.select()} />
+                  <button onClick={() => navigator.clipboard?.writeText(fullLink)}>Copy</button>
+                </div>
+                {!sentLink.startsWith('http') ? (
+                  <p className="muted small">
+                    The public web address is not set, so this link uses the one you are on. If
+                    that is not the address candidates can reach, set it under Vacancies → Careers
+                    page first.
+                  </p>
+                ) : null}
+              </>
+            ) : papers.length ? (
+              <div className="row">
+                <select value={paperId} onChange={(e) => setPaperId(e.target.value)}>
+                  <option value="">Choose a paper…</option>
+                  {papers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.questions} questions, {p.duration_minutes} min
+                    </option>
+                  ))}
+                </select>
+                <button className="primary" disabled={!paperId || assigning} onClick={assignTest}>
+                  {assigning ? 'Drawing…' : 'Draw their paper'}
+                </button>
+              </div>
+            ) : (
+              <p className="muted small">
+                No papers yet — make one under Hiring → Tests, and it draws from the questions you
+                type in there.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         <div className="card">
           <h3>Record a test</h3>
