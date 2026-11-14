@@ -1015,8 +1015,24 @@ That is almost certainly what Bizcompass read. eTimeTrackLite supports MS Access
 Oracle; **which one his install uses, and the punch table's name, are not known — do not guess
 them, look.** Reading that database on a schedule is the route; repointing the devices at our own
 ADMS endpoint would break eTimeTrackLite's own pull and is the wrong trade.
-Still needed from him: whether TSRV can reach that machine, which database engine it is, and a
-read-only login.
+Still needed from him: which database engine it is, where the data file or connection string
+is, and a read-only login.
+
+**The reachability question may not exist at all.** The notes above said "whether TSRV can
+reach DESKTOP-6OKJT47" — but the HRMS does not run on TSRV, it runs on the **BNF server**, and
+that server's own `E:\` carries an **`Essl`** folder. DESKTOP-6OKJT47 may simply be the BNF
+server's Windows computer name. If it is, eTimeTrackLite and the HRMS are on one machine, there
+is no network hop to arrange, and this becomes reading a local file on a schedule.
+
+`deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
+there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
+redirects nothing to a file, because it gets run on a server also carrying ZynTask, Arrohan, TAJ
+and the eSSL software itself. It prints `COMPUTERNAME` first (the one question above), then
+**finds** the install rather than guessing a path (the `E:\cloudfare` lesson), reads the
+installed-programs registry as a second route that does not depend on a folder name, and reports
+the engine from `.mdb`/`.accdb` files, connection strings in `*.config`/`*.ini`/`*.xml`, and any
+local MSSQL/Oracle service. **Every password is replaced with `***` before printing** — the
+output is screenshotted and sent over WhatsApp, and a connection string carries one. Tested.
 
 ## Where the HRMS actually runs — corrected
 

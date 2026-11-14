@@ -547,3 +547,47 @@ test('the HRMS tunnel is its own, and touches nobody else', () => {
   // And it says out loud what it is leaving alone, before it does anything.
   assert.match(ps, /Leaving these exactly as they are/);
 });
+
+test('the eSSL inspector only looks, and never prints a password', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/ESSL-CHECK.ps1'), 'utf8');
+  assert.deepEqual(psProblems(ps, 'ESSL-CHECK.ps1'), []);
+
+  // PowerShell 5.1 reads a BOM-less UTF-8 file as ANSI, so a curly quote or
+  // an arrow turns into mojibake in the middle of a command.
+  assert.ok(!/[^\x09\x0a\x0d\x20-\x7e]/.test(ps), 'it is not plain ASCII');
+
+  // `throw` under $ErrorActionPreference='Stop' ends the script, so a
+  // Read-Host outside a finally closes the window before anybody reads it.
+  assert.match(ps, /finally \{[\s\S]*Read-Host/);
+
+  // It runs on a server that also carries ZynTask, Arrohan, TAJ and the
+  // eSSL software itself. It is allowed to read and nothing else - the
+  // whole point is that it is safe to run before anything is decided.
+  const code = ps.replace(/^\s*#.*$/gm, '').replace(/<#[\s\S]*?#>/g, '');
+  for (const verb of [
+    'Set-Content', 'Out-File', 'Remove-Item', 'New-Item', 'Copy-Item', 'Move-Item',
+    'Stop-Service', 'Start-Service', 'Restart-Service', 'Stop-Process',
+    'Register-ScheduledTask', 'Set-ItemProperty', 'New-ItemProperty',
+  ]) {
+    assert.ok(!new RegExp(verb).test(code), `it calls ${verb}`);
+  }
+  assert.ok(!/>\s*['"]?[A-Za-z]:\\/.test(code), 'it redirects output into a file');
+
+  // The output gets photographed and sent over WhatsApp. A connection
+  // string carries the database password in it.
+  assert.match(ps, /function Hide-Secrets/);
+  for (const key of ['password', 'pwd', 'user id', 'uid']) assert.ok(ps.includes(`'${key}'`), `${key} is not masked`);
+  assert.match(ps, /Hide-Secrets \$l\.Trim\(\)/);
+
+  // The folder is FOUND, not assumed. A list of correctly spelt guesses
+  // walked straight past E:\cloudfare once already.
+  assert.match(ps, /Get-ChildItem -LiteralPath \$r -Directory -Depth/);
+  assert.match(ps, /etimetrack\|essl/);
+  assert.ok(!/C:\\Program Files\\eTimeTrackLite/.test(ps), 'it hardcodes an install path');
+
+  // The question this exists to answer first: is the punch software on the
+  // same machine as the HRMS? If it is, there is no network hop to arrange.
+  assert.match(ps, /COMPUTERNAME/);
+  assert.match(ps, /DESKTOP-6OKJT47/);
+  assert.match(ps, /BNFHRMS/);
+});
