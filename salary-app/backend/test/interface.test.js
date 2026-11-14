@@ -865,3 +865,42 @@ test('the dashboard wears the corporate look and nothing else does', () => {
   assert.match(d, /All companies<\/option>/);
   assert.match(d, /All departments<\/option>/);
 });
+
+test('the logo is imported, not linked, so the single file stays offline', () => {
+  const app = src('App.jsx');
+  const file = path.join(here, '../../frontend/src/assets/booknfly.png');
+
+  assert.ok(fs.existsSync(file), 'the logo file is missing from the repo');
+
+  /*
+   * The whole point of the import.
+   *
+   * vite inlines an IMPORTED asset as a data URI in the single-file build
+   * (assetsInlineLimit is unlimited there) and serves it as a hashed file
+   * otherwise. Written as a path instead - src="/assets/booknfly.png" - the
+   * served build still works, so it looks fine, while the standalone file
+   * shows a broken image AND reaches out to the network from a file:// page.
+   * That file is handed out on WhatsApp precisely because it needs nothing.
+   *
+   * Driven to confirm: the built single file makes zero requests that are not
+   * file:// or data:, and .side-logo loads from a data: URI.
+   */
+  assert.match(app, /import logoUrl from '\.\/assets\/booknfly\.png';/);
+  assert.match(app, /<img className="side-logo" src=\{logoUrl\}/);
+  assert.ok(
+    !/src="[^"]*booknfly/i.test(app),
+    'the logo is referenced by path somewhere, which breaks the offline file',
+  );
+
+  // Small enough that inlining it does not bloat the file people are sent.
+  // 11 KB becomes ~15 KB of base64 in a 1.9 MB file.
+  const kb = fs.statSync(file).size / 1024;
+  assert.ok(kb < 40, `the logo is ${Math.round(kb)} KB - too big to inline comfortably`);
+
+  /*
+   * A dark-navy wordmark on a navy rail is an invisible wordmark. The white
+   * plate is what makes it readable, so it is not decoration.
+   */
+  assert.match(app, /className="side-plate"/);
+  assert.match(css, /\.side-plate \{[^}]*background: #fff;/s);
+});

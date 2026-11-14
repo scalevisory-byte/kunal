@@ -25,6 +25,11 @@ import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
 
+
+/* The logo file itself. Vite inlines it as a data URI in the single-file
+   build (assetsInlineLimit) and serves it as a hashed asset otherwise, so
+   the offline copy stays offline - it loads nothing from the internet. */
+import logoUrl from './assets/booknfly.png';
 /*
  * Which tabs are about a MONTH. The month picker and its settings - working
  * days, hours a day, the PT slab, lock, delete - were on every screen, so the
@@ -467,24 +472,34 @@ function Shell() {
         */}
       <aside className="sidebar">
         <div className="side-brand">
-          <span className="side-mark">BH</span>
-          <span className="side-name">
-            BOOKNFLY <strong>HRMS</strong>
-            <span className="built" title="When this file was built.">{BUILT_ON}</span>
-            {/*
-              * A blank copy says so, on every screen.
-              *
-              * Two files that look identical and keep separate data is how
-              * somebody spends an evening typing into the wrong one.
-              */}
-            {IS_BLANK ? (
-              <span
-                className="built blank-badge"
-                title="A test copy. It keeps its own data, separate from the real file - nothing typed here can reach the real payroll, and nothing there can be seen from here."
-              >
-                TEST COPY{IS_BLANK_SEEDED ? ' — made-up people' : ' — starts empty'}
-              </span>
-            ) : null}
+          {/*
+            * The logo is a dark-navy wordmark, so it cannot sit straight on
+            * the navy rail - it would disappear into it. It gets a white
+            * plate, which is how the brand is used on his own stationery.
+            * Recolouring somebody's logo is not ours to do.
+            */}
+          <span className="side-id">
+            <span className="side-plate">
+              <img className="side-logo" src={logoUrl} alt="Booknfly" />
+            </span>
+            <span className="side-name">
+              <strong>HRMS</strong>
+              <span className="built" title="When this file was built.">{BUILT_ON}</span>
+              {/*
+                * A blank copy says so, on every screen.
+                *
+                * Two files that look identical and keep separate data is how
+                * somebody spends an evening typing into the wrong one.
+                */}
+              {IS_BLANK ? (
+                <span
+                  className="built blank-badge"
+                  title="A test copy. It keeps its own data, separate from the real file - nothing typed here can reach the real payroll, and nothing there can be seen from here."
+                >
+                  TEST COPY{IS_BLANK_SEEDED ? ' — made-up people' : ' — starts empty'}
+                </span>
+              ) : null}
+            </span>
           </span>
           <button
             className="ghost side-close"

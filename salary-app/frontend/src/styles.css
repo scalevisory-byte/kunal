@@ -1742,18 +1742,29 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   gap: 0.5rem;
   padding: 0.1rem 0.35rem 0.8rem;
 }
-.side-mark {
-  flex: 0 0 auto;
-  width: 1.75rem;
-  height: 1.75rem;
+/* The brand block: the logo on its own line, the app's name under it.
+   A wide wordmark wants the rail's full width - squeezed beside the text
+   it came out about twelve pixels tall and unreadable. */
+.side-id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.side-plate {
+  display: block;
   border-radius: 8px;
-  background: var(--brand);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  padding: 0.4rem 0.55rem;
+  /* White whatever the rail is: the wordmark is dark navy and would vanish
+     into a navy background. The file has a white background of its own, so
+     this mostly just rounds its corners and gives it room. */
+  background: #fff;
+}
+.side-logo {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .side-name {
   display: flex;
@@ -2441,7 +2452,9 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
   color: #e9eef8;
 }
 .side-brand { border-bottom: 1px solid var(--navy-line); padding-bottom: 0.7rem; }
-.side-mark { background: var(--gold); color: var(--navy); font-weight: 700; }
+/* A hairline so the white plate reads as part of the rail rather than as a
+   sticker dropped on it. */
+.side-plate { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); }
 .side-name, .side-name strong { color: #fff; }
 .side-name .built { color: #93a4c4; }
 .side-nav button { color: #c3cfe6; border-radius: 8px; }
