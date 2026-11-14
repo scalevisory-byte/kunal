@@ -11,10 +11,33 @@ import { onConcession, readLateRules } from '../../shared/lateEarly.js';
  */
 export const STANDARD_KEY = 'salary-app-standard-times';
 
+/*
+ * The shipped default must ADD UP TO THE DAY.
+ *
+ * Dinesh's rule, in his own words: "time sabka flexible, 9 hrs complete hone
+ * chahiye" and "9 hrs including lunch". So: come when you like, be there nine
+ * hours, and the half-hour lunch sits INSIDE those nine - it is not taken off.
+ *
+ * That makes the usual day 09:30 to 18:30 with the lunch columns LEFT BLANK.
+ * Blank is not an oversight here and must not be "fixed" by typing the lunch
+ * back in: those two columns exist for an office that DEDUCTS the break, and
+ * filling them would take the half hour off every single day.
+ *
+ * The old default was 09:30-18:30 less a 45-minute lunch - 8h 15m against a
+ * nine-hour day - so one click on "Fill the usual timings" docked every
+ * person 45 minutes for a full day they had worked. Around 83 rupees each on
+ * a 26,000 salary; at 114 people over 26 days, roughly two and a half lakh a
+ * month, out of the app's own defaults, with nothing on screen ever adding
+ * the timings up. The Time tab now does, and says what any gap costs.
+ *
+ * Because the time is flexible, nothing is judged by WHEN somebody arrived.
+ * Short hours come from how long they stayed, whenever that was: 08:00-17:30
+ * and 11:00-20:30 both complete the day and are charged nothing.
+ */
 export const DEFAULT_STANDARD = {
   in_time: '09:30',
-  lunch_out: '13:00',
-  lunch_in: '13:45',
+  lunch_out: '',
+  lunch_in: '',
   out_time: '18:30',
 };
 

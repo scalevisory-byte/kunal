@@ -983,3 +983,67 @@ test('a file dialog never hides the file somebody is holding', () => {
   assert.match(src('components/MonthlyStatusImport.jsx'), /MonthlyStatus_BasicReport/);
   assert.match(src('components/PunchImport.jsx'), /The punch LOG/);
 });
+
+test("the office's usual timings add up to the day, and say so", () => {
+  const defaults = src('standardTimes.js');
+  const tab = src('components/TimeSheet.jsx');
+
+  /*
+   * The shipped default was 09:30-18:30 LESS a 45-minute lunch = 8h 15m,
+   * against a nine-hour day. So one click on "Fill the usual timings" docked
+   * every person 45 minutes for a full day they had worked - about 83 rupees
+   * each on a 26,000 salary, and at 114 people on 26 days roughly two and a
+   * half lakh a month, out of the app's own defaults.
+   *
+   * Measured: 495 minutes worked against 540 expected, charged -45. Driven
+   * before and after on eight people: 8 short-hour days and 360 minutes
+   * became 0, and the month's net went up 855 rupees.
+   */
+  /*
+   * Dinesh's rule, asked and answered: "time sabka flexible, 9 hrs complete
+   * hone chahiye" and "9 hrs including lunch". So 09:30-18:30 with the lunch
+   * columns BLANK - the half hour sits inside the nine and is not taken off.
+   * Blank is deliberate; typing the lunch back in docks every day by 30m.
+   */
+  assert.match(defaults, /lunch_out: '',/);
+  assert.match(defaults, /lunch_in: '',/);
+  assert.match(defaults, /in_time: '09:30'/);
+  assert.match(defaults, /out_time: '18:30'/);
+  assert.match(defaults, /9 hrs including lunch/);
+
+  /*
+   * And the screen ADDS THEM UP, because the button writes one figure onto
+   * everybody and nothing on the page had ever shown the sum. A mismatch is
+   * stated before the button, not discovered on the payslip.
+   */
+  assert.match(tab, /const usual = timesToDay\(standard, \{ hoursPerDay: period\.hours_per_day \}\)/);
+  assert.match(tab, /SHORT of the/);
+  assert.match(tab, /every day filled is docked/);
+  assert.match(tab, /OVER the/);
+  assert.match(tab, /usual\.minutes < 0 \? 'small warn-text'/);
+
+  /*
+   * And when they disagree it is FIXABLE IN ONE CLICK, both ways, with the
+   * one that moves money saying how much. Driven: setting the finish to
+   * 17:30 produced "8h 00m - 1h 00m SHORT of the 9h 00m day" and a panel
+   * pricing it at 29,624 a month across eight people.
+   */
+  assert.match(tab, /do not agree/);
+  assert.match(tab, /Pay the day as \{formatDuration\(usual\.worked\)\}/);
+  assert.match(tab, /onPatchPeriod\(\{ hours_per_day: h \}\)/);
+  assert.match(tab, /Finish at \{formatTime/);
+  // The money one asks first - hours_per_day is the divisor every minute rate
+  // is worked out from.
+  assert.match(tab, /window\.confirm\(\s*\n?\s*`Pay the month on a/);
+
+  /*
+   * gapCost reads `lines`, so it has to be declared AFTER it. Putting the
+   * block above `lines` crashed the whole tab with "Cannot access 'L' before
+   * initialization" - the toolbar rendered and everything below it vanished,
+   * which is the same temporal-dead-zone trap the dashboard hit.
+   */
+  assert.ok(
+    tab.indexOf('const gapCost') > tab.indexOf('const lines ='),
+    'gapCost is declared before `lines` and will crash the tab',
+  );
+});

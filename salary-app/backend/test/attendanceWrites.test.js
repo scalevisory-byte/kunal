@@ -601,3 +601,47 @@ test('rejecting a few hours off writes nothing at all', async () => {
   assert.equal(day.minutes, 0);
   assert.equal(day.reason, '');
 });
+
+test('a day nobody was due to work is never docked for short hours', async () => {
+  const who = staff.Imported;
+  /*
+   * Found by auditing the daily entry: "Fill the usual timings" on a Sunday
+   * correctly left the mark as S - and the day was then charged 45 minutes
+   * short. An off day, docked for not being long enough.
+   *
+   * The same held for SP and HP, which the Sunday register pays BY THE DAY:
+   * six hours worked on a Sunday took three hours off the salary as well as
+   * paying a day rate.
+   */
+  for (const [day, code] of [[16, 'S'], [17, 'SP'], [18, 'PH'], [19, 'CL'], [20, 'A']]) {
+    await api('POST', `/api/periods/${periodId}/attendance`, {
+      entries: [{ employee_id: who, day, code, in_time: '09:30', out_time: '17:00' }],
+    });
+    const d = await dayOf(who, day);
+    assert.equal(d.code, code, `${code} kept its own mark`);
+    assert.equal(d.minutes, 0, `${code} must not be charged a shortfall`);
+  }
+
+  // A full working day still is, at the desk or at home.
+  for (const [day, code] of [[21, 'P'], [22, 'WH']]) {
+    await api('POST', `/api/periods/${periodId}/attendance`, {
+      entries: [{ employee_id: who, day, code, in_time: '09:30', out_time: '17:00' }],
+    });
+    assert.equal((await dayOf(who, day)).minutes, 450 - 540, `${code} owes the day's hours`);
+  }
+});
+
+test('but overtime is still paid on whatever day it was worked', async () => {
+  const who = staff.Imported;
+  /*
+   * The no-double-charge principle says do not take money off twice. It
+   * never said to refuse hours somebody actually worked because the day was
+   * a Sunday, so a long day pays its overtime whatever the mark.
+   */
+  for (const [day, code] of [[23, 'P'], [24, 'SP'], [25, 'HP']]) {
+    await api('POST', `/api/periods/${periodId}/attendance`, {
+      entries: [{ employee_id: who, day, code, in_time: '09:00', out_time: '20:00' }],
+    });
+    assert.equal((await dayOf(who, day)).minutes, 660 - 540, `${code} is paid its overtime`);
+  }
+});

@@ -218,6 +218,25 @@ export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
 }
 
 /**
+ * Marks on which the day's hours are owed, so falling short costs money.
+ *
+ * Deliberately NOT the same list as the dashboard's late/early one. Somebody
+ * who came in on a Sunday can still arrive late - that is about conduct. This
+ * is about pay, and a Sunday, a holiday or a day of leave never promised the
+ * day's hours in the first place:
+ *
+ *   P, WH   a full working day, at the desk or at home - hours owed
+ *   ''      no mark yet; setAttendance turns a clocked day into P
+ *   HF      half a day, already paid at half
+ *   A UL AD already docked a whole day, or two
+ *   S PH    an off day - nothing was expected
+ *   SP HP   worked, but paid BY THE DAY on the Sunday register, not by the
+ *           hour, so the salary must not also be reduced for the hours
+ *   CL SL PL paid leave - no hours expected
+ */
+export const HOURS_EXPECTED = new Set(['', 'P', 'WH']);
+
+/**
  * The day's OT/short minutes **given the mark the day will actually carry**.
  *
  * timesToDay zeroes the shortfall once the hours fall under the half-day
@@ -236,9 +255,27 @@ export function timesToDay(times, { hoursPerDay = 9, rules } = {}) {
  */
 export function minutesForMark(times, { hoursPerDay = 9, code = '' } = {}) {
   const judged = timesToDay(times, { hoursPerDay });
-  if (judged.code === 'HF' && String(code).toUpperCase() === 'P') {
+  const mark = String(code || '').trim().toUpperCase();
+  const owesTheDay = HOURS_EXPECTED.has(mark);
+
+  if (judged.code === 'HF' && owesTheDay) {
     return timesToDay(times, { hoursPerDay, rules: { halfDayHours: 0 } }).minutes;
   }
+
+  /*
+   * A SHORTFALL is charged on a full working day and nowhere else.
+   *
+   * Found by filling the usual timings onto a Sunday: the mark stayed S,
+   * correctly, and the day was then docked 45 minutes - an off day nobody
+   * was due to work, charged for not working long enough. The same held for
+   * SP and HP, which are paid by the day on the Sunday register: six hours
+   * worked on a Sunday took three hours off the salary AND paid a day rate.
+   *
+   * OVERTIME is left alone. Refusing to pay hours somebody actually worked
+   * because the day was a Sunday would take money off them, and the
+   * no-double-charge principle this rests on never required that.
+   */
+  if (!owesTheDay && judged.minutes < 0) return 0;
   return judged.minutes;
 }
 

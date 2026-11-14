@@ -2603,3 +2603,7 @@ table.sheet.hiring-table td.name-cell { min-width: 11rem; }
 .pager .count { margin-right: auto; color: var(--muted); font-size: 0.79rem; }
 .pager button { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
 .pager button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+/* A caption that is telling you something costs money. Not a banner - it sits
+   inline beside the control it is about, which is where it gets read. */
+.warn-text { color: var(--warn); }

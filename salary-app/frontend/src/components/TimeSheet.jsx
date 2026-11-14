@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS } from '../../../shared/calc.js';
 import {
   TIME_FIELDS,
   TIME_LABELS,
@@ -10,7 +10,7 @@ import {
   parseTime,
   timesToDay,
 } from '../../../shared/timesheet.js';
-import { days, daysInMonth, isSunday, weekday } from '../format.js';
+import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import { readStandardTimes, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -162,6 +162,24 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
           }))
         : [];
 
+  /* How long the lunch break is, so "finish later" can add it back on. */
+  const lunchMinutes = Math.max(
+    0,
+    (parseTime(standard.lunch_in) ?? 0) - (parseTime(standard.lunch_out) ?? 0),
+  );
+
+  /* What the usual timings come to against the day the month is paid on. */
+  const usual = timesToDay(standard, { hoursPerDay: period.hours_per_day });
+  /* What the gap is worth a month, at the per-minute rate the sheet pays on. */
+  const gapCost = usual.minutes
+    ? Math.round(
+        lines.reduce((sum, { row }) => sum + (Number(row.per_minute) || 0), 0) *
+          Math.abs(usual.minutes) *
+          STANDARD_WORKING_DAYS,
+      )
+    : 0;
+
+
   const shown = lines.reduce(
     (acc, line) => {
       const read = readDay(line.row, line.day);
@@ -232,14 +250,97 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
         >
           Fill the usual timings
         </button>
-        <span className="muted small">
-          {standard.in_time}–{standard.out_time}, lunch {standard.lunch_out}–{standard.lunch_in}. Only
-          days with nothing on them are filled.
+        {/*
+          * The timings are SHOWN AS A SUM against the day, because this one
+          * button writes the same figure onto everybody.
+          *
+          * The shipped default used to be 45 minutes short of the nine-hour
+          * day, so one click docked every person 45 minutes for a full day
+          * they had worked - invisible, because nothing on the screen ever
+          * added the timings up. Now it does, and a mismatch is stated
+          * before the button rather than discovered on the payslip.
+          */}
+        <span className={usual.minutes < 0 ? 'small warn-text' : 'muted small'}>
+          {standard.in_time}–{standard.out_time}
+          {standard.lunch_out || standard.lunch_in
+            ? `, less lunch ${standard.lunch_out}–${standard.lunch_in}`
+            : ', no lunch deducted'}{' '}
+          = <strong>{formatDuration(usual.worked || 0)}</strong>
+          {usual.minutes === 0
+            ? ', which is exactly the day. Come when you like — what counts is finishing it.'
+            : usual.minutes < 0
+              ? ` — ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled is docked ${formatDuration(-usual.minutes)}.`
+              : ` — ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled is paid that as overtime.`}{' '}
+          Only days with nothing on them are filled.
         </span>
         <button className="ghost tiny" onClick={() => setShowStandard((s) => !s)}>
           {showStandard ? 'done' : 'change'}
         </button>
       </div>
+
+      {/*
+        * The two numbers that have to agree, and do not.
+        *
+        * Dinesh's office is 09:30-18:30 with a thirty-minute lunch - 8h 30m
+        * of work - while the month is paid on a nine-hour day. Half an hour
+        * short, every person, every day: about 1.66 lakh a month across 114
+        * people, out of a mismatch nothing on screen had ever stated.
+        *
+        * Neither side is guessed. Both fixes are one click, each says what it
+        * does, and the one that moves money says how much.
+        */}
+      {usual.minutes !== 0 && usual.worked !== null && (
+        <div className={`card ${usual.minutes < 0 ? 'bad-edge' : ''}`}>
+          <strong>
+            The usual timings and the paid day do not agree.
+          </strong>
+          <p className="small" style={{ margin: '0.35rem 0' }}>
+            People work <strong>{formatDuration(usual.worked)}</strong> on these timings, and the
+            month is paid on a <strong>{formatDuration(usual.expected)}</strong> day — so every day
+            filled this way is{' '}
+            {usual.minutes < 0
+              ? `docked ${formatDuration(-usual.minutes)}`
+              : `paid ${formatDuration(usual.minutes)} of overtime`}
+            {gapCost ? `, about ${rupees(gapCost)} a month across the ${lines.length} on screen` : ''}.
+          </p>
+          <div className="button-row">
+            <button
+              className="primary"
+              disabled={locked || !onPatchPeriod}
+              onClick={() => {
+                const h = Math.round((usual.worked / 60) * 100) / 100;
+                if (
+                  window.confirm(
+                    `Pay the month on a ${formatDuration(usual.worked)} day instead of ` +
+                      `${formatDuration(usual.expected)}?\n\n` +
+                      'This is the figure short hours and overtime are worked out from, so a ' +
+                      'minute becomes worth a little more. Nothing already marked is rewritten ' +
+                      'until that day is saved again.',
+                  )
+                ) {
+                  onPatchPeriod({ hours_per_day: h });
+                }
+              }}
+            >
+              Pay the day as {formatDuration(usual.worked)}
+            </button>
+            <button
+              disabled={locked}
+              onClick={() => {
+                const out = formatTime(parseTime(standard.in_time) + usual.expected + lunchMinutes);
+                setStandard(writeStandardTimes({ ...standard, out_time: out }));
+              }}
+            >
+              Finish at {formatTime((parseTime(standard.in_time) || 0) + usual.expected + lunchMinutes)} instead
+            </button>
+          </div>
+          <p className="muted small" style={{ marginTop: '0.4rem' }}>
+            The first changes what the month pays on, so it matches the hours people really work.
+            The second keeps the {formatDuration(usual.expected)} day and moves the finishing time
+            these buttons write. Changing the timings alone moves nothing already saved.
+          </p>
+        </div>
+      )}
 
       {showStandard && (
         <div className="card inline-form">
