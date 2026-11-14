@@ -365,3 +365,56 @@ test('the bundle script copies the freshly built dashboard into backend/public',
     'the build is still gated on a file that an old build leaves behind',
   );
 });
+
+test('the dashboard updater survives its own errors and finds the real install', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/UPDATE-DASHBOARD.ps1'), 'utf8');
+
+  // Same rule as the rest of the kit: PowerShell 5.1 reads a BOM-less UTF-8
+  // file as ANSI, so one accented character can break parsing.
+  assert.deepEqual([...ps].filter((c) => c.charCodeAt(0) > 127), []);
+  assert.deepEqual(psProblems(ps, 'UPDATE-DASHBOARD.ps1'), []);
+
+  /*
+   * 1. The window must not vanish on an error.
+   *
+   * The first version ended with Read-Host, which looks like it keeps the
+   * window open - but $ErrorActionPreference='Stop' plus a `throw` ends the
+   * script before that line is ever reached, Windows closes the window, and
+   * the one sentence explaining the problem is on screen for milliseconds.
+   * Dinesh's report was "powershell open hoke band ho jaati hai turant".
+   *
+   * So the Read-Host has to be in a `finally`, where a throw cannot skip it.
+   */
+  const fin = ps.indexOf('} finally {');
+  assert.ok(fin > 0, 'there is no finally block');
+  assert.ok(
+    ps.indexOf('Read-Host') > fin,
+    'Read-Host is not inside the finally, so an error still closes the window',
+  );
+  assert.match(ps, /catch \{\s*\r?\n\s*\$failed = \$_/, 'errors are not caught and shown');
+
+  /*
+   * 2. It must find the install by ASKING WINDOWS, not by assuming it sits
+   * beside the script.
+   *
+   * The update zip was extracted one folder too high, into E:\BNFHR instead
+   * of E:\BNFHR\BNFHRMS - and E:\BNFHR holds an `app` folder left over from
+   * an earlier failed attempt. A script that trusts its own location would
+   * have updated that dead copy and reported success.
+   */
+  assert.match(ps, /Get-ScheduledTask -TaskName \$TaskName/);
+  assert.match(ps, /\$task\.Actions/);
+  // Derived from the entry point the task actually runs.
+  assert.match(ps, /Split-Path -Parent \(Split-Path -Parent \$entry\)/);
+
+  // 3. A replace, not a merge: asset filenames are content-hashed, so
+  //    copying over the old folder leaves both builds sitting there.
+  assert.match(ps, /Move-Item \$public \$backup/);
+  assert.match(ps, /New-Item -ItemType Directory -Path \$public/);
+  // ...and the old one comes back if the copy fails part way through.
+  assert.match(ps, /Move-Item \$backup \$public/);
+
+  // 4. It says what it is about to change before it changes it, because
+  //    "which copy did that just update" has to be answerable.
+  assert.match(ps, /Write-Host "Updating:\s+\$public"/);
+});
