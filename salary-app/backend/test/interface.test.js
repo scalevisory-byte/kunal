@@ -1811,3 +1811,27 @@ test('the news that a form came back is on the button that opens it', () => {
   assert.match(overview, /sent their details/);
   assert.match(overview, /go: 'interviews'/);
 });
+
+test('a panel header is a row, and nothing scrolls past above it', () => {
+  /*
+   * The global `header` rule sets flex-direction: column for the page's own
+   * banner and it was reaching into every panel - so the Close button dropped
+   * onto its own line under the title and the header stood 129px tall instead
+   * of 83. FOURTH time this exact trap: the help panel's header, the Settings
+   * checkbox, the sign-in checkbox, this. Anything here that styles a bare
+   * element name reaches into every component on the page.
+   */
+  const rule = css.match(/\.panel > header \{[\s\S]*?\n\}/);
+  assert.ok(rule, 'the panel header rule is gone');
+  assert.match(rule[0], /flex-direction: row/);
+
+  /*
+   * And the panel has no top padding, because the header owns it. With 1rem
+   * there the sticky header stuck 16px down and content scrolled past in the
+   * strip above it - which Dinesh saw as a stray "99% HERE TODAY" over the
+   * candidate's name.
+   */
+  const panel = css.match(/\.panel \{[\s\S]*?\n\}/);
+  assert.match(panel[0], /padding: 0 1\.1rem 4rem/);
+  assert.match(rule[0], /padding: 1rem 0 0\.6rem/);
+});

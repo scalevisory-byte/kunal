@@ -1250,17 +1250,38 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
   height: 100%;
   overflow-y: auto;
   border-left: 1px solid var(--line);
-  padding: 1rem 1.1rem 4rem;
+  /*
+   * No top padding: the header owns it.
+   *
+   * With 1rem here, the sticky header stuck 16px down and content scrolled
+   * past in the strip above it - which is what Dinesh saw as "99% HERE TODAY"
+   * peeking over the candidate's name. A sticky header has to start at the
+   * very top of what scrolls under it.
+   */
+  padding: 0 1.1rem 4rem;
 }
+/*
+ * A panel header is a ROW, and it has to say so.
+ *
+ * The global `header` rule sets `flex-direction: column` for the page's own
+ * banner, and it was reaching in here - so the Close button dropped onto its
+ * own line under the title and the header stood 129px tall. Fourth time this
+ * exact trap has been hit: the help panel's header, the Settings checkbox,
+ * the sign-in checkbox, this.
+ *
+ * Anything in here that styles a bare element name is reaching into every
+ * component on the page. State the direction rather than inherit it.
+ */
 .panel > header {
   position: sticky;
   top: 0;
   z-index: 2;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
-  padding: 0.2rem 0 0.6rem;
-  margin: -0.2rem 0 0.9rem;
+  padding: 1rem 0 0.6rem;
+  margin: 0 0 0.9rem;
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
   gap: 0.6rem;
 }
