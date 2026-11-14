@@ -1035,6 +1035,40 @@ export function hiringOverview() {
       byStage: stageCounts,
       rejected: stageCounts[REJECTED] || 0,
     },
+    /*
+     * Forms the candidates have sent back.
+     *
+     * Dinesh asked where a form a candidate fills in actually ARRIVES. It goes
+     * onto that interview's own form - but nothing anywhere said one had come
+     * back, so the only way to find out was opening every row. This is the
+     * answer to the question: the overview says how many are waiting to be
+     * read, and names them.
+     */
+    candidateForms: {
+      filled: one(
+        `SELECT COUNT(*) AS n FROM interview_forms f
+           JOIN interviews i ON i.id = f.interview_id
+          WHERE f.candidate_filled_at IS NOT NULL AND f.status <> 'submitted'`
+      ).n,
+      who: db
+        .prepare(
+          `SELECT c.name AS candidate_name, v.title AS job_title, i.id AS interview_id,
+                  f.candidate_filled_at
+             FROM interview_forms f
+             JOIN interviews i ON i.id = f.interview_id
+             JOIN applications a ON a.id = i.application_id
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+            WHERE f.candidate_filled_at IS NOT NULL AND f.status <> 'submitted'
+            ORDER BY f.candidate_filled_at DESC LIMIT 8`
+        )
+        .all(),
+      // Sent and not yet come back, so a chase is possible.
+      waiting: one(
+        `SELECT COUNT(*) AS n FROM interview_forms
+          WHERE candidate_sent_at IS NOT NULL AND candidate_filled_at IS NULL`
+      ).n,
+    },
     interviews: {
       upcoming: one(
         `SELECT COUNT(*) AS n FROM interviews WHERE status = 'Scheduled' AND at >= datetime('now', '-1 day')`

@@ -102,11 +102,39 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                 </select>
               </td>
               <td className="row-actions">
-                <button onClick={() => onForm(i.id)}>
-                  {i.form_status === 'submitted' ? 'Form ✓' : i.form_status ? 'Form…' : 'Fill form'}
+                {/*
+                  * The news goes on the button you press to SEE the form, not
+                  * on the one that sends it. It was the other way round, so
+                  * "They filled it ✓" replaced "Send form" - which hid the way
+                  * to send it again and put the news where nobody would act
+                  * on it.
+                  */}
+                <button
+                  className={i.candidate_filled_at && i.form_status !== 'submitted' ? 'primary' : ''}
+                  onClick={() => onForm(i.id)}
+                  title={
+                    i.candidate_filled_at
+                      ? 'They filled this in — open it to read what they sent'
+                      : 'Open the particulars form'
+                  }
+                >
+                  {i.candidate_filled_at && i.form_status !== 'submitted'
+                    ? 'Read what they sent'
+                    : i.form_status === 'submitted'
+                      ? 'Form ✓'
+                      : i.form_status
+                        ? 'Form…'
+                        : 'Fill form'}
                 </button>
-                <button onClick={() => sendLink(i.id)} title="Send them the form to fill in">
-                  {i.candidate_filled_at ? 'They filled it ✓' : 'Send form'}
+                <button
+                  onClick={() => sendLink(i.id)}
+                  title={
+                    i.candidate_sent_at
+                      ? 'Send the link again — the same form, nothing is lost'
+                      : 'Send them the form to fill in'
+                  }
+                >
+                  {i.candidate_sent_at ? 'Send again' : 'Send form'}
                 </button>
                 <button
                   className="danger"

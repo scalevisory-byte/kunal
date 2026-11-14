@@ -1794,3 +1794,20 @@ test('the evaluator is typed and required, never taken from the login', () => {
   const evalModule = fs.readFileSync(path.join(here, '../../shared/interviewEval.js'), 'utf8');
   assert.match(evalModule, /Put the name of whoever did this interview/);
 });
+
+test('the news that a form came back is on the button that opens it', () => {
+  const list = src('components/hiring/Interviews.jsx');
+
+  /*
+   * It was on the SEND button - "They filled it ✓" replaced "Send form" -
+   * which hid the way to send it again and put the news where nobody would
+   * act on it. Dinesh asked where a candidate's form arrives; this is half
+   * the answer, the overview alert is the other half.
+   */
+  assert.match(list, /Read what they sent/);
+  assert.match(list, /i\.candidate_sent_at \? 'Send again' : 'Send form'/);
+
+  const overview = src('components/hiring/HiringOverview.jsx');
+  assert.match(overview, /sent their details/);
+  assert.match(overview, /go: 'interviews'/);
+});

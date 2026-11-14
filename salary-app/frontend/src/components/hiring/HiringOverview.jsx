@@ -10,7 +10,25 @@ export default function HiringOverview({ data, onGo, onOpenApplication, onNewVac
   const { vacancies, candidates, applications, interviews, tasks, hires } = data;
   const stale = (data.recent || []).filter((a) => aging(a.stage_changed_at).tone === 'stale');
 
+  const forms = data.candidateForms || {};
   const alerts = [
+    /*
+      * First, because it is somebody waiting on US: they filled their form in
+      * and nobody has looked at it. Dinesh asked where a candidate's form
+      * arrives, and the honest answer was "on that interview's row, and
+      * nothing tells you" - so this is what tells you.
+      */
+    forms.filled && {
+      text: `${forms.filled} candidate${forms.filled === 1 ? ' has' : 's have'} sent their details`,
+      why: 'open the interview to read what they filled in',
+      who: (forms.who || []).slice(0, 4).map((f) => f.candidate_name).join(', '),
+      go: 'interviews',
+    },
+    forms.waiting && {
+      text: `${forms.waiting} form${forms.waiting === 1 ? '' : 's'} sent and not filled in yet`,
+      why: 'worth a reminder before the interview',
+      go: 'interviews',
+    },
     hires.awaitingPayroll && {
       text: `${hires.awaitingPayroll} selected but not on the payroll yet`,
       why: 'they will be missing from this month’s salary sheet',

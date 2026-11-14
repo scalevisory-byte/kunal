@@ -449,3 +449,38 @@ test('a draft can be undone; a decision is withdrawn instead', async () => {
   assert.equal(locked.status, 409);
   assert.match(locked.body.error, /Withdraw it instead/);
 });
+
+test('a form the candidate sent shows up where somebody will see it', async () => {
+  const { interview } = await round(1, 'Arrived Back');
+  const token = await linkFor(interview.id);
+
+  /*
+   * Dinesh asked where a form a candidate fills in actually ARRIVES. It goes
+   * onto that interview's own form - but nothing said one had come back, so
+   * the only way to find out was opening every row.
+   */
+  // The overview counts the whole database, and earlier tests in this file
+  // have filled forms in too - so this measures the CHANGE, not the total.
+  let overview = (await api('GET', '/api/hiring/overview')).body;
+  const before = overview.candidateForms.filled;
+  assert.ok(overview.candidateForms.waiting >= 1, 'a form sent and not back is not counted');
+
+  await api('POST', `/api/public/interview-form/${token}`, { college: 'MS University' });
+
+  overview = (await api('GET', '/api/hiring/overview')).body;
+  assert.equal(overview.candidateForms.filled, before + 1);
+  assert.ok(overview.candidateForms.who.some((f) => f.candidate_name === 'Arrived Back'),
+    'the overview counts it but does not name them');
+
+  // And what they typed is in the office's own form, in the right field.
+  const form = (await api('GET', `/api/hiring/interviews/${interview.id}/form`)).body.form;
+  assert.equal(form.college, 'MS University');
+
+  /*
+   * Once the office confirms it, it stops being something waiting to be read.
+   * A list that keeps showing finished work is a list people stop reading.
+   */
+  await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, { college: 'MS University' });
+  overview = (await api('GET', '/api/hiring/overview')).body;
+  assert.ok(!overview.candidateForms.who.some((f) => f.candidate_name === 'Arrived Back'));
+});
