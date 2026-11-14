@@ -47,6 +47,10 @@ export const CHANGELOG = [
       '**The offer letter** — one self-contained file per person, opens on any phone with no login, prints to PDF.',
       '**There is no letter until somebody has approved the offer**, and approving is an Admin’s. An approved offer is locked: changing it means withdrawing it.',
       'Approving tells the candidate nothing — only marking it sent moves them to Offer Sent. A decline is recorded as a decline, so “we turned them down” and “they turned us down” never get counted as the same thing.',
+      '**Eleven recruitment reports** — the interview schedule, today’s and upcoming interviews, interviews completed, selected, on hold, rejected, next round pending, interviewer-wise, the funnel and time to hire. Filter them, print them, export them to Excel.',
+      'Nothing in a report is worked out twice. Every figure was decided on another screen and stored, so a report can never disagree with the screen it came from.',
+      '**“Where they are” on the candidate list is now the way in** — click it to open the application, where Move, Screening, the offer and scheduling an interview all live.',
+      'The application card reads in the order the work happens: Move, Screening, Interviews, Offer — then the payroll and the history. Payroll used to be the second thing on the page.',
     ],
   },
   {

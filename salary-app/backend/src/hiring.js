@@ -1,7 +1,7 @@
 import { db, createEmployee, getEmployee, audit } from './db.js';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { ALL_STAGES, REJECTED } from '../../shared/stages.js';
+import { ALL_STAGES, REJECTED, STAGES } from '../../shared/stages.js';
 import { matchScore } from '../../shared/match.js';
 import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
@@ -497,7 +497,15 @@ export function listCandidates({ q, limit = 500, offset = 0 } = {}) {
       `SELECT c.*,
               (SELECT COUNT(*) FROM applications a WHERE a.candidate_id = c.id) AS applications,
               (SELECT a.stage FROM applications a WHERE a.candidate_id = c.id
-                ORDER BY a.id DESC LIMIT 1) AS latest_stage
+                ORDER BY a.id DESC LIMIT 1) AS latest_stage,
+              /*
+               * ...and the id of that application, so the stage on the list
+               * can be the way INTO it. Dinesh asked three times how to get a
+               * candidate to interview while looking at a column that said
+               * exactly where they were and could not be clicked.
+               */
+              (SELECT a.id FROM applications a WHERE a.candidate_id = c.id
+                ORDER BY a.id DESC LIMIT 1) AS latest_application_id
        FROM candidates c ${where} ORDER BY c.id DESC LIMIT @limit OFFSET @offset`
     )
     .all(params)
@@ -2474,3 +2482,330 @@ export const openOffers = () =>
         ORDER BY o.updated_at DESC`
     )
     .all();
+
+/* ================= the recruitment reports =============================== */
+
+/*
+ * Eleven reports off one function.
+ *
+ * Every one of them ASSEMBLES. Not a figure in here is worked out a second
+ * time: a screening verdict, an interview decision, an evaluation's
+ * recommendation and the approved salary were all decided on a screen and
+ * stored, and these queries fetch them. A report that computes its own version
+ * of a number is a report that will one day disagree with the screen the
+ * number came from, and then nobody can say which is right.
+ */
+
+/** The filters that apply to an interview-shaped query. */
+function interviewWhere(f = {}) {
+  const where = [];
+  const params = {};
+  if (f.from) { where.push('i.at >= @from'); params.from = f.from; }
+  if (f.to) { where.push('i.at <= @to'); params.to = `${f.to}T23:59`; }
+  if (f.company_id) { where.push('v.company_id = @company_id'); params.company_id = f.company_id; }
+  if (f.department) { where.push('v.department LIKE @department'); params.department = `%${f.department}%`; }
+  if (f.vacancy_id) { where.push('v.id = @vacancy_id'); params.vacancy_id = f.vacancy_id; }
+  if (f.interviewer) { where.push('i.interviewer LIKE @interviewer'); params.interviewer = `%${f.interviewer}%`; }
+  if (f.round) { where.push('i.round = @round'); params.round = f.round; }
+  if (f.status) { where.push('i.status = @status'); params.status = f.status; }
+  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+const INTERVIEW_SELECT = `
+  SELECT i.id, i.at, i.mode, i.location_or_link, i.round, i.round_name, i.interviewer,
+         i.status, i.panel,
+         a.id AS application_id, a.stage,
+         c.ref_no, c.name AS candidate_name, c.phone,
+         v.title AS job_title, v.department, co.name AS company_name,
+         f.decision, f.next_round, f.next_interview_date, f.next_interviewer,
+         e.recommendation, e.status AS evaluation_status
+    FROM interviews i
+    JOIN applications a ON a.id = i.application_id
+    JOIN candidates c ON c.id = a.candidate_id
+    JOIN vacancies v ON v.id = a.vacancy_id
+    JOIN companies co ON co.id = v.company_id
+    LEFT JOIN interview_forms f ON f.interview_id = i.id
+    LEFT JOIN interview_evaluations e ON e.interview_id = i.id`;
+
+/** "Round 2 — Technical Round", or just the number when it has no name. */
+const withRound = (rows) =>
+  rows.map((r) => ({ ...r, round_label: r.round_name ? `${r.round} — ${r.round_name}` : String(r.round) }));
+
+const applicationWhere = (f = {}, alias = 'a') => {
+  const where = [];
+  const params = {};
+  if (f.company_id) { where.push('v.company_id = @company_id'); params.company_id = f.company_id; }
+  if (f.department) { where.push('v.department LIKE @department'); params.department = `%${f.department}%`; }
+  if (f.vacancy_id) { where.push('v.id = @vacancy_id'); params.vacancy_id = f.vacancy_id; }
+  if (f.from) { where.push(`${alias}.created_at >= @from`); params.from = f.from; }
+  if (f.to) { where.push(`${alias}.created_at <= @to`); params.to = `${f.to}T23:59`; }
+  return { where, params };
+};
+
+const daysBetween = (a, b) => {
+  const from = Date.parse(String(a || '').slice(0, 10));
+  const to = Date.parse(String(b || '').slice(0, 10));
+  // Null, never 0. "Not known" and "the same day" are different facts.
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  return Math.round((to - from) / 86400000);
+};
+
+export function hiringReport(key, filters = {}) {
+  const today = nowIso().slice(0, 10);
+
+  switch (key) {
+    case 'schedule': {
+      const { clause, params } = interviewWhere(filters);
+      return withRound(db.prepare(`${INTERVIEW_SELECT} ${clause} ORDER BY i.at DESC`).all(params));
+    }
+
+    case 'today': {
+      const { clause, params } = interviewWhere({ ...filters, from: today, to: today });
+      return withRound(db.prepare(`${INTERVIEW_SELECT} ${clause} ORDER BY i.at ASC`).all(params));
+    }
+
+    case 'upcoming': {
+      const { clause, params } = interviewWhere({ ...filters, from: today, status: 'Scheduled' });
+      return withRound(db.prepare(`${INTERVIEW_SELECT} ${clause} ORDER BY i.at ASC`).all(params));
+    }
+
+    case 'completed': {
+      const { clause, params } = interviewWhere({ ...filters, status: filters.status || 'Done' });
+      return withRound(db.prepare(`${INTERVIEW_SELECT} ${clause} ORDER BY i.at DESC`).all(params));
+    }
+
+    /*
+     * Selected is read off the OFFER where there is one and off the stage
+     * where there is not - somebody can be moved to Selected by hand without
+     * an offer record ever existing, and a report that only looked at offers
+     * would quietly lose them.
+     */
+    case 'selected': {
+      const { where, params } = applicationWhere(filters);
+      where.push(`(a.stage IN ('Selected', 'Joined') OR o.status = 'accepted')`);
+      return db
+        .prepare(
+          `SELECT c.ref_no, c.name AS candidate_name, c.phone,
+                  v.title AS job_title, v.department, co.name AS company_name,
+                  a.stage, a.employee_id,
+                  COALESCE(o.salary, a.offer_salary) AS salary,
+                  COALESCE(o.joining_date, a.joining_date) AS joining_date,
+                  o.status AS offer_status,
+                  CASE WHEN a.employee_id IS NOT NULL THEN 'yes' ELSE 'not yet' END AS on_payroll
+             FROM applications a
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+             LEFT JOIN job_offers o ON o.application_id = a.id
+            WHERE ${where.join(' AND ')}
+            ORDER BY COALESCE(o.joining_date, a.joining_date) ASC, c.name ASC`
+        )
+        .all(params);
+    }
+
+    /*
+     * On hold happens in two places - at screening, and after an evaluation -
+     * and both have to be in one list. Somebody holding a candidate does not
+     * care which screen it was recorded on; they want to know who is parked.
+     */
+    case 'hold': {
+      const { where, params } = applicationWhere({ ...filters, from: null, to: null });
+      const base = where.length ? `AND ${where.join(' AND ')}` : '';
+      const rows = db
+        .prepare(
+          `SELECT c.ref_no, c.name AS candidate_name, c.phone,
+                  v.title AS job_title, co.name AS company_name,
+                  'Screening' AS held_at, s.hold_reason AS reason,
+                  s.screened_on AS since, s.reviewed_by AS by
+             FROM screenings s
+             JOIN applications a ON a.id = s.application_id
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+            WHERE s.verdict = 'On Hold' ${base}
+            UNION ALL
+           SELECT c.ref_no, c.name, c.phone, v.title, co.name,
+                  'After the interview', e.review_remarks,
+                  COALESCE(e.reviewed_at, e.submitted_at), COALESCE(e.reviewed_by, e.evaluated_by)
+             FROM interview_evaluations e
+             JOIN applications a ON a.id = e.application_id
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+            WHERE e.status = 'on_hold' ${base}`
+        )
+        .all(params);
+      return rows.sort((x, y) => String(y.since || '').localeCompare(String(x.since || '')));
+    }
+
+    /*
+     * Rejected, from three places, and the third one is the point: a candidate
+     * who DECLINED our offer is in here marked as such. Counting their refusal
+     * as our rejection would flatter the rejection reasons and hide the fact
+     * that the money was wrong.
+     */
+    case 'rejected': {
+      const { where, params } = applicationWhere({ ...filters, from: null, to: null });
+      const base = where.length ? `AND ${where.join(' AND ')}` : '';
+      const head = `SELECT c.ref_no, c.name AS candidate_name, c.phone,
+                v.title AS job_title, co.name AS company_name`;
+      const joins = `FROM applications a
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id`;
+      const rows = db
+        .prepare(
+          `${head}, 'Screening' AS held_at, s.rejection_reason AS reason,
+                  s.screened_on AS since, s.reviewed_by AS by
+             ${joins} JOIN screenings s ON s.application_id = a.id
+            WHERE s.verdict = 'Rejected' ${base}
+            UNION ALL
+           ${head}, 'After the interview', f.rejection_reason,
+                  DATE(f.submitted_at), f.filled_by
+             ${joins} JOIN interview_forms f ON f.application_id = a.id
+            WHERE f.decision = 'Rejected' AND f.status = 'submitted' ${base}
+            UNION ALL
+           ${head}, 'They declined the offer', o.decline_reason,
+                  DATE(o.answered_at), o.sent_by
+             ${joins} JOIN job_offers o ON o.application_id = a.id
+            WHERE o.status = 'declined' ${base}`
+        )
+        .all(params);
+      return rows.sort((x, y) => String(y.since || '').localeCompare(String(x.since || '')));
+    }
+
+    /*
+     * An interview said "next round" and nothing has been booked since.
+     *
+     * The NOT EXISTS is what makes it a to-do list rather than a history:
+     * once the next round is in the diary this row disappears by itself, so
+     * nobody has to remember to tick it off.
+     */
+    case 'next_round': {
+      const { clause, params } = interviewWhere({ ...filters, from: null, to: null });
+      const extra = clause ? `${clause} AND` : 'WHERE';
+      return withRound(
+        db
+          .prepare(
+            `${INTERVIEW_SELECT}
+             ${extra} f.decision = 'Next Round' AND f.status = 'submitted'
+               AND NOT EXISTS (
+                 SELECT 1 FROM interviews later
+                  WHERE later.application_id = i.application_id AND later.round > i.round
+               )
+               AND a.stage NOT IN ('Rejected', 'Joined')
+             ORDER BY i.at ASC`
+          )
+          .all(params)
+      ).map((r) => ({ ...r, waiting_days: daysBetween(r.at, nowIso()) }));
+    }
+
+    case 'interviewers': {
+      const { clause, params } = interviewWhere(filters);
+      const rows = db
+        .prepare(
+          `SELECT COALESCE(NULLIF(TRIM(i.interviewer), ''), '(nobody named)') AS interviewer,
+                  COUNT(*) AS total,
+                  SUM(CASE WHEN i.status = 'Done' THEN 1 ELSE 0 END) AS done,
+                  SUM(CASE WHEN i.status = 'No show' THEN 1 ELSE 0 END) AS no_show,
+                  SUM(CASE WHEN i.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                  SUM(CASE WHEN i.status = 'Scheduled' THEN 1 ELSE 0 END) AS scheduled,
+                  SUM(CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END) AS forms,
+                  SUM(CASE WHEN e.id IS NOT NULL THEN 1 ELSE 0 END) AS evaluations,
+                  SUM(CASE WHEN e.recommendation LIKE '%Recommended%'
+                            AND e.recommendation <> 'Not Recommended' THEN 1 ELSE 0 END) AS recommended,
+                  SUM(CASE WHEN e.recommendation = 'Not Recommended' THEN 1 ELSE 0 END) AS not_recommended
+             FROM interviews i
+             JOIN applications a ON a.id = i.application_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             LEFT JOIN interview_forms f ON f.interview_id = i.id
+             LEFT JOIN interview_evaluations e ON e.interview_id = i.id
+             ${clause}
+            GROUP BY interviewer ORDER BY total DESC, interviewer`
+        )
+        .all(params);
+      return rows;
+    }
+
+    /*
+     * The funnel.
+     *
+     * "Reached it" counts anybody who got AT LEAST this far, which is read off
+     * the stage log rather than the current stage - somebody sitting at Offer
+     * Sent was shortlisted and interviewed on the way, and a funnel that only
+     * looked at where they are now would show one person at each step and
+     * explain nothing.
+     */
+    case 'funnel': {
+      const { where, params } = applicationWhere({ ...filters, from: null, to: null });
+      const rows = db
+        .prepare(
+          `SELECT a.stage, a.stage_log FROM applications a
+             JOIN vacancies v ON v.id = a.vacancy_id
+             ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`
+        )
+        .all(params);
+
+      const order = STAGES.map((s) => s.key);
+      const reached = Object.fromEntries(order.map((s) => [s, 0]));
+      const here = Object.fromEntries(order.map((s) => [s, 0]));
+      for (const row of rows) {
+        const log = json(row.stage_log, []);
+        const seen = new Set(['New', ...log.map((l) => l.stage)]);
+        // The current stage counts even if the log was never written to.
+        seen.add(row.stage);
+        for (const stage of order) if (seen.has(stage)) reached[stage] += 1;
+        if (here[row.stage] !== undefined) here[row.stage] += 1;
+      }
+      /*
+       * The through-rate is measured against the last step anybody ACTUALLY
+       * reached, not the one immediately before.
+       *
+       * Screening writes Shortlisted straight from New, so nobody passes
+       * through Under Review - and measuring against the step before gave
+       * "Under Review 0%" followed by "Shortlisted -", which reads as a broken
+       * report rather than as a step the office does not use. One skipped
+       * stage must not break the whole chain.
+       */
+      let previous = null;
+      return order.map((stage, i) => {
+        const n = reached[stage];
+        const against = i === 0 ? n : previous;
+        const row = {
+          stage,
+          reached: n,
+          here: here[stage],
+          // Null, not 0, when there is nothing to measure against: "nothing
+          // got through" and "nobody got this far" are different facts.
+          through_pct: against ? Math.round((n / against) * 1000) / 10 : null,
+        };
+        if (n > 0) previous = n;
+        return row;
+      });
+    }
+
+    case 'time_to_hire': {
+      const { where, params } = applicationWhere({ ...filters, from: null, to: null });
+      where.push('a.employee_id IS NOT NULL');
+      if (filters.from) { where.push('emp.joined_on >= @jfrom'); params.jfrom = filters.from; }
+      if (filters.to) { where.push('emp.joined_on <= @jto'); params.jto = filters.to; }
+      return db
+        .prepare(
+          `SELECT c.ref_no, c.name AS candidate_name, v.title AS job_title, co.name AS company_name,
+                  DATE(a.created_at) AS applied_on, emp.joined_on, emp.monthly_salary AS salary
+             FROM applications a
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+             JOIN employees emp ON emp.id = a.employee_id
+            WHERE ${where.join(' AND ')}
+            ORDER BY emp.joined_on DESC`
+        )
+        .all(params)
+        .map((r) => ({ ...r, days: daysBetween(r.applied_on, r.joined_on) }));
+    }
+
+    default:
+      throw new Error(`there is no “${key}” report`);
+  }
+}

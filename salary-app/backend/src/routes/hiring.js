@@ -24,6 +24,7 @@ import {
   getVacancy,
   hireApplication,
   hiringOverview,
+  hiringReport,
   interviewHistory,
   listApplications,
   listAttempts,
@@ -779,3 +780,24 @@ hiringRouter.get('/applications/:id/offer/letter', (req, res) => {
 });
 
 hiringRouter.get('/offers', (req, res) => res.json({ offers: openOffers() }));
+
+/* ---------------- the reports ---------------- */
+
+hiringRouter.get('/reports/:key', (req, res) => {
+  try {
+    res.json({
+      rows: hiringReport(String(req.params.key), {
+        from: req.query.from || null,
+        to: req.query.to || null,
+        company_id: num(req.query.company_id),
+        department: req.query.department || null,
+        vacancy_id: num(req.query.vacancy_id),
+        interviewer: req.query.interviewer || null,
+        round: num(req.query.round),
+        status: req.query.status || null,
+      }),
+    });
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});

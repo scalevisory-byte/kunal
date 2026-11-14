@@ -1645,3 +1645,41 @@ test('the version and the history move together', () => {
    */
   assert.equal(named, newest, 'VERSION and the newest changelog entry disagree');
 });
+
+test('“where they are” is the way into the application, not a label', () => {
+  const list = src('components/hiring/Candidates.jsx');
+
+  /*
+   * Tenth time for this shape of bug, and the third time Dinesh asked this
+   * exact question: "candidate ko interview tak le jaane ka raasta kahan hai".
+   * He was looking at a column that said precisely where they were and could
+   * not be clicked. Opening the application is where Move, Screening, the
+   * offer and scheduling all live.
+   */
+  assert.match(list, /onOpenApplication\(c\.latest_application_id\)/);
+  assert.match(list, /className="opens"/);
+  // ...and it must not also open the candidate behind it.
+  assert.match(list, /e\.stopPropagation\(\);\s*\n\s*onOpenApplication/);
+
+  // The panel's own list of openings had the same bug: `link` renders as
+  // plain text, so the one way in did not look like one.
+  const panel = src('components/hiring/CandidatePanel.jsx');
+  assert.match(panel, /className="opens" onClick=\{\(\) => onOpenApplication\(a\.id\)\}/);
+});
+
+test('the application panel reads in the order the work happens', () => {
+  const panel = src('components/hiring/ApplicationPanel.jsx');
+  const order = [...panel.matchAll(/<h3>([^<]+)<\/h3>|<Offer\n/g)].map((m) => m[1] || 'Offer');
+
+  /*
+   * Payroll used to be the SECOND card and Screening the fifth, which is the
+   * reverse of the order anybody works a candidate in. The steps come first;
+   * the things you look at afterwards come after.
+   */
+  const at = (name) => order.indexOf(name);
+  assert.ok(at('Move') < at('Screening'), 'Move is not first');
+  assert.ok(at('Screening') < at('Interviews'), 'Screening comes after Interviews');
+  assert.ok(at('Interviews') < at('Offer'), 'Interviews comes after the Offer');
+  assert.ok(at('Offer') < at('Payroll'), 'Payroll is above the Offer again');
+  assert.ok(at('Payroll') < at('What happened'), 'the history is not last');
+});

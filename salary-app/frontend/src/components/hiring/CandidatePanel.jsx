@@ -225,7 +225,13 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
               {applications.map((a) => (
                 <div key={a.id}>
                   <span className="what">
-                    <button className="link" onClick={() => onOpenApplication(a.id)}>
+                    {/*
+                      * `link` renders as plain text here, which is the same
+                      * bug the candidate's own name had: the one way into the
+                      * application did not look like a way in. `opens` is the
+                      * class that says "this is a door".
+                      */}
+                    <button className="opens" onClick={() => onOpenApplication(a.id)}>
                       {a.job_title}
                     </button>
                     <span className="muted small"> · {a.company_name}</span>

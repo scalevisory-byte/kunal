@@ -3479,3 +3479,13 @@ tr.retired td { opacity: 0.55; }
 
 .scr-form { padding-top: 0.3rem; }
 .scr-form .field { max-width: 26rem; }
+
+/* The report filters: as many as fit on a line, the buttons pushed right. */
+.rep-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+.rep-filters .field { margin: 0; min-width: 9rem; }

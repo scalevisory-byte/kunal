@@ -19,7 +19,7 @@ const BLANK = {
 };
 
 /** Everybody who has ever applied for anything, kept for the next opening. */
-export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport }) {
+export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport, onOpenApplication}) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(BLANK);
   const [error, setError] = useState('');
@@ -143,10 +143,28 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
                 </td>
                 <td className="small">{c.expected_salary || <span className="muted">—</span>}</td>
                 <td className="small skills-cell">{c.skills || <span className="muted">—</span>}</td>
+                {/*
+                  * "Where they are" is the way IN, not a label.
+                  *
+                  * Tenth time for this shape of bug. Dinesh asked three
+                  * separate times how to get a candidate to an interview,
+                  * while looking at a column that said exactly where they
+                  * were and could not be clicked. Opening the application is
+                  * where Move, Screening, the offer and scheduling all live.
+                  */}
                 <td className="small">
                   {c.applications ? (
                     <>
-                      {c.latest_stage || 'applied'}
+                      <button
+                        className="opens"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenApplication(c.latest_application_id);
+                        }}
+                        title="Open the application — move them on, screen them, book an interview"
+                      >
+                        {c.latest_stage || 'applied'}
+                      </button>
                       {c.applications > 1 ? (
                         <div className="muted small">{c.applications} applications</div>
                       ) : null}

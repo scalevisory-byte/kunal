@@ -8,6 +8,7 @@ import Interviews from './Interviews.jsx';
 import { EvaluationPanel, InterviewFormPanel } from './InterviewForms.jsx';
 import QuestionBank from './QuestionBank.jsx';
 import Screening from './Screening.jsx';
+import HiringReports from './HiringReports.jsx';
 import NotifyBar from './NotifyBar.jsx';
 import Pipeline from './Pipeline.jsx';
 import VacancyPanel from './VacancyPanel.jsx';
@@ -22,6 +23,7 @@ const VIEWS = [
   ['candidates', 'Candidates'],
   ['interviews', 'Interviews'],
   ['tests', 'Tests'],
+  ['reports', 'Reports'],
   ['tasks', 'Follow-ups'],
 ];
 
@@ -241,6 +243,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onQuery={setCandidateQuery}
           onCreate={createCandidate}
           onOpen={setOpenCandidate}
+          onOpenApplication={setOpenApplication}
           /*
            * The CV link is signed and expires, so it is fetched when somebody
            * asks for it rather than handed out with the list - eighty rows
@@ -284,6 +287,15 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
 
       {view === 'tests' ? (
         <QuestionBank companies={companies} onError={onError} onToast={say} />
+      ) : null}
+
+      {view === 'reports' ? (
+        <HiringReports
+          companies={companies}
+          companyId={companyId}
+          vacancies={vacancies}
+          onError={onError}
+        />
       ) : null}
 
       {view === 'tasks' ? (

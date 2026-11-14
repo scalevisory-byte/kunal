@@ -338,71 +338,33 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
           * that figure back onto the application, which is what hireApplication
           * and the WhatsApp offer message have always read.
           */}
-        <div className="card">
-          <h3>Payroll</h3>
-          {application.employee_id ? (
-            <p className="small">
-              On the payroll of <strong>{application.company_name}</strong> since{' '}
-              {application.joining_date || 'their joining date'}. They are on the salary sheet and
-              the attendance grid now — nothing else to do here.
+        {/*
+          * Screening, where somebody is already looking at this one person.
+          *
+          * Dinesh asked, standing on the candidate list, how to move somebody
+          * forward - "if selected aage ki process k liye jayega, on hold or
+          * rejected". This card is the answer, and it is on the application
+          * because that is the thing being decided about: the same person can
+          * be right for one opening and wrong for another.
+          */}
+        {!STANDALONE && screening ? (
+          <div className="card">
+            <h3>Screening</h3>
+            <p className="muted small">
+              How they measure against what this opening asked for. It is advice — you can take
+              somebody who misses every line of it.
             </p>
-          ) : (
-            <>
-              <p className="muted small">
-                Adds {application.candidate_name} to <strong>{application.company_name}</strong> as
-                an employee, carrying across the phone, email and date of birth already on file.
-                The company comes from the vacancy, not from a form.
-              </p>
-              <div className="row">
-                <button
-                  className="primary"
-                  disabled={!application.offer_salary}
-                  onClick={async () => {
-                    if (!window.confirm(
-                      `Add ${application.candidate_name} to ${application.company_name} at ₹${Number(
-                        application.offer_salary
-                      ).toLocaleString('en-IN')} a month?`
-                    )) return;
-                    try {
-                      await api.post(`/hiring/applications/${applicationId}/hire`, {});
-                      onToast('Added to the payroll');
-                      await load();
-                      onChanged?.();
-                    } catch (err) {
-                      onError(err);
-                    }
-                  }}
-                >
-                  Add to payroll
-                </button>
-                {!application.offer_salary ? (
-                  <span className="muted small">Fill in the monthly salary first.</span>
-                ) : null}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="card">
-          <h3>Why this score</h3>
-          {Object.entries(match.factors).map(([name, f]) => (
-            <div className="factor" key={name}>
-              <span className="f-name">{name}</span>
-              <span className="bar">
-                <i style={{ width: `${f.of ? (f.score / f.of) * 100 : 0}%` }} />
-              </span>
-              <span className="f-note">{f.note}</span>
-            </div>
-          ))}
-          {match.missing?.length ? (
-            <p className="muted small" style={{ marginTop: '0.5rem' }}>
-              Does not have: {match.missing.join(', ')}
-            </p>
-          ) : null}
-          <p className="muted small">
-            A number for ordering a queue. It is not a decision and it never moves anybody.
-          </p>
-        </div>
+            <ReportLines report={screening.report} />
+            <ScreeningForm
+              applicationId={applicationId}
+              screening={screening.screening}
+              report={screening.report}
+              onSaved={() => { loadScreening(); load(); }}
+              onError={onError}
+              onToast={onToast}
+            />
+          </div>
+        ) : null}
 
         <div className="card">
           <h3>Interviews</h3>
@@ -464,34 +426,6 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             </div>
           </form>
         </div>
-
-        {/*
-          * Screening, where somebody is already looking at this one person.
-          *
-          * Dinesh asked, standing on the candidate list, how to move somebody
-          * forward - "if selected aage ki process k liye jayega, on hold or
-          * rejected". This card is the answer, and it is on the application
-          * because that is the thing being decided about: the same person can
-          * be right for one opening and wrong for another.
-          */}
-        {!STANDALONE && screening ? (
-          <div className="card">
-            <h3>Screening</h3>
-            <p className="muted small">
-              How they measure against what this opening asked for. It is advice — you can take
-              somebody who misses every line of it.
-            </p>
-            <ReportLines report={screening.report} />
-            <ScreeningForm
-              applicationId={applicationId}
-              screening={screening.screening}
-              report={screening.report}
-              onSaved={() => { loadScreening(); load(); }}
-              onError={onError}
-              onToast={onToast}
-            />
-          </div>
-        ) : null}
 
         <Offer
           applicationId={applicationId}
@@ -560,6 +494,72 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
             )}
           </div>
         ) : null}
+
+        <div className="card">
+          <h3>Payroll</h3>
+          {application.employee_id ? (
+            <p className="small">
+              On the payroll of <strong>{application.company_name}</strong> since{' '}
+              {application.joining_date || 'their joining date'}. They are on the salary sheet and
+              the attendance grid now — nothing else to do here.
+            </p>
+          ) : (
+            <>
+              <p className="muted small">
+                Adds {application.candidate_name} to <strong>{application.company_name}</strong> as
+                an employee, carrying across the phone, email and date of birth already on file.
+                The company comes from the vacancy, not from a form.
+              </p>
+              <div className="row">
+                <button
+                  className="primary"
+                  disabled={!application.offer_salary}
+                  onClick={async () => {
+                    if (!window.confirm(
+                      `Add ${application.candidate_name} to ${application.company_name} at ₹${Number(
+                        application.offer_salary
+                      ).toLocaleString('en-IN')} a month?`
+                    )) return;
+                    try {
+                      await api.post(`/hiring/applications/${applicationId}/hire`, {});
+                      onToast('Added to the payroll');
+                      await load();
+                      onChanged?.();
+                    } catch (err) {
+                      onError(err);
+                    }
+                  }}
+                >
+                  Add to payroll
+                </button>
+                {!application.offer_salary ? (
+                  <span className="muted small">Fill in the monthly salary first.</span>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="card">
+          <h3>Why this score</h3>
+          {Object.entries(match.factors).map(([name, f]) => (
+            <div className="factor" key={name}>
+              <span className="f-name">{name}</span>
+              <span className="bar">
+                <i style={{ width: `${f.of ? (f.score / f.of) * 100 : 0}%` }} />
+              </span>
+              <span className="f-note">{f.note}</span>
+            </div>
+          ))}
+          {match.missing?.length ? (
+            <p className="muted small" style={{ marginTop: '0.5rem' }}>
+              Does not have: {match.missing.join(', ')}
+            </p>
+          ) : null}
+          <p className="muted small">
+            A number for ordering a queue. It is not a decision and it never moves anybody.
+          </p>
+        </div>
 
         <div className="card">
           <h3>Record a test</h3>
