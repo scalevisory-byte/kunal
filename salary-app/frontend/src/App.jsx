@@ -10,6 +10,7 @@ import Hiring from './components/hiring/Hiring.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
 import PunchPage from './components/PunchPage.jsx';
 import SitTest from './components/hiring/SitTest.jsx';
+import CandidateInterviewForm from './components/hiring/CandidateInterviewForm.jsx';
 import Leave from './components/Leave.jsx';
 import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
@@ -127,6 +128,10 @@ export default function App() {
     // token IS the identity, and it reaches exactly one attempt.
     const sitting = window.location.pathname.match(/^\/sit\/([^/]+)/);
     if (sitting) return <SitTest token={decodeURIComponent(sitting[1])} />;
+    // A candidate filling in their own interview form before coming in. Same
+    // rule again: the token IS the identity, and it reaches one interview.
+    const filling = window.location.pathname.match(/^\/interview\/([^/]+)/);
+    if (filling) return <CandidateInterviewForm token={decodeURIComponent(filling[1])} />;
   }
   return <Shell />;
 }

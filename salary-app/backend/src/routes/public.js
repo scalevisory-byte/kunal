@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { Router } from 'express';
-import { createApplication, getApplication, getCandidate, getVacancy, getVacancyByRef, listVacancies, openAttempt, recordTest, submitAttempt, updateCandidate, upsertCandidate } from '../hiring.js';
+import { createApplication, getApplication, getCandidate, getVacancy, getVacancyByRef, listVacancies, openAttempt, openCandidateForm, recordTest, saveCandidateForm, submitAttempt, updateCandidate, upsertCandidate } from '../hiring.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { publicVacancy } from '../../../shared/hiringMessages.js';
@@ -308,6 +308,33 @@ publicRouter.post('/sit/:token', (req, res) => {
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message });
   }
+});
+
+
+/* ---------------- a candidate filling in their own interview form -------- */
+
+/*
+ * The token is the whole of the identity, as on the punch link and the test.
+ * Nothing here reads a candidate id, an interview id or a form id from the
+ * request - they all come off the signed token, so a caller who edits it gets
+ * a 404 rather than somebody else's form.
+ *
+ * And what can be WRITTEN is an allow-list in shared/interviewForm.js, applied
+ * on this side whatever the page sent. A candidate posting a decision on
+ * themselves has it dropped.
+ */
+publicRouter.get('/interview-form/:token', (req, res) => {
+  const found = openCandidateForm(req.params.token);
+  return found
+    ? res.json(found)
+    : res.status(404).json({ error: 'This link has expired or is not valid.' });
+});
+
+publicRouter.post('/interview-form/:token', rateLimit(10), (req, res) => {
+  const saved = saveCandidateForm(req.params.token, req.body || {});
+  return saved
+    ? res.json(saved)
+    : res.status(404).json({ error: 'This link has expired or is not valid.' });
 });
 
 /**

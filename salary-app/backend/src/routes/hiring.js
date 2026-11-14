@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   assignTest,
   attemptReview,
+  candidateFormLink,
   createApplication,
   createCandidate,
   createInterview,
@@ -15,6 +16,7 @@ import {
   deleteReference,
   deleteTask,
   deleteVacancy,
+  evaluationDocument,
   forOffice,
   getApplication,
   getCandidate,
@@ -25,6 +27,7 @@ import {
   hireApplication,
   hiringOverview,
   hiringReport,
+  interviewFormDocument,
   interviewHistory,
   listApplications,
   listAttempts,
@@ -45,7 +48,12 @@ import {
   openOffers,
   paperReadiness,
   recordTest,
+  removeEvaluation,
+  removeInterview,
+  removeInterviewForm,
+  removeOffer,
   removeQuestion,
+  removeScreening,
   rescoreVacancy,
   reviewEvaluation,
   saveEvaluation,
@@ -478,8 +486,11 @@ hiringRouter.patch('/interviews/:id', (req, res) => {
 });
 
 hiringRouter.delete('/interviews/:id', (req, res) => {
-  if (!deleteInterview(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
-  res.status(204).end();
+  try {
+    res.json(removeInterview(Number(req.params.id)));
+  } catch (err) {
+    sendProblem(res, err);
+  }
 });
 
 hiringRouter.get('/tasks', (req, res) => res.json({ tasks: listTasks({ status: req.query.status }) }));
@@ -801,3 +812,47 @@ hiringRouter.get('/reports/:key', (req, res) => {
     sendProblem(res, err);
   }
 });
+
+/*
+ * The office asking for that link.
+ *
+ * Behind the login, obviously - handing out a link that fills in an interview
+ * form is not something an anonymous caller does.
+ */
+hiringRouter.post('/interviews/:id/candidate-link', (req, res) => {
+  try {
+    const made = candidateFormLink(Number(req.params.id), { by: actorName(req) });
+    res.json({ ...made, link: `${publicBase()}/interview/${made.token}` });
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+/* Undoing something recorded by mistake. A draft goes; a decision is withdrawn. */
+const undo = (fn) => (req, res) => {
+  try {
+    res.json(fn(Number(req.params.id)));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+};
+
+hiringRouter.delete('/applications/:id/screening', undo(removeScreening));
+hiringRouter.delete('/interviews/:id/form', undo(removeInterviewForm));
+hiringRouter.delete('/interviews/:id/evaluation', undo(removeEvaluation));
+hiringRouter.delete('/applications/:id/offer', undo(removeOffer));
+
+/*
+ * The printable copies. Served as files, so what somebody hands to a boss is
+ * exactly what the server wrote and the page cannot have added to it.
+ */
+const asDocument = (make) => (req, res) => {
+  const doc = make(Number(req.params.id));
+  if (!doc) return res.status(404).json({ error: 'there is nothing to print yet' });
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
+  return res.send(doc.html);
+};
+
+hiringRouter.get('/interviews/:id/form/print', asDocument(interviewFormDocument));
+hiringRouter.get('/interviews/:id/evaluation/print', asDocument(evaluationDocument));

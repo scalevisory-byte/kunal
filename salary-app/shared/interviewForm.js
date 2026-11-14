@@ -74,77 +74,18 @@ export const QUESTIONS = [
 
 export const QUESTION_KEYS = QUESTIONS.map((q) => q.key);
 
-/* ---------------- the decision ---------------- */
+/* ---------------- the declaration ---------------- */
 
 /**
- * What happens next, and what each one commits the office to.
+ * What the candidate signs off.
  *
- * `moves` is the stage this decision puts the application on, or null where it
- * stays where it is. "On hold" deliberately moves nothing: Dinesh asked for the
- * candidate to be RETAINED in the pipeline, and a hold that quietly shunted
- * somebody sideways would lose them.
- *
- * Note what "Selected" does NOT do. It moves the application to Selected, which
- * is where the final approval workflow picks it up - it does not send an offer.
- * "Do not automatically issue an offer letter without the required approval."
+ * Dinesh asked for the line "that goes at the bottom" - the one confirming
+ * the details given are true. It is here rather than typed into the page so
+ * the office's printed copy and the candidate's own screen say the same
+ * words, which is the whole point of a declaration.
  */
-export const DECISIONS = [
-  {
-    /*
-     * Selected moves NOBODY, and that is not an oversight.
-     *
-     * In this app's pipeline "Selected" sits AFTER "Offer Sent" - it means the
-     * offer was accepted. An interview that went well is nowhere near that, so
-     * writing that stage here would skip the offer entirely, which is exactly
-     * what Dinesh said must not happen: "do not automatically issue an offer
-     * letter without the required approval", "never automatically approve a
-     * candidate or bypass a required stage".
-     *
-     * So this records the verdict and hands the application to the approval
-     * workflow. Somebody authorised approves, and sending the offer is then a
-     * deliberate act on the Offer card, which is what moves the stage.
-     */
-    key: 'Selected',
-    label: 'Selected',
-    hint: 'Goes to final approval — this does NOT send an offer and does not move them past Interview',
-    moves: null,
-  },
-  {
-    // Already at Interview, and the next round is a new interview row rather
-    // than a stage change. Scheduling it is what happens next.
-    key: 'Next Round',
-    label: 'Next interview round',
-    hint: 'Another round with somebody else — schedule it below',
-    moves: null,
-    needs: ['next_round'],
-  },
-  {
-    key: 'On Hold',
-    label: 'On hold',
-    hint: 'Stays exactly where they are in the pipeline, nothing moves',
-    moves: null,
-  },
-  {
-    key: 'Rejected',
-    label: 'Rejected',
-    hint: 'Out of this opening - say why',
-    moves: 'Rejected',
-    needs: ['rejection_reason'],
-  },
-];
-
-export const DECISION_KEYS = DECISIONS.map((d) => d.key);
-
-export const decisionMeta = (key) => DECISIONS.find((d) => d.key === key) || null;
-
-/**
- * The stage a decision moves the application to, or null.
- *
- * Read by the server when a form is SUBMITTED, never when it is saved as a
- * draft: a draft is somebody half way through typing, and half an opinion must
- * not move anybody.
- */
-export const stageForDecision = (key) => decisionMeta(key)?.moves || null;
+export const DECLARATION =
+  'I confirm that the details I have given above are true and correct to the best of my knowledge. I understand that anything found to be false may end my application or my employment.';
 
 /* ---------------- the rounds ---------------- */
 
@@ -287,29 +228,6 @@ export const SECTIONS = [
     hint: 'Up to two. Verification is HR’s to finish later — it is never required to submit this form',
     references: true,
   },
-  {
-    key: 'observations',
-    title: 'Interview notes',
-    /*
-     * What the interviewer THINKS is not here. It is on the evaluation form,
-     * which is a separate record for a reason Dinesh gave himself: "keep
-     * candidate information and interviewer evaluation as two separate forms"
-     * and "do not ask for information already available in the candidate
-     * profile or interview form".
-     *
-     * So this form records what was SAID and FOUND - the candidate's own
-     * answers, their qualifications, their notice period. Strengths, concerns,
-     * skill gaps, training needed and every rating live on the evaluation,
-     * where one interviewer's view can differ from the next one's and both
-     * survive. Asking for strengths in both places would have meant two
-     * answers to one question with nothing to say which was meant.
-     */
-    hint: 'Ratings, strengths and concerns are on the evaluation form — this is for what was said in the room',
-    fields: [
-      { key: 'observations', label: 'What happened in the interview', long: true },
-      { key: 'additional_comments', label: 'Anything else worth recording', long: true },
-    ],
-  },
 ];
 
 /** Every field that lives on the form itself (not written back to the person). */
@@ -364,41 +282,21 @@ export const STATUSES = ['draft', 'submitted'];
 /**
  * Is this form fit to be submitted?
  *
- * Almost nothing is required, deliberately. The spec says in as many words to
- * avoid "unnecessary mandatory fields", and the cost of a required field here
- * is real: an interviewer who cannot save walks away and types it up later, or
- * not at all. So only the decision is required, plus whatever that particular
- * decision cannot be acted on without - a rejection with no reason tells the
- * next person nothing, and "next round" with no round named cannot be
- * scheduled.
+ * NOTHING is required, and that is the point of what this form now is.
  *
- * A DRAFT requires nothing at all, not even a decision. That is the whole
- * point of a draft.
+ * It used to end with a decision and the interviewer's notes, which was
+ * wrong: Dinesh pointed out that this form is filled in BEFORE the interview,
+ * by the candidate. A verdict cannot be on a form that is completed before
+ * anybody has met them. The decision lives on the evaluation, where the
+ * interviewer records it afterwards.
+ *
+ * So submitting this means "these particulars are confirmed", and a candidate
+ * who left half of it blank has still confirmed what they gave. Kept as a
+ * function because the caller already has the shape, and because a rule may
+ * well come back here.
  */
-export function checkForm(form = {}, { submitting = false } = {}) {
-  const problems = [];
-  if (!submitting) return problems;
-
-  const decision = String(form.decision || '').trim();
-  if (!decision) {
-    problems.push('Say what happens next before submitting this interview.');
-    return problems;
-  }
-  const meta = decisionMeta(decision);
-  if (!meta) {
-    problems.push(`“${decision}” is not one of the decisions.`);
-    return problems;
-  }
-  for (const need of meta.needs || []) {
-    if (!String(form[need] || '').trim()) {
-      problems.push(
-        need === 'rejection_reason'
-          ? 'A rejection has to say why.'
-          : 'Name the next round before submitting.'
-      );
-    }
-  }
-  return problems;
+export function checkForm() {
+  return [];
 }
 
 /**
@@ -409,3 +307,64 @@ export function checkForm(form = {}, { submitting = false } = {}) {
  */
 export const roundLabel = (round, name) =>
   name ? `Round ${round} — ${name}` : `Round ${round}`;
+
+/* ---------------- the candidate fills it in themselves ------------------- */
+
+/**
+ * The sections a CANDIDATE may fill in, sent a link before their interview.
+ *
+ * Dinesh: *"jab candidate interview k liye aaye to usko ye form ki link bhejni
+ * he bharne k liye"*. Most of this form is facts only they know - where they
+ * studied, what they earn, why they are leaving - and an interviewer typing
+ * them while somebody sits opposite is a slow way to find out.
+ *
+ * THIS IS AN ALLOW-LIST, AND IT HAS TO STAY ONE.
+ *
+ * Dinesh's own rule: "do not allow candidates to change screening or
+ * interview decisions". A deny-list would have to be remembered every time a
+ * field is added to this file, and the first forgotten one hands a candidate
+ * the verdict on themselves. Naming what they MAY touch fails the safe way: a
+ * new field is not theirs until somebody says so here.
+ *
+ * Left out on purpose, every one of them: the interview notes, the decision
+ * and its remarks, the next round, the rejection reason, the recommended
+ * salary (the office's figure, not theirs), and the whole evaluation.
+ */
+export const CANDIDATE_SECTIONS = [
+  'basic', 'education', 'experience', 'language', 'computer',
+  'skills', 'questions', 'salary', 'address', 'references',
+];
+
+/** Exactly the form fields a candidate may write, derived from those sections. */
+export const CANDIDATE_WRITABLE = SECTIONS.filter((s) => CANDIDATE_SECTIONS.includes(s.key))
+  .flatMap((s) => s.fields || [])
+  .filter((f) => !f.readOnly && f.key !== 'recommended_salary')
+  .map((f) => f.key);
+
+/**
+ * Strip a candidate's submission down to what they are allowed to send.
+ *
+ * Runs on the SERVER, on every candidate submission, whatever the page sent.
+ * The page showing only their own sections is a convenience; this is the
+ * fence.
+ */
+export function fromCandidate(body = {}) {
+  const out = {};
+  for (const key of CANDIDATE_WRITABLE) {
+    if (body[key] !== undefined) out[key] = body[key];
+  }
+  if (Array.isArray(body.languages)) out.languages = body.languages;
+  if (body.answers && typeof body.answers === 'object') {
+    out.answers = Object.fromEntries(
+      QUESTION_KEYS.map((k) => [k, body.answers[k] ?? '']).filter(([, v]) => String(v).trim())
+    );
+  }
+  if (body.address && typeof body.address === 'object') {
+    out.address = Object.fromEntries(
+      ['current', 'permanent'].flatMap((w) =>
+        ADDRESS_PARTS.map((part) => [`${w}_${part.key}`, body.address[`${w}_${part.key}`]])
+      ).filter(([, v]) => v !== undefined)
+    );
+  }
+  return out;
+}

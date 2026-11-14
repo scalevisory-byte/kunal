@@ -317,6 +317,19 @@ export function checkEvaluation(form = {}, { submitting = false } = {}) {
   const problems = [];
   if (!submitting) return problems;
 
+  /*
+   * Who did this interview, typed, and required.
+   *
+   * Dinesh: the evaluator's name must be compulsory. It cannot be taken from
+   * the login - this office signs in as one or two people and the person who
+   * actually sat in the room is often neither of them, so the login name would
+   * put Dinesh's name on Priya's judgement. An evaluation whose author cannot
+   * be named is an evaluation nobody can be asked about.
+   */
+  if (!String(form.evaluated_by || '').trim()) {
+    problems.push('Put the name of whoever did this interview.');
+  }
+
   if (!String(form.recommendation || '').trim()) {
     problems.push('Say what you recommend before submitting.');
   } else if (!RECOMMENDATION_KEYS.includes(form.recommendation)) {

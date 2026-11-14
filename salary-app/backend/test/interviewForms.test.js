@@ -60,47 +60,51 @@ test('a draft needs nothing and moves nobody', async () => {
   assert.equal(await stageOf(application.id), 'Interview');
 });
 
-test('submitting needs a decision, and a rejection needs a reason', async () => {
-  const { interview } = await round();
-  const bare = await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {});
-  assert.equal(bare.status, 400);
-  assert.match(bare.body.error, /what happens next/i);
-
-  const noReason = await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {
-    decision: 'Rejected',
-  });
-  assert.equal(noReason.status, 400);
-  assert.match(noReason.body.error, /has to say why/i);
-});
-
-test('"Selected" at interview does NOT skip the offer', async () => {
+test('submitting the particulars form requires nothing and moves nobody', async () => {
   const { interview, application } = await round();
-  const res = await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {
-    decision: 'Selected', decision_remarks: 'Strong on bookings',
-  });
-  assert.equal(res.status, 200);
-  assert.equal(res.body.form.status, 'submitted');
 
   /*
-   * "Selected" in this pipeline means the offer was ACCEPTED, which is two
-   * steps past a good interview. Writing that stage here would issue nothing
-   * and skip everything - the exact thing the spec forbids.
+   * REWRITTEN, not patched. This test used to assert that submitting needed a
+   * decision and that a rejection needed a reason.
+   *
+   * Dinesh pointed out why that was wrong: this form is filled in BEFORE the
+   * interview, by the candidate. A verdict cannot sit on a form completed
+   * before anybody has met them. The decision is on the evaluation now, where
+   * the interviewer records it afterwards - so submitting this means only
+   * "these particulars are confirmed".
    */
+  const bare = await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {});
+  assert.equal(bare.status, 200);
+  assert.equal(bare.body.form.status, 'submitted');
   assert.equal(await stageOf(application.id), 'Interview');
 });
 
-test('"Rejected" at interview does move them, with the reason on the trail', async () => {
+test('the particulars form never moves anybody — the evaluation does', async () => {
   const { interview, application } = await round();
-  const res = await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {
-    decision: 'Rejected', rejection_reason: 'No ticketing experience',
+  await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {});
+  assert.equal(await stageOf(application.id), 'Interview');
+
+  /*
+   * A rejection is the interviewer's, recorded on the evaluation, and it
+   * reaches the candidate only once somebody authorised approves it. The old
+   * version of this test rejected somebody straight off the particulars form.
+   */
+  await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+   evaluated_by: 'Dinesh Parmar',
+    evaluated_by: 'Priya Nair',
+    recommendation: 'Not Recommended',
+    next_action: 'Reject',
+    recommendation_reason: 'No ticketing experience',
   });
-  assert.equal(res.status, 200);
+  assert.equal(await stageOf(application.id), 'Interview', 'submitting moved somebody');
+
+  const id = (await api('GET', `/api/hiring/interviews/${interview.id}/evaluation`)).body.evaluation.id;
+  await api('POST', `/api/hiring/evaluations/${id}/review`, { to: 'pending_hr' });
+  await api('POST', `/api/hiring/evaluations/${id}/review`, { to: 'approved' });
   assert.equal(await stageOf(application.id), 'Rejected');
 
   const { body } = await api('GET', `/api/hiring/applications/${application.id}`);
-  const last = body.application.stage_log.at(-1);
-  assert.equal(last.stage, 'Rejected');
-  assert.match(last.note, /No ticketing experience/);
+  assert.match(body.application.stage_log.at(-1).note, /No ticketing experience/);
 });
 
 test('correcting a fact at the interview corrects the candidate, and a blank wipes nothing', async () => {
@@ -141,6 +145,7 @@ test('each round keeps its own form; nothing is overwritten', async () => {
 test('a rating outside 1 to 5 is refused, never clamped', async () => {
   const { interview } = await round();
   const res = await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Recommended', next_action: 'Management Approval',
     ratings: { communication: 7 },
   });
@@ -163,6 +168,7 @@ test('the score counts what was rated, not all ten', async () => {
 test('submitting an evaluation moves the paperwork, never the candidate', async () => {
   const { interview, application } = await round();
   const res = await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Strongly Recommended', next_action: 'Final Selection',
     ratings: { communication: 5 },
   });
@@ -178,6 +184,7 @@ test('HR cannot approve an evaluation; only an admin can', async () => {
   // the ROUTE reads abilities off the session rather than the body.
   const { interview } = await round();
   await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Recommended', next_action: 'Management Approval',
   });
   const id = (await api('GET', `/api/hiring/interviews/${interview.id}/evaluation`)).body.evaluation.id;
@@ -192,6 +199,7 @@ test('HR cannot approve an evaluation; only an admin can', async () => {
 test('an approved evaluation is locked, and only a rejection moves anybody', async () => {
   const { interview, application } = await round();
   await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Not Recommended', next_action: 'Reject',
     recommendation_reason: 'Not enough ticketing experience',
   });
@@ -231,9 +239,10 @@ test('an approved evaluation is locked, and only a rejection moves anybody', asy
 test('the candidate history carries both records, one row per round', async () => {
   const { application, interview, candidate } = await round(1, 'Riya Pal');
   await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {
-    decision: 'Next Round', next_round: 'Technical Round',
+    college: 'MS University',
   });
   await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Recommended', next_action: 'Next Round', next_round: 'Technical Round',
     ratings: { communication: 4, attitude: 5 },
   });
@@ -244,8 +253,11 @@ test('the candidate history carries both records, one row per round', async () =
   const { history } = (await api('GET', `/api/hiring/candidates/${candidate.id}/interviews`)).body;
   assert.equal(history.length, 2);
   const one = history.find((h) => h.interview_id === interview.id);
-  assert.equal(one.decision, 'Next Round');
+  // The form says the particulars were confirmed; the EVALUATION says what
+  // was decided. They are two different records for a reason.
+  assert.equal(one.form_status, 'submitted');
   assert.equal(one.recommendation, 'Recommended');
+  assert.equal(one.next_action, 'Next Round');
   assert.equal(one.summary.average, 4.5);
   // The round nobody has filled in yet says so, rather than borrowing round one's.
   const two = history.find((h) => h.interview_id === second.id);
@@ -253,14 +265,187 @@ test('the candidate history carries both records, one row per round', async () =
   assert.equal(two.summary.average, null);
 });
 
-test('every decision lands on the audit trail', async () => {
-  const { interview, candidate } = await round(1, 'Kiran Patel');
+test('confirming the particulars lands on the audit trail', async () => {
+  const { interview } = await round(1, 'Kiran Patel');
   await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, {
-    decision: 'Selected', decision_remarks: 'Good fit',
+    college: 'MS University',
   });
   const { body } = await api('GET', '/api/people/audit?entity=interview_form&limit=50');
   const line = body.entries.find((r) => String(r.label || '').includes('Kiran Patel'));
-  assert.ok(line, 'submitting an interview form wrote no audit line');
-  assert.equal(line.to_value, 'Selected');
-  assert.equal(line.note, 'Good fit');
+  assert.ok(line, 'confirming an interview form wrote no audit line');
+  assert.equal(line.action, 'submitted');
+  assert.equal(line.note, 'particulars confirmed');
+});
+
+/* ---------------- the candidate fills it in themselves ---------------- */
+
+async function linkFor(interviewId) {
+  const res = await api('POST', `/api/hiring/interviews/${interviewId}/candidate-link`, {});
+  return res.body.token;
+}
+
+test('the candidate sees their own form and NOTHING about the decision', async () => {
+  const { interview } = await round(1, 'Nikita Rao');
+  // The office has already made a verdict and taken notes.
+  await api('PUT', `/api/hiring/interviews/${interview.id}/form`, {
+    decision: 'Rejected', rejection_reason: 'Not enough experience',
+    observations: 'Nervous, kept checking the door',
+    recommended_salary: 19000,
+  });
+
+  const page = (await api('GET', `/api/public/interview-form/${await linkFor(interview.id)}`)).body;
+  const wire = JSON.stringify(page);
+
+  assert.equal(page.name, 'Nikita Rao');
+  /*
+   * None of this is merely hidden on the page - it is never put in the
+   * response. Dinesh's own rule: candidates must not be able to change
+   * screening or interview decisions, and they cannot read them either.
+   */
+  assert.ok(!/Rejected/.test(wire), 'the decision was sent to the candidate');
+  assert.ok(!/Not enough experience/.test(wire), 'the rejection reason was sent to the candidate');
+  assert.ok(!/Nervous/.test(wire), "the interviewer's notes were sent to the candidate");
+  assert.ok(!/19000/.test(wire), 'the recommended salary was sent to the candidate');
+});
+
+test('A CANDIDATE CANNOT WRITE A DECISION ON THEMSELVES', async () => {
+  const { interview, application } = await round(1, 'Sneha Joshi');
+  const token = await linkFor(interview.id);
+
+  const res = await api('POST', `/api/public/interview-form/${token}`, {
+    college: 'MS University',
+    degree: 'B.Com',
+    answers: { about: 'I have two years in ticketing.' },
+    // Everything below is theirs to try and not theirs to set.
+    decision: 'Selected',
+    decision_remarks: 'I am great',
+    rejection_reason: 'none',
+    observations: 'they loved me',
+    recommended_salary: 99999,
+    next_round: 'Final Management Round',
+  });
+  assert.equal(res.status, 200);
+
+  const form = (await api('GET', `/api/hiring/interviews/${interview.id}/form`)).body.form;
+  // What they were allowed to say is there.
+  assert.equal(form.college, 'MS University');
+  assert.equal(form.answers.about, 'I have two years in ticketing.');
+  assert.ok(form.candidate_filled_at);
+
+  /*
+   * ...and everything else was dropped by the allow-list on the server,
+   * whatever the page sent. An allow-list fails the safe way: a field added
+   * to the form later is not theirs until somebody says so.
+   */
+  assert.equal(form.decision, null);
+  assert.equal(form.decision_remarks, null);
+  assert.equal(form.rejection_reason, null);
+  assert.equal(form.observations, null);
+  assert.equal(form.recommended_salary, null);
+  assert.equal(form.next_round, null);
+
+  // The form is still a draft - submitting is what records a verdict, and
+  // that is never theirs to record. And nobody moved.
+  assert.equal(form.status, 'draft');
+  assert.equal(await stageOf(application.id), 'Interview');
+});
+
+test('what the candidate corrects about themselves reaches their record', async () => {
+  const { interview, candidate } = await round(1, 'Rahul Shah');
+  const token = await linkFor(interview.id);
+  await api('POST', `/api/public/interview-form/${token}`, {
+    dob: '1996-02-20',
+    email: 'rahul@example.com',
+    address: { current_city: 'Vadodara', current_pin: '390007' },
+  });
+  const after = (await api('GET', `/api/hiring/candidates/${candidate.id}`)).body.candidate;
+  assert.equal(after.dob, '1996-02-20');
+  assert.equal(after.current_city, 'Vadodara');
+});
+
+test('a tampered or made-up link is a 404, never somebody else’s form', async () => {
+  const { interview } = await round(1, 'Token Test');
+  const token = await linkFor(interview.id);
+
+  assert.equal((await api('GET', '/api/public/interview-form/not-a-token')).status, 404);
+  // One character changed breaks the signature.
+  const bent = `${token.slice(0, -2)}${token.slice(-2) === 'aa' ? 'bb' : 'aa'}`;
+  assert.equal((await api('GET', `/api/public/interview-form/${bent}`)).status, 404);
+  // A token of the wrong kind does not work here either.
+  assert.equal((await api('GET', `/api/public/sit/${token}`)).status, 404);
+});
+
+test('the office can see whether they filled it in', async () => {
+  const { interview } = await round(1, 'Filled In');
+  const before = (await api('GET', '/api/hiring/interviews')).body.interviews
+    .find((i) => i.id === interview.id);
+  assert.equal(before.candidate_filled_at, null);
+
+  const token = await linkFor(interview.id);
+  await api('POST', `/api/public/interview-form/${token}`, { college: 'Somewhere' });
+
+  const after = (await api('GET', '/api/hiring/interviews')).body.interviews
+    .find((i) => i.id === interview.id);
+  /*
+   * So nobody opens the form expecting it to be filled and finds it blank
+   * with the candidate already sitting opposite.
+   */
+  assert.ok(after.candidate_filled_at);
+});
+
+test('a duplicate booking can be deleted; a written-up one cannot', async () => {
+  const { application, interview } = await round(1, 'Double Booked');
+  const twin = (await api('POST', '/api/hiring/interviews', {
+    application_id: application.id, at: '2026-11-16T23:56', round: 1,
+  })).body.interview;
+
+  /*
+   * Dinesh booked the same interview twice and had no way to remove it. A
+   * duplicate nobody wrote up is not a record of anything.
+   */
+  assert.deepEqual((await api('DELETE', `/api/hiring/interviews/${twin.id}`)).body, { removed: 1 });
+
+  // ...but once it has been written up it carries somebody's judgement and
+  // somebody's name, and deleting it would take them with it.
+  await api('PUT', `/api/hiring/interviews/${interview.id}/form?submit=true`, { decision: 'Selected' });
+  const refused = await api('DELETE', `/api/hiring/interviews/${interview.id}`);
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /Cancelled or No show/);
+});
+
+test('a draft can be undone; a decision is withdrawn instead', async () => {
+  const { application, interview } = await round(1, 'Undo Me');
+
+  // A screening typed against the wrong person comes off.
+  await api('PUT', `/api/hiring/applications/${application.id}/screening`, { verdict: 'Eligible' });
+  assert.deepEqual((await api('DELETE', `/api/hiring/applications/${application.id}/screening`)).body,
+    { removed: 1 });
+  assert.equal((await api('GET', `/api/hiring/applications/${application.id}/screening`)).body.screening, null);
+
+  // A draft evaluation goes; a submitted one does not.
+  await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation`, { overall_remarks: 'half typed' });
+  assert.deepEqual((await api('DELETE', `/api/hiring/interviews/${interview.id}/evaluation`)).body,
+    { removed: 1 });
+  await api('PUT', `/api/hiring/interviews/${interview.id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
+    recommendation: 'Recommended', next_action: 'Management Approval',
+  });
+  const no = await api('DELETE', `/api/hiring/interviews/${interview.id}/evaluation`);
+  assert.equal(no.status, 409);
+  assert.match(no.body.error, /reject it or put it on hold/);
+
+  // An approved offer is withdrawn, never deleted - deleting it would
+  // silently change what last week's figures said.
+  await api('PUT', `/api/hiring/applications/${application.id}/offer`, {
+    salary: 26000, designation: 'Travel Consultant', joining_date: '2027-01-12',
+  });
+  assert.deepEqual((await api('DELETE', `/api/hiring/applications/${application.id}/offer`)).body,
+    { removed: 1 });
+  await api('PUT', `/api/hiring/applications/${application.id}/offer`, {
+    salary: 26000, designation: 'Travel Consultant', joining_date: '2027-01-12',
+  });
+  await api('POST', `/api/hiring/applications/${application.id}/offer/move`, { to: 'approved' });
+  const locked = await api('DELETE', `/api/hiring/applications/${application.id}/offer`);
+  assert.equal(locked.status, 409);
+  assert.match(locked.body.error, /Withdraw it instead/);
 });

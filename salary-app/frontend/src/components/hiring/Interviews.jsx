@@ -1,6 +1,41 @@
+import { useState } from 'react';
 import { api } from '../../api.js';
 
-export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError }) {
+export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError, onToast }) {
+  const [link, setLink] = useState(null);
+
+  /*
+   * The link the candidate fills the form in from.
+   *
+   * It lives on this row because this is where somebody is looking when they
+   * are about to interview that person - the same reason the two form buttons
+   * are here. The server makes the form row if there is none, so there is no
+   * order to remember.
+   */
+  const sendLink = async (id) => {
+    try {
+      const made = await api.post(`/hiring/interviews/${id}/candidate-link`, {});
+      const full = made.link.startsWith('http')
+        ? made.link
+        : `${window.location.origin}${made.link}`;
+      setLink({ ...made, full });
+      onToast?.('Link ready — send it to them on WhatsApp');
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const drop = async (id) => {
+    if (!window.confirm('Delete this interview? This cannot be undone.')) return;
+    try {
+      await api.del(`/hiring/interviews/${id}`);
+      onToast?.('Interview deleted');
+      onReload();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   const set = async (id, body) => {
     try {
       await api.patch(`/hiring/interviews/${id}`, body);
@@ -70,6 +105,16 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                 <button onClick={() => onForm(i.id)}>
                   {i.form_status === 'submitted' ? 'Form ✓' : i.form_status ? 'Form…' : 'Fill form'}
                 </button>
+                <button onClick={() => sendLink(i.id)} title="Send them the form to fill in">
+                  {i.candidate_filled_at ? 'They filled it ✓' : 'Send form'}
+                </button>
+                <button
+                  className="danger"
+                  title="Delete this booking — a written-up interview is cancelled instead"
+                  onClick={() => drop(i.id)}
+                >
+                  Delete
+                </button>
                 <button onClick={() => onEvaluate(i.id)}>
                   {i.evaluation_status === 'approved'
                     ? 'Evaluation ✓'
@@ -82,6 +127,21 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
           ))}
         </tbody>
       </table>
+      {link ? (
+        <div className="card" style={{ marginTop: '0.6rem' }}>
+          <h3>Form link for {link.candidate}</h3>
+          <p className="muted small">
+            Send this on WhatsApp. It opens one form — theirs — and it cannot show or change any
+            decision. It works for a fortnight.
+          </p>
+          <div className="row">
+            <input readOnly value={link.full} onFocus={(e) => e.target.select()} />
+            <button onClick={() => navigator.clipboard?.writeText(link.full)}>Copy</button>
+            <button onClick={() => setLink(null)}>Close</button>
+          </div>
+        </div>
+      ) : null}
+
       {!interviews.length ? (
         <p className="empty">Nothing scheduled. Interviews are booked from a candidate&apos;s card.</p>
       ) : null}

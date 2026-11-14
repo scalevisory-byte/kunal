@@ -1697,3 +1697,100 @@ test('the age range shows its error, rather than silently refusing to save', () 
   assert.match(form, /error=\{bad\('age_max'\)\}/);
   assert.match(form, /data-field=\{name\}/);
 });
+
+test('the screening verdict is on the candidate row, and still needs a reason', () => {
+  const screen = src('components/hiring/Screening.jsx');
+  const list = src('components/hiring/Candidates.jsx');
+
+  // Dinesh asked for these buttons "front me bhi" - on the list, without
+  // opening anybody.
+  assert.match(list, /<QuickVerdict/);
+  assert.match(list, /c\.latest_application_id/);
+
+  /*
+   * Eligible saves on the click because it needs nothing else; the other two
+   * open a reason box in the row first. The rule is not relaxed because the
+   * control got smaller.
+   */
+  assert.match(screen, /v === 'Eligible' \? save\(v\) : setPicked\(v\)/);
+  assert.match(screen, /disabled=\{busy \|\| !reason\.trim\(\)\}/);
+});
+
+test('an interview can be deleted from both places it is listed', () => {
+  assert.match(src('components/hiring/Interviews.jsx'), /onClick=\{\(\) => drop\(i\.id\)\}/);
+  assert.match(src('components/hiring/ApplicationPanel.jsx'), /dropInterview\(i\.id\)/);
+  // Deleting is asked about first - it cannot be undone.
+  assert.match(src('components/hiring/Interviews.jsx'), /window\.confirm\('Delete this interview/);
+});
+
+test('the candidate page cannot show or send a decision', () => {
+  const page = src('components/hiring/CandidateInterviewForm.jsx');
+
+  // It renders only the sections named in the allow-list.
+  assert.match(page, /CANDIDATE_SECTIONS\.includes\(s\.key\)/);
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  for (const forbidden of ['decision', 'rejection_reason', 'observations', 'recommendation']) {
+    assert.ok(!new RegExp(`\\b${forbidden}\\b`).test(code), `the candidate page mentions ${forbidden}`);
+  }
+});
+
+test('the particulars form has no verdict on it, and does declare', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+  const code = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  /*
+   * Dinesh: this form is filled in BEFORE the interview, by the candidate, so
+   * a verdict and the interviewer's notes had no business on it. Both live on
+   * the evaluation now.
+   */
+  assert.ok(!/Result and next step/.test(code), 'the decision is back on the particulars form');
+  assert.ok(!/DECISIONS/.test(code), 'the form still imports the decisions');
+  assert.match(panel, /\{DECLARATION\}/);
+
+  // The candidate's own copy ticks the declaration before it will send.
+  const page = src('components/hiring/CandidateInterviewForm.jsx');
+  assert.match(page, /disabled=\{busy \|\| !agreed\}/);
+  assert.match(page, /type="checkbox"/);
+  // ...and the checkbox is handed back to the browser, or the global
+  // `input, select` rule turns it into an empty box. Third time for that trap.
+  assert.match(css, /\.sit-declare input\[type='checkbox'\] \{[^}]*all: revert/);
+});
+
+test('short lists are ticked, not opened', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+
+  /*
+   * Every list on this form is four options or fewer, and a dropdown for four
+   * things is two taps and a hidden menu where one tap would do. Languages was
+   * worse than slow: it is a LIST and was rendering as a select, so only one
+   * could be chosen and it did not save as a list at all.
+   */
+  assert.match(panel, /field\.type === 'tags' && field\.options/);
+  assert.match(panel, /field\.options\.length <= 4 \?/);
+  assert.match(panel, /value=\{field\.key === 'languages' \? form\.languages/);
+  // Clicking the chosen one again clears it: blank is a real answer.
+  assert.match(panel, /onPick\(value === o \? '' : o\)/);
+});
+
+test('the interview paperwork prints as a document, not as the panel', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+  assert.match(panel, /form\/print/);
+  assert.match(panel, /evaluation\/print/);
+  const code = panel.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/window\.print\(\)/.test(code), 'it prints the panel again');
+  assert.ok(!/window\.open/.test(code));
+});
+
+test('the evaluator is typed and required, never taken from the login', () => {
+  const panel = src('components/hiring/InterviewForms.jsx');
+  assert.match(panel, /Evaluated by \*/);
+  assert.match(panel, /set\('evaluated_by', e\.target\.value\)/);
+
+  /*
+   * This office signs in as one or two people and the person in the room is
+   * often neither of them, so the login name would put Dinesh's name on
+   * Priya's judgement.
+   */
+  const evalModule = fs.readFileSync(path.join(here, '../../shared/interviewEval.js'), 'utf8');
+  assert.match(evalModule, /Put the name of whoever did this interview/);
+});

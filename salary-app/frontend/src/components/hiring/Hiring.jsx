@@ -244,6 +244,8 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onCreate={createCandidate}
           onOpen={setOpenCandidate}
           onOpenApplication={setOpenApplication}
+          onReload={load}
+          onToast={say}
           /*
            * The CV link is signed and expires, so it is fetched when somebody
            * asks for it rather than handed out with the list - eighty rows
@@ -280,6 +282,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onOpen={setOpenApplication}
           onForm={setOpenForm}
           onEvaluate={setOpenEvaluation}
+          onToast={say}
           onReload={load}
           onError={onError}
         />

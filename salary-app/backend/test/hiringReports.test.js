@@ -70,13 +70,13 @@ test.before(async () => {
     await api('PATCH', `/api/hiring/interviews/${r.id}`, { status });
     ivs.push(r);
   }
-  await api('PUT', `/api/hiring/interviews/${ivs[0].id}/form?submit=true`, {
-    decision: 'Next Round', next_round: 'Technical Round',
-  });
+  await api('PUT', `/api/hiring/interviews/${ivs[0].id}/form?submit=true`, { college: 'MS University' });
   await api('PUT', `/api/hiring/interviews/${ivs[0].id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Recommended', next_action: 'Next Round', next_round: 'Technical Round',
   });
   await api('PUT', `/api/hiring/interviews/${ivs[3].id}/evaluation?submit=true`, {
+    evaluated_by: 'Dinesh Parmar',
     recommendation: 'Not Recommended', next_action: 'Reject', recommendation_reason: 'Weak on ticketing',
   });
 
@@ -142,6 +142,8 @@ test('next round pending is a to-do list, not a history', async () => {
   let rows = await report('next_round');
   assert.equal(rows.length, 1);
   assert.equal(rows[0].candidate_name, 'Chirag');
+  // What was asked for comes off the EVALUATION, which is where the
+  // interviewer records it - the particulars form carries no decision.
   assert.equal(rows[0].next_round, 'Technical Round');
   assert.ok(Number.isInteger(rows[0].waiting_days));
 

@@ -8,8 +8,8 @@ import {
   ROUND_NAMES,
   SECTIONS,
   VERIFICATION,
+  DECLARATION,
   checkForm,
-  DECISIONS,
   roundLabel,
   sameAsCurrent,
 } from '../../../../shared/interviewForm.js';
@@ -36,6 +36,23 @@ import {
  * Every field is built from the lists in shared/, never typed here, so the
  * server's validation and this form cannot drift about what exists.
  */
+
+/**
+ * Fetch a document the server wrote and hand it to the browser as a file.
+ *
+ * An anchor with `download` and an absolute href, never window.open: the route
+ * answers an attachment, so there is nothing for a tab to show - and a tab
+ * opened after an await is pop-up blocked without a word, which the CV button
+ * learnt the hard way.
+ */
+const grab = (path) => {
+  const a = document.createElement('a');
+  a.href = `${window.location.origin}${path}`;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 
 /* ---------------- the shell ---------------- */
 
@@ -65,6 +82,42 @@ function Section({ title, hint, children, open, onToggle, done }) {
   );
 }
 
+/**
+ * A short list of choices is TICKED, not opened.
+ *
+ * Dinesh asked for this on Languages and then "baaki jagah bhi dekho jahan pe
+ * ye use kar sakte ho". Every list in this form is four options or fewer -
+ * Basic/Average/Good/Excellent, Basic/Intermediate/Advanced, Yes/No - and a
+ * dropdown for four things is two taps and a hidden menu where one tap would
+ * do. With a candidate sitting opposite, that is the whole difference between
+ * filling the form in as you talk and filling it in afterwards.
+ *
+ * Clicking the chosen one again clears it, because blank is a real answer
+ * here: "nobody asked" is not "No", and a mis-tap must have a way back that
+ * is not an opinion nobody holds.
+ */
+function Chips({ options, value, onPick, multi }) {
+  const chosen = multi ? (Array.isArray(value) ? value : []) : [value];
+  return (
+    <span className="iv-chips">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          className={chosen.includes(o) ? 'chip active' : 'chip'}
+          onClick={() =>
+            multi
+              ? onPick(chosen.includes(o) ? chosen.filter((x) => x !== o) : [...chosen, o])
+              : onPick(value === o ? '' : o)
+          }
+        >
+          {o}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 function Field({ field, value, onChange }) {
   const set = (v) => onChange(field.key, v);
   if (field.readOnly) {
@@ -75,17 +128,33 @@ function Field({ field, value, onChange }) {
       </label>
     );
   }
+  /*
+   * Languages is a LIST, and it was rendering as a dropdown - so only one
+   * could be chosen and it did not save as a list at all. Anybody here speaks
+   * three.
+   */
+  if (field.type === 'tags' && field.options) {
+    return (
+      <label className="field wide">
+        {field.label}
+        <Chips options={field.options} value={value} onPick={set} multi />
+      </label>
+    );
+  }
   if (field.options) {
     return (
       <label className="field">
         {field.label}
-        <select value={value ?? ''} onChange={(e) => set(e.target.value)}>
-          {/* Blank is a real answer: "nobody asked" is not "No". */}
-          <option value="">—</option>
-          {field.options.map((o) => (
-            <option key={o} value={o}>{o}</option>
-          ))}
-        </select>
+        {field.options.length <= 4 ? (
+          <Chips options={field.options} value={value} onPick={set} />
+        ) : (
+          <select value={value ?? ''} onChange={(e) => set(e.target.value)}>
+            <option value="">—</option>
+            {field.options.map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        )}
       </label>
     );
   }
@@ -160,10 +229,6 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
           ADDRESS_PARTS.map((p) => [`${w}_${p.key}`, got.candidate?.[`${w}_${p.key}`] ?? ''])
         )
       );
-      for (const key of ['decision', 'decision_remarks', 'next_round', 'next_interview_date',
-        'next_interviewer', 'rejection_reason']) {
-        prefill[key] = got.form?.[key] ?? '';
-      }
       setForm(prefill);
     } catch (err) {
       onError(err);
@@ -198,8 +263,7 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
   };
 
   if (!data) return null;
-  const problems = checkForm(form, { submitting: true });
-  const decision = DECISIONS.find((d) => d.key === form.decision);
+  const problems = checkForm();
   const locked = data.form?.status === 'submitted';
 
   return (
@@ -209,11 +273,24 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
           <div>
             <h1>Interview form</h1>
             <p className="muted small">
-              {locked ? 'Submitted — edits are recorded on the audit trail' : 'Not submitted yet'}
+              {locked
+                ? 'Confirmed — edits are recorded on the audit trail'
+                : 'Their particulars, filled in before the interview'}
+              {data.form?.candidate_filled_at
+                ? ' · the candidate filled this in themselves'
+                : ''}
             </p>
           </div>
           <div className="row">
-            <button onClick={() => window.print()}>Print</button>
+            {/*
+              * Downloads the whole form as a document rather than printing
+              * the panel. The panel is collapsible sections, so
+              * window.print() printed whichever two were open and silently
+              * dropped the rest - no use to anybody being handed it.
+              */}
+            <button onClick={() => grab(`/api/hiring/interviews/${interviewId}/form/print`)}>
+              Print / PDF
+            </button>
             <button className="close" onClick={onClose}>Close</button>
           </div>
         </header>
@@ -293,7 +370,7 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
                   <Field
                     key={field.key}
                     field={field}
-                    value={field.key === 'languages' ? undefined : form[field.key]}
+                    value={field.key === 'languages' ? form.languages : form[field.key]}
                     onChange={set}
                   />
                 ))}
@@ -302,67 +379,22 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
           </Section>
         ))}
 
-        {/* The decision is never folded away — it is the point of the form. */}
-        <section className="iv-section open">
-          <div className="iv-head static"><span className="iv-title">Result and next step</span></div>
-          <div className="iv-body">
-            <div className="iv-decisions">
-              {DECISIONS.map((d) => (
-                <button
-                  key={d.key}
-                  className={form.decision === d.key ? 'chip active' : 'chip'}
-                  onClick={() => set('decision', d.key)}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-            {decision ? <p className="muted small">{decision.hint}</p> : null}
-            <div className="iv-grid">
-              <label className="field wide">
-                Decision remarks
-                <textarea rows={2} value={form.decision_remarks ?? ''}
-                  onChange={(e) => set('decision_remarks', e.target.value)} />
-              </label>
-              {form.decision === 'Rejected' ? (
-                <label className="field wide">
-                  Reason for rejection
-                  <textarea rows={2} value={form.rejection_reason ?? ''}
-                    onChange={(e) => set('rejection_reason', e.target.value)} />
-                </label>
-              ) : null}
-              {form.decision === 'Next Round' ? (
-                <>
-                  <label className="field">
-                    Next round
-                    <input list="iv-rounds" value={form.next_round ?? ''}
-                      onChange={(e) => set('next_round', e.target.value)} />
-                    <datalist id="iv-rounds">
-                      {ROUND_NAMES.map((r) => <option key={r} value={r} />)}
-                    </datalist>
-                  </label>
-                  <label className="field">
-                    Next interview date
-                    <input type="date" value={form.next_interview_date ?? ''}
-                      onChange={(e) => set('next_interview_date', e.target.value)} />
-                  </label>
-                  <label className="field">
-                    Next interviewer
-                    <input value={form.next_interviewer ?? ''}
-                      onChange={(e) => set('next_interviewer', e.target.value)} />
-                  </label>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </section>
+        {/*
+          * No decision here any more.
+          *
+          * Dinesh: this form is filled in BEFORE the interview, by the
+          * candidate - so a verdict and the interviewer's notes had no
+          * business on it. Both live on the evaluation, where the interviewer
+          * records them afterwards.
+          */}
+        <p className="muted small iv-declaration">{DECLARATION}</p>
 
         <footer className="iv-actions">
           {problems.length ? <span className="muted small">{problems[0]}</span> : null}
           <span className="spacer" />
           <button disabled={busy} onClick={() => save(false)}>Save draft</button>
-          <button className="primary" disabled={busy || problems.length} onClick={() => save(true)}>
-            {locked ? 'Save changes' : 'Submit interview'}
+          <button className="primary" disabled={busy} onClick={() => save(true)}>
+            {locked ? 'Save changes' : 'Confirm these details'}
           </button>
         </footer>
       </div>
@@ -459,6 +491,9 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
       setForm({
         ratings: got.evaluation?.ratings || {},
         rating_remarks: got.evaluation?.rating_remarks || {},
+        // Defaults to whoever the interview was booked against, because that
+        // is usually right - but it is typed and it is required.
+        evaluated_by: got.evaluation?.evaluated_by || got.interview?.interviewer || '',
         ...Object.fromEntries(
           ['practical_level', 'understands_role', 'software_knowledge', 'can_handle_work',
             'practical_test_required', 'practical_test_remarks', 'strengths', 'weaknesses',
@@ -539,12 +574,31 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
             <p className="muted small">{statusMeta(status)?.label} — {statusMeta(status)?.hint}</p>
           </div>
           <div className="row">
-            <button onClick={() => window.print()}>Print</button>
+            <button onClick={() => grab(`/api/hiring/interviews/${interviewId}/evaluation/print`)}>
+              Print / PDF
+            </button>
             <button className="close" onClick={onClose}>Close</button>
           </div>
         </header>
 
         <Who context={data} />
+
+        {/*
+          * Who did this interview, typed and required.
+          *
+          * Not taken from the login: this office signs in as one or two people
+          * and the person in the room is often neither of them, so the login
+          * name would put Dinesh's name on Priya's judgement.
+          */}
+        <label className="field iv-evaluator">
+          Evaluated by *
+          <input
+            value={form.evaluated_by ?? ''}
+            placeholder="Who did this interview?"
+            disabled={decided}
+            onChange={(e) => set('evaluated_by', e.target.value)}
+          />
+        </label>
 
         <Section
           title="Interview evaluation"

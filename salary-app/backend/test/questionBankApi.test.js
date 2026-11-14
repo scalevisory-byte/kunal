@@ -157,7 +157,14 @@ test('a refresh is not a second chance', async () => {
     second.body.questions.map((q) => q.id),
     first.body.questions.map((q) => q.id)
   );
-  assert.ok(second.body.seconds_left < first.body.seconds_left);
+  /*
+   * Never GOES UP, which is the actual rule. Asserting it strictly decreased
+   * was a proxy that tied under a loaded machine - both reads landing in the
+   * same rounded second - and a test that fails for being busy is a test
+   * people learn to ignore. `started_at` being unchanged is the real proof
+   * that the clock was not restarted.
+   */
+  assert.ok(second.body.seconds_left <= first.body.seconds_left);
 });
 
 test('a made-up token is a 404, never somebody else’s test', async () => {

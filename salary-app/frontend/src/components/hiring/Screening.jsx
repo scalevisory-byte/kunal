@@ -236,3 +236,93 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
     </>
   );
 }
+
+/**
+ * The verdict, on a row.
+ *
+ * Dinesh asked for these buttons "front me bhi" — on the list, without opening
+ * anybody. Eligible saves on the click, because it needs nothing else. On hold
+ * and Not eligible open one box in the row first: both are useless without a
+ * reason, and that rule is not relaxed because the control got smaller.
+ */
+export function QuickVerdict({ applicationId, screening, onSaved, onError, onToast }) {
+  const [picked, setPicked] = useState('');
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const save = async (verdict, why) => {
+    setBusy(true);
+    try {
+      await api.put(`/hiring/applications/${applicationId}/screening`, {
+        verdict,
+        ...(verdict === 'Rejected' ? { rejection_reason: why } : {}),
+        ...(verdict === 'On Hold' ? { hold_reason: why } : {}),
+      });
+      onToast?.(verdict === 'Eligible' ? 'Shortlisted' : `Marked ${verdict.toLowerCase()}`);
+      setPicked('');
+      setReason('');
+      onSaved?.();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (screening) {
+    return (
+      <span className="quick-verdict done">
+        <span className={`tag ${screening.verdict === 'Eligible' ? 'published' : ''}`}>
+          {screening.verdict}
+        </span>
+        <button className="link-like" onClick={() => setPicked('change')}>change</button>
+        {picked === 'change' ? (
+          <QuickButtons busy={busy} onPick={(v) => (v === 'Eligible' ? save(v) : setPicked(v))} />
+        ) : null}
+        {picked && picked !== 'change' ? (
+          <ReasonBox verdict={picked} reason={reason} setReason={setReason} busy={busy}
+            onSave={() => save(picked, reason)} onCancel={() => setPicked('')} />
+        ) : null}
+      </span>
+    );
+  }
+
+  return (
+    <span className="quick-verdict">
+      {picked ? (
+        <ReasonBox verdict={picked} reason={reason} setReason={setReason} busy={busy}
+          onSave={() => save(picked, reason)} onCancel={() => setPicked('')} />
+      ) : (
+        <QuickButtons busy={busy} onPick={(v) => (v === 'Eligible' ? save(v) : setPicked(v))} />
+      )}
+    </span>
+  );
+}
+
+const QuickButtons = ({ busy, onPick }) => (
+  <>
+    {VERDICTS.map((v) => (
+      <button key={v.key} className="chip tiny" disabled={busy} title={v.hint}
+        onClick={(e) => { e.stopPropagation(); onPick(v.key); }}>
+        {v.label}
+      </button>
+    ))}
+  </>
+);
+
+const ReasonBox = ({ verdict, reason, setReason, busy, onSave, onCancel }) => (
+  <span className="quick-reason" onClick={(e) => e.stopPropagation()}>
+    <input
+      autoFocus
+      list={verdict === 'Rejected' ? 'scr-reject' : 'scr-hold'}
+      placeholder={verdict === 'Rejected' ? 'Why?' : 'Waiting for?'}
+      value={reason}
+      onChange={(e) => setReason(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter' && reason.trim()) onSave(); if (e.key === 'Escape') onCancel(); }}
+    />
+    <button className="tiny primary" disabled={busy || !reason.trim()} onClick={onSave}>Save</button>
+    <button className="tiny" onClick={onCancel}>Cancel</button>
+    <datalist id="scr-reject">{REJECTION_REASONS.map((r) => <option key={r} value={r} />)}</datalist>
+    <datalist id="scr-hold">{HOLD_REASONS.map((r) => <option key={r} value={r} />)}</datalist>
+  </span>
+);

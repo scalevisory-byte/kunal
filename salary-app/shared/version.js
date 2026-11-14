@@ -20,10 +20,28 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.7.0';
+export const VERSION = '1.8.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.8.0',
+    date: '15 Nov 2026',
+    title: 'The candidate fills their own form in, and it prints properly',
+    items: [
+      '**Send the candidate the interview form before they come in.** A link on the interview row — they fill in their own particulars on their phone, and you are not typing it while they sit opposite.',
+      'That form carries **no decision and no interviewer notes** any more. It is filled in before the interview, by the candidate, so a verdict could not belong on it. Everything the interviewer judges is on the evaluation.',
+      'A **declaration** at the bottom — the candidate ticks that what they have given is true before it sends.',
+      '**A candidate cannot touch a decision.** Their page is built from a list of what they may write; anything else they send is dropped, and the decision, the notes and the whole evaluation are never even sent to them.',
+      '**Print or save as PDF, properly.** The form and the evaluation each download as a complete document with every section open. The old Print button printed only the sections that happened to be expanded.',
+      '**The evaluator’s name is now required and typed.** It is not taken from the login — the office signs in as one or two people and the person in the room is often neither.',
+      '**Languages are ticked, not picked from a list** — it was a dropdown, so only one could be chosen and it did not save as a list at all. Every short list on these forms is ticks now.',
+      '**Delete a duplicate.** An interview booked twice can be removed; one that has been written up is cancelled instead, which keeps the record.',
+      'A screening, a draft form, a draft evaluation and a draft offer can all be undone. Anything decided is withdrawn or re-decided, never deleted.',
+      '**The screening verdict is on the candidate list** — Eligible, On hold or Not eligible without opening anybody. A hold or a rejection still asks why.',
+      'An **age range** on the opening, and **date of birth and address** on the application form — the screening report works their age out from it.',
+    ],
+  },
   {
     version: '1.7.0',
     date: '15 Nov 2026',

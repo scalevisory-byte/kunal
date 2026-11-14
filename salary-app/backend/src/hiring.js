@@ -7,12 +7,21 @@ import { checkTestUrl, testFor } from '../../shared/hiringTest.js';
 import { validateVacancy } from '../../shared/vacancyForm.js';
 import { fromBand } from '../../shared/experienceBand.js';
 import {
+  ADDRESS_PARTS,
   CANDIDATE_FIELDS,
+  CANDIDATE_WRITABLE,
   QUESTION_KEYS,
   checkForm,
+  fromCandidate,
   sameAsCurrent,
-  stageForDecision,
 } from '../../shared/interviewForm.js';
+import {
+  evaluationFileName,
+  evaluationHtml,
+  interviewFormFileName,
+  interviewFormHtml,
+} from '../../shared/interviewPrint.js';
+import { makeToken, readToken } from './tokens.js';
 import {
   canMoveOffer,
   checkOffer,
@@ -505,7 +514,12 @@ export function listCandidates({ q, limit = 500, offset = 0 } = {}) {
                * exactly where they were and could not be clicked.
                */
               (SELECT a.id FROM applications a WHERE a.candidate_id = c.id
-                ORDER BY a.id DESC LIMIT 1) AS latest_application_id
+                ORDER BY a.id DESC LIMIT 1) AS latest_application_id,
+              -- ...and whether that one has been screened, so the verdict can
+              -- be set and seen on the row rather than inside a panel.
+              (SELECT s.verdict FROM screenings s
+                 JOIN applications a ON a.id = s.application_id
+                WHERE a.candidate_id = c.id ORDER BY a.id DESC LIMIT 1) AS screening_verdict
        FROM candidates c ${where} ORDER BY c.id DESC LIMIT @limit OFFSET @offset`
     )
     .all(params)
@@ -862,7 +876,8 @@ export function listInterviews({ application_id, upcoming } = {}) {
        */
       `SELECT i.*, c.name AS candidate_name, c.phone, v.title AS job_title, v.ref_no AS vacancy_ref,
               co.name AS company_name,
-              f.status AS form_status, f.decision,
+              f.status AS form_status,
+              f.candidate_filled_at, f.candidate_sent_at,
               e.status AS evaluation_status, e.recommendation
        FROM interviews i
        LEFT JOIN interview_forms f ON f.interview_id = i.id
@@ -903,6 +918,42 @@ export function createInterview(body) {
 export function updateInterview(id, body) {
   update('interviews', id, writable('interviews', body));
   return db.prepare(`SELECT * FROM interviews WHERE id = ?`).get(id);
+}
+
+/**
+ * Delete an interview, or refuse and say why.
+ *
+ * A duplicate booked by mistake is not a record of anything and goes. One that
+ * has been WRITTEN UP is - the form or the evaluation hangs off it, and both
+ * carry somebody's judgement and somebody's name. Deleting it would take them
+ * with it, which is the same rule the asset register follows: anything ever
+ * issued is written off rather than deleted.
+ *
+ * The way out for a real interview that did not happen is the status - No
+ * show, Cancelled, Rescheduled - which keeps the row and says what became
+ * of it.
+ */
+export function removeInterview(id) {
+  const form = db
+    .prepare(`SELECT status, candidate_filled_at FROM interview_forms WHERE interview_id = ?`)
+    .get(id);
+  const evaluation = db
+    .prepare(`SELECT status FROM interview_evaluations WHERE interview_id = ?`)
+    .get(id);
+
+  const written =
+    (form && (form.status === 'submitted' || form.candidate_filled_at)) ||
+    (evaluation && evaluation.status !== 'draft');
+
+  if (written) {
+    const error = new Error(
+      'This interview has been written up, so it cannot be deleted. Set it to Cancelled or No show instead — that keeps the record and says what happened.'
+    );
+    error.status = 409;
+    throw error;
+  }
+  const changes = db.prepare(`DELETE FROM interviews WHERE id = ?`).run(id).changes;
+  return { removed: changes };
 }
 
 export const deleteInterview = (id) =>
@@ -1303,7 +1354,16 @@ export function saveInterviewForm(interviewId, body = {}, { by = 'office', submi
   writeBackToCandidate(context.application.candidate_id, body);
 
   if (submit) {
-    const already = existing?.status === 'submitted';
+    /*
+     * Submitting means "these particulars are confirmed", and nothing else.
+     *
+     * This form used to end with a decision, and submitting it moved the
+     * candidate. Dinesh pointed out why that was wrong: the form is filled in
+     * BEFORE the interview, by the candidate themselves. A verdict cannot sit
+     * on a form completed before anybody has met them. The decision is on the
+     * evaluation now, where the interviewer records it afterwards - so there
+     * is no stage move here at all.
+     */
     update('interview_forms', id, {
       status: 'submitted',
       submitted_at: existing?.submitted_at || nowIso(),
@@ -1311,25 +1371,12 @@ export function saveInterviewForm(interviewId, body = {}, { by = 'office', submi
     });
     audit({
       who: by,
-      action: already ? 'changed' : 'submitted',
+      action: existing?.status === 'submitted' ? 'changed' : 'submitted',
       entity: 'interview_form',
       entity_id: id,
       label: `${context.candidate?.name} — ${context.position}, round ${context.interview.round}`,
-      field: 'decision',
-      from_value: existing?.decision || null,
-      to_value: body.decision || null,
-      note: body.decision_remarks || null,
+      note: 'particulars confirmed',
     });
-
-    const stage = stageForDecision(body.decision);
-    if (stage && context.application.stage !== stage) {
-      moveApplication(context.application.id, stage, {
-        by,
-        note: `interview round ${context.interview.round}: ${body.decision}${
-          body.rejection_reason ? ` — ${body.rejection_reason}` : ''
-        }`,
-      });
-    }
   }
 
   return getInterviewForm(interviewId);
@@ -1399,7 +1446,7 @@ export function saveEvaluation(interviewId, body = {}, { by = 'office', submit =
   const values = writable('interview_evaluations', body, {
     skip: [
       'interview_id', 'application_id', 'candidate_id', 'status', 'submitted_at',
-      'evaluated_by', 'reviewed_by', 'reviewed_at', 'review_remarks',
+      'reviewed_by', 'reviewed_at', 'review_remarks',
       'approved_by', 'approved_at',
     ],
   });
@@ -1429,7 +1476,6 @@ export function saveEvaluation(interviewId, body = {}, { by = 'office', submit =
       application_id: context.application.id,
       candidate_id: context.application.candidate_id,
       status: 'draft',
-      evaluated_by: by,
     });
   }
 
@@ -1437,7 +1483,6 @@ export function saveEvaluation(interviewId, body = {}, { by = 'office', submit =
     update('interview_evaluations', id, {
       status: 'submitted',
       submitted_at: existing?.submitted_at || nowIso(),
-      evaluated_by: existing?.evaluated_by || by,
     });
     audit({
       who: by,
@@ -1564,10 +1609,11 @@ export function interviewHistory(candidateId) {
       `SELECT i.id AS interview_id, i.at, i.round, i.round_name, i.mode, i.panel,
               i.interviewer, i.status AS interview_status,
               v.title AS job_title, co.name AS company_name,
-              f.id AS form_id, f.status AS form_status, f.decision, f.decision_remarks,
-              f.next_round, f.next_interview_date, f.rejection_reason, f.submitted_at AS form_submitted,
+              f.id AS form_id, f.status AS form_status, f.candidate_filled_at,
+              f.submitted_at AS form_submitted,
               e.id AS evaluation_id, e.status AS evaluation_status, e.recommendation,
-              e.next_action, e.ratings, e.reviewed_by, e.approved_by, e.approved_at
+              e.next_action, e.recommendation_reason, e.next_round,
+              e.ratings, e.reviewed_by, e.approved_by, e.approved_at
          FROM interviews i
          JOIN applications a ON a.id = i.application_id
          JOIN vacancies v ON v.id = a.vacancy_id
@@ -2517,8 +2563,10 @@ const INTERVIEW_SELECT = `
          a.id AS application_id, a.stage,
          c.ref_no, c.name AS candidate_name, c.phone,
          v.title AS job_title, v.department, co.name AS company_name,
-         f.decision, f.next_round, f.next_interview_date, f.next_interviewer,
-         e.recommendation, e.status AS evaluation_status
+         f.status AS form_status, f.candidate_filled_at,
+         e.recommendation, e.next_action, e.recommendation_reason,
+         e.next_round, e.next_interview_date, e.next_interviewer,
+         e.status AS evaluation_status, e.approved_at, e.approved_by
     FROM interviews i
     JOIN applications a ON a.id = i.application_id
     JOIN candidates c ON c.id = a.candidate_id
@@ -2660,10 +2708,10 @@ export function hiringReport(key, filters = {}) {
              ${joins} JOIN screenings s ON s.application_id = a.id
             WHERE s.verdict = 'Rejected' ${base}
             UNION ALL
-           ${head}, 'After the interview', f.rejection_reason,
-                  DATE(f.submitted_at), f.filled_by
-             ${joins} JOIN interview_forms f ON f.application_id = a.id
-            WHERE f.decision = 'Rejected' AND f.status = 'submitted' ${base}
+           ${head}, 'After the interview', e.recommendation_reason,
+                  DATE(COALESCE(e.approved_at, e.submitted_at)), COALESCE(e.approved_by, e.evaluated_by)
+             ${joins} JOIN interview_evaluations e ON e.application_id = a.id
+            WHERE e.next_action = 'Reject' AND e.status <> 'draft' ${base}
             UNION ALL
            ${head}, 'They declined the offer', o.decline_reason,
                   DATE(o.answered_at), o.sent_by
@@ -2688,7 +2736,7 @@ export function hiringReport(key, filters = {}) {
         db
           .prepare(
             `${INTERVIEW_SELECT}
-             ${extra} f.decision = 'Next Round' AND f.status = 'submitted'
+             ${extra} e.next_action = 'Next Round' AND e.status <> 'draft'
                AND NOT EXISTS (
                  SELECT 1 FROM interviews later
                   WHERE later.application_id = i.application_id AND later.round > i.round
@@ -2808,4 +2856,289 @@ export function hiringReport(key, filters = {}) {
     default:
       throw new Error(`there is no “${key}” report`);
   }
+}
+
+/* ---------------- the candidate fills the form in themselves ------------- */
+
+/*
+ * When they were last asked, and when they last filled it in.
+ *
+ * `candidate_filled_at` is what lets the office see, before the interview
+ * starts, whether there is anything in the form - so nobody opens it expecting
+ * it to be filled and finds it blank with somebody already sitting opposite.
+ */
+for (const [column, type] of [
+  ['candidate_filled_at', 'TEXT'],
+  ['candidate_sent_at', 'TEXT'],
+]) {
+  if (!columnsOf('interview_forms').has(column)) {
+    db.exec(`ALTER TABLE interview_forms ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated interview_forms: added ${column}.`);
+  }
+}
+
+/**
+ * A link for one candidate to fill in one interview's form.
+ *
+ * Long-lived, like the punch link, because somebody bookmarks it and opens it
+ * on the morning of the interview. It reaches that one interview and nothing
+ * else - no candidate id is ever read from the request.
+ *
+ * Creating the link also creates the form row if there is none, so the
+ * candidate has somewhere to write and the office's own button does not have
+ * to remember to make one first.
+ */
+export function candidateFormLink(interviewId, { by = 'office' } = {}) {
+  const context = interviewContext(interviewId);
+  if (!context) throw new Error('no such interview');
+
+  let row = db.prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`).get(interviewId);
+  if (!row) {
+    const id = insert('interview_forms', {
+      interview_id: interviewId,
+      application_id: context.application.id,
+      candidate_id: context.application.candidate_id,
+      status: 'draft',
+      filled_by: by,
+    });
+    row = db.prepare(`SELECT * FROM interview_forms WHERE id = ?`).get(id);
+  }
+  update('interview_forms', row.id, { candidate_sent_at: nowIso() });
+
+  return {
+    // A fortnight: long enough to be sent today and opened on the day, short
+    // enough that a forwarded link does not work for ever.
+    token: makeToken('interview-form', { i: interviewId }, { minutes: 60 * 24 * 14 }),
+    candidate: context.candidate?.name,
+    position: context.position,
+    at: context.interview.at,
+  };
+}
+
+const interviewFromToken = (token) => {
+  const payload = readToken('interview-form', token);
+  return payload?.i ? Number(payload.i) : null;
+};
+
+/**
+ * What the candidate's page is given.
+ *
+ * Their own answers so far and their own details - and NOTHING about the
+ * decision, the interviewer's notes or the evaluation. Those are not merely
+ * hidden on the page: they are never put in the response.
+ */
+export function openCandidateForm(token) {
+  const interviewId = interviewFromToken(token);
+  if (!interviewId) return null;
+  const context = interviewContext(interviewId);
+  if (!context) return null;
+  const row = readForm(
+    db.prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`).get(interviewId)
+  );
+  const candidate = context.candidate || {};
+
+  const form = {};
+  for (const key of CANDIDATE_WRITABLE) {
+    const from = CANDIDATE_FIELDS.find((f) => f.field === key);
+    form[key] = row?.[key] ?? (from ? candidate[from.column] ?? '' : '');
+  }
+  return {
+    name: candidate.name,
+    ref_no: candidate.ref_no,
+    position: context.position,
+    company: context.company,
+    at: context.interview.at,
+    round: context.interview.round,
+    round_name: context.interview.round_name,
+    submitted: Boolean(row?.candidate_filled_at),
+    form,
+    languages: row?.languages || [],
+    answers: row?.answers || {},
+    address: Object.fromEntries(
+      ['current', 'permanent'].flatMap((w) =>
+        ADDRESS_PARTS.map((p) => [`${w}_${p.key}`, candidate[`${w}_${p.key}`] ?? ''])
+      )
+    ),
+  };
+}
+
+/**
+ * Save what the candidate typed.
+ *
+ * `fromCandidate` strips the submission to the allow-list on the server,
+ * whatever the page sent - the page showing only their own sections is a
+ * convenience; this is the fence. A candidate posting a decision gets it
+ * dropped, silently and completely.
+ *
+ * It does NOT submit the office's form. The status stays a draft until
+ * somebody in the office submits it with a decision, because submitting is
+ * what records a verdict and that is never theirs to record.
+ */
+export function saveCandidateForm(token, body = {}) {
+  const interviewId = interviewFromToken(token);
+  if (!interviewId) return null;
+  const context = interviewContext(interviewId);
+  if (!context) return null;
+
+  const clean = fromCandidate(body);
+  const row = db.prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`).get(interviewId);
+  if (!row) return null;
+
+  const values = writable('interview_forms', clean, {
+    skip: ['interview_id', 'application_id', 'candidate_id', 'status', 'submitted_at', 'filled_by'],
+  });
+  if (clean.languages) values.languages = JSON.stringify(clean.languages);
+  if (clean.answers) values.answers = JSON.stringify(clean.answers);
+  values.candidate_filled_at = nowIso();
+  values.updated_at = nowIso();
+  update('interview_forms', row.id, values);
+
+  writeBackToCandidate(context.application.candidate_id, clean);
+
+  audit({
+    who: context.candidate?.name || 'candidate',
+    action: 'changed',
+    entity: 'interview_form',
+    entity_id: row.id,
+    label: `${context.candidate?.name} — ${context.position}, round ${context.interview.round}`,
+    note: 'filled in by the candidate from their own link',
+  });
+  return { saved: true };
+}
+
+/* ---------------- undoing a record made by mistake ---------------- */
+
+/*
+ * One rule across all four: A DRAFT GOES, A DECISION IS WITHDRAWN.
+ *
+ * Dinesh booked an interview twice and had no way to remove it. The same gap
+ * existed on the screening, the form, the evaluation and the offer - every one
+ * of them could be created and none could be undone, so a verdict typed
+ * against the wrong person stayed there for ever.
+ *
+ * But a decided record is not deleted. It carries somebody's name and
+ * somebody's judgement, and the reports count it: deleting an approved offer
+ * would silently change what the month's figures said last week. Those are
+ * withdrawn, cancelled or re-decided instead, which keeps the row and says
+ * what became of it - the same rule the asset register has always followed.
+ */
+
+const refuse = (message) => {
+  const error = new Error(message);
+  error.status = 409;
+  throw error;
+};
+
+/**
+ * Remove a screening verdict.
+ *
+ * Allowed even once decided, deliberately: unlike an offer, a screening is one
+ * person's opinion recorded in a minute, and "I screened the wrong candidate"
+ * is a thing that happens. The stage it moved them to is NOT moved back - that
+ * would be a second guess at what somebody meant - so the queue shows them
+ * again and the old stage is on the application's own log either way.
+ */
+export function removeScreening(applicationId) {
+  const existing = getScreening(applicationId);
+  if (!existing) return { removed: 0 };
+  const application = getApplication(applicationId);
+  db.prepare(`DELETE FROM screenings WHERE id = ?`).run(existing.id);
+  audit({
+    who: 'office',
+    action: 'deleted',
+    entity: 'screening',
+    entity_id: applicationId,
+    label: `${application?.candidate_name} — ${application?.job_title}`,
+    from_value: existing.verdict,
+    note: 'screening removed; the stage it set was left alone',
+  });
+  return { removed: 1 };
+}
+
+export function removeInterviewForm(interviewId) {
+  const row = db.prepare(`SELECT * FROM interview_forms WHERE interview_id = ?`).get(interviewId);
+  if (!row) return { removed: 0 };
+  if (row.status === 'submitted') {
+    refuse('This form has been submitted, so it cannot be deleted. Change what is wrong in it instead — every edit is on the audit trail.');
+  }
+  db.prepare(`DELETE FROM interview_forms WHERE id = ?`).run(row.id);
+  return { removed: 1 };
+}
+
+export function removeEvaluation(interviewId) {
+  const row = db
+    .prepare(`SELECT * FROM interview_evaluations WHERE interview_id = ?`)
+    .get(interviewId);
+  if (!row) return { removed: 0 };
+  if (row.status !== 'draft') {
+    refuse(`This evaluation has been submitted and is ${row.status.replace('_', ' ')}. It cannot be deleted — reject it or put it on hold instead, which keeps who said what.`);
+  }
+  db.prepare(`DELETE FROM interview_evaluations WHERE id = ?`).run(row.id);
+  return { removed: 1 };
+}
+
+export function removeOffer(applicationId) {
+  const row = getOffer(applicationId);
+  if (!row) return { removed: 0 };
+  if (row.status !== 'draft') {
+    refuse('This offer has been approved, so it cannot be deleted. Withdraw it instead — an offer that was made is a thing that happened.');
+  }
+  db.prepare(`DELETE FROM job_offers WHERE id = ?`).run(row.id);
+  return { removed: 1 };
+}
+
+/* ---------------- the printable documents ---------------- */
+
+/*
+ * Built on the server, not printed off the panel.
+ *
+ * The panel is collapsible sections, so window.print() prints whatever
+ * happened to be open and silently drops the rest - which is exactly what
+ * Dinesh found when he tried to hand one to somebody.
+ */
+export function interviewFormDocument(interviewId) {
+  const found = getInterviewForm(interviewId);
+  if (!found) return null;
+  const context = {
+    company: found.company,
+    position: found.position,
+    department: found.department,
+    round: found.interview.round,
+    round_name: found.interview.round_name,
+    at: found.interview.at,
+    interviewer: found.interview.interviewer,
+    candidate_name: found.candidate?.name,
+  };
+  return {
+    filename: interviewFormFileName(context),
+    html: interviewFormHtml({
+      context,
+      form: found.form || {},
+      candidate: getCandidate(found.application.candidate_id) || {},
+      references: found.references || [],
+    }),
+  };
+}
+
+export function evaluationDocument(interviewId) {
+  const found = getEvaluation(interviewId);
+  if (!found?.evaluation) return null;
+  const context = {
+    company: found.company,
+    position: found.position,
+    department: found.department,
+    round: found.interview.round,
+    round_name: found.interview.round_name,
+    at: found.interview.at,
+    interviewer: found.interview.interviewer,
+    candidate_name: found.candidate?.name,
+  };
+  return {
+    filename: evaluationFileName(context),
+    html: evaluationHtml({
+      context,
+      evaluation: found.evaluation,
+      candidate: getCandidate(found.application.candidate_id) || {},
+    }),
+  };
 }

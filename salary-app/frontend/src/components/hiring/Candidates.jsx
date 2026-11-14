@@ -1,3 +1,4 @@
+import { QuickVerdict } from './Screening.jsx';
 import { useState } from 'react';
 
 const BLANK = {
@@ -19,7 +20,7 @@ const BLANK = {
 };
 
 /** Everybody who has ever applied for anything, kept for the next opening. */
-export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport, onOpenApplication}) {
+export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport, onOpenApplication, onReload, onError, onToast}) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(BLANK);
   const [error, setError] = useState('');
@@ -118,6 +119,7 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
               <th>Expected</th>
               <th>Skills</th>
               <th>Where they are</th>
+              <th>Screening</th>
               <th>CV</th>
               <th>Added</th>
             </tr>
@@ -177,6 +179,23 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
                   * A way to OPEN it, not the word "yes". Clicking it must not
                   * also open the row behind it.
                   */}
+                {/*
+                  * The verdict, on the row. Dinesh asked for these buttons
+                  * "front me bhi" - on the list, without opening anybody.
+                  */}
+                <td className="small" onClick={(e) => e.stopPropagation()}>
+                  {c.latest_application_id ? (
+                    <QuickVerdict
+                      applicationId={c.latest_application_id}
+                      screening={c.screening_verdict ? { verdict: c.screening_verdict } : null}
+                      onSaved={onReload}
+                      onError={onError}
+                      onToast={onToast}
+                    />
+                  ) : (
+                    <span className="muted">not on an opening</span>
+                  )}
+                </td>
                 <td className="small">
                   {c.has_cv ? (
                     <button

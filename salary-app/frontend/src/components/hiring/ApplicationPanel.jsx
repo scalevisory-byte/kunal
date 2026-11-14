@@ -181,6 +181,17 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
     }
   };
 
+  const dropInterview = async (id) => {
+    if (!window.confirm('Delete this interview? This cannot be undone.')) return;
+    try {
+      await api.del(`/hiring/interviews/${id}`);
+      onToast('Interview deleted');
+      await load();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   const move = async (stage) => {
     try {
       const res = await api.post(`/hiring/applications/${applicationId}/stage`, { stage });
@@ -378,6 +389,16 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                   </span>
                   <span className="small num">{String(i.at).replace('T', ' ').slice(0, 16)}</span>
                   <span className="small muted">{i.status}</span>
+                  {/*
+                    * Dinesh booked the same interview twice and had no way to
+                    * remove it. The server decides what may go: a duplicate
+                    * nobody wrote up is not a record of anything, one that has
+                    * been written up is, and the refusal says to cancel it
+                    * instead.
+                    */}
+                  <button className="danger tiny" onClick={() => dropInterview(i.id)}>
+                    Delete
+                  </button>
                 </div>
               ))}
             </div>

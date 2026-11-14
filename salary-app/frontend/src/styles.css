@@ -3489,3 +3489,54 @@ tr.retired td { opacity: 0.55; }
   margin-top: 0.6rem;
 }
 .rep-filters .field { margin: 0; min-width: 9rem; }
+
+/*
+ * The screening verdict on a list row.
+ *
+ * Small enough to live in a column, and the reason box replaces the buttons in
+ * place rather than opening anything - the whole point was not having to leave
+ * the list.
+ */
+.quick-verdict { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+.quick-verdict .chip.tiny { padding: 0.08rem 0.4rem; font-size: 0.7rem; }
+.quick-reason { display: inline-flex; gap: 0.25rem; align-items: center; }
+.quick-reason input { min-width: 9rem; font-size: 0.75rem; padding: 0.1rem 0.3rem; }
+button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
+
+/*
+ * A short list of choices, ticked rather than opened.
+ *
+ * Used wherever a field has four options or fewer - the speaking bands, the
+ * software bands, Yes/No - because a dropdown for four things is two taps and
+ * a hidden menu where one tap would do.
+ */
+.iv-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; padding-top: 0.15rem; }
+.iv-chips .chip { padding: 0.18rem 0.55rem; font-size: 0.78rem; }
+
+/*
+ * The declaration at the foot of the particulars form.
+ *
+ * The checkbox is handed back to the browser explicitly: the global
+ * `input, select` rule gives everything a border, a background and padding,
+ * which on a checkbox replaces the native tick with an empty box. Third time
+ * that trap has been hit here - the Settings panel and the sign-in screen
+ * before this.
+ */
+.sit-declare {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.8rem 0;
+  font-size: 0.85rem;
+}
+.sit-declare input[type='checkbox'] {
+  all: revert;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+.iv-declaration { padding: 0.7rem 0; border-top: 1px solid var(--line); }
+
+/* Who did the interview — asked first, because it is required. */
+.iv-evaluator { max-width: 20rem; padding-bottom: 0.4rem; }
