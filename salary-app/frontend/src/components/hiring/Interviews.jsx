@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
+import ProcessSteps from './ProcessSteps.jsx';
 
-export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError, onToast }) {
+export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onReload, onError, onToast, onGo}) {
   const [link, setLink] = useState(null);
 
   /*
@@ -48,7 +49,16 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="card scroll">
+    <>
+      {/*
+        * The process, on the tab where most of it happens. Dinesh asked for it
+        * in simple steps - and each one names the tab and the click, because
+        * "screen the candidate" is no use to somebody who cannot find the
+        * button.
+        */}
+      <ProcessSteps onGo={onGo} />
+
+      <div className="card scroll">
       <h2>Interviews</h2>
       <table className="sheet hiring-table">
         <thead>
@@ -173,6 +183,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
       {!interviews.length ? (
         <p className="empty">Nothing scheduled. Interviews are booked from a candidate&apos;s card.</p>
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }

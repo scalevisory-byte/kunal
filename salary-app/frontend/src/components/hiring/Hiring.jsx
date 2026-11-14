@@ -282,6 +282,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           onOpen={setOpenApplication}
           onForm={setOpenForm}
           onEvaluate={setOpenEvaluation}
+          onGo={setView}
           onToast={say}
           onReload={load}
           onError={onError}

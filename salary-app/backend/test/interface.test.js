@@ -1835,3 +1835,49 @@ test('a panel header is a row, and nothing scrolls past above it', () => {
   assert.match(panel[0], /padding: 0 1\.1rem 4rem/);
   assert.match(rule[0], /padding: 1rem 0 0\.6rem/);
 });
+
+test('the interview process is shown as steps, on the tab where it happens', () => {
+  const steps = fs.readFileSync(path.join(here, '../../shared/hiringSteps.js'), 'utf8');
+  const strip = src('components/hiring/ProcessSteps.jsx');
+  const tab = src('components/hiring/Interviews.jsx');
+
+  assert.match(tab, /<ProcessSteps onGo=\{onGo\} \/>/);
+
+  /*
+   * Every step names WHERE it is done and the click, because "screen the
+   * candidate" is no use to somebody who cannot find the button - and the
+   * label is also the way there.
+   */
+  assert.match(strip, /onGo\(s\.tab \|\| tabFor\(s\.where\)\)/);
+  for (const field of ['where:', 'how:', 'note:']) {
+    assert.ok(steps.includes(field), `the steps carry no ${field}`);
+  }
+
+  /*
+   * The traps are on the list, set apart. Each of these cost a bug to learn,
+   * and running them in with the prose is how they get skimmed past.
+   */
+  assert.match(steps, /advice, not a gate/);
+  assert.match(steps, /moves the paperwork, never the candidate/);
+  assert.match(steps, /no letter at all until somebody has approved it/);
+
+  // Folded away with state, never an uncontrolled <details>: this tab reloads
+  // itself and a details element resets when React re-renders around it.
+  const code = strip.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/<details/.test(code));
+  // ...and reading the preference cannot take the page down in a private
+  // window, where even touching localStorage throws.
+  assert.match(strip, /catch \{/);
+});
+
+test('four buttons on an interview row wrap rather than fall off the table', () => {
+  /*
+   * "Read what they sent" is a wide label, and with four actions the last
+   * button was cut off at the right edge. A button you cannot reach is a
+   * button that does not exist.
+   */
+  const rule = css.match(/\.row-actions \{[^}]*\}/);
+  assert.match(rule[0], /flex-wrap: wrap/);
+  assert.ok(!/white-space: nowrap/.test(rule[0]), 'the row still refuses to wrap');
+  assert.match(css, /\.row-actions button \{ white-space: nowrap; \}/);
+});

@@ -40,6 +40,7 @@ export const CHANGELOG = [
       'A screening, a draft form, a draft evaluation and a draft offer can all be undone. Anything decided is withdrawn or re-decided, never deleted.',
       '**The screening verdict is on the candidate list** — Eligible, On hold or Not eligible without opening anybody. A hold or a rejection still asks why.',
       'An **age range** on the opening, and **date of birth and address** on the application form — the screening report works their age out from it.',
+      '**“How an interview goes” on the Interviews tab** — the nine steps in order, each naming the tab and the click, and what that step does NOT do. Fold it away once you know it.',
       '**A form a candidate sends back announces itself.** The overview says how many are waiting to be read and names them, and the interview row’s button changes to “Read what they sent”.',
     ],
   },
