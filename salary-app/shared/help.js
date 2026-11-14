@@ -475,6 +475,23 @@ export const HELP = [
     note: 'Nothing moves on its own — no auto-advance, no auto-reject. The match score orders a list and a test result is one more thing to weigh. Hiring needs the server: an apply link cannot live in a file on a laptop.',
   },
   {
+    id: 'hiring-test',
+    title: 'The written test — questions, papers and the link',
+    tab: 'hiring',
+    keywords: [
+      'test', 'exam', 'question', 'paper', 'aptitude', 'mcq', 'marks', 'score',
+      'pariksha', 'sawal', 'prashn', 'question bank', 'starter',
+    ],
+    lines: [
+      'Tests → **Ready-made questions** fills an empty bank in one click — general aptitude, computer knowledge, email and internet, English, and ten each for Travel Consultant and Accounts. It also sets up the twenty-question paper: fifteen general, five for the seat, about thirty seconds each, so ten minutes.',
+      'Pressing it again adds only what is missing, so a question you have reworded is never put back. Every question is yours to **edit or remove**.',
+      'A **paper** says how many questions to draw from each position or topic. Add your own questions under a new position and a paper can draw from it.',
+      'A test is handed out from the **candidate’s own application**, not from here — that is where somebody is deciding about one person. The link is theirs and works once.',
+      'It marks itself and the score shows on the candidate.',
+    ],
+    note: 'The clock runs on the WHOLE paper, not on each question — thirty seconds is the pace, not a cut-off. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
+  },
+  {
     id: 'settings',
     title: 'Settings — the month\u2019s rules and the usual day',
     tab: 'admin',

@@ -34,6 +34,11 @@ import {
   stageForVerdict,
 } from '../../shared/screening.js';
 import {
+  STARTER_BY_POSITION,
+  STARTER_QUESTIONS,
+  starterPaper,
+} from '../../shared/starterQuestions.js';
+import {
   checkPaper,
   checkQuestion,
   drawPaper,
@@ -1870,6 +1875,95 @@ export function savePaper(body = {}) {
     })
   );
   return getPaper(id);
+}
+
+/**
+ * Fill an empty bank, and make the twenty-question paper.
+ *
+ * Dinesh asked for a twenty-question test at thirty seconds a question, with
+ * five of them drawn for the seat being hired for. An empty bank cannot draw
+ * anything, and sixty questions is not something anybody types into a web form
+ * - so they ship with the app and arrive through a button in the Tests tab.
+ * A button, not a script: the server is a Windows box reached over AnyDesk and
+ * anything needing a command line is something he would have to ask for.
+ *
+ * It ADDS, it never replaces. A question already in the bank is left exactly
+ * as it is - matched on its text, so a wording he has corrected is not quietly
+ * reverted by pressing the button again. Same for the paper: an existing paper
+ * of that name is left alone and reported as already there, because its
+ * sections may have been tuned.
+ *
+ * Nothing is assigned to anybody. Loading questions is not setting a test -
+ * that is still a vacancy pointing at a paper, and a person being sent a link.
+ */
+/**
+ * What the starter bank holds - NAMES AND COUNTS ONLY.
+ *
+ * The questions themselves must never reach a browser, and that is why this
+ * exists at all: importing shared/starterQuestions.js into the dashboard would
+ * put all sixty-four questions AND THEIR ANSWERS into the one JavaScript
+ * bundle, which a candidate sitting a test downloads like everybody else. The
+ * candidate's copy of a question is built field by field without `correct` for
+ * exactly this reason; handing over the answer key in the bundle would walk
+ * straight around it.
+ */
+export function starterSummary() {
+  const have = new Set(
+    db.prepare(`SELECT question FROM question_bank`).all().map((r) => String(r.question).trim())
+  );
+  const missing = (list) => list.filter((q) => !have.has(q.question.trim())).length;
+  return {
+    general: { total: STARTER_QUESTIONS.length, missing: missing(STARTER_QUESTIONS) },
+    positions: Object.entries(STARTER_BY_POSITION).map(([name, list]) => ({
+      name,
+      total: list.length,
+      missing: missing(list),
+    })),
+  };
+}
+
+export function loadStarterQuestions({ position = '', by = 'office' } = {}) {
+  const seat = String(position || '').trim();
+  const wanted = [...STARTER_QUESTIONS, ...(seat ? STARTER_BY_POSITION[seat] || [] : [])];
+
+  const have = new Set(
+    db.prepare(`SELECT question FROM question_bank`).all().map((r) => String(r.question).trim())
+  );
+
+  let added = 0;
+  const run = db.transaction(() => {
+    for (const q of wanted) {
+      if (have.has(q.question.trim())) continue;
+      insert('question_bank', { ...q, active: 1, created_by: by });
+      have.add(q.question.trim());
+      added += 1;
+    }
+  });
+  run();
+
+  /* The paper: only if one of that name is not already there. */
+  const wantedPaper = starterPaper(seat && STARTER_BY_POSITION[seat] ? seat : '');
+  const existing = db
+    .prepare(`SELECT id FROM test_papers WHERE lower(name) = lower(?)`)
+    .get(wantedPaper.name);
+  const paper = existing ? getPaper(existing.id) : savePaper({ ...wantedPaper, created_by: by });
+
+  if (added) {
+    audit({
+      who: by, action: 'created', entity: 'question_bank', entity_id: null,
+      label: seat ? `starter questions (${seat})` : 'starter questions',
+      note: `${added} question${added === 1 ? '' : 's'} added`,
+    });
+  }
+
+  return {
+    added,
+    skipped: wanted.length - added,
+    total: db.prepare(`SELECT COUNT(*) n FROM question_bank WHERE active = 1`).get().n,
+    paper,
+    paper_existed: !!existing,
+    positions: Object.keys(STARTER_BY_POSITION),
+  };
 }
 
 export const deletePaper = (id) =>

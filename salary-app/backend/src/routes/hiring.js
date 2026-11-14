@@ -34,6 +34,8 @@ import {
   listAttempts,
   listCandidates,
   listCategories,
+  loadStarterQuestions,
+  starterSummary,
   listInterviews,
   listPapers,
   listQuestions,
@@ -657,6 +659,23 @@ hiringRouter.get('/bank/questions', (req, res) =>
 hiringRouter.put('/bank/questions', (req, res) => {
   try {
     res.json(saveQuestion(req.body || {}, { by: actorName(req) }));
+  } catch (err) {
+    sendProblem(res, err);
+  }
+});
+
+/*
+ * The starter bank.
+ *
+ * A fresh install has no questions, so a paper can draw nothing and the whole
+ * test module reads as broken. This fills it from what ships with the app. It
+ * adds only what is not already there, so it is safe to press twice.
+ */
+hiringRouter.get('/bank/starter', (req, res) => res.json(starterSummary()));
+
+hiringRouter.post('/bank/starter', (req, res) => {
+  try {
+    res.json(loadStarterQuestions({ position: req.body?.position || '', by: actorName(req) }));
   } catch (err) {
     sendProblem(res, err);
   }

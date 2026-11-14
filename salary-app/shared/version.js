@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.8.0';
+export const VERSION = '1.8.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.8.1',
+    date: '14 Nov 2026',
+    title: 'A test that is ready to give on the first day',
+    items: [
+      '**Sixty-four questions come with the app.** Tests → “Ready-made questions” fills the bank in one click: general aptitude, computer knowledge, email and internet, and English, plus ten each for Travel Consultant and Accounts.',
+      '**The paper is set up for you too** — twenty questions, fifteen general and five for the seat being hired for, at about thirty seconds a question, so ten minutes in all. Pass mark 50%.',
+      '**Pressing the button twice is safe.** It only adds what is missing, matched on the question, so a question you have reworded is never put back the way it was. Every one of them is yours to edit or remove.',
+      'The clock runs on the whole paper, not on each question — the candidate’s screen says so, so nobody rushes an answer thinking they are about to be cut off.',
+      'Each candidate still gets a **different draw and a different order of answers**, and the answer key never reaches their screen.',
+    ],
+  },
   {
     version: '1.8.0',
     date: '15 Nov 2026',

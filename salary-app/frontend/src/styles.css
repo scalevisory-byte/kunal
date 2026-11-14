@@ -3647,3 +3647,16 @@ button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
 @media (min-width: 60rem) {
   .steps { grid-template-columns: 1fr 1fr; column-gap: 1.6rem; }
 }
+
+/* The ready-made question sets, offered above the bank while it is thin. */
+.starter-card { margin-bottom: 0.7rem; }
+.starter-card h3 { margin: 0 0 0.2rem; font-size: 0.95rem; }
+.starter-card p { margin: 0 0 0.5rem; }
+.starter-card .chips { margin-bottom: 0.5rem; }
+.starter-card .note {
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border-left: 2px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--muted);
+}

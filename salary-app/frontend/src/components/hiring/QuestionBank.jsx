@@ -21,17 +21,22 @@ export default function QuestionBank({ companies, onError, onToast }) {
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState(null);
   const [paper, setPaper] = useState(null);
+  const [starter, setStarter] = useState(null);
+  const [loading, setLoading] = useState('');
 
   const load = async () => {
     try {
-      const [{ categories: cats }, { questions: qs }, { papers: ps }] = await Promise.all([
+      const [{ categories: cats }, { questions: qs }, { papers: ps }, ready] = await Promise.all([
         api.get('/hiring/bank/categories'),
         api.get(`/hiring/bank/questions${filter ? `?category=${encodeURIComponent(filter)}` : ''}`),
         api.get('/hiring/papers'),
+        /* Names and counts only - the questions themselves stay on the server. */
+        api.get('/hiring/bank/starter'),
       ]);
       setCategories(cats);
       setQuestions(qs);
       setPapers(ps);
+      setStarter(ready);
     } catch (err) {
       onError(err);
     }
@@ -75,6 +80,32 @@ export default function QuestionBank({ companies, onError, onToast }) {
     }
   };
 
+  /*
+   * Load the questions that ship with the app.
+   *
+   * It only ever ADDS - a question already there is left exactly as it is,
+   * matched on its text, so a wording the office has corrected is not quietly
+   * reverted. Which is why there is no "are you sure": there is nothing to
+   * lose by pressing it twice.
+   */
+  const addStarter = async (position) => {
+    setLoading(position || 'general');
+    try {
+      const out = await api.post('/hiring/bank/starter', { position });
+      const made = out.paper_existed ? `“${out.paper.name}” was already set up` : `“${out.paper.name}” paper created`;
+      onToast(
+        out.added
+          ? `${out.added} question${out.added === 1 ? '' : 's'} added — ${made}`
+          : `Already there — nothing to add. ${made}.`
+      );
+      await load();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setLoading('');
+    }
+  };
+
   const savePaper = async (body) => {
     try {
       await api.put('/hiring/papers', body);
@@ -99,6 +130,12 @@ export default function QuestionBank({ companies, onError, onToast }) {
           )}
         </div>
         <span className="spacer" />
+        {/*
+          * No "add the ready-made ones" button up here: the strip below says
+          * the same thing with the counts on it and sits where somebody is
+          * already looking. Two buttons for one action is how the Vacancies
+          * tab ended up with two "+ New vacancy".
+          */}
         {view === 'questions' ? (
           <button className="primary" onClick={() => setEditing({ marks: 1, negative_marks: 0, active: 1 })}>
             + Add question
@@ -112,6 +149,51 @@ export default function QuestionBank({ companies, onError, onToast }) {
           </button>
         )}
       </div>
+
+      {view === 'questions' && starter && (starter.general.missing || starter.positions.some((p) => p.missing)) ? (
+        <div className="card starter-card">
+          <h3>Ready-made questions</h3>
+          <p className="muted small">
+            A twenty-question test: fifteen general — aptitude, computer, email and internet,
+            English — and five for the seat being hired for, at about thirty seconds a question.
+            These come with the app so the bank is not empty on day one. Adding them also sets up
+            the paper. Anything already here is left exactly as it is, so pressing a button twice
+            is safe, and every question is yours to edit or remove afterwards.
+          </p>
+          <div className="chips">
+            <button
+              className={starter.general.missing ? 'primary' : ''}
+              disabled={!!loading || !starter.general.missing}
+              onClick={() => addStarter('')}
+            >
+              {loading === 'general'
+                ? 'Adding…'
+                : starter.general.missing
+                  ? `General — add ${starter.general.missing} of ${starter.general.total}`
+                  : `General — all ${starter.general.total} here`}
+            </button>
+            {starter.positions.map((pos) => (
+              <button
+                key={pos.name}
+                disabled={!!loading || !pos.missing}
+                onClick={() => addStarter(pos.name)}
+              >
+                {loading === pos.name
+                  ? 'Adding…'
+                  : pos.missing
+                    ? `${pos.name} — add ${pos.missing} of ${pos.total}`
+                    : `${pos.name} — all ${pos.total} here`}
+              </button>
+            ))}
+          </div>
+          <p className="note small">
+            The clock runs on the whole paper — twenty questions, ten minutes — not on each
+            question separately. So somebody can spend a minute on one and ten seconds on the
+            next, and the candidate's screen says so. A hard thirty-second cut-off per question,
+            with no going back, is a different kind of test; ask and it can be built.
+          </p>
+        </div>
+      ) : null}
 
       {view === 'questions' ? (
         <div className="card scroll">
