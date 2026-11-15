@@ -59,10 +59,22 @@ export default function SitTest({ token }) {
   /* One at a time: which question is on screen, and its own clock. */
   const [at, setAt] = useState(() => recall(token)?.at || 0);
   const [qLeft, setQLeft] = useState(null);
+  /* How many times they left the page, and whether they just came back. */
+  const [leftCount, setLeftCount] = useState(0);
+  const [justBack, setJustBack] = useState(false);
+  /*
+   * Seconds spent on each question.
+   *
+   * His results screen reads "avg 10s/Q" and flags "11 answers under 2s" -
+   * somebody clicking through without reading. It is a FLAG, not a verdict:
+   * a fast answer can be a known answer, and the office decides.
+   */
+  const timesRef = useRef({});
   // The submit has to be reachable from the timer without re-running it every
   // tick, and a double submit must be impossible even if both fire at once.
   const sent = useRef(false);
   const answersRef = useRef({});
+  const leftRef = useRef(0);
 
   useEffect(() => {
     api.public
@@ -82,6 +94,10 @@ export default function SitTest({ token }) {
     answersRef.current = answers;
   }, [answers]);
 
+  useEffect(() => {
+    leftRef.current = leftCount;
+  }, [leftCount]);
+
   /* Written on every change, so a reload picks up where they were. */
   useEffect(() => {
     if (!done) keep(token, { answers, at });
@@ -95,6 +111,8 @@ export default function SitTest({ token }) {
       const out = await api.public.post(`/sit/${token}`, {
         answers: answersRef.current,
         auto,
+        left_count: leftRef.current,
+        times: timesRef.current,
       });
       setDone({ done: true, ...out, just_finished: true, auto });
       try {
@@ -130,6 +148,30 @@ export default function SitTest({ token }) {
     }
   };
 
+  /*
+   * Leaving the test is RECORDED, never punished.
+   *
+   * His ZYNTA test says "time per question, tab switches and copy/paste are
+   * recorded" and shows a red line when somebody comes back. That is the
+   * right shape and the same one this app already uses for a punch outside
+   * the office fence: note it, show it, let the person carry on. Blocking
+   * would fail somebody whose phone rang.
+   *
+   * It counts, it does not accuse - the office sees a number beside the
+   * score and decides what it is worth.
+   */
+  useEffect(() => {
+    if (!paper?.started || done) return undefined;
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') {
+        setLeftCount((n) => n + 1);
+        setJustBack(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [paper?.started, done]);
+
   const one = !!paper?.one_at_a_time;
   const perQuestion = Number(paper?.seconds_per_question) || 30;
 
@@ -146,14 +188,26 @@ export default function SitTest({ token }) {
     atRef.current = at;
   }, [at]);
 
+  /* The countdown, where the timer can read it without re-arming. */
+  const qLeftRef = useRef(null);
+  useEffect(() => {
+    qLeftRef.current = qLeft;
+  }, [qLeft]);
+
   const next = () => {
     if (!paper) return;
+    /* Bank the time this question took before moving off it. */
+    const q = paper.questions[atRef.current];
+    if (q && timesRef.current[q.id] === undefined) {
+      timesRef.current[q.id] = Math.max(0, perQuestion - (qLeftRef.current ?? 0));
+    }
     if (atRef.current + 1 >= paper.questions.length) {
       submit(false);
       return;
     }
     setAt((n) => n + 1);
     setQLeft(perQuestion);
+    setJustBack(false);
   };
 
   /* The first question's clock starts once the paper is on screen. */
@@ -320,17 +374,17 @@ export default function SitTest({ token }) {
             * stays underneath, smaller, because it is still what decides
             * whether the paper came back in time.
             */}
-          <div className={(one ? qLeft <= 5 : low) ? 'sit-clock low' : 'sit-clock'}>
-            {one ? (qLeft === null ? '' : `${qLeft}s`) : left === null ? '' : mmss(left)}
+          <div className={low ? 'sit-clock low' : 'sit-clock'}>
+            {left === null ? '' : mmss(left)}
             <span className="muted small">
               {one
-                ? `${left === null ? '' : mmss(left)} left in all`
+                ? 'left in all'
                 : `${answered} of ${paper.questions.length} answered`}
             </span>
           </div>
         </header>
 
-        {paper.instructions ? <p className="sit-note">{paper.instructions}</p> : null}
+        {paper.instructions && !one ? <p className="sit-note">{paper.instructions}</p> : null}
 
         {one ? (
           /*
@@ -346,36 +400,51 @@ export default function SitTest({ token }) {
             * somebody else's thirty seconds.
             */
           <>
-            <p className="muted small">
-              One question at a time. Each has {paper.seconds_per_question} seconds — when they
-              run out the next one comes up by itself, so you cannot go back. Leaving a question
-              blank costs you nothing extra.
-            </p>
-
-            <div className="sit-progress">
-              <span style={{ width: `${((at + 1) / paper.questions.length) * 100}%` }} />
+            {/*
+              * Laid out the way his ZYNTA test is, because that is the one
+              * his candidates already recognise: the question's own time as
+              * a bar that drains, the topic above the question, a Next
+              * button rather than a tap that jumps, and how far through they
+              * are along the bottom.
+              */}
+            <div className="sit-qtime">
+              <span className="muted small">Time for this question</span>
+              <span className="sit-bar">
+                <span
+                  className={qLeft !== null && qLeft <= 5 ? 'low' : ''}
+                  style={{ width: `${Math.max(0, ((qLeft ?? 0) / perQuestion) * 100)}%` }}
+                />
+              </span>
+              <strong className={qLeft !== null && qLeft <= 5 ? 'low' : ''}>
+                {qLeft === null ? '' : `${qLeft}s`}
+              </strong>
             </div>
+
+            {justBack ? (
+              <p className="banner bad">
+                You left the test — this has been recorded. Please carry on.
+              </p>
+            ) : null}
 
             {(() => {
               const q = paper.questions[at];
               if (!q) return null;
+              const picked = answers[q.id];
               return (
                 <div className="sit-q" key={q.id}>
-                  <p className="sit-qtext">
-                    <strong>{q.n}.</strong> {q.question}
+                  <p className="sit-tag">
+                    Q{q.n} / {paper.questions.length}
+                    {q.category ? ` · ${q.category}` : ''}
                   </p>
+                  <p className="sit-qtext">{q.question}</p>
                   <div className="sit-options">
                     {q.options.map((o) => (
                       <button
                         key={o.key}
-                        className={answers[q.id] === o.key ? 'sit-option picked' : 'sit-option'}
-                        onClick={() => {
-                          setAnswers((a) => ({ ...a, [q.id]: o.key }));
-                          /* Answering moves straight on, like his does. The
-                           * clock for this one is over either way. */
-                          next();
-                        }}
+                        className={picked === o.key ? 'sit-option picked' : 'sit-option'}
+                        onClick={() => setAnswers((a) => ({ ...a, [q.id]: o.key }))}
                       >
+                        <span className="sit-dot">{picked === o.key ? '●' : '○'}</span>
                         {o.text}
                       </button>
                     ))}
@@ -387,15 +456,18 @@ export default function SitTest({ token }) {
             {error ? <p className="banner bad">{error}</p> : null}
 
             <footer className="sit-foot">
-              <span className="muted small">
-                Question {at + 1} of {paper.questions.length}
+              <span className="sit-bar wide">
+                <span style={{ width: `${(answered / paper.questions.length) * 100}%` }} />
               </span>
-              <button disabled={sending} onClick={next}>
+              <span className="muted small">
+                {answered} / {paper.questions.length}
+              </span>
+              <button className="primary" disabled={sending} onClick={next}>
                 {at + 1 >= paper.questions.length
                   ? sending
                     ? 'Sending…'
                     : 'Finish'
-                  : 'Skip this one'}
+                  : 'Next →'}
               </button>
             </footer>
           </>

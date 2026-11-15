@@ -309,6 +309,8 @@ publicRouter.post('/sit/:token', (req, res) => {
   try {
     const out = submitAttempt(req.params.token, req.body?.answers || {}, {
       auto: Boolean(req.body?.auto),
+      left_count: req.body?.left_count,
+      times: req.body?.times,
     });
     return out ? res.json(out) : res.status(404).json({ error: 'no such test' });
   } catch (err) {

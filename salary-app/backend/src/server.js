@@ -19,6 +19,7 @@ import { publicRouter } from './routes/public.js';
 import { attendanceSelfRouter } from './routes/attendanceSelf.js';
 import { punchRouter } from './routes/punch.js';
 import { companiesRouter } from './routes/companies.js';
+import { VERSION } from '../../shared/version.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
 import { employeesRouter } from './routes/employees.js';
@@ -42,7 +43,15 @@ export function createServer() {
   app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
   // Unauthenticated: lets a load balancer or Railway health check reach the app.
-  app.get('/healthz', (req, res) => res.json({ ok: true }));
+  /*
+   * The version, where it can be read WITHOUT signing in.
+   *
+   * Three afternoons were spent on a bug that had already been fixed,
+   * because there was no way to answer "which build is actually running?"
+   * except by signing in and reading the rail. Open /healthz in the browser
+   * and it says.
+   */
+  app.get('/healthz', (req, res) => res.json({ ok: true, version: VERSION }));
 
   /*
    * The hiring module has the only two unauthenticated surfaces in this app:

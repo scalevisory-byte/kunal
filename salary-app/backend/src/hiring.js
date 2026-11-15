@@ -1838,6 +1838,16 @@ db.exec(`
  * remain exactly as they were; nothing already configured changes because this
  * column appeared.
  */
+/* How many times somebody left the page, for attempts made before it counted. */
+if (!columnsOf('test_attempts').has('left_count')) {
+  db.exec(`ALTER TABLE test_attempts ADD COLUMN left_count INTEGER NOT NULL DEFAULT 0`);
+  log.info('Migrated test_attempts: added left_count.');
+}
+if (!columnsOf('test_attempts').has('times')) {
+  db.exec(`ALTER TABLE test_attempts ADD COLUMN times TEXT NOT NULL DEFAULT '{}'`);
+  log.info('Migrated test_attempts: added times.');
+}
+
 /* One-question-at-a-time, for papers made before the mode existed. */
 for (const [column, type] of [
   ['one_at_a_time', 'INTEGER NOT NULL DEFAULT 0'],
@@ -2139,7 +2149,14 @@ export function paperReadiness(paperId) {
 /* ---------------- sitting the test ---------------- */
 
 const readAttempt = (row) =>
-  row ? { ...row, drawn: json(row.drawn, []), answers: json(row.answers, {}) } : null;
+  row
+    ? {
+        ...row,
+        drawn: json(row.drawn, []),
+        answers: json(row.answers, {}),
+        times: json(row.times, {}),
+      }
+    : null;
 
 /**
  * Give one candidate a paper of their own.
@@ -2350,7 +2367,11 @@ export function startAttempt(token) {
  *
  * It cannot be submitted twice. The first answers are the answers.
  */
-export function submitAttempt(token, answers = {}, { auto = false } = {}) {
+export function submitAttempt(
+  token,
+  answers = {},
+  { auto = false, left_count = 0, times = {} } = {}
+) {
   const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
   if (!row) return null;
   const attempt = readAttempt(row);
@@ -2374,6 +2395,9 @@ export function submitAttempt(token, answers = {}, { auto = false } = {}) {
     right_count: marked.right,
     wrong_count: marked.wrong,
     skipped_count: marked.skipped,
+    /* How it was sat, beside what it scored. */
+    left_count: Math.max(0, Number(left_count) || 0),
+    times: JSON.stringify(times && typeof times === 'object' ? times : {}),
   });
 
   /*

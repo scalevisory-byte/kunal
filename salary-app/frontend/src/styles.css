@@ -3704,3 +3704,21 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
 /* What the test is, before the clock exists. */
 .sit-rules { margin: 0 0 1rem; padding-left: 1.1rem; }
 .sit-rules li { margin: 0.35rem 0; }
+
+/* The question's own clock, drawn the way his ZYNTA test draws it. */
+.sit-qtime { display: flex; align-items: center; gap: 0.7rem; margin: 0.2rem 0 1rem; }
+.sit-qtime strong { font-variant-numeric: tabular-nums; min-width: 2.6rem; text-align: right; }
+.sit-qtime strong.low { color: var(--bad); }
+.sit-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--line-soft); overflow: hidden; }
+.sit-bar > span { display: block; height: 100%; background: var(--good); transition: width 0.9s linear; }
+.sit-bar > span.low { background: var(--bad); }
+.sit-bar.wide { flex: 1; height: 6px; }
+.sit-tag {
+  margin: 0 0 0.3rem; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--brand);
+}
+.sit-dot { margin-right: 0.5rem; color: var(--muted); }
+.sit-option.picked .sit-dot { color: var(--brand); }
+
+/* "Worth a look" beside a test result — a flag, never a verdict. */
+.tag.bad-tag { color: var(--bad); }

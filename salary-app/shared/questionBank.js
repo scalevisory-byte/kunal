@@ -134,6 +134,19 @@ export function forCandidate(questions = []) {
   return questions.map((q, i) => ({
     n: i + 1,
     id: q.id,
+    /*
+     * The topic, shown above the question.
+     *
+     * It is the one thing on his ZYNTA test that this did not carry, and it
+     * earns its place: "MS EXCEL" over a question tells somebody what is
+     * being asked about before they read it, which matters most when the
+     * clock is the thing they are racing.
+     *
+     * It is NOT the answer. Everything that would give the answer away -
+     * `correct`, the marks, the penalty - is still left out, which is the
+     * whole reason this function exists.
+     */
+    category: q.category || '',
     question: q.question,
     options: (q.order || OPTION_KEYS)
       .filter((k) => String(q[`option_${k}`] || '').trim())

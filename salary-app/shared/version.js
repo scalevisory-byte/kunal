@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.10.2';
+export const VERSION = '1.11.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.11.0',
+    date: '15 Nov 2026',
+    title: 'The test screen, built to match ZYNTA',
+    items: [
+      '**A bar that drains for the question you are on**, with its seconds beside it, exactly as your ZYNTA test does. The clock at the top is now the whole paper’s time, where it belongs.',
+      '**The topic above each question** — “Q2 / 20 · ACCOUNTS” — so somebody knows what is being asked about before they read it.',
+      '**Next →** rather than a tap that jumps: pick your answer, then move on. How far through you are runs along the bottom.',
+      '**Leaving the test page is recorded**, with a red line when they come back — “You left the test, this has been recorded. Please carry on.” It is never refused: a phone rings, and blocking would fail the honest candidate.',
+      '**How long each question took is kept.** The result now shows the **average seconds a question**, and flags a paper **“Worth a look”** when they left the page, when questions timed out unanswered, or when answers came in under two seconds. A clean paper says **“Clean”**.',
+      'Every one of those is a **flag, not a verdict** — a fast answer can be a known answer. Nothing fails anybody, and none of it is shown to the candidate.',
+      '**Open /healthz and it says which version is running** — no signing in. Three afternoons went on “is the update actually installed?”, and that question now has a one-click answer.',
+    ],
+  },
   {
     version: '1.10.2',
     date: '15 Nov 2026',

@@ -21,6 +21,7 @@ import {
   tidyEmployeeCode,
 } from '../../shared/employeeCode.js';
 import { STATUSES, TRANSITIONS, movesFrom } from '../../shared/interviewEval.js';
+import { integrity } from '../../shared/testSheet.js';
 
 /* ---------------- the employee code ---------------- */
 
@@ -619,4 +620,98 @@ test('the papers list says how each one is put', () => {
   assert.match(bank, /All on one page/);
   /* Switching is refused on a paper somebody has sat. */
   assert.match(bank, /disabled=\{!!p\.attempts\}/);
+});
+
+/* ---------------- how a test was sat ---------------- */
+
+/*
+ * Dinesh sent four screenshots of his ZYNTA test and said "see the zynta
+ * model": a bar draining for THIS question, the topic above it, a Next
+ * button, how far through along the bottom, and on the results side
+ * "avg 10s/Q", "2x left the test", "1 question unanswered / timed out",
+ * "11 answers under 2s", or "Clean".
+ *
+ * Every one of those is a FLAG, never a verdict. A fast answer can be a
+ * known answer and a phone rings; the office reads them beside the score.
+ */
+test('the topic rides to the candidate, the answer never does', async () => {
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Topic Test', phone: '9898055001' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: cid,
+  });
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
+  });
+  made.how = asg.body.attempt.token;
+  made.howId = asg.body.attempt.id;
+
+  const res = await fetch(`${base}/api/public/sit/${made.how}/start`, { method: 'POST' });
+  const text = await res.text();
+  const open = JSON.parse(text);
+
+  assert.ok(open.questions.every((q) => q.category), 'no topic to show above the question');
+  assert.ok(!/"correct"/.test(text), 'the answer key reached the candidate');
+  assert.ok(!/"marks"/.test(text));
+});
+
+test('how long each question took, and how often they left, are recorded', async () => {
+  const open = (await api('GET', `/api/public/sit/${made.how}`)).body;
+  const answers = {};
+  const times = {};
+  open.questions.forEach((q, i) => {
+    answers[q.id] = q.options[0].key;
+    times[q.id] = i < 4 ? 1 : 12; // four of them answered in a second
+  });
+  const out = await api('POST', `/api/public/sit/${made.how}`, {
+    answers, times, left_count: 3,
+  });
+  assert.equal(out.status, 200);
+
+  /* The attempt this test made, by id — never a fallback to another one. */
+  const review = (await api('GET', `/api/hiring/attempts/${made.howId}`)).body;
+  assert.equal(review.attempt.left_count, 3, 'leaving the page was not recorded');
+  assert.equal(Object.keys(review.attempt.times).length, 20, 'the timings were not recorded');
+});
+
+test('the flags read as flags, and a clean paper says so', () => {
+  const q = (id) => ({ id, question: `q${id}`, option_a: 'x', option_b: 'y', correct: 'b', marks: 1 });
+
+  const clean = integrity({
+    drawn: [q(1), q(2)], answers: { 1: 'b', 2: 'a' }, times: { 1: 11, 2: 9 }, left_count: 0,
+  });
+  assert.deepEqual(clean.flags, []);
+  assert.equal(clean.avg_seconds, 10);
+  assert.equal(clean.known, true);
+
+  const messy = integrity({
+    drawn: [q(1), q(2), q(3)], answers: { 1: 'b', 2: 'b' }, times: { 1: 1, 2: 14 }, left_count: 2,
+  });
+  assert.match(messy.flags.join(' '), /2× left the test page/);
+  assert.match(messy.flags.join(' '), /1 question unanswered or timed out/);
+  assert.match(messy.flags.join(' '), /1 answer under 2s/);
+});
+
+/*
+ * An attempt sat before any of this was recorded has nothing to be clean
+ * about. A reassuring tick nobody earned is worse than saying so.
+ */
+test('a paper sat before the timings existed is not called clean', () => {
+  const old = integrity({
+    drawn: [{ id: 1, question: 'q', option_a: 'x', option_b: 'y', correct: 'b', marks: 1 }],
+    answers: { 1: 'b' },
+  });
+  assert.equal(old.known, false);
+  assert.equal(old.avg_seconds, null);
+});
+
+/* The version, readable without signing in — three afternoons went on this. */
+test('/healthz says which build is running', async () => {
+  const res = await fetch(`${base}/healthz`);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.match(body.version, /^\d+\.\d+\.\d+$/);
 });

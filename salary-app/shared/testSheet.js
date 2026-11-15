@@ -188,3 +188,57 @@ export function answerSheetHtml({ attempt = {}, candidate = {}, paper = {}, comp
      ${answerSheetBody({ attempt, candidate, paper })}`
   );
 }
+
+/* ---------------- how it was sat ---------------- */
+
+/**
+ * The things worth noticing about HOW a paper was taken, not what it scored.
+ *
+ * Modelled on his ZYNTA results screen, which shows "avg 10s/Q", "2x left
+ * the test", "1 question unanswered / timed out", "11 answers under 2s" and,
+ * when there is nothing to say, "Clean".
+ *
+ * EVERY ONE OF THESE IS A FLAG, NEVER A VERDICT. A fast answer can be a known
+ * answer; somebody's phone rings; a question times out because it was hard.
+ * The office reads them beside the score and decides. Nothing here fails
+ * anybody, and nothing here is shown to the candidate.
+ */
+export const FAST_ANSWER_SECONDS = 2;
+
+export function integrity(attempt = {}) {
+  const rows = answerRows(attempt);
+  const times = attempt.times || {};
+  const spent = rows.map((r) => Number(times[r.id] ?? times[String(r.id)])).filter(Number.isFinite);
+
+  const avg = spent.length ? Math.round(spent.reduce((a, b) => a + b, 0) / spent.length) : null;
+  const fast = rows.filter((r) => {
+    const t = Number(times[r.id] ?? times[String(r.id)]);
+    return r.verdict !== 'skipped' && Number.isFinite(t) && t < FAST_ANSWER_SECONDS;
+  }).length;
+  const skipped = rows.filter((r) => r.verdict === 'skipped').length;
+
+  const flags = [];
+  if (attempt.left_count) {
+    flags.push(
+      `${attempt.left_count}× left the test page`
+    );
+  }
+  if (skipped) {
+    flags.push(`${skipped} question${skipped === 1 ? '' : 's'} unanswered or timed out`);
+  }
+  if (fast) {
+    flags.push(`${fast} answer${fast === 1 ? '' : 's'} under ${FAST_ANSWER_SECONDS}s`);
+  }
+
+  return {
+    avg_seconds: avg,
+    fast,
+    skipped,
+    left_count: Number(attempt.left_count) || 0,
+    flags,
+    /* "Clean" only when the times are actually known — an attempt sat before
+     * any of this was recorded has nothing to be clean about, and saying so
+     * beats a reassuring tick nobody earned. */
+    known: spent.length > 0,
+  };
+}

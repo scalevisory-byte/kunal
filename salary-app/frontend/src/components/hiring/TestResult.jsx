@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
-import { answerRows, minutesTaken, sheetSummary } from '../../../../shared/testSheet.js';
+import { answerRows, integrity, minutesTaken, sheetSummary } from '../../../../shared/testSheet.js';
 
 /**
  * One test, laid out question by question.
@@ -39,6 +39,7 @@ export default function TestResult({ attemptId, onClose, onError }) {
   const rows = answerRows(attempt);
   const sum = sheetSummary(attempt);
   const took = minutesTaken(attempt);
+  const how = integrity(attempt);
   const shown = only === 'all' ? rows : rows.filter((r) => r.verdict === only);
 
   const download = () => {
@@ -110,7 +111,49 @@ export default function TestResult({ attemptId, onClose, onError }) {
                   </span>
                   <span className="k">Time taken</span>
                 </div>
+                <div className="figure">
+                  <span className="n">{how.avg_seconds === null ? '—' : `${how.avg_seconds}s`}</span>
+                  <span className="k">Average a question</span>
+                </div>
               </div>
+              {/*
+                * Left the page, counted. Shown only when it happened — a
+                * line reading "left 0 times" on every honest paper turns
+                * into noise nobody reads, and this is the kind of fact that
+                * has to be noticed on the one occasion it matters.
+                */}
+              {/*
+                * How it was sat, beside what it scored.
+                *
+                * Modelled on his ZYNTA results screen. EVERY ONE OF THESE IS
+                * A FLAG, NEVER A VERDICT — a fast answer can be a known
+                * answer and a phone rings. Nothing here fails anybody and
+                * none of it is shown to the candidate.
+                */}
+              <p className="small" style={{ marginTop: '0.5rem' }}>
+                {!how.known ? (
+                  <span className="muted">
+                    This was sat before the app recorded how long each question took, so there is
+                    nothing to say about how it was taken.
+                  </span>
+                ) : how.flags.length ? (
+                  <>
+                    <span className="tag bad-tag">Worth a look</span>{' '}
+                    <strong>{how.flags.join(' · ')}</strong>{' '}
+                    <span className="muted">
+                      — recorded, not judged. One more thing to weigh.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="tag published">Clean</span>{' '}
+                    <span className="muted">
+                      Nothing odd about how this was taken — no questions timed out, they stayed on
+                      the page, and nothing was answered unusually fast.
+                    </span>
+                  </>
+                )}
+              </p>
               <p className="muted small" style={{ marginTop: '0.5rem' }}>
                 {attempt.pass_percent == null
                   ? null
