@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.11.2';
+export const VERSION = '1.11.3';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.11.3',
+    date: '15 Nov 2026',
+    title: 'The update now checks that the new server is the one answering',
+    items: [
+      '**This is why nothing changed all day.** An old copy of the server was still holding port 3002. The new one could not start, the old one kept answering — and because it reads the screens off disk, the dashboard showed the new version while everything behind it was three releases old.',
+      'The update now **stops whatever else is holding the port**, not only the scheduled task.',
+      'And it **reads the version back** from the server afterwards. “It answered” is not “the new one answered” — the old one answers just as happily, which is how this printed “Done” every time while changing nothing.',
+      'If the old one is still there, the update now **says so and stops**, with the command to find it.',
+    ],
+  },
   {
     version: '1.11.2',
     date: '15 Nov 2026',

@@ -619,3 +619,40 @@ test('the zip carries its version in its file name', () => {
   assert.match(sh, /BNFHRMS-update-v\$\{VER/);
   assert.match(sh, /version\.js/);
 });
+
+/*
+ * The failure that cost a whole day.
+ *
+ * UPDATE.ps1 stopped the scheduled task, swapped the folders, started the
+ * task, saw /healthz answer 200 and printed "Done". But an OLD node was
+ * still holding port 3002 - the new one died on it and the old one went on
+ * replying. It served the NEW screens off disk with the OLD server behind
+ * them, so the dashboard showed the new version number while the test page
+ * behaved like a build three releases back.
+ *
+ * Two things were wrong, and both are fixed here: stopping the task does
+ * not stop anything else on the port, and "it answered" is not "the new one
+ * answered".
+ */
+test('the update stops whatever else is holding the port', () => {
+  const ps = fs.readFileSync(
+    new URL('../../deploy/windows-local/UPDATE.ps1', import.meta.url),
+    'utf8'
+  );
+  assert.match(ps, /Get-NetTCPConnection/);
+  assert.match(ps, /netstat -ano/, 'no fallback for an older Windows');
+  assert.match(ps, /Stop-Process/);
+});
+
+test('the update insists the NEW version is the one answering', () => {
+  const ps = fs.readFileSync(
+    new URL('../../deploy/windows-local/UPDATE.ps1', import.meta.url),
+    'utf8'
+  );
+  /* It reads the version back, rather than trusting a 200. */
+  assert.match(ps, /ConvertFrom-Json\)\.version/);
+  assert.match(ps, /\$live -eq \$zipVersion/);
+  /* A server too old to report a version IS the answer. */
+  assert.match(ps, /too old to say which version/);
+  assert.match(ps, /still v" \+ \$live/);
+});

@@ -159,6 +159,36 @@ try {
   Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
 
+  # ---- and anything ELSE still holding the port ----------------------
+  #
+  # Stopping the task stops what the task started. It does not stop a node
+  # left running from an earlier attempt, started by hand, or belonging to
+  # an older copy of the app on this crowded server.
+  #
+  # That is not theoretical: it is what happened. The old process kept
+  # port 3002, the new one died on it, and the old one went on answering -
+  # serving the NEW screens off disk with the OLD server behind them. The
+  # dashboard showed the new version number while the test page behaved
+  # like a build three releases back, and this script printed "Done".
+  $held = @()
+  try {
+    $held = @(Get-NetTCPConnection -LocalPort ([int]$Port) -State Listen -ErrorAction Stop |
+              Select-Object -ExpandProperty OwningProcess -Unique)
+  } catch {
+    # Older Windows: read it out of netstat instead.
+    $held = @(netstat -ano | Select-String ":$Port\s" | ForEach-Object {
+      ($_ -split '\s+')[-1]
+    } | Sort-Object -Unique)
+  }
+  foreach ($procId in $held) {
+    if (-not $procId -or $procId -eq '0') { continue }
+    $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if (-not $proc) { continue }
+    Write-Host ("  still holding port " + $Port + ": " + $proc.ProcessName + " (pid " + $procId + ") - stopping it")
+    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+  }
+  if ($held.Count) { Start-Sleep -Seconds 2 }
+
   # Every old folder is kept, not deleted, until all the new ones are in
   # place - so a failure half way through puts the whole lot back rather
   # than leaving the office with half an app.
@@ -192,18 +222,46 @@ try {
   Write-Host 'Starting the HRMS...'
   Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 
+  # ---- did the NEW one actually come up ------------------------------
+  #
+  # "It answered on the port" was the wrong question, and answering it
+  # wrongly cost a whole day: the OLD process answers 200 just as happily.
+  # So read the version back out of /healthz and insist it is the one in
+  # this zip. A server too old to report a version is itself the answer -
+  # it means the old process is still the one replying.
   $ok = $false
+  $live = $null
   for ($i = 0; $i -lt 20; $i++) {
     Start-Sleep -Seconds 2
     try {
       $r = Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:$Port/healthz" -TimeoutSec 3
-      if ($r.StatusCode -eq 200) { $ok = $true; break }
+      if ($r.StatusCode -eq 200) {
+        try { $live = ($r.Content | ConvertFrom-Json).version } catch { $live = $null }
+        if (-not $zipVersion -or ($live -eq $zipVersion)) { $ok = $true; break }
+      }
     } catch { }
+  }
+
+  if (-not $ok -and $live -ne $null -and $zipVersion -and $live -ne $zipVersion) {
+    throw ("The files are in place, but the server answering port " + $Port +
+           " is still v" + $live + ", not v" + $zipVersion + ".`r`n" +
+           "  Something else is holding that port. Find it with:`r`n" +
+           "    Get-NetTCPConnection -LocalPort " + $Port + " -State Listen`r`n" +
+           "  then stop that process and run this again.")
+  }
+  if (-not $ok -and $live -eq $null -and $zipVersion) {
+    throw ("The files are in place, but whatever is answering port " + $Port +
+           " is too old to say which version it is.`r`n" +
+           "  That means the OLD server is still the one replying - the new`r`n" +
+           "  one could not take the port. Find it with:`r`n" +
+           "    Get-NetTCPConnection -LocalPort " + $Port + " -State Listen`r`n" +
+           "  then stop that process and run this again.")
   }
 
   Write-Host ''
   if ($ok) {
-    if ($zipVersion) { Write-Host "  Done. v$zipVersion is up:" }
+    if ($live) { Write-Host "  Done. v$live is up, and answering:" }
+    elseif ($zipVersion) { Write-Host "  Done. v$zipVersion is up:" }
     else { Write-Host '  Done. The new version is up:' }
     Write-Host "    http://localhost:$Port"
     Write-Host ''
