@@ -399,17 +399,39 @@ test('the overview counts what is actually there', async () => {
   assert.ok(o.upcoming.length >= 1);
 });
 
-test('the candidate export says whether there is a CV, never what is in it', async () => {
-  const res = await fetch(`${base}/api/hiring/export/candidates.csv`, {
+const candidatesCsv = async (query = '') => {
+  const res = await fetch(`${base}/api/hiring/export/candidates.csv${query}`, {
     headers: { authorization: `Bearer ${process.env.APP_PASSWORD}` },
   });
   assert.equal(res.status, 200);
   const bytes = Buffer.from(await res.arrayBuffer());
   assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'no BOM on the CSV');
-  const csv = bytes.toString('utf8');
-  assert.ok(csv.includes('Rohit Shah'));
+  return bytes.toString('utf8');
+};
+
+test('the candidate export says whether there is a CV, never what is in it', async () => {
+  const csv = await candidatesCsv();
+  assert.ok(csv.length > 0);
   assert.ok(!/cv-[a-z0-9]+-[a-f0-9]{8}\./.test(csv), 'the path on disk reached the export');
   assert.ok(!csv.includes('%PDF'));
+});
+
+/*
+ * Rohit was put on the payroll earlier in this file, so he is ARCHIVED - he
+ * works here now and is not a candidate. The export carries the list you are
+ * actually looking at, which is the only way a CSV and the screen above it
+ * can be made to agree.
+ */
+test('the export carries the list you are looking at, archive included', async () => {
+  const working = await candidatesCsv();
+  assert.ok(
+    !working.includes('Rohit Shah'),
+    'somebody on the payroll has no business in this week’s hiring list'
+  );
+
+  const archived = await candidatesCsv('?archived=true');
+  assert.ok(archived.includes('Rohit Shah'), 'but his file is still there to export');
+  assert.ok(!/cv-[a-z0-9]+-[a-f0-9]{8}\./.test(archived), 'and still no path on disk');
 });
 
 test('deleting a candidate takes their CV off the disk with them', async () => {

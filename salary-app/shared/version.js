@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.13.0';
+export const VERSION = '1.14.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.14.0',
+    date: '15 Nov 2026',
+    title: 'A candidate’s whole file, and an archive to put it in',
+    items: [
+      '**Everything, in order** — a candidate’s whole story on one page, oldest first: added, applied, screened, paper drawn, paper sat (with the answer sheet on the line), each interview round, the offer, the day they went on the payroll.',
+      '**The particulars form and the interviewer’s rating are READ on the record**, not downloaded. They were printable from the Interviews tab and nowhere else, which meant finding the same interview twice.',
+      '**Documents** — anything a candidate handed over: Aadhaar, PAN, a marksheet, the last payslip. The file sits on disk behind a link that expires, never in the database or an export, and the name they gave it never becomes a path. **Nothing is required** — a candidate owes you nothing, and the KYC list starts on their employee record.',
+      '**Filter the candidate list by where they are** — Selected, Rejected, Shortlisted, Joined and the rest.',
+      '**Add to payroll is on the row**, instead of only on the pipeline card.',
+      '**An archive.** Putting somebody on the payroll takes them off the hiring list by itself — they work here now. Nothing is deleted: the whole file stays and **Restore** brings them back in one press. You can archive anybody by hand, and **a rejection does not archive itself**, because turning somebody down for one opening is how the next opening finds them.',
+      'The export carries the list you are looking at, archive included.',
+      'Fixed: the story could come out in the wrong order by half a day. Two date formats meet on that page, and the older one was being read as local time when it was written as UTC — five and a half hours out on this server.',
+    ],
+  },
   {
     version: '1.13.0',
     date: '15 Nov 2026',

@@ -10,7 +10,7 @@ import { getAssetDoc, getAssetPhoto } from './people.js';
 import { log } from './logger.js';
 import { requireAdminForChanges, requireAuth, requireRead, requireWriteForChanges } from './auth.js';
 import { meRouter } from './routes/me.js';
-import { getCandidate } from './hiring.js';
+import { getCandidate, getCandidateDocument } from './hiring.js';
 import { getDocument } from './db.js';
 import { documentFile, documentLinkValid } from './documents.js';
 import { resumeFile, resumeLinkValid } from './resumes.js';
@@ -92,6 +92,25 @@ export function createServer() {
     const doc = getDocument(Number(req.params.id));
     if (!doc) return res.status(404).json({ error: 'not found' });
     if (!documentLinkValid(doc, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the record again.' });
+    }
+    const file = documentFile(doc);
+    if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
+    res.download(file, doc.file_name || path.basename(file));
+  });
+
+  /**
+   * A candidate's own document - Aadhaar, a marksheet, the last payslip.
+   *
+   * Its own route and its own SCOPE in the signature. Candidate documents and
+   * employee documents are separate tables with separate id sequences, so
+   * both have a number 5; a signature that named only the number would let a
+   * link to one verify against the other.
+   */
+  app.get('/files/candidate-document/:id', (req, res) => {
+    const doc = getCandidateDocument(Number(req.params.id));
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    if (!documentLinkValid(doc, req.query.exp, req.query.sig, { scope: 'candidate-document' })) {
       return res.status(403).json({ error: 'This link has expired. Open the record again.' });
     }
     const file = documentFile(doc);

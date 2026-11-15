@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { STANDALONE, api } from '../../api.js';
+import { CandidateDocuments, RoundDetail, Timeline } from './CandidateFile.jsx';
 import { matchBand } from '../../../../shared/stages.js';
 import { resumeRequest, testInvite, waLink } from '../../../../shared/hiringMessages.js';
 import TestResult from './TestResult.jsx';
@@ -129,7 +130,7 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
   };
 
   if (!data) return null;
-  const { candidate, applications, tests, attempts = [], offers = [], resume } = data;
+  const { candidate, applications, tests, attempts = [], offers = [], documents = [], resume } = data;
   const alreadyOn = new Set(applications.map((a) => a.vacancy_id));
   const spare = openings.filter((v) => !alreadyOn.has(v.id));
   const chase = resumeRequest({
@@ -190,6 +191,16 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
           </div>
         ) : null}
 
+        {/*
+          * The story, before any of the detail.
+          *
+          * Dinesh: "A to Z". Everything about this person existed, in six
+          * places - the form on the Interviews tab, the answer sheet behind
+          * a button, the offer on a pipeline card, the lot in a printout
+          * that downloads. Six places and a print is not a record.
+          */}
+        <Timeline data={data} history={history} onSheet={setOpenSheet} />
+
         <div className="card">
           <h3>CV</h3>
           {resume ? (
@@ -235,6 +246,14 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
             </div>
           )}
         </div>
+
+        <CandidateDocuments
+          candidateId={candidateId}
+          documents={documents}
+          onChanged={load}
+          onError={onError}
+          onToast={onToast}
+        />
 
         <div className="card">
           <h3>Details</h3>
@@ -379,27 +398,23 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
                       * where the document exists: a button that opens an
                       * empty form is worse than no button.
                       */}
-                    {!STANDALONE && (h.form_id || h.evaluation_id) ? (
-                      <div className="row" style={{ gap: '0.4rem', marginTop: '0.3rem' }}>
-                        {h.form_id ? (
-                          <button
-                            className="tiny"
-                            onClick={() => grab(`/api/hiring/interviews/${h.interview_id}/form/print`)}
-                          >
-                            Particulars form
-                          </button>
-                        ) : null}
-                        {h.evaluation_id ? (
-                          <button
-                            className="tiny"
-                            onClick={() =>
-                              grab(`/api/hiring/interviews/${h.interview_id}/evaluation/print`)
-                            }
-                          >
-                            Evaluation
-                          </button>
-                        ) : null}
-                      </div>
+                    {/*
+                      * READ IT HERE, don't download it.
+                      *
+                      * The line said "Form: Selected · Evaluation: Hire" and
+                      * stopped, and the two documents somebody actually
+                      * wants are on another tab. A download is for taking
+                      * away; this is for looking at, which is the commoner
+                      * of the two by far. Print is still on the file at the
+                      * top of the page.
+                      */}
+                    {!STANDALONE ? (
+                      <RoundDetail
+                        interviewId={h.interview_id}
+                        hasForm={!!h.form_id}
+                        hasEvaluation={!!h.evaluation_id}
+                        onError={onError}
+                      />
                     ) : null}
                   </span>
                 </div>

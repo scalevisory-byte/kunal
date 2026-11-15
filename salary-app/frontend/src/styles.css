@@ -3731,3 +3731,16 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
 /* The candidate's own score on the finish page. */
 .sit-score { display: flex; align-items: center; gap: 0.7rem; margin: 0.8rem 0 0.4rem; }
 .sit-score strong { font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+
+/*
+ * A panel opened out INSIDE a row — the particulars form and the rating under
+ * one interview. Indented and hairlined rather than boxed: a card inside a
+ * card reads as a second thing on the page rather than part of the row above.
+ */
+.sub-card {
+  margin: 0.5rem 0 0.2rem;
+  padding: 0.6rem 0 0.2rem 0.8rem;
+  border-left: 2px solid var(--line);
+}
+.sub-card .ask { margin: 0.7rem 0 0.3rem; }
+.file-form .lines { margin: 0; }

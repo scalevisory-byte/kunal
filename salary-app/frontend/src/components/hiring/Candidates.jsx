@@ -1,5 +1,6 @@
 import { QuickVerdict } from './Screening.jsx';
 import { useState } from 'react';
+import { api } from '../../api.js';
 
 const BLANK = {
   name: '',
@@ -20,7 +21,16 @@ const BLANK = {
 };
 
 /** Everybody who has ever applied for anything, kept for the next opening. */
-export default function Candidates({ candidates, total, query, onQuery, onCreate, onOpen, onOpenCv, onExport, onOpenApplication, onReload, onError, onToast}) {
+/*
+ * The stages a candidate can be at. Taken from the pipeline so the filter and
+ * the board cannot come to mean different things by "Selected".
+ */
+const STAGES = ['Applied', 'Shortlisted', 'Interview', 'Selected', 'Offered', 'Joined', 'Rejected'];
+
+export default function Candidates({
+  candidates, total, query, onQuery, stage, onStage, archived, onArchived,
+  onCreate, onOpen, onOpenCv, onExport, onOpenApplication, onReload, onError, onToast,
+}) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(BLANK);
   const [error, setError] = useState('');
@@ -46,8 +56,24 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
           style={{ minWidth: '16rem' }}
           onChange={(e) => onQuery(e.target.value)}
         />
+        <select value={stage} onChange={(e) => onStage(e.target.value)} style={{ width: 'auto' }}>
+          <option value="">Wherever they are</option>
+          {STAGES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        {/*
+          * The archive is a PLACE, and the button says which one you are
+          * standing in. A tick labelled "include archived" would mix
+          * somebody hired last year into this week's hiring, which is the
+          * thing archiving them was for.
+          */}
+        <button className={archived ? 'primary' : ''} onClick={() => onArchived(!archived)}>
+          {archived ? '← Back to the list' : 'Archive'}
+        </button>
         <span className="muted small">
           {candidates.length} of {total} shown
+          {archived ? ' · archived' : ''}
         </span>
         <span className="spacer" />
         <button onClick={onExport}>Export CSV</button>
@@ -122,6 +148,7 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
               <th>Screening</th>
               <th>CV</th>
               <th>Added</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -212,14 +239,75 @@ export default function Candidates({ candidates, total, query, onQuery, onCreate
                   )}
                 </td>
                 <td className="small muted nowrap">{String(c.created_at || '').slice(0, 10)}</td>
+                {/*
+                  * Where the hiring ENDS, on the row somebody is already
+                  * looking at. "Add to payroll" lived only on the pipeline
+                  * card, which is a different screen reached a different
+                  * way - the fifth time a feature has been reported missing
+                  * because the only way in was somewhere nobody stands.
+                  */}
+                <td className="small nowrap" onClick={(e) => e.stopPropagation()}>
+                  {archived ? (
+                    <button
+                      className="tiny"
+                      onClick={async () => {
+                        try {
+                          await api.del(`/hiring/candidates/${c.id}/archive`);
+                          onToast('Back on the list.');
+                          onReload();
+                        } catch (err) {
+                          onError(err);
+                        }
+                      }}
+                    >
+                      Restore
+                    </button>
+                  ) : (
+                    <>
+                      {c.latest_application_id && c.latest_stage !== 'Joined' ? (
+                        <button
+                          className="tiny primary"
+                          title="Put them on the salary sheet — and take them off this list"
+                          onClick={() => onOpenApplication(c.latest_application_id)}
+                        >
+                          Add to payroll
+                        </button>
+                      ) : null}
+                      <button
+                        className="tiny"
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              `Archive ${c.name}? Nothing is deleted — their whole file stays, ` +
+                                'and Restore brings them back in one press.'
+                            )
+                          )
+                            return;
+                          try {
+                            await api.post(`/hiring/candidates/${c.id}/archive`, {});
+                            onToast('Archived.');
+                            onReload();
+                          } catch (err) {
+                            onError(err);
+                          }
+                        }}
+                      >
+                        Archive
+                      </button>
+                    </>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         {!candidates.length ? (
           <p className="empty">
-            Nobody yet. Candidates arrive on their own once a vacancy is published and the link
-            is shared — or add one by hand.
+            {archived
+              ? 'Nothing archived. People land here when they are put on the payroll, or when somebody archives them by hand.'
+              : stage || query
+                ? 'Nobody matches that.'
+                : 'Nobody yet. Candidates arrive on their own once a vacancy is published and the link is shared — or add one by hand.'}
           </p>
         ) : null}
       </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, download } from '../../api.js';
 import ApplicationPanel from './ApplicationPanel.jsx';
 import CandidatePanel from './CandidatePanel.jsx';
@@ -60,6 +60,15 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
   const [applications, setApplications] = useState([]);
   const [candidates, setCandidates] = useState({ rows: [], total: 0 });
   const [candidateQuery, setCandidateQuery] = useState('');
+  /*
+   * Where they are, and whether they are on the working list at all.
+   *
+   * The archive is a PLACE rather than one more box ticked on the live list:
+   * mixing somebody hired last year into this week's hiring is exactly what
+   * archiving them was for.
+   */
+  const [candidateStage, setCandidateStage] = useState('');
+  const [candidateArchived, setCandidateArchived] = useState(false);
   const [interviews, setInterviews] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [digest, setDigest] = useState(null);
@@ -83,6 +92,21 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
     window.setTimeout(() => setToast(''), 2200);
   }, []);
 
+  const candidateSearch = useMemo(() => {
+
+    const bits = [];
+
+    if (candidateQuery) bits.push(`q=${encodeURIComponent(candidateQuery)}`);
+
+    if (candidateStage) bits.push(`stage=${encodeURIComponent(candidateStage)}`);
+
+    if (candidateArchived) bits.push('archived=true');
+
+    return bits.length ? `?${bits.join('&')}` : '';
+
+  }, [candidateQuery, candidateStage, candidateArchived]);
+
+
   const load = useCallback(async () => {
     try {
       const company = companyId ? `?company_id=${companyId}` : '';
@@ -91,7 +115,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
         api.get('/hiring/overview'),
         api.get(`/hiring/vacancies${company}`),
         api.get(`/hiring/applications${company}`),
-        api.get(`/hiring/candidates${candidateQuery ? `?q=${encodeURIComponent(candidateQuery)}` : ''}`),
+        api.get(`/hiring/candidates${candidateSearch}`),
         api.get('/hiring/interviews'),
         api.get('/hiring/tasks'),
         api.get('/hiring/digest'),
@@ -107,7 +131,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
     } catch (err) {
       onError(err);
     }
-  }, [companyId, candidateQuery, onError]);
+  }, [companyId, candidateSearch, onError]);
 
   useEffect(() => {
     load();
@@ -256,6 +280,10 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           total={candidates.total}
           query={candidateQuery}
           onQuery={setCandidateQuery}
+          stage={candidateStage}
+          onStage={setCandidateStage}
+          archived={candidateArchived}
+          onArchived={setCandidateArchived}
           onCreate={createCandidate}
           onOpen={setOpenCandidate}
           onOpenApplication={setOpenApplication}

@@ -493,14 +493,77 @@ export function forOffice(row) {
   return { ...rest, has_cv: Boolean(resume_path) };
 }
 
-export function listCandidates({ q, limit = 500, offset = 0 } = {}) {
+/*
+ * ARCHIVED, NEVER DELETED - the same rule the asset register follows.
+ *
+ * Dinesh: *"selected wale ko employee banne ka option, aur wo data archive me
+ * chala jana chahiye"*. Somebody who has joined is finished WITH HIRING and
+ * must come off the working list; everything about them - the timeline, the
+ * documents, the answer sheets - has to stay exactly where it is, because
+ * that is the file somebody asks for two years later.
+ *
+ * A REJECTION DOES NOT ARCHIVE ITSELF. Turning somebody down for one opening
+ * is how the next opening finds them, and a list that hides them is a list
+ * that makes the same search again from scratch. Archiving a rejection is a
+ * button somebody presses.
+ */
+for (const [column, type] of [
+  ['archived_at', 'TEXT'],
+  ['archived_reason', 'TEXT'],
+]) {
+  if (!columnsOf('candidates').has(column)) {
+    db.exec(`ALTER TABLE candidates ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated candidates: added ${column}.`);
+  }
+}
+
+export function archiveCandidate(id, { reason = '', by = 'office' } = {}) {
+  const candidate = getCandidate(id);
+  if (!candidate) return null;
+  if (candidate.archived_at) return candidate;
+  update('candidates', id, { archived_at: nowIso(), archived_reason: reason || null });
+  audit({
+    who: by, action: 'changed', entity: 'candidate', entity_id: id,
+    label: candidate.name, field: 'archived', from_value: '', to_value: reason || 'archived',
+  });
+  return getCandidate(id);
+}
+
+export function restoreCandidate(id, { by = 'office' } = {}) {
+  const candidate = getCandidate(id);
+  if (!candidate || !candidate.archived_at) return candidate || null;
+  update('candidates', id, { archived_at: null, archived_reason: null });
+  audit({
+    who: by, action: 'changed', entity: 'candidate', entity_id: id,
+    label: candidate.name, field: 'archived', from_value: candidate.archived_reason || 'archived',
+    to_value: '',
+  });
+  return getCandidate(id);
+}
+
+export function listCandidates({ q, stage, archived = false, limit = 500, offset = 0 } = {}) {
   const params = { limit, offset };
-  let where = '';
+  const clauses = [];
   if (q) {
-    where = `WHERE (c.name LIKE @q OR c.phone LIKE @q OR c.ref_no LIKE @q OR c.skills LIKE @q
-             OR c.location LIKE @q OR c.role LIKE @q)`;
+    clauses.push(`(c.name LIKE @q OR c.phone LIKE @q OR c.ref_no LIKE @q OR c.skills LIKE @q
+             OR c.location LIKE @q OR c.role LIKE @q)`);
     params.q = `%${q}%`;
   }
+  /*
+   * The archive is a PLACE, not a filter you have to remember to apply. The
+   * working list never shows archived people, and asking for the archive
+   * shows only them - "all" would quietly put somebody hired last year back
+   * in front of the person doing this week's hiring.
+   */
+  clauses.push(archived ? 'c.archived_at IS NOT NULL' : 'c.archived_at IS NULL');
+  if (stage) {
+    clauses.push(
+      `(SELECT a.stage FROM applications a WHERE a.candidate_id = c.id
+         ORDER BY a.id DESC LIMIT 1) = @stage`
+    );
+    params.stage = stage;
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   /*
    * `has_cv`, never `resume_path`.
    *
@@ -842,8 +905,29 @@ export function hireApplication(id, input = {}) {
     joining_date: joined,
   });
   const moved = moveApplication(id, 'Joined', { by: input.by || 'office', note: 'Added to payroll' });
+
+  /*
+   * AND THEY COME OFF THE HIRING LIST.
+   *
+   * Not a guess about what somebody meant: pressing this button says the
+   * hiring is finished and the person is now an employee. Archiving is what
+   * that sentence means, and leaving them on the working list means the
+   * person doing next month's hiring scrolls past people who already work
+   * here.
+   *
+   * It hides them, it deletes NOTHING - the timeline, the documents, the
+   * answer sheets and the offer all stay exactly where they are, and
+   * Restore puts them back on the list in one press. This is the only place
+   * archiving happens on its own, and the button says so before it is
+   * pressed.
+   */
+  archiveCandidate(candidate.id, {
+    reason: `joined ${application.company_name} as employee ${employee.code || employee.id}`,
+    by: input.by || 'office',
+  });
+
   log.info(`Hired ${candidate.name} into ${application.company_name} as employee ${employee.id}`);
-  return { employee, application: moved || getApplication(id), created: true };
+  return { employee, application: moved || getApplication(id), created: true, archived: true };
 }
 
 /* ---------------- tests ---------------- */
@@ -1751,6 +1835,71 @@ export function interviewHistory(candidateId) {
       summary: summarise(json(row.ratings, {})),
     }));
 }
+
+/* ================= a candidate's own papers ============================== */
+
+/*
+ * DOCUMENTS A CANDIDATE BRINGS, before anybody is an employee.
+ *
+ * Dinesh: "candidate all history need recorded here, from starting to end -
+ * physical form, documents, evaluated form, test paper and answer sheet, A to
+ * Z". The CV had a home and nothing else did: an Aadhaar photographed at the
+ * interview, a marksheet, the last payslip backing the salary they asked for.
+ *
+ * The same shape as employee documents and candidate CVs, for the same
+ * reasons: the file is on disk and never in the database, in a page or in an
+ * export; the uploaded filename is discarded, because it is user input and
+ * this is a path; and it is read back through a signature that expires.
+ *
+ * NOT the same as an employee record in one way that matters: there is no
+ * "still missing" count. A candidate is not obliged to have handed anything
+ * over, and a stranger who applied this morning must not read as incomplete.
+ * The missing-KYC rule starts the day they are hired, on the employee record.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS candidate_documents (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL DEFAULT 'other',
+    file_path    TEXT NOT NULL,
+    file_name    TEXT,
+    notes        TEXT,
+    uploaded_by  TEXT,
+    uploaded_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_cand_docs ON candidate_documents(candidate_id);
+`);
+
+export const listCandidateDocuments = (candidateId) =>
+  db
+    .prepare(
+      `SELECT * FROM candidate_documents WHERE candidate_id = ?
+        ORDER BY uploaded_at DESC, id DESC`
+    )
+    .all(candidateId);
+
+export const getCandidateDocument = (id) =>
+  db.prepare(`SELECT * FROM candidate_documents WHERE id = ?`).get(id) || null;
+
+export function addCandidateDocument(candidateId, body = {}) {
+  const id = db
+    .prepare(
+      `INSERT INTO candidate_documents (candidate_id, kind, file_path, file_name, notes, uploaded_by)
+       VALUES (@candidate_id, @kind, @file_path, @file_name, @notes, @uploaded_by)`
+    )
+    .run({
+      candidate_id: candidateId,
+      kind: String(body.kind || 'other'),
+      file_path: body.file_path,
+      file_name: body.file_name || null,
+      notes: body.notes || null,
+      uploaded_by: body.uploaded_by || null,
+    }).lastInsertRowid;
+  return getCandidateDocument(id);
+}
+
+export const deleteCandidateDocument = (id) =>
+  db.prepare(`DELETE FROM candidate_documents WHERE id = ?`).run(id).changes > 0;
 
 /* ================= the question bank and the papers drawn from it ======== */
 

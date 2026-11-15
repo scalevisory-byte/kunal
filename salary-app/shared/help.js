@@ -465,7 +465,11 @@ export const HELP = [
     id: 'hiring',
     title: 'Hiring — openings, candidates and taking somebody on',
     tab: 'hiring',
-    keywords: ['hiring', 'vacancy', 'candidate', 'interview', 'recruit', 'apply', 'job', 'cv'],
+    keywords: [
+      'hiring', 'vacancy', 'candidate', 'interview', 'recruit', 'apply', 'job', 'cv',
+      'archive', 'archived', 'selected', 'rejected', 'history', 'file', 'documents',
+      'purana', 'itihas', 'kagaz',
+    ],
     lines: [
       'Openings belong to one of your own companies. A published opening has a link candidates can apply on, with name and mobile only.',
       'Candidates are scored against what the opening asks for, which orders the queue.',
@@ -473,6 +477,10 @@ export const HELP = [
       '**Hire** turns the person who joined into an employee on that company, so they land on the salary sheet without being typed twice. It shows the **next free employee code** first — change it or leave it.',
       'Screened somebody **Eligible**? They appear under **“ready for the test”** on the Screening page, with the paper picker and a WhatsApp button right there.',
       'An evaluation goes **Submit → HR → department head → Management → Approve**. The head step is optional and asks who it is going to.',
+      'Open a candidate and **Everything, in order** tells their whole story — added, applied, screened, paper drawn, paper sat, each round with its **particulars form and rating** to read on the spot, the offer, and the day they went on the payroll.',
+      '**Documents** on that record take anything they handed over — Aadhaar, PAN, a marksheet, the last payslip. Nothing is required: a candidate owes you nothing, and the KYC list starts on their employee record.',
+      'The candidate list filters by **where they are** — Selected, Rejected, Shortlisted and the rest — and **Add to payroll** is on the row itself.',
+      '**Archive** is a place, not a delete. Somebody put on the payroll goes there by itself, because they work here now; **Restore** brings them back in one press and nothing about them is ever removed. Turning somebody down does NOT archive them — that is how the next opening finds them.',
     ],
     note: 'Nothing moves on its own — no auto-advance, no auto-reject. The match score orders a list and a test result is one more thing to weigh. Hiring needs the server: an apply link cannot live in a file on a laptop.',
   },

@@ -66,22 +66,33 @@ export function uploadDocument(req, res, next) {
 const sign = (payload) => crypto.createHmac('sha256', linkSecret).update(payload).digest('base64url');
 
 /** A link good for a few minutes, bound to this document and nothing else. */
-export function documentLink(doc, { minutes = config.resumeLinkMinutes } = {}) {
+/*
+ * THE SIGNATURE NAMES WHAT IT AUTHORISES.
+ *
+ * Candidate documents arrived beside employee documents, each table with its
+ * own id sequence - so employee document 5 and candidate document 5 both
+ * exist. Without the scope in the signed string, a link to one would verify
+ * against the other the moment their file names happened to line up. It costs
+ * one word and removes the class of bug entirely.
+ */
+const signed = (scope, doc, exp) => sign(`${scope}:${doc.id}:${doc.file_path}:${exp}`);
+
+export function documentLink(doc, { minutes = config.resumeLinkMinutes, scope = 'document' } = {}) {
   if (!doc?.file_path) return null;
   const exp = Math.floor(Date.now() / 1000) + Math.max(1, minutes) * 60;
   return {
-    url: `/files/document/${doc.id}?exp=${exp}&sig=${sign(`${doc.id}:${doc.file_path}:${exp}`)}`,
+    url: `/files/${scope}/${doc.id}?exp=${exp}&sig=${signed(scope, doc, exp)}`,
     expires_at: new Date(exp * 1000).toISOString(),
     filename: doc.file_name || path.basename(doc.file_path),
   };
 }
 
-export function documentLinkValid(doc, exp, sig) {
+export function documentLinkValid(doc, exp, sig, { scope = 'document' } = {}) {
   if (!doc?.file_path || !exp || !sig) return false;
   const expiry = Number(exp);
   if (!Number.isFinite(expiry) || expiry * 1000 < Date.now()) return false;
   const a = Buffer.from(String(sig));
-  const b = Buffer.from(sign(`${doc.id}:${doc.file_path}:${expiry}`));
+  const b = Buffer.from(signed(scope, doc, expiry));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 

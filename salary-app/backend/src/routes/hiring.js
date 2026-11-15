@@ -50,7 +50,14 @@ import {
   listVacancies,
   moveApplication,
   moveOffer,
+  addCandidateDocument,
+  archiveCandidate,
+  deleteCandidateDocument,
+  getCandidateDocument,
   getOffer,
+  getScreening,
+  listCandidateDocuments,
+  restoreCandidate,
   offerFor,
   offerLetter,
   openAttempt,
@@ -84,6 +91,7 @@ import {
   updateTask,
   updateVacancy,
 } from '../hiring.js';
+import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
 import { config } from '../config.js';
 import { getSetting, setSetting } from '../users.js';
 import { cleanPublicUrl, reachablePublicly } from '../../../shared/publicUrl.js';
@@ -250,6 +258,8 @@ hiringRouter.get('/candidates', (req, res) =>
   res.json(
     listCandidates({
       q: req.query.q,
+      stage: req.query.stage || '',
+      archived: req.query.archived === 'true',
       limit: num(req.query.limit) || 500,
       offset: num(req.query.offset) || 0,
     })
@@ -291,8 +301,74 @@ hiringRouter.get('/candidates/:id', (req, res) => {
      * a person, because somebody can be put forward for two openings.
      */
     offers: rows.map((a) => getOffer(a.id)).filter(Boolean),
+    /* The screening verdict with its OWN date and reason, not the one-word
+     * version the list carries - the file has to say why somebody was put on
+     * hold, not just that they were. */
+    screenings: rows.map((a) => getScreening(a.id)).filter(Boolean),
+    /* The file_path never leaves the server - the browser gets a signed URL
+     * that expires, exactly as the CV and employee documents do. */
+    documents: listCandidateDocuments(candidate.id).map((d) => ({
+      ...d,
+      file_path: undefined,
+      link: documentLink(d, { scope: 'candidate-document' }),
+    })),
     resume: resumeLink(candidate),
   });
+});
+
+/*
+ * A candidate's own documents - Aadhaar, PAN, a marksheet, the last payslip.
+ * Uploaded through the SAME multer the employee documents use, so there is
+ * one list of accepted types, one size limit and one folder.
+ */
+/*
+ * Archived, not deleted. The record stays whole; it simply comes off the
+ * working list, and Restore puts it back in one press.
+ */
+hiringRouter.post('/candidates/:id/archive', (req, res) => {
+  const done = archiveCandidate(Number(req.params.id), {
+    reason: req.body?.reason,
+    by: actorName(req),
+  });
+  return done ? res.json({ candidate: done }) : res.status(404).json({ error: 'not found' });
+});
+
+hiringRouter.delete('/candidates/:id/archive', (req, res) => {
+  const done = restoreCandidate(Number(req.params.id), { by: actorName(req) });
+  return done ? res.json({ candidate: done }) : res.status(404).json({ error: 'not found' });
+});
+
+hiringRouter.post('/candidates/:id/documents', uploadDocument, (req, res) => {
+  const candidate = getCandidate(Number(req.params.id));
+  if (!candidate) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(404).json({ error: 'not found' });
+  }
+  if (!req.file) return res.status(400).json({ error: 'no file was uploaded' });
+  const doc = addCandidateDocument(candidate.id, {
+    kind: req.body?.kind,
+    file_path: req.file.filename,
+    file_name: req.file.originalname,
+    notes: req.body?.notes,
+    uploaded_by: actorName(req),
+  });
+  res.status(201).json({
+    document: {
+      ...doc,
+      file_path: undefined,
+      link: documentLink(doc, { scope: 'candidate-document' }),
+    },
+  });
+});
+
+hiringRouter.delete('/candidates/:id/documents/:documentId', (req, res) => {
+  const doc = getCandidateDocument(Number(req.params.documentId));
+  if (!doc || doc.candidate_id !== Number(req.params.id)) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  deleteDocumentFile(doc);
+  deleteCandidateDocument(doc.id);
+  res.status(204).end();
 });
 
 hiringRouter.patch('/candidates/:id', (req, res) => {
@@ -580,7 +656,12 @@ hiringRouter.get('/export/test-results.csv', (req, res) => {
 });
 
 hiringRouter.get('/export/candidates.csv', (req, res) => {
-  const { rows } = listCandidates({ q: req.query.q, limit: 100000 });
+  const { rows } = listCandidates({
+    q: req.query.q,
+    stage: req.query.stage || '',
+    archived: req.query.archived === 'true',
+    limit: 100000,
+  });
   sendCsv(
     res,
     'candidates.csv',
