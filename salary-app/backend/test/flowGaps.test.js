@@ -161,7 +161,16 @@ test('screened Eligible puts them on the ready-for-the-test list', async () => {
   assert.equal(body.rows[0].name, 'Sanjay Mehta');
 });
 
-test('once a paper is sent they drop off it', async () => {
+/*
+ * Sending the paper does NOT take them off the list.
+ *
+ * The first version dropped them, and Dinesh found it within the hour:
+ * *"tets ka link kaha se milega"*. Dropping the row took the link with it,
+ * which is the same disappearing act one step later — and a link nobody can
+ * find again is a link that gets re-drawn, which lets somebody read the
+ * questions, close it and sit a fresh paper.
+ */
+test('sending the paper moves them along the list, it does not remove them', async () => {
   await api('POST', '/api/hiring/bank/starter', { position: 'Accounts' });
   const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
     (p) => p.name === 'Accounts test'
@@ -172,7 +181,10 @@ test('once a paper is sent they drop off it', async () => {
   assert.equal(asg.status, 201);
 
   const { body } = await api('GET', '/api/hiring/screening/awaiting-test');
-  assert.equal(body.rows.length, 0, 'sent is sent — chasing is the candidate’s own row');
+  const row = body.rows.find((r) => r.candidate_id === made.candidate);
+  assert.ok(row, 'they fell off the list and the link went with them');
+  assert.equal(row.state, 'sent');
+  assert.equal(row.attempt.token, asg.body.attempt.token, 'a different link — a second paper');
 });
 
 test('somebody turned down is not on that list', async () => {
@@ -284,8 +296,9 @@ test('the hiring tabs run in the order the work happens', () => {
     'pipeline',
     'openings',
     'candidates',
+    /* The question bank folded in here — he asked for the test to live
+     * inside screening rather than beside it. */
     'screening',
-    'tests',
     'interviews',
     'reports',
     'tasks',
@@ -295,12 +308,75 @@ test('the hiring tabs run in the order the work happens', () => {
   const step = (k) => order.indexOf(k);
   assert.ok(step('openings') < step('candidates'), 'the opening comes before the applicants');
   assert.ok(step('candidates') < step('screening'), 'screening comes after the candidate');
-  assert.ok(step('screening') < step('tests'), 'the test comes after screening');
-  assert.ok(step('tests') < step('interviews'), 'the interview comes after the test');
+  assert.ok(step('screening') < step('interviews'), 'the interview comes after screening');
+  assert.equal(step('tests'), -1, 'the test is inside screening, not a tab of its own');
 });
 
 test('the on-screen flow points the test step at the list that now exists', () => {
   const steps = fs.readFileSync(new URL('../../shared/hiringSteps.js', import.meta.url), 'utf8');
   assert.match(steps, /ready for the test/);
   assert.match(steps, /department head/i, 'step 7 does not mention the head');
+});
+
+/*
+ * Dinesh, an hour after the list shipped: *"tets ka link kaha se milega"*.
+ *
+ * The first version listed only people with NO test yet — "sent is sent"
+ * sounded tidy. Sending the paper took the person off the list AND TOOK THE
+ * LINK WITH THEM, which is the same disappearing act one step later. A link
+ * that cannot be found again is a link that gets re-drawn, and a second paper
+ * lets somebody read the questions, close it and sit a fresh one.
+ */
+test('the link is still reachable after they have sat it', async () => {
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Neha Desai', phone: '9898010001' });
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: c.body.candidate?.id ?? c.body.id,
+  });
+  const appId = a.body.application?.id ?? a.body.id;
+  await api('PUT', `/api/hiring/applications/${appId}/screening`, { verdict: 'Eligible' });
+
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: c.body.candidate?.id ?? c.body.id, application_id: appId,
+  });
+
+  let row = (await api('GET', '/api/hiring/screening/awaiting-test')).body.rows.find(
+    (r) => r.application_id === appId
+  );
+  assert.equal(row.state, 'sent');
+  assert.ok(row.attempt.token);
+
+  /* Sit it, and the row stays — now carrying the score instead of the link. */
+  const answers = {};
+  asg.body.attempt.drawn.forEach((q, i) => {
+    if (i < 10) answers[q.id] = q.correct;
+  });
+  await fetch(`${base}/api/public/sit/${asg.body.attempt.token}`);
+  await api('POST', `/api/public/sit/${asg.body.attempt.token}`, { answers });
+
+  row = (await api('GET', '/api/hiring/screening/awaiting-test')).body.rows.find(
+    (r) => r.application_id === appId
+  );
+  assert.equal(row.state, 'sat');
+  assert.equal(row.attempt.percentage, 50);
+});
+
+test('a state is one of three, and only a sat test carries a score', async () => {
+  const { body } = await api('GET', '/api/hiring/screening/awaiting-test');
+  for (const row of body.rows) {
+    assert.ok(['not_sent', 'sent', 'sat'].includes(row.state), row.state);
+    if (row.state === 'not_sent') assert.equal(row.attempt, null);
+    if (row.state === 'sent') assert.equal(row.attempt.submitted_at, null);
+    if (row.state === 'sat') assert.ok(row.attempt.submitted_at);
+  }
+});
+
+/* A list drawing twenty rows has no use for four hundred questions and their key. */
+test('the list carries no questions and no answer key', async () => {
+  const res = await fetch(`${base}/api/hiring/screening/awaiting-test`);
+  const text = await res.text();
+  assert.ok(!/"drawn"/.test(text), 'the questions travelled with the list');
+  assert.ok(!/"correct"/.test(text), 'the answer key travelled with the list');
 });

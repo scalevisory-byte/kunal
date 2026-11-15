@@ -1586,7 +1586,13 @@ test('the screening report is advice and cannot stop a verdict', () => {
 
 test('screening is reachable from the tab AND from the application', () => {
   const hiring = src('components/hiring/Hiring.jsx');
-  assert.match(hiring, /\['screening', 'Screening'\]/);
+  /*
+   * The KEY, not the label. This pinned the exact words 'Screening' and
+   * broke the moment the question bank folded in and the tab became
+   * "Screening & tests" — which is a rename, not a feature going missing.
+   * What this test is actually about is that the tab exists at all.
+   */
+  assert.match(hiring, /\['screening', '[^']+'\]/);
 
   /*
    * Dinesh asked, standing on the candidate list, how to move somebody

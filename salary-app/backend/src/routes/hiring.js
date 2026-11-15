@@ -71,7 +71,7 @@ import {
   saveReference,
   saveScreening,
   screeningFor,
-  awaitingTest,
+  testQueue,
   screeningQueue,
   screeningSummary,
   submitAttempt,
@@ -752,8 +752,9 @@ hiringRouter.get('/attempts/:id', (req, res) => {
 
 /* ---------------- initial screening ---------------- */
 
+/* The test stage - not sent, sent, sat - so the link never disappears. */
 hiringRouter.get('/screening/awaiting-test', (req, res) =>
-  res.json({ rows: awaitingTest({ company_id: req.query.company_id }) })
+  res.json({ rows: testQueue({ company_id: req.query.company_id }) })
 );
 
 hiringRouter.get('/screening/queue', (req, res) =>

@@ -2487,20 +2487,27 @@ export function screeningQueue({ company_id, vacancy_id } = {}) {
  * which is why the form offers a list to pick from.
  */
 /**
- * Screened Eligible, and no test sent yet.
+ * The test stage: everybody screened in, and where their test has got to.
  *
  * Dinesh's step 4 reads "eligible candidates ne online test mokalvo", and
  * there was no list to work from: the screening queue holds only people
  * WAITING to be screened, so the moment somebody was marked Eligible they
  * left the page and the next step had to be started by hunting for them under
- * Candidates. A step with no list is a step that gets skipped.
+ * Candidates.
  *
- * Somebody who has already been given a paper drops off this list - sent is
- * sent, whether or not they have sat it. Chasing them is the candidate's own
- * row, where the link can be sent again.
+ * The first version of this listed only people with NO test yet - "sent is
+ * sent" sounded tidy. It was wrong, and he found it within the hour: *"tets
+ * ka link kaha se milega"*. Sending the paper took the person off the list
+ * AND TOOK THE LINK WITH THEM, which is the same disappearing act one step
+ * later. A link that cannot be found again is a link that gets re-drawn, and
+ * a second paper lets somebody read the questions, close it, and sit a fresh
+ * one.
+ *
+ * So the list now covers the whole stage - not sent, sent, sat - and the link
+ * stays reachable until they have actually taken it.
  */
-export function awaitingTest({ company_id } = {}) {
-  return db
+export function testQueue({ company_id } = {}) {
+  const rows = db
     .prepare(
       `SELECT a.id AS application_id, c.id AS candidate_id, c.name, c.phone, c.ref_no,
               v.title AS job_title, v.test_paper_id, co.name AS company_name,
@@ -2512,12 +2519,32 @@ export function awaitingTest({ company_id } = {}) {
          JOIN companies co ON co.id = v.company_id
         WHERE s.verdict = 'Eligible'
           AND a.stage NOT IN ('Rejected', 'Joined')
-          AND NOT EXISTS (SELECT 1 FROM test_attempts t WHERE t.candidate_id = c.id)
           ${company_id ? 'AND co.id = @company_id' : ''}
         ORDER BY s.screened_on DESC, a.id DESC`
     )
     .all(company_id ? { company_id: Number(company_id) } : {});
+
+  /* Their newest attempt, if any. The answers never travel - a list drawing
+   * twenty rows has no use for four hundred questions and their key. */
+  const latest = db.prepare(
+    `SELECT t.id, t.token, t.assigned_at, t.submitted_at, t.percentage, t.passed,
+            t.right_count, t.wrong_count, t.skipped_count, p.name AS paper_name
+       FROM test_attempts t JOIN test_papers p ON p.id = t.paper_id
+      WHERE t.candidate_id = ? ORDER BY t.id DESC LIMIT 1`
+  );
+
+  return rows.map((row) => {
+    const attempt = latest.get(row.candidate_id) || null;
+    return {
+      ...row,
+      attempt,
+      state: !attempt ? 'not_sent' : attempt.submitted_at ? 'sat' : 'sent',
+    };
+  });
 }
+
+/** Kept for anything still asking the old question. */
+export const awaitingTest = (opts) => testQueue(opts).filter((r) => r.state === 'not_sent');
 
 export function screeningSummary({ company_id } = {}) {
   const where = [];

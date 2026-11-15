@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { testInvite, waLink } from '../../../../shared/hiringMessages.js';
+import QuestionBank from './QuestionBank.jsx';
+import TestResult from './TestResult.jsx';
 import { STANDALONE, api } from '../../api.js';
 import {
   HOLD_REASONS,
@@ -138,11 +140,13 @@ export function ScreeningForm({ applicationId, screening, report, onSaved, onErr
   );
 }
 
-export default function Screening({ companyId, onOpen, onError, onToast }) {
+export default function Screening({ companyId, config, onOpen, onError, onToast }) {
   const [queue, setQueue] = useState([]);
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState(null);
   const [ready, setReady] = useState([]);
+  const [showBank, setShowBank] = useState(false);
+  const [openSheet, setOpenSheet] = useState(null);
 
   const load = async () => {
     try {
@@ -181,9 +185,16 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
         <div className="card">
           <h2>Screening</h2>
           <div className="figures">
-            <div><strong>{summary.waiting}</strong><span>waiting to be screened</span></div>
+            {/* `.figure` or the number and its label run together — "0waiting". */}
+            <div className="figure">
+              <span className="n">{summary.waiting}</span>
+              <span className="k">waiting to be screened</span>
+            </div>
             {summary.verdicts.map((v) => (
-              <div key={v.verdict}><strong>{v.n}</strong><span>{v.verdict.toLowerCase()}</span></div>
+              <div className="figure" key={v.verdict}>
+                <span className="n">{v.n}</span>
+                <span className="k">{v.verdict.toLowerCase()}</span>
+              </div>
             ))}
           </div>
           {summary.rejection_reasons.length ? (
@@ -203,26 +214,6 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
         * them one at a time under Candidates. The list now stands where the
         * decision was made.
         */}
-      {ready.length ? (
-        <div className="card">
-          <h3>Eligible — ready for the test</h3>
-          <p className="muted small">
-            Screened in, no paper sent yet. Sending one does not move anybody — it is a link and
-            a score to weigh.
-          </p>
-          {ready.map((row) => (
-            <SendTest
-              key={row.application_id}
-              row={row}
-              onDone={load}
-              onError={onError}
-              onToast={onToast}
-              onOpen={onOpen}
-            />
-          ))}
-        </div>
-      ) : null}
-
       <div className="card">
         <h3>Waiting to be screened</h3>
         <p className="muted small">
@@ -266,6 +257,77 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
           ))
         )}
       </div>
+      {ready.length ? (
+        <div className="card">
+          <h3>The test</h3>
+          <p className="muted small">
+            Everybody screened in, and where their test has got to. The link stays here until they
+            have sat it — sending a second paper would let somebody read the questions, close it
+            and start again. A score is one more thing to weigh; it moves nobody.
+          </p>
+          {['not_sent', 'sent', 'sat'].map((state) => {
+            const group = ready.filter((r) => r.state === state);
+            if (!group.length) return null;
+            return (
+              <div key={state}>
+                <p className="ask">
+                  {state === 'not_sent'
+                    ? `Not sent yet (${group.length})`
+                    : state === 'sent'
+                      ? `Sent — waiting for them to sit it (${group.length})`
+                      : `Done (${group.length})`}
+                </p>
+                {group.map((row) => (
+                  <SendTest
+                    key={row.application_id}
+                    row={row}
+                    config={config}
+                    onDone={load}
+                    onError={onError}
+                    onToast={onToast}
+                    onOpen={onOpen}
+                    onSheet={setOpenSheet}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/*
+        * The questions and papers, folded in.
+        *
+        * Dinesh: *"test ko screening k andar dal do"*. It is setup rather
+        * than daily work, so it sits LAST and closed: the queue above is what
+        * somebody opens this page for. Folded with useState and not a
+        * <details> — the page reloads itself after every verdict, and a
+        * <details> shuts under the person's hands when React redraws it.
+        */}
+      <div className="card">
+        <div className="row">
+          <h3 style={{ margin: 0 }}>Questions and papers</h3>
+          <span className="spacer" />
+          <button onClick={() => setShowBank(!showBank)}>
+            {showBank ? 'hide' : 'open'}
+          </button>
+        </div>
+        {showBank ? (
+          <div style={{ marginTop: '0.7rem' }}>
+            <QuestionBank companies={[]} onError={onError} onToast={onToast} />
+          </div>
+        ) : (
+          <p className="muted small" style={{ margin: 0 }}>
+            The question bank and the papers drawn from it. Open it to add questions, change a
+            paper, or load the ready-made ones.
+          </p>
+        )}
+      </div>
+
+      {openSheet ? (
+        <TestResult attemptId={openSheet} onClose={() => setOpenSheet(null)} onError={onError} />
+      ) : null}
+
     </>
   );
 }
@@ -372,13 +434,16 @@ const ReasonBox = ({ verdict, reason, setReason, busy, onSave, onCancel }) => (
  * row, never drawn again - a second paper would let somebody read the
  * questions, close it, and sit a fresh one.
  */
-function SendTest({ row, onDone, onError, onToast, onOpen }) {
+function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
   const [papers, setPapers] = useState([]);
   const [paperId, setPaperId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [link, setLink] = useState('');
+  const [drawn, setDrawn] = useState('');
+
+  const sent = row.state !== 'not_sent';
 
   useEffect(() => {
+    if (sent) return;
     api
       .get('/hiring/papers')
       .then(({ papers: list }) => {
@@ -390,6 +455,17 @@ function SendTest({ row, onDone, onError, onToast, onOpen }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * The link, worked out the same way wherever it is shown.
+   *
+   * The server answers an absolute URL only once the public address is set.
+   * Without it the link came back as "/sit/TST-…", which looks fine in a box
+   * and is dead the moment it is pasted into WhatsApp.
+   */
+  const linkFor = (token) =>
+    `${config?.public_url || window.location.origin}/sit/${token}`;
+  const link = drawn || (row.attempt?.token ? linkFor(row.attempt.token) : '');
+
   const send = async () => {
     setBusy(true);
     try {
@@ -397,11 +473,10 @@ function SendTest({ row, onDone, onError, onToast, onOpen }) {
         candidate_id: row.candidate_id,
         application_id: row.application_id,
       });
-      const url = out.link?.startsWith('http')
-        ? out.link
-        : `${window.location.origin}${out.link}`;
-      setLink(url);
-      onToast('Paper drawn — send them the link');
+      setDrawn(
+        out.link?.startsWith('http') ? out.link : `${window.location.origin}${out.link}`
+      );
+      onToast('Paper drawn — now send them the link');
       onDone?.();
     } catch (err) {
       onError(err);
@@ -409,6 +484,36 @@ function SendTest({ row, onDone, onError, onToast, onOpen }) {
       setBusy(false);
     }
   };
+
+  const share = link ? (
+    <>
+      <a
+        className="btn"
+        target="_blank"
+        rel="noreferrer"
+        href={
+          waLink(
+            row.phone,
+            testInvite({
+              candidate: { name: row.name },
+              vacancy: { title: row.job_title, company_name: row.company_name },
+              url: link,
+            })
+          ) || '#'
+        }
+      >
+        Send on WhatsApp
+      </a>
+      <button
+        onClick={() => {
+          navigator.clipboard?.writeText(link);
+          onToast('Link copied');
+        }}
+      >
+        Copy link
+      </button>
+    </>
+  ) : null;
 
   return (
     <div className="scr-row">
@@ -419,35 +524,37 @@ function SendTest({ row, onDone, onError, onToast, onOpen }) {
         <span className="muted small">
           {' '}· {row.ref_no} · {row.phone} · {row.job_title}, {row.company_name}
         </span>
+        {row.attempt ? (
+          <div className="muted small">
+            {row.attempt.paper_name}
+            {row.attempt.submitted_at
+              ? ` · sat ${String(row.attempt.submitted_at).replace('T', ' ').slice(0, 16)} · ${
+                  row.attempt.right_count
+                } right, ${row.attempt.wrong_count} wrong${
+                  row.attempt.skipped_count ? `, ${row.attempt.skipped_count} blank` : ''
+                }`
+              : ` · sent ${String(row.attempt.assigned_at).slice(0, 10)}, not sat yet`}
+          </div>
+        ) : null}
       </div>
-      {link ? (
+
+      {row.state === 'sat' ? (
         <div className="row">
-          <a
-            className="btn"
-            target="_blank"
-            rel="noreferrer"
-            href={
-              waLink(
-                row.phone,
-                testInvite({
-                  candidate: { name: row.name },
-                  vacancy: { title: row.job_title, company_name: row.company_name },
-                  url: link,
-                })
-              ) || '#'
-            }
-          >
-            Send on WhatsApp
-          </a>
-          <button
-            onClick={() => {
-              navigator.clipboard?.writeText(link);
-              onToast('Link copied');
-            }}
-          >
-            Copy link
-          </button>
+          <strong className={row.attempt.passed ? 'age fresh' : 'muted'}>
+            {row.attempt.percentage}%
+          </strong>
+          <button onClick={() => onSheet(row.attempt.id)}>Answer sheet</button>
         </div>
+      ) : sent || drawn ? (
+        /*
+         * The link, kept where the work is.
+         *
+         * The first version of this list dropped somebody the moment a paper
+         * was drawn, which took the link with them — and the link is the
+         * whole point. It is the SAME attempt every time it is sent again,
+         * never a fresh draw.
+         */
+        <div className="row">{share}</div>
       ) : papers.length ? (
         <div className="row">
           <select value={paperId} onChange={(e) => setPaperId(e.target.value)}>
@@ -463,7 +570,7 @@ function SendTest({ row, onDone, onError, onToast, onOpen }) {
         </div>
       ) : (
         <span className="muted small">
-          No papers yet — make one under Hiring → Tests.
+          No papers yet — open “Questions and papers” below and make one.
         </span>
       )}
     </div>

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.9.1';
+export const VERSION = '1.9.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.9.2',
+    date: '15 Nov 2026',
+    title: 'The test lives inside Screening, and the link stays put',
+    items: [
+      '**The Tests tab is gone — it is inside Screening now.** The tab reads “Screening & tests”, and the question bank sits folded at the bottom of that page, under the day’s work.',
+      '**The link no longer disappears.** Sending somebody a paper used to take them off the list and take the link with them, so there was no way back to it. The list now shows the whole stage: **not sent yet** (pick a paper and send it), **sent** (Copy link / Send on WhatsApp, any time until they sit it), and **done** (the score and the answer sheet).',
+      'It is always the **same link**, never a fresh paper — a second one would let somebody read the questions, close it, and start again.',
+      'The page runs in the order you work it: screen them, test them, then the questions and papers underneath.',
+      'The screening figures read properly — “0 waiting to be screened” rather than “0waiting”.',
+    ],
+  },
   {
     version: '1.9.1',
     date: '15 Nov 2026',
