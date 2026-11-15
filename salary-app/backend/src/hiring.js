@@ -39,7 +39,12 @@ import {
   starterPaper,
 } from '../../shared/starterQuestions.js';
 import { nextEmployeeCode, tidyEmployeeCode } from '../../shared/employeeCode.js';
-import { answerSheetFileName, answerSheetHtml } from '../../shared/testSheet.js';
+import {
+  answerSheetFileName,
+  answerSheetHtml,
+  integrity,
+  minutesTaken,
+} from '../../shared/testSheet.js';
 import { candidatePackFileName, candidatePackHtml } from '../../shared/candidatePack.js';
 import {
   checkPaper,
@@ -2835,6 +2840,97 @@ export function testQueue({ company_id } = {}) {
 
 /** Kept for anything still asking the old question. */
 export const awaitingTest = (opts) => testQueue(opts).filter((r) => r.state === 'not_sent');
+
+/**
+ * EVERY RESULT, ACROSS EVERY CANDIDATE AND EVERY PAPER.
+ *
+ * The queue above answers "where has this person's test got to", one line per
+ * person screened in, and their latest attempt only. That is the right answer
+ * while you are hiring for one opening and the wrong one for "show me the
+ * results" - a candidate who sat two papers has one of them missing from it,
+ * and anybody no longer in the queue (rejected, joined, screened out since)
+ * takes their result off the screen with them. A score that disappears
+ * because the person moved on is not a record.
+ *
+ * So this is its own list: every SUBMITTED attempt, newest first, whoever
+ * they are and wherever they got to.
+ *
+ * THE ANSWER KEY NEVER TRAVELS. The flags need every question and its right
+ * answer to work out, so they are worked out HERE and only the finished flags
+ * go out - the same rule the queue and the candidate list already follow. The
+ * one screen that shows the questions fetches them from /attempts/:id.
+ */
+export function listTestResults({ company_id, paper_id, q = '', verdict = 'all' } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT t.*, p.name AS paper_name,
+              c.name AS candidate_name, c.phone, c.ref_no,
+              v.title AS job_title, co.id AS company_id, co.name AS company_name
+         FROM test_attempts t
+         JOIN test_papers p ON p.id = t.paper_id
+         JOIN candidates c ON c.id = t.candidate_id
+         LEFT JOIN applications a ON a.id = t.application_id
+         LEFT JOIN vacancies v ON v.id = a.vacancy_id
+         LEFT JOIN companies co ON co.id = v.company_id
+        WHERE t.submitted_at IS NOT NULL
+          ${company_id ? 'AND co.id = @company_id' : ''}
+          ${paper_id ? 'AND p.id = @paper_id' : ''}
+        ORDER BY t.submitted_at DESC, t.id DESC`
+    )
+    .all({
+      ...(company_id ? { company_id: Number(company_id) } : {}),
+      ...(paper_id ? { paper_id: Number(paper_id) } : {}),
+    })
+    .map(readAttempt)
+    .map((attempt) => {
+      const { drawn, answers, times, token, ...rest } = attempt;
+      const checks = integrity(attempt);
+      return {
+        ...rest,
+        asked: (drawn || []).length,
+        minutes: minutesTaken(attempt),
+        avg_seconds: checks.avg_seconds,
+        flags: checks.flags,
+        clean: checks.flags.length === 0,
+      };
+    });
+
+  /*
+   * Every word of the search has to land, so two words narrow instead of
+   * widening - the same rule the in-app help search follows. Somebody typing
+   * "dinesh accounts" means that person on that paper.
+   */
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const found = rows.filter((r) => {
+    const hay = [r.candidate_name, r.phone, r.ref_no, r.job_title, r.company_name, r.paper_name]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+
+  /*
+   * The counts are taken BEFORE the pass/flag filter, deliberately. They are
+   * what the buttons are for: "4 flagged" is a reason to press Flagged, and
+   * counting only what is already on screen would make every one of them read
+   * as the whole list.
+   */
+  const counts = {
+    total: found.length,
+    passed: found.filter((r) => r.passed).length,
+    failed: found.filter((r) => !r.passed).length,
+    flagged: found.filter((r) => !r.clean).length,
+  };
+
+  const shown =
+    verdict === 'passed' ? found.filter((r) => r.passed)
+    : verdict === 'failed' ? found.filter((r) => !r.passed)
+    : verdict === 'flagged' ? found.filter((r) => !r.clean)
+    : verdict === 'clean' ? found.filter((r) => r.clean)
+    : found;
+
+  return { results: shown, counts };
+}
 
 export function screeningSummary({ company_id } = {}) {
   const where = [];

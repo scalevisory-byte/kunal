@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.12.1';
+export const VERSION = '1.13.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.13.0',
+    date: '15 Nov 2026',
+    title: 'Where the results are, and how a candidate’s record ends',
+    items: [
+      '**Test results** — a new panel on Screening & tests listing **every paper anybody has sat**, newest first. Search by name, mobile, job or test; narrow to Qualified / Not qualified / Flagged / Clean; **Export CSV**. The counts on the buttons say how many are in each pile.',
+      'A result **stays on that list after the person is taken on or turned down**. The queue above it is a list of people still being hired, so a score used to disappear with them — and a score that disappears is not a record.',
+      '**Flagged** says exactly what was recorded — left the test and for how long, copy/paste attempts, answers under two seconds, ran out of time. **Clean** is written out, never left blank: an empty cell reads as “nobody looked”.',
+      'The **answer key never travels** to any of this. The flags are worked out on the server and only the finished words come back; the questions stay behind the one screen that shows them.',
+      'On a candidate’s record, the interview history now **opens the particulars form and the evaluation** instead of only summarising them in a line.',
+      '**Selected — the offer** is a new section on the record: designation, salary, joining date, department and place, the offer letter, and whether they are **on the payroll yet** — which is not the same question as whether they accepted. The record used to stop at the evaluation, which is exactly where the hiring gets decided.',
+    ],
+  },
   {
     version: '1.12.1',
     date: '15 Nov 2026',

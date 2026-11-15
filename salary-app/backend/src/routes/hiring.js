@@ -4,6 +4,7 @@ import {
   assignTest,
   answerSheetDocument,
   attemptReview,
+  listTestResults,
   candidatePackDocument,
   candidateFormLink,
   createApplication,
@@ -49,6 +50,7 @@ import {
   listVacancies,
   moveApplication,
   moveOffer,
+  getOffer,
   offerFor,
   offerLetter,
   openAttempt,
@@ -278,6 +280,17 @@ hiringRouter.get('/candidates/:id', (req, res) => {
     /* The papers they actually sat. `tests` above is the older hand-typed
      * score; these are the real attempts, with an answer sheet behind each. */
     attempts: listAttemptSummaries(candidate.id),
+    /*
+     * And what happened AFTER the interviews.
+     *
+     * Dinesh: "candidate me uska result, interview form, evaluation form,
+     * and select hua to aage ki sari chize dikhni chahiye". The record
+     * carried everything up to the evaluation and then stopped - so the one
+     * page that is supposed to be the whole story went quiet exactly where
+     * the hiring was decided. An offer is attached to an APPLICATION, not to
+     * a person, because somebody can be put forward for two openings.
+     */
+    offers: rows.map((a) => getOffer(a.id)).filter(Boolean),
     resume: resumeLink(candidate),
   });
 });
@@ -548,6 +561,24 @@ hiringRouter.get('/export/pipeline.csv', (req, res) => {
   sendCsv(res, 'hiring-pipeline.csv', toCsv(CSV_COLUMNS.pipeline, rows));
 });
 
+hiringRouter.get('/export/test-results.csv', (req, res) => {
+  const { results } = listTestResults(resultQuery(req));
+  sendCsv(
+    res,
+    'test-results.csv',
+    toCsv(
+      CSV_COLUMNS.testResults,
+      results.map((r) => ({
+        ...r,
+        result: r.passed ? 'Qualified' : 'Not qualified',
+        /* "Clean" is a verdict, not an empty cell - a blank reads as "nobody
+         * looked", which is the opposite of what it means here. */
+        integrity: r.flags.length ? r.flags.join('; ') : 'Clean',
+      }))
+    )
+  );
+});
+
 hiringRouter.get('/export/candidates.csv', (req, res) => {
   const { rows } = listCandidates({ q: req.query.q, limit: 100000 });
   sendCsv(
@@ -744,6 +775,19 @@ hiringRouter.post('/papers/:id/assign', (req, res) => {
 hiringRouter.get('/candidates/:id/attempts', (req, res) =>
   res.json({ attempts: listAttempts(Number(req.params.id)) })
 );
+
+/*
+ * Every result, across everybody - the question "where do I see the results"
+ * has its own answer, instead of being the queue's side effect.
+ */
+const resultQuery = (req) => ({
+  company_id: num(req.query.company_id),
+  paper_id: num(req.query.paper_id),
+  q: req.query.q || '',
+  verdict: req.query.verdict || 'all',
+});
+
+hiringRouter.get('/test-results', (req, res) => res.json(listTestResults(resultQuery(req))));
 
 hiringRouter.get('/attempts/:id', (req, res) => {
   const found = attemptReview(Number(req.params.id));

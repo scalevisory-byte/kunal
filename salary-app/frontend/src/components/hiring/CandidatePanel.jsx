@@ -129,7 +129,7 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
   };
 
   if (!data) return null;
-  const { candidate, applications, tests, attempts = [], resume } = data;
+  const { candidate, applications, tests, attempts = [], offers = [], resume } = data;
   const alreadyOn = new Set(applications.map((a) => a.vacancy_id));
   const spare = openings.filter((v) => !alreadyOn.has(v.id));
   const chase = resumeRequest({
@@ -368,10 +368,118 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
                         : 'Evaluation: none'}
                       {h.approved_by ? ` · decided by ${h.approved_by}` : ''}
                     </div>
+                    {/*
+                      * And a way to READ them.
+                      *
+                      * The line said "Form: Selected · Evaluation: Hire"
+                      * and stopped there - the two documents somebody
+                      * actually wants to look at were printable from the
+                      * Interviews tab and nowhere else, which means going
+                      * to find the same interview a second time. Shown only
+                      * where the document exists: a button that opens an
+                      * empty form is worse than no button.
+                      */}
+                    {!STANDALONE && (h.form_id || h.evaluation_id) ? (
+                      <div className="row" style={{ gap: '0.4rem', marginTop: '0.3rem' }}>
+                        {h.form_id ? (
+                          <button
+                            className="tiny"
+                            onClick={() => grab(`/api/hiring/interviews/${h.interview_id}/form/print`)}
+                          >
+                            Particulars form
+                          </button>
+                        ) : null}
+                        {h.evaluation_id ? (
+                          <button
+                            className="tiny"
+                            onClick={() =>
+                              grab(`/api/hiring/interviews/${h.interview_id}/evaluation/print`)
+                            }
+                          >
+                            Evaluation
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </span>
                 </div>
               ))}
             </div>
+          </div>
+        ) : null}
+
+        {/*
+          * WHAT HAPPENED AFTER THEY WERE SELECTED.
+          *
+          * Dinesh: "select hua to aage ki sari chize dikhni chahiye". The
+          * record ran screening, interviews, evaluation - and then stopped
+          * at the exact point the hiring was decided. The offer lived on the
+          * pipeline card and nowhere else, so the page that is meant to be
+          * the whole story went quiet at the end of it.
+          *
+          * It ASSEMBLES, it does not decide: every figure here was written
+          * by the offer screen, and nothing on this card moves anybody.
+          */}
+        {offers.length ? (
+          <div className="card">
+            <h3>Selected — the offer</h3>
+            {offers.map((o) => {
+              const application = applications.find((a) => a.id === o.application_id);
+              return (
+                <div key={o.id} className="lines">
+                  <div>
+                    <span className="what">
+                      <strong>{o.designation || application?.job_title}</strong>
+                      <span className="muted small">
+                        {' '}· {application?.company_name || ''}
+                        {application?.vacancy_ref ? ` · ${application.vacancy_ref}` : ''}
+                      </span>
+                    </span>
+                    <span className="val">{o.status}</span>
+                  </div>
+                  <div>
+                    <span className="what">Salary offered</span>
+                    <span className="val">{o.salary ? `₹${Number(o.salary).toLocaleString('en-IN')}` : '—'}</span>
+                  </div>
+                  <div>
+                    <span className="what">Joining date</span>
+                    <span className="val">{o.joining_date || <span className="muted">not set</span>}</span>
+                  </div>
+                  {o.department || o.location ? (
+                    <div>
+                      <span className="what">Department / place</span>
+                      <span className="val">{[o.department, o.location].filter(Boolean).join(' · ')}</span>
+                    </div>
+                  ) : null}
+                  <div>
+                    {/*
+                      * On the payroll, or not yet - and NOT the same question
+                      * as "did they accept". Somebody can accept on the phone
+                      * and still not exist on the salary sheet, and that gap
+                      * is the one that costs a payslip at month end.
+                      */}
+                    <span className="what">On the payroll</span>
+                    <span className="val">
+                      {application?.employee_id ? (
+                        'Yes — on the salary sheet'
+                      ) : (
+                        <span className="muted">Not yet — use “Add to payroll” on the pipeline card</span>
+                      )}
+                    </span>
+                  </div>
+                  {!STANDALONE ? (
+                    <div className="row" style={{ marginTop: '0.4rem' }}>
+                      <button
+                        className="tiny"
+                        onClick={() => grab(`/api/hiring/applications/${o.application_id}/offer/letter`)}
+                      >
+                        Offer letter
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         ) : null}
 

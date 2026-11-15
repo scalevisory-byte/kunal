@@ -27,4 +27,20 @@ export const CSV_COLUMNS = {
     ['Expected salary', 'expected_salary'], ['Notice period', 'notice_period'],
     ['CV', 'has_resume'], ['Source', 'source'], ['Added on', 'created_at'],
   ],
+  /*
+   * The results export carries the SCORE and the FLAGS, never the questions
+   * and never the answer key. A spreadsheet of a live question bank is the
+   * file that reaches the next candidate.
+   */
+  testResults: [
+    ['Ref', 'ref_no'], ['Candidate', 'candidate_name'], ['Mobile', 'phone'],
+    ['Applied for', 'job_title'], ['Company', 'company_name'],
+    ['Test', 'paper_name'],
+    ['Score', 'right_count'], ['Out of', 'asked'], ['Percent', 'percentage'],
+    ['Result', 'result'],
+    ['Wrong', 'wrong_count'], ['Blank', 'skipped_count'],
+    ['Minutes taken', 'minutes'], ['Avg seconds per question', 'avg_seconds'],
+    ['Integrity', 'integrity'],
+    ['Sat on', 'submitted_at'],
+  ],
 };

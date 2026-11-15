@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { testInvite, waLink } from '../../../../shared/hiringMessages.js';
 import QuestionBank from './QuestionBank.jsx';
 import TestResult from './TestResult.jsx';
+import TestResults from './TestResults.jsx';
 import { STANDALONE, api } from '../../api.js';
 import {
   HOLD_REASONS,
@@ -304,6 +305,17 @@ export default function Screening({ companyId, config, onOpen, onError, onToast 
           })}
         </div>
       ) : null}
+
+      {/*
+        * Every result, whoever they are.
+        *
+        * Dinesh, with a finished test on his screen: "result kahan dikhayega
+        * bhai". It WAS on the card above - under his own name, where it
+        * belongs while you are working one opening, and nowhere near where
+        * somebody looks for "the results". This is that place, and it keeps
+        * a score after the person has moved on.
+        */}
+      <TestResults companyId={companyId} onSheet={setOpenSheet} onError={onError} />
 
       {/*
         * The questions and papers, folded in.

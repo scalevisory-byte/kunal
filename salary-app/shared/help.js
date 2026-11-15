@@ -483,6 +483,7 @@ export const HELP = [
     keywords: [
       'test', 'exam', 'question', 'paper', 'aptitude', 'mcq', 'marks', 'score',
       'pariksha', 'sawal', 'prashn', 'question bank', 'starter',
+      'result', 'results', 'natija', 'parinam', 'pass', 'fail', 'cheating', 'flag',
     ],
     lines: [
       'Tests → **Ready-made questions** fills an empty bank in one click — general aptitude, computer knowledge, email and internet, English, and ten each for Travel Consultant and Accounts. It also sets up the twenty-question paper: fifteen general, five for the seat, about thirty seconds each, so ten minutes.',
@@ -493,8 +494,10 @@ export const HELP = [
       '**One question at a time** is the default: each has its own seconds, and when they run out the next one comes up by itself with no going back. Set it per paper under “How it is put to them”.',
       'It marks itself. Open the candidate and **Written tests** lists every paper they were given: the score, and **Answer sheet** showing each question, what they chose and what was right, broken down by topic.',
       'Not sat yet? The same row has **Send the link** (WhatsApp) and **Copy link**. It sends the SAME link \u2014 never a fresh paper.',
+      '**Everybody’s results together** are on Screening & tests under **Test results** — search by name, mobile, job or test, narrow to Qualified / Not qualified / Flagged / Clean, and Export CSV. A paper stays on that list after the person is taken on or turned down.',
+      '**Flagged** means the page recorded something: they left the test and for how long, tried to copy or paste, answered half the paper in under two seconds, or ran out of time. **Clean** is said out loud, never left blank.',
     ],
-    note: 'The clock runs on the WHOLE paper, not on each question — thirty seconds is the pace, not a cut-off. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
+    note: 'Each question has its own seconds and the next comes up by itself — but what is ENFORCED is the whole paper’s clock, which the server times from its own start. A flag catches tab-switching, copy and paste, impossible speed and timeouts — it cannot catch a second phone or another person in the room, so treat it as a reason to ring somebody back, never as proof. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
   },
   {
     id: 'candidate-file',
