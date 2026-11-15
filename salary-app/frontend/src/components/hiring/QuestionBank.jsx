@@ -143,7 +143,7 @@ export default function QuestionBank({ companies, onError, onToast }) {
         ) : (
           <button
             className="primary"
-            onClick={() => setPaper({ pass_percent: 50, duration_minutes: 20, sections: [{ category: '', count: 5 }] })}
+            onClick={() => setPaper({ pass_percent: 50, duration_minutes: 10, one_at_a_time: 1, seconds_per_question: 30, sections: [{ category: '', count: 5 }] })}
           >
             + New paper
           </button>
@@ -459,6 +459,50 @@ function PaperForm({ paper, companies, categories, onSave, onClose }) {
               onChange={(e) => set('duration_minutes', e.target.value)} />
           </label>
         </div>
+        {/*
+          * How the paper is put to them.
+          *
+          * Dinesh: *"ek bar me ek question hi dikega / uska time khatm hone k
+          * bad turant dusra question aa jeyaga"*, which is how his ZYNTA test
+          * works. It is a per-PAPER setting, not an app-wide switch, so a
+          * paper already in use cannot change under somebody halfway through.
+          */}
+        <label className="field">
+          How it is put to them
+          <select
+            value={p.one_at_a_time ? 'one' : 'all'}
+            onChange={(e) => set('one_at_a_time', e.target.value === 'one' ? 1 : 0)}
+          >
+            <option value="all">All questions on one page — they can go back and change answers</option>
+            <option value="one">One at a time, each on its own clock — no going back</option>
+          </select>
+        </label>
+        {p.one_at_a_time ? (
+          <>
+            <label className="field">
+              Seconds for each question
+              <input
+                type="number"
+                min="5"
+                value={p.seconds_per_question ?? 30}
+                onChange={(e) => set('seconds_per_question', e.target.value)}
+              />
+              <span className="hint">
+                {paperSize(p.sections)} × {Number(p.seconds_per_question) || 30}s ={' '}
+                {Math.round((paperSize(p.sections) * (Number(p.seconds_per_question) || 30)) / 60)}{' '}
+                minutes. Set “Minutes” above to about that, or the paper runs out before the
+                questions do.
+              </span>
+            </label>
+            <p className="note small">
+              The per-question clock <strong>paces</strong> the test; what is actually checked is
+              the total above, from the server’s own start time. The questions are all sent to the
+              phone at once, so the per-question countdown runs in their browser. It is the right
+              shape for a hiring test and it is not an exam hall — worth knowing rather than
+              assuming.
+            </p>
+          </>
+        ) : null}
         <label className="field">
           Instructions shown to the candidate
           <textarea rows={2} value={p.instructions ?? ''} onChange={(e) => set('instructions', e.target.value)} />

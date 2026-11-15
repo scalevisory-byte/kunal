@@ -156,6 +156,13 @@ export function starterPaper(position) {
     name: position ? `${position} test` : 'General test',
     sections,
     pass_percent: 50,
+    /*
+     * One question at a time, each on its own clock, moving on by itself -
+     * which is what "30 seconds a question" actually means and how his ZYNTA
+     * test already works. The whole-paper total stays as the real limit.
+     */
+    one_at_a_time: 1,
+    seconds_per_question: STARTER_SECONDS_PER_QUESTION,
     duration_minutes: Math.round((total * STARTER_SECONDS_PER_QUESTION) / 60),
     /*
      * The candidate's page already says a blank answer costs nothing, so this
@@ -163,8 +170,6 @@ export function starterPaper(position) {
      * and not on each question - thirty seconds is the pace, not a cut-off,
      * and somebody who thinks it is will rush every answer.
      */
-    instructions: `${total} questions in ${
-      Math.round((total * STARTER_SECONDS_PER_QUESTION) / 60)
-    } minutes — about ${STARTER_SECONDS_PER_QUESTION} seconds each. The clock is on the whole paper, so you can take longer over one question and less over another.`,
+    instructions: `${total} questions, ${STARTER_SECONDS_PER_QUESTION} seconds each. One question at a time — when the seconds run out the next one comes up by itself, so you cannot go back.`,
   };
 }

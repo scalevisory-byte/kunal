@@ -3693,3 +3693,10 @@ button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
    table 235px past a 1280 laptop, which parked the pinned actions cell on top
    of the Status dropdown. A name needs nothing like that much room. */
 table.hiring-table td input.who { width: 9rem; min-width: 0; }
+
+/* One question at a time: how far through they are. */
+.sit-progress {
+  height: 4px; border-radius: 2px; background: var(--line-soft);
+  margin: 0.6rem 0 1rem; overflow: hidden;
+}
+.sit-progress span { display: block; height: 100%; background: var(--brand); transition: width 0.2s; }

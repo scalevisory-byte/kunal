@@ -489,6 +489,7 @@ export const HELP = [
       'Pressing it again adds only what is missing, so a question you have reworded is never put back. Every question is yours to **edit or remove**.',
       'A **paper** says how many questions to draw from each position or topic. Add your own questions under a new position and a paper can draw from it.',
       'A test is handed out from the **candidate’s own application**, not from here — that is where somebody is deciding about one person. The link is theirs and works once.',
+      '**One question at a time** is the default: each has its own seconds, and when they run out the next one comes up by itself with no going back. Set it per paper under “How it is put to them”.',
       'It marks itself. Open the candidate and **Written tests** lists every paper they were given: the score, and **Answer sheet** showing each question, what they chose and what was right, broken down by topic.',
       'Not sat yet? The same row has **Send the link** (WhatsApp) and **Copy link**. It sends the SAME link \u2014 never a fresh paper.',
     ],

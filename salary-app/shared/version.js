@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.9.2';
+export const VERSION = '1.10.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.10.0',
+    date: '15 Nov 2026',
+    title: 'The test runs one question at a time, like ZYNTA',
+    items: [
+      '**One question on the screen, each with its own clock.** When the seconds run out the next one comes up by itself — there is no going back, because that question’s time is spent.',
+      'Answering also moves straight on, so somebody can go faster than the clock but never slower.',
+      'The big number is **that question’s seconds**; the whole paper’s time stays under it in small type.',
+      'A question the clock ran out on counts as **not answered** — nought marks and no penalty, never a wrong answer.',
+      '**It is set per paper, not app-wide**, so a paper somebody is halfway through cannot change shape under them. Screening → Questions and papers → the paper → “How it is put to them”.',
+      'The ready-made paper is set this way: **20 questions, 30 seconds each, 10 minutes**.',
+      'Said plainly on the office screen: the per-question clock **paces** the test, and the whole-paper total is what is actually checked by the server.',
+      'On the interview row, “Form” now reads **“Their form”** — it is the candidate’s, and it carries ● when they have sent it back and nobody has read it yet.',
+    ],
+  },
   {
     version: '1.9.2',
     date: '15 Nov 2026',

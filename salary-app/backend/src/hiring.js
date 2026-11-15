@@ -1786,6 +1786,13 @@ db.exec(`
     duration_minutes INTEGER NOT NULL DEFAULT 20,
     validity_days    INTEGER,
     instructions TEXT,
+    -- One question at a time, each with its own clock, moving on by itself
+    -- when that clock runs out. Dinesh: "ek bar me ek question hi dikega /
+    -- uska time khatm hone k bad turant dusra question aa jeyaga", which is
+    -- how his ZYNTA test already works. Default 0, so no paper already in
+    -- use changes the way it behaves.
+    one_at_a_time    INTEGER NOT NULL DEFAULT 0,
+    seconds_per_question INTEGER,
     active      INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1831,6 +1838,17 @@ db.exec(`
  * remain exactly as they were; nothing already configured changes because this
  * column appeared.
  */
+/* One-question-at-a-time, for papers made before the mode existed. */
+for (const [column, type] of [
+  ['one_at_a_time', 'INTEGER NOT NULL DEFAULT 0'],
+  ['seconds_per_question', 'INTEGER'],
+]) {
+  if (!columnsOf('test_papers').has(column)) {
+    db.exec(`ALTER TABLE test_papers ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated test_papers: added ${column}.`);
+  }
+}
+
 /*
  * The department head's step, for databases made before it existed.
  *
@@ -2216,6 +2234,23 @@ export function openAttempt(token) {
     duration_minutes: attempt.duration_minutes,
     started_at: attempt.started_at,
     seconds_left: Math.max(0, secondsLeft(attempt.started_at, attempt.duration_minutes) ?? 0),
+    /*
+     * One at a time, and how long each question gets.
+     *
+     * THE PER-QUESTION CLOCK PACES; THE WHOLE-PAPER CLOCK IS WHAT IS
+     * ENFORCED. The questions are all delivered at once and the browser
+     * counts each one down, so a determined person could stop that counter -
+     * but the server still decides, from its own start time, whether the
+     * paper came back inside its total. Said here rather than left implied,
+     * because the alternative is believing in a limit that is not checked.
+     */
+    one_at_a_time: Boolean(paper?.one_at_a_time),
+    seconds_per_question:
+      Number(paper?.seconds_per_question) ||
+      Math.max(
+        5,
+        Math.round((attempt.duration_minutes * 60) / Math.max(1, attempt.drawn.length))
+      ),
     questions: forCandidate(attempt.drawn),
   };
 }

@@ -1812,7 +1812,7 @@ test('the news that a form came back is on the button that opens it', () => {
    * Short labels, because four of these sit on one line: the dot IS the news
    * and the tooltip carries the sentence.
    */
-  assert.match(list, /'Form ●'/);
+  assert.match(list, /'Their form ●'/);
   assert.match(list, /They filled this in — open it to read what they sent/);
   assert.match(list, /i\.candidate_sent_at \? 'Sent' : 'Send'/);
 
@@ -1909,7 +1909,7 @@ test('the row actions stay on one line and stay on the screen', () => {
    * Dinesh reported. Short labels on one line instead.
    */
   assert.match(css, /\.row-actions \{[^}]*flex-wrap: nowrap/);
-  assert.match(list, /'Form ●'/);
+  assert.match(list, /'Their form ●'/);
   assert.match(list, /i\.candidate_sent_at \? 'Sent' : 'Send'/);
 
   /*

@@ -224,10 +224,10 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                     * read it - and the tooltip carries the sentence.
                     */}
                   {i.candidate_filled_at && i.form_status !== 'submitted'
-                    ? 'Form ●'
+                    ? 'Their form ●'
                     : i.form_status === 'submitted'
-                      ? 'Form ✓'
-                      : 'Form'}
+                      ? 'Their form ✓'
+                      : 'Their form'}
                 </button>
                 <button
                   onClick={() => sendLink(i.id)}

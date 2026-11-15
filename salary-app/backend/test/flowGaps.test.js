@@ -380,3 +380,87 @@ test('the list carries no questions and no answer key', async () => {
   assert.ok(!/"drawn"/.test(text), 'the questions travelled with the list');
   assert.ok(!/"correct"/.test(text), 'the answer key travelled with the list');
 });
+
+/* ---------------- one question at a time ---------------- */
+
+/*
+ * Dinesh, having sat the test himself: *"test ese nahi / ek bar me ek question
+ * hi dikega / uska time khatm hone k bad turant dusra question aa jeyaga"*,
+ * and then *"zynta me esa hi he"* — his own test system already works this
+ * way.
+ *
+ * It is a per-PAPER setting, never an app-wide switch: a paper somebody is
+ * halfway through must not change shape underneath them.
+ */
+test('the mode is off by default, so no existing paper changes', async () => {
+  const made = await api('PUT', '/api/hiring/papers', {
+    name: 'Plain paper', pass_percent: 50, duration_minutes: 20,
+    sections: [{ category: 'Accounts', count: 3 }],
+  });
+  assert.equal(made.body.one_at_a_time, 0);
+});
+
+test('a paper can be put one question at a time, with its own seconds', async () => {
+  const made = await api('PUT', '/api/hiring/papers', {
+    name: 'Timed paper', pass_percent: 50, duration_minutes: 10,
+    one_at_a_time: 1, seconds_per_question: 30,
+    sections: [{ category: 'Accounts', count: 5 }],
+  });
+  assert.equal(made.body.one_at_a_time, 1);
+  assert.equal(made.body.seconds_per_question, 30);
+});
+
+test('the candidate’s page is told the mode, and still never the answers', async () => {
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Vikas Jain', phone: '9898022334' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: cid,
+  });
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Timed paper'
+  );
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
+  });
+
+  const res = await fetch(`${base}/api/public/sit/${asg.body.attempt.token}`);
+  const text = await res.text();
+  const open = JSON.parse(text);
+
+  assert.equal(open.one_at_a_time, true);
+  assert.equal(open.seconds_per_question, 30);
+  assert.ok(!/"correct"/.test(text), 'the answer key reached the candidate');
+  /* All the questions still travel at once — the browser paces them. The
+   * SERVER's total is what is actually enforced, and saying so is the point. */
+  assert.equal(open.questions.length, 5);
+  assert.ok(open.seconds_left > 0);
+});
+
+test('a paper with no seconds set falls back to its total divided by the questions', async () => {
+  const made = await api('PUT', '/api/hiring/papers', {
+    name: 'No seconds', pass_percent: 50, duration_minutes: 10,
+    one_at_a_time: 1,
+    sections: [{ category: 'Accounts', count: 5 }],
+  });
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Anita Rao', phone: '9898022998' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy ?? undefined, candidate_id: cid,
+  });
+  const app = a.body.application?.id ?? a.body.id;
+  const asg = await api('POST', `/api/hiring/papers/${made.body.id}/assign`, {
+    candidate_id: cid, application_id: app,
+  });
+  const open = (await api('GET', `/api/public/sit/${asg.body.attempt.token}`)).body;
+  assert.equal(open.seconds_per_question, 120, '10 minutes over 5 questions');
+});
+
+/* The one he asked for from the start: twenty questions, thirty seconds each. */
+test('the starter paper is one at a time at thirty seconds', async () => {
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  assert.equal(paper.one_at_a_time, 1);
+  assert.equal(paper.seconds_per_question, 30);
+  assert.equal(paper.duration_minutes, 10);
+});
