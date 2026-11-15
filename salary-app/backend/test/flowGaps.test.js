@@ -538,3 +538,85 @@ test('starting twice does not restart the clock', async () => {
   assert.ok(second.seconds_left <= first.seconds_left, 'the clock went back up');
   assert.equal(second.started_at, first.started_at);
 });
+
+/*
+ * Dinesh, after the one-at-a-time mode shipped: *"again same"*, *"all
+ * question at once"*.
+ *
+ * His "Accounts test" had been made on an older version, so it carried the
+ * old all-on-one-page shape and the old wording — and the loader, being
+ * careful, reported "already there" and changed nothing. There was no way to
+ * the new mode short of editing the paper by hand, which is not a thing
+ * anybody finds.
+ */
+test('a starter paper nobody has sat is brought up to date', async () => {
+  /* A seat nothing in this file has given out, so nobody has sat its paper. */
+  await api('POST', '/api/hiring/bank/starter', { position: 'Travel Consultant' });
+  const before = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Travel Consultant test'
+  );
+  assert.equal(before.attempts, 0);
+
+  /* Put it back the way his was. */
+  await api('PUT', '/api/hiring/papers', {
+    ...before, one_at_a_time: 0, seconds_per_question: null,
+    instructions: 'The clock is on the whole paper.',
+  });
+
+  const out = await api('POST', '/api/hiring/bank/starter', { position: 'Travel Consultant' });
+  assert.equal(out.body.paper_updated, true);
+
+  const after = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Travel Consultant test'
+  );
+  assert.equal(after.one_at_a_time, 1);
+  assert.equal(after.seconds_per_question, 30);
+  assert.ok(!/whole paper/.test(after.instructions), 'the old wording stayed');
+  /* Its sections are left exactly alone, in case they were tuned. */
+  assert.deepEqual(
+    after.sections.map((s) => `${s.count}×${s.category}`),
+    before.sections.map((s) => `${s.count}×${s.category}`)
+  );
+});
+
+/*
+ * Once somebody has sat it, nothing moves. A paper taken under one set of
+ * rules has to keep them, or the answer sheet and the test stop describing
+ * the same thing.
+ */
+test('a paper somebody has sat keeps its shape', async () => {
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Sat It', phone: '9898044001' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: cid,
+  });
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
+  });
+  await api('POST', `/api/public/sit/${asg.body.attempt.token}/start`, {});
+
+  await api('PUT', '/api/hiring/papers', { ...paper, one_at_a_time: 0 });
+  const out = await api('POST', '/api/hiring/bank/starter', { position: 'Accounts' });
+  assert.equal(out.body.paper_updated, false);
+
+  const after = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  assert.equal(after.one_at_a_time, 0, 'a paper already sat was changed underneath it');
+});
+
+/* And the way a paper is put to people is ON THE LIST, not only inside Edit. */
+test('the papers list says how each one is put', () => {
+  const bank = fs.readFileSync(
+    new URL('../../frontend/src/components/hiring/QuestionBank.jsx', import.meta.url),
+    'utf8'
+  );
+  assert.match(bank, /How it is put/);
+  assert.match(bank, /One at a time ·/);
+  assert.match(bank, /All on one page/);
+  /* Switching is refused on a paper somebody has sat. */
+  assert.match(bank, /disabled=\{!!p\.attempts\}/);
+});

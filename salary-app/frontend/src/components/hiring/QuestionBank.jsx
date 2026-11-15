@@ -92,7 +92,11 @@ export default function QuestionBank({ companies, onError, onToast }) {
     setLoading(position || 'general');
     try {
       const out = await api.post('/hiring/bank/starter', { position });
-      const made = out.paper_existed ? `“${out.paper.name}” was already set up` : `“${out.paper.name}” paper created`;
+      const made = out.paper_updated
+        ? `“${out.paper.name}” brought up to date — one question at a time`
+        : out.paper_existed
+          ? `“${out.paper.name}” was already set up`
+          : `“${out.paper.name}” paper created`;
       onToast(
         out.added
           ? `${out.added} question${out.added === 1 ? '' : 's'} added — ${made}`
@@ -265,6 +269,15 @@ export default function QuestionBank({ companies, onError, onToast }) {
                 <th className="num">Questions</th>
                 <th className="num">Pass</th>
                 <th className="num">Minutes</th>
+                {/*
+                  * How a paper is put to people, ON THE LIST.
+                  *
+                  * It was only inside Edit, so a paper sitting in the old
+                  * all-on-one-page shape looked identical to one set up the
+                  * new way — which is exactly how Dinesh ended up sending a
+                  * test that behaved nothing like the one he had asked for.
+                  */}
+                <th>How it is put</th>
                 <th className="num">Sat</th>
                 <th />
               </tr>
@@ -279,8 +292,38 @@ export default function QuestionBank({ companies, onError, onToast }) {
                   <td className="num">{p.questions}</td>
                   <td className="num">{p.pass_percent}%</td>
                   <td className="num">{p.duration_minutes}</td>
+                  <td className="small">
+                    {p.one_at_a_time
+                      ? `One at a time · ${p.seconds_per_question || 30}s each`
+                      : 'All on one page'}
+                  </td>
                   <td className="num">{p.attempts}</td>
                   <td className="row-actions">
+                    {/*
+                      * Switching is one press from the list. A paper somebody
+                      * has already SAT keeps its shape — the answer sheet and
+                      * the test have to go on describing the same thing — so
+                      * the button says why rather than failing quietly.
+                      */}
+                    <button
+                      disabled={!!p.attempts}
+                      title={
+                        p.attempts
+                          ? 'Somebody has already sat this one, so its rules stay as they are. Make a new paper instead.'
+                          : p.one_at_a_time
+                            ? 'Put every question on one page instead'
+                            : 'Put one question at a time, each on its own clock'
+                      }
+                      onClick={() =>
+                        savePaper({
+                          ...p,
+                          one_at_a_time: p.one_at_a_time ? 0 : 1,
+                          seconds_per_question: p.seconds_per_question || 30,
+                        })
+                      }
+                    >
+                      {p.one_at_a_time ? 'All on one page' : 'One at a time'}
+                    </button>
                     <button onClick={() => setPaper(p)}>Edit</button>
                   </td>
                 </tr>

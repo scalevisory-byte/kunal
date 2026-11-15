@@ -2050,12 +2050,54 @@ export function loadStarterQuestions({ position = '', by = 'office' } = {}) {
   });
   run();
 
-  /* The paper: only if one of that name is not already there. */
+  /*
+   * The paper.
+   *
+   * Leaving an existing one completely alone was too careful, and Dinesh hit
+   * it: his "Accounts test" was made on an older version, so it kept the old
+   * all-on-one-page shape and the old wording, and pressing the button again
+   * reported "already there" while changing nothing. He had no way to the new
+   * mode short of editing the paper by hand, which is not a thing anybody
+   * finds.
+   *
+   * So a starter paper NOBODY HAS SAT is brought up to date - its sections
+   * are left exactly as they are, in case they were tuned, and only the way
+   * it is put to people changes. Once somebody has taken it, nothing moves:
+   * a paper sat under one set of rules must keep them, or the answer sheet
+   * and the test stop describing the same thing.
+   */
   const wantedPaper = starterPaper(seat && STARTER_BY_POSITION[seat] ? seat : '');
   const existing = db
     .prepare(`SELECT id FROM test_papers WHERE lower(name) = lower(?)`)
     .get(wantedPaper.name);
-  const paper = existing ? getPaper(existing.id) : savePaper({ ...wantedPaper, created_by: by });
+
+  let paper;
+  let paper_updated = false;
+  if (!existing) {
+    paper = savePaper({ ...wantedPaper, created_by: by });
+  } else {
+    const sat = db
+      .prepare(`SELECT COUNT(*) n FROM test_attempts WHERE paper_id = ? AND started_at IS NOT NULL`)
+      .get(existing.id).n;
+    const now = getPaper(existing.id);
+    const stale = !now.one_at_a_time && !sat;
+    if (stale) {
+      update('test_papers', existing.id, {
+        one_at_a_time: 1,
+        seconds_per_question: wantedPaper.seconds_per_question,
+        duration_minutes: wantedPaper.duration_minutes,
+        instructions: wantedPaper.instructions,
+        updated_at: nowIso(),
+      });
+      paper_updated = true;
+      audit({
+        who: by, action: 'changed', entity: 'test_paper', entity_id: existing.id,
+        label: now.name, field: 'one_at_a_time', from_value: '0', to_value: '1',
+        note: 'brought up to date — nobody had sat it',
+      });
+    }
+    paper = getPaper(existing.id);
+  }
 
   if (added) {
     audit({
@@ -2071,6 +2113,7 @@ export function loadStarterQuestions({ position = '', by = 'office' } = {}) {
     total: db.prepare(`SELECT COUNT(*) n FROM question_bank WHERE active = 1`).get().n,
     paper,
     paper_existed: !!existing,
+    paper_updated,
     positions: Object.keys(STARTER_BY_POSITION),
   };
 }

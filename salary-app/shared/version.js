@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.10.1';
+export const VERSION = '1.10.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.10.2',
+    date: '15 Nov 2026',
+    title: 'Papers made on an older version catch up',
+    items: [
+      '**A paper made before the one-at-a-time mode existed stayed in the old shape**, and pressing “Add starter questions” again said “already there” and changed nothing — so the test still came out all on one page. A starter paper **nobody has sat** is now brought up to date: one question at a time, 30 seconds each. Its sections are left exactly as they are, in case you had tuned them.',
+      '**A paper somebody has already sat never changes** — a test taken under one set of rules has to keep them, or the answer sheet and the test stop describing the same thing. Make a new paper instead.',
+      '**The papers list says how each one is put** — “All on one page” or “One at a time · 30s each”. It was only visible inside Edit, so two papers that behave completely differently looked identical.',
+      '**One press switches a paper**, from that same list. It is refused, with the reason, on a paper somebody has sat.',
+    ],
+  },
   {
     version: '1.10.1',
     date: '15 Nov 2026',
