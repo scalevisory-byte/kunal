@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { testInvite, waLink } from '../../../../shared/hiringMessages.js';
 import { STANDALONE, api } from '../../api.js';
 import {
   HOLD_REASONS,
@@ -141,16 +142,20 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
   const [queue, setQueue] = useState([]);
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState(null);
+  const [ready, setReady] = useState([]);
 
   const load = async () => {
     try {
       const where = companyId ? `?company_id=${companyId}` : '';
-      const [{ queue: rows }, sum] = await Promise.all([
+      const [{ queue: rows }, sum, waiting] = await Promise.all([
         api.get(`/hiring/screening/queue${where}`),
         api.get(`/hiring/screening/summary${where}`),
+        /* Screened Eligible, no paper sent - his step 4's own list. */
+        api.get(`/hiring/screening/awaiting-test${where}`),
       ]);
       setQueue(rows || []);
       setSummary(sum);
+      setReady(waiting.rows || []);
     } catch (err) {
       onError(err);
     }
@@ -187,6 +192,34 @@ export default function Screening({ companyId, onOpen, onError, onToast }) {
               {summary.rejection_reasons.map((r) => `${r.reason} (${r.n})`).join(' · ')}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        * The step after Eligible.
+        *
+        * Marking somebody Eligible took them off the screening queue and out
+        * of sight, so "send the eligible ones a test" meant going to find
+        * them one at a time under Candidates. The list now stands where the
+        * decision was made.
+        */}
+      {ready.length ? (
+        <div className="card">
+          <h3>Eligible — ready for the test</h3>
+          <p className="muted small">
+            Screened in, no paper sent yet. Sending one does not move anybody — it is a link and
+            a score to weigh.
+          </p>
+          {ready.map((row) => (
+            <SendTest
+              key={row.application_id}
+              row={row}
+              onDone={load}
+              onError={onError}
+              onToast={onToast}
+              onOpen={onOpen}
+            />
+          ))}
         </div>
       ) : null}
 
@@ -326,3 +359,113 @@ const ReasonBox = ({ verdict, reason, setReason, busy, onSave, onCancel }) => (
     <datalist id="scr-hold">{HOLD_REASONS.map((r) => <option key={r} value={r} />)}</datalist>
   </span>
 );
+
+/**
+ * Give one shortlisted candidate a paper, and hand over the link.
+ *
+ * The vacancy's own paper is chosen by default where it has one - a travel
+ * consultant and an accounts executive are not tested the same way, and the
+ * test follows the opening.
+ *
+ * It assigns ONCE. The link that comes back is theirs and opens one attempt;
+ * if it gets lost in a WhatsApp thread it is re-sent from the candidate's own
+ * row, never drawn again - a second paper would let somebody read the
+ * questions, close it, and sit a fresh one.
+ */
+function SendTest({ row, onDone, onError, onToast, onOpen }) {
+  const [papers, setPapers] = useState([]);
+  const [paperId, setPaperId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState('');
+
+  useEffect(() => {
+    api
+      .get('/hiring/papers')
+      .then(({ papers: list }) => {
+        setPapers(list || []);
+        const mine = (list || []).find((p) => p.id === row.test_paper_id);
+        setPaperId(String(mine?.id || list?.[0]?.id || ''));
+      })
+      .catch(onError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const send = async () => {
+    setBusy(true);
+    try {
+      const out = await api.post(`/hiring/papers/${paperId}/assign`, {
+        candidate_id: row.candidate_id,
+        application_id: row.application_id,
+      });
+      const url = out.link?.startsWith('http')
+        ? out.link
+        : `${window.location.origin}${out.link}`;
+      setLink(url);
+      onToast('Paper drawn — send them the link');
+      onDone?.();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="scr-row">
+      <div className="scr-who">
+        <button className="link-like" onClick={() => onOpen(row.application_id)}>
+          <strong>{row.name}</strong>
+        </button>
+        <span className="muted small">
+          {' '}· {row.ref_no} · {row.phone} · {row.job_title}, {row.company_name}
+        </span>
+      </div>
+      {link ? (
+        <div className="row">
+          <a
+            className="btn"
+            target="_blank"
+            rel="noreferrer"
+            href={
+              waLink(
+                row.phone,
+                testInvite({
+                  candidate: { name: row.name },
+                  vacancy: { title: row.job_title, company_name: row.company_name },
+                  url: link,
+                })
+              ) || '#'
+            }
+          >
+            Send on WhatsApp
+          </a>
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(link);
+              onToast('Link copied');
+            }}
+          >
+            Copy link
+          </button>
+        </div>
+      ) : papers.length ? (
+        <div className="row">
+          <select value={paperId} onChange={(e) => setPaperId(e.target.value)}>
+            {papers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.questions} questions, {p.duration_minutes} min
+              </option>
+            ))}
+          </select>
+          <button className="primary" disabled={!paperId || busy} onClick={send}>
+            {busy ? 'Drawing…' : 'Send the test'}
+          </button>
+        </div>
+      ) : (
+        <span className="muted small">
+          No papers yet — make one under Hiring → Tests.
+        </span>
+      )}
+    </div>
+  );
+}

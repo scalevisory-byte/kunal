@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.8.3';
+export const VERSION = '1.9.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.9.0',
+    date: '15 Nov 2026',
+    title: 'The four gaps in the hiring flow',
+    items: [
+      '**The department head now sits between HR and management.** Submit → HR → department head → Management → Approve, exactly as your flow has it. It is **optional** — HR can still send it straight to management, because not every seat needs the head’s eye.',
+      'Sending it to the head **asks who it is going to**, and that name is kept in its own place along with when they passed it on — so “who saw this” has an answer even after three more people have touched it. There are no department-head logins, so the name is typed: the app records who it went to, it does not police who clicks.',
+      '**Employee codes are generated.** “Add to payroll” now shows the next free code for that company — BPL-001, SCA-014 — before you press it. Change it if you number people your own way. **A number is never reused**, so a leaver’s code can never land on a new joiner.',
+      '**“Eligible — ready for the test”** is a list on the Screening page. Marking somebody Eligible used to take them off the screen, so sending the test meant hunting for them under Candidates. Now the next step stands where the decision was made, with the paper picker and a WhatsApp button on the row.',
+      '**The interview panel can be typed.** The interviewer box is editable on the row and there is a second box beside it for everybody else who was in the room.',
+    ],
+  },
   {
     version: '1.8.3',
     date: '15 Nov 2026',

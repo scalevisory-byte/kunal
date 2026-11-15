@@ -3687,3 +3687,9 @@ button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
 }
 /* Why a disabled button is disabled, said as a blocker and not as a caption. */
 .blocking { color: var(--bad); font-weight: 500; }
+
+/* Interviewer and panel, typed on the row.
+   The global `input { width: 100% }` made these 214px each and pushed the
+   table 235px past a 1280 laptop, which parked the pinned actions cell on top
+   of the Status dropdown. A name needs nothing like that much room. */
+table.hiring-table td input.who { width: 9rem; min-width: 0; }

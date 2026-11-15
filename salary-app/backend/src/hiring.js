@@ -38,6 +38,7 @@ import {
   STARTER_QUESTIONS,
   starterPaper,
 } from '../../shared/starterQuestions.js';
+import { nextEmployeeCode, tidyEmployeeCode } from '../../shared/employeeCode.js';
 import { answerSheetFileName, answerSheetHtml } from '../../shared/testSheet.js';
 import { candidatePackFileName, candidatePackHtml } from '../../shared/candidatePack.js';
 import {
@@ -753,6 +754,31 @@ export function suggestForVacancy(vacancyId, { limit = 25 } = {}) {
  * the salary and the joining date and presses the button, because a wrong
  * salary here is a wrong payslip at the end of the month.
  */
+/**
+ * What the Hire form should offer before anybody is added.
+ *
+ * The code is SUGGESTED, not forced: an office with its own scheme keeps it.
+ * Returning it before the hire means somebody sees the code they are about to
+ * give out, instead of finding it afterwards on the employee record.
+ */
+export function hireSuggestion(id) {
+  const application = getApplication(id);
+  if (!application) return null;
+  const taken = db
+    .prepare(`SELECT code FROM employees WHERE code IS NOT NULL`)
+    .all()
+    .map((r) => r.code);
+  return {
+    code: nextEmployeeCode(application.company_name, taken),
+    taken,
+    company_name: application.company_name,
+    designation: application.job_title,
+    department: application.department || null,
+    monthly_salary: application.offer_salary || null,
+    joining_date: application.joining_date || null,
+  };
+}
+
 export function hireApplication(id, input = {}) {
   const application = getApplication(id);
   if (!application) throw new Error('application not found');
@@ -764,6 +790,24 @@ export function hireApplication(id, input = {}) {
   const salary = Number(input.monthly_salary ?? application.offer_salary) || 0;
   if (salary <= 0) throw new Error('a monthly salary is needed before somebody goes on the payroll');
   const joined = input.joined_on || application.joining_date || nowIso().slice(0, 10);
+
+  /*
+   * The employee code.
+   *
+   * Dinesh's joining step asks for one and nothing generated it, so people
+   * landed on the payroll with the field empty. The series reads the highest
+   * number already used in this company, never a count - a leaver's number
+   * must not be handed to a joiner, or an old payslip and a PF record end up
+   * pointing at two different people.
+   *
+   * A code typed on the form still wins. This only fills a blank.
+   */
+  const code =
+    tidyEmployeeCode(input.code) ||
+    nextEmployeeCode(
+      application.company_name,
+      db.prepare(`SELECT code FROM employees WHERE code IS NOT NULL`).all().map((r) => r.code)
+    );
 
   const employee = createEmployee({
     company_id: application.company_id,
@@ -783,7 +827,7 @@ export function hireApplication(id, input = {}) {
     pl_quota: Number(input.pl_quota) || 0,
     pf: Number(input.pf) || 0,
     esi: Number(input.esi) || 0,
-    code: input.code || null,
+    code,
     religion: input.religion || null,
   });
 
@@ -1188,6 +1232,12 @@ db.exec(`
     evaluated_by   TEXT,
     submitted_at   TEXT,
     reviewed_by    TEXT, reviewed_at TEXT, review_remarks TEXT,
+    -- The department head's own step gets its own two columns.
+    -- reviewed_by can only ever hold the LAST person to touch it, so on a
+    -- three-step chain it answers "who saw this" worst of all. The same
+    -- mistake was already made and fixed on leave requests, where the
+    -- manager's recommendation needed recommended_by of its own.
+    head_name      TEXT, head_reviewed_at TEXT,
     approved_by    TEXT, approved_at TEXT,
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
@@ -1552,7 +1602,10 @@ export function saveEvaluation(interviewId, body = {}, { by = 'office', submit =
  * even then only where the next action names a stage - which today is a
  * rejection and nothing else, because sending an offer is a separate act.
  */
-export function reviewEvaluation(id, { to, by = 'office', remarks, abilities = [] } = {}) {
+export function reviewEvaluation(
+  id,
+  { to, by = 'office', remarks, head_name, abilities = [] } = {}
+) {
   const row = db.prepare(`SELECT * FROM interview_evaluations WHERE id = ?`).get(id);
   if (!row) return null;
 
@@ -1573,6 +1626,28 @@ export function reviewEvaluation(id, { to, by = 'office', remarks, abilities = [
   } else {
     patch.reviewed_by = by;
     patch.reviewed_at = now;
+  }
+
+  /*
+   * The department head.
+   *
+   * Going IN names who it is with - typed, because there are no
+   * department-head logins and the signed-in person is HR passing it along.
+   * Coming OUT stamps when the head finished with it. Two moments, so the
+   * trail can say "sent to Rakesh on the 3rd, back on the 5th" rather than
+   * only remembering whoever touched it last.
+   */
+  if (to === 'pending_head') {
+    const head = String(head_name || '').trim();
+    if (!head) {
+      const error = new Error('Name the department head this is going to.');
+      error.status = 400;
+      throw error;
+    }
+    patch.head_name = head;
+    patch.head_reviewed_at = null;
+  } else if (row.status === 'pending_head') {
+    patch.head_reviewed_at = now;
   }
   if (remarks !== undefined) patch.review_remarks = remarks || null;
   update('interview_evaluations', id, patch);
@@ -1756,6 +1831,20 @@ db.exec(`
  * remain exactly as they were; nothing already configured changes because this
  * column appeared.
  */
+/*
+ * The department head's step, for databases made before it existed.
+ *
+ * Adding a column cannot move anything: every evaluation already in the
+ * system keeps its status, and `pending_head` is a stage nothing is in until
+ * somebody sends it there.
+ */
+for (const column of ['head_name', 'head_reviewed_at']) {
+  if (!columnsOf('interview_evaluations').has(column)) {
+    db.exec(`ALTER TABLE interview_evaluations ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated interview_evaluations: added ${column}.`);
+  }
+}
+
 if (!columnsOf('vacancies').has('test_paper_id')) {
   db.exec(`ALTER TABLE vacancies ADD COLUMN test_paper_id INTEGER REFERENCES test_papers(id) ON DELETE SET NULL`);
   log.info('Migrated vacancies: added test_paper_id.');
@@ -2397,6 +2486,39 @@ export function screeningQueue({ company_id, vacancy_id } = {}) {
  * "exp less", "not enough experience" and "under qualified" cannot be counted,
  * which is why the form offers a list to pick from.
  */
+/**
+ * Screened Eligible, and no test sent yet.
+ *
+ * Dinesh's step 4 reads "eligible candidates ne online test mokalvo", and
+ * there was no list to work from: the screening queue holds only people
+ * WAITING to be screened, so the moment somebody was marked Eligible they
+ * left the page and the next step had to be started by hunting for them under
+ * Candidates. A step with no list is a step that gets skipped.
+ *
+ * Somebody who has already been given a paper drops off this list - sent is
+ * sent, whether or not they have sat it. Chasing them is the candidate's own
+ * row, where the link can be sent again.
+ */
+export function awaitingTest({ company_id } = {}) {
+  return db
+    .prepare(
+      `SELECT a.id AS application_id, c.id AS candidate_id, c.name, c.phone, c.ref_no,
+              v.title AS job_title, v.test_paper_id, co.name AS company_name,
+              s.screened_on, a.stage
+         FROM screenings s
+         JOIN applications a ON a.id = s.application_id
+         JOIN candidates c ON c.id = a.candidate_id
+         JOIN vacancies v ON v.id = a.vacancy_id
+         JOIN companies co ON co.id = v.company_id
+        WHERE s.verdict = 'Eligible'
+          AND a.stage NOT IN ('Rejected', 'Joined')
+          AND NOT EXISTS (SELECT 1 FROM test_attempts t WHERE t.candidate_id = c.id)
+          ${company_id ? 'AND co.id = @company_id' : ''}
+        ORDER BY s.screened_on DESC, a.id DESC`
+    )
+    .all(company_id ? { company_id: Number(company_id) } : {});
+}
+
 export function screeningSummary({ company_id } = {}) {
   const where = [];
   const params = {};

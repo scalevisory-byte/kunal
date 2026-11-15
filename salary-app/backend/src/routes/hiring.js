@@ -28,6 +28,7 @@ import {
   getPaper,
   getVacancy,
   hireApplication,
+  hireSuggestion,
   hiringOverview,
   hiringReport,
   interviewFormDocument,
@@ -70,6 +71,7 @@ import {
   saveReference,
   saveScreening,
   screeningFor,
+  awaitingTest,
   screeningQueue,
   screeningSummary,
   submitAttempt,
@@ -431,6 +433,12 @@ hiringRouter.post('/applications/:id/stage', (req, res) => {
  * The handover to payroll. Deliberately its own button and not a side effect of
  * reaching "Joined": a wrong salary typed here is a wrong payslip at month end.
  */
+/* What the Hire form prefills with - the next employee code, chiefly. */
+hiringRouter.get('/applications/:id/hire', (req, res) => {
+  const out = hireSuggestion(Number(req.params.id));
+  return out ? res.json(out) : res.status(404).json({ error: 'no such application' });
+});
+
 hiringRouter.post('/applications/:id/hire', (req, res) => {
   try {
     res.status(201).json(hireApplication(Number(req.params.id), req.body || {}));
@@ -626,6 +634,8 @@ hiringRouter.post('/evaluations/:id/review', (req, res) => {
       to: String(req.body?.to || ''),
       by: actorName(req),
       remarks: req.body?.remarks,
+      /* Typed on the form - there are no department-head logins. */
+      head_name: req.body?.head_name,
       abilities: actorAbilities(req),
     });
     return out ? res.json(out) : res.status(404).json({ error: 'no such evaluation' });
@@ -741,6 +751,10 @@ hiringRouter.get('/attempts/:id', (req, res) => {
 });
 
 /* ---------------- initial screening ---------------- */
+
+hiringRouter.get('/screening/awaiting-test', (req, res) =>
+  res.json({ rows: awaitingTest({ company_id: req.query.company_id }) })
+);
 
 hiringRouter.get('/screening/queue', (req, res) =>
   res.json({

@@ -489,6 +489,7 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
   const [open, setOpen] = useState('ratings');
   const [busy, setBusy] = useState(false);
   const [remarks, setRemarks] = useState('');
+  const [head, setHead] = useState('');
 
   const load = async () => {
     try {
@@ -548,12 +549,17 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
     }
   };
 
-  const review = async (to) => {
+  const review = async (to, head_name) => {
     setBusy(true);
     try {
-      await api.post(`/hiring/evaluations/${data.evaluation.id}/review`, { to, remarks });
+      await api.post(`/hiring/evaluations/${data.evaluation.id}/review`, {
+        to,
+        remarks,
+        head_name,
+      });
       onToast('Recorded');
       setRemarks('');
+      setHead('');
       await load();
       onSaved?.();
     } catch (err) {
@@ -781,10 +787,44 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
                     Remarks
                     <input value={remarks} onChange={(e) => setRemarks(e.target.value)} />
                   </label>
+                  {/*
+                    * The department head is a STEP, not a login.
+                    *
+                    * 115 people do not have accounts and auth was to be left
+                    * alone, so the head's name is typed exactly as the
+                    * evaluator's is. The app records who it went to; it does
+                    * not police who clicks. Said here rather than implied,
+                    * because a lock with no door behind it is worse than an
+                    * honest note.
+                    */}
+                  {moves.some((m) => m.asks === 'head') ? (
+                    <label className="field wide">
+                      Department head
+                      <input
+                        value={head}
+                        placeholder="Who is it going to?"
+                        onChange={(e) => setHead(e.target.value)}
+                      />
+                      <span className="hint">
+                        Typed, not a login — this records who it went to.
+                      </span>
+                    </label>
+                  ) : null}
+                  {status === 'pending_head' && data.evaluation?.head_name ? (
+                    <p className="muted small">
+                      With <strong>{data.evaluation.head_name}</strong>
+                      {data.evaluation.reviewed_at
+                        ? ` since ${String(data.evaluation.reviewed_at).slice(0, 10)}`
+                        : ''}
+                      .
+                    </p>
+                  ) : null}
                   <div className="iv-decisions">
                     {moves.map((m) => (
                       <button key={m.to} className={m.to === 'approved' ? 'primary' : ''}
-                        disabled={busy} onClick={() => review(m.to)}>{m.label}</button>
+                        disabled={busy || (m.asks === 'head' && !head.trim())}
+                        title={m.asks === 'head' && !head.trim() ? 'Name the department head first' : undefined}
+                        onClick={() => review(m.to, head.trim())}>{m.label}</button>
                     ))}
                   </div>
                 </>

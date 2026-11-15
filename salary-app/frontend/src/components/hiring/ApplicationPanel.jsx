@@ -106,6 +106,21 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
   const [data, setData] = useState(null);
   // Which sitting is opened out, question by question.
   const [openTest, setOpenTest] = useState(null);
+  const [hireCode, setHireCode] = useState(null);
+
+  /* The next employee code, so it is on screen before anybody is added. */
+  useEffect(() => {
+    if (STANDALONE || !applicationId || hireCode !== null) return;
+    let alive = true;
+    api
+      .get(`/hiring/applications/${applicationId}/hire`)
+      .then((out) => alive && setHireCode(out.code))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId]);
   const [notify, setNotify] = useState(null);
   const [papers, setPapers] = useState([]);
   const [paperId, setPaperId] = useState('');
@@ -531,6 +546,28 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                 an employee, carrying across the phone, email and date of birth already on file.
                 The company comes from the vacancy, not from a form.
               </p>
+              {/*
+                * The employee code, shown BEFORE the hire.
+                *
+                * It used to be left empty and nobody generated one, so people
+                * landed on the payroll without a code and it was discovered
+                * weeks later. The suggestion is the next free number in this
+                * company's series — editable, because an office with its own
+                * scheme keeps it, and the series only ever goes up so a
+                * leaver's number is never handed on.
+                */}
+              <label className="field">
+                Employee code
+                <input
+                  value={hireCode ?? ''}
+                  placeholder="working it out…"
+                  onChange={(e) => setHireCode(e.target.value)}
+                />
+                <span className="hint">
+                  Next free number for {application.company_name}. Change it if you number people
+                  your own way; leave it and it is filled in for you.
+                </span>
+              </label>
               <div className="row">
                 <button
                   className="primary"
@@ -542,7 +579,9 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                       ).toLocaleString('en-IN')} a month?`
                     )) return;
                     try {
-                      await api.post(`/hiring/applications/${applicationId}/hire`, {});
+                      await api.post(`/hiring/applications/${applicationId}/hire`, {
+                        code: hireCode || undefined,
+                      });
                       onToast('Added to the payroll');
                       await load();
                       onChanged?.();

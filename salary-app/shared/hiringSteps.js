@@ -58,10 +58,10 @@ export const HIRING_STEPS = [
   },
   {
     n: 7,
-    title: 'HR and management decide',
+    title: 'HR, the department head and management decide',
     where: 'Interviews → Evaluate',
-    how: 'Submit → HR review → Management → Approve',
-    note: 'Submitting an evaluation moves the paperwork, never the candidate. Only an approval moves anybody, and approving is an Admin’s.',
+    how: 'Submit → HR → department head → Management → Approve',
+    note: 'The department head is optional — HR can send it straight to management. Submitting an evaluation moves the paperwork, never the candidate. Only an approval moves anybody, and approving is an Admin’s. There are no department-head logins, so their name is typed: the app records who it went to, it does not police who clicks.',
   },
   {
     n: 8,

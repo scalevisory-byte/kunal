@@ -124,7 +124,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
             <th>Mode</th>
             <th>Where / link</th>
             <th>Round</th>
-            <th>Interviewer</th>
+            <th>Interviewer / panel</th>
             <th>Status</th>
             {/*
               * The way in to both forms.
@@ -158,7 +158,41 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
                 {i.round}
                 {i.round_name ? <div className="muted small">{i.round_name}</div> : null}
               </td>
-              <td className="small">{i.interviewer || '—'}</td>
+              {/*
+                * Interviewer AND panel, both typed here.
+                *
+                * `panel` has been a column since the table was made and
+                * nothing ever wrote to it, so a three-person board was
+                * recorded as one name. The lead goes in the first box and
+                * everybody else in the second - two boxes rather than one
+                * list, because the evaluation is signed by a person and the
+                * panel is who else was in the room.
+                *
+                * Uncontrolled and keyed on the stored value, so a reload
+                * under an open row redraws the box instead of leaving a
+                * stale name showing.
+                */}
+              <td className="small">
+                <input
+                  className="who"
+                  key={`iv-${i.id}-${i.interviewer ?? ''}`}
+                  defaultValue={i.interviewer ?? ''}
+                  placeholder="who is taking it"
+                  onBlur={(e) =>
+                    e.target.value !== (i.interviewer ?? '') &&
+                    set(i.id, { interviewer: e.target.value })
+                  }
+                />
+                <input
+                  className="who"
+                  key={`pn-${i.id}-${i.panel ?? ''}`}
+                  defaultValue={i.panel ?? ''}
+                  placeholder="others on the panel"
+                  onBlur={(e) =>
+                    e.target.value !== (i.panel ?? '') && set(i.id, { panel: e.target.value })
+                  }
+                />
+              </td>
               <td>
                 <select value={i.status} onChange={(e) => set(i.id, { status: e.target.value })}>
                   {['Scheduled', 'Done', 'No show', 'Cancelled', 'Rescheduled'].map((s) => (

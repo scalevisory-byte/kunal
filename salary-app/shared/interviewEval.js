@@ -190,6 +190,17 @@ export const STATUSES = [
   { key: 'draft', label: 'Draft', hint: 'Only the person filling it in sees this' },
   { key: 'submitted', label: 'Submitted by interviewer', hint: 'Waiting for HR to look at it' },
   { key: 'pending_hr', label: 'Pending HR review', hint: 'With HR' },
+  /*
+   * Dinesh's flow is HR -> Department Head -> Final Management, and the app
+   * went straight from HR to management. This is the missing middle.
+   *
+   * It is a STEP, not a role. There are no department-head logins - 115 people
+   * are not getting accounts, and he asked for auth to be left alone - so the
+   * head's name is TYPED, exactly as the evaluator's is, and the app records
+   * who it went to rather than policing who clicked. Said plainly on screen:
+   * pretending otherwise would be a lock with no door behind it.
+   */
+  { key: 'pending_head', label: 'With the department head', hint: 'Waiting on the department head' },
   { key: 'pending_management', label: 'Pending management approval', hint: 'With management' },
   { key: 'approved', label: 'Approved', hint: 'Decided — the next action has been applied' },
   { key: 'rejected', label: 'Rejected', hint: 'The evaluation was turned down' },
@@ -224,8 +235,22 @@ export const TRANSITIONS = {
     { to: 'pending_management', label: 'Send for management approval', needs: 'write' },
     { to: 'on_hold', label: 'Put on hold', needs: 'write' },
   ],
+  /*
+   * The department head sits between HR and management, and is SKIPPABLE.
+   * Not every seat needs the head's eye, and a step that cannot be skipped is
+   * a step somebody routes around by approving early. So HR can send it on to
+   * the head or straight to management.
+   */
   pending_hr: [
+    { to: 'pending_head', label: 'Send to the department head', needs: 'write', asks: 'head' },
     { to: 'pending_management', label: 'Send for management approval', needs: 'write' },
+    { to: 'approved', label: 'Approve', needs: 'admin' },
+    { to: 'rejected', label: 'Reject', needs: 'admin' },
+    { to: 'on_hold', label: 'Put on hold', needs: 'write' },
+  ],
+  pending_head: [
+    { to: 'pending_management', label: 'Head agrees — send for management approval', needs: 'write' },
+    { to: 'pending_hr', label: 'Head sends it back to HR', needs: 'write' },
     { to: 'approved', label: 'Approve', needs: 'admin' },
     { to: 'rejected', label: 'Reject', needs: 'admin' },
     { to: 'on_hold', label: 'Put on hold', needs: 'write' },
@@ -237,6 +262,7 @@ export const TRANSITIONS = {
   ],
   on_hold: [
     { to: 'pending_hr', label: 'Pick it up again', needs: 'write' },
+    { to: 'pending_head', label: 'Send to the department head', needs: 'write', asks: 'head' },
     { to: 'approved', label: 'Approve', needs: 'admin' },
     { to: 'rejected', label: 'Reject', needs: 'admin' },
   ],
