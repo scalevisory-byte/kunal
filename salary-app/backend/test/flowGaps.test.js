@@ -700,7 +700,7 @@ test('how long each question took, and how often they left, are recorded', async
   assert.equal(Object.keys(review.attempt.times).length, 20, 'the timings were not recorded');
 });
 
-test('the flags read as flags, and a clean paper says so', () => {
+test('a clean paper says Clean, and an untimed one says nothing', () => {
   const q = (id) => ({ id, question: `q${id}`, option_a: 'x', option_b: 'y', correct: 'b', marks: 1 });
 
   const clean = integrity({
@@ -709,13 +709,6 @@ test('the flags read as flags, and a clean paper says so', () => {
   assert.deepEqual(clean.flags, []);
   assert.equal(clean.avg_seconds, 10);
   assert.equal(clean.known, true);
-
-  const messy = integrity({
-    drawn: [q(1), q(2), q(3)], answers: { 1: 'b', 2: 'b' }, times: { 1: 1, 2: 14 }, left_count: 2,
-  });
-  assert.match(messy.flags.join(' '), /2× left the test page/);
-  assert.match(messy.flags.join(' '), /1 question unanswered or timed out/);
-  assert.match(messy.flags.join(' '), /1 answer under 2s/);
 });
 
 /*
@@ -737,4 +730,111 @@ test('/healthz says which build is running', async () => {
   const body = await res.json();
   assert.equal(body.ok, true);
   assert.match(body.version, /^\d+\.\d+\.\d+$/);
+});
+
+/* ---------------- the ZYNTA test-module spec ---------------- */
+
+/*
+ * Dinesh sent the build spec for his own ZYNTA test module - the thing he
+ * had been pointing at all along. These are its rules, kept to its wording,
+ * because he reads both screens and a flag that means something different
+ * in each is worse than no flag at all.
+ *
+ * And its honest limit, which the office screen repeats: these catch
+ * tab-switching, copy and paste, impossible speed and timeouts. They cannot
+ * catch a second phone or another person in the room.
+ */
+test('one quick answer is not a flag; half the paper is', () => {
+  const q = (id) => ({ id, question: `q${id}`, option_a: 'x', option_b: 'y', correct: 'b', marks: 1 });
+  const drawn = [1, 2, 3, 4].map(q);
+  const answers = { 1: 'b', 2: 'b', 3: 'b', 4: 'b' };
+
+  const one = integrity({ drawn, answers, times: { 1: 1, 2: 12, 3: 11, 4: 9 } });
+  assert.deepEqual(one.flags, [], 'a single quick answer was flagged');
+
+  const half = integrity({ drawn, answers, times: { 1: 1, 2: 2, 3: 11, 4: 9 } });
+  assert.match(half.flags.join(' '), /2 answers under 2s/);
+});
+
+test('the flags are worded the way his admin screen words them', () => {
+  const q = (id) => ({ id, question: `q${id}`, option_a: 'x', option_b: 'y', correct: 'b', marks: 1 });
+  const out = integrity({
+    drawn: [1, 2, 3].map(q),
+    answers: { 1: 'b' },
+    times: { 1: 9 },
+    left_count: 2,
+    away_seconds: 35,
+    paste_tries: 1,
+    auto_submitted: 1,
+    seconds_per_question: 30,
+  });
+  assert.match(out.flags[0], /^2× left the test \(35s away\)$/);
+  assert.match(out.flags[1], /^copy\/paste attempts: 1$/);
+  assert.match(out.flags.join(' '), /2 questions unanswered \/ timed out/);
+  assert.match(out.flags.join(' '), /auto-submitted \(time over\)/);
+});
+
+/*
+ * "Finished very fast" is for a paper with NO per-question clock. With one,
+ * the pace is already set and the flag would fire on every honest paper.
+ * The clock is kept ON THE ATTEMPT, so a paper switched later cannot judge
+ * a test by rules it was not sat under.
+ */
+test('a paced paper is never flagged for finishing fast', () => {
+  const q = (id) => ({ id, question: `q${id}`, option_a: 'x', option_b: 'y', correct: 'b', marks: 1 });
+  const base = {
+    drawn: [1, 2].map(q),
+    answers: { 1: 'b', 2: 'b' },
+    times: { 1: 6, 2: 6 },
+    started_at: '2026-11-15T10:00:00Z',
+    submitted_at: '2026-11-15T10:00:00Z',
+  };
+  assert.ok(!integrity({ ...base, seconds_per_question: 30 }).flags.some((f) => /very fast/.test(f)));
+  assert.ok(integrity(base).flags.some((f) => /very fast/.test(f)), 'an unpaced sprint is not flagged');
+});
+
+test('the candidate is told their score, and never which answers were wrong', async () => {
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Score Back', phone: '9898066001' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: cid,
+  });
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
+  });
+  const open = (await api('POST', `/api/public/sit/${asg.body.attempt.token}/start`, {})).body;
+
+  const answers = {};
+  open.questions.slice(0, 11).forEach((q) => {
+    answers[q.id] = q.options[0].key;
+  });
+  const res = await fetch(`${base}/api/public/sit/${asg.body.attempt.token}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ answers }),
+  });
+  const text = await res.text();
+  const out = JSON.parse(text);
+
+  assert.equal(out.total, 20);
+  assert.equal(typeof out.score, 'number');
+  assert.equal(typeof out.percentage, 'number');
+  /* The sheet is the office's. Never which ones, never the key. */
+  assert.ok(!/"detail"/.test(text));
+  assert.ok(!/"correct"/.test(text));
+  assert.ok(!/"drawn"/.test(text));
+
+  made.scored = { ...out, id: asg.body.attempt.id };
+});
+
+test('what the candidate was told matches the office answer sheet', async () => {
+  /* The attempt this file just sat, by id — not whichever one a list happens
+   * to carry. */
+  const review = (await api('GET', `/api/hiring/attempts/${made.scored.id}`)).body;
+  assert.equal(review.attempt.score, made.scored.score);
+  assert.equal(review.attempt.percentage, made.scored.percentage);
+  assert.equal(review.attempt.max_score, made.scored.total);
 });

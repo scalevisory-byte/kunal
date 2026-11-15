@@ -3722,3 +3722,12 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
 
 /* "Worth a look" beside a test result — a flag, never a verdict. */
 .tag.bad-tag { color: var(--bad); }
+
+/* The question cannot be selected or copied out — his spec's rule.
+   It does not stop a photograph; nothing on a page can. It raises the effort
+   and the attempt is counted, which is all it claims to do. */
+.sit-q, .sit-qtext, .sit-options { user-select: none; -webkit-user-select: none; }
+
+/* The candidate's own score on the finish page. */
+.sit-score { display: flex; align-items: center; gap: 0.7rem; margin: 0.8rem 0 0.4rem; }
+.sit-score strong { font-size: 1.8rem; font-variant-numeric: tabular-nums; }

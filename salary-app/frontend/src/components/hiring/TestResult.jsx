@@ -141,7 +141,9 @@ export default function TestResult({ attemptId, onClose, onError }) {
                     <span className="tag bad-tag">Worth a look</span>{' '}
                     <strong>{how.flags.join(' · ')}</strong>{' '}
                     <span className="muted">
-                      — recorded, not judged. One more thing to weigh.
+                      — recorded, not judged. These catch tab-switching, copy and paste,
+                      impossible speed and timeouts; they cannot catch a second phone or
+                      somebody else in the room. A reason to ring them back, never proof.
                     </span>
                   </>
                 ) : (

@@ -300,16 +300,20 @@ publicRouter.get('/sit/:token', (req, res) => {
 });
 
 /* Starting is a deliberate press — opening the link must not spend the time. */
-publicRouter.post('/sit/:token/start', (req, res) => {
+publicRouter.post('/sit/:token/start', rateLimit(20), (req, res) => {
   const paper = startAttempt(req.params.token);
   return paper ? res.json(paper) : res.status(404).json({ error: 'no such test' });
 });
 
-publicRouter.post('/sit/:token', (req, res) => {
+/* His spec caps submissions per IP; a link is one attempt anyway, so
+ * this is about somebody hammering the endpoint, not about the candidate. */
+publicRouter.post('/sit/:token', rateLimit(20), (req, res) => {
   try {
     const out = submitAttempt(req.params.token, req.body?.answers || {}, {
       auto: Boolean(req.body?.auto),
       left_count: req.body?.left_count,
+      away_seconds: req.body?.away_seconds,
+      paste_tries: req.body?.paste_tries,
       times: req.body?.times,
     });
     return out ? res.json(out) : res.status(404).json({ error: 'no such test' });

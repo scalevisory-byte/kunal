@@ -62,6 +62,8 @@ export default function SitTest({ token }) {
   /* How many times they left the page, and whether they just came back. */
   const [leftCount, setLeftCount] = useState(0);
   const [justBack, setJustBack] = useState(false);
+  const [awaySeconds, setAwaySeconds] = useState(0);
+  const [pasteTries, setPasteTries] = useState(0);
   /*
    * Seconds spent on each question.
    *
@@ -98,6 +100,15 @@ export default function SitTest({ token }) {
     leftRef.current = leftCount;
   }, [leftCount]);
 
+  const awayRef = useRef(0);
+  const pasteRef = useRef(0);
+  useEffect(() => {
+    awayRef.current = awaySeconds;
+  }, [awaySeconds]);
+  useEffect(() => {
+    pasteRef.current = pasteTries;
+  }, [pasteTries]);
+
   /* Written on every change, so a reload picks up where they were. */
   useEffect(() => {
     if (!done) keep(token, { answers, at });
@@ -112,6 +123,8 @@ export default function SitTest({ token }) {
         answers: answersRef.current,
         auto,
         left_count: leftRef.current,
+        away_seconds: awayRef.current,
+        paste_tries: pasteRef.current,
         times: timesRef.current,
       });
       setDone({ done: true, ...out, just_finished: true, auto });
@@ -160,16 +173,80 @@ export default function SitTest({ token }) {
    * It counts, it does not accuse - the office sees a number beside the
    * score and decides what it is worth.
    */
+  /*
+   * Leaving the test, and how long for.
+   *
+   * His ZYNTA spec counts BOTH a tab switch and the window losing focus, and
+   * records the seconds away - "2x left the test (35s away)" reads very
+   * differently from "2x left the test" when one was three seconds and the
+   * other was five minutes.
+   *
+   * It is RECORDED, NEVER REFUSED. A phone rings. Blocking fails the honest
+   * candidate and barely inconveniences anybody else.
+   */
+  const awayAt = useRef(null);
+
   useEffect(() => {
     if (!paper?.started || done) return undefined;
-    const onHide = () => {
-      if (document.visibilityState === 'hidden') {
-        setLeftCount((n) => n + 1);
-        setJustBack(true);
+
+    const left = () => {
+      if (awayAt.current !== null) return; // already counted this one
+      awayAt.current = Date.now();
+      setLeftCount((n) => n + 1);
+    };
+    const back = () => {
+      if (awayAt.current === null) return;
+      const secs = Math.round((Date.now() - awayAt.current) / 1000);
+      awayAt.current = null;
+      setAwaySeconds((n) => n + Math.max(1, secs));
+      setJustBack(true);
+    };
+    const onVisibility = () => (document.visibilityState === 'hidden' ? left() : back());
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', left);
+    window.addEventListener('focus', back);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', left);
+      window.removeEventListener('focus', back);
+    };
+  }, [paper?.started, done]);
+
+  /*
+   * Copying a question out, counted.
+   *
+   * Blocked AND counted, per his spec: blocking alone teaches somebody to
+   * screenshot instead and tells the office nothing, and counting alone
+   * makes it trivial. Neither stops a second phone, which is why the office
+   * screen says these are a reason to ring somebody back, not proof.
+   */
+  useEffect(() => {
+    if (!paper?.started || done) return undefined;
+    const stop = (e) => {
+      e.preventDefault();
+      setPasteTries((n) => n + 1);
+    };
+    const area = document;
+    for (const kind of ['copy', 'cut', 'paste', 'contextmenu']) {
+      area.addEventListener(kind, stop);
+    }
+    return () => {
+      for (const kind of ['copy', 'cut', 'paste', 'contextmenu']) {
+        area.removeEventListener(kind, stop);
       }
     };
-    document.addEventListener('visibilitychange', onHide);
-    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [paper?.started, done]);
+
+  /* Closing the tab mid-test warns first — the attempt is theirs and one. */
+  useEffect(() => {
+    if (!paper?.started || done) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
   }, [paper?.started, done]);
 
   const one = !!paper?.one_at_a_time;
@@ -280,6 +357,25 @@ export default function SitTest({ token }) {
         <div className="sit-card">
           <h1>BOOKNFLY</h1>
           <h2>{done.just_finished ? 'Thank you — your test has been sent.' : 'This test is finished.'}</h2>
+
+          {/*
+            * Their score, shown back.
+            *
+            * His spec says to: a candidate who sat a test and is told
+            * nothing assumes the worst, and the office gets a phone call
+            * instead. WHICH answers were wrong is never shown — the same
+            * paper is drawn for the next person.
+            */}
+          {done.total ? (
+            <p className="sit-score">
+              <strong>
+                {done.score} / {done.total}
+              </strong>
+              <span className={done.passed ? 'tag published' : 'tag'}>
+                {done.percentage}%{done.passed === null ? '' : done.passed ? ' · Qualified' : ''}
+              </span>
+            </p>
+          ) : null}
           {/*
             * WHEN it was sent, on the page itself.
             *

@@ -1822,7 +1822,9 @@ db.exec(`
     score         REAL, max_score REAL, percentage REAL, passed INTEGER,
     right_count   INTEGER, wrong_count INTEGER, skipped_count INTEGER,
     pass_percent  INTEGER,
-    duration_minutes INTEGER
+    duration_minutes INTEGER,
+    -- Null means it was sat all-on-one-page; a number means one at a time.
+    seconds_per_question INTEGER
   );
 
   CREATE INDEX IF NOT EXISTS idx_qbank_cat ON question_bank(category, active);
@@ -1846,6 +1848,16 @@ if (!columnsOf('test_attempts').has('left_count')) {
 if (!columnsOf('test_attempts').has('times')) {
   db.exec(`ALTER TABLE test_attempts ADD COLUMN times TEXT NOT NULL DEFAULT '{}'`);
   log.info('Migrated test_attempts: added times.');
+}
+if (!columnsOf('test_attempts').has('seconds_per_question')) {
+  db.exec(`ALTER TABLE test_attempts ADD COLUMN seconds_per_question INTEGER`);
+  log.info('Migrated test_attempts: added seconds_per_question.');
+}
+for (const column of ['away_seconds', 'paste_tries']) {
+  if (!columnsOf('test_attempts').has(column)) {
+    db.exec(`ALTER TABLE test_attempts ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
+    log.info(`Migrated test_attempts: added ${column}.`);
+  }
 }
 
 /* One-question-at-a-time, for papers made before the mode existed. */
@@ -2234,6 +2246,15 @@ export function assignTest(paperId, candidateId, { application_id, by = 'office'
     assigned_by: by,
     pass_percent: paper.pass_percent,
     duration_minutes: paper.duration_minutes,
+    /*
+     * Kept ON THE ATTEMPT, like the pass mark and the minutes beside it.
+     *
+     * The "finished very fast" flag only applies where there was NO
+     * per-question clock, and reading that off the paper later would judge a
+     * test by rules it was not sat under - the paper can be switched between
+     * one sitting and the next.
+     */
+    seconds_per_question: paper.one_at_a_time ? paper.seconds_per_question || null : null,
   });
 
   audit({
@@ -2398,7 +2419,7 @@ export function startAttempt(token) {
 export function submitAttempt(
   token,
   answers = {},
-  { auto = false, left_count = 0, times = {} } = {}
+  { auto = false, left_count = 0, away_seconds = 0, paste_tries = 0, times = {} } = {}
 ) {
   const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
   if (!row) return null;
@@ -2425,6 +2446,8 @@ export function submitAttempt(
     skipped_count: marked.skipped,
     /* How it was sat, beside what it scored. */
     left_count: Math.max(0, Number(left_count) || 0),
+    away_seconds: Math.max(0, Number(away_seconds) || 0),
+    paste_tries: Math.max(0, Number(paste_tries) || 0),
     times: JSON.stringify(times && typeof times === 'object' ? times : {}),
   });
 
@@ -2447,7 +2470,14 @@ export function submitAttempt(
     answers: JSON.stringify(marked.detail),
   });
 
-  return { submitted: true, percentage: marked.percentage, passed: marked.passed, late };
+  return {
+    submitted: true,
+    score: marked.score,
+    total: attempt.drawn.length,
+    percentage: marked.percentage,
+    passed: marked.passed,
+    late,
+  };
 }
 
 /** The office's view of one attempt — this one DOES carry the answers. */

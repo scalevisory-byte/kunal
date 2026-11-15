@@ -205,36 +205,67 @@ export function answerSheetHtml({ attempt = {}, candidate = {}, paper = {}, comp
  */
 export const FAST_ANSWER_SECONDS = 2;
 
+/**
+ * The integrity flags, to the rules Dinesh's own ZYNTA module uses.
+ *
+ * He sent its build spec, so these are not invented: each line below is one
+ * of its rules, worded the way his admin screen words it. Keeping them
+ * identical matters because he reads both screens and a flag that means
+ * something different in each is worse than no flag.
+ *
+ * AND THE HONEST LIMIT, which his spec states and this repeats: these catch
+ * tab-switching, copy and paste, impossible speed and timeouts. They cannot
+ * catch a second phone or another person in the room. They are a reason to
+ * ring somebody back or re-test them in the office, never proof of anything.
+ */
 export function integrity(attempt = {}) {
   const rows = answerRows(attempt);
   const times = attempt.times || {};
+  const total = rows.length;
   const spent = rows.map((r) => Number(times[r.id] ?? times[String(r.id)])).filter(Number.isFinite);
 
   const avg = spent.length ? Math.round(spent.reduce((a, b) => a + b, 0) / spent.length) : null;
   const fast = rows.filter((r) => {
     const t = Number(times[r.id] ?? times[String(r.id)]);
-    return r.verdict !== 'skipped' && Number.isFinite(t) && t < FAST_ANSWER_SECONDS;
+    return r.verdict !== 'skipped' && Number.isFinite(t) && t <= FAST_ANSWER_SECONDS;
   }).length;
   const skipped = rows.filter((r) => r.verdict === 'skipped').length;
 
+  const away = Number(attempt.left_count) || 0;
+  const awaySeconds = Number(attempt.away_seconds) || 0;
+  const pasteTries = Number(attempt.paste_tries) || 0;
+  const took = minutesTaken(attempt);
+  const seconds = took === null ? null : took * 60;
+
   const flags = [];
-  if (attempt.left_count) {
-    flags.push(
-      `${attempt.left_count}× left the test page`
-    );
+  if (away > 0) {
+    flags.push(`${away}× left the test${awaySeconds ? ` (${awaySeconds}s away)` : ''}`);
   }
-  if (skipped) {
-    flags.push(`${skipped} question${skipped === 1 ? '' : 's'} unanswered or timed out`);
+  if (pasteTries > 0) flags.push(`copy/paste attempts: ${pasteTries}`);
+  /*
+   * HALF the paper, not one question. His rule, and it is the right one: a
+   * single quick answer is somebody who knew it, and flagging that would put
+   * a mark on nearly every honest paper until nobody read the flags at all.
+   */
+  if (total && fast >= Math.ceil(total / 2)) {
+    flags.push(`${fast} answers under ${FAST_ANSWER_SECONDS}s`);
   }
-  if (fast) {
-    flags.push(`${fast} answer${fast === 1 ? '' : 's'} under ${FAST_ANSWER_SECONDS}s`);
+  /* Only where there is no per-question clock — with one, the pace is set. */
+  if (!attempt.seconds_per_question && seconds !== null && total && seconds < total * 5) {
+    flags.push(`finished very fast (${seconds}s)`);
   }
+  if (skipped > 0) {
+    flags.push(`${skipped} question${skipped === 1 ? '' : 's'} unanswered / timed out`);
+  }
+  if (attempt.auto_submitted) flags.push('auto-submitted (time over)');
 
   return {
     avg_seconds: avg,
     fast,
     skipped,
-    left_count: Number(attempt.left_count) || 0,
+    left_count: away,
+    away_seconds: awaySeconds,
+    paste_tries: pasteTries,
     flags,
     /* "Clean" only when the times are actually known — an attempt sat before
      * any of this was recorded has nothing to be clean about, and saying so

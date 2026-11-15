@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.11.3';
+export const VERSION = '1.12.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.12.0',
+    date: '15 Nov 2026',
+    title: 'The test, built to your ZYNTA module’s own rules',
+    items: [
+      '**The question cannot be selected or copied**, and an attempt to copy, cut, paste or right-click is blocked **and counted**.',
+      '**Leaving the test counts the seconds away**, not just the number of times — “2× left the test (35s away)” reads very differently from “2× left the test”. A tab switch and the window losing focus both count.',
+      '**Closing the tab mid-test warns first.**',
+      '**The flags now follow your ZYNTA wording exactly** — “2× left the test (35s away)”, “copy/paste attempts: 1”, “19 answers under 2s”, “3 questions unanswered / timed out”, “auto-submitted (time over)” — so the two screens cannot mean different things by the same words.',
+      '**One quick answer is no longer flagged.** It takes half the paper, which is your rule and the right one: a single fast answer is somebody who knew it.',
+      '**The candidate is shown their score** when they finish — never which answers were wrong, because the next person gets the same bank.',
+      'Honest about the limit, in the app: these catch tab-switching, copy and paste, impossible speed and timeouts. They **cannot** catch a second phone or another person in the room. Treat a flag as a reason to ring somebody back, never as proof.',
+    ],
+  },
   {
     version: '1.11.3',
     date: '15 Nov 2026',
