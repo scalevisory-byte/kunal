@@ -96,7 +96,7 @@ test('THE ANSWER NEVER REACHES THE CANDIDATE', async () => {
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
   const token = body.attempt.token;
 
-  const sat = await api('GET', `/api/public/sit/${token}`);
+  const sat = await api('POST', `/api/public/sit/${token}` + '/start', {});
   assert.equal(sat.status, 200);
   const wire = JSON.stringify(sat.body);
 
@@ -119,7 +119,7 @@ test('two candidates do not get the same paper', async () => {
   for (const name of ['One', 'Two', 'Three', 'Four']) {
     const who = await candidate(`Rotate ${name}`);
     const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
-    const sat = await api('GET', `/api/public/sit/${body.attempt.token}`);
+    const sat = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
     papers.push(sat.body.questions.map((q) => q.id).join(','));
   }
   assert.equal(new Set(papers).size, papers.length, 'four candidates got a repeated paper');
@@ -132,7 +132,7 @@ test('the options are shuffled too, so "it was B" is worth nothing', async () =>
   for (const name of ['A', 'B', 'C']) {
     const who = await candidate(`Options ${name}`);
     const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
-    const sat = await api('GET', `/api/public/sit/${body.attempt.token}`);
+    const sat = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
     for (const q of sat.body.questions) seen.add(`${q.id}:${q.options.map((o) => o.key).join('')}`);
   }
   // Every question in this bank has the same four options, so if the order
@@ -147,9 +147,9 @@ test('a refresh is not a second chance', async () => {
   const who = await candidate('Clock Watcher');
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
 
-  const first = await api('GET', `/api/public/sit/${body.attempt.token}`);
+  const first = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
   await new Promise((r) => setTimeout(r, 1100));
-  const second = await api('GET', `/api/public/sit/${body.attempt.token}`);
+  const second = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
 
   // Same paper, same start, and the clock has gone DOWN.
   assert.equal(second.body.started_at, first.body.started_at);
@@ -180,7 +180,7 @@ test('it marks itself, and an unanswered question is never a penalty', async () 
   const who = await candidate('Marked Person');
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
   const token = body.attempt.token;
-  const sat = await api('GET', `/api/public/sit/${token}`);
+  const sat = await api('POST', `/api/public/sit/${token}` + '/start', {});
 
   /*
    * Answer four right and leave four alone. Every question in this bank
@@ -209,7 +209,7 @@ test('guessing everything wrong floors at nought, never a negative score', async
   const paper = await paperFor('Wrong paper', [{ category: 'Wrong', count: 6 }]);
   const who = await candidate('Wrong Person');
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
-  const sat = await api('GET', `/api/public/sit/${body.attempt.token}`);
+  const sat = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
 
   const answers = {};
   for (const q of sat.body.questions) {
@@ -225,14 +225,14 @@ test('a test cannot be submitted twice', async () => {
   const paper = await paperFor('Once paper', [{ category: 'Once', count: 4 }]);
   const who = await candidate('Once Only');
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
-  await api('GET', `/api/public/sit/${body.attempt.token}`);
+  await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
   await api('POST', `/api/public/sit/${body.attempt.token}`, { answers: {} });
   const again = await api('POST', `/api/public/sit/${body.attempt.token}`, { answers: {} });
   assert.equal(again.status, 409);
   assert.match(again.body.error, /already been submitted/);
 
   // And reopening it shows the result rather than the paper.
-  const after = await api('GET', `/api/public/sit/${body.attempt.token}`);
+  const after = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
   assert.equal(after.body.done, true);
   assert.equal(after.body.questions, undefined);
 });
@@ -242,7 +242,7 @@ test('the result lands where every existing screen already looks', async () => {
   const paper = await paperFor('Feeds paper', [{ category: 'Feeds', count: 4 }]);
   const who = await candidate('Feeds Through');
   const { body } = await api('POST', `/api/hiring/papers/${paper.id}/assign`, { candidate_id: who.id });
-  const sat = await api('GET', `/api/public/sit/${body.attempt.token}`);
+  const sat = await api('POST', `/api/public/sit/${body.attempt.token}` + '/start', {});
   const answers = {};
   for (const q of sat.body.questions) answers[q.id] = q.options.find((o) => o.text === 'second').key;
   await api('POST', `/api/public/sit/${body.attempt.token}`, { answers });

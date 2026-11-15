@@ -423,15 +423,28 @@ test('the candidate’s page is told the mode, and still never the answers', asy
     candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
   });
 
-  const res = await fetch(`${base}/api/public/sit/${asg.body.attempt.token}`);
+  /*
+   * The start screen is told the SHAPE of the test but not its contents, so
+   * somebody can choose their moment without spending it.
+   */
+  const peek = JSON.parse(await (await fetch(`${base}/api/public/sit/${asg.body.attempt.token}`)).text());
+  assert.equal(peek.one_at_a_time, true);
+  assert.equal(peek.seconds_per_question, 30);
+  assert.equal(peek.question_count, 5);
+  assert.equal(peek.questions, undefined, 'the questions arrived before they started');
+
+  /* Starting hands them over — and still never the answers. */
+  const res = await fetch(`${base}/api/public/sit/${asg.body.attempt.token}/start`, {
+    method: 'POST',
+  });
   const text = await res.text();
   const open = JSON.parse(text);
 
   assert.equal(open.one_at_a_time, true);
   assert.equal(open.seconds_per_question, 30);
   assert.ok(!/"correct"/.test(text), 'the answer key reached the candidate');
-  /* All the questions still travel at once — the browser paces them. The
-   * SERVER's total is what is actually enforced, and saying so is the point. */
+  /* All the questions travel at once — the browser paces them. The SERVER's
+   * total is what is actually enforced, and saying so is the point. */
   assert.equal(open.questions.length, 5);
   assert.ok(open.seconds_left > 0);
 });
@@ -451,7 +464,7 @@ test('a paper with no seconds set falls back to its total divided by the questio
   const asg = await api('POST', `/api/hiring/papers/${made.body.id}/assign`, {
     candidate_id: cid, application_id: app,
   });
-  const open = (await api('GET', `/api/public/sit/${asg.body.attempt.token}`)).body;
+  const open = (await api('POST', `/api/public/sit/${asg.body.attempt.token}` + '/start', {})).body;
   assert.equal(open.seconds_per_question, 120, '10 minutes over 5 questions');
 });
 
@@ -463,4 +476,65 @@ test('the starter paper is one at a time at thirty seconds', async () => {
   assert.equal(paper.one_at_a_time, 1);
   assert.equal(paper.seconds_per_question, 30);
   assert.equal(paper.duration_minutes, 10);
+});
+
+/*
+ * Dinesh opened his own test link to look at it, went off to do something
+ * else, came back and found: *"directly this coming"* — "the time ran out, so
+ * your answers were sent automatically".
+ *
+ * The clock started the moment the link was OPENED. A candidate tapping it on
+ * a bus to see what it is would lose their one attempt exactly the same way.
+ */
+test('opening the link does not start the clock, and sends no questions', async () => {
+  const c = await api('POST', '/api/hiring/candidates', { name: 'Imran Shaikh', phone: '9898033445' });
+  const cid = c.body.candidate?.id ?? c.body.id;
+  const a = await api('POST', '/api/hiring/applications', {
+    vacancy_id: made.vacancy, candidate_id: cid,
+  });
+  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
+    (p) => p.name === 'Accounts test'
+  );
+  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+    candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
+  });
+  made.peek = asg.body.attempt.token;
+
+  const res = await fetch(`${base}/api/public/sit/${made.peek}`);
+  const text = await res.text();
+  const open = JSON.parse(text);
+
+  assert.equal(open.started, false);
+  assert.equal(open.questions, undefined, 'the questions were handed over before they started');
+  assert.equal(open.seconds_left, undefined, 'there is a clock before they started');
+  /* And nothing to read ahead of time. */
+  assert.ok(!/"option_/.test(text));
+  assert.ok(!/"correct"/.test(text));
+
+  /* It says what the test IS, so they can choose their moment. */
+  assert.equal(open.question_count, 20);
+  assert.equal(open.duration_minutes, 10);
+  assert.equal(open.one_at_a_time, true);
+});
+
+test('looking at it twice still does not start it', async () => {
+  await fetch(`${base}/api/public/sit/${made.peek}`);
+  const again = (await api('GET', `/api/public/sit/${made.peek}`)).body;
+  assert.equal(again.started, false);
+});
+
+test('starting is what begins the clock and hands the questions over', async () => {
+  const out = (await api('POST', `/api/public/sit/${made.peek}/start`, {})).body;
+  assert.equal(out.started, true);
+  assert.equal(out.questions.length, 20);
+  assert.ok(out.seconds_left > 0);
+});
+
+/* A refresh is not a second chance — the clock does not go back up. */
+test('starting twice does not restart the clock', async () => {
+  const first = (await api('POST', `/api/public/sit/${made.peek}/start`, {})).body;
+  await new Promise((r) => setTimeout(r, 1100));
+  const second = (await api('POST', `/api/public/sit/${made.peek}/start`, {})).body;
+  assert.ok(second.seconds_left <= first.seconds_left, 'the clock went back up');
+  assert.equal(second.started_at, first.started_at);
 });

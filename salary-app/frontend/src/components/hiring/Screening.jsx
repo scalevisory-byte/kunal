@@ -443,7 +443,9 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
   const sent = row.state !== 'not_sent';
 
   useEffect(() => {
-    if (sent) return;
+    /* The picker is needed when nothing has been sent AND when offering
+     * another paper after one has been sat. */
+    if (row.state === 'sent') return;
     api
       .get('/hiring/papers')
       .then(({ papers: list }) => {
@@ -477,6 +479,8 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
         out.link?.startsWith('http') ? out.link : `${window.location.origin}${out.link}`
       );
       onToast('Paper drawn — now send them the link');
+      /* The list reloads, so this row comes back as "sent" with the new
+       * attempt on it. Without this it would keep showing the old score. */
       onDone?.();
     } catch (err) {
       onError(err);
@@ -544,6 +548,30 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
             {row.attempt.percentage}%
           </strong>
           <button onClick={() => onSheet(row.attempt.id)}>Answer sheet</button>
+          {/*
+            * Another paper, when something went wrong rather than badly.
+            *
+            * A link opened by accident and left in a tab used to spend the
+            * whole paper — that cannot happen any more, but a phone can die
+            * mid-test and somebody deserves a second go. It is a DELIBERATE
+            * button with a confirm, never automatic: the old attempt and its
+            * answer sheet stay exactly where they are, and the new paper is
+            * a fresh draw, so this is not a way to see the questions twice.
+            */}
+          <button
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  `Give ${row.name} another paper? The one they have already sat stays on record. ` +
+                    'The new paper draws different questions.'
+                )
+              )
+                return;
+              await send();
+            }}
+          >
+            Another paper
+          </button>
         </div>
       ) : sent || drawn ? (
         /*

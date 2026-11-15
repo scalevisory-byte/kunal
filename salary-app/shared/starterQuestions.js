@@ -170,6 +170,13 @@ export function starterPaper(position) {
      * and not on each question - thirty seconds is the pace, not a cut-off,
      * and somebody who thinks it is will rush every answer.
      */
-    instructions: `${total} questions, ${STARTER_SECONDS_PER_QUESTION} seconds each. One question at a time — when the seconds run out the next one comes up by itself, so you cannot go back.`,
+    /*
+     * The start screen already states the count, the time and the no-going-
+     * back rule as its own bullets, so repeating them here reads as a page
+     * that says everything twice. This says the thing the bullets cannot:
+     * where to sit it.
+     */
+    instructions:
+      'Find somewhere quiet with a steady signal before you start. There are no trick questions — answer what you know and leave the rest.',
   };
 }

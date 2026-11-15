@@ -2221,13 +2221,41 @@ export function openAttempt(token) {
     };
   }
 
+  /*
+   * NOT STARTED YET, AND THE CLOCK IS NOT RUNNING.
+   *
+   * It used to start the moment the link was opened, which cost Dinesh a
+   * paper: he tapped it to look, went off to do something else, and the ten
+   * minutes ran out in a tab nobody was reading. A candidate opening the link
+   * on a bus to see what it is would lose theirs the same way, and they get
+   * one.
+   *
+   * So opening shows what the test is and nothing more - the QUESTIONS ARE
+   * NOT SENT either, so they cannot be read ahead of the clock. Starting is a
+   * deliberate press.
+   */
   if (!attempt.started_at) {
-    update('test_attempts', attempt.id, { started_at: nowIso() });
-    attempt.started_at = nowIso();
+    return {
+      done: false,
+      started: false,
+      name: candidate?.name,
+      paper: paper?.name,
+      instructions: paper?.instructions || '',
+      duration_minutes: attempt.duration_minutes,
+      question_count: attempt.drawn.length,
+      one_at_a_time: Boolean(paper?.one_at_a_time),
+      seconds_per_question:
+        Number(paper?.seconds_per_question) ||
+        Math.max(
+          5,
+          Math.round((attempt.duration_minutes * 60) / Math.max(1, attempt.drawn.length))
+        ),
+    };
   }
 
   return {
     done: false,
+    started: true,
     name: candidate?.name,
     paper: paper?.name,
     instructions: paper?.instructions || '',
@@ -2253,6 +2281,20 @@ export function openAttempt(token) {
       ),
     questions: forCandidate(attempt.drawn),
   };
+}
+
+/**
+ * Start the clock, and hand over the questions.
+ *
+ * Separate from opening the link on purpose: see openAttempt. Starting twice
+ * does not restart the clock - a refresh is not a second chance, which is the
+ * rule the countdown has always followed.
+ */
+export function startAttempt(token) {
+  const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
+  if (!row) return null;
+  if (!row.started_at) update('test_attempts', row.id, { started_at: nowIso() });
+  return openAttempt(token);
 }
 
 /**

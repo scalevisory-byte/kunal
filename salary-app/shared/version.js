@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.10.0';
+export const VERSION = '1.10.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.10.1',
+    date: '15 Nov 2026',
+    title: 'The clock starts when they press Start',
+    items: [
+      '**Opening the link no longer spends the test.** It used to start the clock the moment the page loaded — tap it on a bus to see what it is, come back later, and the time had gone. Now opening shows a page saying how many questions, how long, and that there is no going back, with a **Start the test** button. Nothing runs until that is pressed.',
+      '**The questions are not even sent until they start**, so they cannot be read ahead of the clock.',
+      '**A reload no longer loses their answers.** With one question at a time a phone reloading the page used to put somebody back on question one with nothing recorded while the paper’s clock carried on. It now picks up where they were.',
+      'Looking at the link twice still does not start it, and starting twice does not put the clock back up.',
+      '**“Another paper”** on somebody who has already sat one — for a phone that died mid-test. It asks first, the old attempt and its answer sheet stay on record, and the new paper draws different questions.',
+    ],
+  },
   {
     version: '1.10.0',
     date: '15 Nov 2026',

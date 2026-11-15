@@ -3700,3 +3700,7 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
   margin: 0.6rem 0 1rem; overflow: hidden;
 }
 .sit-progress span { display: block; height: 100%; background: var(--brand); transition: width 0.2s; }
+
+/* What the test is, before the clock exists. */
+.sit-rules { margin: 0 0 1rem; padding-left: 1.1rem; }
+.sit-rules li { margin: 0.35rem 0; }

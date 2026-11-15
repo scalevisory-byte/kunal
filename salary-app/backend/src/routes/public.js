@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { Router } from 'express';
-import { createApplication, getApplication, getCandidate, getVacancy, getVacancyByRef, listVacancies, openAttempt, openCandidateForm, recordTest, saveCandidateForm, submitAttempt, updateCandidate, upsertCandidate } from '../hiring.js';
+import { createApplication, getApplication, getCandidate, getVacancy, getVacancyByRef, listVacancies, openAttempt, openCandidateForm, startAttempt, recordTest, saveCandidateForm, submitAttempt, updateCandidate, upsertCandidate } from '../hiring.js';
 import { config } from '../config.js';
 import { log } from '../logger.js';
 import { publicVacancy } from '../../../shared/hiringMessages.js';
@@ -296,6 +296,12 @@ publicRouter.post('/test-result/:token', rateLimit(30), (req, res) => {
  */
 publicRouter.get('/sit/:token', (req, res) => {
   const paper = openAttempt(req.params.token);
+  return paper ? res.json(paper) : res.status(404).json({ error: 'no such test' });
+});
+
+/* Starting is a deliberate press — opening the link must not spend the time. */
+publicRouter.post('/sit/:token/start', (req, res) => {
+  const paper = startAttempt(req.params.token);
   return paper ? res.json(paper) : res.status(404).json({ error: 'no such test' });
 });
 

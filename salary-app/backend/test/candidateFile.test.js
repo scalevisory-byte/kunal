@@ -243,7 +243,7 @@ test('set up a candidate who was screened, interviewed and tested', async () => 
  * answers; the candidate's own page must not, however the question is asked.
  */
 test('the candidate sitting the test is never sent the answers', async () => {
-  const open = await api('GET', `/api/public/sit/${made.token}`);
+  const open = await api('POST', `/api/public/sit/${made.token}` + '/start', {});
   assert.equal(open.status, 200);
   assert.equal(open.body.questions.length, 20);
   for (const q of open.body.questions) {

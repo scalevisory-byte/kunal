@@ -19,15 +19,45 @@ const mmss = (seconds) => {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 };
 
+/*
+ * Keep the answers through a refresh.
+ *
+ * A phone reloads a page for its own reasons, and with one question at a time
+ * the candidate had no way back: the answers lived only in memory, so a
+ * hiccup put them on question one with nothing recorded while the paper's
+ * clock carried on draining. They get one attempt; losing it to a reload is
+ * not a judgement about them.
+ *
+ * sessionStorage, keyed by the token, wrapped in try/catch — a private window
+ * throws on merely touching it, and a convenience must never take the test
+ * down. If it comes back empty, the test simply starts from where it would
+ * have anyway.
+ */
+const keep = (token, value) => {
+  try {
+    sessionStorage.setItem(`sit-${token}`, JSON.stringify(value));
+  } catch {
+    /* no storage — the test still works, it just cannot survive a reload */
+  }
+};
+
+const recall = (token) => {
+  try {
+    return JSON.parse(sessionStorage.getItem(`sit-${token}`) || 'null');
+  } catch {
+    return null;
+  }
+};
+
 export default function SitTest({ token }) {
   const [paper, setPaper] = useState(null);
   const [error, setError] = useState('');
-  const [answers, setAnswers] = useState({});
+  const [answers, setAnswers] = useState(() => recall(token)?.answers || {});
   const [left, setLeft] = useState(null);
   const [done, setDone] = useState(null);
   const [sending, setSending] = useState(false);
   /* One at a time: which question is on screen, and its own clock. */
-  const [at, setAt] = useState(0);
+  const [at, setAt] = useState(() => recall(token)?.at || 0);
   const [qLeft, setQLeft] = useState(null);
   // The submit has to be reachable from the timer without re-running it every
   // tick, and a double submit must be impossible even if both fire at once.
@@ -41,7 +71,8 @@ export default function SitTest({ token }) {
         if (got.done) setDone(got);
         else {
           setPaper(got);
-          setLeft(got.seconds_left);
+          /* Not started: there is no clock yet and no questions to count. */
+          if (got.started) setLeft(got.seconds_left);
         }
       })
       .catch((err) => setError(err.message || 'This test link does not work.'));
@@ -50,6 +81,11 @@ export default function SitTest({ token }) {
   useEffect(() => {
     answersRef.current = answers;
   }, [answers]);
+
+  /* Written on every change, so a reload picks up where they were. */
+  useEffect(() => {
+    if (!done) keep(token, { answers, at });
+  }, [answers, at, done, token]);
 
   const submit = async (auto = false) => {
     if (sent.current) return;
@@ -61,9 +97,34 @@ export default function SitTest({ token }) {
         auto,
       });
       setDone({ done: true, ...out, just_finished: true, auto });
+      try {
+        sessionStorage.removeItem(`sit-${token}`);
+      } catch {
+        /* nothing to clear */
+      }
     } catch (err) {
       sent.current = false;
       setError(err.message || 'That did not send. Try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  /*
+   * Starting is a press, not a page load.
+   *
+   * The clock used to begin the moment the link opened, so tapping it on a
+   * bus to see what it was spent the whole paper. The questions are not even
+   * sent until this call, so they cannot be read ahead of the time.
+   */
+  const start = async () => {
+    setSending(true);
+    try {
+      const got = await api.public.post(`/sit/${token}/start`, {});
+      setPaper(got);
+      setLeft(got.seconds_left);
+    } catch (err) {
+      setError(err.message || 'That did not start. Try again.');
     } finally {
       setSending(false);
     }
@@ -177,6 +238,68 @@ export default function SitTest({ token }) {
   }
 
   if (!paper) return <div className="sit-page"><div className="sit-card">Loading…</div></div>;
+
+  /*
+   * The start screen.
+   *
+   * It says what they are about to do BEFORE the clock exists: how many
+   * questions, how long, and — when it is one at a time — that there is no
+   * going back, which is the thing somebody needs to know in advance rather
+   * than discover on question two.
+   */
+  if (!paper.started) {
+    return (
+      <div className="sit-page">
+        <div className="sit-card">
+          <header className="sit-head">
+            <div>
+              <h1>BOOKNFLY</h1>
+              <p className="muted small">
+                {paper.paper} · {paper.name}
+              </p>
+            </div>
+          </header>
+
+          <h2 style={{ margin: '0.6rem 0 0.3rem' }}>Before you begin</h2>
+          <ul className="sit-rules">
+            <li>
+              <strong>{paper.question_count} questions</strong> in{' '}
+              <strong>{paper.duration_minutes} minutes</strong>.
+            </li>
+            {paper.one_at_a_time ? (
+              <>
+                <li>
+                  One question at a time. Each gets{' '}
+                  <strong>{paper.seconds_per_question} seconds</strong> — when they run out the
+                  next one comes up by itself.
+                </li>
+                <li>
+                  <strong>You cannot go back</strong> to a question once it has passed.
+                </li>
+              </>
+            ) : (
+              <li>You can change an answer until you send the test.</li>
+            )}
+            <li>Leaving a question blank costs you nothing extra.</li>
+            <li>
+              <strong>The clock starts when you press the button below</strong>, so do this when
+              you have the time free. Do it in one sitting.
+            </li>
+          </ul>
+
+          {paper.instructions ? <p className="sit-note">{paper.instructions}</p> : null}
+          {error ? <p className="banner bad">{error}</p> : null}
+
+          <footer className="sit-foot">
+            <span className="muted small">Nothing has started yet.</span>
+            <button className="primary" disabled={sending} onClick={start}>
+              {sending ? 'Starting…' : 'Start the test'}
+            </button>
+          </footer>
+        </div>
+      </div>
+    );
+  }
 
   const answered = Object.keys(answers).length;
   const low = left !== null && left <= 60;
