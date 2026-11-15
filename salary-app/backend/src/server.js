@@ -191,12 +191,46 @@ export function createServer() {
 
   // Serve the built dashboard when it has been copied into backend/public.
   if (config.serveFrontend && fs.existsSync(path.join(frontendDir, 'index.html'))) {
-    app.use(express.static(frontendDir));
+    /*
+     * The hashed files can be kept for ever - their name changes when their
+     * contents do - but INDEX.HTML MUST NEVER BE CACHED. It is the one file
+     * with a fixed name, and it is what points at the current bundle. A
+     * browser or a CDN holding yesterday's copy keeps asking for yesterday's
+     * JavaScript, and the whole app silently stays old.
+     *
+     * That is exactly what happened: the server was updated, /healthz said
+     * the new version, and the test page went on behaving like the build
+     * from three releases back because the tab was running cached code.
+     */
+    app.use(
+      express.static(frontendDir, {
+        setHeaders(res, filePath) {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-store, must-revalidate');
+          } else if (/\/assets\//.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
+
+    /*
+     * A missing asset is a 404, not the app.
+     *
+     * The catch-all below exists so /apply/JOB-003 reaches index.html instead
+     * of a 404. But it also swallowed /assets/index-OLD.js, handing back HTML
+     * where a browser expected JavaScript - so a stale page failed quietly
+     * and strangely instead of failing loudly. An asset that is not there has
+     * to say so.
+     */
+    app.get(/^\/assets\//, (req, res) => res.status(404).end());
+
     // Not an API call and not a file download: it is the app's own routing, so
     // /apply/JOB-003 has to reach index.html rather than a 404.
-    app.get(/^(?!\/(api|files)\/).*/, (req, res) =>
-      res.sendFile(path.join(frontendDir, 'index.html'))
-    );
+    app.get(/^(?!\/(api|files)\/).*/, (req, res) => {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+      return res.sendFile(path.join(frontendDir, 'index.html'));
+    });
     log.info(`Serving dashboard from ${frontendDir}`);
   }
 

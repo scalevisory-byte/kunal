@@ -2297,6 +2297,10 @@ export function openAttempt(token) {
       name: candidate?.name,
       paper: paper?.name,
       submitted_at: attempt.submitted_at,
+      /* Why it ended, not just when. Reopening a spent link used to say
+       * nothing about the time having run out - that line only appeared to
+       * whoever was watching the moment it happened. */
+      auto: Boolean(attempt.auto_submitted),
       // The score is shown back only if the office wanted it to be; what is
       // never shown is which answers were wrong, because the same paper may
       // be drawn for the next candidate.

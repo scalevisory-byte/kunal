@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.11.1';
+export const VERSION = '1.11.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.11.2',
+    date: '15 Nov 2026',
+    title: 'The browser can no longer run yesterday’s app',
+    items: [
+      '**This is why the test page kept behaving like an old version even after the update.** The page that points at the app’s code could be kept by the browser (and by Cloudflare), so a tab went on running the build from three releases back while the server was new.',
+      'That page is now **never cached**. The code files keep their long cache, which is safe — their name changes whenever they change.',
+      '**A missing code file now says so** instead of quietly handing back the app, which is how a stale page failed strangely rather than loudly.',
+      'After this update, a tab picks up a new version on its own. No more Ctrl+F5.',
+    ],
+  },
   {
     version: '1.11.1',
     date: '15 Nov 2026',

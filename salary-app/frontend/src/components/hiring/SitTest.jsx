@@ -280,6 +280,31 @@ export default function SitTest({ token }) {
         <div className="sit-card">
           <h1>BOOKNFLY</h1>
           <h2>{done.just_finished ? 'Thank you — your test has been sent.' : 'This test is finished.'}</h2>
+          {/*
+            * WHEN it was sent, on the page itself.
+            *
+            * Without it, reopening a spent link looks exactly like a fresh
+            * failure. Dinesh reopened one of his several times over an
+            * afternoon and read it as the test breaking again each time; a
+            * candidate who taps an old WhatsApp link deserves the same
+            * answer. A date turns "something went wrong" into "this already
+            * happened, on Sunday evening".
+            */}
+          {done.submitted_at ? (
+            <p className="muted small">
+              {done.just_finished ? 'Sent' : 'It was sent'} on{' '}
+              {new Date(
+                /* SQLite stores "YYYY-MM-DD HH:MM:SS" in UTC with no zone. */
+                `${String(done.submitted_at).replace(' ', 'T')}${
+                  /[Z+]/.test(done.submitted_at) ? '' : 'Z'
+                }`
+              ).toLocaleString('en-IN', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              })}
+              .
+            </p>
+          ) : null}
           {done.auto ? (
             <p className="muted small">The time ran out, so your answers were sent automatically.</p>
           ) : null}
