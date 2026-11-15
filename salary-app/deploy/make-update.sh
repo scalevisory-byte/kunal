@@ -59,10 +59,20 @@ fi
 
 say "Zipping"
 mkdir -p "$OUT"
-rm -f "$OUT/BNFHRMS-update.zip"
-(cd "$WORK" && zip -q -r "$OUT/BNFHRMS-update.zip" BNFHRMS-update)
+# The version goes IN THE FILE NAME.
+#
+# Seven of these went out in one day, every one called
+# BNFHRMS-update.zip, so Downloads fills with "(1)", "(2)", "(3)" and the
+# one that gets extracted is whichever came to hand. An afternoon was lost
+# to a bug that had been fixed hours earlier. Same lesson as the
+# SalarySheet (2).html copies, and the same fix: put the version where it
+# can be read without opening anything.
+VER="$(sed -n "s/.*VERSION = '\([^']*\)'.*/\1/p" "$HERE/shared/version.js" | head -1)"
+ZIP="$OUT/BNFHRMS-update-v${VER:-unknown}.zip"
+rm -f "$OUT/BNFHRMS-update.zip" "$ZIP"
+(cd "$WORK" && zip -q -r "$ZIP" BNFHRMS-update)
 
-printf '\n%s\n' "Done:  $OUT/BNFHRMS-update.zip  ($(du -h "$OUT/BNFHRMS-update.zip" | cut -f1))"
+printf '\n%s\n' "Done:  $ZIP  ($(du -h "$ZIP" | cut -f1))"
 printf '%s\n' "Built: $(date -u -r "$HERE/backend/public/index.html" '+%d %b %Y %H:%M UTC')"
 printf '%s\n' "On the server: extract it anywhere and run UPDATE.ps1 - it finds the install"
 printf '%s\n' "from the BNFHRMS scheduled task, keeps a rollback copy, and restarts."

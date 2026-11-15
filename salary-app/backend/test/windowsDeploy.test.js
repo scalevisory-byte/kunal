@@ -591,3 +591,31 @@ test('the eSSL inspector only looks, and never prints a password', () => {
   assert.match(ps, /DESKTOP-6OKJT47/);
   assert.match(ps, /BNFHRMS/);
 });
+
+/*
+ * Seven update zips went out in one day, every one named
+ * BNFHRMS-update.zip, so a Downloads folder fills with "(1)", "(2)",
+ * "(3)" and the one that gets extracted is whichever came to hand.
+ * Dinesh spent an afternoon on a bug that had been fixed hours earlier,
+ * reporting "again same" each time. Same lesson as the SalarySheet (2).html
+ * copies, and the same fix: put the version where it can be read without
+ * opening anything, and refuse to go backwards.
+ */
+test('the update names both versions and refuses to go backwards', () => {
+  const ps = fs.readFileSync(
+    new URL('../../deploy/windows-local/UPDATE.ps1', import.meta.url),
+    'utf8'
+  );
+  assert.match(ps, /This zip is:/);
+  assert.match(ps, /Installed now:/);
+  /* Refused, not warned: an older zip run by mistake puts the bug back
+   * AND reports success, which is the worst of both. */
+  assert.match(ps, /OLDER than what is installed/);
+  assert.match(ps, /throw "This zip is OLDER/);
+});
+
+test('the zip carries its version in its file name', () => {
+  const sh = fs.readFileSync(new URL('../../deploy/make-update.sh', import.meta.url), 'utf8');
+  assert.match(sh, /BNFHRMS-update-v\$\{VER/);
+  assert.match(sh, /version\.js/);
+});

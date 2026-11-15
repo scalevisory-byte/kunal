@@ -80,6 +80,22 @@ try {
   }
   Write-Host ("This update carries: " + (($found | ForEach-Object { $_.What }) -join ', '))
 
+  # ---- which version is in this zip ----------------------------------
+  #
+  # Seven of these were sent in one day, every one named
+  # BNFHRMS-update.zip, so a Downloads folder fills up with
+  # "BNFHRMS-update (3).zip" and the one that gets extracted is whichever
+  # the person reached first. Running an old one changes nothing and says
+  # nothing, which is how an afternoon goes on a bug that was fixed
+  # hours ago. Same lesson as the SalarySheet (2).html copies.
+  $zipVersion = $null
+  $vFile = Join-Path $here 'shared-new\version.js'
+  if (Test-Path $vFile) {
+    $m = [regex]::Match((Get-Content $vFile -Raw), "VERSION\s*=\s*'([^']+)'")
+    if ($m.Success) { $zipVersion = $m.Groups[1].Value }
+  }
+  if ($zipVersion) { Write-Host "This zip is:   v$zipVersion" }
+
   # ---- where is the HRMS actually installed --------------------------
   #
   # Asked of Windows, not guessed from this script's folder. There is more
@@ -111,6 +127,31 @@ try {
   }
   $root = Split-Path -Parent $backend   # ...\app
   Write-Host "Updating:      $root"
+
+  # What is running now, so going backwards is visible rather than silent.
+  $liveVersion = $null
+  $liveFile = Join-Path $root 'shared\version.js'
+  if (Test-Path $liveFile) {
+    $m = [regex]::Match((Get-Content $liveFile -Raw), "VERSION\s*=\s*'([^']+)'")
+    if ($m.Success) { $liveVersion = $m.Groups[1].Value }
+  }
+  if ($liveVersion) { Write-Host "Installed now: v$liveVersion" }
+
+  if ($zipVersion -and $liveVersion) {
+    $z = [version]($zipVersion -replace '[^0-9.]', '')
+    $l = [version]($liveVersion -replace '[^0-9.]', '')
+    if ($z -lt $l) {
+      # Refused, not warned. An older zip run by mistake puts the bug back
+      # and reports success, which is the worst of both.
+      throw "This zip is OLDER than what is installed (v$zipVersion over v$liveVersion).`r`n" +
+            "  Nothing has been changed. You almost certainly extracted an older`r`n" +
+            "  BNFHRMS-update zip - check the newest one in Downloads.`r`n" +
+            "  To go back on purpose, use the -old-<date> folders beside the app."
+    }
+    if ($z -eq $l) {
+      Write-Host "  (Same version as the one already installed - carrying on anyway.)"
+    }
+  }
   Write-Host ''
 
   # ---- swap it -------------------------------------------------------
@@ -162,7 +203,8 @@ try {
 
   Write-Host ''
   if ($ok) {
-    Write-Host '  Done. The new version is up:'
+    if ($zipVersion) { Write-Host "  Done. v$zipVersion is up:" }
+    else { Write-Host '  Done. The new version is up:' }
     Write-Host "    http://localhost:$Port"
     Write-Host ''
     Write-Host '  In the browser press Ctrl+F5 once - otherwise it shows you'
