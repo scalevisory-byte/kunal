@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.9.0';
+export const VERSION = '1.9.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.9.1',
+    date: '15 Nov 2026',
+    title: 'The hiring tabs run in the order the work happens',
+    items: [
+      '**Screening now comes after Candidates**, not before Vacancies. The strip reads Overview · Pipeline · **Vacancies · Candidates · Screening · Tests · Interviews** · Reports · Follow-ups — post the opening, take the applications, screen them, test them, interview them.',
+      'Overview and Pipeline stay in front because they are where you look, not steps; Reports and Follow-ups sit at the end because they run across all of it.',
+      '“How an interview goes” now sends you to **Screening → “Eligible — ready for the test”** for the test step, and names the department head in step 7.',
+    ],
+  },
   {
     version: '1.9.0',
     date: '15 Nov 2026',

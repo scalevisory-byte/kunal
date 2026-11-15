@@ -45,9 +45,9 @@ export const HIRING_STEPS = [
   {
     n: 5,
     title: 'Set them a test, if the job needs one',
-    where: 'Candidates → open the stage',
-    how: '“Send an in-house test” → choose a paper',
-    note: 'Every candidate gets a different set of questions and it marks itself.',
+    where: 'Screening → “Eligible — ready for the test”',
+    how: 'Choose a paper → “Send the test” → send the link on WhatsApp',
+    note: 'Everybody screened in and not yet tested is on that list, so nobody has to be hunted for. Every candidate gets a different set of questions and it marks itself. The result and the full answer sheet are on the candidate.',
   },
   {
     n: 6,

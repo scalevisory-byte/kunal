@@ -15,14 +15,30 @@ import VacancyPanel from './VacancyPanel.jsx';
 import Vacancies from './Vacancies.jsx';
 import Candidates from './Candidates.jsx';
 
+/*
+ * The tabs run in the order the work happens.
+ *
+ * Dinesh: *"candidate k bad screening aayega na"* - and he was right.
+ * Screening sat third, BEFORE the opening was even created and before
+ * anybody had applied, so the strip read in no order at all. Somebody
+ * learning the app reads a row of tabs as a sequence whether or not it is
+ * meant as one, and a sequence that contradicts the real flow teaches the
+ * wrong thing on the first day.
+ *
+ * Overview and Pipeline stay in front because they are the "where is
+ * everything" views somebody opens on, not steps. Then the flow itself:
+ * post the opening, take the applications, screen them, test them,
+ * interview them. Reports and Follow-ups are what you do across all of it,
+ * so they sit at the end.
+ */
 const VIEWS = [
   ['overview', 'Overview'],
   ['pipeline', 'Pipeline'],
-  ['screening', 'Screening'],
   ['openings', 'Vacancies'],
   ['candidates', 'Candidates'],
-  ['interviews', 'Interviews'],
+  ['screening', 'Screening'],
   ['tests', 'Tests'],
+  ['interviews', 'Interviews'],
   ['reports', 'Reports'],
   ['tasks', 'Follow-ups'],
 ];

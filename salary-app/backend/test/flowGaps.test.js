@@ -262,3 +262,45 @@ test('a code typed on the form wins over the suggestion', async () => {
   const hired = await api('POST', `/api/hiring/applications/${id}/hire`, { code: 'ACC/09' });
   assert.equal(hired.body.employee.code, 'ACC/09');
 });
+
+/*
+ * Dinesh, looking at the tab strip: *"candidate k bad screning aayega na"*.
+ *
+ * Screening sat third - before the opening existed and before anybody had
+ * applied. A row of tabs reads as a sequence whether or not it is meant as
+ * one, and a sequence that contradicts the real flow teaches the wrong thing
+ * on somebody's first day.
+ */
+test('the hiring tabs run in the order the work happens', () => {
+  const file = fs.readFileSync(
+    new URL('../../frontend/src/components/hiring/Hiring.jsx', import.meta.url),
+    'utf8'
+  );
+  const block = file.slice(file.indexOf('const VIEWS = ['), file.indexOf('];', file.indexOf('const VIEWS = [')));
+  const order = [...block.matchAll(/\['([a-z]+)',/g)].map((m) => m[1]);
+
+  assert.deepEqual(order, [
+    'overview',
+    'pipeline',
+    'openings',
+    'candidates',
+    'screening',
+    'tests',
+    'interviews',
+    'reports',
+    'tasks',
+  ]);
+
+  /* The ones his own flow numbers, in his own order. */
+  const step = (k) => order.indexOf(k);
+  assert.ok(step('openings') < step('candidates'), 'the opening comes before the applicants');
+  assert.ok(step('candidates') < step('screening'), 'screening comes after the candidate');
+  assert.ok(step('screening') < step('tests'), 'the test comes after screening');
+  assert.ok(step('tests') < step('interviews'), 'the interview comes after the test');
+});
+
+test('the on-screen flow points the test step at the list that now exists', () => {
+  const steps = fs.readFileSync(new URL('../../shared/hiringSteps.js', import.meta.url), 'utf8');
+  assert.match(steps, /ready for the test/);
+  assert.match(steps, /department head/i, 'step 7 does not mention the head');
+});
