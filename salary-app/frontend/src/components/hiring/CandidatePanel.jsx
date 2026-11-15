@@ -404,7 +404,7 @@ export default function CandidatePanel({ candidateId, config, onClose, onChanged
                     <td className="small">
                       {a.submitted_at
                         ? String(a.submitted_at).replace('T', ' ').slice(0, 16)
-                        : `sent ${String(a.assigned_at).slice(0, 10)}`}
+                        : `paper drawn ${String(a.assigned_at).slice(0, 10)}`}
                     </td>
                     <td className="num">{a.submitted_at ? `${a.percentage}%` : '—'}</td>
                     <td className="small">

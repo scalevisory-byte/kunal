@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.12.0';
+export const VERSION = '1.12.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.12.1',
+    date: '15 Nov 2026',
+    title: 'One question at a time reaches the paper you already had',
+    items: [
+      '**Your Accounts test was still showing all twenty questions on one page, and no update was going to change that.** Adding the one-at-a-time mode gave every paper made before it a column set to “all on one page”, and the only way out was a control in the question bank that there was no reason to look for. This update **moves every existing paper over by itself** — nothing to find, nothing to press.',
+      'It runs **once**. If somebody later chooses to put a paper back on one page, that choice survives every update after it.',
+      'A paper somebody is **sitting at that moment** is left alone, so the page cannot change shape under their hand. An **abandoned** attempt — a link opened for a look, a clock long run out — no longer counts as being sat, which is what was quietly protecting the wrong paper.',
+      '**A link drawn before a paper was corrected now follows the correction.** The layout is fixed when the candidate presses Start, not when the link is made — so a paper fixed this morning reaches every link already sent out and not yet opened.',
+      'The test card no longer says **“Sent”**. Drawing the paper and handing it over are two different things and only the first happens in here, so it reads **“Paper ready — not sat yet”** and the line underneath says **who drew it and when**.',
+    ],
+  },
   {
     version: '1.12.0',
     date: '15 Nov 2026',

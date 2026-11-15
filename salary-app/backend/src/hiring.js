@@ -1872,6 +1872,72 @@ for (const [column, type] of [
 }
 
 /*
+ * AND THEN BRING THE PAPERS THEMSELVES ACROSS - not just give them a column.
+ *
+ * Adding the column above defaults every existing paper to 0, which is
+ * all-questions-on-one-page. So a paper made before the mode existed went on
+ * being sat the old way for ever, and the only way out was a button in the
+ * question bank that nobody had a reason to look for. Dinesh asked for one
+ * question at a time three separate times, reinstalled four times, and every
+ * link he drew was still the old shape - because the fix was a thing he had
+ * to find and press.
+ *
+ * There is no paper here that anybody wanted all on one page. So the papers
+ * are moved, once, and the move is recorded so that it can never happen
+ * twice: somebody who deliberately switches a paper back afterwards keeps
+ * their choice through every later upgrade.
+ *
+ * A paper being sat RIGHT NOW is left alone - openAttempt reads the mode
+ * live, so reshaping it mid-test would move the page under somebody's hand.
+ * A finished attempt is untouched either way: its questions and answers live
+ * on the attempt row, and how the paper was presented is not something the
+ * answer sheet reports.
+ */
+db.exec(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)`);
+export const ONE_AT_A_TIME_MIGRATION = 'hiring.papers_one_at_a_time_v1';
+
+export function bringPapersToOneAtATime() {
+  if (db.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(ONE_AT_A_TIME_MIGRATION)) {
+    return 0;
+  }
+  /*
+   * "Started and not submitted" is NOT the same as "being sat right now".
+   *
+   * An abandoned attempt - a link opened to have a look, a tab closed, a
+   * clock run out with nothing sent back - sits in that state for ever. Using
+   * it as the test would have let Dinesh's own trial runs block the migration
+   * on the one paper it exists to correct. So the clock has to still be
+   * RUNNING, which is what mid-test actually means.
+   */
+  const busy = new Set(
+    db
+      .prepare(
+        `SELECT paper_id, started_at, duration_minutes FROM test_attempts
+          WHERE started_at IS NOT NULL AND submitted_at IS NULL`
+      )
+      .all()
+      .filter((a) => !isOverdue(a.started_at, a.duration_minutes))
+      .map((a) => a.paper_id)
+  );
+  const moved = db
+    .prepare(
+      `UPDATE test_papers
+          SET one_at_a_time = 1,
+              seconds_per_question = COALESCE(seconds_per_question, 30)
+        WHERE COALESCE(one_at_a_time, 0) = 0
+          AND id NOT IN (SELECT value FROM json_each(?))`
+    )
+    .run(JSON.stringify([...busy])).changes;
+  db.prepare(`INSERT INTO app_settings (key, value) VALUES (?, ?)`).run(
+    ONE_AT_A_TIME_MIGRATION,
+    new Date().toISOString()
+  );
+  if (moved) log.info(`Migrated test_papers: ${moved} set to one question at a time.`);
+  return moved;
+}
+bringPapersToOneAtATime();
+
+/*
  * The department head's step, for databases made before it existed.
  *
  * Adding a column cannot move anything: every evaluation already in the
@@ -2402,7 +2468,28 @@ export function openAttempt(token) {
 export function startAttempt(token) {
   const row = db.prepare(`SELECT * FROM test_attempts WHERE token = ?`).get(String(token || ''));
   if (!row) return null;
-  if (!row.started_at) update('test_attempts', row.id, { started_at: nowIso() });
+  if (!row.started_at) {
+    /*
+     * THE LAYOUT IS FIXED WHEN THEY START, NOT WHEN THE LINK IS DRAWN.
+     *
+     * It was stamped at assign time, so a link drawn on Tuesday was sat under
+     * Tuesday's paper however the paper had been corrected since - and that
+     * is precisely how Dinesh kept getting the old all-on-one-page test out
+     * of a link he had only just made. Stamping it here means a paper
+     * corrected this morning reaches every link that has not been opened yet,
+     * and a test already under way keeps the shape it began in, which is the
+     * half that actually matters.
+     *
+     * It is read back for the integrity flags: "finished very fast" only
+     * applies where there was no per-question clock, and judging a paper by
+     * rules it was not sat under is how a clean candidate gets flagged.
+     */
+    const paper = getPaper(row.paper_id);
+    update('test_attempts', row.id, {
+      started_at: nowIso(),
+      seconds_per_question: paper?.one_at_a_time ? paper.seconds_per_question || null : null,
+    });
+  }
   return openAttempt(token);
 }
 
@@ -2729,7 +2816,8 @@ export function testQueue({ company_id } = {}) {
   /* Their newest attempt, if any. The answers never travel - a list drawing
    * twenty rows has no use for four hundred questions and their key. */
   const latest = db.prepare(
-    `SELECT t.id, t.token, t.assigned_at, t.submitted_at, t.percentage, t.passed,
+    `SELECT t.id, t.token, t.assigned_at, t.assigned_by, t.submitted_at,
+            t.percentage, t.passed,
             t.right_count, t.wrong_count, t.skipped_count, p.name AS paper_name
        FROM test_attempts t JOIN test_papers p ON p.id = t.paper_id
       WHERE t.candidate_id = ? ORDER BY t.id DESC LIMIT 1`

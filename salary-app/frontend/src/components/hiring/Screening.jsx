@@ -271,10 +271,20 @@ export default function Screening({ companyId, config, onOpen, onError, onToast 
             return (
               <div key={state}>
                 <p className="ask">
+                  {/*
+                    * "Sent" was a claim the app cannot make.
+                    *
+                    * Dinesh: "bina generate kiye copy link kyu aa raha he".
+                    * The link was there because a paper had been DRAWN for
+                    * him earlier - but the app called that "Sent", and it
+                    * has no idea whether anybody actually sent it. Drawing
+                    * the paper and handing it over are two different acts,
+                    * and only the first one happens in here.
+                    */}
                   {state === 'not_sent'
-                    ? `Not sent yet (${group.length})`
+                    ? `No paper yet (${group.length})`
                     : state === 'sent'
-                      ? `Sent — waiting for them to sit it (${group.length})`
+                      ? `Paper ready — not sat yet (${group.length})`
                       : `Done (${group.length})`}
                 </p>
                 {group.map((row) => (
@@ -537,7 +547,9 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
                 } right, ${row.attempt.wrong_count} wrong${
                   row.attempt.skipped_count ? `, ${row.attempt.skipped_count} blank` : ''
                 }`
-              : ` · sent ${String(row.attempt.assigned_at).slice(0, 10)}, not sat yet`}
+              : ` · paper drawn ${String(row.attempt.assigned_at).slice(0, 10)}${
+                  row.attempt.assigned_by ? ` by ${row.attempt.assigned_by}` : ''
+                } · not sat yet`}
           </div>
         ) : null}
       </div>
@@ -582,7 +594,10 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
          * whole point. It is the SAME attempt every time it is sent again,
          * never a fresh draw.
          */
-        <div className="row">{share}</div>
+        <div className="row">
+          {share}
+          <span className="muted small">this link, again — never a new paper</span>
+        </div>
       ) : papers.length ? (
         <div className="row">
           <select value={paperId} onChange={(e) => setPaperId(e.target.value)}>
