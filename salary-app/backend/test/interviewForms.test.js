@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { checkEvaluation } from '../../shared/interviewEval.js';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-iform-'));
 process.env.APP_PASSWORD = '';
@@ -521,4 +522,52 @@ test('a submitted evaluation shows up in a queue somebody can see', async () => 
   await api('POST', `/api/hiring/evaluations/${id}/review`, { to: 'approved' });
   assert.ok(!(await api('GET', '/api/hiring/evaluations/waiting')).body.waiting
     .some((w) => w.candidate_name === 'Waiting Person'), 'a decided evaluation is still listed');
+});
+
+/*
+ * Dinesh filled the evaluation in, picked a recommendation, and asked why
+ * Submit would not work: *"submit eveulation kyu nahi aa raha he"*.
+ *
+ * The answer was that "recommendation" and "next action" were two separate
+ * questions rendered as two unlabelled rows of chips under one heading. He
+ * answered the first and reasonably took the section to be done. The reason
+ * the button was dead sat beside it as a grey caption, which reads as a note.
+ */
+test('the two decisions are asked as two questions, each with its own label', () => {
+  const panel = fs.readFileSync(
+    new URL('../../frontend/src/components/hiring/InterviewForms.jsx', import.meta.url),
+    'utf8'
+  );
+  assert.match(panel, /What do you recommend\?/);
+  assert.match(panel, /what should happen next\?/i);
+  /* The unanswered one says so where the answer goes, not only at the button. */
+  assert.match(panel, /still to answer/);
+});
+
+test('a disabled Submit says what it is waiting on, and says all of it', () => {
+  const panel = fs.readFileSync(
+    new URL('../../frontend/src/components/hiring/InterviewForms.jsx', import.meta.url),
+    'utf8'
+  );
+  assert.match(panel, /Can’t submit yet/, 'the blocker does not say it is a blocker');
+  assert.match(panel, /problems\.join\(/, 'only the first reason is shown');
+  assert.ok(
+    !/\{problems\[0\]\}/.test(panel),
+    'still revealing one reason at a time — the button stays dead three times over'
+  );
+});
+
+test('a recommendation on its own does not let it be submitted', () => {
+  const problems = checkEvaluation(
+    { evaluated_by: 'Krishna', recommendation: 'Recommended' },
+    { submitting: true }
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /what should happen next/i);
+
+  const ok = checkEvaluation(
+    { evaluated_by: 'Krishna', recommendation: 'Recommended', next_action: 'Final Selection' },
+    { submitting: true }
+  );
+  assert.deepEqual(ok, []);
 });

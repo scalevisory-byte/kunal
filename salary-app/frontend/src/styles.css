@@ -3678,3 +3678,12 @@ button.tiny { padding: 0.1rem 0.4rem; font-size: 0.72rem; }
 .ans .opt.is-correct { color: var(--text); }
 .ans .opt.is-chosen { font-weight: 600; color: var(--text); }
 .ans .opt.is-chosen:not(.is-correct) { text-decoration: line-through; }
+
+/* Two questions in one section each get asked out loud. */
+.iv-body .ask { margin: 0.8rem 0 0.35rem; font-size: 0.82rem; font-weight: 550; }
+.iv-body .ask:first-child { margin-top: 0; }
+.iv-body .ask .still {
+  font-weight: 400; color: var(--warn); font-size: 0.78rem;
+}
+/* Why a disabled button is disabled, said as a blocker and not as a caption. */
+.blocking { color: var(--bad); font-weight: 500; }

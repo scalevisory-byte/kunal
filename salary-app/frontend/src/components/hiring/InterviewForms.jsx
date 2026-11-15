@@ -390,7 +390,13 @@ export function InterviewFormPanel({ interviewId, onClose, onSaved, onError, onT
         <p className="muted small iv-declaration">{DECLARATION}</p>
 
         <footer className="iv-actions">
-          {problems.length ? <span className="muted small">{problems[0]}</span> : null}
+          {/*
+            * No blocker line here. checkForm() returns nothing by design -
+            * submitting these particulars means "confirmed", not "complete",
+            * because half of what is asked may genuinely not apply to
+            * somebody. A line that can never render only misleads whoever
+            * reads this next.
+            */}
           <span className="spacer" />
           <button disabled={busy} onClick={() => save(false)}>Save draft</button>
           <button className="primary" disabled={busy} onClick={() => save(true)}>
@@ -710,6 +716,16 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
         <section className="iv-section open">
           <div className="iv-head static"><span className="iv-title">Recommendation and next action</span></div>
           <div className="iv-body">
+            {/*
+              * TWO QUESTIONS, and they get a label each.
+              *
+              * They used to be two unlabelled rows of chips under one heading.
+              * Dinesh picked a recommendation, reasonably believed he had
+              * answered the section, and then could not work out why Submit
+              * was dead - the missing answer was the row below, which looked
+              * like more of the same question.
+              */}
+            <p className="ask">What do you recommend?</p>
             <div className="iv-decisions">
               {RECOMMENDATIONS.map((r) => (
                 <button key={r.key} disabled={decided}
@@ -717,6 +733,10 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
                   onClick={() => set('recommendation', r.key)}>{r.label}</button>
               ))}
             </div>
+            <p className="ask">
+              And what should happen next?
+              {!form.next_action && !decided ? <span className="still"> still to answer</span> : null}
+            </p>
             <div className="iv-decisions">
               {NEXT_ACTIONS.map((a) => (
                 <button key={a.key} disabled={decided}
@@ -780,7 +800,17 @@ export function EvaluationPanel({ interviewId, abilities = [], onClose, onSaved,
         ) : null}
 
         <footer className="iv-actions">
-          {problems.length && !decided ? <span className="muted small">{problems[0]}</span> : null}
+          {/*
+            * This was a grey caption beside the button and read as a note
+            * rather than the reason the button would not work. It now says
+            * what it is waiting on, and lists EVERYTHING - a queue revealed
+            * one sentence at a time is a button that stays dead three times.
+            */}
+          {problems.length && !decided ? (
+            <span className="blocking small">
+              Can’t submit yet — {problems.join(' ')}
+            </span>
+          ) : null}
           <span className="spacer" />
           <button disabled={busy || decided} onClick={() => save(false)}>Save draft</button>
           <button className="primary" disabled={busy || decided || problems.length}

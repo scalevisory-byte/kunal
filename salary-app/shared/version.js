@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.8.2';
+export const VERSION = '1.8.3';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.8.3',
+    date: '15 Nov 2026',
+    title: 'The evaluation tells you why Submit will not work',
+    items: [
+      '**The two questions are asked separately now.** “What do you recommend?” and “And what should happen next?” used to be two rows of buttons under one heading with nothing to tell them apart — pick a recommendation and the section looked answered, but the row below was a different question.',
+      'The unanswered one is marked **still to answer** right where the answer goes.',
+      '**A greyed-out Submit says why**, in red beside the button: “Can’t submit yet — …”, and it lists **everything** it is waiting on, not one reason at a time.',
+      'Nothing about who can do what has changed — the evaluator’s name is still required and typed, and a recommendation is still not a selection.',
+    ],
+  },
   {
     version: '1.8.2',
     date: '14 Nov 2026',
