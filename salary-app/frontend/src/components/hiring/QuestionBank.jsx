@@ -306,10 +306,10 @@ export default function QuestionBank({ companies, onError, onToast }) {
                       * the button says why rather than failing quietly.
                       */}
                     <button
-                      disabled={!!p.attempts}
+                      disabled={!!p.being_sat}
                       title={
-                        p.attempts
-                          ? 'Somebody has already sat this one, so its rules stay as they are. Make a new paper instead.'
+                        p.being_sat
+                          ? 'Somebody is sitting this paper right now — switching would change the page under them. Try again when they have finished.'
                           : p.one_at_a_time
                             ? 'Put every question on one page instead'
                             : 'Put one question at a time, each on its own clock'

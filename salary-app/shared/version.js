@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.11.0';
+export const VERSION = '1.11.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.11.1',
+    date: '15 Nov 2026',
+    title: 'A paper can be switched once nobody is sitting it',
+    items: [
+      '**Switching a paper to “one at a time” was refused if anybody had EVER sat it** — which locked the one paper you were trying to change. It is refused only while somebody is **sitting it right now**, because switching mid-test would reshape the page under them.',
+      'A finished attempt is untouched either way: its questions and answers live on its own record, and the answer sheet does not report how the paper was laid out.',
+      '**A link that was opened before the update will never show the start screen** — the old version started its clock the moment it was opened, and that cannot be undone. Draw a fresh paper for anybody in that position.',
+    ],
+  },
   {
     version: '1.11.0',
     date: '15 Nov 2026',

@@ -581,32 +581,55 @@ test('a starter paper nobody has sat is brought up to date', async () => {
 });
 
 /*
- * Once somebody has sat it, nothing moves. A paper taken under one set of
- * rules has to keep them, or the answer sheet and the test stop describing
- * the same thing.
+ * REWRITTEN. "Somebody has sat it" was the wrong test and it locked Dinesh
+ * out of the thing he had asked for three times - his paper had finished
+ * attempts, so both ways of switching the mode refused.
+ *
+ * What must not change is a paper somebody is sitting RIGHT NOW: openAttempt
+ * reads the mode live, so a switch would reshape the page under them. A
+ * FINISHED attempt keeps its own questions and answers on its own row, and
+ * the answer sheet does not report how the paper was laid out - so a later
+ * switch cannot make that record wrong.
  */
-test('a paper somebody has sat keeps its shape', async () => {
-  const paper = (await api('GET', '/api/hiring/papers')).body.papers.find(
-    (p) => p.name === 'Accounts test'
-  );
+test('a paper being sat right now keeps its shape', async () => {
+  /*
+   * Its OWN paper. The shared "Accounts test" has an attempt left open by an
+   * earlier test in this file, which is exactly the state being tested here —
+   * leaning on it would make this pass or fail for the wrong reason.
+   */
+  const made2 = await api('PUT', '/api/hiring/papers', {
+    name: 'Mid-test paper', pass_percent: 50, duration_minutes: 10,
+    one_at_a_time: 0, sections: [{ category: 'Accounts', count: 5 }],
+  });
+  const paperId = made2.body.id;
+
   const c = await api('POST', '/api/hiring/candidates', { name: 'Sat It', phone: '9898044001' });
   const cid = c.body.candidate?.id ?? c.body.id;
   const a = await api('POST', '/api/hiring/applications', {
     vacancy_id: made.vacancy, candidate_id: cid,
   });
-  const asg = await api('POST', `/api/hiring/papers/${paper.id}/assign`, {
+  const asg = await api('POST', `/api/hiring/papers/${paperId}/assign`, {
     candidate_id: cid, application_id: a.body.application?.id ?? a.body.id,
   });
+
+  /* Started and NOT submitted — they are on question four right now. */
   await api('POST', `/api/public/sit/${asg.body.attempt.token}/start`, {});
+  const mid = (await api('GET', '/api/hiring/papers')).body.papers.find((p) => p.id === paperId);
+  assert.equal(mid.being_sat, 1, 'the list does not say it is being sat');
+  assert.equal(mid.one_at_a_time, 0);
 
-  await api('PUT', '/api/hiring/papers', { ...paper, one_at_a_time: 0 });
-  const out = await api('POST', '/api/hiring/bank/starter', { position: 'Accounts' });
-  assert.equal(out.body.paper_updated, false);
+  /* Once they send it, the paper is free to change again — a finished
+   * attempt keeps its own questions and answers, and the answer sheet does
+   * not report how the paper was laid out. */
+  const answers = {};
+  asg.body.attempt.drawn.forEach((q) => {
+    answers[q.id] = q.correct;
+  });
+  await api('POST', `/api/public/sit/${asg.body.attempt.token}`, { answers });
 
-  const after = (await api('GET', '/api/hiring/papers')).body.papers.find(
-    (p) => p.name === 'Accounts test'
-  );
-  assert.equal(after.one_at_a_time, 0, 'a paper already sat was changed underneath it');
+  const freed = (await api('GET', '/api/hiring/papers')).body.papers.find((p) => p.id === paperId);
+  assert.equal(freed.being_sat, 0);
+  assert.equal(freed.attempts, 1, 'the finished attempt is still on record');
 });
 
 /* And the way a paper is put to people is ON THE LIST, not only inside Edit. */
@@ -619,7 +642,7 @@ test('the papers list says how each one is put', () => {
   assert.match(bank, /One at a time ·/);
   assert.match(bank, /All on one page/);
   /* Switching is refused on a paper somebody has sat. */
-  assert.match(bank, /disabled=\{!!p\.attempts\}/);
+  assert.match(bank, /disabled=\{!!p\.being_sat\}/);
 });
 
 /* ---------------- how a test was sat ---------------- */

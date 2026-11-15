@@ -1952,7 +1952,16 @@ export function listPapers() {
   return db
     .prepare(
       `SELECT p.*, co.name AS company_name,
-              (SELECT COUNT(*) FROM test_attempts a WHERE a.paper_id = p.id) AS attempts
+              (SELECT COUNT(*) FROM test_attempts a WHERE a.paper_id = p.id) AS attempts,
+              /* Being sat RIGHT NOW. The only state in which the way a paper
+               * is presented must not change - openAttempt reads it live, so
+               * a switch would reshape the page under somebody mid-test. A
+               * finished attempt keeps its own questions and answers, and
+               * the answer sheet does not report how the paper was laid out,
+               * so it cannot be made wrong by a later switch. */
+              (SELECT COUNT(*) FROM test_attempts a
+                WHERE a.paper_id = p.id AND a.started_at IS NOT NULL
+                  AND a.submitted_at IS NULL) AS being_sat
          FROM test_papers p
          LEFT JOIN companies co ON co.id = p.company_id
         ORDER BY p.name`
@@ -2086,8 +2095,23 @@ export function loadStarterQuestions({ position = '', by = 'office' } = {}) {
   if (!existing) {
     paper = savePaper({ ...wantedPaper, created_by: by });
   } else {
+    /*
+     * "Somebody has sat it" was the wrong test, and it locked Dinesh out of
+     * the thing he had asked for three times: his paper had finished
+     * attempts on it, so both ways of switching the mode refused.
+     *
+     * What actually must not change is a paper somebody is sitting RIGHT
+     * NOW - openAttempt reads the mode live, so a switch mid-test would
+     * reshape the page under them. A FINISHED attempt is untouched: its
+     * questions and answers are stored on the attempt row, and the answer
+     * sheet reads those. How the paper was PRESENTED is not something the
+     * sheet reports, so changing it later cannot make the record wrong.
+     */
     const sat = db
-      .prepare(`SELECT COUNT(*) n FROM test_attempts WHERE paper_id = ? AND started_at IS NOT NULL`)
+      .prepare(
+        `SELECT COUNT(*) n FROM test_attempts
+          WHERE paper_id = ? AND started_at IS NOT NULL AND submitted_at IS NULL`
+      )
       .get(existing.id).n;
     const now = getPaper(existing.id);
     const stale = !now.one_at_a_time && !sat;
