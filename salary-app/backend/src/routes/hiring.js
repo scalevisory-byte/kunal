@@ -52,6 +52,7 @@ import {
   moveOffer,
   addCandidateDocument,
   archiveCandidate,
+  candidateDeleteProblem,
   deleteCandidateDocument,
   getCandidateDocument,
   getOffer,
@@ -380,7 +381,21 @@ hiringRouter.patch('/candidates/:id', (req, res) => {
 hiringRouter.delete('/candidates/:id', (req, res) => {
   const candidate = getCandidate(Number(req.params.id));
   if (!candidate) return res.status(404).json({ error: 'not found' });
+
+  const problem = candidateDeleteProblem(candidate.id);
+  if (problem) return res.status(409).json({ error: problem });
+
+  /*
+   * THE FILES GO WITH THE ROWS.
+   *
+   * The applications, attempts and document ROWS cascade away on their own.
+   * The files on disk do not - they are not in the database. The CV was
+   * already handled; the documents were new, and without this the folder
+   * quietly fills with strangers' Aadhaar cards that nothing points at any
+   * more and nobody can account for.
+   */
   deleteResumeFile(candidate);
+  for (const doc of listCandidateDocuments(candidate.id)) deleteDocumentFile(doc);
   deleteCandidate(candidate.id);
   res.status(204).end();
 });

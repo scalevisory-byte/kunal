@@ -517,6 +517,42 @@ for (const [column, type] of [
   }
 }
 
+/**
+ * Why a candidate might NOT be deletable.
+ *
+ * Deleting is the one act here that cannot be undone: it takes the whole
+ * file - every application, screening, interview, form, evaluation, offer and
+ * answer sheet, and the CV and documents off the disk with them.
+ *
+ * So one line is drawn, and only one: SOMEBODY ON THE PAYROLL CANNOT BE
+ * DELETED. Their hiring record is the answer to "how did this employee come
+ * to be here, and what were they told" - a question that gets asked by an
+ * auditor, by a tribunal, and by whoever has to settle a dispute about what
+ * salary was agreed. Archive hides them; this would destroy that answer while
+ * the employee carries on drawing a salary.
+ *
+ * Everything else is allowed. A duplicate, a test entry, somebody who asked
+ * to be taken off the list - refusing those would just mean they are deleted
+ * from the database by hand instead, which is worse.
+ */
+export function candidateDeleteProblem(id) {
+  const candidate = getCandidate(id);
+  if (!candidate) return 'not found';
+  const onPayroll = db
+    .prepare(
+      `SELECT e.name, e.code FROM applications a
+         JOIN employees e ON e.id = a.employee_id
+        WHERE a.candidate_id = ? AND a.employee_id IS NOT NULL LIMIT 1`
+    )
+    .get(id);
+  if (onPayroll) {
+    return `${candidate.name} is on the payroll${
+      onPayroll.code ? ` as ${onPayroll.code}` : ''
+    }. Their hiring record is how that appointment is explained, so it cannot be deleted — archive them instead.`;
+  }
+  return '';
+}
+
 export function archiveCandidate(id, { reason = '', by = 'office' } = {}) {
   const candidate = getCandidate(id);
   if (!candidate) return null;

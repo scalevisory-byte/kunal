@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.14.0';
+export const VERSION = '1.14.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.14.1',
+    date: '16 Nov 2026',
+    title: 'Delete, beside Archive',
+    items: [
+      '**Delete** on the candidate row, next to Archive. It says what goes before it asks — the whole file, and the CV and documents off the disk — and it cannot be undone.',
+      '**Somebody on the payroll is refused**, and told to archive instead. Their hiring record is how that appointment is explained: what was agreed, who approved it, what they were told. Archive hides them; this would destroy that while they carry on drawing a salary.',
+      'Archiving is not a lock — an archived person can still be deleted. Only the payroll stops it.',
+      'Fixed: deleting used to leave the uploaded documents on the disk with nothing pointing at them. A folder of strangers’ Aadhaar cards that nobody can account for.',
+    ],
+  },
   {
     version: '1.14.0',
     date: '15 Nov 2026',

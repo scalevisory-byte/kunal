@@ -296,6 +296,36 @@ export default function Candidates({
                       </button>
                     </>
                   )}
+                  {/*
+                    * Delete is the one act here that cannot be undone, so it
+                    * names what goes BEFORE it asks, and it is the plainest
+                    * button on the row - Archive is the one somebody wants
+                    * nine times out of ten.
+                    */}
+                  <button
+                    className="tiny"
+                    onClick={async () => {
+                      if (
+                        !window.confirm(
+                          `Delete ${c.name} for good?\n\n` +
+                            'This removes their whole file — every application, screening, ' +
+                            'interview, evaluation, offer and answer sheet — and their CV and ' +
+                            'documents off the disk. It cannot be undone.\n\n' +
+                            'To keep the file but clear the list, use Archive instead.'
+                        )
+                      )
+                        return;
+                      try {
+                        await api.del(`/hiring/candidates/${c.id}`);
+                        onToast('Deleted.');
+                        onReload();
+                      } catch (err) {
+                        onError(err);
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

@@ -434,6 +434,23 @@ test('the export carries the list you are looking at, archive included', async (
   assert.ok(!/cv-[a-z0-9]+-[a-f0-9]{8}\./.test(archived), 'and still no path on disk');
 });
 
+/*
+ * Rohit is on the payroll by now, and somebody on the payroll cannot be
+ * deleted: their hiring record is how that appointment is explained. The
+ * refusal has to say what to do instead, or it is just a dead button.
+ */
+test('somebody on the payroll is refused, and pointed at the archive', async () => {
+  const refused = await api('DELETE', `/api/hiring/candidates/${candidateId}`);
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /payroll/);
+  assert.match(refused.body.error, /archive/i);
+  assert.equal(
+    (await api('GET', `/api/hiring/candidates/${candidateId}`)).status,
+    200,
+    'and nothing was removed'
+  );
+});
+
 test('deleting a candidate takes their CV off the disk with them', async () => {
   // Checked from DISK, because the API deliberately no longer says where the
   // file is - only that there is one.
@@ -441,6 +458,12 @@ test('deleting a candidate takes their CV off the disk with them', async () => {
   assert.equal(candidate.has_cv, true);
   const before = fs.readdirSync(config.resumeDir);
   assert.equal(before.length, 1);
+
+  // Off the payroll first - this test is about the file, not the guard above.
+  const { rows } = (await api('GET', `/api/hiring/applications?candidate_id=${candidateId}`)).body;
+  for (const row of rows) {
+    if (row.employee_id) await api('DELETE', `/api/employees/${row.employee_id}`);
+  }
 
   assert.equal((await api('DELETE', `/api/hiring/candidates/${candidateId}`)).status, 204);
   assert.deepEqual(fs.readdirSync(config.resumeDir), [], 'the CV was left behind on disk');

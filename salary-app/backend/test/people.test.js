@@ -504,11 +504,20 @@ test('switching the late/early rule is on the trail - it changes what people are
 
 let taskId;
 
+/*
+ * WANTED NEXT WEEK, counted from today.
+ *
+ * This was a fixed date, and the test below - whose whole claim is that
+ * overdue is WORKED OUT rather than stored - started failing the morning
+ * that date went past. A test about a date going stale must not carry one.
+ */
+const inDays = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10);
+
 test('a task is assigned with a date it is wanted by', async () => {
   const created = await api('POST', '/api/people/tasks', {
     employee_id: employeeId,
     title: 'Collect the PF challan receipts for September',
-    due_on: '2026-11-15',
+    due_on: inDays(7),
     priority: 'high',
     assigned_by: 'Dinesh',
   });
@@ -519,7 +528,7 @@ test('a task is assigned with a date it is wanted by', async () => {
 });
 
 test('a task with no title is refused', async () => {
-  const bad = await api('POST', '/api/people/tasks', { employee_id: employeeId, due_on: '2026-11-15' });
+  const bad = await api('POST', '/api/people/tasks', { employee_id: employeeId, due_on: inDays(7) });
   assert.equal(bad.status, 400);
 });
 
