@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.14.1';
+export const VERSION = '1.14.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.14.2',
+    date: '16 Nov 2026',
+    title: 'Deleting an employee added by mistake',
+    items: [
+      'The **Delete** button on an employee row now **counts before it asks**. "Delete X and all their payroll history?" was true and no use: somebody added by mistake this morning and a cashier of four years read identically. It now names the months of payroll, the days of attendance, the documents and the loans that would go — and for a wrongly added person it says **"Nothing is recorded against them"**, which is the answer.',
+      '**A closed month refuses.** Somebody paid in a locked month is filed behind a PF return and a payslip they are holding, so deleting them would rewrite a figure already reported. Set their status to **Left** instead. An open month does not block — that is where a mistake sits.',
+      'Anyone **reporting to them** is counted and named. They are left without a manager, never deleted alongside.',
+      'Fixed: deleting an employee used to leave their PAN, Aadhaar and photograph on the disk with nothing pointing at them. The same hole the candidate delete had.',
+      'Saying no no longer flashes an error — changing your mind is not a fault.',
+    ],
+  },
   {
     version: '1.14.1',
     date: '16 Nov 2026',

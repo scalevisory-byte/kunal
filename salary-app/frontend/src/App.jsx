@@ -871,7 +871,43 @@ function Shell() {
             onCompany={pickCompany}
             onCreate={masterAction((body) => api.post('/employees', body))}
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
-            onDelete={masterAction((id) => api.del(`/employees/${id}`))}
+            onDelete={masterAction(async (id, name) => {
+              /*
+               * Ask the server what would go, THEN ask the person.
+               *
+               * A count the browser worked out from the rows it happens to
+               * have on screen would be a guess; this is the same query the
+               * delete itself is guarded by, so the warning and the rule
+               * cannot disagree.
+               */
+              const check = await api.get(`/employees/${id}/delete-check`);
+              if (check.problem) {
+                window.alert(check.problem);
+                return null;
+              }
+              const losing = [
+                check.months ? `${check.months} month${check.months === 1 ? '' : 's'} of payroll` : '',
+                check.attendance_days
+                  ? `${check.attendance_days} day${check.attendance_days === 1 ? '' : 's'} of attendance`
+                  : '',
+                check.documents
+                  ? `${check.documents} document${check.documents === 1 ? '' : 's'} (deleted off the disk)`
+                  : '',
+                check.loans ? `${check.loans} loan record${check.loans === 1 ? '' : 's'}` : '',
+                check.reports
+                  ? `${check.reports} person${check.reports === 1 ? '' : 's'} reporting to them (left without a manager)`
+                  : '',
+              ].filter(Boolean);
+
+              const question = losing.length
+                ? `Delete ${name || 'this employee'}?\n\nThis also removes:\n· ${losing.join('\n· ')}\n\nIt cannot be undone.`
+                : `Delete ${name || 'this employee'}?\n\nNothing is recorded against them — no payroll, no attendance, no documents. Nothing else is lost.`;
+
+              // Saying no is not an error: masterAction shows whatever is
+              // thrown, and a banner for "I changed my mind" is noise.
+              if (!window.confirm(question)) return null;
+              return api.del(`/employees/${id}`);
+            })}
             onBulkPatch={masterAction((ids, patch) =>
               // One reload at the end rather than one per employee.
               Promise.all(ids.map((id) => api.patch(`/employees/${id}`, patch)))

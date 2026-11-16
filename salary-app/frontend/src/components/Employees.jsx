@@ -892,12 +892,21 @@ export default function Employees({
                     />
                   </td>
                   <td>
+                    {/*
+                      * IT COUNTS BEFORE IT ASKS.
+                      *
+                      * "Delete X and all their payroll history?" is true and
+                      * useless: somebody added by mistake this morning and a
+                      * cashier of four years read identically, and only one
+                      * of them should go. Now the question names the months,
+                      * the attendance and the documents that would go - a
+                      * wrongly added person comes back with nothing against
+                      * their name, which IS the answer.
+                      */}
                     <button
                       className="danger tiny"
                       title="Deletes the employee and every month they appear in"
-                      onClick={() => {
-                        if (window.confirm(`Delete ${emp.name} and all their payroll history?`)) onDelete(emp.id);
-                      }}
+                      onClick={() => onDelete(emp.id, emp.name)}
                     >
                       Delete
                     </button>

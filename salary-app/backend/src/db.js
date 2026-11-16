@@ -1164,6 +1164,61 @@ export const listDirectReports = (employeeId) =>
     )
     .all(employeeId);
 
+/**
+ * WHAT GOES WITH THEM.
+ *
+ * Dinesh: "employee me se wrongly added employee delete kaise hoga". The
+ * button was already there and the confirmation said "and all their payroll
+ * history" - true, and no use at all for telling the two cases apart. Added
+ * by mistake this morning and a cashier of four years look exactly alike on
+ * that screen, and only one of them should be deleted.
+ *
+ * So it COUNTS first. Somebody added by mistake comes back as zeroes, which
+ * is the whole answer; a real employee comes back with months, attendance
+ * and documents against their name, which is the other.
+ */
+export function employeeDeleteSummary(id) {
+  const employee = getEmployee(id);
+  if (!employee) return null;
+  const one = (sql) => db.prepare(sql).get(id)?.n || 0;
+  return {
+    id,
+    name: employee.name,
+    months: one(`SELECT COUNT(*) n FROM payroll_rows WHERE employee_id = ?`),
+    locked_months: one(
+      `SELECT COUNT(*) n FROM payroll_rows r JOIN periods p ON p.id = r.period_id
+        WHERE r.employee_id = ? AND p.locked = 1`
+    ),
+    attendance_days: one(`SELECT COUNT(*) n FROM attendance WHERE employee_id = ?`),
+    documents: one(`SELECT COUNT(*) n FROM employee_documents WHERE employee_id = ?`),
+    loans: one(`SELECT COUNT(*) n FROM loans WHERE employee_id = ?`),
+    reports: one(`SELECT COUNT(*) n FROM employees WHERE reports_to_id = ?`),
+  };
+}
+
+/**
+ * The one line that is drawn: A MONTH THAT HAS BEEN CLOSED.
+ *
+ * A locked month has been paid and filed - it is behind a PF return, an ESI
+ * contribution and a payslip somebody is holding. Deleting a person out of it
+ * rewrites a figure that was already reported, and the register stops adding
+ * up. Somebody who has LEFT is marked as left, which the app already has;
+ * deleting is for a row that should never have existed.
+ *
+ * An open month is not blocked. That is exactly where a wrongly added person
+ * sits, and it is the case this was asked for.
+ */
+export function employeeDeleteProblem(id) {
+  const summary = employeeDeleteSummary(id);
+  if (!summary) return 'not found';
+  if (summary.locked_months > 0) {
+    return `${summary.name} has been paid in ${summary.locked_months} closed month${
+      summary.locked_months === 1 ? '' : 's'
+    }. Those are filed against a PF return and a payslip, so deleting them would rewrite a figure already reported — set their status to Left instead.`;
+  }
+  return '';
+}
+
 export function deleteEmployee(id) {
   return db.prepare(`DELETE FROM employees WHERE id = ?`).run(id).changes > 0;
 }

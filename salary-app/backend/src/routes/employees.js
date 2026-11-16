@@ -5,6 +5,8 @@ import {
   deleteDocument,
   deleteEmployee,
   getDocument,
+  employeeDeleteProblem,
+  employeeDeleteSummary,
   getEmployee,
   listDirectReports,
   listDocuments,
@@ -309,7 +311,31 @@ employeesRouter.delete('/:id/documents/:documentId', (req, res) => {
   res.status(204).end();
 });
 
+/* What would go with them - so the screen can say it before it asks. */
+employeesRouter.get('/:id/delete-check', (req, res) => {
+  const summary = employeeDeleteSummary(Number(req.params.id));
+  if (!summary) return res.status(404).json({ error: 'not found' });
+  res.json({ ...summary, problem: employeeDeleteProblem(summary.id) });
+});
+
 employeesRouter.delete('/:id', (req, res) => {
-  if (!deleteEmployee(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  const id = Number(req.params.id);
+  const employee = getEmployee(id);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+
+  const problem = employeeDeleteProblem(id);
+  if (problem) return res.status(409).json({ error: problem });
+
+  /*
+   * THE FILES GO WITH THE ROWS.
+   *
+   * The document rows cascade away; the files do not, because they are not in
+   * the database. Left behind, the folder fills with PAN cards, Aadhaar cards
+   * and photographs of people the app no longer knows - nothing points at
+   * them and nobody can account for them. The same hole the candidate delete
+   * had.
+   */
+  for (const doc of listDocuments(id)) deleteDocumentFile(doc);
+  deleteEmployee(id);
   res.status(204).end();
 });
