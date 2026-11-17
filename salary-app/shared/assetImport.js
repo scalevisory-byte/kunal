@@ -21,8 +21,18 @@
 
 /** What a column can be called. The first one found wins. */
 export const ASSET_COLUMNS = [
-  ['label', ['asset', 'asset name', 'name', 'item', 'description', 'particulars', 'label']],
+  ['label', ['asset', 'asset name', 'name', 'item', 'item name', 'description', 'particulars', 'label']],
   ['kind', ['kind', 'type', 'category', 'asset type']],
+  /*
+   * "Modal" is not a typo to correct, it is what the column is called in
+   * every asset sheet this office has ever written. Recognising only "model"
+   * threw the whole column away.
+   */
+  ['model', ['model', 'modal', 'make model', 'model no']],
+  ['location', ['location', 'site', 'office', 'premises', 'place']],
+  ['floor_room', ['room', 'floor', 'cabin', 'seat', 'seat no', 'desk', 'floor room']],
+  ['condition', ['condition', 'state of asset']],
+  ['status', ['status', 'asset status']],
   /*
    * NOT 'sr no'. In an Indian office's spreadsheet that is the row number in
    * column A, not the asset's serial - and reading it as one matched every
@@ -32,15 +42,35 @@ export const ASSET_COLUMNS = [
   ['code', ['code', 'asset code', 'tag', 'asset id', 'asset no']],
   ['company', ['company', 'firm', 'entity', 'branch']],
   ['purchase_cost', ['cost', 'value', 'amount', 'purchase cost', 'price', 'rate']],
-  ['purchase_date', ['purchase date', 'bought', 'date of purchase', 'bill date', 'date']],
+  ['purchase_date', ['purchase date', 'purchased date', 'bought', 'date of purchase', 'bill date', 'date']],
   ['vendor', ['vendor', 'supplier', 'seller', 'party', 'shop']],
-  ['invoice_no', ['invoice', 'invoice no', 'bill no', 'bill number']],
-  ['warranty_until', ['warranty', 'warranty until', 'warranty upto', 'guarantee']],
-  ['holder', ['holder', 'issued to', 'given to', 'employee', 'staff', 'user', 'with']],
+  ['invoice_no', ['invoice', 'invoice no', 'bill no', 'bill number', 'purchase invoice', 'invoice number']],
+  /*
+   * "Warenty" is spelt that way on the sheet in front of us. A column is
+   * matched on what it SAYS, not on what it should have said.
+   */
+  ['warranty_until', ['warranty', 'warenty', 'warranty date', 'warenty date', 'warranty until', 'warranty upto', 'warranty till', 'guarantee']],
+  ['holder', ['holder', 'issued to', 'given to', 'employee', 'staff', 'user', 'with', 'assignee', 'allotted to', 'allocated to', 'assigned to']],
   ['note', ['note', 'notes', 'remark', 'remarks']],
 ];
 
-const clean = (v) => String(v ?? '').trim();
+/*
+ * A DASH IS NOT A VALUE.
+ *
+ * This office fills every empty cell with "-", and a few with "0", rather
+ * than leaving it blank. Read literally, 550 assets come in with a condition
+ * of "-", a vendor of "-" and a model of "0" - which is worse than empty,
+ * because a blank says "not recorded" and a dash says it confidently.
+ *
+ * Only for text. A real 0 in a PRICE column is a price of nothing, which is
+ * a fact; amountOf deals with that separately.
+ */
+const PLACEHOLDERS = new Set(['-', '--', '---', 'n/a', 'na', 'nil', 'none', 'null', '0', '.']);
+
+const clean = (v) => {
+  const text = String(v ?? '').trim();
+  return PLACEHOLDERS.has(text.toLowerCase()) ? '' : text;
+};
 const key = (v) => clean(v).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 /**
@@ -55,8 +85,22 @@ export function detectLayout(rows = []) {
     const cells = (rows[r] || []).map(key);
     const found = {};
     for (const [field, names] of ASSET_COLUMNS) {
-      const at = cells.findIndex((c) => c && names.includes(c));
-      if (at >= 0 && found[field] === undefined) found[field] = at;
+      /*
+       * THE ALIAS ORDER DECIDES, not the column order.
+       *
+       * His sheet has "seat No." and "Room" side by side. Scanning the
+       * columns left to right took the seat number - which is "-" on
+       * practically every row - and the room, which carries HOTEL, ACCOUNT,
+       * Training Room, was thrown away. Each field's names are written
+       * best-first, so the best one present wins wherever it sits.
+       */
+      for (const name of names) {
+        const at = cells.indexOf(name);
+        if (at >= 0) {
+          found[field] = at;
+          break;
+        }
+      }
     }
     // A label column is the one thing an asset cannot do without.
     if (found.label !== undefined) return { headerRow: r, columns: found };
@@ -122,6 +166,60 @@ export function dateOf(value) {
 const sameName = (a, b) => key(a) === key(b) && key(a) !== '';
 
 /**
+ * A SERIAL EXCEL HAS ALREADY DESTROYED.
+ *
+ * A 15-digit IMEI typed into a General cell becomes a number, and Excel
+ * shows it as 3.52E+14. What it SAVES is the rounded figure, so the file we
+ * are handed carries 352000000000000 - the real IMEI is gone before this
+ * code ever sees it, and there is no way to recover it.
+ *
+ * Two of his phones came out with that identical value. Read as serials they
+ * are the same device, so the second one was skipped as a duplicate: a real
+ * asset silently missing from the register because of a cell format.
+ *
+ * So a number this shape is treated as NOT RECORDED - not as an identifier,
+ * and not as grounds for calling two rows the same asset - and the rows are
+ * named so the IMEIs can be typed back in. A genuine serial does not end in
+ * nine zeros.
+ */
+export function serialLost(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+  const n = Math.abs(value);
+  return n >= 1e11 && n % 1e9 === 0;
+}
+
+/**
+ * The sheet's Status column, against the four states this app actually
+ * stores.
+ *
+ * Three of the seven statuses are DERIVED here and must never be written:
+ * Available, Assigned and Written off are facts the rows already hold (see
+ * shared/assetStatus.js). A sheet saying "Allocated" beside a holder it also
+ * names is agreeing with us, not telling us something new - and writing it
+ * would create the second opinion that whole module exists to avoid.
+ *
+ * So only the two that cannot be derived from anything are carried across:
+ * in for repair, and taken out of service.
+ */
+const STATES = [
+  ['maintenance', ['repair', 'maintenance', 'servicing', 'service', 'workshop']],
+  ['disposed', ['retired', 'disposed', 'scrapped', 'sold', 'discarded', 'condemned']],
+  ['damaged', ['damaged', 'broken', 'faulty', 'not working']],
+  ['missing', ['missing', 'lost', 'untraceable']],
+];
+
+export function stateOf(status) {
+  const said = key(status);
+  if (!said) return '';
+  for (const [state, words] of STATES) {
+    if (words.some((w) => said.includes(w))) return state;
+  }
+  // Available, Allocated, Occupied, In Use - all of them are worked out from
+  // the holder, so there is nothing to store and nothing to report.
+  return '';
+}
+
+/**
  * What the file would do, before it does anything.
  *
  * `existing` is the register as it stands, `employees` the staff list, so a
@@ -156,7 +254,9 @@ export function planAssetImport({ rows = [], existing = [], employees = [], comp
     const at = (field) => (columns[field] === undefined ? '' : cells[columns[field]]);
     const label = clean(at('label'));
     const code = clean(at('code'));
-    const identifier = clean(at('identifier'));
+    const rawSerial = at('identifier');
+    const lostSerial = serialLost(rawSerial);
+    const identifier = lostSerial ? '' : clean(rawSerial);
 
     // A blank line in the middle of a sheet is normal and is not a problem.
     if (!label && !code && !identifier && !clean(at('purchase_cost'))) continue;
@@ -214,11 +314,20 @@ export function planAssetImport({ rows = [], existing = [], employees = [], comp
       vendor: clean(at('vendor')),
       invoice_no: clean(at('invoice_no')),
       warranty_until: dateOf(at('warranty_until')),
+      model: clean(at('model')),
+      location: clean(at('location')),
+      floor_room: clean(at('floor_room')),
+      condition: clean(at('condition')),
+      /* Only the states that cannot be derived; see stateOf. */
+      state: stateOf(at('status')),
       note: clean(at('note')),
       company_id: company?.id ?? null,
       company_name: company?.name || companyName,
       employee_id: holder?.id ?? null,
       holder_name: holderName,
+      // Its serial was a number in scientific notation, so the sheet no
+      // longer holds the real one. Named rather than imported wrong.
+      serial_lost: lostSerial,
       // A name the staff list does not have is reported, not invented and not
       // silently dropped - somebody is holding that laptop.
       holder_unknown: Boolean(holderName && !holder),
@@ -252,5 +361,11 @@ export function planAssetImport({ rows = [], existing = [], employees = [], comp
     // No code and no serial: nothing to recognise it by on a second import.
     unmatchable: create.filter((a) => a.unmatchable),
     companies_unknown: [...create, ...update].filter((a) => a.company_unknown),
+    /*
+     * Rows whose serial Excel had already destroyed before we were handed the
+     * file. They ARE imported - the asset is real - but without a serial, and
+     * they are named here so the IMEIs can be typed back in.
+     */
+    serials_lost: [...create, ...update].filter((a) => a.serial_lost),
   };
 }

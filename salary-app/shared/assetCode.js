@@ -85,12 +85,27 @@ export function nextCode(company, kind, taken = []) {
 /**
  * A code somebody typed, tidied. Uppercased and trimmed; a code is a label, so
  * spaces inside it are kept out rather than quietly stored.
+ *
+ * TIDIED, NOT REJECTED - which is this module's whole posture, for an office
+ * that already has stickers on its laptops. It was only half true: spaces came
+ * out, and anything else was left for codeProblem to refuse. Dinesh's own
+ * register carries "BNF-AST-Big Storage (Almari)-0006", and those brackets
+ * stopped an import of a thousand assets dead.
+ *
+ * So every run of characters a code cannot hold becomes ONE DASH, which a
+ * code can, and the words survive: BNF-AST-BIG-STORAGE-ALMARI-0006. Doubled
+ * dashes collapse and the ends are trimmed, so the result is always a shape
+ * codeProblem accepts - it can still be too short or empty, which are real
+ * faults rather than punctuation.
  */
 export function tidyCode(value) {
   return String(value || '')
     .toUpperCase()
-    .replace(/\s+/g, '')
-    .slice(0, 40);
+    .replace(/[^A-Z0-9/-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
 }
 
 /** What is wrong with a typed code, if anything. Shape only. */

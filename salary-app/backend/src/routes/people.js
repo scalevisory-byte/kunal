@@ -1110,8 +1110,24 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
 
     let wrote = 0;
     let updated = 0;
+    /*
+     * ONE BAD ROW MUST NOT TAKE THE FILE DOWN.
+     *
+     * Six of Dinesh's thousand rows carried brackets in the asset code. The
+     * first of them threw, the request died with a 500 - and 998 assets had
+     * ALREADY been written. A partial import with no report is the worst
+     * outcome there is: the register is wrong and nothing says where.
+     *
+     * So every row is tried on its own and a failure is collected by row
+     * number and reason. The ones that worked stay; the ones that did not are
+     * named, so the sheet can be fixed and imported again.
+     */
+    const failed = [];
+    const why = (err) => String(err?.message || err || 'could not be saved');
+
     for (const asset of plan.create) {
-      createAsset({
+      try {
+      const made = createAsset({
         company_id: asset.company_id,
         kind: asset.kind,
         label: asset.label,
@@ -1122,6 +1138,10 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
         vendor: asset.vendor,
         invoice_no: asset.invoice_no,
         warranty_until: asset.warranty_until || null,
+        model: asset.model || null,
+        location: asset.location || null,
+        floor_room: asset.floor_room || null,
+        condition: asset.condition || null,
         note: asset.note,
         // The holder is set ONLY where the name matched somebody real. An
         // unmatched name is reported, never guessed at.
@@ -1129,7 +1149,23 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
         issued_on: asset.employee_id ? asset.purchase_date || null : null,
         by: req.body.by || 'import',
       });
+      /*
+       * Only the two states that cannot be worked out from the rows
+       * themselves - in for repair, and taken out of service. Available and
+       * Assigned are DERIVED from the holder (see shared/assetStatus.js), so
+       * writing them would be a second opinion that drifts.
+       */
+      if (asset.state && made?.id) {
+        setAssetState(made.id, {
+          state: asset.state,
+          note: 'from the imported list',
+          by: req.body.by || 'import',
+        });
+      }
       wrote++;
+      } catch (err) {
+        failed.push({ row: asset.row, code: asset.code, label: asset.label, why: why(err) });
+      }
     }
     for (const asset of plan.update) {
       /*
@@ -1138,18 +1174,25 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
        * typed in here because the spreadsheet's column was empty.
        */
       const patch = {};
-      for (const field of ['identifier', 'vendor', 'invoice_no', 'note']) {
+      for (const field of [
+        'identifier', 'vendor', 'invoice_no', 'note',
+        'model', 'location', 'floor_room', 'condition',
+      ]) {
         if (asset[field]) patch[field] = asset[field];
       }
       for (const field of ['purchase_date', 'warranty_until']) {
         if (asset[field]) patch[field] = asset[field];
       }
       if (asset.purchase_cost > 0) patch.purchase_cost = asset.purchase_cost;
-      if (Object.keys(patch).length) updateAsset(asset.id, patch);
-      updated++;
+      try {
+        if (Object.keys(patch).length) updateAsset(asset.id, patch);
+        updated++;
+      } catch (err) {
+        failed.push({ row: asset.row, code: asset.code, label: asset.label, why: why(err) });
+      }
     }
 
-    res.json({ ...plan, sheet: ws.name, wrote, updated });
+    res.json({ ...plan, sheet: ws.name, wrote, updated, failed });
   } catch (err) {
     next(err);
   }

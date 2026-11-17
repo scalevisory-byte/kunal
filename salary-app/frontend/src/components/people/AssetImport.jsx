@@ -51,9 +51,11 @@ export default function AssetImport({ onDone, onError }) {
       <h3>Bring in an asset list from Excel</h3>
       <p className="muted small">
         Any .xlsx with one row per asset. The columns are read off the sheet&apos;s own
-        header — <strong>Asset / Item / Name</strong> is the only one it cannot do
-        without; Type, Serial No, Asset Code, Cost, Purchase Date, Vendor, Invoice and
-        Issued To are all picked up if they are there.
+        header — <strong>Asset / Item / Item Name / Name</strong> is the only one it cannot
+        do without. Asset ID, Type, Model (or Modal), Serial No, Assignee, Status,
+        Condition, Purchased Date, Warranty, Vendor, Price, Purchase Invoice, Location and
+        Room are all picked up if they are there, spelt however your sheet spells them.
+        An empty cell written as <strong>-</strong> is read as empty, not as a value.
       </p>
 
       <div className="row">
@@ -107,6 +109,38 @@ export default function AssetImport({ onDone, onError }) {
               staff list — {plan.holders_unknown.slice(0, 6).map((a) => a.holder_name).join(', ')}
               . Those come in as <strong>in the office</strong>; nobody is invented. Issue them
               by hand afterwards.
+            </p>
+          )}
+          {plan.failed?.length > 0 && (
+            <p className="small warn">
+              {/*
+                * Said after a write, because the rest DID go in. Silence here
+                * would leave a register that is wrong with nothing saying
+                * where.
+                */}
+              <strong>{plan.failed.length}</strong> could not be saved and are not in the
+              register:{' '}
+              {plan.failed.slice(0, 5).map((f) => `row ${f.row} (${f.why})`).join('; ')}
+              {plan.failed.length > 5 ? ' and more' : ''}. Everything else went in — fix those
+              rows and import the file again.
+            </p>
+          )}
+          {plan.serials_lost?.length > 0 && (
+            <p className="small warn">
+              {/*
+                * Excel did this before the file reached us, and it cannot be
+                * undone from here. Said plainly, with the rows named, because
+                * the alternative is a register full of identical IMEIs that
+                * all read as the same phone.
+                */}
+              <strong>{plan.serials_lost.length}</strong> had a serial Excel had already
+              rounded off — a 15-digit IMEI in a plain cell becomes{' '}
+              <code>3.52E+14</code> and the real number is gone from the file. Those assets
+              come in <strong>without a serial</strong>, not with the wrong one
+              {': '}
+              rows {plan.serials_lost.slice(0, 8).map((a) => a.row).join(', ')}
+              {plan.serials_lost.length > 8 ? ' and more' : ''}. To keep them, format that
+              column as <strong>Text</strong> in Excel before saving and import again.
             </p>
           )}
           {plan.unmatchable?.length > 0 && (

@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.15.0';
+export const VERSION = '1.16.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.16.0',
+    date: '17 Nov 2026',
+    title: 'Your own asset list, imported as it is written',
+    items: [
+      '**The asset import now reads your sheet’s own words.** Asset ID, Item Name, **Modal**, assignee, seat No., Room, Purchased Date, **Warenty date**, Purchase Invoice and location were all being thrown away because the importer only knew the textbook spellings. A column is matched on what it SAYS, not on what it should have said.',
+      '**Model, location, room and condition now come across**, so the register holds what your list holds.',
+      '**An empty cell written as “-” is read as empty.** Five hundred and fifty assets were about to arrive with a condition of “-” and a vendor of “-” — worse than blank, because a blank says “not recorded” and a dash says it confidently.',
+      '**Status is carried only where it cannot be worked out.** In Repair and Retired are stored; Available and Allocated are not, because the register already knows who holds what and a second opinion drifts.',
+      '**A 15-digit IMEI in a plain Excel cell is destroyed by Excel before the file reaches us** — it saves 3.52E+14. Two of your phones had been rounded to the same number, so one was being skipped as a duplicate: a real asset silently missing. Those rows are now named and imported **without** a serial rather than with a wrong one. On your list that is 20 assets that would have gone missing.',
+      '**Brackets in a code no longer stop the file.** “BNF-AST-Big Storage (Almari)-0006” threw, and the import died at 998 of 1,004 with no report of what was lost. A code is now tidied (that one becomes BNF-AST-BIG-STORAGE-ALMARI-0006) and **one bad row can never take the file down** — every other row still goes in and the failures are named by row and reason.',
+      'Driven against your real 1,008-row list: 1,004 in, 2 genuine repeats passed over, every column read.',
+    ],
+  },
   {
     version: '1.15.0',
     date: '17 Nov 2026',

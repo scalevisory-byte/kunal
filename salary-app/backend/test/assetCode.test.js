@@ -52,14 +52,23 @@ test('the series reads the highest number, not how many there are', () => {
   assert.equal(nextCode('SCALE', 'Laptop', ['SCA-LAP-100', 'SCA-LAP-007']), 'SCA-LAP-101');
 });
 
-test('a typed code is tidied, and a bad one is refused with a reason', () => {
+test('a typed code is tidied, and only a real fault is refused', () => {
   assert.equal(tidyCode('  bpl-lap-014 '), 'BPL-LAP-014');
-  assert.equal(tidyCode('BPL LAP 014'), 'BPLLAP014', 'a label has no spaces in it');
+  /*
+   * A space BECOMES A DASH; it used to be deleted outright. "BPL LAP 014"
+   * reading as BPL-LAP-014 is this module's own format, and deleting the gaps
+   * gave BPLLAP014, which nobody reads off a sticker.
+   *
+   * The wider rule behind it: punctuation is tidied, never refused. Six rows
+   * of Dinesh's register carry brackets, and refusing them stopped an import
+   * of a thousand assets halfway through.
+   */
+  assert.equal(tidyCode('BPL LAP 014'), 'BPL-LAP-014');
   assert.equal(codeProblem('BPL-LAP-014'), '');
   assert.equal(codeProblem('AB/12'), '', 'slashes are allowed - plenty of offices use them');
+  assert.equal(codeProblem('BPL_LAP'), '', 'an underscore is tidied into a dash, not refused');
   assert.match(codeProblem(''), /needed/);
   assert.match(codeProblem('X'), /too short/);
-  assert.match(codeProblem('BPL_LAP'), /letters, numbers, dashes and slashes/);
 });
 
 /* ================================================================= *
@@ -128,4 +137,25 @@ test('the label is an SVG sized in millimetres, with the quiet zone the spec ask
 
 test('the code can be left off the label when the sticker is tiny', () => {
   assert.equal(barcodeSvg('BPL-LAP-014', { showText: false }).includes('<text'), false);
+});
+
+test('a code is tidied, never refused for its punctuation', () => {
+  // His own register carries "BNF-AST-Big Storage (Almari)-0006". Those
+  // brackets stopped an import of a thousand assets dead, halfway through.
+  assert.equal(tidyCode('BNF-AST-Big Storage (Almari)-0006'), 'BNF-AST-BIG-STORAGE-ALMARI-0006');
+  assert.equal(tidyCode('BNF-POWER CABLE-001'), 'BNF-POWER-CABLE-001');
+  assert.equal(tidyCode('  lap 01  '), 'LAP-01');
+  assert.equal(tidyCode('BNF//A--1'), 'BNF//A-1', 'doubled dashes collapse, slashes are fine');
+
+  for (const typed of [
+    'BNF-AST-Big Storage (Almari)-0006', 'BNF-POWER CABLE-001', 'lap 01', 'a,b.c#1',
+  ]) {
+    assert.equal(codeProblem(typed), '', `${typed} should tidy into something usable`);
+  }
+});
+
+test('tidying cannot invent a code out of punctuation alone', () => {
+  assert.equal(tidyCode('###'), '');
+  assert.equal(codeProblem('###'), 'a code is needed');
+  assert.equal(codeProblem('ab'), 'that is too short to read off a label');
 });
