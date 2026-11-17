@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.14.2';
+export const VERSION = '1.15.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.15.0',
+    date: '17 Nov 2026',
+    title: 'People who have left come off the attendance grid',
+    items: [
+      '**Untick Active and they leave the month too.** Opening a month puts every active employee on the sheet, and until now the row just stayed once somebody left — so they were gone from the staff list and the Excel and still sitting on the attendance grid. Re-opening the month now takes them off.',
+      '**Unless something is recorded against them.** Somebody who left on the 10th is owed ten days, and their row carries the marks that pay them. A row with attendance, a typed-over figure, an addition, a deduction, a remark or a payment against it is never thrown away — only a row with nothing on it, where there is nothing to lose.',
+      'When such a row does stay, the grid now says **· left** beside the name, so a name the Employees tab says is gone reads as money still to pay rather than as a fault.',
+      '**A closed month is never rewritten** — it sits behind a PF return and a payslip somebody is holding.',
+      'Somebody who comes back is simply put on again.',
+    ],
+  },
   {
     version: '1.14.2',
     date: '16 Nov 2026',

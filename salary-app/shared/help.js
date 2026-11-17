@@ -327,14 +327,20 @@ export const HELP = [
     id: 'employees',
     title: 'The employee record',
     tab: 'employees',
-    keywords: ['employee', 'record', 'add', 'master', 'profile', 'karmchari', 'staff', 'joining'],
+    keywords: [
+      'employee', 'record', 'add', 'master', 'profile', 'karmchari', 'staff', 'joining',
+      'delete', 'remove', 'left', 'resign', 'inactive', 'active', 'hatana', 'nikalna', 'chhod',
+    ],
     lines: [
       'Click a name to open the record: employment, personal, statutory numbers (PAN, Aadhaar, UAN, ESIC), bank details, salary breakup and a change history.',
       'A jump row at the top goes straight to Documents & KYC, Bank, Statutory, Salary breakup or History.',
       'Every change to a tracked field (salary, designation, department, manager, bank account…) is kept with its date.',
       '**Still to finish** lists anybody whose record is incomplete, newest joiner first, each step saying what breaks without it.',
+      '**Somebody has left? Untick Active — do not delete them.** Their past months stay intact, and they come off the attendance grid of any open month by themselves the next time it is opened.',
+      'They DO stay on a month that owes them something — left on the 10th means ten days to pay — and the grid writes **· left** beside the name so it reads as money still to pay. A closed month never changes.',
+      '**Delete** is for a row that should never have existed. It counts first and says what would go; if nothing is recorded against them it says so. Anybody paid in a **closed** month is refused — mark them Left instead.',
     ],
-    note: 'It is a checklist, not a gate. Nothing blocks a save or a payslip — only a joining date and a salary are genuinely required.',
+    note: 'It is a checklist, not a gate. Nothing blocks a save or a payslip — only a joining date and a salary are genuinely required. Deleting is the one act that cannot be undone, and it takes their documents off the disk with them.',
   },
   {
     id: 'photo-documents',

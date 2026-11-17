@@ -304,7 +304,24 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
               const minutes = minutesFromAttendance(merged);
               return (
                 <tr key={row.employee_id}>
-                  <td className="sticky-name" title={row.company_name}>{row.employee_name}</td>
+                  {/*
+                    * A leaver still on the month is SAID OUT LOUD.
+                    *
+                    * Somebody who has left comes off this grid by itself -
+                    * unless something is recorded against them, because they
+                    * left on the 10th and are owed ten days. Then their name
+                    * stays while the Employees tab and the Excel both say
+                    * they are gone, and without this it reads as a fault
+                    * rather than as money still to pay.
+                    */}
+                  <td className="sticky-name" title={row.company_name}>
+                    {row.employee_name}
+                    {row.active === 0 ? (
+                      <span className="muted small" title="No longer on the staff list — still here because this month owes them something">
+                        {' '}· left
+                      </span>
+                    ) : null}
+                  </td>
                   {dayList.map((d) => {
                     const entry = entryOf(row, d);
                     const open = picker?.employeeId === row.employee_id && picker?.day === d;

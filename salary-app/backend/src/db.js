@@ -1333,6 +1333,11 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               -- the weekly off, theirs then the company's, so the grid knows
               -- which squares were never working days for this person
               e.weekly_off, c.weekly_off AS company_weekly_off,
+              -- Still on this month because they are OWED something, while no
+              -- longer on the staff list. Without this the grid shows a name
+              -- that the Employees tab and the Excel both say is gone, and it
+              -- reads as a fault rather than as money still to pay.
+              e.active,
               e.branch_id, b.name AS branch_name,
               e.company_id, c.name AS company_name
        FROM payroll_rows p
@@ -1445,7 +1450,57 @@ export function updatePayrollRow(id, patch) {
  * left alone so re-running never wipes entered overtime or deductions; only
  * their salary is refreshed when it is still untouched at 0.
  */
+/*
+ * A ROW THAT NOTHING HAS BEEN RECORDED AGAINST.
+ *
+ * Opening a month puts every active employee on the sheet. Untick Active
+ * afterwards - which is exactly what the Employees screen tells somebody to
+ * do when a person leaves - and the row that was already created just stays:
+ * sync only ever ADDED. So Dinesh removed his leavers, saw them gone from the
+ * staff list and the Excel, and found them still on the attendance grid.
+ *
+ * They cannot simply be deleted. SOMEBODY WHO LEFT ON THE 10TH IS STILL OWED
+ * TEN DAYS, and their row carries the marks that pay them. So only a row that
+ * nothing has been recorded against goes - no attendance, no clock times, no
+ * typed-over figure, no addition or deduction, nothing paid. There is, by
+ * definition, nothing to lose.
+ *
+ * `salary` is NOT on this list. Sync writes it itself when it creates the
+ * row, so counting it as "recorded" would mean nothing ever qualified.
+ */
+const UNTOUCHED_OVERRIDES = [
+  'absent_days_override', 'sundays_override', 'ot_minutes_override',
+  'ot_amount_override', 'sunday_salary_override',
+];
+
+const strandedRows = db.prepare(`
+  SELECT r.id, r.employee_id FROM payroll_rows r
+    JOIN employees e ON e.id = r.employee_id
+   WHERE r.period_id = @period_id
+     AND e.active = 0
+     AND r.status = 'pending'
+     AND COALESCE(r.sunday_status, 'pending') = 'pending'
+     AND r.addition = 0 AND r.deduction = 0 AND r.adjustment = 0
+     AND COALESCE(r.remark, '') = '' AND COALESCE(r.adjustment_note, '') = ''
+     AND ${UNTOUCHED_OVERRIDES.map((c) => `r.${c} IS NULL`).join(' AND ')}
+     AND NOT EXISTS (
+       SELECT 1 FROM attendance a
+        WHERE a.period_id = r.period_id AND a.employee_id = r.employee_id
+     )
+`);
+
 export const syncPayrollRows = db.transaction((periodId) => {
+  /*
+   * A LOCKED MONTH IS NEVER TOUCHED. It has been paid and filed; taking a
+   * name off it afterwards changes a figure that was already reported.
+   */
+  const period = db.prepare(`SELECT locked FROM periods WHERE id = ?`).get(periodId);
+  if (!period?.locked) {
+    for (const row of strandedRows.all({ period_id: periodId })) {
+      db.prepare(`DELETE FROM payroll_rows WHERE id = ?`).run(row.id);
+    }
+  }
+
   const employees = db.prepare(`SELECT * FROM employees WHERE active = 1`).all();
   const existing = new Set(
     db.prepare(`SELECT employee_id FROM payroll_rows WHERE period_id = ?`).all(periodId).map((r) => r.employee_id)
