@@ -25,6 +25,7 @@ import MyPage from './components/MyPage.jsx';
 import ChangePassword from './components/ChangePassword.jsx';
 import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
+import Licenses from './components/people/Licenses.jsx';
 import Glyph from './icons.jsx';
 import Help, { WhatsNew } from './components/Help.jsx';
 import { VERSION, hasNews } from '../../shared/version.js';
@@ -71,6 +72,7 @@ const TABS = [
   ['loans', 'Loans', 'loans', 'loans'],
   ['employees', 'Employees', 'employees', 'employees'],
   ['assets', 'Assets', 'asset', 'assets'],
+  ['license', 'License', 'license', 'license'],
   ['hiring', 'Hiring', 'hiring', 'hiring'],
   ['people', 'People', 'person', 'people'],
   ['reports', 'Reports', 'reports', 'reports'],
@@ -854,7 +856,7 @@ function Shell() {
           * was noise on that tab, and noise above the figures is how a real
           * warning stops being read.
           */}
-        {!period && !['employees', 'dashboard', 'hiring', 'assets'].includes(tab) && (
+        {!period && !['employees', 'dashboard', 'hiring', 'assets', 'license'].includes(tab) && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
             employees, or import last month's sheet from <strong>Reports</strong>.
@@ -1113,6 +1115,15 @@ function Shell() {
             onScanned={() => setScanned('')}
             onError={handle}
             onReload={loadAll}
+          />
+        )}
+
+        {tab === 'license' && (
+          <Licenses
+            employees={employees}
+            companies={companies}
+            companyId={companyId}
+            onError={handle}
           />
         )}
 

@@ -38,6 +38,12 @@ export const AREAS = [
   ['loans', 'Loans & advances', 'Loans given, and what is deducted each month.'],
   ['employees', 'Employees', 'The staff master, records, documents and the salary breakup.'],
   ['assets', 'Assets', 'The register, handovers, stock takes and maintenance.'],
+  /*
+   * Its own right, not a corner of Assets, because this is where the Tally,
+   * Windows and antivirus keys are kept. Whoever counts the chairs has no
+   * business reading them.
+   */
+  ['license', 'Software licences', 'The licence register: keys, seats, renewals and what they cost.'],
   ['hiring', 'Hiring', 'Vacancies, candidates, interviews, tests and offers.'],
   ['people', 'People', 'Warnings, appraisals, claims, penalties, tickets and exits.'],
   ['reports', 'Reports', 'Every report and export.'],

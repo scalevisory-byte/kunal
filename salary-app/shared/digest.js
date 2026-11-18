@@ -70,6 +70,12 @@ export function digest(input = {}) {
     employees = [],
     documents = [],
     appraisals = [],
+    /*
+     * Software licences, already dressed by shared/licenses.js - so this
+     * module does not have to know what "expiring" means and the dashboard
+     * and the licence tab cannot come to different answers about it.
+     */
+    licenses = [],
     /** How far ahead to look. A month, because that is the notice people need. */
     ahead = 30,
     today = new Date().toISOString().slice(0, 10),
@@ -204,6 +210,35 @@ export function digest(input = {}) {
       )}`,
       1,
       'dates'
+    );
+  }
+
+  /*
+   * A licence that has lapsed, or is about to.
+   *
+   * It belongs in the dates half rather than the queues: nobody is waiting on
+   * a decision, somebody has to go and pay for it. The status is taken as
+   * given, NOT worked out here - a second opinion on what counts as expiring
+   * is how two screens come to disagree.
+   */
+  const lapsed = licenses.filter((l) => !l.cancelled_on && l.status === 'expired');
+  if (lapsed.length) {
+    add(
+      `• ${plural(lapsed.length, 'software licence')} expired: ${names(lapsed.map((l) => l.name))}`,
+      1,
+      'dates',
+      'license'
+    );
+  }
+  const renewing = licenses.filter((l) => !l.cancelled_on && l.status === 'expiring');
+  if (renewing.length) {
+    add(
+      `• ${plural(renewing.length, 'software licence')} to renew: ${names(
+        renewing.map((l) => `${l.name} (${l.expires_on})`)
+      )}`,
+      1,
+      'dates',
+      'license'
     );
   }
 

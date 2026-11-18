@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { may } from '../../../shared/rights.js';
+import { requireArea } from '../auth.js';
 import { digest } from '../../../shared/digest.js';
 import { buildPayroll } from '../payroll.js';
 import { listPeriods } from '../db.js';
@@ -16,6 +18,7 @@ import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { planAssetImport } from '../../../shared/assetImport.js';
 import { listCompanies, listEmployees } from '../db.js';
+import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.js';
 
 /* In memory: the sheet is read once and never kept. 8 MB covers an office's
    whole asset list many times over. */
@@ -158,6 +161,19 @@ import {
   updateAsset,
   updateNote,
   updateTask,
+  assignSeat,
+  cancelLicense,
+  createLicense,
+  deleteLicense,
+  getLicense,
+  licenseRegister,
+  listLicenseSeats,
+  listLicenses,
+  releaseSeat,
+  renewLicense,
+  revealLicenseKey,
+  uncancelLicense,
+  updateLicense,
 } from '../people.js';
 
 /**
@@ -169,6 +185,41 @@ import {
  * than implying an authentication that does not exist.
  */
 export const peopleRouter = Router();
+
+/*
+ * WHICH RIGHT THIS PATH NEEDS.
+ *
+ * One router, three tabs. The people registers (warnings, claims, penalties,
+ * tickets, exits) need `people`; the asset register, its masters, its
+ * maintenance and its stock takes need `assets`; the licence register needs
+ * `license`, which is its own right because that is where the Tally and
+ * Windows keys are.
+ *
+ * It is decided HERE and nowhere else. It used to be decided twice - a mount
+ * in server.js for /api/people/assets and requireArea('people') on the router
+ * - and both ran, so a login ticked to Assets alone passed the first, was
+ * refused by the second, and had no asset register at all. The existing test
+ * only ever checked that a login WITHOUT a right was refused; nobody had
+ * checked that a login WITH one could work.
+ */
+const AREA_FOR_PATH = [
+  [/^\/(assets|asset-masters|maintenance|rounds)\b/, 'assets'],
+  [/^\/licenses\b/, 'license'],
+];
+
+peopleRouter.use((req, res, next) => {
+  const path = req.path || '';
+  /*
+   * The pickers are open to anybody who carries any of the three: they are
+   * lists of kinds and labels, and the Assets tab cannot draw its form
+   * without them.
+   */
+  if (/^\/options\b/.test(path)) {
+    if (['assets', 'license', 'people'].some((area) => may(req.actor, area))) return next();
+  }
+  const area = AREA_FOR_PATH.find(([pattern]) => pattern.test(path))?.[1] || 'people';
+  return requireArea(area)(req, res, next);
+});
 
 const bad = (res, err) => res.status(400).json({ error: err.message });
 /**
@@ -1099,6 +1150,16 @@ peopleRouter.get('/digest', (req, res) => {
     // Only the latest review per person carries a live "next" date; an older
     // one that has been superseded would read as a second appraisal due.
     appraisals: latestReviews(listAllAppraisals({}), byEmployee),
+    /*
+     * Already dressed, so the digest reads the same status the licence tab
+     * shows rather than working one out of its own.
+     *
+     * And ONLY for a login that carries the licence right. The digest lives
+     * under the people right, so without this a login narrowed to People
+     * would read the names and renewal dates of software it has no tab for -
+     * a right that a summary quietly walks around is not a right.
+     */
+    licenses: may(req.actor, 'license') ? listLicenses({}) : [],
     today: new Date().toISOString().slice(0, 10),
   });
 
@@ -1281,5 +1342,126 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
     res.json({ ...plan, sheet: ws.name, wrote, updated, failed });
   } catch (err) {
     next(err);
+  }
+});
+
+/* ================================================================= *
+ * SOFTWARE LICENCES
+ *
+ * The register, its seats and its renewals. Two things to know about these
+ * routes before changing them:
+ *
+ *   NO ROUTE HERE RETURNS A LICENCE KEY except `/licenses/:id/key`, which
+ *   writes to the audit trail every time it answers. The reads do not select
+ *   the column at all - they take whether there is one and its last four
+ *   characters - so a key cannot leak through a response somebody forgot
+ *   about.
+ *
+ *   Over-allocation comes back as part of the answer, never as a refusal.
+ *   Eleven installs on a ten-seat licence is a fact to report.
+ * ================================================================= */
+
+peopleRouter.get('/licenses', (req, res) => {
+  res.json(
+    licenseRegister({
+      company_id: Number(req.query.company_id) || undefined,
+      soon: Number(req.query.soon) || 30,
+    })
+  );
+});
+
+peopleRouter.get('/licenses.csv', (req, res) => {
+  const { licenses } = licenseRegister({ company_id: Number(req.query.company_id) || undefined });
+  // The key is not a column in LICENSE_COLUMNS, deliberately, and there is a
+  // test for it: an export is emailed and opened on somebody's home laptop.
+  res.type('text/csv').attachment('software-licences.csv').send(licensesCsv(licenses));
+});
+
+peopleRouter.get('/licenses/seats.csv', (req, res) => {
+  res.type('text/csv').attachment('licence-seats.csv').send(seatsCsv(listLicenseSeats({})));
+});
+
+peopleRouter.get('/licenses/:id', (req, res) => {
+  const license = getLicense(Number(req.params.id));
+  if (!license) return res.status(404).json({ error: 'not found' });
+  res.json({ license, suggested: suggestRenewal(license) });
+});
+
+/**
+ * The whole key, once.
+ *
+ * A GET rather than a POST would be cacheable, logged in a proxy and bookmarked
+ * - none of which should ever hold a licence key. It is a POST, and it is on
+ * the trail.
+ */
+peopleRouter.post('/licenses/:id/key', (req, res) => {
+  try {
+    res.json(revealLicenseKey(Number(req.params.id), { by: who(req), why: req.body?.why }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses', (req, res) => {
+  try {
+    res.status(201).json(createLicense({ ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/licenses/:id', (req, res) => {
+  try {
+    res.json(updateLicense(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses/:id/cancel', (req, res) => {
+  try {
+    res.json(cancelLicense(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses/:id/uncancel', (req, res) => {
+  try {
+    res.json(uncancelLicense(Number(req.params.id), who(req)));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/licenses/:id', (req, res) => {
+  try {
+    res.json({ deleted: deleteLicense(Number(req.params.id), who(req)) });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses/:id/seats', (req, res) => {
+  try {
+    res.status(201).json(assignSeat(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses/seats/:id/release', (req, res) => {
+  try {
+    res.json(releaseSeat(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/licenses/:id/renew', (req, res) => {
+  try {
+    res.json(renewLicense(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
   }
 });

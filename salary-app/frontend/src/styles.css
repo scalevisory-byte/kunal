@@ -4150,3 +4150,58 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
   border-color: var(--navy);
   color: #fff;
 }
+
+/* ======================================================================
+ * Software licences
+ *
+ * Dinesh: *"license me software license ki detail rahegi"*. No new shapes —
+ * the tiles, pills, table and modal are the ones the asset register already
+ * uses. What is new is five words that need a colour each, and a line that
+ * has to read as a warning rather than as part of the page.
+ * ====================================================================== */
+
+/*
+ * Where a licence stands. `forever` is deliberately the quietest: a licence
+ * bought outright is not an achievement to light up, it is nothing to do.
+ */
+.pill.in-date  { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.pill.due-soon { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.pill.lapsed   { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.pill.retired  { color: var(--muted); }
+.pill.forever  { color: var(--muted); border-style: dashed; }
+
+/*
+ * One thing that needs doing. Marked down the left in the colour of how bad
+ * it is, like the dashboard's alert list — NOT the tinted `.alerts` strip,
+ * whose little "i" says "information" and would understate a licence that
+ * has expired.
+ */
+.lic-alert {
+  margin: 0 0 0.4rem;
+  padding: 0.45rem 0 0.45rem 0.7rem;
+  border-left: 2px solid var(--line);
+  font-size: 0.85rem;
+}
+.lic-alert.warn { border-left-color: var(--warn); }
+.lic-alert.bad { border-left-color: var(--bad); }
+
+/*
+ * A row that opens something has to LOOK like it does. Fifth time this has
+ * had to be fixed somewhere (hiring's "add vacancy", People, assets, the
+ * asset invoice, the candidate list), so the licence register was built with
+ * it from the start.
+ */
+tr.open-row { cursor: pointer; }
+tr.open-row:hover { background: var(--brand-soft); }
+tr.open-row .open-name { color: var(--brand); }
+
+/* The key, once somebody has asked for it: big enough to read out loud. */
+code.key-shown {
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  user-select: all;
+}

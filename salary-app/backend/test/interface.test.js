@@ -1973,10 +1973,10 @@ test('the rail names the element it actually styles', () => {
   assert.match(css, /\.side-nav button\.active \{[^}]*background: var\(--gold\)/);
 });
 
-test('assets do not wait for a month to be opened', () => {
+test('assets and licences do not wait for a month to be opened', () => {
   // A laptop bought in March is on the register in November. The banner
   // telling somebody to open a month was noise above the figures, and noise
   // above the figures is how a real warning stops being read.
   const app = src('App.jsx');
-  assert.match(app, /\['employees', 'dashboard', 'hiring', 'assets'\]\.includes\(tab\)/);
+  assert.match(app, /\['employees', 'dashboard', 'hiring', 'assets', 'license'\]\.includes\(tab\)/);
 });

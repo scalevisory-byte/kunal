@@ -189,10 +189,8 @@ test('every office router is gated, so none is forgotten', () => {
     ['/api/employees', 'employees'],
     ['/api/leave', 'leave'],
     ['/api/loans', 'loans'],
-    ['/api/people', 'people'],
     ['/api/hiring', 'hiring'],
     ['/api/attendance', 'attendance'],
-    ['/api/people/assets', 'assets'],
   ]) {
     const line = server.split('\n').find((l) => l.includes(`'${mount}'`));
     assert.ok(line, `${mount} is not mounted`);
@@ -201,4 +199,57 @@ test('every office router is gated, so none is forgotten', () => {
   // And the pay filter goes on every office router at once, not per route -
   // a list of screens to remember is a list somebody forgets.
   assert.match(server, /const office = \[requireAuth, requireRead, hidePay\]/);
+});
+
+/*
+ * THE TWO ROUTERS THAT CARRY MORE THAN ONE JOB are gated by PATH, inside
+ * themselves, and this states where that decision lives.
+ *
+ * This test used to assert that server.js carried requireArea('people') for
+ * /api/people and requireArea('assets') for /api/people/assets. Both of those
+ * ran, in that order, so a login ticked to Assets alone passed the second and
+ * was refused by the first - it had no asset register at all. It is rewritten
+ * rather than patched, because the rule itself changed: one place decides.
+ */
+test('the month and the people router decide by path, in one place each', () => {
+  const server = fs.readFileSync(new URL('../src/server.js', import.meta.url), 'utf8');
+  for (const mount of ['/api/people', '/api/periods']) {
+    const line = server.split('\n').find((l) => l.includes(`'${mount}'`));
+    assert.ok(line, `${mount} is not mounted`);
+    assert.ok(
+      !/requireArea/.test(line),
+      `${mount} is gated twice: once here and once inside its router, which is how the two came to disagree`
+    );
+  }
+
+  const people = fs.readFileSync(new URL('../src/routes/people.js', import.meta.url), 'utf8');
+  assert.match(people, /\[\/\^\\\/\(assets\|asset-masters\|maintenance\|rounds\)/, 'the asset paths are not claimed by the assets right');
+  assert.match(people, /'license'/, 'the licence paths are not claimed by the licence right');
+  assert.match(people, /requireArea\(area\)/);
+
+  const periods = fs.readFileSync(new URL('../src/routes/periods.js', import.meta.url), 'utf8');
+  assert.match(periods, /requireArea\(wants\)/);
+});
+
+test('a login ticked to ONE module can actually use it — the half nobody checked', async () => {
+  const keeper = users.createUser({
+    name: 'Store keeper', username: 'store', role: 'hr', password: 'assets-only-123',
+  });
+  users.updateUser(keeper.id, { areas: ['assets'], must_change: false });
+  db.db.prepare(`UPDATE users SET must_change = 0 WHERE id = ?`).run(keeper.id);
+  const cookie = await signIn('store', 'assets-only-123');
+
+  // The register, its masters, its maintenance and its stock takes are all
+  // the Assets tab, whatever path they sit on.
+  for (const url of ['/api/people/assets', '/api/people/asset-masters', '/api/people/maintenance', '/api/people/rounds', '/api/people/options']) {
+    const res = await call(cookie, 'GET', url);
+    assert.equal(res.status, 200, `${url} was refused to the login whose job it is`);
+  }
+
+  // And still nothing else: a store keeper has no business reading a warning
+  // letter, or the Tally key.
+  for (const url of ['/api/people/notes', '/api/people/licenses', '/api/people/penalties']) {
+    const res = await call(cookie, 'GET', url);
+    assert.equal(res.status, 403, `${url} was open to a login that does not carry it`);
+  }
 });

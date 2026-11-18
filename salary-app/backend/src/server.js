@@ -221,18 +221,22 @@ export function createServer() {
   const office = [requireAuth, requireRead, hidePay];
 
   /*
-   * Assets live under /api/people/assets, so the people area would carry
-   * them. They are their own tab and their own job - a store keeper has no
-   * business reading somebody's warning letter - so they are split out
-   * before the people router sees them.
+   * /api/people is THREE jobs sharing one router - the people registers, the
+   * asset register and the licence register - so it is gated BY PATH inside
+   * routes/people.js, the same way /api/periods is split between the salary
+   * sheet and the attendance grid.
+   *
+   * It used to be gated twice: a mount here for /api/people/assets and
+   * requireArea('people') on the router below. Both ran, so a login ticked to
+   * Assets and nothing else passed the first and was refused by the second -
+   * it had no asset register at all. Two places deciding one thing is how they
+   * come to disagree, so there is now one.
    */
-  app.use('/api/people/assets', ...office, requireArea('assets'));
-
   app.use('/api/companies', ...office, requireAdminForChanges, companiesRouter);
   app.use('/api/employees', ...office, requireArea('employees'), requireWriteForChanges, employeesRouter);
   app.use('/api/leave', ...office, requireArea('leave'), requireWriteForChanges, leaveRouter);
   app.use('/api/loans', ...office, requireArea('loans'), requireWriteForChanges, loansRouter);
-  app.use('/api/people', ...office, requireArea('people'), requireWriteForChanges, peopleRouter);
+  app.use('/api/people', ...office, requireWriteForChanges, peopleRouter);
   /*
    * The month carries BOTH the salary sheet and the attendance grid, so it
    * cannot be gated as one thing - somebody who marks attendance and never

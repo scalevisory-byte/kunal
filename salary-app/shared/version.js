@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.22.0';
+export const VERSION = '1.23.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.23.0',
+    date: '18 Nov 2026',
+    title: 'Software licences — the License tab',
+    items: [
+      '**The License tab is real now.** It holds what you are licensed to run: Tally, Windows, Office, the antivirus, eTimeTrackLite, the domain, the SSL certificate — each with its key, its seats, what it costs and when it has to be paid again.',
+      'Four figures at the top: how many licences, **how many renew within 30 days**, how many have **expired**, and **what it all costs in a year**. Each opens the list behind it.',
+      '**The key is kept as a secret, not a field.** The register shows its last four characters. Showing the whole key is a button that asks what you need it for and **records who asked** — a key that has been read out cannot be called back. It is never in an export and never in a list, so the CSV can be emailed.',
+      '**Seats** are handed to a person or to a named machine, and what is in use is **counted off that list** rather than typed — the figure and the names cannot disagree. Releasing a seat keeps the history.',
+      '**Eleven installs on a ten-seat licence is recorded and flagged, never refused.** The install exists whether or not the register admits it; refusing it only moves the fact into somebody’s head.',
+      '**No renewal date is not an expired licence.** A perpetual licence never appears on a reminder list. But a subscription with no date is not perpetual either — it is named on its own line, because it is the one thing nobody can plan for.',
+      '**Renewing** records what was paid for which period and moves the licence on. The licence says where it stands; the renewals list says what it has cost. Cancelling keeps the row and **releases nothing** — the software is still on those machines the next morning.',
+      'An expired or expiring licence also shows on the **Dashboard**, and opens this tab.',
+      '**Licences are their own right** under Admin → Logins, not a corner of Assets: whoever counts the chairs has no business reading the Tally key.',
+      '**A bug this found, and it was in last week’s update:** a login ticked to **Assets** and nothing else was refused the asset register. It was being gated twice — once for Assets and again for People — and both ran. One place decides now, and there is a test that a login with one right can actually USE it. The old test only ever checked that a login WITHOUT a right was refused.',
+    ],
+  },
   {
     version: '1.22.0',
     date: '18 Nov 2026',

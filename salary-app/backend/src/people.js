@@ -24,6 +24,17 @@ import {
   tidyPrefix,
 } from '../../shared/assetCode.js';
 import { looksDuplicate, ownership } from '../../shared/maintenance.js';
+import {
+  LICENSE_KINDS,
+  LICENSE_TERMS,
+  cleanTerm,
+  dressLicense,
+  licenseAlerts,
+  licenseProblem,
+  licenseTotals,
+  seatProblem,
+  termLabel,
+} from '../../shared/licenses.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
 import {
   instalmentOf,
@@ -3258,4 +3269,582 @@ export function recoverPenalty(id, { period_id, amount, by } = {}) {
     note: `recovered from ${period.label}: ${penalty.note}`,
   });
   return getPenalty(id);
+}
+
+/* ================================================================= *
+ * SOFTWARE LICENCES
+ *
+ * Dinesh's mock-up had a License tab with nothing behind it; asked what
+ * belonged in it he said *"license me software license ki detail rahegi"*.
+ * Tally, Windows, Office, the antivirus, eTimeTrackLite, the domain, the SSL
+ * certificate - what we are licensed to run, on how many machines, and when it
+ * has to be paid again.
+ *
+ * THREE TABLES, THE SAME SPLIT AS THE ASSET REGISTER.
+ *
+ *   licenses          the licence itself: what it is now
+ *   license_seats     who or which machine is using it - the allocation log
+ *   license_renewals  what was paid, when, for which period - the ledger
+ *
+ * Seats in use are COUNTED off the seats table, never stored on the licence,
+ * so the two cannot drift. And `license_key` is never selected: every read
+ * takes whether there IS a key and its last four characters. The whole key
+ * comes back from one route, which writes to the audit trail.
+ * ================================================================= */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS licenses (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id    INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+    name          TEXT NOT NULL,
+    kind          TEXT,
+    publisher     TEXT,
+    version       TEXT,
+    -- perpetual | subscription | amc | trial | free. See shared/licenses.js;
+    -- it decides whether a blank date means "never expires" or "nobody knows".
+    term          TEXT NOT NULL DEFAULT 'subscription',
+    -- The secret. Never selected by any list or detail read - see licenseRead
+    -- below - and never in an export.
+    license_key   TEXT,
+    -- The login a subscription sits under, which is the other thing nobody can
+    -- find when a renewal is due and the person who bought it has left.
+    account_email TEXT,
+    -- NULL means nobody is counting: a site licence, or a count genuinely
+    -- unknown. That is a third answer, not zero.
+    seats         INTEGER,
+    purchased_on  TEXT,
+    expires_on    TEXT,
+    cost          REAL NOT NULL DEFAULT 0,
+    renew_every_months INTEGER,
+    amc_until     TEXT,
+    amc_cost      REAL,
+    vendor        TEXT,
+    invoice_no    TEXT,
+    note          TEXT,
+    -- Cancelled keeps its row: an old invoice still refers to it, and "we used
+    -- to pay for this" is a question that gets asked.
+    cancelled_on  TEXT,
+    cancelled_why TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_licenses_expiry ON licenses(expires_on);
+  CREATE INDEX IF NOT EXISTS idx_licenses_company ON licenses(company_id);
+
+  /*
+   * One row per seat handed out. Released rather than deleted, so "who had
+   * Office in March" still has an answer - the same reason asset_handovers
+   * exists beside the asset register.
+   */
+  CREATE TABLE IF NOT EXISTS license_seats (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    license_id    INTEGER NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+    employee_id   INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+    -- Kept as text as well, so the log still reads correctly once somebody has
+    -- left and their row is gone.
+    employee_name TEXT,
+    asset_id      INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    -- The machine by name, for a PC that is not on the asset register.
+    device        TEXT,
+    assigned_on   TEXT,
+    assigned_by   TEXT,
+    released_on   TEXT,
+    released_by   TEXT,
+    note          TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_license_seats ON license_seats(license_id, released_on);
+  CREATE INDEX IF NOT EXISTS idx_license_seats_employee ON license_seats(employee_id, released_on);
+
+  CREATE TABLE IF NOT EXISTS license_renewals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    license_id  INTEGER NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+    renewed_on  TEXT NOT NULL,
+    period_from TEXT,
+    period_to   TEXT,
+    cost        REAL NOT NULL DEFAULT 0,
+    vendor      TEXT,
+    invoice_no  TEXT,
+    note        TEXT,
+    by_whom     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_license_renewals ON license_renewals(license_id, renewed_on);
+`);
+
+/*
+ * The columns every read takes.
+ *
+ * `license_key` is NOT among them, on purpose. What comes back is whether
+ * there is one and its last four characters, which is enough for somebody
+ * holding an invoice to tell it is the same key and not enough to install
+ * anything. One route returns the key itself and writes to the trail.
+ */
+const LICENSE_SELECT = `
+  l.id, l.company_id, l.name, l.kind, l.publisher, l.version, l.term,
+  l.account_email, l.seats, l.purchased_on, l.expires_on, l.cost,
+  l.renew_every_months, l.amc_until, l.amc_cost, l.vendor, l.invoice_no,
+  l.note, l.cancelled_on, l.cancelled_why, l.created_at,
+  CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN 1 ELSE 0 END AS has_key,
+  CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN substr(l.license_key, -4) ELSE NULL END AS key_tail,
+  c.name AS company_name
+`;
+
+/** The seats of one licence, newest first, with the person and asset named. */
+export function listLicenseSeats({ license_id, employee_id, open_only = false } = {}) {
+  const where = [];
+  const params = [];
+  if (license_id) {
+    where.push('s.license_id = ?');
+    params.push(Number(license_id));
+  }
+  if (employee_id) {
+    where.push('s.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (open_only) where.push('s.released_on IS NULL');
+  return db
+    .prepare(
+      `SELECT s.*, l.name AS license_name, l.term AS license_term,
+              CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN 1 ELSE 0 END AS has_key,
+              e.name AS employee_now, a.code AS asset_code, a.label AS asset_label
+       FROM license_seats s
+       JOIN licenses l ON l.id = s.license_id
+       LEFT JOIN employees e ON e.id = s.employee_id
+       LEFT JOIN assets a ON a.id = s.asset_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY s.released_on IS NOT NULL, date(s.assigned_on) DESC, s.id DESC`
+    )
+    .all(...params)
+    .map((row) => ({
+      ...row,
+      has_key: Boolean(row.has_key),
+      // The live name wins where there is one, so a corrected spelling shows;
+      // the stored one is what is left after somebody's row has gone.
+      employee_name: row.employee_now || row.employee_name || '',
+    }));
+}
+
+export const listLicenseRenewals = (licenseId) =>
+  db
+    .prepare(`SELECT * FROM license_renewals WHERE license_id = ? ORDER BY date(renewed_on) DESC, id DESC`)
+    .all(licenseId);
+
+/**
+ * The register, with every figure worked out.
+ *
+ * Seats are fetched once for the whole register and grouped here rather than
+ * per licence: eleven licences would otherwise be twelve queries, and the
+ * figures have to agree with the seat list anyway.
+ */
+export function listLicenses({ company_id, include_cancelled = true, soon = 30, today } = {}) {
+  const where = [];
+  const params = [];
+  if (company_id) {
+    where.push('l.company_id = ?');
+    params.push(Number(company_id));
+  }
+  if (!include_cancelled) where.push('l.cancelled_on IS NULL');
+
+  const rows = db
+    .prepare(
+      `SELECT ${LICENSE_SELECT}
+       FROM licenses l
+       LEFT JOIN companies c ON c.id = l.company_id
+       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY l.cancelled_on IS NOT NULL, l.name COLLATE NOCASE`
+    )
+    .all(...params);
+
+  const seats = db.prepare(`SELECT * FROM license_seats`).all();
+  const byLicense = new Map();
+  for (const seat of seats) {
+    if (!byLicense.has(seat.license_id)) byLicense.set(seat.license_id, []);
+    byLicense.get(seat.license_id).push(seat);
+  }
+
+  const when = today || dayNow();
+  return rows.map((row) =>
+    dressLicense({ ...row, has_key: Boolean(row.has_key) }, byLicense.get(row.id) || [], when, { soon })
+  );
+}
+
+export function getLicense(id, { soon = 30, today } = {}) {
+  const row = db
+    .prepare(
+      `SELECT ${LICENSE_SELECT}
+       FROM licenses l
+       LEFT JOIN companies c ON c.id = l.company_id
+       WHERE l.id = ?`
+    )
+    .get(id);
+  if (!row) return null;
+  const seats = listLicenseSeats({ license_id: id });
+  return {
+    ...dressLicense({ ...row, has_key: Boolean(row.has_key) }, seats, today || dayNow(), { soon }),
+    seats_list: seats,
+    renewals: listLicenseRenewals(id),
+  };
+}
+
+/**
+ * The whole key, once, for somebody who has asked for it.
+ *
+ * ON THE AUDIT TRAIL, deliberately. A key that has been read out cannot be
+ * called back, so "who has this key" has to have an answer - and the reason
+ * is asked for, because "I needed it" is not one.
+ */
+export function revealLicenseKey(id, { by, why } = {}) {
+  const row = db.prepare(`SELECT id, name, license_key FROM licenses WHERE id = ?`).get(id);
+  if (!row) throw new Error('that licence is not on the register');
+  const key = String(row.license_key || '').trim();
+  if (!key) return { key: '', had: false };
+  audit({
+    who: by,
+    action: 'key read',
+    entity: 'licenses',
+    entity_id: row.id,
+    label: row.name,
+    note: why ? `key shown: ${why}` : 'key shown',
+  });
+  return { key, had: true };
+}
+
+const LICENSE_FIELDS = [
+  'company_id', 'name', 'kind', 'publisher', 'version', 'term', 'account_email',
+  'seats', 'purchased_on', 'expires_on', 'cost', 'renew_every_months',
+  'amc_until', 'amc_cost', 'vendor', 'invoice_no', 'note',
+];
+
+/** Blank means "not known" for every one of these, never zero and never today. */
+const licenseValue = (key, value) => {
+  /*
+   * Except the term, which is NOT NULL and has to mean something: a licence
+   * saved with nothing chosen is a subscription, the reading that still
+   * reminds. Before the blank check, or a form that leaves it alone writes a
+   * null and the insert fails - which is exactly what a test caught.
+   */
+  if (key === 'term') return cleanTerm(value);
+  if (value === '' || value === null || value === undefined) {
+    return key === 'cost' ? 0 : null;
+  }
+  if (key === 'company_id' || key === 'seats' || key === 'renew_every_months') {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  }
+  if (key === 'cost' || key === 'amc_cost') return Number(value) || 0;
+  if (key === 'term') return cleanTerm(value);
+  return String(value).trim() || null;
+};
+
+export function createLicense(input = {}) {
+  const problem = licenseProblem(input);
+  if (problem) throw new Error(problem);
+
+  const values = {};
+  for (const field of LICENSE_FIELDS) values[field] = licenseValue(field, input[field]);
+  values.license_key = String(input.key ?? input.license_key ?? '').trim() || null;
+
+  const info = db
+    .prepare(
+      `INSERT INTO licenses (${LICENSE_FIELDS.join(', ')}, license_key)
+       VALUES (${LICENSE_FIELDS.map((f) => `@${f}`).join(', ')}, @license_key)`
+    )
+    .run(values);
+
+  audit({
+    who: input.by,
+    action: 'created',
+    entity: 'licenses',
+    entity_id: info.lastInsertRowid,
+    label: values.name,
+    note: [termLabel(values.term), values.expires_on ? `expires ${values.expires_on}` : null]
+      .filter(Boolean)
+      .join(' - ') || null,
+  });
+  return getLicense(info.lastInsertRowid);
+}
+
+export function updateLicense(id, patch = {}) {
+  const before = getLicense(id);
+  if (!before) throw new Error('that licence is not on the register');
+
+  // Validated against the licence as it would BE, so a patch that sets the
+  // expiry alone is still checked against the purchase date already stored.
+  const problem = licenseProblem({ ...before, ...patch });
+  if (problem) throw new Error(problem);
+
+  const fields = [];
+  const values = [];
+  for (const field of LICENSE_FIELDS) {
+    if (!(field in patch)) continue;
+    fields.push(`${field} = ?`);
+    values.push(licenseValue(field, patch[field]));
+  }
+  // The key is patched only when it is actually sent, so a form that does not
+  // carry it (which is every form, since no read returns it) cannot blank it.
+  if ('key' in patch || 'license_key' in patch) {
+    fields.push('license_key = ?');
+    values.push(String(patch.key ?? patch.license_key ?? '').trim() || null);
+  }
+  if (!fields.length) return before;
+
+  db.prepare(`UPDATE licenses SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+
+  for (const field of ['name', 'seats', 'expires_on', 'cost', 'term']) {
+    if (!(field in patch)) continue;
+    const to = licenseValue(field, patch[field]);
+    if (String(before[field] ?? '') === String(to ?? '')) continue;   // not a change.
+    audit({
+      who: patch.by,
+      action: 'changed',
+      entity: 'licenses',
+      entity_id: id,
+      label: before.name,
+      field,
+      from_value: before[field] ?? null,
+      to_value: to,
+    });
+  }
+  if ('key' in patch || 'license_key' in patch) {
+    audit({
+      who: patch.by,
+      action: 'changed',
+      entity: 'licenses',
+      entity_id: id,
+      label: before.name,
+      field: 'key',
+      note: 'the licence key was replaced',
+    });
+  }
+  return getLicense(id);
+}
+
+/**
+ * Stop paying for it - and keep the row.
+ *
+ * Cancelling releases nothing: the software is still installed on those
+ * machines the morning after somebody stops paying, and a seat list that
+ * emptied itself would say the opposite. Uninstalling is a job somebody does,
+ * and releasing each seat is how they record it.
+ */
+export function cancelLicense(id, { on, why, by } = {}) {
+  const before = getLicense(id);
+  if (!before) throw new Error('that licence is not on the register');
+  if (before.cancelled_on) throw new Error('that licence is already cancelled');
+  db.prepare(`UPDATE licenses SET cancelled_on = ?, cancelled_why = ? WHERE id = ?`).run(
+    String(on || dayNow()).slice(0, 10),
+    String(why || '').trim() || null,
+    id
+  );
+  audit({
+    who: by,
+    action: 'cancelled',
+    entity: 'licenses',
+    entity_id: id,
+    label: before.name,
+    note: why || null,
+  });
+  return getLicense(id);
+}
+
+/** Back in use. The counterpart, because a cancellation gets typed by mistake. */
+export function uncancelLicense(id, by) {
+  const before = getLicense(id);
+  if (!before) throw new Error('that licence is not on the register');
+  db.prepare(`UPDATE licenses SET cancelled_on = NULL, cancelled_why = NULL WHERE id = ?`).run(id);
+  audit({ who: by, action: 'changed', entity: 'licenses', entity_id: id, label: before.name, field: 'cancelled', to_value: 'in use' });
+  return getLicense(id);
+}
+
+/**
+ * Delete - and only something nothing has happened to.
+ *
+ * A licence that has been renewed or handed to somebody refuses, the same way
+ * an asset that has ever been issued refuses: deleting it would take its
+ * renewals and its seat history with it, and those answer "what did we pay"
+ * and "who was using it". Cancelling is the way to retire one.
+ */
+export function deleteLicense(id, by) {
+  const before = getLicense(id);
+  if (!before) return false;
+  if (before.renewals.length) {
+    throw new Error(
+      `${before.name} has ${before.renewals.length} renewal${before.renewals.length === 1 ? '' : 's'} recorded, which is what it cost. Cancel it instead — the row stays and it stops being counted.`
+    );
+  }
+  if (before.seats_list.length) {
+    throw new Error(
+      `${before.name} has been handed to ${before.seats_list.length} seat${before.seats_list.length === 1 ? '' : 's'}. Cancel it instead — the row stays and the history with it.`
+    );
+  }
+  const gone = db.prepare(`DELETE FROM licenses WHERE id = ?`).run(id).changes > 0;
+  if (gone) {
+    audit({ who: by, action: 'deleted', entity: 'licenses', entity_id: id, label: before.name });
+  }
+  return gone;
+}
+
+/**
+ * Put somebody - or a machine - on a seat.
+ *
+ * OVER-ALLOCATION IS RECORDED AND REPORTED, NEVER REFUSED. The eleventh
+ * install on a ten-seat licence exists whether or not this register admits it,
+ * and refusing it only moves the fact into somebody's head. What comes back
+ * says so, so the screen can say it too.
+ */
+export function assignSeat(licenseId, input = {}) {
+  const license = getLicense(licenseId);
+  if (!license) throw new Error('that licence is not on the register');
+  const problem = seatProblem(input);
+  if (problem) throw new Error(problem);
+  if (license.cancelled_on) {
+    throw new Error(`${license.name} was cancelled on ${license.cancelled_on}. Put it back in use first, then hand out the seat.`);
+  }
+
+  const employee = Number(input.employee_id) > 0 ? getEmployee(Number(input.employee_id)) : null;
+  if (Number(input.employee_id) > 0 && !employee) throw new Error('that employee is not on the master');
+
+  // Already on it? Giving the same person the same licence twice is a typo,
+  // and two open seats for one person makes the count wrong for ever.
+  const twin = license.seats_list.find(
+    (s) =>
+      !s.released_on &&
+      ((employee && Number(s.employee_id) === Number(employee.id)) ||
+        (Number(input.asset_id) > 0 && Number(s.asset_id) === Number(input.asset_id)))
+  );
+  if (twin) {
+    throw new Error(
+      `${twin.employee_name || twin.asset_label || 'that seat'} already has ${license.name}. Release the seat first if it has moved.`
+    );
+  }
+
+  const info = db
+    .prepare(
+      `INSERT INTO license_seats (license_id, employee_id, employee_name, asset_id, device,
+                                  assigned_on, assigned_by, note)
+       VALUES (@license_id, @employee_id, @employee_name, @asset_id, @device,
+               @assigned_on, @assigned_by, @note)`
+    )
+    .run({
+      license_id: license.id,
+      employee_id: employee?.id || null,
+      employee_name: employee?.name || null,
+      asset_id: Number(input.asset_id) > 0 ? Number(input.asset_id) : null,
+      device: String(input.device || '').trim() || null,
+      assigned_on: String(input.assigned_on || dayNow()).slice(0, 10),
+      assigned_by: input.by || null,
+      note: String(input.note || '').trim() || null,
+    });
+
+  const after = getLicense(licenseId);
+  audit({
+    who: input.by,
+    action: 'changed',
+    entity: 'licenses',
+    entity_id: license.id,
+    label: license.name,
+    field: 'seat',
+    to_value: employee?.name || input.device || `asset ${input.asset_id}`,
+    note: after.seat_use.over ? `over its ${after.seat_use.seats} seats by ${after.seat_use.over_by}` : null,
+  });
+  return { license: after, seat: listLicenseSeats({ license_id: licenseId }).find((s) => s.id === info.lastInsertRowid) };
+}
+
+export function releaseSeat(seatId, { on, by, note } = {}) {
+  const seat = db.prepare(`SELECT * FROM license_seats WHERE id = ?`).get(seatId);
+  if (!seat) throw new Error('that seat is not on the register');
+  if (seat.released_on) throw new Error('that seat was already released');
+  const license = getLicense(seat.license_id);
+  db.prepare(
+    `UPDATE license_seats SET released_on = ?, released_by = ?, note = COALESCE(?, note) WHERE id = ?`
+  ).run(String(on || dayNow()).slice(0, 10), by || null, String(note || '').trim() || null, seatId);
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'licenses',
+    entity_id: seat.license_id,
+    label: license?.name || '',
+    field: 'seat released',
+    from_value: seat.employee_name || seat.device || null,
+  });
+  return getLicense(seat.license_id);
+}
+
+/**
+ * Record a renewal: what was paid, for which period.
+ *
+ * The licence row then carries the new expiry; this table carries every period
+ * ever paid for. The same split as the asset register and its handovers - one
+ * answers "when is it next due", the other answers "what has it cost us".
+ *
+ * A period that ENDS BEFORE the licence already expires is refused, because
+ * that is a typed date nine times out of ten and it would move a live licence
+ * backwards into being expired. The message says what to do instead.
+ */
+export function renewLicense(id, input = {}) {
+  const before = getLicense(id);
+  if (!before) throw new Error('that licence is not on the register');
+  const to = String(input.period_to || '').slice(0, 10);
+  if (!to) throw new Error('what date does it now run until?');
+  if (before.expires_on && to < String(before.expires_on).slice(0, 10)) {
+    throw new Error(
+      `${before.name} already runs to ${before.expires_on}, so a renewal ending ${to} would move it backwards. Check the date — or edit the licence directly if you are correcting it.`
+    );
+  }
+  const cost = Number(input.cost) || 0;
+  if (cost < 0) throw new Error('a cost is not a negative number');
+
+  db.prepare(
+    `INSERT INTO license_renewals (license_id, renewed_on, period_from, period_to, cost, vendor, invoice_no, note, by_whom)
+     VALUES (@license_id, @renewed_on, @period_from, @period_to, @cost, @vendor, @invoice_no, @note, @by_whom)`
+  ).run({
+    license_id: before.id,
+    renewed_on: String(input.renewed_on || dayNow()).slice(0, 10),
+    period_from: String(input.period_from || '').slice(0, 10) || null,
+    period_to: to,
+    cost,
+    vendor: String(input.vendor || before.vendor || '').trim() || null,
+    invoice_no: String(input.invoice_no || '').trim() || null,
+    note: String(input.note || '').trim() || null,
+    by_whom: input.by || null,
+  });
+
+  /*
+   * The licence now runs to the new date, and carries what this period cost -
+   * so next year's "what are we paying" is this year's figure and not the one
+   * from whenever it was first bought.
+   *
+   * A trial that has been paid for is no longer a trial: left as one, it would
+   * keep reading "not a licence to carry on using it" on a licence somebody
+   * has now bought.
+   */
+  db.prepare(
+    `UPDATE licenses SET expires_on = ?, cost = ?, term = CASE WHEN term = 'trial' THEN 'subscription' ELSE term END
+     WHERE id = ?`
+  ).run(to, cost || before.cost || 0, id);
+
+  audit({
+    who: input.by,
+    action: 'changed',
+    entity: 'licenses',
+    entity_id: id,
+    label: before.name,
+    field: 'renewed to',
+    from_value: before.expires_on || null,
+    to_value: to,
+    note: cost ? `paid ${Math.round(cost)}` : null,
+  });
+  return getLicense(id);
+}
+
+/** Everything the License tab needs in one call. */
+export function licenseRegister({ company_id, soon = 30, today } = {}) {
+  const licenses = listLicenses({ company_id, soon, today });
+  return {
+    licenses,
+    totals: licenseTotals(licenses),
+    alerts: licenseAlerts(licenses, today || dayNow(), { soon }),
+    kinds: LICENSE_KINDS,
+    terms: LICENSE_TERMS,
+    soon,
+  };
 }
