@@ -117,6 +117,8 @@ import {
   ASSET_DOC_KINDS,
   assetPrefixes,
   nextAssetCode,
+  renumberAssets,
+  renumberPreview,
   setAssetPrefix,
   setAssetState,
   acknowledgeHandover,
@@ -291,6 +293,19 @@ peopleRouter.get('/assets/next-code', (req, res) =>
 
 /* The prefixes, and what each company's series looks like today. */
 peopleRouter.get('/assets/prefixes', (req, res) => res.json({ companies: assetPrefixes() }));
+
+/* What renumbering would do. Changes nothing. */
+peopleRouter.get('/assets/renumber', (req, res) =>
+  res.json(renumberPreview({ company_id: Number(req.query.company_id) || null }))
+);
+
+peopleRouter.post('/assets/renumber', (req, res) => {
+  try {
+    res.json(renumberAssets({ company_id: Number(req.body?.company_id) || null, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
 
 peopleRouter.put('/assets/prefixes/:companyId', (req, res) => {
   try {
@@ -1123,6 +1138,19 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
       rows.push(values.map((v) => (v && typeof v === 'object' && 'result' in v ? v.result : v)));
     });
 
+    /*
+     * WHOSE ASSETS THESE ARE, when the sheet does not say.
+     *
+     * His 1,008-row list has no company column at all, so every row came in
+     * with no company - which left the company filter showing nothing for a
+     * thousand assets, and gave every generated code the GEN- prefix because
+     * there was no company series to join.
+     *
+     * A sheet that DOES name a company still wins, row by row. This only
+     * fills the blanks.
+     */
+    const fallbackCompany = Number(req.body.company_id) || null;
+
     const plan = planAssetImport({
       rows,
       existing: listAssets({}),
@@ -1149,6 +1177,12 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
       });
     }
 
+    if (fallbackCompany) {
+      for (const asset of [...plan.create, ...plan.update]) {
+        if (!asset.company_id) asset.company_id = fallbackCompany;
+      }
+    }
+
     let wrote = 0;
     let updated = 0;
     /*
@@ -1172,7 +1206,16 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
         company_id: asset.company_id,
         kind: asset.kind,
         label: asset.label,
-        code: asset.code || undefined,
+        /*
+         * THE SHEET'S ID BECOMES old_code AND A NEW ONE IS DRAWN.
+         *
+         * Dinesh: "imported assets ko bhi naya code do". His own sheet's IDs
+         * are a mixed bag - BNF-Assets-2456 beside BNF-AST-Big Storage
+         * (Almari)-0006 - and he wants one uniform series. Keeping the
+         * original is not optional: the sticker is on the desk, and the
+         * import recognises rows by it.
+         */
+        old_code: asset.code || undefined,
         identifier: asset.identifier,
         purchase_cost: asset.purchase_cost,
         purchase_date: asset.purchase_date || null,
@@ -1221,6 +1264,8 @@ peopleRouter.post('/assets/import', assetSheet.single('file'), async (req, res, 
       ]) {
         if (asset[field]) patch[field] = asset[field];
       }
+      // Fill a company in where the asset has none; never move one that has.
+      if (asset.company_id && !asset.was?.company_id) patch.company_id = asset.company_id;
       for (const field of ['purchase_date', 'warranty_until']) {
         if (asset[field]) patch[field] = asset[field];
       }

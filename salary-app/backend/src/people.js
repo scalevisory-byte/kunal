@@ -873,8 +873,36 @@ export const getAsset = (id) =>
     )
     .get(id) || null;
 
+/**
+ * Scanned or typed, found either way.
+ *
+ * Also by the code the asset came in with. His stickers read BNF-Assets-2456
+ * and the register now calls that asset BNF-ASSETS-000551 - somebody holding
+ * the mouse has only the sticker, so looking it up has to work.
+ */
+/** Letters and digits only, so punctuation cannot keep two spellings apart. */
+const plainCode = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 export const getAssetByCode = (code) => {
-  const row = db.prepare(`SELECT id FROM assets WHERE code = ?`).get(tidyCode(code));
+  const tidied = tidyCode(code);
+  const exact =
+    db.prepare(`SELECT id FROM assets WHERE UPPER(code) = ?`).get(tidied) ||
+    db.prepare(`SELECT id FROM assets WHERE UPPER(old_code) = ?`).get(tidied);
+  if (exact) return getAsset(exact.id);
+
+  /*
+   * THE OLD CODE IS KEPT EXACTLY AS THE SHEET SPELLED IT - brackets, spaces
+   * and all - because that is what the sticker on the desk reads. So looking
+   * one up has to ignore punctuation: somebody types
+   * "BNF-AST-Big Storage (Almari)-0006" and the stored value has to match
+   * however either of them was punctuated.
+   */
+  const wanted = plainCode(code);
+  if (!wanted) return null;
+  const row = db
+    .prepare(`SELECT id, code, old_code FROM assets WHERE code IS NOT NULL OR old_code IS NOT NULL`)
+    .all()
+    .find((a) => plainCode(a.code) === wanted || plainCode(a.old_code) === wanted);
   return row ? getAsset(row.id) : null;
 };
 
@@ -957,6 +985,23 @@ const codesInUse = () =>
  * never a refusal, because an asset still has to be addable.
  */
 addColumns('companies', [['asset_prefix', 'TEXT']]);
+
+/*
+ * THE CODE THE SHEET CAME IN WITH.
+ *
+ * Dinesh: "imported assets ko bhi naya code do". So an imported asset is
+ * given one from its company's series - but the ID its own spreadsheet
+ * carried is KEPT, for two reasons that both bite hard if it is thrown away:
+ *
+ *   The sticker is already on the desk. Somebody reading BNF-Assets-2456 off
+ *   a mouse has to be able to find it, and the app would no longer know that
+ *   code at all.
+ *
+ *   The import RECOGNISES rows by their code. Drop it and importing the same
+ *   file a second time matches nothing and creates a thousand duplicates.
+ */
+addColumns('assets', [['old_code', 'TEXT']]);
+db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_old_code ON assets (UPPER(old_code))`);
 
 /*
  * THE UNIQUE INDEX IS THE REAL PROTECTION.
@@ -1128,6 +1173,100 @@ export function setAssetPrefix(companyId, value, { by = 'office' } = {}) {
   return assetPrefixes().find((c) => c.id === companyId);
 }
 
+/**
+ * ASSETS STILL CARRYING THEIR SPREADSHEET'S ID, and what renumbering them
+ * would do.
+ *
+ * Dinesh imported a thousand rows before the series existed, so they wear
+ * his sheet's own IDs - BNF-Assets-2456 beside BNF-AST-BIG-STORAGE-ALMARI-0006.
+ * He asked for one uniform series.
+ *
+ * This COUNTS, it does not change anything. Renumbering a thousand stickers
+ * is not something to discover after the fact, so the screen says how many
+ * and shows a few before the button is pressed.
+ */
+export function renumberPreview({ company_id } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT a.id, a.code, a.old_code, a.label, a.company_id, c.name AS company_name,
+              c.asset_prefix
+         FROM assets a LEFT JOIN companies c ON c.id = a.company_id
+        WHERE a.written_off_on IS NULL
+          ${company_id ? 'AND a.company_id = @company_id' : ''}
+        ORDER BY a.id`
+    )
+    .all(company_id ? { company_id: Number(company_id) } : {});
+
+  const already = (row) => {
+    const head = `${prefixFor({ name: row.company_name, asset_prefix: row.asset_prefix })}-${SERIES_WORD}-`;
+    const code = String(row.code || '').toUpperCase();
+    return code.startsWith(head) && /^\d+$/.test(code.slice(head.length));
+  };
+
+  const toChange = rows.filter((r) => !already(r));
+  return {
+    total: rows.length,
+    /* Already in their company's series: nothing to do, and saying so stops
+     * somebody pressing the button a second time wondering if it worked. */
+    already: rows.length - toChange.length,
+    changing: toChange.length,
+    /* Named, because "1,004 will change" is a number and these are things. */
+    examples: toChange.slice(0, 6).map((r) => ({
+      id: r.id,
+      label: r.label,
+      from: r.code || '(no code)',
+      company: r.company_name || '(no company)',
+    })),
+    /* An asset with no company has no series to join. Named rather than
+     * given a GEN- code nobody asked for. */
+    no_company: toChange.filter((r) => !r.company_id).length,
+  };
+}
+
+/**
+ * Give every asset a code from its company's series, keeping the old one.
+ *
+ * ONE TRANSACTION. A renumber that stops half way leaves a register where
+ * some stickers have been reprinted and some have not, with nothing saying
+ * where the line is.
+ *
+ * A WRITTEN-OFF ASSET IS LEFT ALONE: its code is on a disposal note and a
+ * final service bill, and it will never have a sticker reprinted.
+ */
+export const renumberAssets = db.transaction(({ company_id, by = 'office' } = {}) => {
+  const preview = renumberPreview({ company_id });
+  const rows = db
+    .prepare(
+      `SELECT a.id, a.code, a.old_code, a.company_id, c.name AS company_name, c.asset_prefix
+         FROM assets a LEFT JOIN companies c ON c.id = a.company_id
+        WHERE a.written_off_on IS NULL AND a.company_id IS NOT NULL
+          ${company_id ? 'AND a.company_id = @company_id' : ''}
+        ORDER BY a.id`
+    )
+    .all(company_id ? { company_id: Number(company_id) } : {});
+
+  let changed = 0;
+  for (const row of rows) {
+    const prefix = prefixFor({ name: row.company_name, asset_prefix: row.asset_prefix });
+    const head = `${prefix}-${SERIES_WORD}-`;
+    const current = String(row.code || '').toUpperCase();
+    if (current.startsWith(head) && /^\d+$/.test(current.slice(head.length))) continue;
+
+    const code = formatSeriesCode(prefix, nextNumberFor(prefix));
+    db.prepare(`UPDATE assets SET code = ?, old_code = COALESCE(old_code, ?) WHERE id = ?`)
+      .run(code, row.code || null, row.id);
+    markIssued(prefix, Number(code.slice(head.length)));
+    audit({
+      who: by, action: 'changed', entity: 'assets', entity_id: row.id,
+      label: `${code} (was ${row.code || 'no code'})`, field: 'code',
+      from_value: row.code || '', to_value: code,
+      note: 'renumbered into the company series; the old code is kept',
+    });
+    changed += 1;
+  }
+  return { ...preview, changed };
+});
+
 export function createAsset(input = {}) {
   const label = String(input.label || '').trim();
   if (!label) throw new Error('give the asset a name');
@@ -1191,13 +1330,13 @@ export function createAsset(input = {}) {
    * was already reported above.
    */
   const insert = db.prepare(
-      `INSERT INTO assets (code, company_id, branch_id, kind, label, identifier, purchase_cost,
+      `INSERT INTO assets (code, old_code, company_id, branch_id, kind, label, identifier, purchase_cost,
                            purchase_date, vendor, invoice_no, warranty_until,
                            amc_until, amc_vendor, amc_cost,
                            employee_id, issued_on, returned_on, condition, note,
                            brand, model, description, department, location, floor_room,
                            warranty_from, warranty_provider, purchase_remarks)
-       VALUES (@code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
+       VALUES (@code, @old_code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
                @purchase_date, @vendor, @invoice_no, @warranty_until,
                @amc_until, @amc_vendor, @amc_cost,
                @employee_id, @issued_on, @returned_on, @condition, @note,
@@ -1207,6 +1346,7 @@ export function createAsset(input = {}) {
 
   const values = {
       code,
+      old_code: input.old_code || null,
       company_id: companyId,
       branch_id: Number(input.branch_id) || null,
       kind,
@@ -1279,6 +1419,7 @@ export function createAsset(input = {}) {
 }
 
 const ASSET_FIELDS = [
+  'old_code',
   'company_id',
   'branch_id',
   'kind',

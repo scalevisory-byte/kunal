@@ -66,9 +66,19 @@ test('brackets in a code no longer stop the file', async () => {
   assert.deepEqual(body.failed, []);
 
   const { assets } = await (await fetch(`${base}/api/people/assets`, { headers: auth })).json();
+  /*
+   * The sheet's ID is now kept as `old_code` and the asset is given one from
+   * its company's series - "imported assets ko bhi naya code do". The
+   * brackets are kept EXACTLY as the sheet spelled them, because that is
+   * what the sticker on the desk reads.
+   */
   assert.ok(
-    assets.some((a) => a.code === 'BNF-AST-BIG-STORAGE-ALMARI-0006'),
-    `tidied, not refused: ${assets.map((a) => a.code).join(', ')}`
+    assets.some((a) => a.old_code === 'BNF-AST-Big Storage (Almari)-0006'),
+    `kept, not refused: ${assets.map((a) => a.old_code).join(', ')}`
+  );
+  assert.ok(
+    assets.every((a) => /-ASSETS-\d{6}$/.test(a.code)),
+    `every one joins a series: ${assets.map((a) => a.code).join(', ')}`
   );
 });
 

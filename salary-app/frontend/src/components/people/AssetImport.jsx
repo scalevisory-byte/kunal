@@ -14,10 +14,11 @@ import { rupees } from '../../format.js';
  * copy of every laptop is worse than no import at all, and the two calls are
  * otherwise identical on purpose: the plan you approve is the plan that runs.
  */
-export default function AssetImport({ onDone, onError }) {
+export default function AssetImport({ companies = [], onDone, onError }) {
   const file = useRef(null);
   const [plan, setPlan] = useState(null);
   const [busy, setBusy] = useState('');
+  const [companyId, setCompanyId] = useState('');
 
   const send = async (write) => {
     const chosen = file.current?.files?.[0];
@@ -27,6 +28,7 @@ export default function AssetImport({ onDone, onError }) {
       const form = new FormData();
       form.set('file', chosen);
       if (write) form.set('write', 'true');
+      if (companyId) form.set('company_id', companyId);
       const result = await api.upload('/people/assets/import', form);
       setPlan(result);
       if (write) onDone?.();
@@ -59,6 +61,23 @@ export default function AssetImport({ onDone, onError }) {
       </p>
 
       <div className="row">
+        {/*
+          * Whose assets these are, when the sheet does not say.
+          *
+          * His own list has no company column, so a thousand assets arrived
+          * belonging to nobody - invisible to the company filter, and with
+          * GEN- codes because there was no company series to join. A sheet
+          * that names a company still wins row by row; this fills blanks.
+          */}
+        <label className="field inline">
+          Whose
+          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <option value="">the sheet says</option>
+            {(companies || []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
         <input ref={file} type="file" accept=".xlsx" onChange={() => setPlan(null)} />
         <button onClick={() => send(false)} disabled={!!busy}>
           {busy === 'Reading…' ? busy : 'Read the file'}

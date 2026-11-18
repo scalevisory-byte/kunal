@@ -215,7 +215,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
       /* The dashboard's own filter, applied by the dashboard's own code. */
       if (narrowed && !matchesFilter(a, narrowed)) return false;
       if (!q) return true;
-      return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
+      // The old code too: his stickers still read BNF-Assets-2456, and
+      // somebody holding the mouse has only the sticker.
+      return [a.code, a.old_code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
@@ -238,7 +240,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
       if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
       if (narrowed && !matchesFilter(a, narrowed)) return false;
       if (!q) return true;
-      return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
+      // The old code too: his stickers still read BNF-Assets-2456, and
+      // somebody holding the mouse has only the sticker.
+      return [a.code, a.old_code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
@@ -585,7 +589,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
       )}
 
       {importing && (
-        <AssetImport onDone={load} onError={(err) => setSaid(err.message)} />
+        <AssetImport companies={companies} onDone={load} onError={(err) => setSaid(err.message)} />
       )}
 
       {adding && (
@@ -901,6 +905,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     <button className="link" onClick={() => setHistory(asset)}>
                       {asset.code || '—'}
                     </button>
+                    {/* What the sticker on the desk still reads. */}
+                    {asset.old_code && asset.old_code !== asset.code ? (
+                      <div className="muted small" title="the code it came in with — still on the label">
+                        was {asset.old_code}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="sticky-name">
                     {asset.kind} — {asset.label}

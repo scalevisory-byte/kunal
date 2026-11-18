@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.19.0';
+export const VERSION = '1.20.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.20.0',
+    date: '18 Nov 2026',
+    title: 'Imported assets join the series too',
+    items: [
+      '**An imported asset is now given a code from its company’s series**, the same as one typed in — so the whole register reads one way instead of carrying whatever each sheet called things.',
+      '**The ID your sheet came in with is KEPT**, exactly as it was spelt, brackets and all. Two reasons, and both bite hard if it is thrown away: the sticker is already on the desk, and **the import recognises rows by their code** — drop it and importing the same file twice would make a thousand duplicates. The register shows it under the new code as “was BNF-Assets-2456”, and searching or scanning the old one still finds the asset.',
+      '**Already imported?** Lists → Asset code prefixes has **“Assets still carrying their spreadsheet’s ID”**. It counts them and names a few first, then renumbers on a press, keeping every old code. Written-off assets are left alone — their code is on a disposal note.',
+      '**The import now asks whose assets these are.** Your list has no company column, so a thousand assets arrived belonging to nobody: invisible to the company filter, and with a GEN- code because there was no company series to join. A sheet that names a company still wins, row by row.',
+    ],
+  },
   {
     version: '1.19.0',
     date: '18 Nov 2026',

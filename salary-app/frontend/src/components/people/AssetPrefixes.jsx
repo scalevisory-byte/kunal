@@ -136,11 +136,106 @@ export default function AssetPrefixes({ onError, onToast }) {
         </div>
       )}
 
+      <Renumber onError={onError} onToast={onToast} onDone={load} />
+
       <p className="muted small" style={{ marginTop: '0.6rem' }}>
         Changing a prefix <strong>does not rewrite codes already issued</strong> — those are on
         stickers and signed slips. It changes only what the next one reads, and since that is a
         new series it starts again at 000001.
       </p>
+    </div>
+  );
+}
+
+/**
+ * GIVE EVERY ASSET A CODE FROM ITS COMPANY'S SERIES.
+ *
+ * Dinesh: *"imported assets ko bhi naya code do"*. A thousand assets came in
+ * before the series existed and wear his spreadsheet's own IDs. This brings
+ * them into one series.
+ *
+ * It COUNTS FIRST and says what it would do. Renumbering a thousand stickers
+ * is not something to find out about afterwards, and the old code is kept on
+ * every one of them - the sticker is already on the desk, and the import
+ * recognises rows by it.
+ */
+function Renumber({ onError, onToast, onDone }) {
+  const [plan, setPlan] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const look = async () => {
+    setBusy(true);
+    try {
+      setPlan(await api.get('/people/assets/renumber'));
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const run = async () => {
+    if (
+      !window.confirm(
+        `Give ${plan.changing} asset${plan.changing === 1 ? '' : 's'} a code from their company’s ` +
+          'series?\n\nThe code each one has now is kept, so a sticker already on a desk can still ' +
+          'be found and importing the same sheet again still recognises them.\n\n' +
+          'Written-off assets are left alone.'
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const done = await api.post('/people/assets/renumber', {});
+      onToast?.(`${done.changed} renumbered.`);
+      setPlan(null);
+      onDone?.();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '0.8rem', paddingTop: '0.7rem', borderTop: '1px solid var(--line)' }}>
+      <p className="ask" style={{ margin: 0 }}>Assets still carrying their spreadsheet’s ID</p>
+      <p className="muted small">
+        Anything imported before the series existed wears the code its sheet came in with. This
+        brings them into their company’s own series and <strong>keeps the old code</strong>.
+      </p>
+      {!plan ? (
+        <button onClick={look} disabled={busy}>
+          {busy ? 'Counting…' : 'See how many'}
+        </button>
+      ) : (
+        <>
+          <p className="small">
+            <strong>{plan.changing}</strong> of {plan.total} would be renumbered
+            {plan.already ? `; ${plan.already} already in their series` : ''}
+            {plan.no_company
+              ? `. ${plan.no_company} belong to no company, so there is no series for them to join — give them one first.`
+              : '.'}
+          </p>
+          {plan.examples?.length > 0 && (
+            <ul className="small muted">
+              {plan.examples.map((e) => (
+                <li key={e.id}>
+                  {e.label} — <code>{e.from}</code> · {e.company}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="row">
+            <button className="primary" onClick={run} disabled={busy || !plan.changing}>
+              {busy ? 'Renumbering…' : `Renumber ${plan.changing}`}
+            </button>
+            <button className="ghost" onClick={() => setPlan(null)} disabled={busy}>
+              Leave them
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

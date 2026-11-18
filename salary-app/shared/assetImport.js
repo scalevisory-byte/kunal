@@ -317,7 +317,22 @@ export function planAssetImport({ rows = [], existing = [], employees = [], comp
     };
   }
 
-  const byCode = new Map(existing.filter((a) => a.code).map((a) => [key(a.code), a]));
+  /*
+   * Recognised by the code it has now OR the one its sheet came in with.
+   *
+   * An imported asset is given a code from its company's series and keeps
+   * the sheet's ID as `old_code`. Matching only on `code` would mean
+   * importing the same file a second time recognised nothing and created a
+   * thousand duplicates - which is exactly what the office does when a
+   * column has been corrected.
+   */
+  const byCode = new Map();
+  for (const asset of existing) {
+    if (asset.old_code) byCode.set(key(asset.old_code), asset);
+    // The current code wins where both are present: it is the one on the
+    // register now.
+    if (asset.code) byCode.set(key(asset.code), asset);
+  }
   const bySerial = new Map(existing.filter((a) => a.identifier).map((a) => [key(a.identifier), a]));
 
   const create = [];
