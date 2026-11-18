@@ -14,6 +14,12 @@ export const GLYPHS = {
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2.2',
   calendar: 'M4 8h16M7 3v3M17 3v3M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1ZM8 13h2M14 13h2M8 17h2M14 17h2',
   alert: 'M12 3 2.5 20h19L12 3ZM12 10v4.5M12 17.6v.1',
+  /* The top bar's bell, and the four figures on the asset dashboard. */
+  bell: 'M18 16v-5a6 6 0 1 0-12 0v5l-2 2.5h16L18 16ZM10 19a2 2 0 0 0 4 0',
+  box: 'M12 2.8 21 7.4v9.2L12 21.2 3 16.6V7.4ZM3 7.4l9 4.6 9-4.6M12 12v9.2',
+  building: 'M4 21V4h10v17M14 10h6v11M7 8h4M7 12h4M7 16h4M17 14h1M17 18h1',
+  wrench: 'M15.5 3.5a5 5 0 0 0-6.2 6.6L3 16.4 6.6 20l6.3-6.3a5 5 0 0 0 6.6-6.2l-3 3-2.6-2.6Z',
+  bars: 'M4.5 20V11M10 20V4.5M15.5 20v-6M21 20V8',
 
   /* one per module, in the order the sidebar lists them */
   dashboard: 'M4 4h6v7H4zM14 4h6v4h-6zM14 12h6v8h-6zM4 15h6v5H4z',

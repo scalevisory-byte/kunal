@@ -3899,3 +3899,254 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
   background: revert;
   appearance: auto;
 }
+
+/* ======================================================================
+ * THE SHELL, to Dinesh's dashboard mock-up
+ *
+ * Navy, white and gold, which is what the sign-in screen already uses, now
+ * carried through the app: a navy strip across the top with the page's name
+ * and who is signed in, and the rail's active tab as a filled gold pill
+ * instead of a highlight with a bar beside it.
+ *
+ * Every class name here already existed. The mock changes how the shell
+ * LOOKS, not what it is, so no component had to be rebuilt to follow it.
+ * ====================================================================== */
+
+.page > header {
+  background: var(--navy);
+  color: #fff;
+  margin: 0 0 1rem;
+  padding: 0.55rem 1rem;
+  border-radius: 0;
+  border-bottom: 1px solid var(--navy-line);
+}
+.page > header .here { color: #fff; }
+/* The controls that sit in the bar - month picker, company filter - are on
+ * navy now, so they cannot keep the page's own ink. */
+/*
+ * One line: the page's name at the left, who is signed in at the right.
+ *
+ * `flex-wrap` and `justify-content` are stated rather than left to whatever
+ * the older rule set, because they survived it - the name and the avatar
+ * were landing on two centred lines, and only a screenshot showed it.
+ */
+.page > header {
+  display: flex;
+  /*
+   * ROW, SAID OUT LOUD. A global rule stacks every <header> into a column,
+   * so `display: flex` alone left the page's name on one line and the avatar
+   * centred on the next. Third time this exact rule has caught something -
+   * the help panel's close button and the sign-in screen were the other two.
+   */
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 46px;
+  padding-bottom: 0.55rem;
+}
+
+/* The strip under the bar: the month and the company filter, on the page's
+ * own background. They change constantly; the bar above never does. */
+.page-filters {
+  padding: 0.55rem 1rem 0;
+  margin-bottom: 0.4rem;
+}
+
+/* ---- who is signed in, at the right-hand end ---- */
+.who-strip {
+  /*
+   * NO auto margin here. The title carries one, and two of them split the
+   * free space between them, which centred the page's name instead of
+   * leaving it at the left where the mock-up has it.
+   */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 0.8rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+.who-bell {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.25rem;
+  cursor: pointer;
+  line-height: 0;
+}
+.who-bell:hover { color: #fff; }
+.who-bell .pip {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+/* Initials, not a photograph: an office login is not an employee and has none
+ * to show, and fetching one from somewhere else would be a request this app
+ * makes to the internet on every page load. */
+.who-face {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gold);
+  color: #2a1c00;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---- the rail's active tab: a filled gold pill ---- */
+/*
+ * The rail's active tab: a filled gold pill, from his mock-up. It was navy
+ * with a gold edge, which the mock replaces with the whole pill.
+ *
+ * Written as `.side-nav`, which is what the element is actually called - an
+ * earlier attempt at `.sidebar nav` matched nothing and lost silently to the
+ * rule above, which is the sort of miss a screenshot catches and a diff does
+ * not.
+ */
+.side-nav button.active {
+  background: var(--gold);
+  color: #2a1c00;
+  font-weight: 600;
+  box-shadow: none;
+}
+.side-nav button.active:hover:not(:disabled) { background: var(--gold); color: #2a1c00; }
+.side-nav button.active svg { color: #2a1c00; opacity: 1; }
+
+/* The page's name sits at the LEFT of the navy bar, as it does on the mock -
+ * the identity strip pushes itself right on its own. */
+/*
+ * `h1.here` elsewhere sets `margin: 0`, and element+class beats class alone -
+ * so written at the same strength or the avatar sits glued to the title
+ * instead of at the far end of the bar.
+ */
+.page > header h1.here { margin-right: auto; }
+
+/* ---- the sub-tabs inside a module: a filled navy pill for the one you are on ---- */
+.sub-tabs button {
+  border-radius: 7px;
+  padding: 0.38rem 0.9rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.86rem;
+}
+.sub-tabs button:hover { border-color: var(--navy-line); }
+.sub-tabs button.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ======================================================================
+ * The four tiles at the top of the asset dashboard — Dinesh's mock-up.
+ *
+ * An icon in a soft square, the label above the figure. Four and not nine:
+ * the rest stay as the hairline row beneath, because nine boxes is two rows
+ * of furniture before a single asset.
+ * ====================================================================== */
+.asset-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+.asset-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.asset-tile:hover { border-color: var(--navy-line); }
+.asset-tile-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--navy);
+}
+.asset-tile-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.asset-tile-text .k {
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.asset-tile-text .n {
+  font-size: 1.45rem;
+  font-weight: 650;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+/* On navy in dark mode the soft brand tint disappears, so the icon square
+ * takes the gold the rail's active tab uses. */
+:root[data-theme='dark'] .asset-tile-icon { background: #1d2740; color: var(--gold); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .asset-tile-icon { background: #1d2740; color: var(--gold); }
+}
+
+/*
+ * The warranty line above the register — an info strip, as on his mock-up.
+ *
+ * It was a bare bullet list, which reads as part of the page rather than as
+ * something to notice. Tinted and marked, so it is seen without shouting:
+ * these are assets out of warranty, not a fault.
+ */
+.alerts {
+  list-style: none;
+  margin: 0 0 0.7rem;
+  padding: 0.5rem 0.8rem 0.5rem 2.1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--navy-2);
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  font-size: 0.85rem;
+  position: relative;
+}
+.alerts::before {
+  content: 'i';
+  position: absolute;
+  left: 0.75rem;
+  top: 0.62rem;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--navy-2);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 700;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.alerts li + li { margin-top: 0.25rem; }
+
+/* The filter pills above the register: the one you are on, filled navy. */
+.sub-tabs.toolbar button.active,
+.group-chips button.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}

@@ -92,6 +92,23 @@ export function assetDashboard({
    */
   const spent = withStatus.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0);
 
+  /*
+   * WHAT IS OUT OF THE BUILDING, in money.
+   *
+   * On Dinesh's mock-up this is "Work in use (at site)" - the figure beside
+   * the count of what staff are holding. It answers a different question from
+   * "what have we spent": this is what is out of the office's hands right
+   * now, which is the number that matters when somebody leaves.
+   *
+   * What it is NOT is what any of it is worth today. That needs a
+   * depreciation rule - a rate and a method - which is a business decision he
+   * has not made and which this must not invent: a wrong rate prices every
+   * asset wrongly and reads as authoritative.
+   */
+  const outValue = withStatus
+    .filter((a) => assetStatus(a) === 'assigned')
+    .reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0);
+
   const alerts = [];
   const add = (key, label, rows, filter, tone = 'warn') => {
     if (rows.length) alerts.push({ key, label, n: rows.length, rows, filter, tone });
@@ -198,7 +215,7 @@ export function assetDashboard({
     'bad'
   );
 
-  return { cards, spent, alerts, counted: withStatus.length };
+  return { cards, spent, out_value: outValue, alerts, counted: withStatus.length };
 }
 
 /** The financial years anything was bought in, newest first. */

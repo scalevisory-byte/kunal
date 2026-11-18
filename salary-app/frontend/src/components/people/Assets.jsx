@@ -885,6 +885,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         <table className="sheet">
           <thead>
             <tr>
+              {/* A serial down the left, as on his mock-up and on the salary
+                  sheet. It numbers what is ON SCREEN, so it follows the
+                  filters rather than claiming to be the asset's own number -
+                  that is the code beside it. */}
+              <th className="row-no">#</th>
               <th>Code</th>
               <th>What</th>
               <th>Serial</th>
@@ -897,10 +902,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             </tr>
           </thead>
           <tbody>
-            {shown.map((asset) => {
+            {shown.map((asset, at) => {
               const out = isOut(asset);
               return (
                 <tr key={asset.id}>
+                  <td className="row-no">{at + 1}</td>
                   <td>
                     <button className="link" onClick={() => setHistory(asset)}>
                       {asset.code || '—'}

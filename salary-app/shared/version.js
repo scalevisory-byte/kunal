@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.21.0';
+export const VERSION = '1.22.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.22.0',
+    date: '18 Nov 2026',
+    title: 'The look from your mock-up',
+    items: [
+      '**A navy bar across the top** with the page you are on, a bell for what is new, and your initials. One line, 49 pixels — the month and company pickers moved to their own strip below it, because those change constantly and the bar does not.',
+      '**The tab you are on is a filled gold pill** in the rail, instead of navy with a gold edge.',
+      '**The asset dashboard opens with four tiles**: Total assets, Out with staff, **Work in use (at site)**, Buy price value — each with its icon, each opening the list behind it. The rest stay as the row of figures beneath; nine boxes would be two rows of furniture before a single asset.',
+      '**Work in use (at site)** is what the assets currently out with staff cost to buy. It is **not** what they are worth today — that needs a depreciation rule you have not set, and a wrong rate would price every asset wrongly while reading as authoritative.',
+      'Sub-tabs and filters are **navy pills**, the out-of-warranty line is an **information strip** rather than a loose bullet, and the register has a **number down the left**.',
+      '**Assets no longer ask you to open a month.** A laptop bought in March is on the register in November; that banner was noise above the figures.',
+      'Three things in your mock-up were deliberately NOT done, and are worth saying: **Salary sheet** keeps its name (the mock reads “Sales Sheet”), **Loans** stays (the mock omits it), and **License** was not invented from a single word — tell me what belongs in it and it gets built properly.',
+    ],
+  },
   {
     version: '1.21.0',
     date: '18 Nov 2026',

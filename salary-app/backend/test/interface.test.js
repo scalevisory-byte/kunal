@@ -1935,3 +1935,48 @@ test('evaluations waiting for a decision are listed where interviews are', () =>
   // Clicking one opens that evaluation, which is the point of listing it.
   assert.match(list, /onEvaluate\(w\.interview_id\)/);
 });
+
+/* ---------------- the shell, to his dashboard mock-up ---------------- */
+
+test('the navy bar is a ROW, said out loud', () => {
+  /*
+   * A global rule stacks every <header> into a column, so `display: flex`
+   * alone put the page's name on one line and the avatar centred on the
+   * next. Third time that rule has caught something - the help panel's close
+   * button and the sign-in screen were the other two - so it is pinned.
+   */
+  const css = src('styles.css');
+  const bar = css.slice(css.indexOf('.page > header {\n  display: flex;'));
+  const body = bar.slice(0, bar.indexOf('}'));
+  assert.match(body, /flex-direction: row/);
+  assert.match(body, /flex-wrap: nowrap/);
+});
+
+test('the title keeps the avatar at the far end', () => {
+  // `h1.here` sets `margin: 0` elsewhere, and element+class beats class
+  // alone - written weaker, the avatar sits glued to the title.
+  const css = src('styles.css');
+  assert.match(css, /\.page > header h1\.here \{ margin-right: auto; \}/);
+  // ...and the identity strip must NOT carry one too: two auto margins split
+  // the free space and centre the title between them.
+  const strip = css.slice(css.indexOf('.who-strip {'));
+  assert.ok(
+    !/margin-left: auto/.test(strip.slice(0, strip.indexOf('}'))),
+    'two auto margins centre the page name instead of leaving it at the left'
+  );
+});
+
+test('the rail names the element it actually styles', () => {
+  // `.sidebar nav button.active` matched nothing and lost silently to the
+  // rule it was meant to replace. The element is `.side-nav`.
+  const css = src('styles.css');
+  assert.match(css, /\.side-nav button\.active \{[^}]*background: var\(--gold\)/);
+});
+
+test('assets do not wait for a month to be opened', () => {
+  // A laptop bought in March is on the register in November. The banner
+  // telling somebody to open a month was noise above the figures, and noise
+  // above the figures is how a real warning stops being read.
+  const app = src('App.jsx');
+  assert.match(app, /\['employees', 'dashboard', 'hiring', 'assets'\]\.includes\(tab\)/);
+});

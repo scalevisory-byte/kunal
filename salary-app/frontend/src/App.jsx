@@ -79,6 +79,18 @@ const TABS = [
 
 const PERIOD_KEY = 'salary-app-period';
 
+/** "Dinesh Parmar" -> "DP". One letter when there is only one word. */
+const initialsOf = (name) =>
+  String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '·';
+
+const newsFor = (seen) => (hasNews(seen) ? 'Something new in this version' : 'What changed, and when');
+
 /**
  * The date this file was built, stamped in by vite.config.js. Every download
  * lands as "SalarySheet (2).html", "(3)" and so on, so there is otherwise no
@@ -744,14 +756,47 @@ function Shell() {
         </button>
         <h1 className="here">{visibleTabs.find(([k]) => k === tab)?.[1] || 'Dashboard'}</h1>
         {/*
-          * The month and the company filter share one line. The companies were
-          * a row of chips, which is five of them across two lines on a phone
-          * before a single figure - and the names are long. A picker is one
-          * control, and the list scrolls as far as it needs to.
+          * The right-hand end of the navy bar: who is signed in.
           *
-          * Renaming and deleting a company stays on the Employees tab, where
-          * it always was; this is only the filter.
+          * Initials rather than a photograph. The office logins are not
+          * employees and have no photograph to show, and inventing an avatar
+          * service would be a request this app makes to somewhere else on
+          * every page load.
           */}
+        <span className="who-strip">
+          <button
+            className="who-bell"
+            title={newsFor(seenVersion)}
+            onClick={() => {
+              setNewsOpen(true);
+              markNewsRead();
+            }}
+          >
+            <Glyph name="bell" size={17} />
+            {hasNews(seenVersion) ? <span className="pip" /> : null}
+          </button>
+          <span className="who-face" title={me?.name || 'Signed in'}>
+            {initialsOf(me?.name)}
+          </span>
+        </span>
+        </header>
+
+        {/*
+          * The month and the company filter, on their own strip BELOW the
+          * navy bar rather than inside it.
+          *
+          * The bar says where you are and who you are - two things that never
+          * change as you work. These two do, constantly, and putting a
+          * control somebody changes forty times a day into the title bar made
+          * that bar three lines tall on a laptop.
+          *
+          * The companies were a row of chips, which is five of them across
+          * two lines on a phone before a single figure - and the names are
+          * long. A picker is one control, and the list scrolls as far as it
+          * needs to. Renaming and deleting a company stays on the Employees
+          * tab, where it always was; this is only the filter.
+          */}
+        <div className="page-filters">
         <div className="top-row">
           {MONTHLY_TABS.has(tab) && (
           <PeriodBar
@@ -790,7 +835,7 @@ function Shell() {
             </select>
           </label>
         </div>
-      </header>
+        </div>
 
       {error && (
         <p className="error banner">
@@ -803,7 +848,13 @@ function Shell() {
           charts - to this one page. Every other tab keeps the quiet hairline
           sheet it was built with, which is what they are read for. */}
       <main className={tab === 'dashboard' ? 'dash' : undefined}>
-        {!period && !['employees', 'dashboard', 'hiring'].includes(tab) && (
+        {/*
+          * Assets do not belong to a month: a laptop bought in March is on
+          * the register in November. The banner telling somebody to open one
+          * was noise on that tab, and noise above the figures is how a real
+          * warning stops being read.
+          */}
+        {!period && !['employees', 'dashboard', 'hiring', 'assets'].includes(tab) && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
             employees, or import last month's sheet from <strong>Reports</strong>.

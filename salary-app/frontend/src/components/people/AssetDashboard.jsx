@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
+import Glyph from '../../icons.jsx';
 
 /*
  * The asset dashboard.
@@ -13,6 +14,45 @@ import { rupees } from '../../format.js';
  * It computes nothing of its own: `shared/assetDashboard.js` does the
  * counting, on the server and in the single file alike.
  */
+
+/**
+ * The four at the top, in the order of his mock-up.
+ *
+ * Each reads its figure OUT of the same dashboard the row below it uses, so
+ * a tile and the hairline figure under it can never disagree - they are the
+ * same number drawn twice, not two counts of the same thing.
+ */
+const card = (data, key) => data.cards.find((c) => c.key === key) || { n: 0, filter: {} };
+const TILES = [
+  {
+    key: 'total',
+    label: 'Total assets',
+    icon: 'box',
+    from: (d) => ({ shown: card(d, 'all').n, filter: card(d, 'all').filter, hint: 'On the register — not the ones written off' }),
+  },
+  {
+    key: 'out',
+    label: 'Out with staff',
+    icon: 'building',
+    from: (d) => ({ shown: card(d, 'assigned').n, filter: card(d, 'assigned').filter, hint: 'Issued and not yet back' }),
+  },
+  {
+    key: 'out_value',
+    label: 'Work in use (at site)',
+    icon: 'wrench',
+    from: (d) => ({
+      shown: rupees(d.out_value),
+      filter: card(d, 'assigned').filter,
+      hint: 'What those assets cost to buy — not what they are worth today, which needs a depreciation rule nobody has set',
+    }),
+  },
+  {
+    key: 'spent',
+    label: 'Buy price value',
+    icon: 'bars',
+    from: (d) => ({ shown: rupees(d.spent), filter: {}, hint: 'Everything ever bought, written-off included' }),
+  },
+];
 
 export default function AssetDashboard({ companies, branches = [], onOpen, onAdd, onImport, onError }) {
   const [filter, setFilter] = useState({ company_id: '', branch_id: '', category: '', year: '' });
@@ -125,6 +165,33 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onAdd
         <p className="loading">Counting…</p>
       ) : (
         <>
+          {/*
+            * THE FOUR FIGURES, as tiles with an icon — Dinesh's mock-up.
+            *
+            * The rest stay as the hairline row below them. Nine tiles would
+            * be two rows of boxes before a single asset, and the four here
+            * are the ones his own mock put at the top: how many there are,
+            * how many are out, what is out in money, and what the lot cost.
+            */}
+          <div className="asset-tiles">
+            {TILES.map(({ key, label, icon, from }) => (
+              <button
+                key={key}
+                className="asset-tile"
+                onClick={() => go(from(data).filter)}
+                title={from(data).hint}
+              >
+                <span className="asset-tile-icon">
+                  <Glyph name={icon} size={20} />
+                </span>
+                <span className="asset-tile-text">
+                  <span className="k">{label}</span>
+                  <span className="n">{from(data).shown}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
           <div className="card">
             <div className="figures">
               {data.cards.map((c) => (
