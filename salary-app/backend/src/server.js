@@ -8,7 +8,14 @@ import { photoFile, photoLinkValid } from './assetPhotos.js';
 import { docFile, docLinkValid } from './assetDocs.js';
 import { getAssetDoc, getAssetPhoto } from './people.js';
 import { log } from './logger.js';
-import { requireAdminForChanges, requireAuth, requireRead, requireWriteForChanges } from './auth.js';
+import {
+  hidePay,
+  requireAdminForChanges,
+  requireArea,
+  requireAuth,
+  requireRead,
+  requireWriteForChanges,
+} from './auth.js';
 import { meRouter } from './routes/me.js';
 import { getCandidate, getCandidateDocument } from './hiring.js';
 import { getDocument } from './db.js';
@@ -198,15 +205,43 @@ export function createServer() {
    */
   app.use('/api/me', requireAuth, meRouter);
 
-  app.use('/api/companies', requireAuth, requireRead, requireAdminForChanges, companiesRouter);
-  app.use('/api/employees', requireAuth, requireRead, requireWriteForChanges, employeesRouter);
-  app.use('/api/leave', requireAuth, requireRead, requireWriteForChanges, leaveRouter);
-  app.use('/api/loans', requireAuth, requireRead, requireWriteForChanges, loansRouter);
-  app.use('/api/people', requireAuth, requireRead, requireWriteForChanges, peopleRouter);
-  app.use('/api/periods', requireAuth, requireRead, requireWriteForChanges, periodsRouter);
-  app.use('/api/hiring', requireAuth, requireRead, requireWriteForChanges, hiringRouter);
-  app.use('/api/attendance', requireAuth, requireRead, requireWriteForChanges, attendanceSelfRouter);
-  app.use('/api', requireAuth, requireRead, requireWriteForChanges, reportsRouter);
+  /*
+   * WHICH PART OF THE APP, as well as what kind of action.
+   *
+   * `hidePay` goes on EVERY office router rather than the salary ones: a
+   * login without the salary area must not see a figure wherever it surfaces,
+   * and the employee master carries one as surely as the sheet does. It sits
+   * before the routers so it wraps res.json for all of them; /api/me is
+   * deliberately outside it, because that is somebody's own payslip.
+   *
+   * `requireArea` refuses the module outright. The two do different jobs:
+   * one says "not this tab at all", the other says "this tab, with the money
+   * taken out of it".
+   */
+  const office = [requireAuth, requireRead, hidePay];
+
+  /*
+   * Assets live under /api/people/assets, so the people area would carry
+   * them. They are their own tab and their own job - a store keeper has no
+   * business reading somebody's warning letter - so they are split out
+   * before the people router sees them.
+   */
+  app.use('/api/people/assets', ...office, requireArea('assets'));
+
+  app.use('/api/companies', ...office, requireAdminForChanges, companiesRouter);
+  app.use('/api/employees', ...office, requireArea('employees'), requireWriteForChanges, employeesRouter);
+  app.use('/api/leave', ...office, requireArea('leave'), requireWriteForChanges, leaveRouter);
+  app.use('/api/loans', ...office, requireArea('loans'), requireWriteForChanges, loansRouter);
+  app.use('/api/people', ...office, requireArea('people'), requireWriteForChanges, peopleRouter);
+  /*
+   * The month carries BOTH the salary sheet and the attendance grid, so it
+   * cannot be gated as one thing - somebody who marks attendance and never
+   * sees pay is exactly the case this exists for. Split by path.
+   */
+  app.use('/api/periods', ...office, requireWriteForChanges, periodsRouter);
+  app.use('/api/hiring', ...office, requireArea('hiring'), requireWriteForChanges, hiringRouter);
+  app.use('/api/attendance', ...office, requireArea('attendance'), requireWriteForChanges, attendanceSelfRouter);
+  app.use('/api', ...office, requireWriteForChanges, reportsRouter);
 
   // Serve the built dashboard when it has been copied into backend/public.
   if (config.serveFrontend && fs.existsSync(path.join(frontendDir, 'index.html'))) {

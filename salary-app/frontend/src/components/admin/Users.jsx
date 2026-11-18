@@ -14,6 +14,7 @@ const when = (v) => String(v || '').replace('T', ' ').slice(0, 16);
 export default function Users({ me, onError }) {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [adding, setAdding] = useState(false);
   // Set the moment somebody types in the username box themselves, after
   // which the name no longer writes over it.
@@ -23,9 +24,10 @@ export default function Users({ me, onError }) {
 
   const load = async () => {
     try {
-      const { users: list, roles: kinds } = await api.get('/auth/users');
+      const { users: list, roles: kinds, areas: parts } = await api.get('/auth/users');
       setUsers(list);
       setRoles(kinds);
+      setAreas(parts || []);
     } catch (err) {
       onError(err);
     }
@@ -183,6 +185,7 @@ export default function Users({ me, onError }) {
             <th>Name</th>
             <th>Username</th>
             <th>Role</th>
+            <th>May use</th>
             <th>Last signed in</th>
             <th />
           </tr>
@@ -204,6 +207,24 @@ export default function Users({ me, onError }) {
                     </option>
                   ))}
                 </select>
+              </td>
+              {/*
+                * WHICH TABS, beside what kind of action.
+                *
+                * Dinesh, with four people all Admin: "rights me aur option
+                * do". Nothing ticked means everything, which is what every
+                * login already is - so this appearing changes nobody, and
+                * narrowing is a thing somebody chooses, one at a time.
+                *
+                * A staff login carries none of these: its whole authority is
+                * its own payslip, and a tick here would mean nothing.
+                */}
+              <td className="small">
+                {user.role === 'employee' ? (
+                  <span className="muted">their own record only</span>
+                ) : (
+                  <AreaTicks user={user} areas={areas} onPatch={patch} />
+                )}
               </td>
               <td className="muted small">{user.last_login_at ? when(user.last_login_at) : 'never'}</td>
               <td>
@@ -246,5 +267,53 @@ export default function Users({ me, onError }) {
         cannot be demoted, switched off or removed — there would be nobody left who could make one.
       </p>
     </section>
+  );
+}
+
+/**
+ * The areas one login may use.
+ *
+ * Shown as "Everything" until somebody narrows it, because that is what an
+ * empty list MEANS - not "nothing". Unticking the last box puts it back to
+ * everything rather than locking the person out of an app they then have to
+ * be talked through unlocking.
+ */
+function AreaTicks({ user, areas, onPatch }) {
+  const [open, setOpen] = useState(false);
+  const has = user.areas || [];
+  const narrowed = has.length > 0;
+
+  const toggle = (key) => {
+    const next = has.includes(key) ? has.filter((a) => a !== key) : [...has, key];
+    onPatch(user, { areas: next });
+  };
+
+  return (
+    <>
+      <button className="link" onClick={() => setOpen(!open)}>
+        {narrowed
+          ? has.map((a) => areas.find(([k]) => k === a)?.[1] || a).join(', ')
+          : 'Everything'}
+      </button>
+      {open && (
+        <div className="area-ticks">
+          {areas.map(([key, label, what]) => (
+            <label key={key} title={what}>
+              <input
+                type="checkbox"
+                checked={has.includes(key)}
+                onChange={() => toggle(key)}
+              />
+              {label}
+            </label>
+          ))}
+          <p className="muted small" style={{ margin: '0.4rem 0 0' }}>
+            Nothing ticked means <strong>everything</strong>. Enforced on the server — a tab that
+            is not ticked cannot be reached by knowing its address either, and a login without
+            <strong> Salary sheet</strong> sees no pay figure anywhere.
+          </p>
+        </div>
+      )}
+    </>
   );
 }

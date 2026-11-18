@@ -3861,3 +3861,41 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
   cursor: default;
 }
 .code-preview:focus { outline: none; border-color: transparent; }
+
+/*
+ * The per-login area ticks, opened under a row.
+ *
+ * In the table cell rather than a dialog: somebody comparing four logins
+ * wants to see them side by side, and a modal would mean opening and closing
+ * four times.
+ */
+.area-ticks {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 13rem;
+}
+.area-ticks label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+/* The global input rule gives every input a border, a background and padding,
+ * which on a checkbox replaces the native tick with an empty box. Handed back
+ * to the browser explicitly - the same bug as the Settings panel and the
+ * sign-in screen's Remember Me. */
+.area-ticks input[type='checkbox'] {
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: revert;
+  background: revert;
+  appearance: auto;
+}

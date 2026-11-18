@@ -1,3 +1,5 @@
+import { may } from '../../../shared/rights.js';
+import { requireArea } from '../auth.js';
 import { Router } from 'express';
 import { requireAbility } from '../auth.js';
 import {
@@ -33,6 +35,31 @@ import {
 } from '../../../shared/attendanceSheet.js';
 
 export const periodsRouter = Router();
+
+/*
+ * THE MONTH IS TWO JOBS SHARING ONE ROUTER.
+ *
+ * `/periods/:id/payroll` is the salary sheet; `/periods/:id/attendance` is
+ * the grid. Somebody who marks attendance and never sees pay is the whole
+ * reason areas exist, so gating the router as one thing would defeat it.
+ *
+ * The month ITSELF - the list, opening one, its settings - is allowed to
+ * anybody with either, because neither job can be done without it.
+ */
+periodsRouter.use((req, res, next) => {
+  const path = req.path || '';
+  const wants =
+    /^\/\d+\/(attendance|holidays)/.test(path) ? 'attendance'
+    : /^\/\d+\/(payroll|payslip|rows|sync)/.test(path) ? 'salary'
+    : '';
+  if (!wants) {
+    if (may(req.actor, 'salary') || may(req.actor, 'attendance')) return next();
+    return res.status(403).json({
+      error: 'This login covers neither the salary sheet nor attendance, so a month is not open to it.',
+    });
+  }
+  return requireArea(wants)(req, res, next);
+});
 
 const sheetUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 

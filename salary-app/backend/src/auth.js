@@ -1,3 +1,4 @@
+import { areaLabel, may, withoutPay } from '../../shared/rights.js';
 import crypto from 'node:crypto';
 import { config } from './config.js';
 import { abilitiesOf, countUsers, getUser, sessionSecret } from './users.js';
@@ -93,6 +94,13 @@ export function actorOf(req) {
         username: user.username,
         role: user.role,
         abilities: user.abilities,
+        /*
+         * Read fresh with the role, for the same reason: narrowing a login
+         * has to take effect NOW, not in a fortnight when the cookie runs
+         * out. Leaving it off here was the whole feature doing nothing -
+         * `may` saw no areas and read that as "not narrowed".
+         */
+        areas: user.areas ?? [],
         must_change: user.must_change,
         // Which person this login IS, for a staff login. Read fresh with the
         // role, for the same reason: it is the whole of their authority.
@@ -227,3 +235,47 @@ export function requireSelf(req, res, next) {
  * payroll through any GET, so the gate is explicit now.
  */
 export const requireRead = requireAbility('read');
+
+/* ===================================================================== *
+ * Which PART of the app a login may use
+ * ===================================================================== */
+
+/**
+ * Refuse an area this login has not been given.
+ *
+ * Dinesh: *"rights me aur option do"* — four people all Admin, and no way to
+ * say that one of them handles attendance and has no business on the salary
+ * sheet.
+ *
+ * ENFORCED HERE, ON THE SERVER, not by hiding a tab. The Admin screen has
+ * promised exactly that about roles since it was written, and a right that
+ * only hides a button is not a right — somebody who knows the address still
+ * gets the data.
+ *
+ * A login with nothing ticked may use everything, so turning this on moves
+ * nobody.
+ */
+export const requireArea = (area) => (req, res, next) => {
+  if (may(req.actor, area)) return next();
+  return res.status(403).json({
+    error: `This login does not cover ${areaLabel(area)}. An admin can change that under Admin → Logins.`,
+  });
+};
+
+/**
+ * TAKE THE PAY OUT OF EVERY ANSWER, for a login without the salary area.
+ *
+ * One place, wrapping res.json, rather than a filter remembered on each of
+ * the dozen routes that carry a figure — the employee master, a payroll row,
+ * a payslip, a register, a report, an export. A list of screens to remember
+ * is a list somebody forgets, and a figure that leaks once has leaked.
+ *
+ * It does NOT touch /api/me: that is somebody's own payslip, which is the one
+ * salary they are always allowed to see.
+ */
+export function hidePay(req, res, next) {
+  if (may(req.actor, 'salary')) return next();
+  const json = res.json.bind(res);
+  res.json = (body) => json(withoutPay(body));
+  return next();
+}

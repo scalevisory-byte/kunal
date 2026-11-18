@@ -33,8 +33,14 @@ test('a topic that names a tab names a real one', () => {
    * and "Open it →" must not land on a tab that does not exist.
    */
   const app = src('App.jsx');
+  /*
+   * The key is the first item; what follows it has grown - a label, an icon,
+   * and now the right the tab needs. Matching the whole shape meant this
+   * stopped finding ANY tab the moment a fourth item was added, and reported
+   * it as "0 tabs to check against" rather than as a help topic being wrong.
+   */
   const tabs = new Set(
-    [...app.matchAll(/^\s*\[\s*'([a-z]+)',\s*'[^']+',\s*'[a-z]+'\s*\]/gm)].map((m) => m[1])
+    [...app.matchAll(/^\s*\['([a-z]+)',\s*'[^']+',/gm)].map((m) => m[1])
   );
   assert.ok(tabs.size >= 8, `only found ${tabs.size} tabs to check against`);
   for (const topic of HELP) {

@@ -40,6 +40,16 @@ export default function Dashboard({
   onPeriod,
   onSaveAttendance,
   locked,
+  /*
+   * Which parts of the app this login carries. The dashboard pulls from
+   * People, Assets and the salary sheet to draw its cards; asking for one a
+   * login has not been given is three refusals on every load, for figures it
+   * was never going to be shown.
+   *
+   * Defaults to "everything", so the single-file build and any caller that
+   * does not pass it behave exactly as before.
+   */
+  mayUse = () => true,
 }) {
   const [leave, setLeave] = useState([]);
   const [history, setHistory] = useState([]); // the last few months, for the trend
@@ -89,14 +99,22 @@ export default function Dashboard({
   useEffect(() => {
     let cancelled = false;
     if (STANDALONE) return undefined;
-    api
-      .get('/people/digest')
-      .then((body) => !cancelled && setWaiting(body))
-      .catch(() => !cancelled && setWaiting(null));
-    api
-      .get('/people/maintenance')
-      .then((body) => !cancelled && setAssets(body))
-      .catch(() => !cancelled && setAssets(null));
+    if (mayUse('people')) {
+      api
+        .get('/people/digest')
+        .then((body) => !cancelled && setWaiting(body))
+        .catch(() => !cancelled && setWaiting(null));
+    } else {
+      setWaiting(null);
+    }
+    if (mayUse('assets')) {
+      api
+        .get('/people/maintenance')
+        .then((body) => !cancelled && setAssets(body))
+        .catch(() => !cancelled && setAssets(null));
+    } else {
+      setAssets(null);
+    }
     return () => {
       cancelled = true;
     };
@@ -112,6 +130,12 @@ export default function Dashboard({
     let cancelled = false;
     if (!period || !periods.length) return undefined;
     const ordered = [...periods].sort((a, b) => a.year - b.year || a.month - b.month);
+    // The trend is six months of pay. Without the salary right there is
+    // nothing to draw and six refusals to collect.
+    if (!mayUse('salary')) {
+      setHistory([]);
+      return undefined;
+    }
     const upto = ordered.filter((p) => p.year * 12 + p.month <= period.year * 12 + period.month);
     const wanted = upto.slice(-6);
     Promise.all(

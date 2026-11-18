@@ -542,6 +542,23 @@ export const HELP = [
     note: 'ONE FILE HOLDS ONE PERSON. It is built from one candidate\u2019s records and never from a list, because this is the file most likely to be forwarded. It also ASSEMBLES: every figure in it was worked out once and stored, so the file and the screen cannot disagree.',
   },
   {
+    id: 'rights',
+    title: 'Who may see and change what',
+    tab: 'admin',
+    keywords: [
+      'rights', 'permission', 'role', 'access', 'login', 'restrict', 'hide salary',
+      'adhikar', 'haq', 'rok', 'chhipana', 'tankhwah chhipana',
+    ],
+    lines: [
+      'Each login has a **role** — Admin, HR, Viewer or Staff — which says what KIND of thing they may do: look, change, or change the installation itself.',
+      'Beside it, **May use** says WHERE. Tick the parts of the app that login covers — Salary sheet, Attendance & time, Leave, Loans, Employees, Assets, Hiring, People, Reports.',
+      '**Nothing ticked means everything**, which is what every login already was, so this changes nobody until you narrow one. Unticking the last box puts it back to everything rather than locking somebody out.',
+      'A login **without Salary sheet sees no pay figure anywhere** — not on the sheet, not on a payslip, not on the employee master, not in an export. It can still mark attendance on the same month.',
+      'Admin is not on the list: it follows the role. Locking somebody out of their own Logins screen with a tick is how an installation ends up with nobody who can fix it.',
+    ],
+    note: 'Enforced on the SERVER, not by hiding tabs. A tab that is not ticked cannot be reached by knowing its address either — hiding it is only a courtesy so nobody is shown a door that opens onto an error.',
+  },
+  {
     id: 'theme',
     title: 'Light or dark',
     tab: 'dashboard',

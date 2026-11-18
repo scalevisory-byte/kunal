@@ -50,19 +50,31 @@ const MONTHLY_TABS = new Set([
 ]);
 
 /* key, what it is called, its icon */
+/*
+ * The tabs, and which RIGHT each one needs.
+ *
+ * Hiding a tab somebody may not use is a courtesy, not the rule - the server
+ * refuses the data whatever this list does, and there are tests for that. Its
+ * job here is simply that nobody is shown a door that opens onto an error.
+ *
+ * Dashboard and Admin carry no area: the dashboard is the page the app opens
+ * on, and Admin is governed by the `admin` ability instead - locking somebody
+ * out of their own Logins screen with a tick is how an installation ends up
+ * with nobody who can fix it.
+ */
 const TABS = [
-  ['dashboard', 'Dashboard', 'dashboard'],
-  ['sheet', 'Salary sheet', 'sheet'],
-  ['attendance', 'Attendance', 'attendance'],
-  ['time', 'Time', 'clock'],
-  ['leave', 'Leave', 'leave'],
-  ['loans', 'Loans', 'loans'],
-  ['employees', 'Employees', 'employees'],
-  ['assets', 'Assets', 'asset'],
-  ['hiring', 'Hiring', 'hiring'],
-  ['people', 'People', 'person'],
-  ['reports', 'Reports', 'reports'],
-  ['admin', 'Admin', 'admin'],
+  ['dashboard', 'Dashboard', 'dashboard', ''],
+  ['sheet', 'Salary sheet', 'sheet', 'salary'],
+  ['attendance', 'Attendance', 'attendance', 'attendance'],
+  ['time', 'Time', 'clock', 'attendance'],
+  ['leave', 'Leave', 'leave', 'leave'],
+  ['loans', 'Loans', 'loans', 'loans'],
+  ['employees', 'Employees', 'employees', 'employees'],
+  ['assets', 'Assets', 'asset', 'assets'],
+  ['hiring', 'Hiring', 'hiring', 'hiring'],
+  ['people', 'People', 'person', 'people'],
+  ['reports', 'Reports', 'reports', 'reports'],
+  ['admin', 'Admin', 'admin', ''],
 ];
 
 const PERIOD_KEY = 'salary-app-period';
@@ -163,6 +175,26 @@ function Shell() {
   // cannot do - the server refuses it regardless, so this is courtesy rather
   // than the control.
   const [me, setMe] = useState(null);
+  /*
+   * ASK BEFORE FETCHING.
+   *
+   * A login narrowed to attendance has no salary sheet and no employee
+   * master, and asking for them anyway opened the app on a red banner saying
+   * so - which reads as a fault rather than as a right somebody set. Exactly
+   * the bug a staff sign-in had, in a new coat.
+   *
+   * Courtesy, not the control: the server refuses these whatever the browser
+   * asks, and there are tests for that.
+   */
+  const mayUse = useCallback(
+    (area) => {
+      if (STANDALONE || !area) return true;
+      const mine = me?.areas;
+      return !Array.isArray(mine) || mine.length === 0 || mine.includes(area);
+    },
+    [me]
+  );
+
 
   const [tab, setTab] = useState('dashboard');
   /*
@@ -254,22 +286,32 @@ function Shell() {
     return list;
   }, []);
 
-  const loadPayroll = useCallback(async (id) => {
-    if (!id) {
-      setPayroll(null);
-      return;
-    }
-    setPayroll(await api.get(`/periods/${id}/payroll`));
-  }, []);
+  const loadPayroll = useCallback(
+    async (id) => {
+      if (!id || !mayUse('salary')) {
+        setPayroll(null);
+        return;
+      }
+      setPayroll(await api.get(`/periods/${id}/payroll`));
+    },
+    [mayUse]
+  );
 
   const loadMaster = useCallback(async () => {
-    const [{ companies: c }, { employees: e }] = await Promise.all([
-      api.get('/companies'),
-      api.get('/employees'),
-    ]);
+    /*
+     * The company list is needed on every screen and is open to anybody
+     * signed in. The employee master is not - a login narrowed away from
+     * Employees must not be asking for it.
+     */
+    const { companies: c } = await api.get('/companies');
     setCompanies(c);
+    if (!mayUse('employees')) {
+      setEmployees([]);
+      return;
+    }
+    const { employees: e } = await api.get('/employees');
     setEmployees(e);
-  }, []);
+  }, [mayUse]);
 
   const loadAll = useCallback(async () => {
     setError('');
@@ -512,9 +554,17 @@ function Shell() {
    * says "this is not yours" is a tab worth not showing. The single-file build
    * has no server to sign in to, so it keeps it and explains itself inside.
    */
-  const visibleTabs = TABS.filter(
-    ([key]) => key !== 'admin' || STANDALONE || me?.abilities?.includes('admin')
-  );
+  const visibleTabs = TABS.filter(([key, , , area]) => {
+    if (key === 'admin') return STANDALONE || me?.abilities?.includes('admin');
+    /*
+     * The areas this login was given. Absent means nobody narrowed it, which
+     * is everything - the single-file build has no login at all and so is
+     * never narrowed.
+     */
+    if (STANDALONE || !area) return true;
+    const mine = me?.areas;
+    return !Array.isArray(mine) || mine.length === 0 || mine.includes(area);
+  });
 
   // A company that has been deleted must not keep filtering everything away.
   const activeCompany = companies.find((c) => c.id === companyId) || null;
@@ -762,6 +812,7 @@ function Shell() {
 
         {tab === 'dashboard' && (
           <Dashboard
+            mayUse={mayUse}
             period={period}
             periods={periods}
             payroll={payroll && { ...payroll, rows: visibleRows }}

@@ -1,3 +1,4 @@
+import { AREAS, allowedAreas } from '../../../shared/rights.js';
 import { Router } from 'express';
 import { actorOf, clearSessionCookie, makeSession, requireAbility, setSessionCookie, wideOpen } from '../auth.js';
 import {
@@ -62,6 +63,10 @@ authRouter.get('/state', (req, res) => {
           username: actor.username,
           role: actor.role,
           abilities: actor.abilities,
+          /* Which tabs to draw. The server refuses the rest whatever the
+           * browser does with this - hiding a tab is a courtesy, not the
+           * rule. */
+          areas: allowedAreas(actor),
           must_change: actor.must_change,
           via: actor.via,
         }
@@ -116,7 +121,7 @@ authRouter.post('/password', (req, res) => {
 /* ---------------- managing logins (admin only) ---------------- */
 
 authRouter.get('/users', requireAbility('admin'), (_req, res) => {
-  res.json({ users: listUsers(), roles: ROLES });
+  res.json({ users: listUsers(), roles: ROLES, areas: AREAS });
 });
 
 authRouter.post('/users', requireAbility('admin'), (req, res) => {

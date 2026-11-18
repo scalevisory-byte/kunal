@@ -1,3 +1,4 @@
+import { AREA_KEYS, areasOf } from '../../shared/rights.js';
 import crypto from 'node:crypto';
 import { db } from './db.js';
 import { log } from './logger.js';
@@ -114,6 +115,18 @@ db.exec(
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_user_employee ON users(employee_id) WHERE employee_id IS NOT NULL`
 );
 
+/*
+ * WHICH PARTS OF THE APP THIS LOGIN MAY USE.
+ *
+ * NULL MEANS EVERYTHING ITS ROLE ALLOWS, which is what every login already
+ * is - so adding the column moves nobody. Narrowing is something somebody
+ * chooses, one login at a time, on the Admin screen.
+ */
+if (!db.prepare(`PRAGMA table_info(users)`).all().some((c) => c.name === 'areas')) {
+  db.exec(`ALTER TABLE users ADD COLUMN areas TEXT`);
+  log.info('Migrated users: added areas, for per-login rights.');
+}
+
 export const ROLES = [
   {
     key: 'admin',
@@ -209,6 +222,8 @@ const publicUser = (row) =>
     created_at: row.created_at,
     last_login_at: row.last_login_at,
     abilities: abilitiesOf(row.role),
+    /* The list, not the raw column: every caller wants it cleaned. */
+    areas: areasOf(row),
     // Which person this login is, for a staff login. Null for the office.
     employee_id: row.employee_id ?? null,
     employee_name: row.employee_id
@@ -370,6 +385,20 @@ export function updateUser(id, patch = {}) {
     }
     fields.push('role = ?');
     values.push(patch.role);
+  }
+  if ('areas' in patch) {
+    /*
+     * An EMPTY list is stored as null, which means "everything this role
+     * allows". Storing [] would read as "nothing", and a login that can open
+     * no tab at all is a login somebody has to be talked through unlocking.
+     * Unticking the last box is far likelier to mean "stop narrowing this
+     * one" than "lock them out of the whole app".
+     */
+    const wanted = Array.isArray(patch.areas)
+      ? [...new Set(patch.areas.map((a) => String(a)).filter((a) => AREA_KEYS.includes(a)))]
+      : [];
+    fields.push('areas = ?');
+    values.push(wanted.length ? JSON.stringify(wanted) : null);
   }
   if ('active' in patch) {
     const next = patch.active ? 1 : 0;

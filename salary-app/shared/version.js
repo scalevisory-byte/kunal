@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.20.0';
+export const VERSION = '1.21.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.21.0',
+    date: '18 Nov 2026',
+    title: 'Rights: which parts of the app each login may use',
+    items: [
+      '**Admin → Logins has a new column, “May use”.** Tick the parts of the app a login covers — Salary sheet, Attendance & time, Leave, Loans, Employees, Assets, Hiring, People, Reports. The role still says what KIND of thing they may do; this says where.',
+      '**Nothing ticked means everything**, which is what every login already is — so this appearing changes nobody. Narrowing is something you choose, one login at a time, and unticking the last box puts it back to everything rather than locking somebody out.',
+      '**A login without Salary sheet sees no pay figure anywhere** — not on the sheet, not on a payslip, not on the employee master, not in an export. The money is taken out in ONE place rather than remembered on a dozen screens, because a figure that leaks once has leaked.',
+      '**Attendance and the salary sheet are separate rights on the same month.** Somebody who marks attendance and never sees pay is the whole reason this exists, so the month is split by what you are asking for, not gated as one thing.',
+      '**Enforced on the server.** A tab that is not ticked cannot be reached by knowing its address either. Hiding the tab is only a courtesy so nobody is shown a door that opens onto an error.',
+      'Admin stays with the role, deliberately: locking somebody out of their own Logins screen with a tick is how an installation ends up with nobody who can fix it.',
+    ],
+  },
   {
     version: '1.20.0',
     date: '18 Nov 2026',
