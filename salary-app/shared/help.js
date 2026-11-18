@@ -461,6 +461,7 @@ export const HELP = [
     keywords: [
       'asset', 'laptop', 'handover', 'stock take', 'maintenance', 'amc', 'barcode', 'saman',
       'import', 'excel', 'list', 'imei', 'serial', 'bulk', 'upload', 'suchi',
+      'group', 'category', 'computer', 'furniture', 'mobile', 'shreni', 'prakar',
     ],
     lines: [
       'Every asset gets a code like `BPL-LAP-014`, a printable barcode label, purchase details, warranty and an AMC.',
@@ -470,6 +471,8 @@ export const HELP = [
       '**Import from Excel** reads the list you already keep. The columns are matched on what your sheet CALLS them — Asset ID, Item Name, Modal, assignee, Purchased Date, Warenty date, Purchase Invoice, location, Room all work. An empty cell written as **-** is read as empty, not as a value.',
       'It shows you what it would do first and writes nothing until you say so. Anybody named as holding something who is not on the staff list is **reported, never invented** — those assets come in as in the office.',
       '**A 15-digit IMEI in a plain Excel cell is destroyed by Excel**, not by us: it saves 3.52E+14 and the real number is gone from the file. Those rows are named and come in **without** a serial rather than with a wrong one. Format that column as Text before saving to keep them.',
+      '**Groups** — Computer, Furniture, Mobile, Electrical, Network, Security, Office equipment, Vehicle, Tools. The buttons above the register narrow it to one, each carrying its own count, and the Group is a column in the CSV.',
+      'A group is **worked out from the kind**, never stored beside it — so correcting one chair’s kind moves it, and the Group column can never disagree with the Kind next to it. A kind nobody has mapped reads as **Other**, which means “nobody has said where this belongs”, not “miscellaneous”.',
     ],
     note: '"Not checked" is NOT "missing". The stock take always shows three figures, never two — counting the third as the second invents losses and gets somebody asked to pay for a laptop that is in a drawer. And an unreturned asset at exit is named and valued, never deducted.',
   },

@@ -5,6 +5,7 @@ import AssetMasters from './AssetMasters.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
+import { groupLabel, groupOf, groupTally } from '../../../../shared/assetGroups.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
@@ -46,6 +47,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   }, [from]);
   const [allBranches, setAllBranches] = useState([]);
   const [filter, setFilter] = useState('all');
+  /*
+   * Computer / Furniture / Mobile - Dinesh asked for these by name. One
+   * group at a time, blank for all of them.
+   */
+  const [group, setGroup] = useState('');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -198,6 +204,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
        */
       if (filter === 'gone' && !a.written_off_on) return false;
       if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+      /*
+       * The group is WORKED OUT from the kind, never read off a column - so
+       * narrowing by it cannot disagree with what the row says it is.
+       */
+      if (group && groupOf(a.kind, a.label) !== group) return false;
       /* The dashboard's own filter, applied by the dashboard's own code. */
       if (narrowed && !matchesFilter(a, narrowed)) return false;
       if (!q) return true;
@@ -205,6 +216,30 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
+  }, [assets, filter, query, narrowed, group]);
+
+  /*
+   * The count on each group button.
+   *
+   * Taken BEFORE the group filter and after every other one, which is what
+   * makes the buttons useful: "Furniture 369" is a reason to press it, and
+   * counting only what is already on screen would make every button read as
+   * the whole list. The same rule the test-results filter follows.
+   */
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = assets.filter((a) => {
+      if (filter === 'out' && !isOut(a)) return false;
+      if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
+      if (filter === 'gone' && !a.written_off_on) return false;
+      if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+      if (narrowed && !matchesFilter(a, narrowed)) return false;
+      if (!q) return true;
+      return [a.code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+    return groupTally(base);
   }, [assets, filter, query, narrowed]);
 
   const act = async (call) => {
@@ -463,6 +498,35 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           </button>
         </span>
       </div>
+
+      {/*
+        * COMPUTER, FURNITURE, MOBILE - asked for by name.
+        *
+        * Each button carries its own count, because that is what makes it
+        * worth pressing. The group is worked out from the kind every time it
+        * is needed and stored nowhere, so it cannot come to disagree with
+        * what the row says it is.
+        *
+        * Shown only once there is more than one group to choose between: a
+        * register of four laptops does not need a filter saying "Computer 4".
+        */}
+      {groups.length > 1 && (
+        <div className="sub-tabs toolbar group-chips">
+          <button className={group ? undefined : 'active'} onClick={() => setGroup('')}>
+            All groups
+          </button>
+          {groups.map((g) => (
+            <button
+              key={g.group}
+              className={group === g.group ? 'active' : undefined}
+              onClick={() => setGroup(group === g.group ? '' : g.group)}
+              title={g.kinds.join(', ')}
+            >
+              {g.label} <span className="muted">{g.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/*
         * Say what is being hidden. A register silently showing a subset is how
@@ -789,7 +853,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                   </td>
                   <td className="sticky-name">
                     {asset.kind} — {asset.label}
-                    {asset.branch_name && <div className="muted small">{asset.branch_name}</div>}
+                    <div className="muted small">
+                      {groupLabel(groupOf(asset.kind, asset.label))}
+                      {asset.branch_name ? ` · ${asset.branch_name}` : ''}
+                    </div>
                   </td>
                   <td className="muted small">{asset.identifier || '—'}</td>
                   <td className="num">{asset.purchase_cost ? rupees(asset.purchase_cost) : '—'}</td>

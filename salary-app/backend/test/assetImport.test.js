@@ -106,7 +106,13 @@ test('the kind comes from the sheet, or from the item’s own name', () => {
   assert.equal(kindOf('', 'Dell Latitude 3420 laptop'), 'laptop');
   assert.equal(kindOf('', 'HP LaserJet printer'), 'printer');
   assert.equal(kindOf('', 'Something odd'), 'other');
-  assert.equal(kindOf('Air conditioner', 'AC unit'), 'air-conditioner', 'a kind it does not know is kept');
+  /*
+   * "Air conditioner" IS known now - the vocabulary grew from his own
+   * register, where 457 of a thousand rows were coming out as "other". A kind
+   * it genuinely does not know is still kept as typed.
+   */
+  assert.equal(kindOf('Air conditioner', 'AC unit'), 'ac');
+  assert.equal(kindOf('Fire extinguisher', 'Red one'), 'fire-extinguisher', 'an unknown kind is kept');
 });
 
 test('a blank line in the middle of a sheet is not a problem', () => {

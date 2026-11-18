@@ -108,29 +108,105 @@ export function detectLayout(rows = []) {
   return { headerRow: -1, columns: {} };
 }
 
+/*
+ * What an office actually writes on an asset list.
+ *
+ * His thousand rows produced 457 "other" - a register where half of
+ * everything is uncategorised is a register nobody can filter. The words
+ * below are taken from HIS sheet: LIGHT, MOUSE, CALCULATOR, KEYBOARD,
+ * STORAGE, CCTV, AC, PENDRIVE, WI-FI DONGAL, FREEDGE, ALMARI, among others,
+ * spelt the way they are spelt there.
+ *
+ * Order matters: the first match wins, so the specific ones come before the
+ * general. "CHARGER CABLE" must find charger before cable, and
+ * "STORAGE WITH DROWER KEY" must find storage before anything else.
+ */
 const KINDS = {
   laptop: ['laptop', 'notebook', 'macbook'],
-  desktop: ['desktop', 'pc', 'computer', 'cpu'],
-  phone: ['phone', 'mobile', 'handset', 'smartphone'],
+  monitor: ['monitor', 'screen', 'display', 'led'],
+  printer: ['printer', 'scanner', 'mfp', 'xerox'],
+  keyboard: ['keyboard', 'key board'],
+  mouse: ['mouse'],
+  ups: ['ups', 'inverter battery'],
+  'storage-device': ['pendrive', 'pen drive', 'hard disk', 'harddisk', 'hdd', 'ssd', 'usb drive'],
+  server: ['server', 'nas'],
+  tablet: ['tablet', 'ipad'],
+  headset: ['headphone', 'headset', 'earphone'],
+  webcam: ['webcam', 'web cam'],
+  // Before desktop, or "CPU CABLE" reads as a computer.
+  charger: ['charger'],
+  cable: ['cable', 'wire', 'cord', 'adapter'],
+  desktop: ['desktop', 'cpu', 'computer', 'pc'],
+
   sim: ['sim', 'sim card'],
-  printer: ['printer', 'scanner', 'mfp'],
-  furniture: ['chair', 'table', 'desk', 'cabinet', 'almirah', 'furniture'],
+  phone: ['phone', 'mobile', 'handset', 'smartphone'],
+  powerbank: ['power bank', 'powerbank'],
+
+  // Before furniture, so "STORAGE WITH DROWER KEY" is not a desk.
+  cupboard: ['storage', 'almari', 'almirah', 'cupboard', 'locker', 'wardrobe'],
+  sofa: ['sofa', 'couch'],
+  rack: ['rack', 'shelf', 'shelves'],
+  chair: ['chair', 'stool'],
+  table: ['table', 'desk', 'workstation'],
+  partition: ['partition', 'cubicle'],
+  furniture: ['furniture', 'cabinet'],
+
+  'access-point': ['access point', 'accesspoint'],
+  dongle: ['dongle', 'dongal'],
+  router: ['router'],
+  switch: ['switch', 'poe'],
+  modem: ['modem'],
+  firewall: ['firewall'],
+
+  // Before cctv, because "CCTV-NVR" is a recorder.
+  nvr: ['nvr', 'dvr'],
+  cctv: ['cctv', 'surveillance'],
+  biometric: ['biometric', 'essl', 'punch machine', 'attendance machine'],
+  camera: ['camera'],
+  'access-card': ['access card'],
+  'id-card': ['id card', 'identity card'],
+
+  ac: ['ac', 'air conditioner', 'aircon', 'split ac'],
+  fridge: ['fridge', 'freedge', 'refrigerator'],
+  'water-cooler': ['water cooler', 'water purifier', 'ro'],
+  tv: ['tv', 'television'],
+  fan: ['fan'],
+  geyser: ['geyser'],
+  light: ['light', 'lamp', 'tube'],
+
+  calculator: ['calculator'],
+  speaker: ['speaker', 'sound box'],
+  projector: ['projector'],
+  shredder: ['shredder'],
+  telephone: ['telephone', 'intercom', 'epabx'],
+
   vehicle: ['bike', 'scooter', 'car', 'vehicle'],
-  monitor: ['monitor', 'screen', 'display'],
+  tools: ['toolkit', 'tool kit'],
 };
 
 /** A kind from what the sheet says, or from the item's own name. */
+/*
+ * WHOLE WORDS, NOT SUBSTRINGS.
+ *
+ * "ac" is a kind and it is two letters long, so a substring match turns RACK,
+ * BLACK BOARD and every ACCESS POINT into an air conditioner. The same trap
+ * the skills parser hit, where "and" inside "demand planning" made a skill
+ * nobody had. A trailing s is allowed, because an office writes CHAIRS.
+ */
+const says = (haystack, word) =>
+  new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`).test(haystack);
+
 export function kindOf(stated, label) {
   const said = key(stated);
   if (said) {
     for (const [kind, words] of Object.entries(KINDS)) {
-      if (words.some((w) => said.includes(w))) return kind;
+      if (words.some((w) => says(said, w))) return kind;
     }
     return said.replace(/\s+/g, '-');
   }
   const name = key(label);
   for (const [kind, words] of Object.entries(KINDS)) {
-    if (words.some((w) => name.includes(w))) return kind;
+    if (words.some((w) => says(name, w))) return kind;
   }
   return 'other';
 }

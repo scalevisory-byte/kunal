@@ -1,3 +1,4 @@
+import { groupLabel, groupOf } from './assetGroups.js';
 /**
  * The asset reports: the register, who holds what, and a slip to sign.
  *
@@ -13,6 +14,9 @@ const money = (n) => (Number.isFinite(Number(n)) ? Math.round(Number(n)) : '');
 /** The register, one line per asset. */
 export const REGISTER_COLUMNS = [
   ['Code', (a) => a.code || ''],
+  // Worked out from the kind, never a stored column - so a spreadsheet
+  // sorted by Group cannot disagree with the Kind beside it.
+  ['Group', (a) => groupLabel(groupOf(a.kind, a.label))],
   ['Kind', (a) => a.kind || ''],
   ['What', (a) => a.label || ''],
   ['Serial / number', (a) => a.identifier || ''],

@@ -332,7 +332,11 @@ test('the register and the handovers download as CSV', async () => {
   const bytes = Buffer.from(await register.arrayBuffer());
   assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'a BOM, so Excel opens it right');
   const csv = bytes.toString('utf8');
-  assert.match(csv, /Code,Kind,What/);
+  // Group sits between Code and Kind now - Computer, Furniture, Mobile. It is
+  // worked out from the kind rather than stored, so a sheet sorted by Group
+  // cannot disagree with the Kind beside it.
+  assert.match(csv, /Code,Group,Kind,What/);
+  assert.match(csv, /BPL-LAP-001,Computer,Laptop/);
   assert.match(csv, /BPL-LAP-001/);
   assert.match(csv, /Rajhans Computers/);
   assert.match(csv, /in the office|Riya Pal/, 'where it is reads as words');

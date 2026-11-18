@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.16.0';
+export const VERSION = '1.17.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.17.0',
+    date: '18 Nov 2026',
+    title: 'Asset groups — Computer, Furniture, Mobile',
+    items: [
+      '**Groups above the register**, each button carrying its own count: Furniture 369, Computer 264, Electrical 130, Mobile 123, Office equipment 67, Security 27, Network 18. Press one to see only those. The group also shows under every name and is a column in the CSV.',
+      '**A group is worked out from the kind, never stored beside it.** Correct a chair’s kind and it moves group by itself, and the Group column can never disagree with the Kind next to it.',
+      '**457 of your 1,004 assets were landing in “other”.** The app only knew eight kinds. It now knows the words your own list uses — LIGHT, MOUSE, CALCULATOR, KEYBOARD, STORAGE, CCTV, AC, PENDRIVE, WI-FI DONGAL, FREEDGE, ALMARI and the rest, spelt as you spell them. **Six are left**, and they are shown as Other rather than guessed at.',
+      'Fixed on the way: a two-letter kind was being matched inside longer words, so RACK, BLACK BOARD and every ACCESS POINT were being filed as air conditioners. A kind now has to match a whole word.',
+    ],
+  },
   {
     version: '1.16.0',
     date: '17 Nov 2026',
