@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#1f3864" />
     <title>BOOKNFLY HRMS</title>
+    <!--
+      BEFORE THE FIRST PAINT, not after React starts.
+
+      Setting the theme from a component means the page draws light first and
+      then jumps to dark a moment later - a white flash on every load, on the
+      screen somebody opens forty times a day. Six lines inline, running
+      before the stylesheet has painted anything, instead.
+
+      Wrapped, because merely TOUCHING localStorage throws in a private
+      window. A theme is a convenience; it must never be the reason the
+      payroll will not open.
+    -->
+    <script>
+      try {
+        var t = localStorage.getItem('bnf-hrms-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

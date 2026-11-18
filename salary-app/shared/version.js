@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.17.0';
+export const VERSION = '1.18.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.18.0',
+    date: '18 Nov 2026',
+    title: 'Light or dark, your choice',
+    items: [
+      '**A switch in the rail: Auto / Light / Dark.** Dark already worked — it followed your laptop or phone. What you could not do was disagree with it. Now you can: a laptop that is dark all day can still show this app light.',
+      '**Auto is a real answer, not a missing one.** On Auto the app follows the device every time the device changes — a phone that goes dark at sunset takes the app with it, with no reload.',
+      'The choice is remembered on that browser, and applied **before the page draws**, so there is no white flash on the way to dark.',
+      'It never gets in the way: a browser that refuses to remember anything (a private window) still switches for that tab — it simply forgets after a reload.',
+      'The sign-in screen follows the device on its own, because it is the one screen somebody sees before they can reach the switch.',
+    ],
+  },
   {
     version: '1.17.0',
     date: '18 Nov 2026',

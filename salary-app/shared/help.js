@@ -539,6 +539,22 @@ export const HELP = [
     note: 'ONE FILE HOLDS ONE PERSON. It is built from one candidate\u2019s records and never from a list, because this is the file most likely to be forwarded. It also ASSEMBLES: every figure in it was worked out once and stored, so the file and the screen cannot disagree.',
   },
   {
+    id: 'theme',
+    title: 'Light or dark',
+    tab: 'dashboard',
+    keywords: [
+      'theme', 'dark', 'light', 'night', 'colour', 'color', 'mode', 'bright',
+      'kala', 'safed', 'andhera', 'rang',
+    ],
+    lines: [
+      'The switch is at the bottom of the left rail, under the version: **Auto / Light / Dark**.',
+      '**Auto** follows the computer or phone, every time it changes — a phone that goes dark at sunset takes the app with it, with no reload.',
+      'Light and Dark overrule the device, so a laptop that is dark all day can still show this app light.',
+      'The choice is remembered on that browser only. Each person, and each machine, picks their own.',
+    ],
+    note: 'In a private window the choice still works for that tab, it simply will not survive a reload — nothing there is allowed to be remembered. The sign-in screen follows the device by itself, because it is the one screen you see before you can reach the switch.',
+  },
+  {
     id: 'settings',
     title: 'Settings — the month\u2019s rules and the usual day',
     tab: 'admin',

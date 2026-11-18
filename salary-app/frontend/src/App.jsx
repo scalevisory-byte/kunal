@@ -28,6 +28,7 @@ import AssetsTab from './components/AssetsTab.jsx';
 import Glyph from './icons.jsx';
 import Help, { WhatsNew } from './components/Help.jsx';
 import { VERSION, hasNews } from '../../shared/version.js';
+import { THEMES, applyTheme, readTheme, writeTheme } from '../../shared/theme.js';
 
 
 /* The logo file itself. Vite inlines it as a data URI in the single-file
@@ -206,6 +207,18 @@ function Shell() {
       /* nice to have, never required */
     }
   };
+  /*
+   * Light, dark, or whatever the device says.
+   *
+   * The attribute is already on <html> by now - index.html put it there
+   * before the first paint, so the page never flashes white on its way to
+   * dark. This only has to keep it in step once somebody uses the switch.
+   */
+  const [theme, setTheme] = useState(() => readTheme(window.localStorage));
+  const pickTheme = (next) => {
+    setTheme(applyTheme(document.documentElement, writeTheme(window.localStorage, next)));
+  };
+
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState(Number(localStorage.getItem(PERIOD_KEY)) || null);
   const [payroll, setPayroll] = useState(null);
@@ -561,6 +574,27 @@ function Shell() {
                   v{VERSION} · {BUILT_ON}
                 </span>
               </button>
+              {/*
+                * The switch, in the rail under the version.
+                *
+                * Three choices and not two: "follow the device" is a real
+                * answer, and the one most people want. A two-way toggle has
+                * to pick one at install time and then quietly stops
+                * following a phone that goes dark at sunset.
+                */}
+              <div className="theme-switch" role="group" aria-label="Theme">
+                {THEMES.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={theme === key ? 'active' : undefined}
+                    onClick={() => pickTheme(key)}
+                    title={label}
+                  >
+                    {key === 'system' ? 'Auto' : label}
+                  </button>
+                ))}
+              </div>
               {/*
                 * A blank copy says so, on every screen.
                 *

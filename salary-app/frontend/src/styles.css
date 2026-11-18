@@ -42,8 +42,21 @@
   --viz-s4: #eda100;
 }
 
+/*
+ * DARK, THE TWO WAYS SOMEBODY GETS THERE.
+ *
+ * The device asks for it, OR the person picked it on the Theme switch. Both
+ * have to be honoured, and one has to be able to overrule the other: somebody
+ * whose laptop is in dark mode but who wants this one app light must get a
+ * light app, which `:not([data-theme='light'])` is what delivers.
+ *
+ * The two bodies below are IDENTICAL ON PURPOSE and there is a test asserting
+ * it. CSS has no way to give one rule body two selectors across a media
+ * query, and the alternative - letting them drift - means the manual switch
+ * and the system setting slowly stop agreeing about what dark looks like.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #0e1116;
     --surface: #151a21;
     --line: #262c35;
@@ -68,6 +81,32 @@
     --viz-s3: #199e70;
     --viz-s4: #c98500;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e1116;
+  --surface: #151a21;
+  --line: #262c35;
+  --line-soft: #1d232b;
+  --text: #e8ebef;
+  --muted: #8f98a5;
+  --brand: #7ba5f0;
+  --brand-soft: #182231;
+  --good: #4ec78d;
+  --bad: #f0776a;
+  --warn: #e0a34a;
+
+  /* The same five hues, stepped for the dark surface - not flipped. */
+  --viz-present: #199e70;
+  --viz-half: #c98500;
+  --viz-leave: #3987e5;
+  --viz-absent: #e66767;
+  --viz-paid: #3987e5;
+  --viz-none: #2f3741;
+  --viz-s1: #3987e5;
+  --viz-s2: #d95926;
+  --viz-s3: #199e70;
+  --viz-s4: #c98500;
 }
 
 * { box-sizing: border-box; }
@@ -3049,8 +3088,14 @@ table.sheet.hiring-table td.nowrap { white-space: nowrap; }
   .signin-spinner { animation-duration: 2s; }
 }
 
+/*
+ * The sign-in screen, dark. Both ways in, same as the palette above: the
+ * device asked, or the person picked it. This screen is the one somebody sees
+ * BEFORE they can reach the switch, so it has to follow the device by itself.
+ */
 @media (prefers-color-scheme: dark) {
-  .signin {
+
+  :root:not([data-theme='light']) .signin {
     --signin-bg: #071320;
     --signin-card: #0e1d2f;
     --signin-card-line: #22364e;
@@ -3059,18 +3104,40 @@ table.sheet.hiring-table td.nowrap { white-space: nowrap; }
     --signin-field: #0a1727;
     --signin-field-line: #2a3e57;
   }
-  .signin-card h1 { color: #dce6f5; }
-  .signin-note { background: #0a1727; }
-  .signin-help { background: #241d0d; border-color: rgba(229, 170, 50, 0.4); color: #f0dcb4; }
-  .signin-error { background: #2a1512; border-color: #5e2a22; color: #f3b5aa; }
-  .signin-peek:hover { background: #18293d; color: #cdd7e4; }
-  .signin-link { color: #8fb4e8; }
-  .signin-link:hover { color: #b8d1f5; }
-  .signin-submit { background: var(--signin-navy-2); border-color: var(--signin-navy-2); }
-  .signin-submit:hover:not(:disabled) { background: #1b5496; }
-  .signin-open { color: #d9a93c; }
-  .signin-compact-text strong { color: #dce6f5; }
+  :root:not([data-theme='light']) .signin-card h1 { color: #dce6f5; }
+  :root:not([data-theme='light']) .signin-note { background: #0a1727; }
+  :root:not([data-theme='light']) .signin-help { background: #241d0d; border-color: rgba(229, 170, 50, 0.4); color: #f0dcb4; }
+  :root:not([data-theme='light']) .signin-error { background: #2a1512; border-color: #5e2a22; color: #f3b5aa; }
+  :root:not([data-theme='light']) .signin-peek:hover { background: #18293d; color: #cdd7e4; }
+  :root:not([data-theme='light']) .signin-link { color: #8fb4e8; }
+  :root:not([data-theme='light']) .signin-link:hover { color: #b8d1f5; }
+  :root:not([data-theme='light']) .signin-submit { background: var(--signin-navy-2); border-color: var(--signin-navy-2); }
+  :root:not([data-theme='light']) .signin-submit:hover:not(:disabled) { background: #1b5496; }
+  :root:not([data-theme='light']) .signin-open { color: #d9a93c; }
+  :root:not([data-theme='light']) .signin-compact-text strong { color: #dce6f5; }
 }
+
+
+:root[data-theme='dark'] .signin {
+  --signin-bg: #071320;
+  --signin-card: #0e1d2f;
+  --signin-card-line: #22364e;
+  --signin-text: #e6ecf4;
+  --signin-muted: #93a6bd;
+  --signin-field: #0a1727;
+  --signin-field-line: #2a3e57;
+}
+:root[data-theme='dark'] .signin-card h1 { color: #dce6f5; }
+:root[data-theme='dark'] .signin-note { background: #0a1727; }
+:root[data-theme='dark'] .signin-help { background: #241d0d; border-color: rgba(229, 170, 50, 0.4); color: #f0dcb4; }
+:root[data-theme='dark'] .signin-error { background: #2a1512; border-color: #5e2a22; color: #f3b5aa; }
+:root[data-theme='dark'] .signin-peek:hover { background: #18293d; color: #cdd7e4; }
+:root[data-theme='dark'] .signin-link { color: #8fb4e8; }
+:root[data-theme='dark'] .signin-link:hover { color: #b8d1f5; }
+:root[data-theme='dark'] .signin-submit { background: var(--signin-navy-2); border-color: var(--signin-navy-2); }
+:root[data-theme='dark'] .signin-submit:hover:not(:disabled) { background: #1b5496; }
+:root[data-theme='dark'] .signin-open { color: #d9a93c; }
+:root[data-theme='dark'] .signin-compact-text strong { color: #dce6f5; }
 
 /* ---------- the approvals queue ---------- */
 
@@ -3744,3 +3811,35 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
 }
 .sub-card .ask { margin: 0.7rem 0 0.3rem; }
 .file-form .lines { margin: 0; }
+
+/*
+ * The light / dark switch, in the rail.
+ *
+ * Its own colours rather than the page tokens, because it sits on the navy
+ * rail, which is navy in both themes - the page's --text would be dark ink on
+ * a dark rail in light mode.
+ */
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  margin: 0.5rem 0 0;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.theme-switch button {
+  flex: 1;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+.theme-switch button:hover { color: rgba(255, 255, 255, 0.85); }
+.theme-switch button.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
