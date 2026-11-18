@@ -3843,3 +3843,21 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
+
+/*
+ * The generated asset code in the Add form.
+ *
+ * It is READ-ONLY and has to look it, or somebody clicks into it and wonders
+ * why nothing types. Monospaced because it is a code read off a sticker, and
+ * on the page's own background rather than a field's, which is how every
+ * other computed figure in this app is shown.
+ */
+.code-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  background: var(--line-soft);
+  border-color: transparent;
+  color: var(--text);
+  cursor: default;
+}
+.code-preview:focus { outline: none; border-color: transparent; }

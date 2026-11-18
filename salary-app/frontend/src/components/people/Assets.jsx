@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download, openPage } from '../../api.js';
 import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
+import AssetPrefixes from './AssetPrefixes.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
@@ -41,8 +42,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    */
   const [from, setFrom] = useState(null);
   const narrowed = useMemo(() => {
-    const { company_id, branch_id, category, year } = from || {};
-    const kept = { company_id, branch_id, category, year };
+    const { company_id, branch_id, category, department, year } = from || {};
+    // Department too, or choosing one on the dashboard and clicking a figure
+    // opens a list that quietly ignores it.
+    const kept = { company_id, branch_id, category, department, year };
     return Object.values(kept).some(Boolean) ? kept : null;
   }, [from]);
   const [allBranches, setAllBranches] = useState([]);
@@ -242,6 +245,26 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return groupTally(base);
   }, [assets, filter, query, narrowed]);
 
+  /*
+   * The code the next asset would get, for the form to show.
+   *
+   * Re-asked whenever the company changes, and again after anything is
+   * added, because by then the number has moved on.
+   */
+  const [nextCode, setNextCode] = useState('');
+  useEffect(() => {
+    if (STANDALONE || !adding) return;
+    const company = Number(draft.company_id) || 0;
+    if (!company) { setNextCode(''); return; }
+    let alive = true;
+    api
+      .get(`/people/assets/next-code?company_id=${company}`)
+      .then((r) => { if (alive) setNextCode(r.code || ''); })
+      .catch(() => { if (alive) setNextCode(''); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adding, draft.company_id, assets.length]);
+
   const act = async (call) => {
     try {
       await call();
@@ -371,6 +394,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return (
       <section className="stack">
         <Tabs view={view} setView={setView} />
+        {/*
+          * The prefixes sit ABOVE the four name lists, not below them.
+          *
+          * They decide what every future sticker reads, which is a setting;
+          * the lists below are typing conveniences. Putting the consequential
+          * one under four others is how somebody reports it as missing.
+          */}
+        <AssetPrefixes onError={onError} onToast={setSaid} />
         <AssetMasters onError={onError} onChanged={setMasters} />
       </section>
     );
@@ -541,6 +572,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             narrowed.branch_id &&
               (allBranches.find((b) => Number(b.id) === Number(narrowed.branch_id))?.name || 'one branch'),
             narrowed.category,
+            narrowed.department,
             narrowed.year,
           ]
             .filter(Boolean)
@@ -676,13 +708,32 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                 onChange={(e) => setDraft({ ...draft, warranty_until: e.target.value })}
               />
             </label>
+            {/*
+              * THE CODE IS SHOWN, NOT TYPED.
+              *
+              * Dinesh asked for it read-only, and that is the right call: a
+              * code somebody edits is a code that collides with a sticker
+              * already on a desk, and the series it was drawn from stops
+              * meaning anything.
+              *
+              * What is shown is a PREVIEW and reserves nothing. Two people
+              * with the form open see the same number; the first to save
+              * keeps it and the second is quietly given the next one, which
+              * is what the server does on its own.
+              */}
             <label>
               Code
               <input
-                value={draft.code}
-                placeholder="worked out for you"
-                onChange={(e) => setDraft({ ...draft, code: e.target.value })}
+                value={nextCode || 'pick a company first'}
+                readOnly
+                className="code-preview"
+                title="Generated from the company's own series. It cannot be edited, and it is not taken until this asset is saved."
               />
+              <span className="hint">
+                {nextCode
+                  ? 'the next one in this company’s series — saved with the asset'
+                  : 'choose the company above and it appears here'}
+              </span>
             </label>
           </div>
 

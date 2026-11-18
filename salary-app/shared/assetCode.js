@@ -82,6 +82,91 @@ export function nextCode(company, kind, taken = []) {
   return `${prefix}${String(highest + 1).padStart(3, '0')}`;
 }
 
+/* ===================================================================== *
+ * The company-wide series: BNF-ASSETS-000001
+ * ===================================================================== */
+
+/*
+ * A SECOND FORMAT, ON PURPOSE - not a replacement.
+ *
+ * Dinesh asked for BNF-ASSETS-000001: one running series per COMPANY, six
+ * digits, the middle word fixed. The older BNF-LAP-014 runs per company AND
+ * kind, which keeps each series short and says what the thing is.
+ *
+ * His register already carries thousands of BNF-Assets-2456 stickers, so the
+ * company series is what new assets join. The kind series is kept because
+ * codes issued under it are on real labels and must keep meaning what they
+ * mean - nothing is renumbered, ever.
+ */
+
+export const SERIES_WORD = 'ASSETS';
+export const SERIES_DIGITS = 6;
+
+/** `BNF-ASSETS-000001`. */
+export const formatSeriesCode = (prefix, n, { word = SERIES_WORD, digits = SERIES_DIGITS } = {}) =>
+  `${String(prefix || 'GEN').toUpperCase()}-${word}-${String(Math.max(1, Number(n) || 1)).padStart(digits, '0')}`;
+
+/**
+ * The next number in a company's series.
+ *
+ * READS THE HIGHEST ALREADY USED, never a count. Counting would hand a
+ * deleted asset's number to the next one, and an old service bill or a signed
+ * handover slip still names it. His own imported codes count towards the
+ * highest too - BNF-Assets-2456 is in this series, so the next new asset is
+ * 2457 and cannot collide with a sticker already on a desk.
+ *
+ * Any number of digits is read, not just six: the imported ones are four.
+ */
+export function nextSeriesNumber(prefix, taken = [], { word = SERIES_WORD } = {}) {
+  const head = `${String(prefix || 'GEN').toUpperCase()}-${word}-`;
+  let highest = 0;
+  for (const code of taken) {
+    const text = String(code || '').toUpperCase();
+    if (!text.startsWith(head)) continue;
+    const tail = text.slice(head.length);
+    // Only a plain number counts. BNF-ASSETS-000012-A is somebody's own
+    // spelling, not this series, and must not push the counter to 12.
+    if (!/^\d+$/.test(tail)) continue;
+    const n = Number(tail);
+    if (Number.isFinite(n) && n > highest) highest = n;
+  }
+  return highest + 1;
+}
+
+/** The next code in a company's series. */
+export const nextSeriesCode = (prefix, taken = [], opts = {}) =>
+  formatSeriesCode(prefix, nextSeriesNumber(prefix, taken, opts), opts);
+
+/**
+ * A company's prefix as the office set it, falling back to initials.
+ *
+ * Blank is not an error and not a reason to refuse an asset - it means
+ * nobody has chosen one, and initials are a better answer than stopping.
+ */
+export const prefixFor = (company) =>
+  tidyPrefix(company?.asset_prefix) || companyPrefix(company?.name);
+
+/**
+ * A prefix somebody typed. Letters and digits only, up to six - it is the
+ * first thing on a sticker and has to be readable across a desk.
+ */
+export function tidyPrefix(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 6);
+}
+
+/** What is wrong with a typed prefix, if anything. Blank is fine. */
+export function prefixProblem(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const clean = tidyPrefix(raw);
+  if (!clean) return 'a prefix is letters and numbers';
+  if (clean.length < 2) return 'that is too short to tell two companies apart';
+  return '';
+}
+
 /**
  * A code somebody typed, tidied. Uppercased and trimmed; a code is a label, so
  * spaces inside it are kept out rather than quietly stored.

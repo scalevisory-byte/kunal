@@ -353,7 +353,7 @@ test('the trail carries the services, by asset code and amount', async () => {
   const { body } = await api('GET', `/api/people/audit?entity=assets&entity_id=${laptop}`);
   const serviced = body.entries.filter((e) => e.action === 'serviced');
   assert.ok(serviced.length >= 3);
-  assert.match(serviced[0].label, /BPL-LAP-001/);
+  assert.match(serviced[0].label, /BPL-ASSETS-000001/);
   assert.ok(body.entries.some((e) => e.action === 'service removed'));
 });
 

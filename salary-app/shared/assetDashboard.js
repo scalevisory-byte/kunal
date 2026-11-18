@@ -22,6 +22,12 @@ export function assetDashboard({
 } = {}) {
   const withStatus = assets.map((a) => ({ ...a, status: assetStatus(a) }));
   const count = (key) => withStatus.filter((a) => a.status === key).length;
+  /* Still on the register: not written off, not disposed of. Declared here
+   * because the cards below need it as well as the warnings further down -
+   * a const used above its own declaration is a blank page, not an error
+   * anybody can read. */
+  const live = withStatus.filter((a) => a.status !== 'written_off' && a.status !== 'disposed');
+  const liveIds = new Set(live.map((a) => a.id));
 
   const cards = [
     /*
@@ -57,6 +63,28 @@ export function assetDashboard({
   ];
 
   /*
+   * Two of the figures Dinesh listed were only ever WARNINGS further down the
+   * page. A warning is read once and then stops being read; a figure on the
+   * strip is read every time somebody opens the tab, which is what he asked
+   * for. The warnings stay as well, because they NAME the assets, and a count
+   * on its own cannot tell you which laptop is out of warranty.
+   *
+   * Both count only what is still on the register. A laptop scrapped last
+   * year is out of warranty and will never be serviced again; counting it
+   * would make the figure grow for ever and mean nothing.
+   */
+  const outOfWarranty = live.filter((a) => {
+    const left = daysTo(a.warranty_until, today);
+    return left !== null && left < 0;
+  });
+  cards.push({
+    key: 'warranty_gone',
+    label: 'Warranty expired',
+    n: outOfWarranty.length,
+    filter: { live: true, warranty: 'expired' },
+  });
+
+  /*
    * Bought, in all. Written-off assets are INCLUDED on purpose: the question
    * is what the company has spent on kit, and a laptop that was scrapped last
    * year was still bought. What it is worth today is a different question
@@ -70,7 +98,6 @@ export function assetDashboard({
   };
 
   /* --- warranty --- */
-  const live = withStatus.filter((a) => a.status !== 'written_off' && a.status !== 'disposed');
   add(
     'warranty_soon',
     `Warranty running out within ${soon} days`,
@@ -119,6 +146,24 @@ export function assetDashboard({
       return best;
     }, new Map());
   add('service_due', 'Service due', [...dueService.values()], { status: '' });
+
+  /*
+   * The last of the figures he listed. Pushed here rather than written with
+   * the others because it needs the service records, and those are worked out
+   * above - a card that referred to them earlier would read as undefined.
+   *
+   * Counts ASSETS, not service records: two overdue services on one printer
+   * is one printer to deal with, and counting rows would send somebody
+   * looking for a second machine.
+   */
+  cards.push({
+    key: 'service_due',
+    label: 'Maintenance due',
+    n: new Set(
+      [...dueService.values()].map((srv) => srv.asset_id).filter((id) => liveIds.has(id))
+    ).size,
+    filter: { live: true, service_due: true },
+  });
 
   /* --- the stock take --- */
   if (round) {
@@ -172,6 +217,14 @@ export function matchesFilter(asset, filter = {}) {
   if (filter.company_id && Number(asset.company_id) !== Number(filter.company_id)) return false;
   if (filter.branch_id && Number(asset.branch_id) !== Number(filter.branch_id)) return false;
   if (filter.category && asset.kind !== filter.category) return false;
+  // Case-insensitively: a department is free text on the asset, so Accounts
+  // and ACCOUNTS are the same room and must not read as two.
+  if (
+    filter.department &&
+    String(asset.department || '').trim().toLowerCase() !== String(filter.department).trim().toLowerCase()
+  ) {
+    return false;
+  }
   if (filter.year && financialYear(asset.purchase_date) !== filter.year) return false;
   if (filter.status && assetStatus(asset) !== filter.status) return false;
   /*
@@ -183,5 +236,15 @@ export function matchesFilter(asset, filter = {}) {
     const status = assetStatus(asset);
     if (status === 'written_off' || status === 'disposed') return false;
   }
+  /*
+   * A card that opens a list has to narrow it to what the card counted, or
+   * the figure and the rows it opens disagree - which is the fault the
+   * Registered card was fixed for once already.
+   */
+  if (filter.warranty === 'expired') {
+    const left = daysTo(asset.warranty_until, filter.today || new Date().toISOString().slice(0, 10));
+    if (left === null || left >= 0) return false;
+  }
+  if (filter.service_due && !(filter.service_due_ids || []).includes(asset.id)) return false;
   return true;
 }

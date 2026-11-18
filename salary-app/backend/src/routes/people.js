@@ -115,6 +115,9 @@ import {
   addAssetDoc,
   deleteAssetDoc,
   ASSET_DOC_KINDS,
+  assetPrefixes,
+  nextAssetCode,
+  setAssetPrefix,
   setAssetState,
   acknowledgeHandover,
   listMasters,
@@ -274,6 +277,28 @@ peopleRouter.delete('/appraisals/:id', (req, res) => {
 });
 
 /* ---------------- assets ---------------- */
+
+/*
+ * The next code for a company, so the Add Asset form can show it before
+ * anything is saved. It RESERVES NOTHING - looking at a number does not take
+ * it, and the code is drawn again inside the insert where the unique index
+ * decides. Two people with the form open see the same number and exactly one
+ * of them keeps it.
+ */
+peopleRouter.get('/assets/next-code', (req, res) =>
+  res.json({ code: nextAssetCode(Number(req.query.company_id) || null) })
+);
+
+/* The prefixes, and what each company's series looks like today. */
+peopleRouter.get('/assets/prefixes', (req, res) => res.json({ companies: assetPrefixes() }));
+
+peopleRouter.put('/assets/prefixes/:companyId', (req, res) => {
+  try {
+    res.json(setAssetPrefix(Number(req.params.companyId), req.body?.prefix, { by: who(req) }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 peopleRouter.get('/assets', (req, res) => {
   const assets = listAssets({
@@ -562,6 +587,22 @@ peopleRouter.get('/assets/dashboard', (req, res) => {
     round,
     years: purchaseYears(all),
     categories: [...new Set(all.map((a) => a.kind).filter(Boolean))].sort(),
+    /*
+     * The departments the register actually uses, not a master list. A
+     * department is free text on the asset, so the only honest picker is the
+     * set of values somebody has really typed - offering a department no
+     * asset carries gives an empty list and no reason why.
+     *
+     * Folded case-insensitively, because Accounts and ACCOUNTS are one room.
+     */
+    departments: [
+      ...new Map(
+        all
+          .map((a) => String(a.department || '').trim())
+          .filter(Boolean)
+          .map((d) => [d.toLowerCase(), d])
+      ).values(),
+    ].sort((a, b) => a.localeCompare(b)),
   });
 });
 

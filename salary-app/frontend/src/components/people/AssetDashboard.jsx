@@ -75,6 +75,22 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onAdd
               ))}
             </select>
           </label>
+          {/*
+            * Department, which he asked for by name. Shown only when the
+            * register has any: a picker with one empty option is a question
+            * somebody cannot answer and will report as broken.
+            */}
+          {(data?.departments || []).length > 0 && (
+            <label className="field inline">
+              Department
+              <select value={filter.department || ''} onChange={(e) => set({ department: e.target.value })}>
+                <option value="">All</option>
+                {data.departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="field inline" title="April to March, the way a purchase register is written">
             Financial year
             <select value={filter.year} onChange={(e) => set({ year: e.target.value })}>

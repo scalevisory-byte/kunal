@@ -76,17 +76,25 @@ test('an asset gets a readable code, and the purchase side is recorded', async (
   });
   assert.equal(made.status, 201);
   laptop = made.body.id;
-  assert.equal(made.body.code, 'BPL-LAP-001');
+  /*
+   * ONE SERIES PER COMPANY, six digits - the format Dinesh asked for:
+   * BNF-ASSETS-000001. It used to run per company AND kind (BPL-LAP-001),
+   * which kept each series short but meant a company had a dozen of them.
+   * Codes already issued under the old shape keep theirs; nothing is
+   * renumbered.
+   */
+  assert.equal(made.body.code, 'BPL-ASSETS-000001');
   assert.equal(made.body.purchase_cost, 42000);
   assert.equal(made.body.vendor, 'Rajhans Computers');
   assert.equal(made.body.branch_name, 'Vadodara');
 });
 
-test('the series runs on, per company and kind', async () => {
+test('the series runs on per company, whatever the asset is', async () => {
   const second = await api('POST', '/api/people/assets', { company_id: companyId, kind: 'Laptop', label: 'HP 240' });
-  assert.equal(second.body.code, 'BPL-LAP-002');
+  assert.equal(second.body.code, 'BPL-ASSETS-000002');
+  // A SIM is the next number in the SAME series now, not the first in its own.
   const sim = await api('POST', '/api/people/assets', { company_id: companyId, kind: 'SIM card', label: 'Jio 9909993565' });
-  assert.equal(sim.body.code, 'BPL-SIM-001');
+  assert.equal(sim.body.code, 'BPL-ASSETS-000003');
 });
 
 test('an office with its own stickers can type its own code', async () => {
@@ -109,13 +117,13 @@ test('an office with its own stickers can type its own code', async () => {
 });
 
 test('scanning a label finds the asset', async () => {
-  const found = await api('GET', '/api/people/assets/by-code/bpl-lap-001');
+  const found = await api('GET', '/api/people/assets/by-code/bpl-assets-000001');
   assert.equal(found.status, 200);
   assert.equal(found.body.id, laptop);
 
-  const nothing = await api('GET', '/api/people/assets/by-code/BPL-LAP-999');
+  const nothing = await api('GET', '/api/people/assets/by-code/BPL-ASSETS-000999');
   assert.equal(nothing.status, 404);
-  assert.match(nothing.body.error, /BPL-LAP-999/, 'and says which code it could not find');
+  assert.match(nothing.body.error, /BPL-ASSETS-000999/, 'and says which code it could not find');
 });
 
 test('the label prints as a barcode', async () => {
@@ -125,7 +133,7 @@ test('the label prints as a barcode', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/svg+xml; charset=utf-8');
   const svg = await res.text();
-  assert.match(svg, /BPL-LAP-001<\/text>/);
+  assert.match(svg, /BPL-ASSETS-000001<\/text>/);
   assert.match(svg, /mm"/, 'sized to print');
 });
 
@@ -161,7 +169,7 @@ test('issuing, returning, and issuing again keeps all three on the record', asyn
 });
 
 test('passing it straight to somebody else closes the first handover rather than losing it', async () => {
-  const hp = (await api('GET', '/api/people/assets')).body.assets.find((a) => a.code === 'BPL-LAP-002');
+  const hp = (await api('GET', '/api/people/assets')).body.assets.find((a) => a.code === 'BPL-ASSETS-000002');
   await api('POST', `/api/people/assets/${hp.id}/issue`, { employee_id: vaibhav, issued_on: '2026-08-01' });
   // Straight to Riya, with no return in between - which happens.
   await api('POST', `/api/people/assets/${hp.id}/issue`, { employee_id: riya, issued_on: '2026-08-15' });
@@ -267,7 +275,7 @@ test('a round needs a name', async () => {
 /* ---------------- writing off ---------------- */
 
 test('writing one off brings it back first, and keeps its code', async () => {
-  const hp = (await api('GET', '/api/people/assets')).body.assets.find((a) => a.code === 'BPL-LAP-002');
+  const hp = (await api('GET', '/api/people/assets')).body.assets.find((a) => a.code === 'BPL-ASSETS-000002');
   assert.ok(hp.employee_id, 'it is out with Riya');
 
   const refused = await api('POST', `/api/people/assets/${hp.id}/write-off`, {});
@@ -294,11 +302,11 @@ test('writing one off brings it back first, and keeps its code', async () => {
 
 test('a written-off code is never handed to the next asset', async () => {
   const next = await api('POST', '/api/people/assets', { company_id: companyId, kind: 'Laptop', label: 'Replacement' });
-  assert.equal(next.body.code, 'BPL-LAP-003', 'not 002, which is written off');
+  assert.equal(next.body.code, 'BPL-ASSETS-000005', 'not 000002, which is written off');
 });
 
 test('a written-off asset cannot be issued to anybody', async () => {
-  const hp = (await api('GET', '/api/people/assets?written_off=true')).body.assets.find((a) => a.code === 'BPL-LAP-002');
+  const hp = (await api('GET', '/api/people/assets?written_off=true')).body.assets.find((a) => a.code === 'BPL-ASSETS-000002');
   const res = await api('POST', `/api/people/assets/${hp.id}/issue`, { employee_id: vaibhav });
   assert.equal(res.status, 400);
   assert.match(res.body.error, /written off/);
@@ -336,8 +344,8 @@ test('the register and the handovers download as CSV', async () => {
   // worked out from the kind rather than stored, so a sheet sorted by Group
   // cannot disagree with the Kind beside it.
   assert.match(csv, /Code,Group,Kind,What/);
-  assert.match(csv, /BPL-LAP-001,Computer,Laptop/);
-  assert.match(csv, /BPL-LAP-001/);
+  assert.match(csv, /BPL-ASSETS-000001,Computer,Laptop/);
+  assert.match(csv, /BPL-ASSETS-000001/);
   assert.match(csv, /Rajhans Computers/);
   assert.match(csv, /in the office|Riya Pal/, 'where it is reads as words');
 
@@ -352,7 +360,7 @@ test('a handover slip lists only what somebody still has, and what they are sign
   assert.equal(body.employee, 'Riya Pal');
   assert.equal(body.company, 'BOOKNFLY PRIVATE LIMITED');
   assert.equal(body.items.length, 1, 'the written-off one is not on it');
-  assert.equal(body.items[0].code, 'BPL-LAP-001');
+  assert.equal(body.items[0].code, 'BPL-ASSETS-000001');
   // The serial identifies the actual object on a document somebody signs.
   assert.equal(body.items[0].serial, 'SN-884421');
   assert.equal(body.total, 42000);
@@ -369,7 +377,7 @@ test('the trail carries the asset moves by code and by name', async () => {
     assert.ok(actions.includes(action), `the trail should carry "${action}"`);
   }
   const issued = body.entries.find((e) => e.action === 'issued');
-  assert.match(issued.label, /BPL-LAP-|BNF\/OLD/, 'labelled by code');
+  assert.match(issued.label, /BPL-ASSETS-|BNF\/OLD/, 'labelled by code');
   assert.ok(issued.to_value, 'and says who got it');
 });
 

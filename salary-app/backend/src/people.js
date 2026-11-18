@@ -11,7 +11,18 @@ import {
 import { buildPayroll } from './payroll.js';
 import { log } from './logger.js';
 import { settlement } from '../../shared/settlement.js';
-import { codeProblem, nextCode, tidyCode } from '../../shared/assetCode.js';
+import {
+  codeProblem,
+  nextCode,
+  SERIES_WORD,
+  formatSeriesCode,
+  nextSeriesCode,
+  nextSeriesNumber,
+  prefixFor,
+  prefixProblem,
+  tidyCode,
+  tidyPrefix,
+} from '../../shared/assetCode.js';
 import { looksDuplicate, ownership } from '../../shared/maintenance.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
 import {
@@ -936,6 +947,187 @@ function daysUntil(date) {
 const codesInUse = () =>
   db.prepare(`SELECT code FROM assets WHERE code IS NOT NULL`).all().map((r) => r.code);
 
+/*
+ * EACH COMPANY'S OWN PREFIX, and a code that cannot be issued twice.
+ *
+ * The prefix lives on the company rather than in a settings blob, because it
+ * belongs to the company the way its name does, and because a blob with one
+ * key per company is a thing that silently keeps rows for companies that were
+ * deleted. Blank means nobody has chosen one, and the initials are used -
+ * never a refusal, because an asset still has to be addable.
+ */
+addColumns('companies', [['asset_prefix', 'TEXT']]);
+
+/*
+ * THE UNIQUE INDEX IS THE REAL PROTECTION.
+ *
+ * Dinesh asked that simultaneous users cannot generate the same code. Working
+ * out the next number and then inserting leaves a gap between the two, however
+ * small, and a typed code can collide with a generated one in a way no
+ * sequence table would catch. The database refusing a second row is the only
+ * answer that holds in every case.
+ *
+ * Built only once the existing rows allow it. A migration that throws takes
+ * the whole server down at startup, which is a far worse fault than two
+ * assets sharing a code - so a clash is NAMED and the index is left for the
+ * next start, when it has been sorted out.
+ */
+const codeClashes = () =>
+  db
+    .prepare(
+      `SELECT UPPER(code) code, COUNT(*) n FROM assets
+        WHERE code IS NOT NULL AND TRIM(code) <> ''
+        GROUP BY UPPER(code) HAVING n > 1`
+    )
+    .all();
+
+try {
+  const clashes = codeClashes();
+  if (clashes.length) {
+    log.warn(
+      `Assets: ${clashes.length} code(s) are on more than one asset, so they cannot be made unique yet - ` +
+        clashes.slice(0, 5).map((c) => c.code).join(', ')
+    );
+  } else {
+    db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_assets_code_unique
+         ON assets (UPPER(code)) WHERE code IS NOT NULL AND TRIM(code) <> ''`
+    );
+  }
+} catch (err) {
+  log.warn(`Assets: could not make codes unique - ${err.message}`);
+}
+
+/*
+ * A HIGH-WATER MARK, so a deleted code is never handed out again.
+ *
+ * Reading the highest code still ON the register is not enough: delete the
+ * newest asset and its number comes free, which is exactly what must not
+ * happen. An old service bill, a signed handover slip and a sticker in a
+ * drawer still name BNF-ASSETS-000005, and giving it to a second laptop makes
+ * both histories wrong. Written-off assets keep their row so they were
+ * already safe; a deletion was the hole.
+ *
+ * One row per series head ("BNF-ASSETS-"), and it only ever goes UP.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS asset_code_series (
+    head   TEXT PRIMARY KEY,
+    issued INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+const seriesHead = (prefix) => `${String(prefix || 'GEN').toUpperCase()}-${SERIES_WORD}-`;
+
+const markIssued = (prefix, n) =>
+  db
+    .prepare(
+      `INSERT INTO asset_code_series (head, issued) VALUES (@head, @n)
+       ON CONFLICT(head) DO UPDATE SET issued = MAX(issued, @n)`
+    )
+    .run({ head: seriesHead(prefix), n: Number(n) || 0 });
+
+const highWater = (prefix) =>
+  db.prepare(`SELECT issued FROM asset_code_series WHERE head = ?`).get(seriesHead(prefix))?.issued || 0;
+
+/** Every code already issued, however it was spelled. */
+const codesTaken = () =>
+  db.prepare(`SELECT code FROM assets WHERE code IS NOT NULL`).all().map((r) => r.code);
+
+/**
+ * The next number in a company's series: the higher of what is on the
+ * register and what has ever been handed out.
+ *
+ * Both halves are needed. The register carries his imported stickers, which
+ * the high-water mark has never seen; the mark carries the ones that have
+ * since been deleted, which the register no longer has.
+ */
+const nextNumberFor = (prefix) =>
+  Math.max(nextSeriesNumber(prefix, codesTaken()), highWater(prefix) + 1);
+
+/**
+ * The next code for a company, in his series.
+ *
+ * Exported so the Add Asset form can SHOW it before anything is saved. What
+ * it shows is a preview and nothing is reserved by looking - the code is
+ * drawn again inside the insert, and the unique index decides.
+ */
+export function nextAssetCode(companyId) {
+  const prefix = prefixOf(companyId);
+  return formatSeriesCode(prefix, nextNumberFor(prefix));
+}
+
+const prefixOf = (companyId) =>
+  prefixFor(
+    (companyId
+      ? db.prepare(`SELECT name, asset_prefix FROM companies WHERE id = ?`).get(companyId)
+      : null) || {}
+  );
+
+/**
+ * Every company, its prefix, and where its series has got to.
+ *
+ * `issued` is how many codes that series has handed out, which is NOT how
+ * many assets the company has: a written-off asset keeps its code and its
+ * number is never handed to anybody else. Saying "next: BNF-ASSETS-002457"
+ * is the useful part - it is what the next sticker will read.
+ */
+export function assetPrefixes() {
+  const taken = codesTaken();
+  return db
+    .prepare(`SELECT id, name, asset_prefix FROM companies ORDER BY name`)
+    .all()
+    .map((company) => {
+      const prefix = prefixFor(company);
+      const next = nextSeriesCode(prefix, taken);
+      return {
+        id: company.id,
+        name: company.name,
+        prefix,
+        /* Blank means nobody chose one and the initials are being used. The
+         * screen says so rather than showing a value somebody never typed. */
+        chosen: tidyPrefix(company.asset_prefix),
+        issued: db
+          .prepare(`SELECT COUNT(*) n FROM assets WHERE company_id = ? AND code IS NOT NULL`)
+          .get(company.id).n,
+        next,
+      };
+    });
+}
+
+/**
+ * Change a company's prefix.
+ *
+ * CODES ALREADY ISSUED ARE NOT TOUCHED - they are on stickers, on handover
+ * slips and on service bills. Changing the prefix only changes what the NEXT
+ * one reads, and the new series starts at 1 because it is a new series.
+ */
+export function setAssetPrefix(companyId, value, { by = 'office' } = {}) {
+  const company = db.prepare(`SELECT id, name, asset_prefix FROM companies WHERE id = ?`).get(companyId);
+  if (!company) throw new Error('no such company');
+  const problem = prefixProblem(value);
+  if (problem) throw new Error(problem);
+
+  const clean = tidyPrefix(value);
+  const was = tidyPrefix(company.asset_prefix);
+  if (clean === was) return assetPrefixes().find((c) => c.id === companyId);
+
+  // A prefix another company is already using would merge two series into
+  // one, and the next code drawn would depend on which company asked.
+  const clash = db
+    .prepare(`SELECT name FROM companies WHERE id <> ? AND UPPER(COALESCE(asset_prefix, '')) = ?`)
+    .get(companyId, clean);
+  if (clean && clash) throw new Error(`${clean} is already ${clash.name}'s prefix`);
+
+  db.prepare(`UPDATE companies SET asset_prefix = ? WHERE id = ?`).run(clean || null, companyId);
+  audit({
+    who: by, action: 'changed', entity: 'companies', entity_id: companyId,
+    label: company.name, field: 'asset_prefix', from_value: was, to_value: clean,
+    note: 'codes already issued are unchanged',
+  });
+  return assetPrefixes().find((c) => c.id === companyId);
+}
+
 export function createAsset(input = {}) {
   const label = String(input.label || '').trim();
   if (!label) throw new Error('give the asset a name');
@@ -954,11 +1146,17 @@ export function createAsset(input = {}) {
     const problem = codeProblem(input.code);
     if (problem) throw new Error(problem);
     code = tidyCode(input.code);
-    if (db.prepare(`SELECT 1 FROM assets WHERE code = ?`).get(code)) {
-      throw new Error(`${code} is already on something else`);
-    }
+    // Case-insensitively, because the unique index is on UPPER(code) and a
+    // check that disagreed with it would let a clash reach the insert and
+    // come back as a database error nobody can read.
+    const twin = db.prepare(`SELECT code FROM assets WHERE UPPER(code) = ?`).get(code.toUpperCase());
+    if (twin) throw new Error(`${code} is already on something else`);
   } else {
-    code = nextCode(company || 'GEN', kind, codesInUse());
+    /*
+     * His series, per company: BNF-ASSETS-000001. The older per-kind series
+     * is left in place for codes already on labels - nothing is renumbered.
+     */
+    code = nextAssetCode(companyId);
   }
 
   /*
@@ -983,8 +1181,16 @@ export function createAsset(input = {}) {
     }
   }
 
-  const info = db
-    .prepare(
+  /*
+   * IF THE DATABASE REFUSES THE CODE, DRAW ANOTHER ONE.
+   *
+   * Two people pressing Add in the same second both work out 000042, and the
+   * unique index lets exactly one of them through. The loser must not see an
+   * error - nothing is wrong with their asset, the number simply moved on. A
+   * code somebody TYPED is different: that collision is theirs to resolve and
+   * was already reported above.
+   */
+  const insert = db.prepare(
       `INSERT INTO assets (code, company_id, branch_id, kind, label, identifier, purchase_cost,
                            purchase_date, vendor, invoice_no, warranty_until,
                            amc_until, amc_vendor, amc_cost,
@@ -997,8 +1203,9 @@ export function createAsset(input = {}) {
                @employee_id, @issued_on, @returned_on, @condition, @note,
                @brand, @model, @description, @department, @location, @floor_room,
                @warranty_from, @warranty_provider, @purchase_remarks)`
-    )
-    .run({
+  );
+
+  const values = {
       code,
       company_id: companyId,
       branch_id: Number(input.branch_id) || null,
@@ -1027,8 +1234,36 @@ export function createAsset(input = {}) {
       returned_on: input.returned_on || null,
       condition: input.condition || null,
       note: input.note || null,
-    });
+    };
+
+  let info;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      info = insert.run(values);
+      break;
+    } catch (err) {
+      const clash = /UNIQUE constraint failed/i.test(String(err?.message));
+      // Only a code WE drew is redrawn, and only a few times: a loop that
+      // never gives up would spin for ever against a broken index.
+      if (!clash || input.code || attempt >= 5) throw err;
+      values.code = nextAssetCode(companyId);
+      code = values.code;
+    }
+  }
+
   const id = info.lastInsertRowid;
+
+  /*
+   * Record the number against its series, so it can never come round again -
+   * including a code somebody TYPED, because his imported BNF-ASSETS-002456
+   * has to push the mark past 2456 as surely as a generated one does.
+   */
+  const head = `${prefixOf(companyId)}-${SERIES_WORD}-`;
+  if (String(code || '').toUpperCase().startsWith(head)) {
+    const tail = String(code).toUpperCase().slice(head.length);
+    if (/^\d+$/.test(tail)) markIssued(prefixOf(companyId), Number(tail));
+  }
+
   audit({ who: input.by, action: 'created', entity: 'assets', entity_id: id, label: `${code} ${label}` });
 
   // Created already with somebody: that is a handover, so log it as one.

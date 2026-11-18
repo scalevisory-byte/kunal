@@ -535,9 +535,14 @@ test('the dashboard filter survives the click into the register', () => {
   const a = src('components/people/Assets.jsx');
   assert.match(a, /import \{ matchesFilter \}/);
   assert.match(a, /if \(narrowed && !matchesFilter\(a, narrowed\)\) return false;/);
-  // The status half is already a chip, so only the four dropdowns are kept -
-  // applying both would narrow twice.
-  assert.match(a, /const \{ company_id, branch_id, category, year \} = from \|\| \{\};/);
+  // The status half is already a chip, so only the dropdowns are kept -
+  // applying both would narrow twice. Department joined them when Dinesh
+  // asked for it; choosing one and then clicking a figure must not open a
+  // list that quietly ignores it.
+  assert.match(
+    a,
+    /const \{ company_id, branch_id, category, department, year \} = from \|\| \{\};/
+  );
   // ...and the register SAYS it is narrowed, with the way out. A register
   // silently showing a subset is how somebody concludes a row has gone.
   assert.match(a, /Narrowed to/);

@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.18.0';
+export const VERSION = '1.19.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.19.0',
+    date: '18 Nov 2026',
+    title: 'Asset codes generated per company, and the figures you asked for',
+    items: [
+      '**Every new asset gets its code automatically, in your format**: `BNF-ASSETS-000001`. One running series **per company** — BNF, BNV, SENA each count on their own.',
+      '**The code appears in the Add form the moment you pick the company, and cannot be typed over.** Looking at it reserves nothing: two people with the form open see the same number, the first to save keeps it, and the second is quietly given the next one.',
+      '**A number is never handed out twice** — not after an asset is written off, and now **not after one is deleted either**, which was a real hole: the highest code was read off the register, so deleting the newest asset freed its number. An old service bill and a signed handover slip still name it. A high-water mark per series closes that.',
+      '**The database itself refuses a duplicate code.** Working out a number and then saving leaves a gap, however small, and a typed code can collide with a generated one. A unique index is the only answer that holds in every case.',
+      '**Prefixes are set per company** under Lists — Asset code prefixes, with the next code shown for each. Changing one **never rewrites a code already issued**; it changes only what the next sticker reads.',
+      'Your imported codes count towards the series, so the next new BOOKNFLY asset follows `BNF-ASSETS-002456` rather than landing on a sticker already on a desk.',
+      '**Two more figures on the asset dashboard**: **Warranty expired** and **Maintenance due**. Both were only warnings further down the page; a warning is read once, a figure is read every time. Both count only what is still on the register.',
+      '**Filter by department**, beside company, branch, category and financial year — and it now carries through when you click a figure into the register.',
+    ],
+  },
   {
     version: '1.18.0',
     date: '18 Nov 2026',
