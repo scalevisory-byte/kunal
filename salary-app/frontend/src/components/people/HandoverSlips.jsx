@@ -18,9 +18,8 @@ export default function HandoverSlips({ onError }) {
   const [slip, setSlip] = useState(null);
   const [ledger, setLedger] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
+  const reload = async () => {
+    try {
         /*
          * WHO HAS IT NOW COMES FROM THE REGISTER, not from the handover log.
          *
@@ -36,12 +35,15 @@ export default function HandoverSlips({ onError }) {
           api.get('/people/assets?out=true'),
           api.get('/people/assets/handovers?open=true'),
         ]);
-        setOut(assets || []);
-        setSigned(new Set((handovers || []).map((h) => Number(h.asset_id))));
-      } catch (err) {
-        onError(err);
-      }
-    })();
+      setOut(assets || []);
+      setSigned(new Set((handovers || []).map((h) => Number(h.asset_id))));
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  useEffect(() => {
+    reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -75,6 +77,9 @@ export default function HandoverSlips({ onError }) {
         name={ledger.name}
         onClose={() => setLedger(null)}
         onError={onError}
+        /* Taking something back changes this list, so it is re-read rather
+           than left showing what the person held a minute ago. */
+        onReload={reload}
       />
     );
   }

@@ -508,6 +508,7 @@ export const HELP = [
       '**Every new asset is given a code automatically** — `BNF-ASSETS-000001`, one running series per company. It is shown in the Add form as soon as you pick the company, **cannot be typed over**, and a number is never handed out twice, even after an asset is deleted or written off.',
       'The **prefix per company** is set under Lists — Asset code prefixes. Changing it never rewrites a code already issued; those are on stickers and signed slips. It only changes what the next one reads.',
       '**Who holds what → ledger** is one person’s whole history: what they still have, what came back and when, days held, and what it cost. It opens from their employee record and from the exit page too.',
+      '**Take it back** on that ledger returns everything in one go when somebody leaves: tick what came back, set the date and the condition once. What you untick stays out, and **nothing is written off or deducted** — not returned is not the same as lost.',
       'An asset standing against somebody with **no handover slip** is said so, and counted — it is a slip to get signed, not a missing asset.',
       '**Full register** is the whole thing as a document: every asset under its company (or group), each block adding up, one figure at the foot. Print it or take the CSV with the subtotals in it.',
       '**Groups** — Computer, Furniture, Mobile, Electrical, Network, Security, Office equipment, Vehicle, Tools. The buttons above the register narrow it to one, each carrying its own count, and the Group is a column in the CSV.',

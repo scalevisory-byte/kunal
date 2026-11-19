@@ -158,6 +158,7 @@ import {
   reopenTicket,
   replyToTicket,
   returnAsset,
+  returnAssets,
   saveExit,
   setTaskStatus,
   updateAppraisal,
@@ -635,6 +636,26 @@ peopleRouter.patch('/assets/:id', (req, res) => {
 peopleRouter.post('/assets/:id/issue', (req, res) => {
   try {
     res.json(issueAsset(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/**
+ * Several at once — somebody leaving, or a desk being handed over.
+ *
+ * The ids come from the screen that listed them, so what is taken back is
+ * exactly what somebody ticked. Anything already back is reported rather than
+ * re-dated.
+ */
+peopleRouter.post('/assets/return-many', (req, res) => {
+  try {
+    res.json(
+      returnAssets(Array.isArray(req.body?.asset_ids) ? req.body.asset_ids : [], {
+        ...req.body,
+        by: who(req),
+      })
+    );
   } catch (err) {
     bad(res, err);
   }

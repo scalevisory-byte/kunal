@@ -1626,18 +1626,100 @@ export function issueAsset(
 export function returnAsset(id, { returned_on, condition, note, by } = {}) {
   const asset = getAsset(id);
   if (!asset) throw new Error('not found');
+  const on = returned_on || dayNow();
   const open = openHandover(id);
   if (open) {
     db.prepare(
       `UPDATE asset_handovers SET returned_on = ?, returned_by = ?, condition_in = ?, note = COALESCE(?, note)
        WHERE id = ?`
-    ).run(returned_on || dayNow(), by || null, condition || null, note || null, open.id);
+    ).run(on, by || null, condition || null, note || null, open.id);
+  } else if (asset.employee_id && !asset.returned_on) {
+    /*
+     * TAKING SOMETHING BACK IS AN EVENT, AND THE LOG HAS TO CARRY IT.
+     *
+     * Anything issued before the handover log existed - or imported with a
+     * holder - has no row to close. Without one, returning it only set a date
+     * on the register, and the asset then vanished from that person's ledger
+     * altogether: it was no longer held, and nothing said it ever had been.
+     * Found by driving a return on exactly such an asset.
+     *
+     * So a closed handover is written from what IS known: who had it, from
+     * when the register says, back today. It is marked as recorded at the
+     * return rather than at the handover, because nobody signed for it going
+     * out and the trail should not pretend otherwise.
+     */
+    db.prepare(
+      `INSERT INTO asset_handovers (asset_id, employee_id, employee_name, issued_on, issued_by,
+                                    returned_on, returned_by, condition_in, note)
+       VALUES (@asset_id, @employee_id, @employee_name, @issued_on, NULL,
+               @returned_on, @returned_by, @condition_in, @note)`
+    ).run({
+      asset_id: asset.id,
+      employee_id: asset.employee_id,
+      employee_name: asset.employee_name || null,
+      issued_on: asset.issued_on || null,
+      returned_on: on,
+      returned_by: by || null,
+      condition_in: condition || null,
+      note: note || 'recorded when it came back — no slip was on file',
+    });
   }
   return updateAsset(id, {
-    returned_on: returned_on || dayNow(),
+    returned_on: on,
     condition: condition || undefined,
     by,
   });
+}
+
+/**
+ * TAKING SEVERAL THINGS BACK AT ONCE — somebody leaving, or handing over.
+ *
+ * Dinesh: *"koi employee chhod ke ja raha he uski asset, ya kisi se vapas le
+ * rahe he, uska kya he"*. One at a time through the register meant finding
+ * each row and answering a prompt; for somebody holding six things that is
+ * six searches on the day they are walking out of the door.
+ *
+ * Three things it will not do:
+ *
+ *   **It never takes back what it was not asked to.** Only the ids passed,
+ *   and anything already back is reported as such rather than re-dated — a
+ *   second return would move the date on a handover that closed months ago.
+ *
+ *   **It never writes anything off.** Not returned is not the same as lost,
+ *   and the difference is somebody's decision.
+ *
+ *   **It never touches pay.** An unreturned asset is named and valued on the
+ *   full and final and deducted nowhere, which is the rule this app has had
+ *   since the settlement was written.
+ *
+ * One transaction: a half-finished handover at exit is worse than none,
+ * because the slip in somebody's hand and the register would disagree.
+ */
+export function returnAssets(ids = [], { returned_on, condition, note, by } = {}) {
+  const on = String(returned_on || dayNow()).slice(0, 10);
+  const wanted = [...new Set(ids.map((id) => Number(id)).filter(Boolean))];
+  const done = [];
+  const already = [];
+  const missing = [];
+
+  const run = db.transaction(() => {
+    for (const id of wanted) {
+      const asset = getAsset(id);
+      if (!asset) {
+        missing.push(id);
+        continue;
+      }
+      if (!asset.employee_id || asset.returned_on) {
+        already.push({ id, code: asset.code || '', label: asset.label || '' });
+        continue;
+      }
+      returnAsset(id, { returned_on: on, condition, note, by });
+      done.push({ id, code: asset.code || '', label: asset.label || '', from: asset.employee_name || '' });
+    }
+  });
+  run();
+
+  return { returned: done, already, missing, returned_on: on };
 }
 
 export const listHandovers = ({ asset_id, employee_id, open } = {}) => {

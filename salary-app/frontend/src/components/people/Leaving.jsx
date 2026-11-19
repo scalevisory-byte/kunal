@@ -343,6 +343,9 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
               employeeId={ledgerFor}
               onClose={() => setLedgerFor(null)}
               onError={onError}
+              /* The settlement names what is still out, so it has to be
+                 re-read the moment something comes back. */
+              onReload={() => open(picked)}
             />
           )}
 

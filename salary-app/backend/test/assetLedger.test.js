@@ -117,3 +117,152 @@ test('nobody holding anything is an empty ledger, not an error', () => {
   assert.equal(led.totals.out_value, 0);
   assert.equal(led.totals.oldest_out, '');
 });
+
+/* ---------------- taking it back, end to end ---------------- */
+
+test('somebody leaving: everything comes back in one go, and only what was ticked', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-returns-'));
+  process.env.APP_PASSWORD = 'the-key';
+  process.env.SERVE_FRONTEND = 'false';
+  const { createServer } = await import('../src/server.js');
+  const server = createServer().listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const api = async (method, url, body) => {
+    const res = await fetch(`${base}${url}`, {
+      method,
+      headers: { authorization: 'Bearer the-key', ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+
+  try {
+    const company = await api('POST', '/api/companies', { name: 'BNF' });
+    const who = await api('POST', '/api/employees', {
+      name: 'Amit Shah', company_id: company.body.id, monthly_salary: 26000, joined_on: '2026-01-01',
+    });
+    const made = [];
+    for (const label of ['Laptop', 'Phone', 'ID card']) {
+      const a = await api('POST', '/api/people/assets', {
+        company_id: company.body.id, kind: label, label: `${label} one`, purchase_cost: 1000,
+      });
+      made.push(a.body.id);
+      await api('POST', `/api/people/assets/${a.body.id}/issue`, { employee_id: who.body.id, issued_on: '2026-04-01' });
+    }
+
+    const before = await api('GET', `/api/people/assets/ledger/${who.body.id}`);
+    assert.equal(before.body.ledger.totals.out, 3);
+
+    // Two come back; the phone does not - it is not lost, it is simply still
+    // with them, and the register has to keep saying so.
+    const done = await api('POST', '/api/people/assets/return-many', {
+      asset_ids: [made[0], made[2]],
+      returned_on: '2026-11-19',
+      condition: 'fine',
+    });
+    assert.equal(done.status, 200);
+    assert.equal(done.body.returned.length, 2);
+    assert.equal(done.body.returned_on, '2026-11-19');
+
+    const after = await api('GET', `/api/people/assets/ledger/${who.body.id}`);
+    assert.equal(after.body.ledger.totals.out, 1, 'the phone is still with them');
+    assert.equal(after.body.ledger.totals.returned, 2);
+    assert.equal(after.body.ledger.holding[0].label, 'Phone one');
+    // The history is kept, with the date and the condition on it.
+    const laptop = after.body.ledger.returned.find((l) => l.label === 'Laptop one');
+    assert.equal(laptop.returned_on, '2026-11-19');
+    assert.equal(laptop.condition_in, 'fine');
+
+    // Nothing was written off, and nothing is a deduction.
+    const register = await api('GET', '/api/people/assets?written_off=true');
+    assert.ok(!register.body.assets.some((a) => a.written_off_on), 'not returned is not lost');
+
+    // Asking again does not re-date a handover that closed.
+    const twice = await api('POST', '/api/people/assets/return-many', { asset_ids: [made[0]] });
+    assert.equal(twice.body.returned.length, 0);
+    assert.equal(twice.body.already.length, 1);
+    const unchanged = await api('GET', `/api/people/assets/ledger/${who.body.id}`);
+    assert.equal(
+      unchanged.body.ledger.returned.find((l) => l.label === 'Laptop one').returned_on,
+      '2026-11-19',
+      'a second return moved the date on a handover that was already closed'
+    );
+
+    // And the full and final still names what is out, valued and not deducted.
+    await api('PUT', `/api/people/exits/${who.body.id}`, {
+      type: 'resigned', resigned_on: '2026-11-01', last_working_day: '2026-11-30',
+    });
+    const exit = await api('GET', `/api/people/exits/${who.body.id}`);
+    const out = exit.body.settlement?.assets_out || [];
+    assert.equal(out.length, 1, 'the phone is named on the settlement');
+    assert.ok(out[0].value >= 0);
+  } finally {
+    server.close();
+  }
+});
+
+test('taking back something that never had a slip keeps it in their history', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salary-noslip-'));
+  process.env.APP_PASSWORD = 'the-key';
+  process.env.SERVE_FRONTEND = 'false';
+  const { createServer } = await import('../src/server.js');
+  const server = createServer().listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const api = async (method, url, body) => {
+    const res = await fetch(`${base}${url}`, {
+      method,
+      headers: { authorization: 'Bearer the-key', ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+
+  try {
+    // Its own name: this file's two end-to-end tests share one database,
+    // because db.js is initialised once per process.
+    const company = await api('POST', '/api/companies', { name: 'BNF VENTURE' });
+    const who = await api('POST', '/api/employees', {
+      name: 'Priya Nair', company_id: company.body.id, monthly_salary: 24000, joined_on: '2026-01-01',
+    });
+    const chair = await api('POST', '/api/people/assets', {
+      company_id: company.body.id, kind: 'Chair', label: 'Godrej chair', purchase_cost: 4200,
+    });
+    // Straight onto the register against her, the way an import leaves it:
+    // a holder and no handover row at all.
+    await api('PATCH', `/api/people/assets/${chair.body.id}`, {
+      employee_id: who.body.id, issued_on: '2024-11-05',
+    });
+
+    assert.equal(who.status, 201, JSON.stringify(who.body));
+    assert.equal(chair.status, 201, JSON.stringify(chair.body));
+    const before = await api('GET', `/api/people/assets/ledger/${who.body.id}`);
+    assert.equal(before.status, 200, JSON.stringify(before.body));
+    assert.equal(before.body.ledger.totals.out, 1);
+    assert.equal(before.body.ledger.totals.no_slip, 1);
+
+    await api('POST', '/api/people/assets/return-many', {
+      asset_ids: [chair.body.id], returned_on: '2026-11-19', condition: 'arm loose',
+    });
+
+    const after = await api('GET', `/api/people/assets/ledger/${who.body.id}`);
+    assert.equal(after.body.ledger.totals.out, 0);
+    assert.equal(
+      after.body.ledger.totals.ever,
+      1,
+      'it disappeared from her ledger entirely — no longer held, and nothing saying it ever was'
+    );
+    const line = after.body.ledger.returned[0];
+    assert.equal(line.returned_on, '2026-11-19');
+    assert.equal(line.issued_on, '2024-11-05', 'from when the register said she had it');
+    assert.equal(line.condition_in, 'arm loose');
+    assert.match(line.note, /no slip was on file/);
+  } finally {
+    server.close();
+  }
+});

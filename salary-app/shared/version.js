@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.25.0';
+export const VERSION = '1.26.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.26.0',
+    date: '19 Nov 2026',
+    title: 'Taking assets back — somebody leaving, or handing over',
+    items: [
+      '**Take it back** on anybody’s asset ledger: everything they hold is ticked, you set the date and the condition once, and it all comes back in one go. Untick whatever is **not** coming back — the register will still say it is with them, which is the truth until it is in your hand.',
+      'The same button is one click from the **exit page** (People → Leaving → “See their whole asset ledger”) and from the **employee’s own record**, so on somebody’s last day it is where you already are.',
+      '**Nothing is written off and nothing is deducted.** Not returned is not the same as lost, and an unreturned asset stays named and valued on the full and final, as it always has been.',
+      '**Asking twice does not re-date a handover that already closed** — anything already back is reported as such.',
+      '**A fix worth knowing:** taking back something that never had a handover slip used to erase it from that person’s history. It was no longer held, and nothing said it ever had been. The return now writes the handover itself — who had it, from the date the register said, back today — marked as recorded at the return, because nobody signed for it going out and the trail should not pretend otherwise.',
+      'One more, from looking at the page: the “Given back” table had grown a stray column with a literal 0 in it — the row renderer was being handed the array index as a flag.',
+    ],
+  },
   {
     version: '1.25.0',
     date: '19 Nov 2026',

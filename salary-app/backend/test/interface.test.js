@@ -1980,3 +1980,29 @@ test('assets and licences do not wait for a month to be opened', () => {
   const app = src('App.jsx');
   assert.match(app, /\['employees', 'dashboard', 'hiring', 'assets', 'license'\]\.includes\(tab\)/);
 });
+
+test('the ledger never hands a row renderer straight to .map', () => {
+  /*
+   * `.map(fn)` passes the INDEX as the second argument. The ledger's row
+   * renderer takes a "show a tick box" flag there, so `returned.map(line)`
+   * printed a literal 0 in the first row (`0 && …` renders the zero in JSX)
+   * and put a tick box on every later one, shifting the table out of line
+   * with its own header.
+   */
+  const file = fs.readFileSync(
+    new URL('../../frontend/src/components/people/AssetLedger.jsx', import.meta.url),
+    'utf8'
+  );
+  /*
+   * Comments stripped before the negative assertion - the comment ABOVE this
+   * explains the bug by quoting the very code it forbids, and the first run
+   * of this test failed against perfectly good code because of it. Third time
+   * in this file.
+   */
+  const code = file.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/\.map\(line\)/.test(code), 'a row renderer is being handed the array index as a flag');
+  assert.match(code, /returned\.map\(\(l\) => line\(l\)\)/);
+  assert.match(code, /holding\.map\(\(l\) => line\(l, taking\)\)/);
+  // And the flag is rendered as a ternary, so a falsy number cannot print.
+  assert.ok(!/\{tickable && \(/.test(code), 'a falsy flag would render as 0');
+});
