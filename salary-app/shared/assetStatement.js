@@ -67,7 +67,15 @@ export function assetStatement(assets = [], { by = 'company' } = {}) {
   const blocks = new Map();
   for (const asset of live) {
     const key = blockKey(asset);
-    if (!blocks.has(key)) blocks.set(key, { name: key, rows: [], groups: new Map(), count: 0, cost: 0, out: 0, out_cost: 0 });
+    if (!blocks.has(key)) {
+      blocks.set(key, {
+        name: key,
+        // Whose block this is, staff-wise: null for the office, which is a
+        // place and has no ledger to open.
+        employee_id: by === 'person' && isOut(asset) ? asset.employee_id || null : null,
+        rows: [], groups: new Map(), count: 0, cost: 0, out: 0, out_cost: 0,
+      });
+    }
     const block = blocks.get(key);
     const cost = num(asset.purchase_cost);
     const out = isOut(asset);
@@ -90,6 +98,9 @@ export function assetStatement(assets = [], { by = 'company' } = {}) {
       // Who has it, or where it is. Nobody against it means the office, which
       // is a place - not a missing asset.
       holder: out ? asset.employee_name || 'somebody' : '',
+      // The id as well as the name, so a staff-wise block can open that
+      // person's own ledger rather than just naming them.
+      employee_id: out ? asset.employee_id || null : null,
       where: out ? 'with staff' : 'in the office',
       cost,
     });

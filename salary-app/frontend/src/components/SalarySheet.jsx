@@ -115,7 +115,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
   }, [filtered]);
 
   return (
-    <section>
+    /* `salary-page` only means one thing: twenty columns want landscape paper. */
+    <section className="salary-page">
       <div className="toolbar">
         <input
           className="search"

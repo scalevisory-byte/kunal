@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
+import AssetLedger from './AssetLedger.jsx';
 
 /**
  * THE WHOLE REGISTER AS ONE DOCUMENT — "total asset ka register".
@@ -22,9 +23,13 @@ import { rupees } from '../../format.js';
  */
 export default function AssetStatement({ companies = [], onError }) {
   const [statement, setStatement] = useState(null);
+  const [ledger, setLedger] = useState(null);
   const [by, setBy] = useState('company');
   const [companyId, setCompanyId] = useState('');
   const [full, setFull] = useState(false);
+  /* Bumped when the ledger changes something under us, so the register is
+     re-read rather than left showing what somebody held a minute ago. */
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (STANDALONE) return;
@@ -38,7 +43,7 @@ export default function AssetStatement({ companies = [], onError }) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [by, companyId]);
+  }, [by, companyId, tick]);
 
   if (STANDALONE) {
     return (
@@ -46,6 +51,21 @@ export default function AssetStatement({ companies = [], onError }) {
         <h3>The register, as a statement</h3>
         <p className="muted small">This one reads the whole register from the server.</p>
       </div>
+    );
+  }
+
+  if (ledger) {
+    return (
+      <AssetLedger
+        employeeId={ledger.id}
+        name={ledger.name}
+        onClose={() => setLedger(null)}
+        onOpenEmployee={(who) => who && setLedger(who)}
+        onError={onError}
+        /* Taking something back or passing it on changes this register, so it
+           is re-read rather than left showing what they held a minute ago. */
+        onReload={() => setTick((t) => t + 1)}
+      />
     );
   }
 
@@ -63,8 +83,20 @@ export default function AssetStatement({ companies = [], onError }) {
           <button className={by === 'group' ? 'active' : undefined} onClick={() => setBy('group')}>
             By group
           </button>
-          {/* Staff-wise: asked for by name, looking at 367 rows. */}
-          <button className={by === 'person' ? 'active' : undefined} onClick={() => setBy('person')}>
+          {/*
+            * Staff-wise: asked for by name, looking at 367 rows - and it
+            * turns "List every asset" ON, because *"agar 3 mobile he to 3 ki
+            * alag alag detail dikhna chahiye"*. A register of people that
+            * says "Mobile 3" is a count, not a register: the point of
+            * printing it per person is the serial beside each one.
+            */}
+          <button
+            className={by === 'person' ? 'active' : undefined}
+            onClick={() => {
+              setBy('person');
+              setFull(true);
+            }}
+          >
             By person
           </button>
         </div>
@@ -127,9 +159,25 @@ export default function AssetStatement({ companies = [], onError }) {
         </div>
 
         {blocks.map((block) => (
-          <div key={block.name} style={{ marginTop: '1rem' }}>
+          <div key={block.name} className="statement-block" style={{ marginTop: '1rem' }}>
             <h4>
-              {block.name}{' '}
+              {/*
+                * ONE PERSON'S LEDGER FROM HERE — *"agar ek jan ka ledger
+                * dekhna he to uska bhi option do"*. Sixth time for this
+                * shape: the ledger already existed and the only way in was a
+                * different screen. The name on the block IS the way in.
+                */}
+              {by === 'person' && block.employee_id ? (
+                <button
+                  className="link"
+                  onClick={() => setLedger({ id: block.employee_id, name: block.name })}
+                  title={`Open ${block.name}'s asset ledger`}
+                >
+                  {block.name}
+                </button>
+              ) : (
+                block.name
+              )}{' '}
               <span className="muted small">
                 {block.count} {block.count === 1 ? 'asset' : 'assets'} · {rupees(block.cost)}
                 {block.out ? ` · ${block.out} out with staff` : ''}

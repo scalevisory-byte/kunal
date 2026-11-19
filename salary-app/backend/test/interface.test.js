@@ -2018,3 +2018,129 @@ test('the ledger never hands a row renderer straight to .map', () => {
   // And the flag is rendered as a ternary, so a falsy number cannot print.
   assert.ok(!/\{tickable && \(/.test(code), 'a falsy flag would render as 0');
 });
+
+/* ======================================================================
+ * Paper, and the two lists that read as empty when they were only blank.
+ * ====================================================================== */
+
+test('a joiner with no date, and a leaver with no date, are counted and named', () => {
+  const dash = src('components/Dashboard.jsx');
+
+  /*
+   * Dinesh added joiners and leavers and the card still read "Nobody new
+   * this month" and "Nobody left." Both were true of the DATA:
+   *
+   *   "Add to payroll" needs only a name and a salary, so a joiner can land
+   *   with no joining date at all.
+   *   Unticking "active" - the only way out of the payroll on that screen -
+   *   records NO leaving date.
+   *
+   * And the old footnote counted neither, because it counted people with
+   * NEITHER a birth date NOR a joining date. The three are separate counts
+   * now, and the empty lists say which of them is why.
+   */
+  assert.match(dash, /noJoined: active\.filter\(\(e\) => !e\.joined_on\)\.length/);
+  assert.match(dash, /noDob: active\.filter\(\(e\) => !e\.dob\)\.length/);
+  assert.match(dash, /goneNoDate: mine\.filter\(\(e\) => !e\.active && !e\.left_on\)\.length/);
+
+  // The empty text is not a flat "Nobody": it names the gap and offers the
+  // way to fill it.
+  assert.match(dash, /no joining date at all/);
+  assert.match(dash, /no last working day/);
+  // The sentence wraps in the source, so the gap may be a newline.
+  assert.match(dash, /unticking .active. does[\s\S]{0,20}not set one/i);
+
+  // The counts are worded one at a time, not "1 have".
+  assert.match(dash, /people\.noDob === 1 \? 'has' : 'have'/);
+});
+
+test('Left is a column on the Employees table, beside Born and Joined', () => {
+  const emp = src('components/Employees.jsx');
+
+  /*
+   * It existed only on the profile drawer, below six other blocks - which
+   * is why the tick box beside it got used instead, and that records no
+   * date. Fifth time for this shape: the way in has to be where the person
+   * is already standing.
+   */
+  assert.match(emp, /<th title="The last working day[^"]*">\s*Left\s*<\/th>/);
+  assert.match(emp, /onPatch\(emp\.id, \{ left_on: e\.target\.value \}\)/);
+  // And the tick box says what it does NOT do.
+  assert.match(emp, /It does not record a leaving date/);
+});
+
+test('there is still one print block, and it clears the screen furniture off the paper', () => {
+  const print = css.slice(css.lastIndexOf('@media print'));
+
+  // The navy top bar printed with a signed-in avatar on it; the month and
+  // company pickers printed as dropdowns somebody cannot press.
+  assert.match(print, /\.page > header/);
+  assert.match(print, /\.page-filters/);
+  assert.match(print, /aside, \.sidebar/);
+
+  // Headers repeat on every sheet and a row is never split in half.
+  assert.match(print, /thead \{ display: table-header-group/);
+  assert.match(print, /tr, img \{ page-break-inside: avoid/);
+
+  // All three dialog layers are flattened: one of them printed a grey tint
+  // over the whole page.
+  assert.match(print, /\.modal-backdrop, \.picker-backdrop, \.backdrop \{/);
+
+  // A section that prints whether or not its tab is open.
+  assert.match(print, /\.print-only \{ display: block !important/);
+});
+
+test('the wide screens take landscape paper, and nothing else does', () => {
+  const app = src('App.jsx');
+
+  /*
+   * `@page` cannot be scoped by a class, and Chrome ignores a named page
+   * (`page: wide`) on a nested element - both were tried and read back off
+   * the printed PDF. A stylesheet that exists only while one of those tabs
+   * is open can say it, and it works for Ctrl+P too.
+   */
+  assert.match(app, /const LANDSCAPE_TABS = new Set\(\['sheet', 'attendance'\]\)/);
+  assert.match(app, /LANDSCAPE_TABS\.has\(tab\) && <style>\{'@page \{ size: A4 landscape/);
+
+  // And the printed page says what it is, since the browser's own header
+  // can only say the date and the address.
+  assert.match(app, /className="print-head"/);
+  assert.match(css, /\.print-head \{ display: none; \}/);
+});
+
+test('the printed register lists the assets, and a name on it opens that ledger', () => {
+  const st = src('components/people/AssetStatement.jsx');
+
+  /*
+   * "agar 3 mobile he to 3 ki alag alag detail dikhna chahiye" - a
+   * staff-wise register that says "Mobile 3" is a count, not a register. So
+   * By person turns on listing every asset.
+   */
+  assert.match(st, /setBy\('person'\);\s*\n\s*setFull\(true\);/);
+
+  // "agar ek jan ka ledger dekhna he to uska bhi option do" - the name on
+  // the block IS the way in. Sixth time for this shape.
+  assert.match(st, /setLedger\(\{ id: block\.employee_id, name: block\.name \}\)/);
+  assert.match(st, /<AssetLedger/);
+
+  // Each person's block stays whole on paper and shares one set of column
+  // widths with every other block.
+  assert.match(st, /className="statement-block"/);
+  const print = css.slice(css.lastIndexOf('@media print'));
+  assert.match(print, /\.statement-block table\.sheet \{ table-layout: fixed/);
+});
+
+test('one person’s whole ledger prints, not whichever tab is open', () => {
+  const led = src('components/people/AssetLedger.jsx');
+
+  /*
+   * Printing from Overview gave a sheet with six figures and no list of
+   * what the person holds - which is the one thing a ledger is handed over
+   * for. Current assets and the movement ledger are always rendered now,
+   * hidden on screen when their tab is not the open one.
+   */
+  assert.match(led, /tab === 'current' \? undefined : 'print-only'/);
+  assert.match(led, /tab === 'ledger' \? undefined : 'print-only'/);
+  // With a heading each, because on screen the tab button was the heading.
+  assert.match(led, /<h4 className="print-only">Assets with them now<\/h4>/);
+});

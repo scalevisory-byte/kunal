@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.30.0';
+export const VERSION = '1.31.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.31.0',
+    date: '19 Nov 2026',
+    title: 'Printing, one person’s ledger from the register, and two empty lists explained',
+    items: [
+      '**Printing is fixed across the app.** No navy bar, no sidebar, no month or company dropdown on the paper — a printed page carried controls nobody can press. Instead the top of every sheet says what it is: the screen, the company, the month and the day it was printed.',
+      '**The salary sheet and the attendance grid print landscape**, so the right-hand columns stop falling off the page — the whole sheet on one sheet. Tables keep their header on every page, a row is never cut in half, and each person’s or company’s block stays whole.',
+      '**A dialog left open no longer prints a grey layer over everything** — the “Send payslips” panel printed as a tint across the salary sheet.',
+      '**One person’s ledger prints whole**, not just the tab you happened to be on: who they are, what they hold now, and every movement with the running balance. Printing from Overview used to give six figures and no list at all.',
+      '**Click a name on the staff-wise register to open that person’s ledger** — asked for by name. And **By person now lists every asset**: three mobiles show as three lines with their serials, not as “Mobile 3”.',
+      '**A kind typed as “Mobile” was filed under Other.** The mobile group knew “phone”, “sim” and “charger” but not the word Mobile itself, so rows typed the obvious way sat in the wrong group. Fixed, with Smartphone and Handset too.',
+      '**“Nobody new this month” and “Nobody left” now say why.** Adding somebody to payroll needs only a name and a salary, so a joiner can land with no joining date; and unticking “Active” records no leaving date at all. Both are now counted and named, with a way to fill them in.',
+      '**Left is a column on the Employees table**, beside Born and Joined. It was only on the profile drawer below six other blocks, which is why the tick box beside it got used instead — and that records no date.',
+    ],
+  },
   {
     version: '1.30.0',
     date: '19 Nov 2026',

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AuthError, STANDALONE, api, clearToken } from './api.js';
+import { MONTHS } from './format.js';
 import Attendance from './components/Attendance.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
@@ -80,6 +81,9 @@ const TABS = [
 ];
 
 const PERIOD_KEY = 'salary-app-period';
+
+/** Screens whose tables are wider than they are tall, so paper turns. */
+const LANDSCAPE_TABS = new Set(['sheet', 'attendance']);
 
 /** "Dinesh Parmar" -> "DP". One letter when there is only one word. */
 const initialsOf = (name) =>
@@ -850,6 +854,39 @@ function Shell() {
           charts - to this one page. Every other tab keeps the quiet hairline
           sheet it was built with, which is what they are read for. */}
       <main className={tab === 'dashboard' ? 'dash' : undefined}>
+        {/*
+          * WHAT THIS PAGE IS, printed only on paper.
+          *
+          * The browser prints its own header — a date and the address — and
+          * nothing in this app can turn that off. What it cannot say is
+          * which screen this is and which company it was narrowed to, and
+          * the one control that DID say so, the company picker, was reaching
+          * paper as a dropdown somebody could not use. So that strip is
+          * hidden on paper and this line is printed instead.
+          */}
+        {/*
+          * LANDSCAPE PAPER FOR THE WIDE SCREENS.
+          *
+          * The salary sheet is twenty-odd columns and the attendance grid is
+          * a month across; on A4 portrait the right-hand columns fall off
+          * the page, and shrinking them far enough to fit makes the figures
+          * unreadable. `@page` cannot be scoped by a class and Chrome
+          * ignores a named page (`page: wide`) on a nested element - both
+          * were tried and read back off the printed PDF. A stylesheet that
+          * exists only while one of those tabs is open can say it, and it
+          * works for Ctrl+P as well as for a Print button.
+          */}
+        {LANDSCAPE_TABS.has(tab) && <style>{'@page { size: A4 landscape; margin: 10mm 8mm; }'}</style>}
+        <div className="print-head">
+          <strong>{TABS.find(([key]) => key === tab)?.[1] || 'HRMS'}</strong>
+          <span className="muted">
+            {' · '}
+            {activeCompany?.name || 'All companies'}
+            {period ? ` · ${MONTHS[period.month - 1]} ${period.year}` : ''}
+            {' · printed '}
+            {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </span>
+        </div>
         {/*
           * Assets do not belong to a month: a laptop bought in March is on
           * the register in November. The banner telling somebody to open one

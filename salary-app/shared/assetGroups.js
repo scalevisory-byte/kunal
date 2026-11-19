@@ -34,7 +34,15 @@ export const ASSET_GROUPS = [
       'docking-station', 'webcam', 'headset', 'graphics-card',
     ],
   ],
-  ['mobile', 'Mobile', ['phone', 'sim', 'charger', 'powerbank']],
+  /*
+   * "mobile" ITSELF was missing, which is the word the group is called and
+   * the word anybody types. A row whose kind reads "Mobile" fell through to
+   * Other - on the staff-wise register, three mobiles against one person sat
+   * under "Other" while the group button above said Mobile. Same shape as
+   * the "ac" / "air conditioner" note below: the register holds whatever the
+   * office typed, not what the import happened to map.
+   */
+  ['mobile', 'Mobile', ['mobile', 'mobile phone', 'mobile-phone', 'smartphone', 'handset', 'phone', 'sim', 'charger', 'powerbank']],
   [
     'furniture',
     'Furniture',

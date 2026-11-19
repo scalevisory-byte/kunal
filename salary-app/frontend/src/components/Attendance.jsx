@@ -240,7 +240,8 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
   };
 
   return (
-    <section>
+    /* A month across the page: thirty-one columns want landscape paper. */
+    <section className="attendance-page">
       <div className="toolbar">
         <input
           className="search"

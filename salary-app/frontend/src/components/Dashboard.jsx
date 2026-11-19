@@ -733,6 +733,31 @@ export default function Dashboard({
         inactive: mine.length - active.length,
         withDates,
         missingDates: active.length - withDates,
+        /*
+         * WHY A LIST IS EMPTY, counted separately.
+         *
+         * Dinesh added joiners and leavers and the card still read "Nobody
+         * new this month" / "Nobody left." Both were true of the DATA and
+         * read as a fault in the app:
+         *
+         *   "Add to payroll" needs only a name and a salary, so a new joiner
+         *   can land with NO JOINING DATE - and a list of this month's
+         *   joiners is a list of joining dates.
+         *
+         *   Unticking "active" on the Employees table - the only way out of
+         *   the payroll that is on that screen - writes NO LEAVING DATE. So
+         *   somebody can be gone from every month to come and still never
+         *   appear under "Left this month".
+         *
+         * The old footnote counted neither: it counted people with NEITHER a
+         * birth date NOR a joining date, so somebody with a birthday on file
+         * and no joining date was silently missing from two lists and
+         * mentioned in none. Nothing is guessed here - the counts are named
+         * so the gap can be filled in.
+         */
+        noJoined: active.filter((e) => !e.joined_on).length,
+        noDob: active.filter((e) => !e.dob).length,
+        goneNoDate: mine.filter((e) => !e.active && !e.left_on).length,
         joined: active
           .filter((e) => inMonth(e.joined_on))
           .map((e) => ({ ...e, dayOfMonth: on(e.joined_on).getDate() }))
@@ -2083,7 +2108,22 @@ export default function Dashboard({
             title="Joined this month"
             list={people.joined}
             month={period.month}
-            empty="Nobody new this month."
+            empty={
+              people.noJoined ? (
+                <>
+                  Nobody with a joining date in {MONTHS[period.month - 1]}.{' '}
+                  <strong>{people.noJoined}</strong>{' '}
+                  {people.noJoined === 1 ? 'person has' : 'people have'} no joining date at all, so
+                  anybody added without one cannot appear here —{' '}
+                  <button className="link" onClick={() => onGo('employees')}>
+                    fill in Joined
+                  </button>
+                  .
+                </>
+              ) : (
+                'Nobody new this month.'
+              )
+            }
           />
           <DateGroup
             icon="🎂"
@@ -2106,13 +2146,37 @@ export default function Dashboard({
             title="Left this month"
             list={people.left}
             month={period.month}
-            empty="Nobody left."
+            empty={
+              people.goneNoDate ? (
+                <>
+                  Nobody with a leaving date in {MONTHS[period.month - 1]}.{' '}
+                  <strong>{people.goneNoDate}</strong>{' '}
+                  {people.goneNoDate === 1 ? 'person is' : 'people are'} marked as no longer working
+                  here with <strong>no last working day</strong> recorded — unticking “active” does
+                  not set one.{' '}
+                  <button className="link" onClick={() => onGo('employees')}>
+                    fill in Left
+                  </button>
+                  .
+                </>
+              ) : (
+                'Nobody left.'
+              )
+            }
           />
         </div>
-        {people.missingDates > 0 && (
+        {(people.noDob > 0 || people.noJoined > 0) && (
           <p className="muted small">
-            {people.missingDates} of {people.active} have no date of birth or joining date on
-            record, so they can never appear here. Both are columns on the{' '}
+            {[
+              people.noDob &&
+                `${people.noDob} of ${people.active} ${people.noDob === 1 ? 'has' : 'have'} no date of birth`,
+              people.noJoined &&
+                `${people.noJoined} ${people.noJoined === 1 ? 'has' : 'have'} no joining date`,
+            ]
+              .filter(Boolean)
+              .join(', ')}
+            , so they can never appear here. <strong>Born</strong>, <strong>Joined</strong> and{' '}
+            <strong>Left</strong> are columns on the{' '}
             <button className="link" onClick={() => onGo('employees')}>Employees</button> table —
             fill them in once and this looks after itself.
           </p>

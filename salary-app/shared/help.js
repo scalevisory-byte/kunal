@@ -488,6 +488,24 @@ export const HELP = [
     note: 'The EPFO and ESIC upload formats drift. Check a file against the portal’s own template before uploading it rather than trusting the column order here.',
   },
   {
+    id: 'printing',
+    title: 'Printing — what comes out on paper',
+    tab: 'reports',
+    keywords: [
+      'print', 'printing', 'paper', 'pdf', 'printer', 'landscape', 'portrait',
+      'chhapna', 'print karna', 'nikalna', 'hard copy', 'a4', 'page',
+    ],
+    lines: [
+      'Every **Print** button, and Ctrl+P, use the same rules: the sidebar, the navy bar, the tabs and the month and company pickers are **not** printed — they are controls, and a control on paper is something somebody cannot press.',
+      'The top of the page says what it is instead: the screen, the company it was narrowed to, the month, and the day it was printed. The date and address the browser prints in its own margin come from the browser, not from here.',
+      'The **salary sheet** and the **attendance grid** print **landscape** on their own, because they are wider than they are tall. Everything else is portrait.',
+      'A table keeps its **header on every page**, a row is never split in half, and each block of a register — one company, one group, one person — stays whole where it fits on a page.',
+      '**One person’s asset ledger prints whole** — who they are, what they hold now and every movement with the running balance — whichever tab you were looking at.',
+      'There is **no separate PDF maker**: choose “Save as PDF” as the printer. One generator means the paper and the screen cannot drift apart.',
+    ],
+    note: 'Printing shows what is ON SCREEN. A filter, a company or a search narrows the paper exactly as it narrows the screen — so check the line at the top of the printed page before handing it to anybody.',
+  },
+  {
     id: 'daily-report',
     title: 'The daily attendance report for WhatsApp',
     tab: 'dashboard',
@@ -534,7 +552,7 @@ export const HELP = [
       '**QR labels** print for the rows you tick, or for everything on screen — so a group button plus the label button is a sheet of stickers for that group.',
       '**Who holds what → ledger** is one person’s whole history: what they still have, what came back and when, days held, and what it cost. It opens from their employee record and from the exit page too.',
       '**Transfer to…** on that ledger hands things straight to somebody else without coming back to the office first. Tick what is going, pick the person, set one date and one condition — **both ledgers read “Transferred” on the same day**, so nothing belongs to nobody in between. Anything no longer with that person, written off, or already theirs is **refused by name**, so two people on two screens cannot move the same laptop twice.',
-      '**Full register → By person** is the register staff-wise: a block for each person with their own subtotal, and everything nobody is holding at the foot under “In the office”.',
+      '**Full register → By person** is the register staff-wise: a block for each person with their own subtotal, and everything nobody is holding at the foot under “In the office”. It lists **every asset**, so three mobiles are three lines with their serials — and **clicking a name opens that person’s ledger**.',
       '**Take it back** on that ledger returns everything in one go when somebody leaves: tick what came back, set the date and the condition once. What you untick stays out, and **nothing is written off or deducted** — not returned is not the same as lost.',
       'An asset standing against somebody with **no handover slip** is said so, and counted — it is a slip to get signed, not a missing asset.',
       '**Export a report** on the register lets you tick which columns you want — code, kind, serial, who has it, where, bought on, cost, vendor, invoice, warranty, AMC and the rest — and takes **Excel** or CSV. Your ticks are remembered.',

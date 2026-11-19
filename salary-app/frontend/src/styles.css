@@ -1165,13 +1165,6 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
   .date-group + .date-group { border-left: none; padding-left: 0; padding-top: 0.9rem; }
 }
 
-@media print {
-  body { background: #fff; }
-  header, .tabs, .no-print, .error.banner { display: none !important; }
-  .modal-backdrop { position: static; background: none; padding: 0; overflow: visible; }
-  .modal { box-shadow: none; width: 100%; padding: 0; }
-}
-
 @media (max-width: 720px) {
   main { padding: 0.6rem; }
   header { padding: 0.6rem; }
@@ -1524,8 +1517,155 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 .slip .signatures { display: flex; gap: 3rem; font-size: 0.79rem; color: var(--muted); }
 .slip .signatures > div { flex: 1; }
 .slip .signatures .rule { border-top: 1px solid var(--text); margin-bottom: 0.3rem; height: 2.4rem; }
+/* Printed at the top of every sheet, and never on screen. */
+.print-head { display: none; }
+
+/*
+ * A section that is on the printed page whether or not its tab is open.
+ * One person's asset ledger uses it: a ledger handed over has to carry what
+ * they hold and how it moved, and printing from the Overview tab gave six
+ * figures and no list at all.
+ */
+.print-only { display: none; }
+
+/* ======================================================================
+ * PAPER.
+ *
+ * ONE print block for the whole app, and the comments below say why more
+ * than once: a second one is how a rule ends up in the one nobody is
+ * reading. There is a test that takes the LAST block on the page.
+ *
+ * Dinesh printed the staff-wise register and got seventeen sheets with the
+ * Company dropdown across the top, each person's table two inches wide in
+ * the middle of an A4 page. So the rules here are about three things:
+ *
+ *   **Nothing you cannot press on paper.** The screen's furniture - the rail,
+ *   the tabs, the month and company pickers, every button - is gone. A
+ *   dropdown on a printed page is a control somebody is being shown and
+ *   cannot use.
+ *
+ *   **The page says what it is.** The browser prints its own header - a date
+ *   and a URL - and nothing can turn that off from here. So the app prints
+ *   its own line at the top instead: which screen, which company, which day.
+ *
+ *   **A table is not cut in half.** Headers repeat on every sheet, a row is
+ *   never split, a heading never sits alone at the foot of a page, and each
+ *   block of a register tries to stay whole.
+ * ====================================================================== */
+@page { size: A4; margin: 12mm 10mm; }
+
+
 @media print {
-  .no-print, nav, .toolbar, .sub-tabs { display: none !important; }
+  body { background: #fff; }
+  .no-print, nav, .toolbar, .sub-tabs, .tabs, .error.banner { display: none !important; }
+
+  /*
+   * The shell: the navy sidebar, the navy top bar with the tab name and the
+   * avatar on it, and the month/company strip underneath.
+   *
+   * `header` was hidden by the older of the two print blocks; folding them
+   * into one dropped it, and the first printed page came out with the navy
+   * bar and a signed-in avatar across the top. Named here with the rest.
+   */
+  aside, .sidebar, .side-scrim, .page > header, .page-filters, .top-row,
+  .period-bar, .company-pick, .side-open { display: none !important; }
+  .app, .page, main, .stack {
+    display: block !important;
+    margin: 0 !important; padding: 0 !important; gap: 0 !important;
+    max-width: none !important; width: auto !important; min-height: 0 !important;
+  }
+
+  .print-only { display: block !important; }
+  h4.print-only { margin: 0 0 4px; font-size: 12px; }
+
+  /* What it is, printed by us, because the browser's own header cannot say. */
+  .print-head { display: block !important; margin: 0 0 8px; font-size: 11px; }
+  .print-head strong { font-size: 13px; }
+  .print-head .muted { color: #444; }
+
+  /* A card on paper is not a card: no frame, no shadow, no inner padding. */
+  .card { border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 0 10px !important; background: none !important; }
+
+  /* Buttons are nothing to press on paper. A link that is really a button is text. */
+  button, .btn, a.button-like { display: none !important; }
+  .card h2 button, .card h3 button, .roll-head button { display: none !important; }
+  button.link { display: inline !important; border: 0; padding: 0; color: #000; text-decoration: none; }
+
+  /*
+   * TABLES. Headers repeat on every sheet, nothing is split mid-row, and a
+   * sheet-style table fills the width it is given - on screen it sizes to
+   * its contents, which on A4 left a subtotal table two inches wide in the
+   * middle of the page.
+   */
+  table { width: 100% !important; border-collapse: collapse; font-size: 10px; page-break-inside: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img { page-break-inside: avoid; break-inside: avoid; }
+  /*
+   * The size has to be set on the CELLS, not just on `table`: table.sheet
+   * sets its own and wins on specificity, so a 10px rule on the table did
+   * nothing and a code wrapped onto two lines in a column wide enough for
+   * it. Measured on the printed page, not assumed from the rule.
+   */
+  /*
+   * A WIDE SHEET IS SHRUNK, NOT WRAPPED.
+   *
+   * Letting every sheet cell wrap on paper was tried first and was far
+   * worse than the clipping it fixed: the salary sheet printed each figure
+   * one character per line, "1,230.77" down the page as eight rows. Numbers
+   * are read across. So the wide screens are scaled down instead - the
+   * table keeps its shape and fits the paper - and only the register's
+   * fixed-width blocks wrap, where the columns are words.
+   *
+   * Named pages (@page wide, `page: wide`) were tried too: Chrome ignores
+   * the assignment on a nested element, and the sheet came out portrait
+   * either way. So the paper is turned the other way instead, by a <style>
+   * App.jsx renders only while one of those screens is open - see
+   * LANDSCAPE_TABS there. Read back off the printed PDF, not off the rule.
+   */
+  .salary-page, .attendance-page { zoom: 0.8; }
+
+  table.sheet { font-size: 10px; }
+  table.sheet th, table.sheet td {
+    border: 1px solid #bbb !important; padding: 2px 4px !important; font-size: 10px;
+  }
+  table.sheet thead th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h2, h3, h4 { page-break-after: avoid; break-after: avoid; }
+  /* Each block of a register - one company, one group, one person - whole. */
+  .statement-block, .date-group, .figures { page-break-inside: avoid; break-inside: avoid; }
+
+  /*
+   * EVERY BLOCK THE SAME SHAPE. Each person's block is its own table, so on
+   * paper every one sized itself to its own contents and no two columns
+   * lined up down the page. Fixed widths make the register read as one
+   * document rather than as forty little tables.
+   */
+  .statement-block table.sheet { table-layout: fixed; }
+  .statement-block table.sheet th:nth-child(1), .statement-block table.sheet td:nth-child(1) { width: 17%; }
+  .statement-block table.sheet th:nth-child(2), .statement-block table.sheet td:nth-child(2) { width: 25%; }
+  .statement-block table.sheet th:nth-child(3), .statement-block table.sheet td:nth-child(3) { width: 15%; }
+  /*
+   * AND THEY WRAP. On screen a sheet cell never wraps, because a row is read
+   * across; on paper a fixed column that cannot wrap simply CUTS - the first
+   * run printed "BOO-ASSETS-000" and "Dell Latitude 5..." with the serial
+   * running under the next column. A printed register that clips its own
+   * codes is worse than one with two lines in a cell.
+   */
+  .statement-block table.sheet th,
+  .statement-block table.sheet td,
+  .statement-block table.sheet td .muted,
+  .statement-block table.sheet td div {
+    white-space: normal !important; overflow: visible !important;
+    overflow-wrap: anywhere; word-break: break-word;
+  }
+  .statement-block table.sheet .sticky-name { position: static !important; min-width: 0 !important; }
+
+  /* The boxes people type in print as what they hold, not as boxes. */
+  input, select, textarea {
+    border: none !important; background: none !important; padding: 0 !important;
+    color: #000 !important; -webkit-appearance: none; appearance: none;
+  }
+
   .slip { border: none; max-width: none; }
   /*
    * The handover slip's table sits in a scroll frame so a phone does not move
@@ -1558,6 +1698,34 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   .ledger-page .no-print, .ledger-page button { display: none !important; }
   .ledger-page .table-wrap { max-height: none !important; overflow: visible !important; }
 
+  /*
+   * A DIALOG PRINTS AS ITSELF, AND NOTHING BEHIND IT.
+   *
+   * Printing with the "Send payslips" panel open gave a grey sheet of paper:
+   * the backdrop's dark layer printed as a tint over the salary sheet, with
+   * the panel floating in the middle of it and the sheet behind cut off at
+   * the edge of the page. Three backdrop classes exist in this app and all
+   * three are flattened here.
+   *
+   * `:has()` is what hides the page behind: a browser without it simply
+   * prints both, which is what used to happen anyway.
+   */
+  .modal-backdrop, .picker-backdrop, .backdrop {
+    position: static !important; background: none !important; padding: 0 !important;
+    overflow: visible !important; display: block !important; inset: auto !important;
+  }
+  .modal, .picker, .panel {
+    box-shadow: none !important; width: 100% !important; max-width: none !important;
+    padding: 0 !important; border: none !important; height: auto !important;
+  }
+  /*
+   * It does NOT try to hide the page behind the dialog. The obvious rule -
+   * main:has(.picker-backdrop) > :not(.picker-backdrop) - printed a BLANK
+   * SHEET, because the backdrop is nested deeper than a direct child of
+   * main, so the rule hid the very branch that contained it. Flattened, the
+   * dialog simply prints after the page it was covering, which is readable
+   * and cannot come out empty.
+   */
 }
 
 

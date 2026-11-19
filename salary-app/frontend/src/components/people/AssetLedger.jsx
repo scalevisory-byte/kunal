@@ -471,8 +471,21 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
       )}
 
       {/* ---------------- what they hold now ---------------- */}
-      {tab === 'current' && (
+      {/*
+        * ON PAPER, THE WHOLE LEDGER — not whichever tab happens to be open.
+        *
+        * Printing from Overview gave a sheet with six figures and no list of
+        * what the person actually holds, which is the one thing a ledger is
+        * handed over for. So Current assets and the movement ledger are
+        * always rendered; off their own tab they are hidden on screen and
+        * shown on paper. The other two tabs (papers, repairs) print only
+        * when somebody is looking at them — a slip and a repair history are
+        * separate documents.
+        */}
+      <div className={tab === 'current' ? undefined : 'print-only'}>
         <div className="card">
+          {/* On screen the tab button above says this; on paper nothing does. */}
+          <h4 className="print-only">Assets with them now</h4>
           {mode === 'take' && (
             <div className="card" style={{ marginBottom: '0.6rem' }}>
               <h4>Take it back</h4>
@@ -575,11 +588,12 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* ---------------- the movement ledger ---------------- */}
-      {tab === 'ledger' && (
+      <div className={tab === 'ledger' ? undefined : 'print-only'}>
         <div className="card">
+          <h4 className="print-only">Asset ledger — every movement</h4>
           <div className="toolbar no-print">
             <label className="pick">
               From
@@ -693,7 +707,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
             follows the lines above it; searching narrows the lines and never the balance.
           </p>
         </div>
-      )}
+      </div>
 
       {/* ---------------- the paperwork ---------------- */}
       {tab === 'papers' && (

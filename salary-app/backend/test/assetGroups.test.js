@@ -121,3 +121,20 @@ test('"Air conditioner" is Electrical, however it was typed', () => {
   // And the reason the matcher is whole-word in the first place:
   assert.notEqual(groupOf('Black board'), 'electrical');
 });
+
+test('a kind typed as the group’s own name lands in that group', () => {
+  /*
+   * "mobile" was not among the mobile group's kinds - only "phone", "sim",
+   * "charger" and "powerbank". So a row whose kind reads Mobile, which is
+   * both the obvious thing to type AND what the group button above it is
+   * called, fell through to Other. Found on the staff-wise register: three
+   * mobiles against one person, all filed under Other.
+   */
+  assert.equal(groupOf('Mobile', 'Redmi Note 12'), 'mobile');
+  assert.equal(groupLabel(groupOf('Mobile', '')), 'Mobile');
+  assert.equal(groupOf('Smartphone', ''), 'mobile');
+  assert.equal(groupOf('Mobile Phone', ''), 'mobile');
+  // And the ones that already worked still do.
+  assert.equal(groupOf('SIM Card', ''), 'mobile');
+  assert.equal(groupOf('Laptop', ''), 'computer');
+});

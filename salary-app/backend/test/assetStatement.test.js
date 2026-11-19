@@ -129,3 +129,13 @@ test('an unknown way of blocking it falls back to company rather than breaking',
   assert.equal(st.by, 'company');
   assert.ok(st.blocks.some((b) => b.name === 'BOOKNFLY'));
 });
+
+test('a staff-wise block carries the id, so the name on it can open that ledger', () => {
+  const st = assetStatement(REGISTER, { by: 'person' });
+  const amit = st.blocks.find((b) => b.name === 'Amit Shah');
+  assert.equal(amit.employee_id, 7);
+  // The office is a place, not a person: there is no ledger to open.
+  assert.equal(st.blocks.find((b) => b.name === 'In the office').employee_id, null);
+  // And the row carries it too, for a register listing every asset.
+  assert.equal(amit.rows[0].employee_id, 7);
+});
