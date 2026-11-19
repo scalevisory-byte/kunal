@@ -4254,3 +4254,15 @@ table.sheet.clearance-table { width: 100%; }
 table.sheet.clearance-table td { white-space: normal; height: auto; vertical-align: top; }
 table.sheet.clearance-table td:first-child { min-width: 20rem; }
 table.sheet.clearance-table td:last-child { width: 1%; white-space: nowrap; }
+
+/*
+ * The asset report's column picker: blocks of tick boxes, as many across as
+ * the screen has room for. A single column of forty of them is a scroll.
+ */
+.export-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.9rem;
+  margin-top: 0.6rem;
+}
+.export-fields label.check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; }

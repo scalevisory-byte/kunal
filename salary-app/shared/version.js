@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.27.0';
+export const VERSION = '1.28.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.28.0',
+    date: '19 Nov 2026',
+    title: 'Export the asset report you actually want',
+    items: [
+      '**Assets → Register → Export a report.** Tick the columns: code, kind, group, what it is, serial, brand, model, company, branch, department, location, **who has it and where**, issued on, **bought on, cost, vendor, invoice**, warranty from/until/days left, AMC, written off — 37 of them, in blocks, with all/none per block.',
+      'It takes **Excel** or CSV. Your ticks are remembered, so next month is two clicks.',
+      '**It exports exactly what is on screen** — the company, department and kind filters, the search, even a warranty line you clicked. “Everything” is a separate button, so you always know which you asked for. The ids are sent to the server rather than the filters, because working them out a second time is how a report comes to disagree with the list it was taken from.',
+      '**Money goes out as a number, so the column adds up.** The old register export wrote ₹47,500 with a comma, which a spreadsheet reads as a word — a column of those never summed to anything.',
+      'The spreadsheet is in **proper form**: a frozen header row, a filter on every column, dates as dates, money formatted, column widths that fit the content, and the total at the foot is a **live SUM** — delete a row and it still agrees with itself.',
+      '"In the office" is written out rather than left blank, because an empty cell means nobody filled it in and the two must not look alike.',
+      'The fixed **Register (CSV)** and **Handovers (CSV)** stay for when the usual columns will do.',
+    ],
+  },
   {
     version: '1.27.0',
     date: '19 Nov 2026',

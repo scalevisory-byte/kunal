@@ -148,6 +148,37 @@ export async function download(path, filename) {
 }
 
 
+/**
+ * A download whose request carries a BODY.
+ *
+ * The asset report sends the ids on screen and the columns somebody ticked,
+ * which is a POST - a thousand ids do not fit in a query string, and working
+ * the same filters out again on the server is how an export comes to
+ * disagree with the list it was taken from.
+ */
+export async function downloadPost(path, body, filename) {
+  const headers = { 'content-type': 'application/json' };
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    headers,
+    credentials: 'same-origin',
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new AuthError('Sign in again');
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Standalone only: the whole store as JSON, and putting one back. */
 export async function downloadBackup() {
   const blob = new Blob([(await localStore()).backup()], { type: 'application/json' });

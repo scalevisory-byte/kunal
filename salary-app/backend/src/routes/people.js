@@ -22,6 +22,7 @@ import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.
 import { assetAlerts } from '../../../shared/assetAlerts.js';
 import { assetLedger, ledgerCsv } from '../../../shared/assetLedger.js';
 import { assetStatement, statementCsv } from '../../../shared/assetStatement.js';
+import { ASSET_FIELDS, assetExportCsv, buildAssetExport, cleanFields, fieldGroups } from '../../../shared/assetExport.js';
 
 /* In memory: the sheet is read once and never kept. 8 MB covers an office's
    whole asset list many times over. */
@@ -470,6 +471,95 @@ peopleRouter.get('/assets/statement', (req, res) => {
 
 peopleRouter.get('/assets/statement.csv', (req, res) => {
   res.type('text/csv').attachment('asset-register-statement.csv').send(statementCsv(statementFor(req)));
+});
+
+/* ---------------- the export, with the columns somebody chose ---------------- */
+
+/** What can be asked for, in blocks, so the picker can draw itself. */
+peopleRouter.get('/assets/export/fields', (_req, res) => {
+  res.json({ groups: fieldGroups(), all: ASSET_FIELDS.map(([key, label]) => ({ key, label })) });
+});
+
+/**
+ * The report itself, as a spreadsheet or a CSV.
+ *
+ * A POST, and the IDS COME IN THE BODY. The screen has already narrowed the
+ * register - company, department, kind, group, a search, a warranty line that
+ * was clicked - and working all of that out a second time on the server is
+ * how an export comes to disagree with the list it was taken from. So the
+ * browser says exactly which assets it is looking at. A thousand ids do not
+ * fit in a query string either.
+ *
+ * No ids at all means the whole register, which is what somebody asking for
+ * "everything" expects.
+ */
+peopleRouter.post('/assets/export', async (req, res, next) => {
+  try {
+    const wanted = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : null;
+    const all = listAssets({ written_off: true });
+    const chosen = wanted && wanted.length ? all.filter((a) => wanted.includes(a.id)) : all;
+    const fields = cleanFields(req.body?.fields);
+    const built = buildAssetExport(chosen, { fields });
+
+    if (String(req.body?.format || 'xlsx') === 'csv') {
+      res.type('text/csv').attachment('asset-report.csv').send(assetExportCsv(built));
+      return;
+    }
+
+    /*
+     * A real spreadsheet, because that is what "proper form" means to an
+     * office that lives in Excel: a frozen header, the columns the right
+     * width, dates as dates, money as money - and a SUM in the footer rather
+     * than a typed figure, so it follows if somebody deletes a row.
+     */
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'BNF HRMS';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Assets', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+
+    ws.addRow(built.headers);
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).alignment = { vertical: 'middle' };
+    for (const row of built.rows) ws.addRow(row);
+
+    built.columns.forEach((column, at) => {
+      const col = ws.getColumn(at + 1);
+      if (column.type === 'money') col.numFmt = '#,##0';
+      if (column.type === 'number') col.numFmt = '0';
+      // Wide enough for the longest thing in it, within reason.
+      const longest = Math.max(
+        column.label.length,
+        ...built.rows.map((r) => String(r[at] ?? '').length)
+      );
+      col.width = Math.min(42, Math.max(10, longest + 2));
+    });
+
+    if (built.has_totals && built.rows.length) {
+      const last = built.rows.length + 1;
+      const footer = ws.addRow(
+        built.totals.map((total, at) =>
+          total === null
+            ? at === 0
+              ? `TOTAL — ${built.count} asset${built.count === 1 ? '' : 's'}`
+              : null
+            : { formula: `SUM(${ws.getColumn(at + 1).letter}2:${ws.getColumn(at + 1).letter}${last})` }
+        )
+      );
+      footer.font = { bold: true };
+    }
+
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: built.columns.length } };
+
+    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.attachment('asset-report.xlsx');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    next(err);
+  }
 });
 
 peopleRouter.get('/assets/slip/:employeeId', (req, res) => {

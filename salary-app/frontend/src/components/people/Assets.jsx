@@ -12,6 +12,7 @@ import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
 import AssetStatement from './AssetStatement.jsx';
+import AssetExport from './AssetExport.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
@@ -173,6 +174,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    */
   const [pick, setPick] = useState({ company_id: '', department: '', kind: '' });
   const [codes, setCodes] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState(null);
@@ -810,6 +812,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           >
             Labels to print
           </button>
+          {/* The report somebody picks the columns for. The two fixed CSVs
+              stay: they are one click when the usual columns will do. */}
+          <button className={exporting ? 'active' : undefined} onClick={() => setExporting((v) => !v)}>
+            {exporting ? 'Close' : 'Export a report'}
+          </button>
           <button
             className="ghost"
             onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}
@@ -824,6 +831,15 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           </button>
         </span>
       </div>
+
+      {exporting && (
+        <AssetExport
+          shown={shown}
+          total={assets.length}
+          onError={(err) => setSaid(err.message)}
+          onDone={() => setExporting(false)}
+        />
+      )}
 
       {codes && (
         <div className="card">

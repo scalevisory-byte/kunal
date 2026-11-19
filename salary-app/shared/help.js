@@ -510,6 +510,8 @@ export const HELP = [
       '**Who holds what → ledger** is one person’s whole history: what they still have, what came back and when, days held, and what it cost. It opens from their employee record and from the exit page too.',
       '**Take it back** on that ledger returns everything in one go when somebody leaves: tick what came back, set the date and the condition once. What you untick stays out, and **nothing is written off or deducted** — not returned is not the same as lost.',
       'An asset standing against somebody with **no handover slip** is said so, and counted — it is a slip to get signed, not a missing asset.',
+      '**Export a report** on the register lets you tick which columns you want — code, kind, serial, who has it, where, bought on, cost, vendor, invoice, warranty, AMC and the rest — and takes **Excel** or CSV. Your ticks are remembered.',
+      'It exports **exactly what is on screen**, filters and all, or the whole register if you choose “Everything”. Money goes out as a number, so the column adds up, and the spreadsheet has a frozen header, a filter row and a live SUM at the foot.',
       '**Full register** is the whole thing as a document: every asset under its company (or group), each block adding up, one figure at the foot. Print it or take the CSV with the subtotals in it.',
       '**Groups** — Computer, Furniture, Mobile, Electrical, Network, Security, Office equipment, Vehicle, Tools. The buttons above the register narrow it to one, each carrying its own count, and the Group is a column in the CSV.',
       '**What is running out** sits above the register: a warranty that has **just** lapsed, one running out within 30 days, and the same two for AMCs. Clicking a line shows exactly those assets.',

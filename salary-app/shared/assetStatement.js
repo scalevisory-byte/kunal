@@ -182,16 +182,16 @@ export function statementCsv(statement) {
       out.push(STATEMENT_COLUMNS.map(([, get]) => escape(get(row))).join(','));
     }
     out.push(
-      [escape(`${block.name} — ${block.count} assets`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(block.cost)].join(',')
+      [escape(`${block.name} — ${block.count} asset${block.count === 1 ? '' : 's'}`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(block.cost)].join(',')
     );
     out.push('');
   }
   out.push(
-    [escape(`TOTAL — ${statement.totals.count} assets`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(statement.totals.cost)].join(',')
+    [escape(`TOTAL — ${statement.totals.count} asset${statement.totals.count === 1 ? '' : 's'}`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(statement.totals.cost)].join(',')
   );
   if (statement.written_off.count) {
     out.push(
-      [escape(`Written off — ${statement.written_off.count} assets (not in the total above)`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(statement.written_off.cost)].join(',')
+      [escape(`Written off — ${statement.written_off.count} asset${statement.written_off.count === 1 ? '' : 's'} (not in the total above)`), ...Array(STATEMENT_COLUMNS.length - 2).fill(''), escape(statement.written_off.cost)].join(',')
     );
   }
   return `﻿${out.join('\n')}`;
