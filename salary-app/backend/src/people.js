@@ -36,6 +36,7 @@ import {
   termLabel,
 } from '../../shared/licenses.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
+import { CLEARANCE_STEPS, cleanState, exitClearance } from '../../shared/exitClearance.js';
 import {
   instalmentOf,
   kindLabel as penaltyKindLabel,
@@ -2346,6 +2347,106 @@ const readJson = (text, fallback) => {
     return fallback;
   }
 };
+
+/* ---------------- exit clearance ---------------- */
+
+/*
+ * WHO HAS SIGNED OFF WHAT, on somebody's way out.
+ *
+ * Only the steps a PERSON signs live here. Assets still out, a loan still
+ * owed, a claim unpaid and a login still working are worked out from the
+ * registers that already hold them every time the checklist is read - a tick
+ * box saying "assets: cleared" beside a register listing three things still
+ * out is exactly the disagreement this app keeps avoiding.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS exit_clearances (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    step        TEXT NOT NULL,
+    -- pending | given | blocked | na. Nobody having looked reads as pending,
+    -- which is a third state and not a refusal. (No backticks in here: one
+    -- inside a comment inside a template literal closes the literal, which is
+    -- the third time this file has been taken down by it.)
+    state       TEXT NOT NULL DEFAULT 'pending',
+    by_whom     TEXT,
+    cleared_on  TEXT,
+    note        TEXT,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (employee_id, step)
+  );
+  CREATE INDEX IF NOT EXISTS idx_exit_clearance ON exit_clearances(employee_id);
+`);
+
+export const listClearances = (employeeId) =>
+  db.prepare(`SELECT * FROM exit_clearances WHERE employee_id = ?`).all(Number(employeeId));
+
+/**
+ * The whole checklist: what somebody signed, and what the registers say.
+ *
+ * Everything on the computed half is read fresh, so taking an asset back or
+ * paying a claim clears its line without anybody touching this screen.
+ */
+export function clearanceFor(employeeId) {
+  const id = Number(employeeId);
+  const login = db
+    .prepare(`SELECT id, username, active FROM users WHERE employee_id = ?`)
+    .get(id) || null;
+  return exitClearance({
+    signed: listClearances(id),
+    assets_out: listAssets({ employee_id: id, out: true }),
+    loans: listLoans({ employee_id: id }),
+    penalties: listPenalties({ employee_id: id }),
+    claims: listClaims({ employee_id: id }),
+    login,
+  });
+}
+
+/**
+ * One step, signed.
+ *
+ * The name and the date are the point: "who said this was fine" has to have
+ * an answer, so both go on the row and on the audit trail. Handing it back to
+ * `pending` is allowed and recorded too - somebody clears a step by mistake.
+ */
+export function setClearance(employeeId, step, { state, by, note, on } = {}) {
+  const employee = getEmployee(employeeId);
+  if (!employee) throw new Error('employee not found');
+  if (!CLEARANCE_STEPS.some(([key]) => key === step)) throw new Error(`unknown clearance step: ${step}`);
+  const want = cleanState(state);
+
+  db.prepare(
+    `INSERT INTO exit_clearances (employee_id, step, state, by_whom, cleared_on, note, updated_at)
+     VALUES (@employee_id, @step, @state, @by_whom, @cleared_on, @note, datetime('now'))
+     ON CONFLICT (employee_id, step) DO UPDATE SET
+       state = @state,
+       by_whom = @by_whom,
+       -- A step handed back to "not looked at" keeps no date: there is
+       -- nothing it is the date OF.
+       cleared_on = @cleared_on,
+       note = @note,
+       updated_at = datetime('now')`
+  ).run({
+    employee_id: employee.id,
+    step,
+    state: want,
+    by_whom: want === 'pending' ? null : by || null,
+    cleared_on: want === 'pending' ? null : String(on || dayNow()).slice(0, 10),
+    note: String(note || '').trim() || null,
+  });
+
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'exits',
+    entity_id: employee.id,
+    label: employee.name,
+    field: `clearance: ${step}`,
+    to_value: want,
+    note: note || null,
+  });
+  return clearanceFor(employee.id);
+}
 
 export function getExit(employeeId) {
   const row = db.prepare(`SELECT * FROM employee_exits WHERE employee_id = ?`).get(Number(employeeId));

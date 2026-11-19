@@ -141,6 +141,8 @@ import {
   writeOffAsset,
   listClaims,
   listExits,
+  clearanceFor,
+  setClearance,
   listNotes,
   listTasks,
   listTickets,
@@ -1026,7 +1028,35 @@ peopleRouter.get('/exits', (req, res) => {
 peopleRouter.get('/exits/:employeeId', (req, res) => {
   const found = fullAndFinal(Number(req.params.employeeId));
   if (!found) return res.status(404).json({ error: 'nothing recorded for this person' });
-  res.json(found);
+  // The checklist rides along: it is read on the same screen, and half of it
+  // is worked out from registers this call has already opened.
+  res.json({ ...found, clearance: clearanceFor(Number(req.params.employeeId)) });
+});
+
+/**
+ * The clearance checklist on its own — for anybody who has not recorded an
+ * exit yet, which is the normal case on the day somebody resigns.
+ */
+peopleRouter.get('/exits/:employeeId/clearance', (req, res) => {
+  try {
+    res.json({ clearance: clearanceFor(Number(req.params.employeeId)) });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/** One step, signed by somebody whose name goes on it. */
+peopleRouter.put('/exits/:employeeId/clearance/:step', (req, res) => {
+  try {
+    res.json({
+      clearance: setClearance(Number(req.params.employeeId), req.params.step, {
+        ...req.body,
+        by: who(req),
+      }),
+    });
+  } catch (err) {
+    bad(res, err);
+  }
 });
 
 peopleRouter.put('/exits/:employeeId', (req, res) => {

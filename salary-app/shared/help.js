@@ -522,6 +522,27 @@ export const HELP = [
     note: 'Every figure on the register is WHAT IT COST TO BUY, not what it is worth today — there is no depreciation in this app, so it is a register at cost and not a book value. Written-off assets are reported below the total, never inside it. And "Not checked" is NOT "missing". The stock take always shows three figures, never two — counting the third as the second invents losses and gets somebody asked to pay for a laptop that is in a drawer. And an unreturned asset at exit is named and valued, never deducted.',
   },
   {
+    id: 'leaving',
+    title: 'Somebody leaving — notice, clearance and the full and final',
+    tab: 'people',
+    keywords: [
+      'exit', 'leaving', 'resign', 'resignation', 'notice', 'relieving', 'clearance',
+      'full and final', 'fnf', 'settlement', 'gratuity', 'encash', 'encashment', 'last day',
+      'terminate', 'absconded', 'retire', 'hisab', 'chhod', 'naukri chhodna', 'istifa',
+    ],
+    lines: [
+      '**People → Leaving.** Record how they went — resigned, terminated, absconded, retired, contract ended — with the date they told you, the notice days and the last working day.',
+      '**Notice works both ways.** Somebody who resigns and does not serve it owes it; somebody put out without notice is owed it. Which way round follows the exit type.',
+      '**The clearance checklist** sits above the money, in two halves. The top half is **worked out** — assets still with them, a loan still owed, a penalty still being recovered, a claim unpaid, a staff login still live — and has no buttons: it clears when the thing itself is settled. The bottom half is **signed**: IT, Accounts, Store/Admin, the reporting manager and HR, each with a name and a date.',
+      '**Nothing on the checklist blocks the payment.** It says what is open; you decide. A system that refuses gets worked around with a cash payment nobody records.',
+      '**Leave encashment is PL only** by default — casual and sick leave lapse at the end of the year, and paying them out hands over days nobody had a claim to.',
+      '**Gratuity** is reported with its rule and the length of service even when it is not due, rather than silently left off the page.',
+      '**Take their assets back** from “See their whole asset ledger” — everything ticked, one date, one condition. Untick whatever is not coming back.',
+      'Settling marks the full and final paid; after that the dates stop moving.',
+    ],
+    note: 'An unreturned asset is NAMED AND VALUED, NEVER DEDUCTED — and the same goes for a loan: it is shown under “to recover” and taken off only if you decide to. Something docked and then found in a drawer cannot be undone once the payment has gone.',
+  },
+  {
     id: 'licenses',
     title: 'Software licences — keys, seats and renewals',
     tab: 'license',

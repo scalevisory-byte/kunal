@@ -4241,3 +4241,16 @@ table.sheet.asset-sheet td.sticky-name .cell-input { min-width: 12rem; }
 table.sheet.asset-sheet input[type='date'].cell-input { min-width: 9rem; }
 /* "Air conditioner" is fifteen letters, and a clipped kind reads as a typo. */
 table.sheet.asset-sheet td.kind-cell .cell-input { min-width: 8.5rem; }
+
+/*
+ * The exit clearance list.
+ *
+ * `table.sheet` is one line per row and `width: auto`, which is right for a
+ * sheet of figures and wrong here: every row carries a sentence saying what
+ * is outstanding, and they were being cut off mid-word ("1 still with them,
+ * ₹48,999 at cost — BPL-ASSI"). Caught by looking at the page.
+ */
+table.sheet.clearance-table { width: 100%; }
+table.sheet.clearance-table td { white-space: normal; height: auto; vertical-align: top; }
+table.sheet.clearance-table td:first-child { min-width: 20rem; }
+table.sheet.clearance-table td:last-child { width: 1%; white-space: nowrap; }

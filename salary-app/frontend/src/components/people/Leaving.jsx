@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import { EXIT_TYPES } from '../../../../shared/settlement.js';
 import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
+import ExitClearance from './ExitClearance.jsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -228,6 +229,20 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
             )}
           </div>
 
+          {/*
+            * The checklist goes ABOVE the money.
+            *
+            * It is the thing somebody wants in front of them while deciding
+            * whether to pay, and a card under the Settle button would be read
+            * after the decision rather than before it.
+            */}
+          <ExitClearance
+            employeeId={picked}
+            clearance={detail?.clearance}
+            onChanged={() => open(picked)}
+            onError={onError}
+          />
+
           <div className="two-up">
             <div className="card">
               <h4>To pay</h4>
@@ -350,7 +365,16 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
           )}
 
           {!paid ? (
-            <button onClick={settle}>Mark the full and final paid at {rupees(s.net)}</button>
+            <>
+              <button onClick={settle}>Mark the full and final paid at {rupees(s.net)}</button>
+              {detail?.clearance && !detail.clearance.ready && (
+                <p className="lic-alert warn" style={{ marginTop: '0.5rem' }}>
+                  <strong>{detail.clearance.outstanding} things are still open</strong> —{' '}
+                  {detail.clearance.blocking.join(', ')}. This does <strong>not</strong> stop the
+                  payment; it is here so the decision is made with it in view.
+                </p>
+              )}
+            </>
           ) : (
             <p className="muted small">
               Paid {exit.settled_on} at {rupees(exit.settled_amount)}.

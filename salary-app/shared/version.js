@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.26.0';
+export const VERSION = '1.27.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.27.0',
+    date: '19 Nov 2026',
+    title: 'Exit clearance checklist',
+    items: [
+      '**People → Leaving** now opens with a clearance checklist, above the money, where it can be read before the decision rather than after it.',
+      '**Half of it is worked out and cannot be ticked:** assets still with them, a loan still owed, a penalty still being recovered, a claim raised and unpaid, a staff login that still works. Those clear when the thing itself is settled — a tick box saying “assets: cleared” beside a register listing three things still out is exactly the disagreement this app keeps avoiding. Take the laptop back and that line goes green with nobody touching it.',
+      '**Half of it is signed:** IT, Accounts, Store/Admin, the reporting manager and HR, each saying what it is they are confirming, each carrying a name and a date. Those are judgements nobody can compute.',
+      '**Not looked at is not refused.** An untouched step reads “Not looked at yet”, with “Something is pending” and “Does not apply” as separate answers.',
+      '**It is a checklist, not a gate.** Nothing on it stops the full and final — the office sometimes pays on a promise, and a system that refuses gets worked around with a cash payment nobody records. What it does is print what is still open beside the Settle button.',
+      'Help has a new topic on all of it: **“Somebody leaving — notice, clearance and the full and final”**, searchable in Hindi too (chhod, hisab, istifa).',
+    ],
+  },
   {
     version: '1.26.0',
     date: '19 Nov 2026',
