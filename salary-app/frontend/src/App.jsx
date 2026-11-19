@@ -974,6 +974,7 @@ function Shell() {
             locked={locked}
             onSave={saveAttendance}
             onPatchPeriod={patchPeriod}
+            onReload={loadPayroll}
           />
         )}
 

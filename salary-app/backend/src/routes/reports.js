@@ -244,6 +244,10 @@ reportsRouter.post('/periods/:id/punches', upload.single('file'), async (req, re
       rules,
       employees: listEmployees(),
       period: payroll.period,
+      // The same rule a day typed on the Time tab follows: lunch comes off
+      // the hours unless the month pays for it. Two answers about one day is
+      // how the Time tab and the sheet come to disagree.
+      deductLunch: !payroll.period.lunch_paid,
     });
 
     const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;

@@ -9,7 +9,17 @@ import { api } from '../api.js';
  * Then a dry run says exactly what it would do, and only then is anything
  * written.
  */
-const BLANK_MAPPING = { employee: '', date: '', inTime: '', outTime: '', matchBy: 'name' };
+const BLANK_MAPPING = {
+  employee: '', date: '', inTime: '', outTime: '',
+  /*
+   * Lunch, which a punch machine almost never gives and a timesheet the
+   * office keeps in Excel almost always does. Left blank the import behaves
+   * exactly as it always has: it writes no lunch, so a lunch somebody typed
+   * is not wiped by a file that never knew about it.
+   */
+  lunchOut: '', lunchIn: '',
+  matchBy: 'name',
+};
 
 /**
  * The half-day line is left out on purpose: `punchesToMarks` works it out from
@@ -22,7 +32,17 @@ const DEFAULT_RULES = {
   countShortHours: true,
 };
 
-export default function PunchImport({ period, onReload }) {
+/**
+ * The SAME importer, worded for whichever screen it is standing on.
+ *
+ * On Reports it is the attendance machine's log. On the Time tab it is the
+ * office's own Excel of in and out times — which is what Dinesh asked for,
+ * and which this importer could already read; it was simply three tabs away
+ * from the person typing hours, under a heading about biometric devices. One
+ * importer, two doors: a second one would be a second set of rules about what
+ * a short day is.
+ */
+export default function PunchImport({ period, onReload, title, intro }) {
   const [file, setFile] = useState(null);
   const [read, setRead] = useState(null);
   const [sheet, setSheet] = useState('');
@@ -51,6 +71,10 @@ export default function PunchImport({ period, onReload }) {
       date: find('date', 'day'),
       inTime: find('in time', 'intime', 'check-in', 'checkin', 'in'),
       outTime: find('out time', 'outtime', 'check-out', 'checkout', 'out'),
+      // Guessed BEFORE the plain "in"/"out" would swallow them, by looking
+      // for the word lunch first.
+      lunchOut: find('lunch out', 'lunchout', 'break out', 'lunch start'),
+      lunchIn: find('lunch in', 'lunchin', 'break in', 'lunch end'),
       matchBy: 'name',
     };
   };
@@ -113,7 +137,8 @@ export default function PunchImport({ period, onReload }) {
 
   return (
     <div className="card">
-      <h2>Attendance machine — import punches</h2>
+      <h2>{title || 'Attendance machine — import punches'}</h2>
+      {intro || (
       <p className="muted small">
         <strong>The punch LOG</strong> — one row per punch, or per person per day. For
         eTimeTrackLite&rsquo;s month-wide reports use the panel above instead. Take the log out of
@@ -122,6 +147,7 @@ export default function PunchImport({ period, onReload }) {
         <strong>P</strong>, whoever did not gets <strong>A</strong>, a short day becomes{' '}
         <strong>HF</strong>, and time worked under the day's hours goes in as short-hours minutes.
       </p>
+      )}
 
       {/*
         * .xls is listed although this importer cannot read one. Hiding it
@@ -177,6 +203,8 @@ export default function PunchImport({ period, onReload }) {
             {columnPicker('date', 'Date column', 'pick one')}
             {columnPicker('inTime', 'In time')}
             {columnPicker('outTime', 'Out time')}
+            {columnPicker('lunchOut', 'Lunch out')}
+            {columnPicker('lunchIn', 'Lunch in')}
           </div>
 
           <div className="form-grid">

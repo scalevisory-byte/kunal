@@ -159,7 +159,7 @@ export default function AssetPrefixes({ onError, onToast }) {
  * every one of them - the sticker is already on the desk, and the import
  * recognises rows by it.
  */
-function Renumber({ onError, onToast, onDone }) {
+export function Renumber({ onError, onToast, onDone }) {
   const [plan, setPlan] = useState(null);
   const [busy, setBusy] = useState(false);
 

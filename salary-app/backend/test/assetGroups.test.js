@@ -109,3 +109,15 @@ test('a cost that is not a number does not poison the total', () => {
   assert.equal(row.count, 2);
   assert.equal(Number.isFinite(row.cost), true, 'NaN here makes the whole register read as blank');
 });
+
+
+test('"Air conditioner" is Electrical, however it was typed', () => {
+  // The import maps the kind to `ac`; a row typed by hand says the whole
+  // phrase. The whole-word matcher rightly will not find "ac" inside "air",
+  // so both spellings are on the list - six rows read as Other until they were.
+  assert.equal(groupOf('ac'), 'electrical');
+  assert.equal(groupOf('Air conditioner'), 'electrical');
+  assert.equal(groupOf('AIR CONDITIONER', 'Voltas 1.5 ton split'), 'electrical');
+  // And the reason the matcher is whole-word in the first place:
+  assert.notEqual(groupOf('Black board'), 'electrical');
+});

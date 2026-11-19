@@ -872,8 +872,8 @@ export function deleteAppraisal(id, by) {
  * assets
  * ================================================================= */
 
-export const getAsset = (id) =>
-  db
+export const getAsset = (id) => {
+  const row = db
     .prepare(
       `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name
        FROM assets a
@@ -882,7 +882,18 @@ export const getAsset = (id) =>
        LEFT JOIN branches br ON br.id = a.branch_id
        WHERE a.id = ?`
     )
-    .get(id) || null;
+    .get(id);
+  /*
+   * The same `warranty_left_days` the list carries.
+   *
+   * Without it a PATCH echo was missing the one field that says whether the
+   * warranty has run out - so typing a new date into the register's cell left
+   * the row still marked red against the OLD date until the page was
+   * reloaded. A detail read and a list read answering differently about the
+   * same asset is the shape of bug this file keeps hitting.
+   */
+  return row ? { ...row, warranty_left_days: daysUntil(row.warranty_until) } : null;
+};
 
 /**
  * Scanned or typed, found either way.

@@ -33,6 +33,8 @@ export const SERVICE_KINDS = [
   'Other',
 ];
 
+import { assetAlerts } from './assetAlerts.js';
+
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const round0 = (n) => Math.round(num(n));
 
@@ -124,20 +126,26 @@ export function ownership(asset = {}, services = [], today = new Date().toISOStr
 export function maintenanceAlerts(rows = [], today = new Date().toISOString().slice(0, 10)) {
   const overdue = [];
   const soon = [];
-  const warrantyGone = [];
-  const amcGone = [];
 
-  for (const row of rows) {
-    const own = row.ownership || ownership(row, row.services || [], today);
-    const entry = { ...row, ownership: own };
-    if (own.service_due) overdue.push(entry);
-    else if (own.service_soon) soon.push(entry);
-    // Only worth saying for something still on the register.
-    if (!row.written_off_on) {
-      if (own.warranty_in_days !== null && own.warranty_in_days < 0) warrantyGone.push(entry);
-      if (own.amc_in_days !== null && own.amc_in_days < 0) amcGone.push(entry);
-    }
+  const entries = rows.map((row) => ({
+    ...row,
+    ownership: row.ownership || ownership(row, row.services || [], today),
+  }));
+
+  for (const entry of entries) {
+    if (entry.ownership.service_due) overdue.push(entry);
+    else if (entry.ownership.service_soon) soon.push(entry);
   }
+
+  /*
+   * The warranty and AMC halves come from shared/assetAlerts.js rather than
+   * being worked out again here.
+   *
+   * They were computed in two places - this panel and the register's own
+   * strip - which is exactly how two screens come to disagree about the same
+   * laptop. One module answers "what is running out", and both ask it.
+   */
+  const dates = assetAlerts(entries, today);
 
   const byDate = (a, b) =>
     String(a.ownership.next_service_on || '').localeCompare(String(b.ownership.next_service_on || ''));
@@ -145,8 +153,10 @@ export function maintenanceAlerts(rows = [], today = new Date().toISOString().sl
   return {
     overdue: overdue.sort(byDate),
     soon: soon.sort(byDate),
-    warranty_gone: warrantyGone,
-    amc_gone: amcGone,
+    warranty_gone: dates.warranty_gone,
+    warranty_soon: dates.warranty_soon,
+    amc_gone: dates.amc_gone,
+    amc_soon: dates.amc_soon,
     count: overdue.length + soon.length,
   };
 }

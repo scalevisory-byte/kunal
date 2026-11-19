@@ -1563,7 +1563,7 @@ export default function Dashboard({
                   <th>In</th>
                   <th>Out</th>
                   <Th sort={sort} setSort={setSort} by="hours" className="num">Hours</Th>
-                  <th>Why</th>
+                  <th className="why-cell">Why</th>
                   <th>Allowed?</th>
                   <Th sort={sort} setSort={setSort} by="department">Department</Th>
                   <Th sort={sort} setSort={setSort} by="company">Company</Th>
@@ -1633,7 +1633,7 @@ export default function Dashboard({
                       * a stale one showing - the same trap the employee table
                       * hit.
                       */}
-                    <td>
+                    <td className="why-cell">
                       <input
                         className="why-box"
                         key={`${p.id}-${shownDay}-${p.reason}`}

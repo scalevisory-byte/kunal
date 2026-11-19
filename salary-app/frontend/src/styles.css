@@ -4205,3 +4205,39 @@ code.key-shown {
   background: var(--brand-soft);
   user-select: all;
 }
+
+/*
+ * The roll call fills its card too.
+ *
+ * Dinesh sent a screenshot of it on a wide screen: eleven columns ending
+ * about two thirds of the way across, with a blank strip beside them — the
+ * same thing the hiring tables were fixed for, and the same thing that reads
+ * as "the screen is not right".
+ *
+ * Scoped to this table, like `.hiring-table`, because `table.sheet` is
+ * deliberately `width: auto`: stretching every sheet made the Time tab's six
+ * columns enormous.
+ */
+table.sheet.roll-table { width: 100%; }
+/* The buttons at the end take none of the slack. */
+table.sheet.roll-table td:last-child,
+table.sheet.roll-table th:last-child { white-space: nowrap; width: 1%; }
+/* The reason box is where a long answer goes, so it gets the room. */
+table.sheet.roll-table td.why-cell, table.sheet.roll-table th.why-cell { min-width: 14rem; }
+
+/*
+ * THE ASSET REGISTER, EDITABLE IN PLACE.
+ *
+ * Dinesh asked for the register to work like Excel: "सीधे sheet में edit".
+ * The cells are the salary sheet's `.cell-input`, which is built for money —
+ * right-aligned and 3.4rem wide. A name and a kind are neither, and at that
+ * width "Laptop" rendered as "Laptoρ" with its tail cut off, which is exactly
+ * the sort of thing that reads as the screen being broken.
+ */
+table.sheet.asset-sheet .cell-input { text-align: left; min-width: 6rem; }
+table.sheet.asset-sheet td.num .cell-input { text-align: right; }
+/* The thing's own name is what people scan down, so it gets the most room. */
+table.sheet.asset-sheet td.sticky-name .cell-input { min-width: 12rem; }
+table.sheet.asset-sheet input[type='date'].cell-input { min-width: 9rem; }
+/* "Air conditioner" is fifteen letters, and a clipped kind reads as a typo. */
+table.sheet.asset-sheet td.kind-cell .cell-input { min-width: 8.5rem; }

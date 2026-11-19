@@ -15,6 +15,8 @@ import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import ScrollFrame from './ScrollFrame.jsx';
+import PunchImport from './PunchImport.jsx';
+import { STANDALONE } from '../api.js';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -34,7 +36,7 @@ import ScrollFrame from './ScrollFrame.jsx';
 /** Marks the times are allowed to overwrite - everything else is deliberate. */
 const AUTO_MARKS = new Set(['', 'P', 'A', 'HF']);
 
-export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked }) {
+export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked, onReload }) {
   const total = daysInMonth(period.year, period.month);
   const today = new Date();
   const isThisMonth = today.getFullYear() === period.year && today.getMonth() + 1 === period.month;
@@ -43,6 +45,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
   const [day, setDay] = useState(isThisMonth ? today.getDate() : 1);
   const [personId, setPersonId] = useState(rows[0]?.employee_id || null);
   const [query, setQuery] = useState('');
+  const [importing, setImporting] = useState(false);
   const [draft, setDraft] = useState({}); // "employeeId:day" -> the four times
   /*
    * The month's own usual day, falling back to this browser's. Set in Admin
@@ -270,9 +273,40 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked 
         )}
 
         <span className="grow" />
+        {!STANDALONE && !locked && (
+          <button className={importing ? 'active' : undefined} onClick={() => setImporting((v) => !v)}>
+            {importing ? 'Close' : 'Import from Excel'}
+          </button>
+        )}
         {status && <span className="pill saving">{status}</span>}
         {locked && <span className="pill locked">Locked</span>}
       </div>
+
+      {/*
+        * THE TIMINGS IMPORT, asked for by name — and it is the SAME importer
+        * Reports uses for the attendance machine, not a second one.
+        *
+        * It could already read a sheet of in and out times; it simply lived
+        * three tabs away under a heading about biometric devices, so nobody
+        * typing hours would ever find it. A second importer would mean two
+        * sets of rules about what a short day is.
+        */}
+      {importing && !STANDALONE && (
+        <PunchImport
+          period={period}
+          onReload={onReload}
+          title="Import timings from Excel"
+          intro={
+            <p className="muted small">
+              Your own sheet of hours: one row per person per day, with <strong>In</strong> and{' '}
+              <strong>Out</strong> columns — and <strong>Lunch out / Lunch in</strong> as well if
+              you keep them. Point at the columns, see what it would do, then write it. The hours
+              are judged by the same rule as a day typed here, so an imported day and a typed day
+              can never disagree.
+            </p>
+          }
+        />
+      )}
 
       <div className="toolbar">
         <button

@@ -7,6 +7,7 @@ import { Avatar } from './EmployeePhoto.jsx';
 import OrgChart from './OrgChart.jsx';
 import DepartmentManagers from './DepartmentManagers.jsx';
 import { bulkManagerPlan } from '../../../shared/orgChart.js';
+import { namePlan } from '../../../shared/properName.js';
 import { rupees } from '../format.js';
 import ScrollFrame from './ScrollFrame.jsx';
 
@@ -48,6 +49,77 @@ const listNames = (people, limit = 6) =>
     : people.map((p) => p.name).join(', ');
 
 /** The employee master: who gets paid, and what their monthly salary is. */
+/**
+ * TAKE THE SHOUTING OUT OF THE NAMES.
+ *
+ * Dinesh, looking at the roll call: *"sab ke letters thik karo"* — ANSHIKA
+ * GUPTA next to Mahek Gotawala, because eighty-five names were typed by
+ * different people over two years.
+ *
+ * It SHOWS what it would do first and renames nobody until the button is
+ * pressed. A name is somebody's own, and the one rule underneath is stated on
+ * screen: a name already written in ordinary letters — McDonald, D'Souza — is
+ * left alone, because there is no telling a deliberate capital from an
+ * accidental one.
+ */
+function TidyNames({ people, busy, onApply, onClose }) {
+  const plan = useMemo(() => namePlan(people), [people]);
+
+  return (
+    <div className="card">
+      <h3>Tidy the capitalisation of names</h3>
+      {!plan.count ? (
+        <p className="muted small">
+          Nothing to change — every name is already in ordinary letters.
+          {plan.left_mixed ? ` ${plan.left_mixed} were left alone because they are already mixed.` : ''}
+        </p>
+      ) : (
+        <>
+          <p className="muted small">
+            <strong>{plan.count}</strong> of {plan.total} would change.{' '}
+            {plan.already_tidy ? `${plan.already_tidy} are already right. ` : ''}
+            {plan.left_mixed
+              ? `${plan.left_mixed} are left alone because somebody has already mixed their capitals — McDonald and D'Souza are not mistakes.`
+              : ''}
+          </p>
+          <div className="table-wrap" style={{ maxHeight: '18rem' }}>
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Now</th>
+                  <th>Would become</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.changing.map((row) => (
+                  <tr key={row.id}>
+                    <td className="muted small">{row.code || '—'}</td>
+                    <td>{row.from}</td>
+                    <td><strong>{row.to}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="row" style={{ marginTop: '0.6rem' }}>
+            <button className="primary" disabled={busy} onClick={() => onApply(plan.changing)}>
+              {busy ? 'Renaming…' : `Change these ${plan.count}`}
+            </button>
+            <button className="ghost" disabled={busy} onClick={onClose}>
+              Leave them
+            </button>
+          </div>
+          <p className="muted small">
+            Only the staff list changes. Payslips, attendance and every report read the name from
+            here, so they follow — nothing already paid moves.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Employees({
   /* Somebody the dashboard asked to open; cleared once it has been. */
   openFor,
@@ -85,6 +157,8 @@ export default function Employees({
   // Setting a religion one row at a time is fine for three people and hopeless
   // for seventy, so rows can be ticked and given one in a single go.
   const [picked, setPicked] = useState(() => new Set());
+  /* The capitalisation tidy: shown first, applied only on the button. */
+  const [tidying, setTidying] = useState(false);
   const [bulkReligion, setBulkReligion] = useState('');
   const [bulkDepartment, setBulkDepartment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -367,6 +441,13 @@ export default function Employees({
           >
             {asChart ? 'As a list' : 'Reporting line'}
           </button>
+          <button
+            className={tidying ? 'active' : undefined}
+            onClick={() => setTidying((v) => !v)}
+            title="ANSHIKA GUPTA beside Mahek Gotawala — take the shouting out"
+          >
+            Tidy names
+          </button>
           <span className="grow" />
           <span className="muted small">
             {/* "of N" counts against the people a filter COULD show, so it
@@ -435,6 +516,25 @@ export default function Employees({
               Tick only what is on screen
             </button>
           </div>
+        )}
+
+        {tidying && (
+          <TidyNames
+            people={onShow}
+            busy={busy}
+            onApply={async (rows) => {
+              setBusy(true);
+              try {
+                // One at a time, because each name is its own change - and
+                // the list is reloaded once at the end rather than per row.
+                for (const row of rows) await onBulkPatch([row.id], { name: row.to });
+                setTidying(false);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            onClose={() => setTidying(false)}
+          />
         )}
 
         {picked.size > 0 && (

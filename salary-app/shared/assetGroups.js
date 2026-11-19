@@ -48,7 +48,14 @@ export const ASSET_GROUPS = [
   [
     'electrical',
     'Electrical',
-    ['light', 'ac', 'fan', 'water-cooler', 'fridge', 'tv', 'inverter', 'geyser'],
+    /*
+     * "ac" AND "air conditioner", because the register holds whatever the
+     * office typed: the import maps the kind to `ac`, a row typed by hand
+     * says "Air conditioner", and the whole-word matcher (rightly) will not
+     * find "ac" inside "air". Six of his rows read as Other until this was
+     * here.
+     */
+    ['light', 'ac', 'air conditioner', 'air-conditioner', 'fan', 'water-cooler', 'water cooler', 'fridge', 'tv', 'inverter', 'geyser'],
   ],
   [
     'security',

@@ -96,6 +96,23 @@ export const HELP = [
     note: 'A shift crossing midnight is handled. Somebody on a night shift should have their own shift times on their record, or they read as hours late every day.',
   },
   {
+    id: 'time-import',
+    title: 'Importing in and out times from Excel',
+    tab: 'time',
+    keywords: [
+      'import', 'excel', 'time', 'timing', 'timings', 'in out', 'hours', 'sheet', 'upload',
+      'ghante', 'samay', 'punch', 'xlsx',
+    ],
+    lines: [
+      '**Time → Import from Excel** takes your own sheet: one row per person per day, with **In** and **Out** columns — and **Lunch out / Lunch in** as well if you keep them.',
+      'Point at which column is which, press **See what it would do**, and only then write it. Nothing is saved until you say so.',
+      'It is the **same importer** Reports uses for the attendance machine, not a second one — so a day read off a file and a day typed by hand are judged by exactly the same rule.',
+      'Names are matched on the staff list (or on the code, if your sheet carries one). Anybody it cannot match is **named, never invented**.',
+      'Lunch is written **only when your sheet has those columns**, so a file without them cannot wipe a lunch somebody typed.',
+    ],
+    note: 'The hours are judged against the month’s own working day, so an eight-hour month breaks at four, not at four and a half. And a day under the half-day line is marked HF and its missing hours are NOT also deducted — it is already paid at half.',
+  },
+  {
     id: 'late-early',
     title: 'Late in, early out, and the 300-minute concession',
     tab: 'time',
@@ -355,6 +372,22 @@ export const HELP = [
     note: 'Uploading files needs the server. The single-file build shows initials instead of a face and says so, rather than offering a picker that could never work.',
   },
   {
+    id: 'tidy-names',
+    title: 'Names in capitals — tidying the letters',
+    tab: 'employees',
+    keywords: [
+      'name', 'names', 'capital', 'capitals', 'caps', 'uppercase', 'lowercase', 'letters',
+      'spelling', 'tidy', 'case', 'naam', 'akshar', 'chote bade',
+    ],
+    lines: [
+      'ANSHIKA GUPTA sitting next to Mahek Gotawala happens when eighty-five names are typed by different people over two years.',
+      '**Employees → Tidy names** shows what it would change — every name, before and after — and renames nobody until you press the button.',
+      'Initials stay capitals (A. K. Sharma), a hyphen and an apostrophe are joins inside one name (Jean-Paul, D’Souza), and two spaces become one.',
+      'Only the staff list changes. Payslips, attendance and every report read the name from there, so they follow — nothing already paid moves.',
+    ],
+    note: 'A name somebody has ALREADY mixed — McDonald, D’Souza, DiMaggio — is left exactly as it is. There is no telling a deliberate capital from an accidental one, and “fixing” those is how a register ends up with names their owners do not recognise. This only takes the shouting out.',
+  },
+  {
     id: 'bulk-employees',
     title: 'Updating the staff list in Excel',
     tab: 'employees',
@@ -475,6 +508,11 @@ export const HELP = [
       '**Every new asset is given a code automatically** — `BNF-ASSETS-000001`, one running series per company. It is shown in the Add form as soon as you pick the company, **cannot be typed over**, and a number is never handed out twice, even after an asset is deleted or written off.',
       'The **prefix per company** is set under Lists — Asset code prefixes. Changing it never rewrites a code already issued; those are on stickers and signed slips. It only changes what the next one reads.',
       '**Groups** — Computer, Furniture, Mobile, Electrical, Network, Security, Office equipment, Vehicle, Tools. The buttons above the register narrow it to one, each carrying its own count, and the Group is a column in the CSV.',
+      '**What is running out** sits above the register: a warranty that has **just** lapsed, one running out within 30 days, and the same two for AMCs. Clicking a line shows exactly those assets.',
+      'A **blank warranty date is not an expired warranty** — it is counted separately as “nobody has said”. And a laptop out of warranty since 2024 is a count, not a line: it will be out of warranty tomorrow too.',
+      '**The register is typed in like a sheet.** Kind, name, serial, department, cost and the warranty date are all cells — change one and it saves, no drawer, no form. Only what you actually changed is sent.',
+      '**Company, department and kind** are dropdowns above the register, offering only what the register really holds.',
+      '**Generate codes** is on the register itself as well as under Lists, because that is where you can see which rows still wear their spreadsheet’s ID.',
       'A group is **worked out from the kind**, never stored beside it — so correcting one chair’s kind moves it, and the Group column can never disagree with the Kind next to it. A kind nobody has mapped reads as **Other**, which means “nobody has said where this belongs”, not “miscellaneous”.',
     ],
     note: '"Not checked" is NOT "missing". The stock take always shows three figures, never two — counting the third as the second invents losses and gets somebody asked to pay for a laptop that is in a drawer. And an unreturned asset at exit is named and valued, never deducted.',

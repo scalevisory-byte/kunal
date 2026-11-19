@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.23.0';
+export const VERSION = '1.24.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.24.0',
+    date: '19 Nov 2026',
+    title: 'Warranty alerts, a register you type in, and tidier names',
+    items: [
+      '**Warranties and AMCs running out** now sit above the asset register, the way the licences do — one that has **just** lapsed in red, one running out within 30 days in amber, and the same two for AMCs. Clicking a line shows exactly those assets.',
+      '**A blank warranty date is not an expired warranty.** Those are counted on their own as “nobody has said”, and a laptop out of warranty since 2024 is a count rather than a line — it will be out of warranty tomorrow as well. Only what can still be acted on is chased.',
+      'The same two lines reach the **Dashboard**, and open the register.',
+      '**The register is typed in like a sheet.** Kind, name, serial, department, cost and the warranty date are cells now — change one and it saves, with no drawer and no form. Only what actually changed is sent.',
+      '**Company, department and kind filters** on the register itself, offering only what the register really holds. They were on the asset dashboard, which is no use to somebody already standing on the register.',
+      '**Generate codes** is on the register too, not only under Lists — that is where you can see which rows still wear their spreadsheet’s ID.',
+      '**Employees → Tidy names** takes the shouting out: ANSHIKA GUPTA becomes Anshika Gupta. It shows every change first and renames nobody until you press the button. A name somebody has already mixed — McDonald, D’Souza — is left exactly as it is, because there is no telling a deliberate capital from an accidental one.',
+      '**Time → Import from Excel** reads your own sheet of in and out times, with Lunch out / Lunch in as well if you keep them. It is the SAME importer Reports uses for the attendance machine, so a day read off a file and a day typed by hand are judged identically — a second importer would mean two sets of rules about what a short day is.',
+      'The **roll call fills the screen** instead of ending two thirds of the way across.',
+      'One fix worth knowing: a warranty date typed into the register used to leave the row marked red against the OLD date until the page was reloaded — a detail read and a list read were answering differently about the same asset.',
+    ],
+  },
   {
     version: '1.23.0',
     date: '18 Nov 2026',

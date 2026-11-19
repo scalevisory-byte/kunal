@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download, openPage } from '../../api.js';
 import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
-import AssetPrefixes from './AssetPrefixes.jsx';
+import AssetPrefixes, { Renumber } from './AssetPrefixes.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
 import { groupLabel, groupOf, groupTally } from '../../../../shared/assetGroups.js';
+import { assetAlerts, nameSome } from '../../../../shared/assetAlerts.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
@@ -25,6 +26,103 @@ const today = () => new Date().toISOString().slice(0, 10);
  * **out of the building** gets its own figure, because an asset in the office is
  * somewhere you can go and look.
  */
+/**
+ * A CELL YOU CAN TYPE IN, the way the salary sheet has one.
+ *
+ * Dinesh: the register should work like Excel — "सीधे sheet में edit", the
+ * name, the serial, the cost and the warranty date changed in place without
+ * opening anything.
+ *
+ * Three things it insists on, each of which cost somebody a bug elsewhere in
+ * this app:
+ *
+ *   **It saves only what CHANGED.** Tabbing across a row of twelve cells must
+ *   not send twelve patches, and a patch that re-sends the value already
+ *   stored would fill the audit trail with changes nobody made.
+ *
+ *   **It is keyed on the stored value**, so a reload under a row already on
+ *   screen re-renders the box instead of leaving a stale figure showing — the
+ *   trap the employee table hit after a bulk edit.
+ *
+ *   **A refusal puts the old value back** and says so, rather than leaving
+ *   what was typed sitting in a cell that was never saved.
+ */
+function SheetCell({ asset, field, type = 'text', align, list, placeholder, onSave }) {
+  const stored = asset[field] === null || asset[field] === undefined ? '' : String(asset[field]);
+  const [draft, setDraft] = useState(stored);
+  const [focused, setFocused] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(stored);
+  }, [stored, focused]);
+
+  return (
+    <input
+      className={`cell-input${align === 'num' ? ' num' : ''}`}
+      type={type === 'date' ? 'date' : 'text'}
+      inputMode={type === 'number' ? 'decimal' : undefined}
+      list={list}
+      value={draft}
+      placeholder={placeholder}
+      disabled={busy}
+      onFocus={(e) => {
+        setFocused(true);
+        if (type !== 'date') e.target.select();
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={async () => {
+        setFocused(false);
+        const typed = draft.trim();
+        if (typed === stored) return;              // nothing changed: send nothing.
+        if (type === 'number' && typed !== '' && !Number.isFinite(Number(typed))) {
+          setDraft(stored);
+          return;
+        }
+        setBusy(true);
+        try {
+          await onSave(asset, field, typed === '' ? null : type === 'number' ? Number(typed) : typed);
+        } catch {
+          setDraft(stored);                        // refused: put it back.
+        } finally {
+          setBusy(false);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.target.blur();
+        if (e.key === 'Escape') {
+          setDraft(stored);
+          e.target.blur();
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * One line of "this is running out", in the licence register's shape.
+ *
+ * It NAMES a few rather than only counting them: "6 out of warranty" sends
+ * somebody off to find which six, and a list of codes does not. Clicking it
+ * narrows the register to exactly the assets the line counted — held as ids,
+ * so the list and the figure cannot disagree.
+ */
+function AlertLine({ tone, assets, onOpen, label, lead, tail, field = 'warranty_until' }) {
+  return (
+    <p className={`lic-alert ${tone}`}>
+      <button
+        className="link"
+        onClick={() => onOpen({ label, ids: new Set(assets.map((a) => a.id)) })}
+        title="Show these on the register"
+      >
+        <strong>{lead}</strong>
+      </button>{' '}
+      — {nameSome(assets, 5, field)}
+      {tail ? ` ${tail}` : '.'}
+    </p>
+  );
+}
+
 export default function Assets({ employees, companies, scanned, onScanned, onError }) {
   const [assets, setAssets] = useState([]);
   const [totals, setTotals] = useState({});
@@ -56,6 +154,24 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    */
   const [group, setGroup] = useState('');
   const [query, setQuery] = useState('');
+  /*
+   * The alert line somebody clicked, as { label, ids }.
+   *
+   * A line that names six codes and cannot show them is half an answer - the
+   * licence tiles open their list, and this does the same. Held as ids so the
+   * narrowing is exactly the assets the line counted, never a second filter
+   * that could disagree with it.
+   */
+  const [dateFocus, setDateFocus] = useState(null);
+  /*
+   * The three dropdowns Dinesh asked for on the register itself.
+   *
+   * They existed on the asset DASHBOARD and were carried across when a card
+   * was clicked - which is no use to somebody who is already standing on the
+   * register. Held here, applied in `shown` with everything else.
+   */
+  const [pick, setPick] = useState({ company_id: '', department: '', kind: '' });
+  const [codes, setCodes] = useState(false);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState(null);
@@ -192,6 +308,13 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanned]);
 
+  /*
+   * What is running out. Worked out from the register the browser already
+   * holds, with the same module the dashboard and the maintenance panel use -
+   * so a line here, a line there and the digest cannot disagree.
+   */
+  const dates = useMemo(() => assetAlerts(assets), [assets]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter((a) => {
@@ -214,6 +337,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
       if (group && groupOf(a.kind, a.label) !== group) return false;
       /* The dashboard's own filter, applied by the dashboard's own code. */
       if (narrowed && !matchesFilter(a, narrowed)) return false;
+      /* An alert line that was clicked: exactly the assets it counted. */
+      if (dateFocus && !dateFocus.ids.has(a.id)) return false;
+      if (pick.company_id && Number(a.company_id) !== Number(pick.company_id)) return false;
+      // Folded case-insensitively: Accounts and ACCOUNTS are one room.
+      if (pick.department && String(a.department || '').toLowerCase() !== pick.department.toLowerCase()) return false;
+      if (pick.kind && a.kind !== pick.kind) return false;
       if (!q) return true;
       // The old code too: his stickers still read BNF-Assets-2456, and
       // somebody holding the mouse has only the sticker.
@@ -221,7 +350,29 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [assets, filter, query, narrowed, group]);
+  }, [assets, filter, query, narrowed, group, dateFocus, pick]);
+
+  /*
+   * What the dropdowns offer: what the register actually holds, not a master
+   * list. Offering a department no asset carries gives an empty list and no
+   * reason why - the same rule the dashboard's pickers follow.
+   */
+  const choices = useMemo(() => {
+    const departments = new Map();
+    const kinds = new Set();
+    const companyIds = new Set();
+    for (const a of assets) {
+      const d = String(a.department || '').trim();
+      if (d) departments.set(d.toLowerCase(), d);
+      if (a.kind) kinds.add(a.kind);
+      if (a.company_id) companyIds.add(Number(a.company_id));
+    }
+    return {
+      departments: [...departments.values()].sort((a, b) => a.localeCompare(b)),
+      kinds: [...kinds].sort(),
+      companies: companies.filter((c) => companyIds.has(Number(c.id))),
+    };
+  }, [assets, companies]);
 
   /*
    * The count on each group button.
@@ -268,6 +419,25 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adding, draft.company_id, assets.length]);
+
+  /*
+   * One cell, saved.
+   *
+   * The row is replaced in state from the server's echo rather than the whole
+   * register being re-fetched: a thousand rows reloaded on every keystroke-out
+   * is a second of blank table each time, and the scroll position goes with
+   * it. Errors are re-thrown so the cell can put the old value back.
+   */
+  const saveCell = async (asset, field, value) => {
+    try {
+      const after = await api.patch(`/people/assets/${asset.id}`, { [field]: value });
+      setAssets((list) => list.map((a) => (a.id === asset.id ? { ...a, ...after } : a)));
+      setSaid('');
+    } catch (err) {
+      setSaid(err.message);
+      throw err;
+    }
+  };
 
   const act = async (call) => {
     try {
@@ -461,21 +631,99 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         </div>
       </div>
 
-      {(totals.warranty_gone?.length > 0 || totals.warranty_soon?.length > 0) && (
-        <ul className="alerts">
-          {totals.warranty_soon?.length > 0 && (
-            <li>
-              {totals.warranty_soon.length} warrant{totals.warranty_soon.length === 1 ? 'y runs' : 'ies run'} out
-              within a month: {totals.warranty_soon.map((a) => a.code).join(', ')}
-            </li>
+      {(dates.count > 0 || dates.warranty_long_gone.length > 0 || dates.no_warranty_date.length > 0) && (
+        <div className="card">
+          {dates.warranty_just_gone.length > 0 && (
+            <AlertLine
+              tone="bad"
+              assets={dates.warranty_just_gone}
+              onOpen={setDateFocus}
+              label="out of warranty"
+              lead={`${dates.warranty_just_gone.length} ${
+                dates.warranty_just_gone.length === 1 ? 'warranty has' : 'warranties have'
+              } just run out`}
+              tail={`— within the last ${dates.recent_days} days, so extending cover or putting it on an AMC is still a live decision.`}
+            />
           )}
-          {totals.warranty_gone?.length > 0 && (
-            <li>
-              {totals.warranty_gone.length} out of warranty: {totals.warranty_gone.slice(0, 6).map((a) => a.code).join(', ')}
-              {totals.warranty_gone.length > 6 ? ' and more' : ''}
-            </li>
+          {dates.warranty_soon.length > 0 && (
+            <AlertLine
+              tone="warn"
+              assets={dates.warranty_soon}
+              onOpen={setDateFocus}
+              label="warranty running out"
+              lead={`${dates.warranty_soon.length} ${
+                dates.warranty_soon.length === 1 ? 'warranty runs' : 'warranties run'
+              } out within ${dates.soon} days`}
+            />
           )}
-        </ul>
+          {dates.amc_just_gone.length > 0 && (
+            <AlertLine
+              tone="bad"
+              assets={dates.amc_just_gone}
+              onOpen={setDateFocus}
+              field="amc_until"
+              label="AMC lapsed"
+              lead={`${dates.amc_just_gone.length} AMC${dates.amc_just_gone.length === 1 ? ' has' : 's have'} lapsed`}
+              tail="— a contract, not a warranty: that is money committed for the year and nobody is covered until it is renewed."
+            />
+          )}
+          {dates.amc_soon.length > 0 && (
+            <AlertLine
+              tone="warn"
+              assets={dates.amc_soon}
+              onOpen={setDateFocus}
+              field="amc_until"
+              label="AMC due"
+              lead={`${dates.amc_soon.length} AMC${dates.amc_soon.length === 1 ? '' : 's'} to renew within ${dates.soon} days`}
+            />
+          )}
+
+          {/*
+            * The two that are NOT deadlines, and are said quietly so they do
+            * not drown the ones that are.
+            */}
+          {dates.warranty_long_gone.length > 0 && (
+            <p className="lic-alert muted small">
+              <button
+                className="link"
+                onClick={() =>
+                  setDateFocus({
+                    label: `out of warranty for more than ${dates.recent_days} days`,
+                    ids: new Set(dates.warranty_long_gone.map((a) => a.id)),
+                  })
+                }
+              >
+                {dates.warranty_long_gone.length} out of warranty for longer
+              </button>{' '}
+              — old kit, not news; it is here to be counted rather than chased.
+            </p>
+          )}
+          {dates.no_warranty_date.length > 0 && (
+            <p className="lic-alert muted small">
+              <button
+                className="link"
+                onClick={() =>
+                  setDateFocus({
+                    label: 'with no warranty date recorded',
+                    ids: new Set(dates.no_warranty_date.map((a) => a.id)),
+                  })
+                }
+              >
+                {dates.no_warranty_date.length} with no warranty date recorded
+              </button>{' '}
+              — <strong>not the same as expired</strong>: nobody has said. The invoice has it.
+            </p>
+          )}
+        </div>
+      )}
+
+      {dateFocus && (
+        <p className="muted small">
+          Showing the {shown.length} {dateFocus.label}.{' '}
+          <button className="link" onClick={() => setDateFocus(null)}>
+            Show everything
+          </button>
+        </p>
       )}
 
       <div className="toolbar">
@@ -495,6 +743,30 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        {choices.companies.length > 1 && (
+          <select value={pick.company_id} onChange={(e) => setPick({ ...pick, company_id: e.target.value })}>
+            <option value="">All companies</option>
+            {choices.companies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
+        {choices.departments.length > 0 && (
+          <select value={pick.department} onChange={(e) => setPick({ ...pick, department: e.target.value })}>
+            <option value="">All departments</option>
+            {choices.departments.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
+        {choices.kinds.length > 1 && (
+          <select value={pick.kind} onChange={(e) => setPick({ ...pick, kind: e.target.value })}>
+            <option value="">All kinds</option>
+            {choices.kinds.map((k) => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        )}
         {/* Same weight as on the dashboard, so the way in looks the same on
             both screens. */}
         <button className={adding ? 'ghost' : undefined} onClick={() => setAdding(!adding)}>
@@ -502,6 +774,15 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         </button>
         <button className="ghost" onClick={() => setImporting((v) => !v)}>
           {importing ? 'Cancel' : 'Import from Excel'}
+        </button>
+        {/*
+          * Generating codes lived under Lists, which is three clicks from
+          * here and reads as settings. Anybody who can see a register full
+          * of spreadsheet IDs is standing right here - the fifth time a
+          * feature has had to be moved to where the person already is.
+          */}
+        <button className="ghost" onClick={() => setCodes((v) => !v)}>
+          {codes ? 'Cancel' : 'Generate codes'}
         </button>
         {/*
           * Fetched rather than linked, so the download carries whatever
@@ -533,6 +814,25 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           </button>
         </span>
       </div>
+
+      {codes && (
+        <div className="card">
+          <h3>Give assets a code from their company’s series</h3>
+          <p className="muted small">
+            The same generator as under <strong>Lists → Asset code prefixes</strong>, put here
+            because this is where you can see which rows still wear their spreadsheet’s ID. It
+            counts first, keeps the old code on every row, and leaves written-off assets alone.
+          </p>
+          <Renumber
+            onError={onError}
+            onToast={setSaid}
+            onDone={() => {
+              setCodes(false);
+              load();
+            }}
+          />
+        </div>
+      )}
 
       {/*
         * COMPUTER, FURNITURE, MOBILE - asked for by name.
@@ -882,7 +1182,19 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         <p className="muted small">Nothing here.</p>
       ) : (
         <div className="table-wrap">
-        <table className="sheet">
+          {/* The suggestions behind the two typed cells. Suggestions only —
+              anything typed still saves, the same as the Add form. */}
+          <datalist id="asset-kind-list">
+            {choices.kinds.map((k) => (
+              <option key={k} value={k} />
+            ))}
+          </datalist>
+          <datalist id="asset-dept-list">
+            {choices.departments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+        <table className="sheet numbered asset-sheet">
           <thead>
             <tr>
               {/* A serial down the left, as on his mock-up and on the salary
@@ -891,8 +1203,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                   that is the code beside it. */}
               <th className="row-no">#</th>
               <th>Code</th>
+              <th>Kind</th>
               <th>What</th>
               <th>Serial</th>
+              <th>Department</th>
               <th className="num">Cost</th>
               <th>Where it is</th>
               <th>Since</th>
@@ -918,28 +1232,38 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                       </div>
                     ) : null}
                   </td>
-                  <td className="sticky-name">
-                    {asset.kind} — {asset.label}
-                    <div className="muted small">
-                      {groupLabel(groupOf(asset.kind, asset.label))}
-                      {asset.branch_name ? ` · ${asset.branch_name}` : ''}
-                    </div>
+                  {/*
+                    * EDITABLE IN PLACE, like a spreadsheet.
+                    *
+                    * The group under the name is still worked out from the
+                    * kind every time, so correcting the kind here moves the
+                    * row's group on the next keystroke-out - it cannot come
+                    * to disagree with the cell beside it.
+                    */}
+                  <td className="kind-cell">
+                    <SheetCell asset={asset} field="kind" list="asset-kind-list" onSave={saveCell} placeholder="Laptop" />
+                    <div className="muted small">{groupLabel(groupOf(asset.kind, asset.label))}</div>
                   </td>
-                  <td className="muted small">{asset.identifier || '—'}</td>
-                  <td className="num">{asset.purchase_cost ? rupees(asset.purchase_cost) : '—'}</td>
+                  <td className="sticky-name">
+                    <SheetCell asset={asset} field="label" onSave={saveCell} placeholder="Dell Latitude 3420" />
+                    {asset.branch_name ? <div className="muted small">{asset.branch_name}</div> : null}
+                  </td>
+                  <td>
+                    <SheetCell asset={asset} field="identifier" onSave={saveCell} placeholder="serial" />
+                  </td>
+                  <td>
+                    <SheetCell asset={asset} field="department" list="asset-dept-list" onSave={saveCell} placeholder="—" />
+                  </td>
+                  <td className="num">
+                    <SheetCell asset={asset} field="purchase_cost" type="number" align="num" onSave={saveCell} placeholder="0" />
+                  </td>
                   <td>
                     {out ? <strong>{asset.employee_name}</strong> : <span className="muted">{whereItIs(asset)}</span>}
                     {asset.condition && !out && <div className="muted small">{asset.condition}</div>}
                   </td>
                   <td className="muted small">{out ? asset.issued_on || '—' : asset.returned_on || '—'}</td>
-                  <td className="muted small">
-                    {asset.warranty_until ? (
-                      <span className={asset.warranty_left_days < 0 ? 'overdue' : undefined}>
-                        {asset.warranty_until}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
+                  <td className={asset.warranty_left_days < 0 ? 'overdue' : undefined}>
+                    <SheetCell asset={asset} field="warranty_until" type="date" onSave={saveCell} />
                   </td>
                   {/*
                     * The paperwork, ON the register.

@@ -168,7 +168,7 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
  * @returns { entries, matched, unmatched, days, summary }
  *   entries feed straight into setAttendance.
  */
-export function punchesToMarks({ rows, mapping, rules, employees, period }) {
+export function punchesToMarks({ rows, mapping, rules, employees, period, deductLunch = true }) {
   const hoursPerDay = Number(period.hours_per_day) || 9;
   // The half-day line follows the configured day - half of the month's hours -
   // unless the import names one, exactly as the Time tab does it. The two must
@@ -212,15 +212,33 @@ export function punchesToMarks({ rows, mapping, rules, employees, period }) {
 
     const inAt = mapping.inTime ? minutesOfDay(values[mapping.inTime]) : null;
     const outAt = mapping.outTime ? minutesOfDay(values[mapping.outTime]) : null;
+    /*
+     * LUNCH, where the sheet has it.
+     *
+     * A punch machine's export rarely carries lunch, and this importer
+     * deliberately never wrote it: naming a column it does not have would
+     * wipe a lunch somebody had typed. A timesheet the office keeps in Excel
+     * usually DOES have it - Dinesh asked to import exactly that - so it is
+     * read only when the mapping names those columns, and written only then.
+     * With no lunch column the behaviour is byte for byte what it was.
+     */
+    const lunchOutAt = mapping.lunchOut ? minutesOfDay(values[mapping.lunchOut]) : null;
+    const lunchInAt = mapping.lunchIn ? minutesOfDay(values[mapping.lunchIn]) : null;
 
     const id = `${employee.id}:${day}`;
-    const seen = perPersonDay.get(id) || { employee, day, in: null, out: null, punches: 0 };
+    const seen = perPersonDay.get(id) || {
+      employee, day, in: null, out: null, lunchOut: null, lunchIn: null, punches: 0,
+    };
     for (const t of [inAt, outAt]) {
       if (t === null) continue;
       seen.punches++;
       if (seen.in === null || t < seen.in) seen.in = t;
       if (seen.out === null || t > seen.out) seen.out = t;
     }
+    // Lunch is a pair, not a punch: the first row that gives it wins, and it
+    // never moves the arrival or the departure.
+    if (lunchOutAt !== null && seen.lunchOut === null) seen.lunchOut = lunchOutAt;
+    if (lunchInAt !== null && seen.lunchIn === null) seen.lunchIn = lunchInAt;
     perPersonDay.set(id, seen);
   }
 
@@ -241,7 +259,18 @@ export function punchesToMarks({ rows, mapping, rules, employees, period }) {
       code = settings.presentCode;
       summary.present++;
     } else {
-      const worked = seen.out - seen.in;
+      /*
+       * Lunch comes off the hours, exactly as it does for a day typed on the
+       * Time tab - `readTimes` there subtracts it unless the month pays for
+       * it. Counting an hour at lunch as an hour worked would hand back pay
+       * the sheet does not owe, and the two screens would disagree about the
+       * same day.
+       */
+      const lunch =
+        deductLunch && seen.lunchOut !== null && seen.lunchIn !== null && seen.lunchIn > seen.lunchOut
+          ? seen.lunchIn - seen.lunchOut
+          : 0;
+      const worked = seen.out - seen.in - lunch;
       if (worked < halfDayMinutes) {
         code = settings.halfDayCode;
         summary.halfDay++;
@@ -271,6 +300,10 @@ export function punchesToMarks({ rows, mapping, rules, employees, period }) {
       minutes,
       in_time: seen.in === null ? '' : formatTime(seen.in),
       out_time: seen.out === null ? '' : formatTime(seen.out),
+      // Only when the sheet named those columns. `setAttendance` merges per
+      // field, so leaving them out keeps whatever is already on the day.
+      ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),
+      ...(seen.lunchIn === null ? {} : { lunch_in: formatTime(seen.lunchIn) }),
     });
   }
 

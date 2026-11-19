@@ -19,6 +19,7 @@ import multer from 'multer';
 import { planAssetImport } from '../../../shared/assetImport.js';
 import { listCompanies, listEmployees } from '../db.js';
 import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.js';
+import { assetAlerts } from '../../../shared/assetAlerts.js';
 
 /* In memory: the sheet is read once and never kept. 8 MB covers an office's
    whole asset list many times over. */
@@ -1160,6 +1161,9 @@ peopleRouter.get('/digest', (req, res) => {
      * a right that a summary quietly walks around is not a right.
      */
     licenses: may(req.actor, 'license') ? listLicenses({}) : [],
+    // Same scoping: a login with no asset register is not told what is out of
+    // warranty on it.
+    asset_dates: may(req.actor, 'assets') ? assetAlerts(listAssets({})) : null,
     today: new Date().toISOString().slice(0, 10),
   });
 

@@ -76,6 +76,12 @@ export function digest(input = {}) {
      * and the licence tab cannot come to different answers about it.
      */
     licenses = [],
+    /*
+     * The asset register, already dressed by shared/assetAlerts.js - the same
+     * module the register's own strip and the maintenance panel use, so the
+     * dashboard cannot have a different opinion about one laptop.
+     */
+    asset_dates: assetDates = null,
     /** How far ahead to look. A month, because that is the notice people need. */
     ahead = 30,
     today = new Date().toISOString().slice(0, 10),
@@ -240,6 +246,48 @@ export function digest(input = {}) {
       'dates',
       'license'
     );
+  }
+
+  /*
+   * Warranties and AMCs.
+   *
+   * Only what can still be acted on: one that has JUST lapsed, or is about
+   * to. A laptop out of warranty since 2024 is counted on the register and
+   * says nothing here - a line that fires every morning for ever is a line
+   * nobody reads.
+   */
+  if (assetDates) {
+    const gone = assetDates.warranty_just_gone || [];
+    if (gone.length) {
+      add(
+        `• ${plural(gone.length, 'warranty', 'warranties')} just run out: ${names(
+          gone.map((a) => a.code || a.label)
+        )}`,
+        1,
+        'dates',
+        'assets'
+      );
+    }
+    const soon2 = assetDates.warranty_soon || [];
+    if (soon2.length) {
+      add(
+        `• ${plural(soon2.length, 'warranty', 'warranties')} running out within ${assetDates.soon || 30} days: ${names(
+          soon2.map((a) => `${a.code || a.label} (${a.warranty_until})`)
+        )}`,
+        1,
+        'dates',
+        'assets'
+      );
+    }
+    const amc = [...(assetDates.amc_just_gone || []), ...(assetDates.amc_soon || [])];
+    if (amc.length) {
+      add(
+        `• ${plural(amc.length, 'AMC')} to renew: ${names(amc.map((a) => `${a.code || a.label} (${a.amc_until})`))}`,
+        1,
+        'dates',
+        'assets'
+      );
+    }
   }
 
   // Due by the date the LAST review set. An appraisal nobody set a next date
