@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.29.0';
+export const VERSION = '1.30.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.30.0',
+    date: '19 Nov 2026',
+    title: 'The daily WhatsApp report, transfers from the ledger, and the register staff-wise',
+    items: [
+      '**The daily report your office types into the group is now written for you.** It sits under the roll call on the Dashboard: heading, date, Attendance with every absent name **and the reason in brackets**, Late Coming / Early Going with how late, Uniform, Overtime — all from the day on screen. Copy it, or press **Open WhatsApp** and pick the group.',
+      '**Office Inspection, Conduct and Incidents are three boxes you type**, pre-filled with the words already used. Those three are not recorded anywhere in this app, so nothing is claimed about an inspection nobody logged — and the whole message can be edited before it goes.',
+      '**For a scheduled send**, `/api/people/daily-report?format=text` returns the same message as plain text. The app assembles it and **does not send**: there is no WhatsApp API for a personal number, and the task assistant already holds the one linked session.',
+      '**Transfer an asset straight from the ledger** — “Transfer to…” beside “Take it back”. Tick what is going, pick who it goes to, one date, one condition. **Both ledgers read “Transferred” on the same day**, so nothing belongs to nobody in between, and the old handover is closed rather than deleted.',
+      'A transfer **refuses by name** anything no longer with that person, anything written off, and anything the other person already holds — so a page left open on another desk cannot move the same laptop twice. Nothing is ticked to start with, deliberately: handing over one thing is the usual case.',
+      '**The full register, staff-wise.** Assets → Full register → **By person**: a block per holder with their own subtotal, and what nobody is holding at the foot as “In the office”. Print it or take the CSV.',
+      '**A fix worth knowing:** the daily report read the uniform as `0` where the server answers `false`, so a floor with somebody out of uniform reported “All staff in proper uniform”. Both spellings of no now count, and a floor nobody walked reads as “Not checked today” rather than as everybody passing.',
+    ],
+  },
   {
     version: '1.29.0',
     date: '19 Nov 2026',

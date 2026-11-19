@@ -91,3 +91,41 @@ test('the CSV carries the subtotals and says the written-off are outside the tot
   assert.match(csv, /TOTAL — 5 assets/);
   assert.match(csv, /not in the total above/);
 });
+
+/* ---------------- staff-wise ---------------- */
+
+test('by person: one block per holder, and what nobody holds is the office', () => {
+  const st = assetStatement(REGISTER, { by: 'person' });
+  const names = st.blocks.map((b) => b.name);
+  assert.ok(names.includes('Amit Shah'));
+  assert.ok(names.includes('In the office'));
+  // The office is a place, not a person, so it sits at the foot of the list
+  // however much it holds - here three assets against Amit Shah's one.
+  assert.equal(names[names.length - 1], 'In the office');
+  const office = st.blocks.find((b) => b.name === 'In the office');
+  assert.equal(office.count, 4);
+  assert.equal(office.out, 0);
+  const amit = st.blocks.find((b) => b.name === 'Amit Shah');
+  assert.equal(amit.count, 1);
+  assert.equal(amit.out, 1);
+  assert.equal(amit.cost, 47500);
+});
+
+test('by person: the written-off one is still apart, and the blocks still add up', () => {
+  const st = assetStatement(REGISTER, { by: 'person' });
+  assert.equal(
+    st.blocks.reduce((sum, b) => sum + b.count, 0),
+    st.totals.count
+  );
+  assert.equal(
+    st.blocks.reduce((sum, b) => sum + b.cost, 0),
+    st.totals.cost
+  );
+  assert.equal(st.written_off.count, 1);
+});
+
+test('an unknown way of blocking it falls back to company rather than breaking', () => {
+  const st = assetStatement(REGISTER, { by: 'colour' });
+  assert.equal(st.by, 'company');
+  assert.ok(st.blocks.some((b) => b.name === 'BOOKNFLY'));
+});

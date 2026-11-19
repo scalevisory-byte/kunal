@@ -1489,6 +1489,16 @@ pre.digest {
   font-size: 0.78rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
 }
 
+/*
+ * The daily WhatsApp report, editable before it goes. Monospaced and the
+ * width of the card, because it is read as a message and not as a form field.
+ */
+textarea.daily-report-text {
+  width: 100%; margin: 0.5rem 0; padding: 0.6rem 0.7rem;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.78rem; line-height: 1.5; resize: vertical;
+}
+
 /* Sign-in: the setup / sign-in / dashboard-password switch under the button. */
 .login-switch { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
 button.link {

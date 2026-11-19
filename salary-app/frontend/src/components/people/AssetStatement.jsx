@@ -63,6 +63,10 @@ export default function AssetStatement({ companies = [], onError }) {
           <button className={by === 'group' ? 'active' : undefined} onClick={() => setBy('group')}>
             By group
           </button>
+          {/* Staff-wise: asked for by name, looking at 367 rows. */}
+          <button className={by === 'person' ? 'active' : undefined} onClick={() => setBy('person')}>
+            By person
+          </button>
         </div>
         {companies.length > 1 && (
           <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
@@ -141,8 +145,10 @@ export default function AssetStatement({ companies = [], onError }) {
                         <th>Code</th>
                         <th>What</th>
                         <th>Serial</th>
-                        <th>{by === 'group' ? 'Company' : 'Group'}</th>
-                        <th>Where it is</th>
+                        <th>{by === 'group' ? 'Company' : by === 'person' ? 'Group' : 'Group'}</th>
+                        {/* Staff-wise, the holder is the heading above - so
+                            this column carries where the thing actually sits. */}
+                        <th>{by === 'person' ? 'Where' : 'Where it is'}</th>
                         <th>Bought</th>
                         <th className="num">Cost</th>
                       </>
@@ -166,8 +172,18 @@ export default function AssetStatement({ companies = [], onError }) {
                           <td className="muted small">{row.identifier || '—'}</td>
                           <td className="small">{by === 'group' ? row.company_name : row.group}</td>
                           <td className="small">
-                            {row.holder ? <strong>{row.holder}</strong> : <span className="muted">in the office</span>}
-                            {row.location ? <div className="muted small">{row.location}</div> : null}
+                            {by === 'person' ? (
+                              row.location || <span className="muted">—</span>
+                            ) : (
+                              <>
+                                {row.holder ? (
+                                  <strong>{row.holder}</strong>
+                                ) : (
+                                  <span className="muted">in the office</span>
+                                )}
+                                {row.location ? <div className="muted small">{row.location}</div> : null}
+                              </>
+                            )}
                           </td>
                           <td className="small">{row.purchase_date || <span className="muted">—</span>}</td>
                           <td className="num">{row.cost ? rupees(row.cost) : <span className="muted">—</span>}</td>

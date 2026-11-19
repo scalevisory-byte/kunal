@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { may } from '../../../shared/rights.js';
 import { requireArea } from '../auth.js';
 import { digest } from '../../../shared/digest.js';
+import { dailyReport } from '../../../shared/dailyReport.js';
 import { buildPayroll } from '../payroll.js';
 import { listPeriods } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
@@ -170,6 +171,7 @@ import {
   replyToTicket,
   returnAsset,
   returnAssets,
+  transferAssets,
   saveExit,
   setTaskStatus,
   updateAppraisal,
@@ -490,6 +492,18 @@ peopleRouter.get('/assets/ledger/:employeeId', (req, res) => {
         next: at >= 0 && at < holders.length - 1 ? holders[at + 1] : null,
       };
     })(),
+    /*
+     * Who it could go to, for a transfer straight off this page. Three
+     * fields only: a picker has no business being handed everybody's salary,
+     * and this list is already in the browser of anybody who can see the
+     * register. Anyone on the staff can receive something, so the list is
+     * not narrowed to holders the way neighbours is - only people who have
+     * left, since handing a laptop to somebody who no longer works here is a
+     * mistake and not a transfer.
+     */
+    people: listEmployees({ active: true })
+      .filter((e) => Number(e.id) !== Number(employee.id))
+      .map((e) => ({ id: e.id, name: e.name, code: e.employee_code || '', company_name: e.company_name || '' })),
   });
 });
 
@@ -523,7 +537,7 @@ const statementFor = (req) =>
       branch_id: Number(req.query.branch_id) || undefined,
       written_off: true,
     }),
-    { by: req.query.by === 'group' ? 'group' : 'company' }
+    { by: ['group', 'person'].includes(String(req.query.by)) ? String(req.query.by) : 'company' }
   );
 
 peopleRouter.get('/assets/statement', (req, res) => {
@@ -872,6 +886,26 @@ peopleRouter.post('/assets/return-many', (req, res) => {
   try {
     res.json(
       returnAssets(Array.isArray(req.body?.asset_ids) ? req.body.asset_ids : [], {
+        ...req.body,
+        by: who(req),
+      })
+    );
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/**
+ * Straight from one person to another, from the ledger.
+ *
+ * `from_employee_id` is sent by the screen so a stale page cannot move
+ * somebody else's asset: anything no longer with that person is refused by
+ * name rather than quietly moved.
+ */
+peopleRouter.post('/assets/transfer', (req, res) => {
+  try {
+    res.json(
+      transferAssets(Array.isArray(req.body?.asset_ids) ? req.body.asset_ids : [], {
         ...req.body,
         by: who(req),
       })
@@ -1413,6 +1447,65 @@ peopleRouter.post('/tickets/:id/reopen', (req, res) => {
   } catch (err) {
     bad(res, err);
   }
+});
+
+/* ---------------- the daily office report ---------------- */
+
+/**
+ * The report HR already types into WhatsApp every morning, built from the
+ * roll call instead.
+ *
+ * `?format=text` returns it as plain text, so a cron - or the WhatsApp
+ * assistant, which already holds a linked session - can fetch it and post it
+ * without this app growing a second session on the same number.
+ *
+ * The three lines this app cannot know (office inspection, conduct,
+ * incidents) come in as query values, exactly as the office words them. They
+ * are NOT invented: left out, their headings do not appear at all.
+ */
+peopleRouter.get('/daily-report', (req, res) => {
+  const periods = listPeriods();
+  const date = String(req.query.day || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const [year, month, dayOfMonth] = date.split('-').map(Number);
+  const period =
+    periods.find((p) => p.year === year && p.month === month) ||
+    periods.find((p) => !p.locked) ||
+    periods[0];
+  if (!period) return res.status(404).json({ error: 'no month is open' });
+
+  // sync:false - reading a report must not open rows or post loan instalments.
+  const payroll = buildPayroll(period.id, { sync: false, company_id: Number(req.query.company_id) || undefined });
+
+  const typed = {};
+  for (const key of ['inspection', 'conduct', 'incidents']) {
+    if (req.query[key] !== undefined) typed[key] = String(req.query[key]);
+  }
+
+  const built = dailyReport({
+    period: payroll.period,
+    rows: payroll.rows,
+    day: dayOfMonth,
+    date,
+    /*
+     * The month's own shift wins, exactly as the roll call's `shiftOfMonth`
+     * does; the screen may send its own, because the usual timings are also
+     * kept per browser and whoever is looking at the roll call should get
+     * the same names here as they see there.
+     */
+    standard: {
+      in: String(req.query.in || period.shift_in || ''),
+      out: String(req.query.out || period.shift_out || ''),
+      grace: Number.isFinite(Number(req.query.grace)) && req.query.grace !== '' ? Number(req.query.grace) : undefined,
+    },
+    typed,
+    title: String(req.query.title || 'DAILY OFFICE REPORT'),
+  });
+
+  if (req.query.format === 'text') {
+    res.type('text/plain').send(built.text);
+    return;
+  }
+  res.json(built);
 });
 
 /* ---------------- the digest ---------------- */

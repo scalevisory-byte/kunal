@@ -34,6 +34,7 @@ import { isOut } from './assetReport.js';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const NO_COMPANY = 'Not against a company';
+const IN_OFFICE = 'In the office';
 
 /**
  * The statement.
@@ -42,13 +43,26 @@ const NO_COMPANY = 'Not against a company';
  * @param options  `by` — 'company' (default) or 'group': which way to block it
  */
 export function assetStatement(assets = [], { by = 'company' } = {}) {
+  // company | group | person. Anything else is 'company', never a crash.
+  by = ['company', 'group', 'person'].includes(by) ? by : 'company';
   const live = assets.filter((a) => !a.written_off_on);
   const gone = assets.filter((a) => a.written_off_on);
 
+  /*
+   * STAFF-WISE is the third way to block it - Dinesh asked "staff wise kaise
+   * milega" looking at a register of 367 rows. Under each person, their
+   * things; anything nobody is holding sits under "In the office", which is
+   * a place and not a missing row.
+   */
+  const holderOf = (a) => (isOut(a) ? a.employee_name || 'Somebody' : IN_OFFICE);
   const blockKey = (a) =>
-    by === 'group' ? groupLabel(groupOf(a.kind, a.label)) : a.company_name || NO_COMPANY;
+    by === 'person' ? holderOf(a)
+    : by === 'group' ? groupLabel(groupOf(a.kind, a.label))
+    : a.company_name || NO_COMPANY;
   const innerKey = (a) =>
-    by === 'group' ? a.company_name || NO_COMPANY : groupLabel(groupOf(a.kind, a.label));
+    by === 'person' ? groupLabel(groupOf(a.kind, a.label))
+    : by === 'group' ? a.company_name || NO_COMPANY
+    : groupLabel(groupOf(a.kind, a.label));
 
   const blocks = new Map();
   for (const asset of live) {
@@ -105,7 +119,18 @@ export function assetStatement(assets = [], { by = 'company' } = {}) {
           x.label.localeCompare(y.label)
       ),
     }))
-    .sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      /*
+       * Staff-wise, the office goes LAST however much it holds: the page is
+       * a list of people, and what nobody is holding is the remainder at the
+       * foot of it rather than a person with a very long name.
+       */
+      if (by === 'person') {
+        if (a.name === IN_OFFICE) return 1;
+        if (b.name === IN_OFFICE) return -1;
+      }
+      return b.cost - a.cost || a.name.localeCompare(b.name);
+    });
 
   const missing = {
     no_cost: live.filter((a) => !num(a.purchase_cost)).length,

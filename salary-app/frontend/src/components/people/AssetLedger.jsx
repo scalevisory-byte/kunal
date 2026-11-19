@@ -40,6 +40,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 export default function AssetLedger({ employeeId, name, onClose, onError, onReload, onOpenEmployee }) {
   const [ledger, setLedger] = useState(null);
   const [neighbours, setNeighbours] = useState({ all: [], previous: null, next: null });
+  const [people, setPeople] = useState([]);
   const [tab, setTab] = useState('overview');
 
   /* the movement ledger's own window and search */
@@ -55,7 +56,17 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
    * are the exception somebody unticks deliberately, with the register then
    * still saying they are out.
    */
-  const [taking, setTaking] = useState(false);
+  /*
+   * MOVING things is the same panel with a different ending - Dinesh:
+   * *"ledger me se direct asset transfer karne ka option do"*. 'take' sends
+   * it back to the office, 'move' hands it straight to somebody else, and
+   * the tick boxes, the date and the condition are shared because they are
+   * the same three questions either way.
+   */
+  const [mode, setMode] = useState('');
+  const taking = mode !== '';
+  const [toWhom, setToWhom] = useState('');
+  const [note, setNote] = useState('');
   const [picked, setPicked] = useState(() => new Set());
   const [on, setOn] = useState(today);
   const [condition, setCondition] = useState('');
@@ -68,6 +79,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
       const data = await api.get(`/people/assets/ledger/${employeeId}${query ? `?${query}` : ''}`);
       setLedger(data.ledger);
       setNeighbours(data.neighbours || { all: [], previous: null, next: null });
+      setPeople(data.people || []);
       setPicked(new Set(data.ledger.holding.map((l) => l.asset_id)));
       return data.ledger;
     } catch (err) {
@@ -92,11 +104,53 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
         condition: condition.trim() || undefined,
       });
       const after = await load();
-      setTaking(false);
+      setMode('');
       setCondition('');
       const left = after?.totals.out ?? 0;
       setSaid(
         `${done.returned.length} taken back on ${done.returned_on}.` +
+          (left ? ` ${left} still with them.` : ' Nothing left with them.')
+      );
+      await onReload?.();
+    } catch (err) {
+      onError?.(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Hand what is ticked straight to somebody else.
+   *
+   * ONE DATE FOR BOTH SIDES: it comes off this person and goes onto the
+   * other on the same day, which is what makes both ledgers read
+   * "Transferred" rather than a return on Tuesday and an issue on Friday
+   * with the thing belonging to nobody in between.
+   *
+   * The server is told who it is coming FROM, so a page left open while
+   * somebody else moved the laptop cannot move it again - it comes back
+   * refused by name instead.
+   */
+  const moveIt = async () => {
+    setBusy(true);
+    try {
+      const done = await api.post('/people/assets/transfer', {
+        asset_ids: [...picked],
+        from_employee_id: employeeId,
+        to_employee_id: Number(toWhom),
+        on,
+        condition: condition.trim() || undefined,
+        note: note.trim() || undefined,
+      });
+      const after = await load();
+      setMode('');
+      setCondition('');
+      setNote('');
+      setToWhom('');
+      const left = after?.totals.out ?? 0;
+      setSaid(
+        `${done.moved.length} handed to ${done.to.name} on ${done.on}.` +
+          (done.refused?.length ? ` ${done.refused.length} not moved: ${done.refused.map((r) => r.why).join('; ')}.` : '') +
           (left ? ` ${left} still with them.` : ' Nothing left with them.')
       );
       await onReload?.();
@@ -245,9 +299,38 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
         )}
         <span className="push-right">
           {totals.out > 0 && (
-            <button className={taking ? 'active' : 'primary'} onClick={() => setTaking((v) => !v)}>
-              {taking ? 'Cancel' : 'Take it back'}
-            </button>
+            <>
+              <button
+                className={mode === 'take' ? 'active' : 'primary'}
+                onClick={() => {
+                  // Taking back starts with everything ticked: on somebody's
+                  // last day it all comes back, and the exceptions are
+                  // unticked deliberately.
+                  setPicked(new Set(holding.map((l) => l.asset_id)));
+                  setMode((m) => (m === 'take' ? '' : 'take'));
+                  setTab('current');
+                }}
+              >
+                {mode === 'take' ? 'Cancel take-back' : 'Take it back'}
+              </button>
+              <button
+                className={mode === 'move' ? 'active' : undefined}
+                onClick={() => {
+                  /*
+                   * A TRANSFER STARTS WITH NOTHING TICKED, deliberately
+                   * unlike taking back. Handing over one laptop is the
+                   * ordinary case; a page that arrived with all five ticked
+                   * would move the lot on one click, and a transfer is
+                   * somebody else's name on four more assets.
+                   */
+                  setPicked(new Set());
+                  setMode((m) => (m === 'move' ? '' : 'move'));
+                  setTab('current');
+                }}
+              >
+                {mode === 'move' ? 'Cancel transfer' : 'Transfer to…'}
+              </button>
+            </>
           )}
           <button className="ghost" onClick={() => window.print()}>
             Print
@@ -390,7 +473,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
       {/* ---------------- what they hold now ---------------- */}
       {tab === 'current' && (
         <div className="card">
-          {taking && (
+          {mode === 'take' && (
             <div className="card" style={{ marginBottom: '0.6rem' }}>
               <h4>Take it back</h4>
               <p className="muted small">
@@ -417,10 +500,67 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
                 <button className="primary" disabled={busy || !picked.size} onClick={takeBack}>
                   {busy ? 'Taking it back…' : `Take back ${picked.size} of ${totals.out}`}
                 </button>
-                <button className="ghost" disabled={busy} onClick={() => setTaking(false)}>
+                <button className="ghost" disabled={busy} onClick={() => setMode('')}>
                   Not now
                 </button>
               </div>
+            </div>
+          )}
+
+          {mode === 'move' && (
+            <div className="card" style={{ marginBottom: '0.6rem' }}>
+              <h4>Transfer to somebody else</h4>
+              <p className="muted small">
+                Straight from one person to the next, without coming back to the office first. Both ledgers
+                read <strong>Transferred</strong> on the same date — it leaves this one and lands on theirs
+                the same day, so nothing belongs to nobody in between.{' '}
+                <strong>Tick what is going</strong> — nothing is ticked to start with, because handing over
+                one thing is the usual case.
+              </p>
+              <div className="form-grid">
+                <label>
+                  Hand it to
+                  <select value={toWhom} onChange={(e) => setToWhom(e.target.value)}>
+                    <option value="">pick somebody…</option>
+                    {people.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.code ? ` (${p.code})` : ''}
+                        {p.company_name ? ` — ${p.company_name}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Handed over on
+                  <input type="date" value={on} onChange={(e) => setOn(e.target.value)} />
+                </label>
+                <label>
+                  Condition it went in
+                  <input
+                    value={condition}
+                    placeholder="leave empty for fine"
+                    onChange={(e) => setCondition(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Why, if it is worth saying
+                  <input value={note} placeholder="e.g. moved to the Surat desk" onChange={(e) => setNote(e.target.value)} />
+                </label>
+              </div>
+              <div className="row">
+                <button className="primary" disabled={busy || !picked.size || !toWhom} onClick={moveIt}>
+                  {busy
+                    ? 'Handing it over…'
+                    : `Transfer ${picked.size} of ${totals.out}${
+                        toWhom ? ` to ${people.find((p) => String(p.id) === String(toWhom))?.name || ''}` : ''
+                      }`}
+                </button>
+                <button className="ghost" disabled={busy} onClick={() => setMode('')}>
+                  Not now
+                </button>
+              </div>
+              {!toWhom && <p className="muted small">Pick who it is going to — nothing moves until there is a name.</p>}
             </div>
           )}
 

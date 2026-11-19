@@ -16,6 +16,7 @@ import {
 import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import Glyph from '../icons.jsx';
 import { shiftOfMonth } from '../standardTimes.js';
+import DailyReport from './DailyReport.jsx';
 
 /**
  * The month at a glance, on one screen.
@@ -1917,6 +1918,14 @@ export default function Dashboard({
           </>
         )}
       </div>
+
+      {/*
+       * The message HR types into the group every morning, written from the
+       * day above. It sits directly under the roll call because it is that
+       * same day said in words - and because the person who has just walked
+       * the floor is the person who sends it.
+       */}
+      <DailyReport period={period} rows={rows} day={shownDay} companyName={companyName} />
 
       {/*
        * Each of these only appears when it has something to say. A card reading

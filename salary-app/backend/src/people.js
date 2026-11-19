@@ -1624,6 +1624,79 @@ export function issueAsset(
   });
 }
 
+/**
+ * PASSING THINGS STRAIGHT FROM ONE PERSON TO ANOTHER.
+ *
+ * Dinesh: *"ledger me se direct asset transfer karne ka option do"*. Until
+ * now a move was two jobs on two screens - take it back on the ledger, then
+ * find the row on the register and issue it again - and between the two the
+ * asset sat in an office nobody had carried it to.
+ *
+ * Three things this is careful about:
+ *
+ *   **ONE DATE FOR BOTH SIDES.** The return and the new issue carry the same
+ *   day, which is exactly what makes both ledgers read "Transferred" rather
+ *   than a return and an unrelated issue. The ledger derives that from the
+ *   dates lining up, so the dates have to line up.
+ *
+ *   **ONE TRANSACTION.** A half-done move leaves an asset with nobody, or
+ *   on two people's pages at once.
+ *
+ *   **IT MOVES WHAT IT WAS ASKED TO MOVE.** Anything not actually with the
+ *   person it is being taken from is refused by name, not silently skipped -
+ *   a stale screen is the commonest reason for that, and "it did nothing"
+ *   with no reason sends people hunting.
+ */
+export function transferAssets(ids = [], { from_employee_id: fromId, to_employee_id: toId, on, condition, note, by } = {}) {
+  const to = getEmployee(toId);
+  if (!to) throw new Error('who is it going to?');
+  if (fromId && Number(fromId) === Number(to.id)) throw new Error(`${to.name} already has it`);
+  const day = String(on || dayNow()).slice(0, 10);
+  const wanted = [...new Set(ids.map((id) => Number(id)).filter(Boolean))];
+  if (!wanted.length) throw new Error('nothing was chosen to transfer');
+
+  const moved = [];
+  const refused = [];
+
+  const run = db.transaction(() => {
+    for (const id of wanted) {
+      const asset = getAsset(id);
+      if (!asset) {
+        refused.push({ id, why: 'not on the register' });
+        continue;
+      }
+      const label = `${asset.code || ''} ${asset.label || ''}`.trim();
+      if (asset.written_off_on) {
+        refused.push({ id, label, why: 'written off' });
+        continue;
+      }
+      if (fromId && Number(asset.employee_id) !== Number(fromId)) {
+        refused.push({ id, label, why: `not with them any more — ${whoHasIt(asset)}` });
+        continue;
+      }
+      if (Number(asset.employee_id) === Number(to.id) && !asset.returned_on) {
+        refused.push({ id, label, why: `${to.name} already has it` });
+        continue;
+      }
+      try {
+        // issueAsset closes whatever handover is open, on the same day, and
+        // opens the new one. The transfer is those two facts, dated alike.
+        issueAsset(id, { employee_id: to.id, issued_on: day, condition, note, by });
+        moved.push({ id, label, from: asset.employee_name || 'the office', to: to.name });
+      } catch (err) {
+        refused.push({ id, label, why: err.message });
+      }
+    }
+  });
+  run();
+
+  return { moved, refused, on: day, to: { id: to.id, name: to.name } };
+}
+
+/** Where an asset actually is, for a refusal that tells somebody something. */
+const whoHasIt = (asset) =>
+  asset.returned_on || !asset.employee_id ? 'it is in the office' : `${asset.employee_name} has it`;
+
 export function returnAsset(id, { returned_on, condition, note, by } = {}) {
   const asset = getAsset(id);
   if (!asset) throw new Error('not found');

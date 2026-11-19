@@ -488,6 +488,25 @@ export const HELP = [
     note: 'The EPFO and ESIC upload formats drift. Check a file against the portal’s own template before uploading it rather than trusting the column order here.',
   },
   {
+    id: 'daily-report',
+    title: 'The daily attendance report for WhatsApp',
+    tab: 'dashboard',
+    keywords: [
+      'daily report', 'whatsapp', 'group', 'message', 'morning', 'office report',
+      'attendance report', 'send', 'bhejna', 'roz', 'daily', 'report group me',
+      'late coming list', 'absent list', 'uniform', 'incident', 'inspection', 'conduct',
+    ],
+    lines: [
+      '**Dashboard → under the roll call → Write the message.** It writes the report your office already types into the group every morning, from the day on screen: heading, date, **Attendance** with every absent name and the reason in brackets, **Late Coming / Early Going** with how late, **Uniform**, and **Overtime**.',
+      'Step the roll call back a day with ‹ › and the message follows it. Set the company filter and it covers that company only, and names it in the heading.',
+      '**Office Inspection, Conduct and Incidents are three boxes you type.** They are not recorded anywhere in this app, so nothing is claimed about an inspection nobody logged. The whole message can be edited before it goes.',
+      '**Copy the message**, or press **Open WhatsApp** and choose the group yourself.',
+      'For an automatic send every morning, `GET /api/people/daily-report?format=text` returns the same message as plain text, and takes `&day=`, `&inspection=`, `&conduct=` and `&incidents=`.',
+      'Everybody in it comes off the same marks the salary sheet is paid from — the message and the roll call above it cannot disagree about who was late.',
+    ],
+    note: 'THE APP ASSEMBLES IT, IT DOES NOT SEND IT. There is no WhatsApp API for a personal number, and the task assistant already holds the one linked session — a second one risks the number. Two other things it will not do: a day nobody has marked says so instead of listing the whole staff as absent, and somebody with no clock time is left out of Late Coming rather than counted as on time.',
+  },
+  {
     id: 'assets',
     title: 'The asset register',
     tab: 'assets',
@@ -496,6 +515,8 @@ export const HELP = [
       'import', 'excel', 'list', 'imei', 'serial', 'bulk', 'upload', 'suchi',
       'group', 'category', 'computer', 'furniture', 'mobile', 'shreni', 'prakar',
       'code', 'prefix', 'number', 'barcode', 'sticker', 'department', 'number banana',
+      'transfer', 'hand over', 'staff wise', 'employee wise', 'person', 'kiske paas',
+      'dena', 'badalna', 'transfer karna',
     ],
     lines: [
       'Every asset gets a code like `BPL-LAP-014`, a printable barcode label, purchase details, warranty and an AMC.',
@@ -512,6 +533,8 @@ export const HELP = [
       '**Maintenance → Export a report** picks columns the same way, in two shapes: **every service** (one line per repair) or **every asset** (what it has cost to own).',
       '**QR labels** print for the rows you tick, or for everything on screen — so a group button plus the label button is a sheet of stickers for that group.',
       '**Who holds what → ledger** is one person’s whole history: what they still have, what came back and when, days held, and what it cost. It opens from their employee record and from the exit page too.',
+      '**Transfer to…** on that ledger hands things straight to somebody else without coming back to the office first. Tick what is going, pick the person, set one date and one condition — **both ledgers read “Transferred” on the same day**, so nothing belongs to nobody in between. Anything no longer with that person, written off, or already theirs is **refused by name**, so two people on two screens cannot move the same laptop twice.',
+      '**Full register → By person** is the register staff-wise: a block for each person with their own subtotal, and everything nobody is holding at the foot under “In the office”.',
       '**Take it back** on that ledger returns everything in one go when somebody leaves: tick what came back, set the date and the condition once. What you untick stays out, and **nothing is written off or deducted** — not returned is not the same as lost.',
       'An asset standing against somebody with **no handover slip** is said so, and counted — it is a slip to get signed, not a missing asset.',
       '**Export a report** on the register lets you tick which columns you want — code, kind, serial, who has it, where, bought on, cost, vendor, invoice, warranty, AMC and the rest — and takes **Excel** or CSV. Your ticks are remembered.',
