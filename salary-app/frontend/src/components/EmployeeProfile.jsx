@@ -4,6 +4,7 @@ import OnboardingChecklist from './OnboardingChecklist.jsx';
 import SalaryStructure from './SalaryStructure.jsx';
 import Contributions from './Contributions.jsx';
 import EmployeeRecord, { Reporting } from './EmployeeRecord.jsx';
+import AssetLedger from './people/AssetLedger.jsx';
 import EmployeePhoto from './EmployeePhoto.jsx';
 
 /**
@@ -124,6 +125,14 @@ const JUMPS = [
 
 export default function EmployeeProfile({ employee, companies, employees: allEmployees = [], onPatch, onClose }) {
   const [draft, setDraft] = useState(employee);
+  /*
+   * What this person is holding, from their own record.
+   *
+   * Dinesh asked for it from the asset side; this is the other door. Somebody
+   * reading a record before an appraisal, a transfer or an exit is exactly
+   * who needs to know there is a laptop against them.
+   */
+  const [assets, setAssets] = useState(false);
   const [saving, setSaving] = useState(false);
   // Bumped when the photograph changes, so the documents panel re-reads.
   const [recordRefresh, setRecordRefresh] = useState(0);
@@ -265,6 +274,9 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
           * not exist.
           */}
         <div className="chips jump-row no-print">
+          <button className="chip" onClick={() => setAssets(true)}>
+            Assets with them
+          </button>
           {JUMPS.map(([id, label]) => (
             <button
               key={id}
@@ -279,6 +291,15 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
             </button>
           ))}
         </div>
+
+        {assets && (
+          <AssetLedger
+            employeeId={draft.id}
+            name={draft.name}
+            onClose={() => setAssets(false)}
+            onError={(err) => setError(err.message)}
+          />
+        )}
 
         <OnboardingChecklist employee={draft} />
 

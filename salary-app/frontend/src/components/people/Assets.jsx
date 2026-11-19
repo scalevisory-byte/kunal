@@ -11,6 +11,7 @@ import { assetAlerts, nameSome } from '../../../../shared/assetAlerts.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
+import AssetStatement from './AssetStatement.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
@@ -595,6 +596,15 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
       <section className="stack">
         <Tabs view={view} setView={setView} />
         <HandoverSlips onError={onError} />
+      </section>
+    );
+  }
+
+  if (view === 'statement') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <AssetStatement companies={companies} onError={onError} />
       </section>
     );
   }
@@ -1417,6 +1427,7 @@ function Tabs({ view, setView }) {
         ['dashboard', 'Dashboard'],
         ['register', 'Register'],
         ['slips', 'Who holds what'],
+        ['statement', 'Full register'],
         ['stock', 'Stock take'],
         ['maintenance', 'Maintenance'],
         ['masters', 'Lists'],

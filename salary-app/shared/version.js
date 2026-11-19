@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.24.0';
+export const VERSION = '1.25.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.25.0',
+    date: '19 Nov 2026',
+    title: 'One person’s asset ledger, and the register as a statement',
+    items: [
+      '**Assets → Who holds what → ledger** — everything one person has ever been given, on one page: what they still have, what came back and when, how many days each was out, and what it cost to buy. Print it or take the CSV.',
+      'The same ledger opens from **the employee’s own record** (“Assets with them”) and from the **exit page**, which is when it is actually needed.',
+      '**“Held with no slip on file” is its own state.** An asset standing against somebody with no handover row is not “never issued” and is not hidden — it is a slip to go and get signed, and it is counted.',
+      '**Who holds what was answering the smaller half of the question.** It was built from the handover log, so anybody holding something with no slip — and a thousand imported rows carry a holder and no slip — was simply not on the list. It now comes from the register, which is what says who has something, and marks who has nothing signed for it.',
+      '**Assets → Full register** — “total asset ka register”: every asset under its company (or its group), each block adding up, and one figure at the foot for everything the business holds. Print it, or take the CSV with the subtotals in it.',
+      '**Written-off assets sit below the total, never inside it** — they keep their row and their code, and counting them would overstate what is held.',
+      '**Every figure is what it cost to buy, and the page says so.** There is no depreciation here, so it is a register at cost and not a book value — a made-up rate would price every line wrongly while looking authoritative.',
+      '**What is missing is counted, not hidden**: how many assets have no cost, no code, no company or no purchase date is printed at the foot, because a register that silently drops them is how a total comes out short and nobody knows why.',
+      'An unreturned asset is still **named and valued, never deducted** — the same rule the full and final has always followed.',
+    ],
+  },
   {
     version: '1.24.0',
     date: '19 Nov 2026',

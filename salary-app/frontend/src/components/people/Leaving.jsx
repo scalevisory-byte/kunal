@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { EXIT_TYPES } from '../../../../shared/settlement.js';
 import { rupees } from '../../format.js';
+import AssetLedger from './AssetLedger.jsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -37,6 +38,9 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
     loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* Whose asset ledger is on screen, if any. */
+  const [ledgerFor, setLedgerFor] = useState(null);
 
   const open = async (employeeId) => {
     setPicked(employeeId);
@@ -323,9 +327,23 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
               </table>
               <p className="muted small">
                 Not deducted. Take it off by hand if you decide to — an asset docked and then found
-                in a drawer cannot be undone once the payment has gone.
+                in a drawer cannot be undone once the payment has gone.{' '}
+                {/* Everything they have EVER been given, including what came back and
+                    anything standing against them with no slip. This is the moment
+                    somebody actually needs that page. */}
+                <button className="link" onClick={() => setLedgerFor(picked)}>
+                  See their whole asset ledger
+                </button>
               </p>
             </div>
+          )}
+
+          {ledgerFor && (
+            <AssetLedger
+              employeeId={ledgerFor}
+              onClose={() => setLedgerFor(null)}
+              onError={onError}
+            />
           )}
 
           {!paid ? (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import ScrollFrame from '../ScrollFrame.jsx';
 import { rupees } from '../../format.js';
+import AssetLedger from './AssetLedger.jsx';
 
 /**
  * Who holds what, and a slip to print and have signed.
@@ -12,14 +13,31 @@ import { rupees } from '../../format.js';
  * something specific.
  */
 export default function HandoverSlips({ onError }) {
-  const [handovers, setHandovers] = useState([]);
+  const [out, setOut] = useState([]);
+  const [signed, setSigned] = useState(new Set());
   const [slip, setSlip] = useState(null);
+  const [ledger, setLedger] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const { handovers: list } = await api.get('/people/assets/handovers?open=true');
-        setHandovers(list);
+        /*
+         * WHO HAS IT NOW COMES FROM THE REGISTER, not from the handover log.
+         *
+         * This list used to be built from open handovers, so anybody holding
+         * something with no slip - a thousand imported rows carry a holder
+         * and no handover row - was simply not on it. "Who holds what" was
+         * quietly answering "who holds what AND signed for it", which is a
+         * different question and the smaller half of it.
+         *
+         * The log is still fetched, to say which of them are signed for.
+         */
+        const [{ assets }, { handovers }] = await Promise.all([
+          api.get('/people/assets?out=true'),
+          api.get('/people/assets/handovers?open=true'),
+        ]);
+        setOut(assets || []);
+        setSigned(new Set((handovers || []).map((h) => Number(h.asset_id))));
       } catch (err) {
         onError(err);
       }
@@ -29,17 +47,18 @@ export default function HandoverSlips({ onError }) {
 
   const people = useMemo(() => {
     const by = new Map();
-    for (const h of handovers) {
-      if (!h.employee_id) continue;
-      if (!by.has(h.employee_id)) {
-        by.set(h.employee_id, { id: h.employee_id, name: h.employee_name, items: [], worth: 0 });
+    for (const a of out) {
+      if (!a.employee_id) continue;
+      if (!by.has(a.employee_id)) {
+        by.set(a.employee_id, { id: a.employee_id, name: a.employee_name, items: [], worth: 0, unsigned: 0 });
       }
-      const row = by.get(h.employee_id);
-      row.items.push(h);
-      row.worth += Number(h.purchase_cost) || 0;
+      const row = by.get(a.employee_id);
+      row.items.push(a);
+      row.worth += Number(a.purchase_cost) || 0;
+      if (!signed.has(Number(a.id))) row.unsigned += 1;
     }
     return [...by.values()].sort((a, b) => b.worth - a.worth);
-  }, [handovers]);
+  }, [out, signed]);
 
   const open = async (person) => {
     try {
@@ -48,6 +67,17 @@ export default function HandoverSlips({ onError }) {
       onError(err);
     }
   };
+
+  if (ledger) {
+    return (
+      <AssetLedger
+        employeeId={ledger.id}
+        name={ledger.name}
+        onClose={() => setLedger(null)}
+        onError={onError}
+      />
+    );
+  }
 
   if (slip) {
     return (
@@ -127,6 +157,7 @@ export default function HandoverSlips({ onError }) {
               <th className="num">Things</th>
               <th className="num">Worth</th>
               <th>What</th>
+              <th>Signed for</th>
               <th />
             </tr>
           </thead>
@@ -139,7 +170,19 @@ export default function HandoverSlips({ onError }) {
                 <td className="muted small wrap">
                   {person.items.map((i) => `${i.code} ${i.label}`).join('; ')}
                 </td>
+                <td className="small">
+                  {person.unsigned ? (
+                    <span className="pill due-soon" title="On the register against them with no handover slip">
+                      {person.unsigned} with no slip
+                    </span>
+                  ) : (
+                    <span className="muted">all signed</span>
+                  )}
+                </td>
                 <td>
+                  <button className="ghost small" onClick={() => setLedger(person)}>
+                    ledger
+                  </button>{' '}
                   <button className="ghost small" onClick={() => open(person)}>
                     slip
                   </button>
@@ -151,8 +194,11 @@ export default function HandoverSlips({ onError }) {
               </ScrollFrame>
       )}
       <p className="muted small">
-        A slip lists only what that person still has, and carries the undertaking above the
-        signature — the point of signing is agreeing to something specific.
+        <strong>Ledger</strong> is everything that person has ever been given — what they still have,
+        what came back and when, and anything standing against them with no slip on file.{' '}
+        <strong>Slip</strong> is the document to print and have signed: only what they still have, with
+        the undertaking above the signature, because the point of signing is agreeing to something
+        specific.
       </p>
     </section>
   );

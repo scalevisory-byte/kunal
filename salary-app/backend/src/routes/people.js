@@ -20,6 +20,8 @@ import { planAssetImport } from '../../../shared/assetImport.js';
 import { listCompanies, listEmployees } from '../db.js';
 import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.js';
 import { assetAlerts } from '../../../shared/assetAlerts.js';
+import { assetLedger, ledgerCsv } from '../../../shared/assetLedger.js';
+import { assetStatement, statementCsv } from '../../../shared/assetStatement.js';
 
 /* In memory: the sheet is read once and never kept. 8 MB covers an office's
    whole asset list many times over. */
@@ -413,6 +415,60 @@ peopleRouter.get('/assets/handovers', (req, res) => {
 });
 
 /** One person's slip, to print and have signed. */
+/**
+ * ONE PERSON'S ASSET LEDGER — everything they have ever been given.
+ *
+ * Both halves are fetched and handed over together: the handover LOG, which
+ * says what happened, and the REGISTER, which says what stands against them
+ * now. The two answer different questions, so the ledger asks both rather
+ * than working one out from the other - that is how an asset imported with a
+ * holder and no slip gets reported instead of vanishing.
+ */
+const ledgerFor = (employee) =>
+  assetLedger({
+    employee,
+    handovers: listHandovers({ employee_id: employee.id }),
+    assets: listAssets({ employee_id: employee.id }),
+  });
+
+peopleRouter.get('/assets/ledger/:employeeId', (req, res) => {
+  const employee = getEmployee(Number(req.params.employeeId));
+  if (!employee) return res.status(404).json({ error: 'employee not found' });
+  res.json({ ledger: ledgerFor(employee) });
+});
+
+peopleRouter.get('/assets/ledger/:employeeId.csv', (req, res) => {
+  const employee = getEmployee(Number(req.params.employeeId));
+  if (!employee) return res.status(404).json({ error: 'employee not found' });
+  const name = String(employee.name || 'employee').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  res.type('text/csv').attachment(`${name}-assets.csv`).send(ledgerCsv(ledgerFor(employee)));
+});
+
+/**
+ * THE WHOLE REGISTER AS ONE STATEMENT — "total asset ka register".
+ *
+ * Written-off assets are FETCHED (written_off: true means "include them"),
+ * because the statement reports them in their own block at the foot. They are
+ * never inside the total, and the engine is what keeps them out.
+ */
+const statementFor = (req) =>
+  assetStatement(
+    listAssets({
+      company_id: Number(req.query.company_id) || undefined,
+      branch_id: Number(req.query.branch_id) || undefined,
+      written_off: true,
+    }),
+    { by: req.query.by === 'group' ? 'group' : 'company' }
+  );
+
+peopleRouter.get('/assets/statement', (req, res) => {
+  res.json({ statement: statementFor(req) });
+});
+
+peopleRouter.get('/assets/statement.csv', (req, res) => {
+  res.type('text/csv').attachment('asset-register-statement.csv').send(statementCsv(statementFor(req)));
+});
+
 peopleRouter.get('/assets/slip/:employeeId', (req, res) => {
   const employee = getEmployee(Number(req.params.employeeId));
   if (!employee) return res.status(404).json({ error: 'employee not found' });

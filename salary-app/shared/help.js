@@ -507,6 +507,9 @@ export const HELP = [
       '**A 15-digit IMEI in a plain Excel cell is destroyed by Excel**, not by us: it saves 3.52E+14 and the real number is gone from the file. Those rows are named and come in **without** a serial rather than with a wrong one. Format that column as Text before saving to keep them.',
       '**Every new asset is given a code automatically** — `BNF-ASSETS-000001`, one running series per company. It is shown in the Add form as soon as you pick the company, **cannot be typed over**, and a number is never handed out twice, even after an asset is deleted or written off.',
       'The **prefix per company** is set under Lists — Asset code prefixes. Changing it never rewrites a code already issued; those are on stickers and signed slips. It only changes what the next one reads.',
+      '**Who holds what → ledger** is one person’s whole history: what they still have, what came back and when, days held, and what it cost. It opens from their employee record and from the exit page too.',
+      'An asset standing against somebody with **no handover slip** is said so, and counted — it is a slip to get signed, not a missing asset.',
+      '**Full register** is the whole thing as a document: every asset under its company (or group), each block adding up, one figure at the foot. Print it or take the CSV with the subtotals in it.',
       '**Groups** — Computer, Furniture, Mobile, Electrical, Network, Security, Office equipment, Vehicle, Tools. The buttons above the register narrow it to one, each carrying its own count, and the Group is a column in the CSV.',
       '**What is running out** sits above the register: a warranty that has **just** lapsed, one running out within 30 days, and the same two for AMCs. Clicking a line shows exactly those assets.',
       'A **blank warranty date is not an expired warranty** — it is counted separately as “nobody has said”. And a laptop out of warranty since 2024 is a count, not a line: it will be out of warranty tomorrow too.',
@@ -515,7 +518,7 @@ export const HELP = [
       '**Generate codes** is on the register itself as well as under Lists, because that is where you can see which rows still wear their spreadsheet’s ID.',
       'A group is **worked out from the kind**, never stored beside it — so correcting one chair’s kind moves it, and the Group column can never disagree with the Kind next to it. A kind nobody has mapped reads as **Other**, which means “nobody has said where this belongs”, not “miscellaneous”.',
     ],
-    note: '"Not checked" is NOT "missing". The stock take always shows three figures, never two — counting the third as the second invents losses and gets somebody asked to pay for a laptop that is in a drawer. And an unreturned asset at exit is named and valued, never deducted.',
+    note: 'Every figure on the register is WHAT IT COST TO BUY, not what it is worth today — there is no depreciation in this app, so it is a register at cost and not a book value. Written-off assets are reported below the total, never inside it. And "Not checked" is NOT "missing". The stock take always shows three figures, never two — counting the third as the second invents losses and gets somebody asked to pay for a laptop that is in a drawer. And an unreturned asset at exit is named and valued, never deducted.',
   },
   {
     id: 'licenses',
