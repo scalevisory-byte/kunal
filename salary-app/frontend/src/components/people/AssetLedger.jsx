@@ -1,49 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
 
 /**
- * ONE PERSON'S ASSET LEDGER — everything they have ever been given.
+ * ONE PERSON'S ASSET LEDGER — read like a party ledger in Tally.
  *
- * Dinesh: *"konse employee ke paas kya-kya asset he, uska ledger nikalna he"*.
+ * Dinesh: *"konse employee ke paas kya-kya asset he, uska ledger nikalna
+ * he"*, and then a full brief: a profile header, summary figures, the current
+ * register, a chronological movement ledger with a running balance, handover
+ * documents and a maintenance history, under tabs.
  *
- * Two screens already existed and neither answered it: **Who holds what**
- * lists what somebody STILL has and prints a slip to sign, and an asset's own
- * page shows that ASSET's history. This is the third question — one person,
- * everything, on one page — which is what gets asked when somebody leaves or
- * when something cannot be found.
+ * WHAT IT WILL NOT DO, and these are the brief's own audit rules kept honestly:
  *
- * What it insists on saying:
+ *   **A returned asset is never in current custody**, and nothing is counted
+ *   twice: the holding list comes from open handovers plus anything standing
+ *   against them on the register that no open handover covers.
  *
- *   **Held with no slip on file** is its own state. An asset standing against
- *   somebody on the register with no handover row is not "never issued" and is
- *   not hidden: it is a slip to go and get signed, and it is counted.
+ *   **"Held with no slip on file" is its own state** — not "never issued",
+ *   not hidden. It is a slip to go and get signed.
  *
- *   **The worth is what is still out, and it is reported, not deducted.** The
- *   same rule the full and final follows — a laptop docked and then found in a
- *   drawer cannot be undone.
+ *   **No date, value or signature is invented.** A movement this app cannot
+ *   see is not written down: a return is called a TRANSFER only where
+ *   somebody else's handover of the same asset starts the day it ends.
+ *
+ *   **The figure is what it cost to buy**, said and never deducted. There is
+ *   no depreciation in this app, so there is no "current valuation" to show
+ *   beside it, and inventing one would be a wrong number that looks right.
  */
-export default function AssetLedger({ employeeId, name, onClose, onError, onReload }) {
+const TABS = [
+  ['overview', 'Overview'],
+  ['current', 'Current assets'],
+  ['ledger', 'Asset ledger'],
+  ['papers', 'Handover documents'],
+  ['service', 'Maintenance history'],
+];
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export default function AssetLedger({ employeeId, name, onClose, onError, onReload, onOpenEmployee }) {
   const [ledger, setLedger] = useState(null);
+  const [neighbours, setNeighbours] = useState({ all: [], previous: null, next: null });
+  const [tab, setTab] = useState('overview');
+
+  /* the movement ledger's own window and search */
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [find, setFind] = useState('');
+
   /*
    * Taking things back: which ones, on what date, in what condition.
    *
    * Everything they hold is ticked to start with, because the normal case on
-   * somebody's last day is that it ALL comes back - and the ones that do not
+   * somebody's last day is that it ALL comes back — and the ones that do not
    * are the exception somebody unticks deliberately, with the register then
    * still saying they are out.
    */
   const [taking, setTaking] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
-  const [on, setOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [on, setOn] = useState(today);
   const [condition, setCondition] = useState('');
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
 
   const load = async () => {
     try {
-      const data = await api.get(`/people/assets/ledger/${employeeId}`);
+      const query = [from ? `from=${from}` : '', to ? `to=${to}` : ''].filter(Boolean).join('&');
+      const data = await api.get(`/people/assets/ledger/${employeeId}${query ? `?${query}` : ''}`);
       setLedger(data.ledger);
+      setNeighbours(data.neighbours || { all: [], previous: null, next: null });
       setPicked(new Set(data.ledger.holding.map((l) => l.asset_id)));
       return data.ledger;
     } catch (err) {
@@ -56,7 +80,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
     if (STANDALONE || !employeeId) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+  }, [employeeId, from, to]);
 
   /** Take back what is ticked. Nothing else is touched, and nothing is written off. */
   const takeBack = async () => {
@@ -83,20 +107,35 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
     }
   };
 
+  const book = ledger?.book;
+
+  /*
+   * The ledger's search narrows the LINES, never the balance: a running
+   * balance that only counted the rows you searched for would be a different
+   * number from the one on the page above it.
+   */
+  const rows = useMemo(() => {
+    if (!book) return [];
+    const q = find.trim().toLowerCase();
+    if (!q) return book.rows;
+    return book.rows.filter((r) =>
+      [r.code, r.label, r.kind, r.particulars, r.type].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [book, find]);
+
   if (STANDALONE) {
     return (
       <div className="card">
         <h3>Asset ledger</h3>
-        <p className="muted small">
-          The handover log lives on the server, so this one needs the server copy.
-        </p>
+        <p className="muted small">The handover log lives on the server, so this one needs the server copy.</p>
       </div>
     );
   }
 
   if (!ledger) return <p className="muted small">Reading the handover log…</p>;
 
-  const { employee, holding, returned, totals } = ledger;
+  const { employee, holding, returned, totals, services = [] } = ledger;
+  const underService = holding.filter((l) => ['maintenance', 'damaged'].includes(l.state || '')).length;
 
   /*
    * `tickable` is passed explicitly at every call site, never by handing this
@@ -107,7 +146,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
    * zero) and every later row grew a tick box, shifting the whole table out
    * of line with its own header. Found by looking at the page.
    */
-  const line = (l, tickable = false) => (
+  const line = (l, tickable = false, at = 0) => (
     <tr key={l.id}>
       {tickable ? (
         <td className="row-no">
@@ -123,6 +162,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
           />
         </td>
       ) : null}
+      <td className="row-no">{at + 1}</td>
       <td>{l.code || <span className="muted">—</span>}</td>
       <td className="sticky-name">
         {l.kind} — {l.label}
@@ -151,17 +191,58 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
     </tr>
   );
 
+  const head = (tickable) => (
+    <tr>
+      {tickable ? <th className="row-no" /> : null}
+      <th className="row-no">#</th>
+      <th>Code</th>
+      <th>Asset</th>
+      <th>Issued</th>
+      <th>Returned</th>
+      <th className="num">Days</th>
+      <th className="num">Cost to buy</th>
+      <th>Signed for</th>
+      <th>Condition</th>
+    </tr>
+  );
+
   return (
-    <section className="stack">
+    <section className="stack ledger-page">
       <div className="toolbar no-print">
         {onClose && (
           <button className="ghost" onClick={onClose}>
-            Back
+            ‹ Who holds what
           </button>
         )}
-        <strong>
-          {employee?.name || name} {employee?.code ? <span className="muted small">{employee.code}</span> : null}
-        </strong>
+        <button
+          className="ghost"
+          disabled={!neighbours.previous}
+          onClick={() => onOpenEmployee?.(neighbours.previous)}
+          title={neighbours.previous?.name || 'nobody before them'}
+        >
+          ‹ Previous
+        </button>
+        <button
+          className="ghost"
+          disabled={!neighbours.next}
+          onClick={() => onOpenEmployee?.(neighbours.next)}
+          title={neighbours.next?.name || 'nobody after them'}
+        >
+          Next ›
+        </button>
+        {neighbours.all.length > 1 && (
+          <select
+            value={employeeId}
+            onChange={(e) => onOpenEmployee?.(neighbours.all.find((h) => String(h.id) === e.target.value))}
+            title="Somebody else holding something"
+          >
+            {neighbours.all.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+        )}
         <span className="push-right">
           {totals.out > 0 && (
             <button className={taking ? 'active' : 'primary'} onClick={() => setTaking((v) => !v)}>
@@ -180,142 +261,423 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
               ).catch((err) => onError?.(err))
             }
           >
-            CSV
+            Assets (CSV)
+          </button>
+          <button
+            className="ghost"
+            onClick={() =>
+              download(
+                `/people/assets/ledger/${employeeId}/transactions.csv${from || to ? `?from=${from}&to=${to}` : ''}`,
+                `${(employee?.name || 'employee').replace(/[^A-Za-z0-9]+/g, '-')}-asset-ledger.csv`
+              ).catch((err) => onError?.(err))
+            }
+          >
+            Ledger (CSV)
           </button>
         </span>
       </div>
 
-      <div className="card">
-        <h3>
-          Assets with {employee?.name || name}
-          {employee?.company_name ? <span className="muted small"> · {employee.company_name}</span> : null}
-        </h3>
-
-        <div className="figures">
-          <div className="figure">
-            <span className="k">With them now</span>
-            <span className="n">{totals.out}</span>
-          </div>
-          <div className="figure">
-            <span className="k">What it cost to buy</span>
-            <span className="n">{rupees(totals.out_value)}</span>
-          </div>
-          <div className="figure">
-            <span className="k">Ever held</span>
-            <span className="n">{totals.ever}</span>
-          </div>
-          <div className="figure">
-            <span className="k">Nothing signed for it</span>
-            <span className="n">{totals.unsigned}</span>
-          </div>
+      {/* ---------------- who this is ---------------- */}
+      <div className="card ledger-head">
+        <div>
+          <h3>{employee?.name || name}</h3>
+          <p className="muted small">
+            {[
+              employee?.code,
+              employee?.designation,
+              employee?.department,
+              employee?.company_name,
+              employee?.branch_name,
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'no other details recorded'}
+          </p>
         </div>
+        <span className={`pill ${employee?.active === 0 ? 'paid' : 'approved'}`}>
+          {employee?.active === 0 ? 'Left' : 'Working'}
+        </span>
+      </div>
 
-        {totals.no_slip > 0 && (
-          <p className="lic-alert warn">
-            <strong>
-              {totals.no_slip} {totals.no_slip === 1 ? 'asset stands' : 'assets stand'} against them with no
-              handover slip
-            </strong>{' '}
-            — issued before the log existed, or imported with a holder. That is a slip to get signed, not a
-            missing asset.
-          </p>
-        )}
+      <div className="figures">
+        <div className="figure">
+          <span className="k">Ever issued</span>
+          <span className="n">{totals.ever}</span>
+        </div>
+        <div className="figure">
+          <span className="k">With them now</span>
+          <span className="n">{totals.out}</span>
+        </div>
+        <div className="figure">
+          <span className="k">What it cost to buy</span>
+          <span className="n">{rupees(totals.out_value)}</span>
+        </div>
+        <div className="figure">
+          <span className="k">Given back</span>
+          <span className="n">{totals.returned}</span>
+        </div>
+        <div className="figure">
+          <span className="k">Nothing signed for it</span>
+          <span className="n">{totals.unsigned}</span>
+        </div>
+        <div className="figure">
+          <span className="k">Being repaired</span>
+          <span className="n">{underService}</span>
+        </div>
+      </div>
 
-        <p className="muted small">
-          The figure is what these cost to buy. It is <strong>said, never deducted</strong> — the full and
-          final follows the same rule, because a laptop docked and then found in a drawer cannot be undone.
-          {totals.oldest_out ? ` The longest-standing one has been out since ${totals.oldest_out}.` : ''}
+      {said && (
+        <p className="alerts no-print" onClick={() => setSaid('')}>
+          {said}
         </p>
+      )}
 
-        {said && (
-          <p className="alerts" onClick={() => setSaid('')}>
-            {said}
-          </p>
-        )}
+      <div className="sub-tabs toolbar no-print">
+        {TABS.map(([key, label]) => (
+          <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {taking && (
-          <div className="card" style={{ marginTop: '0.6rem' }}>
-            <h4>Take it back</h4>
-            <p className="muted small">
-              Everything they hold is ticked. Untick anything that is <strong>not</strong> coming
-              back — the register will still say it is with them, which is the truth until it is in
-              your hand. <strong>Nothing is written off and nothing is deducted</strong>: not
-              returned is not the same as lost, and that is a decision somebody makes.
+      {/* ---------------- overview ---------------- */}
+      {tab === 'overview' && (
+        <div className="card">
+          {totals.no_slip > 0 && (
+            <p className="lic-alert warn">
+              <strong>
+                {totals.no_slip} {totals.no_slip === 1 ? 'asset stands' : 'assets stand'} against them with no
+                handover slip
+              </strong>{' '}
+              — issued before the log existed, or imported with a holder. That is a slip to get signed, not a
+              missing asset.
             </p>
-            <div className="form-grid">
-              <label>
-                Came back on
-                <input type="date" value={on} onChange={(e) => setOn(e.target.value)} />
-              </label>
-              <label>
-                Condition
-                <input
-                  value={condition}
-                  placeholder="leave empty for fine"
-                  onChange={(e) => setCondition(e.target.value)}
-                />
-                <span className="muted small">written against each one taken back</span>
-              </label>
-            </div>
-            <div className="row">
-              <button className="primary" disabled={busy || !picked.size} onClick={takeBack}>
-                {busy ? 'Taking it back…' : `Take back ${picked.size} of ${totals.out}`}
-              </button>
-              <button className="ghost" disabled={busy} onClick={() => setTaking(false)}>
-                Not now
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+          <p className="muted small">
+            The figure is what these cost to buy. It is <strong>said, never deducted</strong> — the full and
+            final follows the same rule, because a laptop docked and then found in a drawer cannot be undone.
+            There is no depreciation in this app, so there is no second valuation beside it.
+            {totals.oldest_out ? ` The longest-standing one has been out since ${totals.oldest_out}.` : ''}
+          </p>
+          <table className="sheet clearance-table">
+            <tbody>
+              <tr>
+                <td className="sticky-name">Assets with them now</td>
+                <td className="num">{totals.out}</td>
+                <td className="num">{rupees(totals.out_value)}</td>
+              </tr>
+              <tr>
+                <td className="sticky-name">Ever issued · given back</td>
+                <td className="num">{totals.ever}</td>
+                <td className="num">{totals.returned} back</td>
+              </tr>
+              <tr>
+                <td className="sticky-name">Repairs while it was with them</td>
+                <td className="num">{book?.totals.maintenance ?? 0}</td>
+                <td className="num">{rupees(book?.totals.maintenance_cost ?? 0)}</td>
+              </tr>
+              <tr>
+                <td className="sticky-name">Waiting on a signature</td>
+                <td className="num">{totals.unsigned}</td>
+                <td className="small muted">
+                  {totals.unsigned ? 'print the slip under Handover documents' : 'nothing pending'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        {!holding.length ? (
-          <p className="muted small">Nothing with them at the moment.</p>
-        ) : (
+      {/* ---------------- what they hold now ---------------- */}
+      {tab === 'current' && (
+        <div className="card">
+          {taking && (
+            <div className="card" style={{ marginBottom: '0.6rem' }}>
+              <h4>Take it back</h4>
+              <p className="muted small">
+                Everything they hold is ticked. Untick anything that is <strong>not</strong> coming back — the
+                register will still say it is with them, which is the truth until it is in your hand.{' '}
+                <strong>Nothing is written off and nothing is deducted</strong>: not returned is not the same
+                as lost.
+              </p>
+              <div className="form-grid">
+                <label>
+                  Came back on
+                  <input type="date" value={on} onChange={(e) => setOn(e.target.value)} />
+                </label>
+                <label>
+                  Condition
+                  <input
+                    value={condition}
+                    placeholder="leave empty for fine"
+                    onChange={(e) => setCondition(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="row">
+                <button className="primary" disabled={busy || !picked.size} onClick={takeBack}>
+                  {busy ? 'Taking it back…' : `Take back ${picked.size} of ${totals.out}`}
+                </button>
+                <button className="ghost" disabled={busy} onClick={() => setTaking(false)}>
+                  Not now
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!holding.length ? (
+            <p className="muted small">Nothing with them at the moment.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="sheet">
+                <thead>{head(taking)}</thead>
+                <tbody>{holding.map((l, i) => line(l, taking, i))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---------------- the movement ledger ---------------- */}
+      {tab === 'ledger' && (
+        <div className="card">
+          <div className="toolbar no-print">
+            <label className="pick">
+              From
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </label>
+            <label className="pick">
+              To
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </label>
+            <input
+              className="search"
+              placeholder="Asset code or name"
+              value={find}
+              onChange={(e) => setFind(e.target.value)}
+            />
+            {(from || to || find) && (
+              <button
+                className="ghost"
+                onClick={() => {
+                  setFrom('');
+                  setTo('');
+                  setFind('');
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="table-wrap">
-            <table className="sheet">
+            <table className="sheet ledger-table">
               <thead>
                 <tr>
-                  {taking && <th className="row-no" />}
-                  <th>Code</th>
-                  <th>What</th>
-                  <th>Issued</th>
-                  <th>Returned</th>
-                  <th className="num">Days</th>
-                  <th className="num">Cost</th>
-                  <th>Signed for</th>
-                  <th>Condition</th>
+                  <th>Date</th>
+                  <th>Particulars</th>
+                  <th>Asset code</th>
+                  <th>Transaction</th>
+                  <th className="num">Issued</th>
+                  <th className="num">Returned</th>
+                  <th className="num">Balance</th>
+                  <th className="num">Value</th>
                 </tr>
               </thead>
-              <tbody>{holding.map((l) => line(l, taking))}</tbody>
+              <tbody>
+                <tr className="ledger-balance">
+                  <td className="small">{book?.from || ''}</td>
+                  <td className="sticky-name">
+                    <strong>Opening balance</strong>
+                  </td>
+                  <td />
+                  <td className="small">Opening Balance</td>
+                  <td className="num" />
+                  <td className="num" />
+                  <td className="num">
+                    <strong>{book?.opening.qty ?? 0}</strong>
+                  </td>
+                  <td className="num">{rupees(book?.opening.value ?? 0)}</td>
+                </tr>
+
+                {!rows.length ? (
+                  <tr>
+                    <td className="empty" colSpan={8}>
+                      {find ? 'Nothing matching that.' : 'No movements recorded in this window.'}
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row, i) => (
+                    <tr key={`${row.code}-${row.on}-${row.type}-${i}`}>
+                      <td className="small">{row.on || <span className="muted">no date</span>}</td>
+                      <td className="sticky-name">
+                        {row.particulars}
+                        <div className="muted small">
+                          {row.kind} — {row.label}
+                          {row.note ? ` · ${row.note}` : ''}
+                        </div>
+                      </td>
+                      <td className="small">{row.code || <span className="muted">—</span>}</td>
+                      <td className="small">{row.type}</td>
+                      <td className="num">{row.in || ''}</td>
+                      <td className="num">{row.out || ''}</td>
+                      <td className="num">{row.balance}</td>
+                      <td className="num">{row.value ? rupees(row.value) : ''}</td>
+                    </tr>
+                  ))
+                )}
+
+                <tr className="ledger-balance">
+                  <td className="small">{book?.to || ''}</td>
+                  <td className="sticky-name">
+                    <strong>Closing balance</strong>
+                  </td>
+                  <td />
+                  <td className="small">Closing Balance</td>
+                  <td className="num">{book?.totals.issued ?? 0}</td>
+                  <td className="num">{book?.totals.returned ?? 0}</td>
+                  <td className="num">
+                    <strong>{book?.closing.qty ?? 0}</strong>
+                  </td>
+                  <td className="num">
+                    <strong>{rupees(book?.closing.value ?? 0)}</strong>
+                  </td>
+                </tr>
+              </tbody>
             </table>
           </div>
-        )}
 
-        {returned.length > 0 && (
-          <>
-            <h3 style={{ marginTop: '1rem' }}>
-              Given back <span className="muted small">{returned.length}</span>
-            </h3>
+          <p className="muted small">
+            A <strong>transfer</strong> is only called one where somebody else’s handover of the same asset
+            starts the day this one ends — otherwise a return is just a return. <strong>Maintenance</strong>{' '}
+            lines carry a cost and move no quantity. The balance is the count of assets with them, and it
+            follows the lines above it; searching narrows the lines and never the balance.
+          </p>
+        </div>
+      )}
+
+      {/* ---------------- the paperwork ---------------- */}
+      {tab === 'papers' && (
+        <div className="card">
+          <h4>Handover documents</h4>
+          <p className="muted small">
+            The slip lists only what they <strong>still</strong> have and carries the undertaking above the
+            signature. Signed or not is what the record actually says — nothing here is assumed.
+          </p>
+          <div className="row no-print">
+            <button
+              onClick={() =>
+                window.open(`/api/people/assets/slip/${employeeId}`, '_blank', 'noopener')
+              }
+              title="Opens the slip's own data; print it from Who holds what for the signature block"
+            >
+              Slip data
+            </button>
+            <button className="ghost" onClick={() => window.print()}>
+              Print this statement
+            </button>
+          </div>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Asset</th>
+                <th>Issued</th>
+                <th>Signed for</th>
+                <th>Condition out</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holding.concat(returned).map((l) => (
+                <tr key={`p${l.id}`}>
+                  <td>{l.code || <span className="muted">—</span>}</td>
+                  <td className="sticky-name">
+                    {l.kind} — {l.label}
+                  </td>
+                  <td className="small">{l.issued_on || <span className="muted">not recorded</span>}</td>
+                  <td className="small">
+                    {l.no_slip ? (
+                      <span className="pill due-soon">no slip on file</span>
+                    ) : l.acknowledged_on ? (
+                      `signed ${l.acknowledged_on}`
+                    ) : (
+                      <span className="muted">not acknowledged</span>
+                    )}
+                  </td>
+                  <td className="small">{l.condition_out || <span className="muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ---------------- repairs ---------------- */}
+      {tab === 'service' && (
+        <div className="card">
+          <h4>
+            Maintenance history{' '}
+            <span className="muted small">
+              {book?.totals.maintenance ?? 0} while it was with them · {rupees(book?.totals.maintenance_cost ?? 0)}
+            </span>
+          </h4>
+          {!services.length ? (
+            <p className="muted small">No repairs recorded on any of their assets.</p>
+          ) : (
             <div className="table-wrap">
               <table className="sheet">
                 <thead>
                   <tr>
-                    <th>Code</th>
-                    <th>What</th>
-                    <th>Issued</th>
-                    <th>Returned</th>
-                    <th className="num">Days</th>
+                    <th>Date</th>
+                    <th>Asset</th>
+                    <th>Kind</th>
+                    <th>What was done</th>
+                    <th>Vendor</th>
                     <th className="num">Cost</th>
-                    <th>Signed for</th>
-                    <th>Condition</th>
+                    <th>Next service</th>
                   </tr>
                 </thead>
-                <tbody>{returned.map((l) => line(l))}</tbody>
+                <tbody>
+                  {services.map((s) => (
+                    <tr key={s.id}>
+                      <td className="small">{s.serviced_on}</td>
+                      <td className="sticky-name">
+                        {s.code} — {s.label}
+                      </td>
+                      <td className="small">{s.kind}</td>
+                      <td className="small">{s.work || <span className="muted">—</span>}</td>
+                      <td className="small">{s.vendor || <span className="muted">—</span>}</td>
+                      <td className="num">
+                        {s.cost ? rupees(s.cost) : <span className="muted" title="under warranty, or free">0</span>}
+                      </td>
+                      <td className="small">{s.next_service_on || <span className="muted">not scheduled</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
-          </>
-        )}
-      </div>
+          )}
+          <p className="muted small">
+            Every repair on an asset they have held, whenever it happened. The ledger tab counts only those
+            that fall inside the time it was <strong>with them</strong>.
+          </p>
+        </div>
+      )}
+
+      {/* The returned list stays on the page under Current assets, so the
+          printed statement carries the whole story. */}
+      {tab === 'current' && returned.length > 0 && (
+        <div className="card">
+          <h4>
+            Given back <span className="muted small">{returned.length}</span>
+          </h4>
+          <div className="table-wrap">
+            <table className="sheet">
+              <thead>{head(false)}</thead>
+              <tbody>{returned.map((l, i) => line(l, false, i))}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

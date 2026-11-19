@@ -27,18 +27,47 @@ import { DEFAULT_FIELDS, fieldGroups } from '../../../../shared/assetExport.js';
  */
 const REMEMBER = 'bnf-asset-export-fields';
 
-const remembered = () => {
+const remembered = (key, fallback) => {
   try {
-    const kept = JSON.parse(window.localStorage.getItem(REMEMBER) || 'null');
-    return Array.isArray(kept) && kept.length ? kept : [...DEFAULT_FIELDS];
+    const kept = JSON.parse(window.localStorage.getItem(key) || 'null');
+    return Array.isArray(kept) && kept.length ? kept : [...fallback];
   } catch {
-    return [...DEFAULT_FIELDS];
+    return [...fallback];
   }
 };
 
-export default function AssetExport({ shown = [], total = 0, onError, onDone }) {
-  const groups = fieldGroups();
-  const [picked, setPicked] = useState(() => new Set(remembered()));
+/**
+ * The same picker serves the maintenance report, which has its own catalogue
+ * and two shapes to choose between. Passing them in beats a second copy of
+ * this screen that drifts from this one.
+ */
+export default function AssetExport({
+  shown = [],
+  total = 0,
+  onError,
+  onDone,
+  groups: given,
+  defaults,
+  remember = REMEMBER,
+  path = '/people/assets/export',
+  file = 'asset-report',
+  body,
+  what = 'assets',
+  reports,
+  report,
+  onReport,
+}) {
+  const groups = given || fieldGroups();
+  const [picked, setPicked] = useState(() => new Set(remembered(remember, defaults || DEFAULT_FIELDS)));
+
+  /*
+   * A different report has a different catalogue, so what was ticked for the
+   * last one is meaningless here - it is re-read rather than carried across.
+   */
+  const switchReport = (key) => {
+    onReport?.(key);
+    setPicked(new Set(remembered(`${remember}-${key}`, defaults || DEFAULT_FIELDS)));
+  };
   const [scope, setScope] = useState('shown');
   const [busy, setBusy] = useState('');
 
@@ -47,8 +76,12 @@ export default function AssetExport({ shown = [], total = 0, onError, onDone }) 
     if (next.has(key)) next.delete(key);
     else next.add(key);
     setPicked(next);
+    keep(next);
+  };
+
+  const keep = (next) => {
     try {
-      window.localStorage.setItem(REMEMBER, JSON.stringify([...next]));
+      window.localStorage.setItem(report ? `${remember}-${report}` : remember, JSON.stringify([...next]));
     } catch {
       /* a private window throws on touching localStorage; the choice still
          applies to this export, it just will not be remembered. */
@@ -59,13 +92,14 @@ export default function AssetExport({ shown = [], total = 0, onError, onDone }) 
     setBusy(format);
     try {
       await downloadPost(
-        '/people/assets/export',
+        path,
         {
+          ...(body || {}),
           format,
           fields: [...picked],
           ids: scope === 'shown' ? shown.map((a) => a.id) : [],
         },
-        format === 'csv' ? 'asset-report.csv' : 'asset-report.xlsx'
+        `${file}.${format === 'csv' ? 'csv' : 'xlsx'}`
       );
       onDone?.();
     } catch (err) {
@@ -94,6 +128,16 @@ export default function AssetExport({ shown = [], total = 0, onError, onDone }) 
         and the spreadsheet carries a frozen header, a filter row and a SUM at the foot.
       </p>
 
+      {reports?.length > 1 && (
+        <div className="sub-tabs toolbar">
+          {reports.map((r) => (
+            <button key={r.key} className={report === r.key ? 'active' : undefined} onClick={() => switchReport(r.key)}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="sub-tabs toolbar">
         <button className={scope === 'shown' ? 'active' : undefined} onClick={() => setScope('shown')}>
           What is on screen ({shown.length})
@@ -118,11 +162,7 @@ export default function AssetExport({ shown = [], total = 0, onError, onDone }) 
                     else next.add(f.key);
                   }
                   setPicked(next);
-                  try {
-                    window.localStorage.setItem(REMEMBER, JSON.stringify([...next]));
-                  } catch {
-                    /* not remembered; the export still carries it */
-                  }
+                  keep(next);
                 }}
               >
                 {group.fields.every((f) => picked.has(f.key)) ? 'none' : 'all'}
@@ -147,8 +187,8 @@ export default function AssetExport({ shown = [], total = 0, onError, onDone }) 
         </button>
         <span className="muted small">
           {scope === 'shown'
-            ? 'Exactly the assets on screen, filters and all.'
-            : 'The whole register, written-off ones included.'}
+            ? `Exactly the ${what} on screen, filters and all.`
+            : `Every one of them, written-off ones included.`}
         </span>
       </div>
     </div>

@@ -175,6 +175,15 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const [pick, setPick] = useState({ company_id: '', department: '', kind: '' });
   const [codes, setCodes] = useState(false);
   const [exporting, setExporting] = useState(false);
+  /*
+   * Rows ticked for a sheet of QR labels.
+   *
+   * Dinesh: *"QR code bulk me nikalne wala option bhi do — selected item ka
+   * ya group wise"*. Group-wise already worked, because the sheet prints
+   * whatever is on screen and the group buttons narrow that; what there was
+   * no way to say was "these four".
+   */
+  const [ticked, setTicked] = useState(() => new Set());
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [history, setHistory] = useState(null);
@@ -524,8 +533,20 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError);
 
   /* A page of them, because nobody labels one asset at a time. */
+  /*
+   * Ticked rows if any are ticked, otherwise everything on screen - which is
+   * what the group buttons and the filters have already narrowed. The button
+   * says which it is about to do, so nobody prints 1,004 stickers by
+   * accident.
+   */
+  const forLabels = () => {
+    const picked = shown.filter((a) => ticked.has(a.id) && a.code);
+    return picked.length ? picked : shown.filter((a) => a.code);
+  };
+
   const labelSheet = () => {
-    const ids = shown.map((a) => a.id).join(',');
+    const ids = forLabels().map((a) => a.id).join(',');
+    if (!ids) return;
     openPage(`/people/assets/labels.html?ids=${ids}`).catch(onError);
   };
 
@@ -808,9 +829,13 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             className="ghost"
             onClick={labelSheet}
             disabled={!shown.some((a) => a.code)}
-            title="A page of QR stickers for everything on screen, to print and cut"
+            title={
+              ticked.size
+                ? 'A page of QR stickers for the ticked rows'
+                : 'A page of QR stickers for everything on screen — narrow it with the filters or a group first'
+            }
           >
-            Labels to print
+            {ticked.size ? `Labels for ${forLabels().length} ticked` : `Labels for ${shown.filter((a) => a.code).length}`}
           </button>
           {/* The report somebody picks the columns for. The two fixed CSVs
               stay: they are one click when the usual columns will do. */}
@@ -1227,6 +1252,18 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                   sheet. It numbers what is ON SCREEN, so it follows the
                   filters rather than claiming to be the asset's own number -
                   that is the code beside it. */}
+              <th className="row-no">
+                {/* All on screen, or none. The group buttons and the filters
+                    decide what "on screen" means. */}
+                <input
+                  type="checkbox"
+                  title="Tick everything on screen"
+                  checked={shown.length > 0 && shown.every((a) => ticked.has(a.id))}
+                  onChange={(e) =>
+                    setTicked(e.target.checked ? new Set(shown.map((a) => a.id)) : new Set())
+                  }
+                />
+              </th>
               <th className="row-no">#</th>
               <th>Code</th>
               <th>Kind</th>
@@ -1246,6 +1283,18 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
               const out = isOut(asset);
               return (
                 <tr key={asset.id}>
+                  <td className="row-no">
+                    <input
+                      type="checkbox"
+                      checked={ticked.has(asset.id)}
+                      onChange={(e) => {
+                        const next = new Set(ticked);
+                        if (e.target.checked) next.add(asset.id);
+                        else next.delete(asset.id);
+                        setTicked(next);
+                      }}
+                    />
+                  </td>
                   <td className="row-no">{at + 1}</td>
                   <td>
                     <button className="link" onClick={() => setHistory(asset)}>

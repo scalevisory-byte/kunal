@@ -271,8 +271,14 @@ test('a long toolbar wraps in groups, never one orphan', () => {
   assert.match(css, /\.toolbar \.push-right \{[^}]*margin-left:\s*auto/);
   const assets = src('components/people/Assets.jsx');
   const group = assets.slice(assets.indexOf('className="push-right"'));
-  for (const text of ['Labels to print', 'Register (CSV)', 'Handovers (CSV)']) {
-    assert.ok(group.slice(0, 1400).includes(text), `${text} is outside the group again`);
+  /*
+   * The LABEL on the first one changed when the sheet learned to print only
+   * the ticked rows ("Labels for 4 ticked"), so this looks for what it DOES
+   * rather than what it says. The rule being kept is the grouping: the ways
+   * out wrap as one block, never one orphan on its own line.
+   */
+  for (const text of ['labelSheet', 'Register (CSV)', 'Handovers (CSV)']) {
+    assert.ok(group.slice(0, 2000).includes(text), `${text} is outside the group again`);
   }
 });
 
@@ -2001,8 +2007,14 @@ test('the ledger never hands a row renderer straight to .map', () => {
    */
   const code = file.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!/\.map\(line\)/.test(code), 'a row renderer is being handed the array index as a flag');
-  assert.match(code, /returned\.map\(\(l\) => line\(l\)\)/);
-  assert.match(code, /holding\.map\(\(l\) => line\(l, taking\)\)/);
+  /*
+   * The call sites moved when the ledger grew tabs and a serial number
+   * column - the renderer now takes the row's position too. The RULE is
+   * unchanged and is what this test is for: the flag is always passed
+   * explicitly, never left to `.map` to fill in.
+   */
+  assert.match(code, /returned\.map\(\(l, i\) => line\(l, false, i\)\)/);
+  assert.match(code, /holding\.map\(\(l, i\) => line\(l, taking, i\)\)/);
   // And the flag is rendered as a ternary, so a falsy number cannot print.
   assert.ok(!/\{tickable && \(/.test(code), 'a falsy flag would render as 0');
 });

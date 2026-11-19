@@ -20,9 +20,17 @@ import { planAssetImport } from '../../../shared/assetImport.js';
 import { listCompanies, listEmployees } from '../db.js';
 import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.js';
 import { assetAlerts } from '../../../shared/assetAlerts.js';
-import { assetLedger, ledgerCsv } from '../../../shared/assetLedger.js';
+import { assetLedger, ledgerCsv, ledgerTransactions, transactionsCsv } from '../../../shared/assetLedger.js';
 import { assetStatement, statementCsv } from '../../../shared/assetStatement.js';
 import { ASSET_FIELDS, assetExportCsv, buildAssetExport, cleanFields, fieldGroups } from '../../../shared/assetExport.js';
+import {
+  REPORTS,
+  buildServiceExport,
+  cleanServiceFields,
+  reportFor,
+  serviceExportCsv,
+  serviceFieldGroups,
+} from '../../../shared/serviceExport.js';
 
 /* In memory: the sheet is read once and never kept. 8 MB covers an office's
    whole asset list many times over. */
@@ -428,17 +436,70 @@ peopleRouter.get('/assets/handovers', (req, res) => {
  * than working one out from the other - that is how an asset imported with a
  * holder and no slip gets reported instead of vanishing.
  */
-const ledgerFor = (employee) =>
-  assetLedger({
+const ledgerFor = (employee, { from, to } = {}) => {
+  const ledger = assetLedger({
     employee,
     handovers: listHandovers({ employee_id: employee.id }),
     assets: listAssets({ employee_id: employee.id }),
   });
 
+  /*
+   * The movement ledger needs three more things, and all three are read
+   * rather than guessed:
+   *
+   *   the OTHER handovers of the same assets, which is the only evidence a
+   *   return was really a transfer to somebody else;
+   *   the SERVICES on those assets, for the maintenance lines;
+   *   and nothing else - a movement this app cannot see is not written down.
+   */
+  const ids = new Set(ledger.lines.map((l) => Number(l.asset_id)));
+  const others = [...ids]
+    .flatMap((id) => listHandovers({ asset_id: id }))
+    .filter((h) => Number(h.employee_id) !== Number(employee.id));
+  const services = [...ids].flatMap((id) => listServices({ asset_id: id }));
+
+  return {
+    ...ledger,
+    services,
+    book: ledgerTransactions({ lines: ledger.lines, others, services, from, to }),
+  };
+};
+
 peopleRouter.get('/assets/ledger/:employeeId', (req, res) => {
   const employee = getEmployee(Number(req.params.employeeId));
   if (!employee) return res.status(404).json({ error: 'employee not found' });
-  res.json({ ledger: ledgerFor(employee) });
+  res.json({
+    ledger: ledgerFor(employee, { from: req.query.from, to: req.query.to }),
+    /*
+     * Who comes before and after, so the page can step through people
+     * without going back to the list. Only those holding something - which
+     * is who the Who-holds-what list shows - and in the same order.
+     */
+    neighbours: (() => {
+      const holders = [
+        ...new Map(
+          listAssets({ out: true })
+            .filter((a) => a.employee_id)
+            .map((a) => [a.employee_id, { id: a.employee_id, name: a.employee_name }])
+        ).values(),
+      ].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      const at = holders.findIndex((h) => Number(h.id) === Number(employee.id));
+      return {
+        all: holders,
+        previous: at > 0 ? holders[at - 1] : null,
+        next: at >= 0 && at < holders.length - 1 ? holders[at + 1] : null,
+      };
+    })(),
+  });
+});
+
+/** The movement ledger as a CSV: opening, every line, closing. */
+peopleRouter.get('/assets/ledger/:employeeId/transactions.csv', (req, res) => {
+  const employee = getEmployee(Number(req.params.employeeId));
+  if (!employee) return res.status(404).json({ error: 'employee not found' });
+  const ledger = ledgerFor(employee, { from: req.query.from, to: req.query.to });
+  const name = String(employee.name || 'employee').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  res.type('text/csv').attachment(`${name}-asset-ledger.csv`).send(transactionsCsv(ledger, ledger.book));
 });
 
 peopleRouter.get('/assets/ledger/:employeeId.csv', (req, res) => {
@@ -493,70 +554,137 @@ peopleRouter.get('/assets/export/fields', (_req, res) => {
  * No ids at all means the whole register, which is what somebody asking for
  * "everything" expects.
  */
+/**
+ * A built report, written out as a spreadsheet.
+ *
+ * Shared by the asset report and the maintenance one rather than copied: a
+ * frozen header, a filter row, widths that fit, money formatted, and a LIVE
+ * SUM at the foot so deleting a row leaves the total still agreeing with
+ * itself.
+ */
+async function writeSheet(res, built, { sheet, file, what = 'row' }) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'BNF HRMS';
+  wb.created = new Date();
+  const ws = wb.addWorksheet(sheet, {
+    views: [{ state: 'frozen', ySplit: 1 }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+
+  ws.addRow(built.headers);
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { vertical: 'middle' };
+  for (const row of built.rows) ws.addRow(row);
+
+  built.columns.forEach((column, at) => {
+    const col = ws.getColumn(at + 1);
+    if (column.type === 'money') col.numFmt = '#,##0';
+    if (column.type === 'number') col.numFmt = '0';
+    const longest = Math.max(column.label.length, ...built.rows.map((r) => String(r[at] ?? '').length));
+    col.width = Math.min(42, Math.max(10, longest + 2));
+  });
+
+  if (built.has_totals && built.rows.length) {
+    const last = built.rows.length + 1;
+    // The first column that is not itself a total, so the label is not lost
+    // when somebody ticks a money column first.
+    const labelAt = built.totals.findIndex((t) => t === null);
+    const footer = ws.addRow(
+      built.totals.map((total, at) =>
+        total === null
+          ? at === labelAt
+            ? `TOTAL — ${built.count} ${what}${built.count === 1 ? '' : 's'}`
+            : null
+          : { formula: `SUM(${ws.getColumn(at + 1).letter}2:${ws.getColumn(at + 1).letter}${last})` }
+      )
+    );
+    footer.font = { bold: true };
+  }
+
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: built.columns.length } };
+
+  res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.attachment(`${file}.xlsx`);
+  await wb.xlsx.write(res);
+  res.end();
+}
+
+/**
+ * The report itself, as a spreadsheet or a CSV.
+ *
+ * A POST, and the IDS COME IN THE BODY. The screen has already narrowed the
+ * register - company, department, kind, group, a search, a warranty line that
+ * was clicked - and working all of that out a second time on the server is
+ * how an export comes to disagree with the list it was taken from. So the
+ * browser says exactly which assets it is looking at. A thousand ids do not
+ * fit in a query string either.
+ *
+ * No ids at all means the whole register, which is what somebody asking for
+ * "everything" expects.
+ */
 peopleRouter.post('/assets/export', async (req, res, next) => {
   try {
     const wanted = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : null;
     const all = listAssets({ written_off: true });
     const chosen = wanted && wanted.length ? all.filter((a) => wanted.includes(a.id)) : all;
-    const fields = cleanFields(req.body?.fields);
-    const built = buildAssetExport(chosen, { fields });
+    const built = buildAssetExport(chosen, { fields: cleanFields(req.body?.fields) });
 
     if (String(req.body?.format || 'xlsx') === 'csv') {
       res.type('text/csv').attachment('asset-report.csv').send(assetExportCsv(built));
       return;
     }
+    await writeSheet(res, built, { sheet: 'Assets', file: 'asset-report', what: 'asset' });
+  } catch (err) {
+    next(err);
+  }
+});
 
-    /*
-     * A real spreadsheet, because that is what "proper form" means to an
-     * office that lives in Excel: a frozen header, the columns the right
-     * width, dates as dates, money as money - and a SUM in the footer rather
-     * than a typed figure, so it follows if somebody deletes a row.
-     */
-    const wb = new ExcelJS.Workbook();
-    wb.creator = 'BNF HRMS';
-    wb.created = new Date();
-    const ws = wb.addWorksheet('Assets', {
-      views: [{ state: 'frozen', ySplit: 1 }],
-      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-    });
+/* ---------------- the maintenance report, same shape ---------------- */
 
-    ws.addRow(built.headers);
-    ws.getRow(1).font = { bold: true };
-    ws.getRow(1).alignment = { vertical: 'middle' };
-    for (const row of built.rows) ws.addRow(row);
+peopleRouter.get('/maintenance/export/fields', (req, res) => {
+  const report = String(req.query.report || 'services');
+  res.json({
+    report: reportFor(report).key,
+    reports: Object.values(REPORTS).map((r) => ({ key: r.key, label: r.label })),
+    groups: serviceFieldGroups(report),
+    defaults: reportFor(report).defaults,
+  });
+});
 
-    built.columns.forEach((column, at) => {
-      const col = ws.getColumn(at + 1);
-      if (column.type === 'money') col.numFmt = '#,##0';
-      if (column.type === 'number') col.numFmt = '0';
-      // Wide enough for the longest thing in it, within reason.
-      const longest = Math.max(
-        column.label.length,
-        ...built.rows.map((r) => String(r[at] ?? '').length)
-      );
-      col.width = Math.min(42, Math.max(10, longest + 2));
-    });
+/**
+ * Two reports from one door: every service, or every asset's running cost.
+ *
+ * Same rule as the asset export - the ids are the ones the screen is showing,
+ * because the Maintenance panel has its own filters and a second opinion on
+ * them is how a report stops matching the list it came from.
+ */
+peopleRouter.post('/maintenance/export', async (req, res, next) => {
+  try {
+    const which = reportFor(String(req.body?.report || 'services')).key;
+    const wanted = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : null;
 
-    if (built.has_totals && built.rows.length) {
-      const last = built.rows.length + 1;
-      const footer = ws.addRow(
-        built.totals.map((total, at) =>
-          total === null
-            ? at === 0
-              ? `TOTAL — ${built.count} asset${built.count === 1 ? '' : 's'}`
-              : null
-            : { formula: `SUM(${ws.getColumn(at + 1).letter}2:${ws.getColumn(at + 1).letter}${last})` }
-        )
-      );
-      footer.font = { bold: true };
+    const rows =
+      which === 'services'
+        ? (() => {
+            const all = listServices({ limit: 5000 });
+            return wanted && wanted.length ? all.filter((s) => wanted.includes(s.id)) : all;
+          })()
+        : (() => {
+            const all = assetsWithOwnership({ written_off: true });
+            return wanted && wanted.length ? all.filter((a) => wanted.includes(a.id)) : all;
+          })();
+
+    const built = buildServiceExport(rows, { report: which, fields: req.body?.fields });
+
+    if (String(req.body?.format || 'xlsx') === 'csv') {
+      res.type('text/csv').attachment(`${built.file}.csv`).send(serviceExportCsv(built));
+      return;
     }
-
-    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: built.columns.length } };
-
-    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.attachment('asset-report.xlsx');
-    await wb.xlsx.write(res);
-    res.end();
+    await writeSheet(res, built, {
+      sheet: built.sheet,
+      file: built.file,
+      what: which === 'services' ? 'service' : 'asset',
+    });
   } catch (err) {
     next(err);
   }

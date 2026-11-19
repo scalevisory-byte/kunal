@@ -1534,6 +1534,20 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
   .panel.interview-form { width: auto; max-width: none; height: auto; overflow: visible; border: 0; }
   .panel.interview-form .iv-body { display: block !important; }
   .side-nav, .iv-actions, .iv-chev, .panel header .row { display: none; }
+  /*
+   * One person's asset ledger, printed as a statement they can be handed.
+   * Landscape, because it is a wide table, and without the controls.
+   *
+   * IN THE EXISTING PRINT BLOCK, not a new one: two of them is how a rule
+   * ends up in the one nobody is reading, and there is a test saying so -
+   * which this broke the first time round. The words "at-media print" are
+   * deliberately not written here either: that test finds the LAST one by
+   * searching for them, and a comment saying them moves where it thinks the
+   * block starts. Second time a comment has broken its own test.
+   */
+  .ledger-page .no-print, .ledger-page button { display: none !important; }
+  .ledger-page .table-wrap { max-height: none !important; overflow: visible !important; }
+
 }
 
 
@@ -4266,3 +4280,26 @@ table.sheet.clearance-table td:last-child { width: 1%; white-space: nowrap; }
   margin-top: 0.6rem;
 }
 .export-fields label.check { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; }
+
+/* ======================================================================
+ * One person's asset ledger — read like a party ledger in Tally.
+ * ====================================================================== */
+.ledger-head { display: flex; align-items: flex-start; gap: 1rem; }
+.ledger-head h3 { margin: 0; }
+.ledger-head > span { margin-left: auto; }
+
+/* The ledger is long, so its header stays put while the rows scroll. */
+table.sheet.ledger-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--line-soft);
+}
+table.sheet.ledger-table td { white-space: normal; height: auto; vertical-align: top; }
+/* Opening and closing stand out from the movements between them. */
+table.sheet.ledger-table tr.ledger-balance td {
+  background: var(--brand-soft);
+  border-top: 1px solid var(--navy-line);
+  border-bottom: 1px solid var(--navy-line);
+}
+.ledger-page .table-wrap { max-height: 70vh; }

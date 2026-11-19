@@ -76,6 +76,7 @@ export default function HandoverSlips({ onError }) {
         employeeId={ledger.id}
         name={ledger.name}
         onClose={() => setLedger(null)}
+        onOpenEmployee={(who) => who && setLedger(who)}
         onError={onError}
         /* Taking something back changes this list, so it is re-read rather
            than left showing what the person held a minute ago. */
@@ -169,7 +170,18 @@ export default function HandoverSlips({ onError }) {
           <tbody>
             {people.map((person) => (
               <tr key={person.id}>
-                <td className="sticky-name">{person.name}</td>
+                {/*
+                  * THE NAME IS THE WAY IN, as Dinesh asked: clicking a person
+                  * opens their ledger. It was a button at the far end of the
+                  * row called "ledger", which nobody reads as "click the
+                  * name". Sixth time in this app that a way in had to be
+                  * moved to where the person is already looking.
+                  */}
+                <td className="sticky-name">
+                  <button className="link open-name" onClick={() => setLedger(person)}>
+                    {person.name}
+                  </button>
+                </td>
                 <td className="num">{person.items.length}</td>
                 <td className="num">{rupees(person.worth)}</td>
                 <td className="muted small wrap">

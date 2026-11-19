@@ -182,13 +182,16 @@ const escape = (v) => {
 };
 
 /** CSV with a BOM, so Excel opens it with the rupee signs intact. */
+/** The first column that is not itself a total - see serviceExport.js. */
+export const labelColumn = (built) => built.totals.findIndex((t) => t === null);
+
 export function assetExportCsv(built) {
   const lines = [built.headers.map(escape).join(',')];
   for (const row of built.rows) lines.push(row.map(escape).join(','));
   if (built.has_totals) {
     lines.push(
       built.totals
-        .map((t, at) => (t === null ? (at === 0 ? escape(`TOTAL — ${assets(built.count)}`) : '') : escape(t)))
+        .map((t, i) => (t === null ? (i === labelColumn(built) ? escape(`TOTAL — ${assets(built.count)}`) : '') : escape(t)))
         .join(',')
     );
   }

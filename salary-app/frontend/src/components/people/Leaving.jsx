@@ -357,6 +357,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
             <AssetLedger
               employeeId={ledgerFor}
               onClose={() => setLedgerFor(null)}
+              onOpenEmployee={(who) => who && setLedgerFor(who.id)}
               onError={onError}
               /* The settlement names what is still out, so it has to be
                  re-read the moment something comes back. */

@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.28.0';
+export const VERSION = '1.29.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.29.0',
+    date: '19 Nov 2026',
+    title: 'The employee asset ledger, the maintenance report, and QR by the tick',
+    items: [
+      '**Click a name in Who holds what** and that person’s ledger opens — the page you asked for, read like a party ledger in Tally. Who they are, six figures across the top, and five tabs: Overview, Current assets, **Asset ledger**, Handover documents and Maintenance history. **Previous / Next** step through everybody holding something, and a picker jumps straight to one.',
+      '**The ledger itself**: date, particulars, asset code, transaction, issued, returned, **running balance** and value — with an **opening balance**, a **closing balance**, a date window and a search. Searching narrows the lines and **never the balance**, because a balance that only counted what you searched for would be a different number from the one above it.',
+      '**A transfer is only called a transfer where the evidence says so** — somebody else’s handover of the same asset starting the day this one ends. Otherwise a return is just a return: this app does not invent a movement it cannot see.',
+      '**Maintenance lines carry a cost and move no quantity**, and only for the time the asset was actually with that person. A repair from before they were given it belongs on the asset’s own history.',
+      '**Maintenance → Export a report**, the same column picker as the register, in two shapes: **every service** (one line per repair — date, what was done, vendor, invoice, cost, next service) or **every asset** (bought for, cost to keep, total, times serviced, last and next service). Excel or CSV, your ticks remembered per report.',
+      '**QR labels for the rows you tick.** Every row has a tick box and the header ticks everything on screen, so a group button plus the label button is a sheet of stickers for that group. With nothing ticked it still prints what is on screen, and the button says which it will do.',
+      '**Two fixes worth knowing.** A report whose first column was money lost its “TOTAL — 12 assets” label entirely — the footer read 2400 with no word saying what it was. And a ledger line that says “Issued by nobody (open)” now just says “Issued”: a placeholder is not a person.',
+      '**Three things from your brief were deliberately not invented**, and here is why: there is **no current valuation** beside the purchase cost, because this app has no depreciation rule and a made-up one would be a wrong number that looks right; **PDF** is the browser’s own Print → Save as PDF rather than a second generator that would drift from the screen; and a **signed acknowledgement** shows the date the person acknowledged it, which is what the record actually holds — there is no scanned signature file to show.',
+    ],
+  },
   {
     version: '1.28.0',
     date: '19 Nov 2026',

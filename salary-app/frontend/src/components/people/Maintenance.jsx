@@ -23,6 +23,17 @@ const today = () => new Date().toISOString().slice(0, 10);
  */
 export default function Maintenance({ companies, onError }) {
   const [assets, setAssets] = useState([]);
+  /*
+   * The report with the columns somebody picks, as on the register.
+   *
+   * Two shapes, because two different questions get asked: every SERVICE, one
+   * line per bill; and every ASSET, what it has cost to own. One table cannot
+   * answer both.
+   */
+  const [exporting, setExporting] = useState(false);
+  const [report, setReport] = useState('services');
+  const [picker, setPicker] = useState(null);
+  const [services, setServices] = useState([]);
   const [totals, setTotals] = useState({});
   const [alerts, setAlerts] = useState({});
   const [spend, setSpend] = useState(null);
@@ -294,6 +305,9 @@ export default function Maintenance({ companies, onError }) {
         <button onClick={() => setLogging('pick')} disabled={!assets.length}>
           Record a service
         </button>
+        <button className={exporting ? 'active' : undefined} onClick={() => setExporting((v) => !v)}>
+          {exporting ? 'Close' : 'Export a report'}
+        </button>
         {/*
           * An AMC was stored, reported in its own column, and alerted on when
           * it lapsed - here, and on the main dashboard in the server build -
@@ -323,6 +337,27 @@ export default function Maintenance({ companies, onError }) {
       </div>
 
       {said && <p className="error">{said}</p>}
+
+      {exporting && picker && (
+        <AssetExport
+          groups={picker.groups}
+          defaults={picker.defaults}
+          reports={picker.reports}
+          report={report}
+          onReport={setReport}
+          remember="bnf-maintenance-export-fields"
+          path="/people/maintenance/export"
+          file={report === 'services' ? 'asset-services' : 'asset-ownership'}
+          body={{ report }}
+          what={report === 'services' ? 'services' : 'assets'}
+          /* The services panel has its own filters; the ownership report is
+             the asset list this screen is already showing. */
+          shown={report === 'services' ? services : shown}
+          total={report === 'services' ? services.length : assets.length}
+          onError={onError}
+          onDone={() => setExporting(false)}
+        />
+      )}
 
       {!shown.length ? (
         <p className="muted small">
