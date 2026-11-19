@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../printReport.js';
 import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
@@ -188,6 +189,49 @@ export default function Employees({
     () => employees.filter((e) => showInactive || e.active),
     [employees, showInactive]
   );
+
+  /** Who works here, as a list somebody can file or hand round. */
+  const printStaff = () => {
+    const narrowed = [
+      designation && `designation: ${designation}`,
+      department && `department: ${department}`,
+      query.trim() && `matching “${query.trim()}”`,
+      showInactive && 'including people who have left',
+    ].filter(Boolean);
+    const names = [...new Set(filtered.map((e) => e.company_name).filter(Boolean))];
+    printReport({
+      title: 'Employee list',
+      subtitle: [names.length === 1 ? names[0] : 'All companies', ...narrowed].join(' · '),
+      meta: [`${filtered.length} of ${onShow.length} people`],
+      landscape: true,
+      columns: [
+        col('#', (_e, i) => i + 1, '3%'),
+        col('Name', (e) => e.name),
+        col('Code', (e) => e.employee_code || ''),
+        col('Company', (e) => e.company_name || ''),
+        col('Designation', (e) => e.designation || ''),
+        col('Department', (e) => e.department || ''),
+        col('Joined', (e) => e.joined_on || ''),
+        col('Left', (e) => e.left_on || ''),
+        col('Born', (e) => e.dob || ''),
+        num('Salary', (e) => (Number(e.monthly_salary) ? rupees(e.monthly_salary) : '—')),
+        col('Pay by', (e) => e.payment_mode || ''),
+        col('Status', (e) => (e.active ? 'Working' : 'Left')),
+      ],
+      rows: filtered,
+      totals: {
+        label: `Total (${filtered.length})`,
+        Salary: rupees(filtered.reduce((t, e) => t + (Number(e.monthly_salary) || 0), 0)),
+      },
+      /*
+       * SAID ON THE PAPER: this carries what everybody earns. The register
+       * is printed from a screen only the office can open, and the sheet
+       * itself has no such warning once it is off the screen.
+       */
+      footer:
+        'This list carries salaries. It is for the office, not for circulating.',
+    });
+  };
 
   const matches = (value, chosen) =>
     !chosen || (chosen === NOT_SET ? !String(value || '').trim() : String(value || '').trim() === chosen);
@@ -459,6 +503,11 @@ export default function Employees({
         </div>
 
         <div className="toolbar">
+          {/* The staff list as a document - not the editable table it is on
+              screen, where every cell is a box somebody types in. */}
+          <button className="ghost" onClick={printStaff} disabled={!filtered.length}>
+            Print {filtered.length}
+          </button>
           <label className="pick">
             Designation
             <select value={designation} onChange={(e) => setDesignation(e.target.value)}>

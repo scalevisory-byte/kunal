@@ -2144,3 +2144,43 @@ test('one person’s whole ledger prints, not whichever tab is open', () => {
   // With a heading each, because on screen the tab button was the heading.
   assert.match(led, /<h4 className="print-only">Assets with them now<\/h4>/);
 });
+
+test('a report is built, and while it prints the app is not on the paper at all', () => {
+  /*
+   * "PURA SCREEN PRINT NAHI KARNA HE, REPORT PRINT KARNA HOTA HE". Hiding
+   * the furniture with CSS still printed the working screen with its bits
+   * taken off - the filter row, the tick boxes, and every cell an input.
+   */
+  const print = css.slice(css.lastIndexOf('@media print'));
+  assert.match(print, /body\.printing-report > #root \{ display: none !important/);
+  assert.match(print, /body\.printing-report #print-root \{ display: block !important/);
+  assert.match(css, /#print-root \{ display: none; \}/);
+
+  // The screens that print a built report rather than themselves.
+  for (const file of [
+    'components/people/Assets.jsx',
+    'components/people/AssetStatement.jsx',
+    'components/people/AssetLedger.jsx',
+    'components/people/Maintenance.jsx',
+    'components/Employees.jsx',
+    'components/SalarySheet.jsx',
+  ]) {
+    assert.match(src(file), /printReport/, `${file} should print a built report`);
+  }
+
+  // And those three no longer print the page itself.
+  for (const file of [
+    'components/people/AssetStatement.jsx',
+    'components/people/AssetLedger.jsx',
+  ]) {
+    assert.ok(!src(file).includes('window.print()'), `${file} still prints the screen`);
+  }
+});
+
+test('a printed staff list says it carries salaries', () => {
+  /*
+   * The employee list is the one report here that is somebody's pay. On
+   * screen it is behind a login; on paper it is a sheet on a desk.
+   */
+  assert.match(src('components/Employees.jsx'), /This list carries salaries/);
+});

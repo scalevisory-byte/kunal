@@ -12,6 +12,7 @@ import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
 import AssetImport from './AssetImport.jsx';
 import AssetStatement from './AssetStatement.jsx';
+import { col, num, printReport } from '../../printReport.js';
 import AssetExport from './AssetExport.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
@@ -544,6 +545,50 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return picked.length ? picked : shown.filter((a) => a.code);
   };
 
+  /** The register on screen, as a document somebody can file. */
+  const printRegister = () => {
+    // Named only when every line really is one company's, never assumed.
+    const names = [...new Set(shown.map((a) => a.company_name).filter(Boolean))];
+    const onlyCompany = names.length === 1 ? names[0] : 'All companies';
+    const narrowed = [
+      filter === 'out' && 'out with staff',
+      filter === 'office' && 'in the office',
+      filter === 'gone' && 'written off',
+      filter === 'maintenance' && 'away being repaired',
+      group && groupLabel(group),
+      query.trim() && `matching “${query.trim()}”`,
+    ].filter(Boolean);
+    printReport({
+      title: 'Asset register',
+      subtitle: [onlyCompany, ...narrowed].filter(Boolean).join(' · '),
+      meta: [`${shown.length} of ${assets.length} on the register`],
+      landscape: true,
+      columns: [
+        col('#', (_row, i) => i + 1, '3%'),
+        col('Code', (a) => a.code || '—'),
+        col('Kind', (a) => a.kind || ''),
+        col('What it is', (a) => a.label || ''),
+        col('Serial', (a) => a.identifier || ''),
+        col('Group', (a) => groupLabel(groupOf(a.kind, a.label))),
+        col('Company', (a) => a.company_name || ''),
+        col('Where it is', (a) => (isOut(a) ? a.employee_name || 'with staff' : a.location || 'in the office')),
+        col('Bought', (a) => String(a.purchase_date || '').slice(0, 10)),
+        num('Cost', (a) => (Number(a.purchase_cost) ? rupees(a.purchase_cost) : '—')),
+        col('Warranty to', (a) => String(a.warranty_until || '').slice(0, 10)),
+      ],
+      rows: shown,
+      totals: {
+        label: `Total (${shown.length})`,
+        Cost: rupees(shown.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0)),
+      },
+      /*
+       * Said on the paper, because a register at cost handed to somebody who
+       * reads it as a valuation is how a number gets quoted wrongly.
+       */
+      footer: 'Every figure is what it cost to buy — there is no depreciation in this app, so this is a register at cost, not a book value.',
+    });
+  };
+
   const labelSheet = () => {
     const ids = forLabels().map((a) => a.id).join(',');
     if (!ids) return;
@@ -825,6 +870,17 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         {/* The three ways OUT, as one block at the far end: loose, they wrap
             one at a time and leave "Handovers (CSV)" alone on its own line. */}
         <span className="push-right">
+          {/*
+            * PRINT THE REPORT, NOT THE SCREEN.
+            *
+            * Dinesh: *"PURA SCREEN PRINT NAHI KARNA HE, REPORT PRINT KARNA
+            * HOTA HE"*. Ctrl+P on this tab gave the working grid - filters,
+            * tick boxes, and every cell an input. This builds a document
+            * from the rows ON SCREEN, filters and search already applied.
+            */}
+          <button className="ghost" onClick={printRegister} disabled={!shown.length}>
+            Print {shown.length}
+          </button>
           <button
             className="ghost"
             onClick={labelSheet}

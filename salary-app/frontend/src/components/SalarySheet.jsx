@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, totalRows } from '../../../shared/calc.js';
+import { col, num, printReport } from '../printReport.js';
 import { days, rupees, rupees2 } from '../format.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -114,6 +115,63 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
     return out;
   }, [filtered]);
 
+  /**
+   * THE MONTH AS A PAYROLL REGISTER — built, not the screen printed.
+   *
+   * Dinesh: *"PURA SCREEN PRINT NAHI KARNA HE, REPORT PRINT KARNA HOTA
+   * HE"*. The sheet on screen is a grid of boxes you type in; what the
+   * office files is a register. Same rows, same `calculateRow` — it
+   * assembles and recalculates nothing, so the paper and the sheet cannot
+   * disagree about a rupee.
+   */
+  const printSheet = () => {
+    const calcs = filtered.map((row) => ({ row, calc: calculateRow(row, period, row.attendance) }));
+    const sum = (get) => calcs.reduce((total, c) => total + (Number(get(c)) || 0), 0);
+    printReport({
+      title: 'Salary register',
+      subtitle: [period?.label, query.trim() && `matching “${query.trim()}”`].filter(Boolean).join(' · '),
+      meta: [`${calcs.length} ${calcs.length === 1 ? 'person' : 'people'}`],
+      landscape: true,
+      columns: [
+        col('#', (_r, i) => i + 1, '3%'),
+        col('Employee', ({ row }) => row.employee_name),
+        col('Company', ({ row }) => row.company_name || ''),
+        num('Days', ({ calc }) => calc.working_days),
+        num('Present', ({ calc }) => calc.present_days),
+        num('Absent', ({ calc }) => calc.absent_days || 0),
+        num('Salary', ({ calc }) => rupees(calc.salary)),
+        num('Gross', ({ calc }) => rupees(calc.gross_salary)),
+        num('OT ₹', ({ calc }) => rupees(calc.ot_salary)),
+        num('Add', ({ calc }) => rupees(calc.addition || 0)),
+        num('Deduct', ({ calc }) => rupees(calc.deduction || 0)),
+        num('PT', ({ calc }) => rupees(calc.pt)),
+        num('PF', ({ calc }) => rupees(calc.pf)),
+        num('ESI', ({ calc }) => rupees(calc.esi)),
+        num('Loan', ({ calc }) => rupees(calc.loan_deduction || 0)),
+        num('Net payable', ({ calc }) => rupees(calc.net_salary)),
+        col('Pay by', ({ row }) => row.payment_mode || ''),
+        col('Status', ({ row }) => row.status || ''),
+      ],
+      rows: calcs,
+      totals: {
+        label: `Total (${calcs.length})`,
+        Salary: rupees(sum(({ calc }) => calc.salary)),
+        Gross: rupees(sum(({ calc }) => calc.gross_salary)),
+        'OT ₹': rupees(sum(({ calc }) => calc.ot_salary)),
+        Add: rupees(sum(({ calc }) => calc.addition)),
+        Deduct: rupees(sum(({ calc }) => calc.deduction)),
+        PT: rupees(sum(({ calc }) => calc.pt)),
+        PF: rupees(sum(({ calc }) => calc.pf)),
+        ESI: rupees(sum(({ calc }) => calc.esi)),
+        Loan: rupees(sum(({ calc }) => calc.loan_deduction)),
+        'Net payable': rupees(sum(({ calc }) => calc.net_salary)),
+      },
+      /* Sunday duty is settled on its own register, so it is not added in here. */
+      footer:
+        'Sunday duty is paid from the Sunday register and is not included in these figures. Every figure comes from the salary sheet itself — nothing is recalculated here.',
+    });
+  };
+
   return (
     /* `salary-page` only means one thing: twenty columns want landscape paper. */
     <section className="salary-page">
@@ -140,6 +198,9 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
           Send payslips
         </button>
         <span className="grow" />
+        <button className="ghost" onClick={printSheet} disabled={!filtered.length}>
+          Print the register
+        </button>
         {saving > 0 && <span className="pill saving">Saving {saving}…</span>}
         {locked && <span className="pill locked">Locked</span>}
         <span className="muted small">

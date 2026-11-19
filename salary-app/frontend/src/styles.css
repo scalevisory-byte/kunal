@@ -1517,6 +1517,54 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 .slip .signatures { display: flex; gap: 3rem; font-size: 0.79rem; color: var(--muted); }
 .slip .signatures > div { flex: 1; }
 .slip .signatures .rule { border-top: 1px solid var(--text); margin-bottom: 0.3rem; height: 2.4rem; }
+
+/* ======================================================================
+ * THE PRINTED REPORT.
+ *
+ * Built by printReport.js into its own element beside the app, because
+ * *"PURA SCREEN PRINT NAHI KARNA HE, REPORT PRINT KARNA HOTA HE"* - and
+ * hiding the screen's furniture with CSS still leaves the working screen
+ * with its bits taken off, not a document.
+ *
+ * On screen this element does not exist as far as anybody can tell. On
+ * paper, while a report is being printed, it is the ONLY thing that
+ * prints: the app is hidden outright, so nothing open on the screen can
+ * leak onto the page.
+ * ====================================================================== */
+
+#print-root { display: none; }
+
+.pr-doc { color: #000; font-size: 10px; line-height: 1.45; }
+.pr-head { margin: 0 0 10px; padding: 0 0 6px; border-bottom: 1.5px solid #000; }
+.pr-head h1 { margin: 0; font-size: 15px; letter-spacing: 0.01em; }
+.pr-sub { margin: 2px 0 0; font-size: 11px; font-weight: 600; }
+.pr-meta { margin: 2px 0 0; font-size: 9.5px; color: #444; }
+.pr-block { margin: 0 0 12px; page-break-inside: avoid; break-inside: avoid; }
+.pr-block h2 { margin: 0 0 3px; font-size: 11.5px; }
+.pr-note { margin: 0 0 4px; font-size: 9.5px; color: #444; }
+.pr-empty { margin: 0; font-size: 10px; color: #444; }
+.pr-figures { display: flex; flex-wrap: wrap; gap: 2px 18px; margin: 0 0 5px; font-size: 10px; }
+.pr-figures em { font-style: normal; color: #444; }
+.pr-foot { margin-top: 6px; padding-top: 4px; border-top: 1px solid #999; font-size: 9px; color: #444; }
+
+.pr-table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+.pr-table th, .pr-table td {
+  border: 1px solid #999; padding: 2px 4px; text-align: left; vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.pr-table thead th {
+  background: #e8e8e8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.03em;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.pr-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pr-table tfoot td { border-top: 1.5px solid #000; font-weight: 700; background: #f3f3f3;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/* A long table keeps its header on every sheet and never splits a row. */
+.pr-table thead { display: table-header-group; }
+.pr-table tr { page-break-inside: avoid; break-inside: avoid; }
+/* A block longer than a page has to be allowed to break, or it is clipped. */
+.pr-block:has(.pr-table tbody tr:nth-child(25)) { page-break-inside: auto; break-inside: auto; }
+
 /* Printed at the top of every sheet, and never on screen. */
 .print-head { display: none; }
 
@@ -1557,6 +1605,15 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 
 @media print {
   body { background: #fff; }
+
+  /*
+   * A BUILT REPORT REPLACES THE PAGE. While `printing-report` is on the
+   * body, the app is not printed at all and the document is - which is why
+   * nothing on the screen, open dialog included, can reach the paper.
+   */
+  body.printing-report > #root { display: none !important; }
+  body.printing-report #print-root { display: block !important; }
+
   .no-print, nav, .toolbar, .sub-tabs, .tabs, .error.banner { display: none !important; }
 
   /*

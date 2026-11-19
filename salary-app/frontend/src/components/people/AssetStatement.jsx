@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
+import { col, num, printReport } from '../../printReport.js';
 
 /**
  * THE WHOLE REGISTER AS ONE DOCUMENT — "total asset ka register".
@@ -73,6 +74,79 @@ export default function AssetStatement({ companies = [], onError }) {
 
   const { blocks, totals, written_off: gone, missing } = statement;
 
+  /**
+   * THE REGISTER AS A DOCUMENT, built - not the screen with its buttons off.
+   *
+   * Every figure comes off the statement the screen is showing, so the paper
+   * and the page cannot disagree; the blocks, their subtotals and the one
+   * figure at the foot are the same three things in the same order.
+   */
+  const printIt = () => {
+    const where = companies.find((c) => String(c.id) === String(companyId))?.name;
+    const by = { company: 'by company', group: 'by group', person: 'by person' }[statement.by] || '';
+    printReport({
+      title: 'Asset register',
+      subtitle: [where || 'All companies', by].filter(Boolean).join(' · '),
+      meta: [
+        `${totals.count} assets · ${rupees(totals.cost)} at cost`,
+        `${totals.out} out with staff · ${totals.in_office} in the office`,
+      ],
+      landscape: full,
+      sections: [
+        ...blocks.map((block) => ({
+          heading: `${block.name} — ${block.count} ${block.count === 1 ? 'asset' : 'assets'} · ${rupees(block.cost)}${
+            block.out ? ` · ${block.out} out with staff` : ''
+          }`,
+          columns: full
+            ? [
+                col('Code', (r) => r.code || '—'),
+                col('What it is', (r) => `${r.kind} — ${r.label}`),
+                col('Serial', (r) => r.identifier || ''),
+                col(statement.by === 'group' ? 'Company' : 'Group', (r) =>
+                  statement.by === 'group' ? r.company_name : r.group
+                ),
+                col('Where it is', (r) => r.holder || r.location || 'in the office'),
+                col('Bought', (r) => r.purchase_date || ''),
+                num('Cost', (r) => (r.cost ? rupees(r.cost) : '—')),
+              ]
+            : [
+                col(statement.by === 'group' ? 'Company' : 'Group', (g) => g.name),
+                num('Assets', (g) => g.count),
+                num('Cost to buy', (g) => rupees(g.cost)),
+              ],
+          rows: full ? block.rows : block.groups,
+          totals: { label: `${block.name} total`, [full ? 'Cost' : 'Cost to buy']: rupees(block.cost) },
+        })),
+        // Apart from the total, always: counting these would overstate what
+        // the business holds.
+        ...(gone.count
+          ? [
+              {
+                heading: `Written off — ${gone.count} · ${rupees(gone.cost)} (not in the total above)`,
+                columns: [
+                  col('Code', (r) => r.code || '—'),
+                  col('What it was', (r) => r.label),
+                  col('Written off', (r) => r.written_off_on),
+                  col('Why', (r) => r.why || ''),
+                  num('Cost', (r) => (r.cost ? rupees(r.cost) : '—')),
+                ],
+                rows: gone.rows,
+              },
+            ]
+          : []),
+      ],
+      footer: [
+        `${totals.count} assets · ${rupees(totals.cost)} — what the business holds, at cost.`,
+        'Every figure is what it cost to buy; there is no depreciation in this app.',
+        missing.no_cost && `${missing.no_cost} with no cost recorded`,
+        missing.no_code && `${missing.no_code} with no code`,
+        missing.no_purchase_date && `${missing.no_purchase_date} with no purchase date`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    });
+  };
+
   return (
     <section className="stack">
       <div className="toolbar no-print">
@@ -115,7 +189,7 @@ export default function AssetStatement({ companies = [], onError }) {
           List every asset
         </label>
         <span className="push-right">
-          <button className="ghost" onClick={() => window.print()}>
+          <button className="ghost" onClick={printIt}>
             Print
           </button>
           <button

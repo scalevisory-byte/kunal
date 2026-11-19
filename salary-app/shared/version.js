@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.31.0';
+export const VERSION = '1.32.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.32.0',
+    date: '19 Nov 2026',
+    title: 'Print the report, not the screen',
+    items: [
+      '**Printing now makes a document, not a picture of the screen.** You asked for it in those words. Hiding the sidebar and the pickers was not enough — what came out was still the working screen with its bits taken off: the filter row, the tick boxes, and every cell an input box.',
+      'Each report is **built**: a title saying what it is and what it was narrowed to, the columns the office wants, a totals row, and a line at the foot stating the rule that matters — that an asset register is at cost and not a valuation, that Sunday duty is paid from its own register, that a blank service date means not scheduled.',
+      '**Six screens print a real report now**: Assets → Register (whatever your filters and search are showing), Assets → Full register, one person’s **asset ledger** (all of it — what they hold, what came back, and every movement, whichever tab you were on), **Maintenance**, **Employees**, and the **Salary sheet** as a salary register.',
+      '**While a report prints, the app is not on the paper at all** — so nothing open on screen, a dialog included, can reach the page.',
+      '**It prints what is on screen**: filters, search and the company picker already applied, and the paper says which. It computes nothing of its own — every figure is the one you were looking at.',
+      '**A printed employee list says on it that it carries salaries**, because on screen it is behind a login and on paper it is a sheet on a desk.',
+    ],
+  },
   {
     version: '1.31.0',
     date: '19 Nov 2026',

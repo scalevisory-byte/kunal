@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../../printReport.js';
 import { api, download } from '../../api.js';
 import ScrollFrame from '../ScrollFrame.jsx';
 import { SERVICE_KINDS } from '../../../../shared/maintenance.js';
@@ -78,6 +79,46 @@ export default function Maintenance({ companies, onError }) {
       [a.code, a.label, a.kind].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
     );
   }, [assets, view, query]);
+
+  /** What it costs to keep the kit, as a document. */
+  const printIt = () => {
+    const view_name =
+      { due: 'due a service', serviced: 'serviced at least once', expensive: 'by what they have cost' }[view] ||
+      'every asset';
+    printReport({
+      title: 'Maintenance and service',
+      subtitle: [view_name, year && year !== 'all' ? `in ${year}` : 'all years'].filter(Boolean).join(' · '),
+      meta: [
+        `Bought ${rupees(totals.purchase || 0)} · spent keeping them ${rupees(totals.service || 0)}`,
+        `${shown.length} ${shown.length === 1 ? 'asset' : 'assets'}`,
+      ],
+      landscape: true,
+      columns: [
+        col('Code', (a) => a.code || '—'),
+        col('Asset', (a) => `${a.kind || ''} — ${a.label || ''}`),
+        col('With', (a) => a.employee_name || 'in the office'),
+        num('Bought for', (a) => (a.purchase_cost ? rupees(a.purchase_cost) : '—')),
+        num('Spent on it', (a) => rupees(a.ownership.service || 0)),
+        num('Times', (a) => a.ownership.times || 0),
+        // The engine's own names: last_service_on / next_service_on. The
+        // first guess printed a dash beside a count of one service.
+        col('Last service', (a) => a.ownership.last_service_on || '—'),
+        col('Next due', (a) => a.ownership.next_service_on || 'not scheduled'),
+        col('Warranty to', (a) => String(a.warranty_until || '').slice(0, 10) || '—'),
+        col('AMC to', (a) => String(a.amc_until || '').slice(0, 10) || '—'),
+      ],
+      rows: shown,
+      totals: {
+        label: `Total (${shown.length})`,
+        'Bought for': rupees(shown.reduce((t, a) => t + (Number(a.purchase_cost) || 0), 0)),
+        'Spent on it': rupees(shown.reduce((t, a) => t + (Number(a.ownership.service) || 0), 0)),
+        Times: shown.reduce((t, a) => t + (Number(a.ownership.times) || 0), 0),
+      },
+      /* Both halves of the rule the register follows on screen. */
+      footer:
+        'A blank next service means not scheduled, never overdue. Free warranty work still counts as a service, at ₹0.',
+    });
+  };
 
   return (
     <section className="stack">
@@ -307,6 +348,10 @@ export default function Maintenance({ companies, onError }) {
         </button>
         <button className={exporting ? 'active' : undefined} onClick={() => setExporting((v) => !v)}>
           {exporting ? 'Close' : 'Export a report'}
+        </button>
+        {/* Print the report itself, not the screen it is read on. */}
+        <button className="ghost" onClick={printIt} disabled={!shown.length}>
+          Print {shown.length}
         </button>
         {/*
           * An AMC was stored, reported in its own column, and alerted on when

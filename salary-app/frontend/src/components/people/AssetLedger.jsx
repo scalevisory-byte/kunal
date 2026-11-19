@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download } from '../../api.js';
+import { col, num, printReport } from '../../printReport.js';
 import { rupees } from '../../format.js';
 
 /**
@@ -189,6 +190,86 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
   if (!ledger) return <p className="muted small">Reading the handover log…</p>;
 
   const { employee, holding, returned, totals, services = [] } = ledger;
+
+  /**
+   * ONE PERSON'S LEDGER AS A DOCUMENT — what they hold, what came back, and
+   * every movement with the running balance.
+   *
+   * It is built rather than printed off the screen, so it carries all three
+   * whichever tab is open. Printing the page used to give whatever tab you
+   * were on: from Overview, six figures and no list of what the person
+   * actually holds, which is the one thing a ledger is handed over for.
+   */
+  const printIt = () => {
+    const assetColumns = [
+      col('#', (_r, i) => i + 1, '3%'),
+      col('Code', (l) => l.code || '—'),
+      col('Asset', (l) => `${l.kind} — ${l.label}${l.identifier ? ` (${l.identifier})` : ''}`),
+      col('Issued', (l) => l.issued_on || 'not recorded'),
+      col('Returned', (l) => l.returned_on || 'still with them'),
+      num('Days', (l) => (l.days === null ? '—' : l.days)),
+      num('Cost to buy', (l) => (l.value ? rupees(l.value) : '—')),
+      col('Signed for', (l) => (l.no_slip ? 'no slip on file' : l.acknowledged_on ? `signed ${l.acknowledged_on}` : 'not acknowledged')),
+      col('Condition', (l) =>
+        [l.condition_out && `out: ${l.condition_out}`, l.condition_in && `back: ${l.condition_in}`]
+          .filter(Boolean)
+          .join(' · ')
+      ),
+    ];
+    printReport({
+      title: `Asset ledger — ${employee?.name || name || ''}`,
+      subtitle: [employee?.employee_code, employee?.designation, employee?.company_name].filter(Boolean).join(' · '),
+      meta: [
+        `${totals.ever} ever issued · ${totals.out} with them now · ${rupees(totals.out_value)} at cost`,
+        `${totals.returned} given back · ${totals.unsigned} with nothing signed for it`,
+      ],
+      landscape: true,
+      sections: [
+        {
+          heading: 'Assets with them now',
+          columns: assetColumns,
+          rows: holding,
+          empty: 'Nothing with them at the moment.',
+          totals: { label: `${holding.length} with them`, 'Cost to buy': rupees(totals.out_value) },
+        },
+        ...(returned.length
+          ? [{ heading: 'Given back', columns: assetColumns, rows: returned }]
+          : []),
+        ...(book
+          ? [
+              {
+                heading: 'Every movement',
+                columns: [
+                  col('Date', (r) => r.on || ''),
+                  // The asset's name beside the movement: on screen it is a
+                  // second line under it, and a bare "Issued" says nothing.
+                  col('Particulars', (r) =>
+                    [r.particulars, r.label && `${r.kind ? `${r.kind} — ` : ''}${r.label}`]
+                      .filter(Boolean)
+                      .join(' · ')
+                  ),
+                  col('Asset code', (r) => r.code || ''),
+                  col('Transaction', (r) => r.type || ''),
+                  num('Issued', (r) => r.in ?? ''),
+                  num('Returned', (r) => r.out ?? ''),
+                  num('Balance', (r) => r.balance ?? ''),
+                  num('Value', (r) => (r.value ? rupees(r.value) : '')),
+                ],
+                rows: book.rows,
+                totals: {
+                  label: 'Closing balance',
+                  Balance: book.closing?.qty ?? '',
+                  Value: rupees(book.closing?.value || 0),
+                },
+              },
+            ]
+          : []),
+      ],
+      /* Said on the paper too: the figure is reported, never deducted. */
+      footer:
+        'The figure is what these cost to buy. It is said, never deducted — an unreturned asset is named and valued, not docked.',
+    });
+  };
   const underService = holding.filter((l) => ['maintenance', 'damaged'].includes(l.state || '')).length;
 
   /*
@@ -332,7 +413,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
               </button>
             </>
           )}
-          <button className="ghost" onClick={() => window.print()}>
+          <button className="ghost" onClick={printIt}>
             Print
           </button>
           <button
@@ -726,7 +807,7 @@ export default function AssetLedger({ employeeId, name, onClose, onError, onRelo
             >
               Slip data
             </button>
-            <button className="ghost" onClick={() => window.print()}>
+            <button className="ghost" onClick={printIt}>
               Print this statement
             </button>
           </div>
