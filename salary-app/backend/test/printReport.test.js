@@ -17,7 +17,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { col, num, reportHtml } from '../../frontend/src/printReport.js';
+import { col, num, reportHtml, slipsHtml } from '../../frontend/src/printReport.js';
 
 const doc = (over = {}) =>
   reportHtml({
@@ -118,4 +118,62 @@ test('a muster column can carry its weekday and shade its off days', () => {
 test('a compact report says so, for the one that is thirty-eight columns wide', () => {
   assert.match(reportHtml({ compact: true, printedOn: 'today' }), /class="pr-doc pr-tight"/);
   assert.ok(!reportHtml({ printedOn: 'today' }).includes('pr-tight'));
+});
+
+/* ---------------- the slips ---------------- */
+
+const SLIP = (over = {}) => ({
+  company: 'BOOKNFLY',
+  what: 'Salary slip — November 2026',
+  name: 'Mahesh Shinde',
+  about: 'BNF-0140 · Executive',
+  facts: [['Working days', '26']],
+  earnings: [['Salary for the month', '24,000']],
+  earningsTotal: ['Gross salary', '24,000'],
+  deductions: [['Professional tax', '200']],
+  deductionsTotal: ['Total deductions', '200'],
+  net: ['Net payable', '23,800'],
+  note: 'Paid by Bank.',
+  ...over,
+});
+
+test('ONE SLIP HOLDS ONE PERSON, and each starts its own page', () => {
+  /*
+   * The rule the WhatsApp slip already follows, now for the printed stack
+   * too: a slip is handed to one person, and two people's pay on one sheet
+   * is the thing a payslip exists to avoid.
+   */
+  const html = slipsHtml({
+    slips: [SLIP(), SLIP({ name: 'Riya Pal', net: ['Net payable', '21,800'] })],
+    printedOn: 'today',
+  });
+  assert.equal(html.match(/class="pr-slip"/g).length, 2);
+  // The page break is a rule on every slip but the last, in the stylesheet.
+  assert.match(html, /class="pr-doc pr-slips"/);
+  // Each slip carries its own header, so page two is not anonymous.
+  assert.equal(html.match(/Mahesh Shinde/g).length, 1);
+  assert.equal(html.match(/Riya Pal/g).length, 1);
+});
+
+test('a slip with no deductions says None rather than printing an empty box', () => {
+  const html = slipsHtml({ slips: [SLIP({ deductions: [] })], printedOn: 'today' });
+  assert.match(html, /<td>None<\/td>/);
+  // The total is still there, so the sum still reads down the page.
+  assert.match(html, /Total deductions/);
+});
+
+test('a name with markup in it is text on a slip too', () => {
+  const html = slipsHtml({ slips: [SLIP({ name: '<b>Riya</b>' })], printedOn: 'today' });
+  assert.ok(!html.includes('<b>Riya</b>'));
+  assert.match(html, /&lt;b&gt;Riya&lt;\/b&gt;/);
+});
+
+test('Sunday pay rides on the slip as an extra line, below the net', () => {
+  const html = slipsHtml({
+    slips: [SLIP({ extras: [['Sunday / holiday pay — paid separately', '1,846']] })],
+    printedOn: 'today',
+  });
+  const net = html.indexOf('Net payable');
+  const sunday = html.indexOf('Sunday / holiday pay');
+  assert.ok(net < sunday, 'Sunday pay must sit BELOW the net, never inside it');
 });

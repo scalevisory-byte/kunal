@@ -180,16 +180,27 @@ export function printReport({
   compact = false,
   footer = '',
 } = {}) {
+  mount(
+    reportHtml({ title, subtitle, meta, sections, columns, rows, totals, empty, landscape, compact, footer }),
+    landscape
+  );
+}
+
+/**
+ * Put a built document beside the app, turn the paper the right way, and
+ * open the print dialog.
+ *
+ * Shared by the reports and the slips, because everything here except the
+ * document itself is the same both ways.
+ */
+function mount(html, landscape) {
   let root = document.getElementById(PRINT_ROOT);
   if (!root) {
     root = document.createElement('div');
     root.id = PRINT_ROOT;
     document.body.appendChild(root);
   }
-
-  root.innerHTML = reportHtml({
-    title, subtitle, meta, sections, columns, rows, totals, empty, landscape, compact, footer,
-  });
+  root.innerHTML = html;
 
   /*
    * The orientation is written into the document itself, because `@page`
@@ -222,6 +233,90 @@ export function printReport({
     // Safari and some Linux builds never fire afterprint; this is the net.
     window.setTimeout(done, 1000);
   }, 60);
+}
+
+/* ---------------------------------------------------------------------
+ * SLIPS — a document per person, not a table of everybody.
+ *
+ * A payslip is not a report shape: it is a header, a few facts, two columns
+ * of lines facing each other, and one figure at the foot. Printed in a
+ * batch, EACH ONE STARTS A NEW PAGE — a slip is handed to one person, and
+ * two people's pay on one sheet is the thing a payslip exists to avoid.
+ * ------------------------------------------------------------------- */
+
+const slipRows = (lines = [], total = null) =>
+  [
+    ...lines.map(
+      ([label, amount]) => `<tr><td>${esc(label)}</td><td class="num">${esc(amount)}</td></tr>`
+    ),
+    total
+      ? `<tr class="pr-slip-total"><td>${esc(total[0])}</td><td class="num">${esc(total[1])}</td></tr>`
+      : '',
+  ].join('');
+
+const slipOf = (slip) => `
+  <section class="pr-slip">
+    <header class="pr-slip-head">
+      <div>
+        <h2>${esc(slip.company || '')}</h2>
+        <p class="pr-slip-what">${esc(slip.what || 'Salary slip')}</p>
+      </div>
+      <div class="pr-slip-who">
+        <strong>${esc(slip.name || '')}</strong>
+        ${slip.about ? `<span>${esc(slip.about)}</span>` : ''}
+      </div>
+    </header>
+    ${
+      slip.facts?.length
+        ? `<table class="pr-table pr-slip-facts"><tbody>${slip.facts
+            .map(([label, value]) => `<tr><th>${esc(label)}</th><td class="num">${esc(value)}</td></tr>`)
+            .join('')}</tbody></table>`
+        : ''
+    }
+    <div class="pr-slip-cols">
+      <table class="pr-table">
+        <thead><tr><th>Earnings</th><th class="num">Amount</th></tr></thead>
+        <tbody>${slipRows(slip.earnings, slip.earningsTotal)}</tbody>
+      </table>
+      <table class="pr-table">
+        <thead><tr><th>Deductions</th><th class="num">Amount</th></tr></thead>
+        <tbody>${
+          slip.deductions?.length
+            ? slipRows(slip.deductions, slip.deductionsTotal)
+            : `<tr><td>None</td><td class="num">—</td></tr>${
+                slip.deductionsTotal
+                  ? `<tr class="pr-slip-total"><td>${esc(slip.deductionsTotal[0])}</td><td class="num">${esc(
+                      slip.deductionsTotal[1]
+                    )}</td></tr>`
+                  : ''
+              }`
+        }</tbody>
+      </table>
+    </div>
+    <table class="pr-table pr-slip-net">
+      <tbody>
+        <tr class="pr-slip-grand"><td>${esc(slip.net?.[0] || 'Net payable')}</td><td class="num">${esc(
+          slip.net?.[1] ?? ''
+        )}</td></tr>
+        ${(slip.extras || [])
+          .map(([label, value]) => `<tr><td>${esc(label)}</td><td class="num">${esc(value)}</td></tr>`)
+          .join('')}
+      </tbody>
+    </table>
+    ${slip.note ? `<p class="pr-slip-note">${esc(slip.note)}</p>` : ''}
+  </section>`;
+
+/** The slips as HTML, apart from the browser so they can be tested. */
+export function slipsHtml({ slips = [], printedOn = null } = {}) {
+  return `<article class="pr-doc pr-slips">${slips.map(slipOf).join('')}
+    <footer class="pr-foot">${esc(`${slips.length} ${slips.length === 1 ? 'slip' : 'slips'} · printed ${printedOn || today()}`)}</footer>
+  </article>`;
+}
+
+/** Print one slip, or a batch of them, one to a page. */
+export function printSlips({ slips = [] } = {}) {
+  if (!slips.length) return;
+  mount(slipsHtml({ slips }), false);
 }
 
 /** A money column, formatted by the caller and right-aligned here. */

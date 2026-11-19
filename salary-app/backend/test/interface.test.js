@@ -2211,3 +2211,30 @@ test('attendance and leave each print their own register', () => {
   assert.match(leave, /left < 0 \? '-' : ''/);
   assert.match(leave, /Taken is counted from the attendance marks/);
 });
+
+test('the payslip and the batch of payslips are one document, built once', () => {
+  const slip = src('components/Payslip.jsx');
+  const sheet = src('components/SalarySheet.jsx');
+
+  // The lines live in shared/, so the screen and the printed stack cannot
+  // drift - the first hand-written copy had already lost the penalty line.
+  assert.match(slip, /payslipLines/);
+  assert.match(slip, /export function slipFor/);
+  assert.match(sheet, /import \{ slipFor \} from '\.\/Payslip\.jsx'/);
+
+  // Neither prints the screen any more.
+  assert.ok(!slip.includes('window.print()'));
+  assert.match(slip, /printSlips\(\{ slips: \[slipFor\(row, period, calc\)\] \}\)/);
+  assert.match(sheet, /Print \{filtered\.length\} payslip/);
+
+  // One slip to a page, and the last one does not leave a blank sheet.
+  assert.match(css, /\.pr-slips \.pr-slip \{ page-break-after: always/);
+  assert.match(css, /\.pr-slips \.pr-slip:last-of-type \{ page-break-after: auto/);
+
+  /*
+   * The <header> trap, fourth time: a global rule stacks every header into
+   * a column, so the employee's name landed UNDER the company name instead
+   * of opposite it. Measured on a printed PDF.
+   */
+  assert.match(css, /\.pr-slip-head \{\s*display: flex !important; flex-direction: row !important/);
+});

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, totalRows } from '../../../shared/calc.js';
-import { col, num, printReport } from '../printReport.js';
+import { col, num, printReport, printSlips } from '../printReport.js';
+import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -172,6 +173,12 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
     });
   };
 
+  /** A slip each, in the order the sheet is showing them. */
+  const printSlipsForAll = () =>
+    printSlips({
+      slips: filtered.map((row) => slipFor(row, period, calculateRow(row, period, row.attendance))),
+    });
+
   return (
     /* `salary-page` only means one thing: twenty columns want landscape paper. */
     <section className="salary-page">
@@ -200,6 +207,19 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
         <span className="grow" />
         <button className="ghost" onClick={printSheet} disabled={!filtered.length}>
           Print the register
+        </button>
+        {/*
+          * EVERY SLIP, ONE TO A PAGE. Dinesh: *"salary slip aur payslip ka
+          * bhi print report do"*. Each is the same document the single
+          * payslip prints - one function, so a line added to one can never
+          * be missing from eighty-five.
+          *
+          * Printed, not forwarded: "Send payslips" beside this makes one
+          * HTML file per person for WhatsApp, where ONE FILE HOLDS ONE
+          * PERSON. This is the stack for the drawer.
+          */}
+        <button className="ghost" onClick={printSlipsForAll} disabled={!filtered.length}>
+          Print {filtered.length} payslip{filtered.length === 1 ? '' : 's'}
         </button>
         {saving > 0 && <span className="pill saving">Saving {saving}…</span>}
         {locked && <span className="pill locked">Locked</span>}

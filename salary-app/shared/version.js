@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.33.0';
+export const VERSION = '1.34.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.34.0',
+    date: '19 Nov 2026',
+    title: 'Salary slips, printed — one, or the whole month',
+    items: [
+      '**The payslip prints as a slip**, not as the window it was sitting in: company at the top, the person on the right, the month’s days and day rate, **Earnings against Deductions**, and the net payable across the foot.',
+      '**Salary sheet → “Print N payslips”** prints one for everybody on screen, **one slip to a page**. A slip is handed to one person, so two people’s pay never share a sheet.',
+      'Both are **the same document, built once** — a line added to one can never be missing from the other eighty-five. (A first hand-written copy of the layout had already dropped the penalty line.)',
+      'Every figure comes out of the salary sheet itself: **earned, less deductions, is the net, to the rupee** — a one-off deduction and the late/early charge are added back into what was earned and then listed among the deductions, shown both ways at once and still balancing.',
+      '**Nothing that came to zero is printed** — a slip reading “ESI 0” only invites the question — and **Sunday duty is stated below the net, never added in**, because it is paid from its own register.',
+      'This is for the drawer. **“Send payslips”** beside it still makes one small HTML file per person to forward on WhatsApp, where **one file holds one person**.',
+    ],
+  },
   {
     version: '1.33.0',
     date: '19 Nov 2026',

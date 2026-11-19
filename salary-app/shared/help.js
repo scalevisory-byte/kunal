@@ -496,6 +496,7 @@ export const HELP = [
       'chhapna', 'print karna', 'nikalna', 'hard copy', 'a4', 'page',
     ],
     lines: [
+      '**Salary slips print as slips.** Open anybody’s payslip and press Print, or use **Print N payslips** on the salary sheet for everybody on screen — **one slip to a page**, company at the top, earnings against deductions, net across the foot. Both are the same document, so they can never say different things.',
       '**A Print button builds a report, it does not photograph the screen.** Eight screens have one: **Attendance** (the month as a muster roll — every day across, Sundays shaded, each person’s tallies at the end, the codes printed at the foot), **Leave** (due / taken / left for CL, SL and PL, with unpaid beside it), Assets → Register, Assets → Full register, one person’s asset ledger, Maintenance, Employees, and the Salary sheet. Each comes out as a document — a title saying what it is and what it was narrowed to, the columns, a totals row, and the rule that matters at the foot.',
       '**It prints exactly what is on screen** — your filters, your search and the company picker already applied, and the paper says which. Nothing is recalculated, so the sheet and the page cannot disagree about a rupee.',
       'While a report prints, **the app itself is not on the paper at all**, so nothing open on screen can reach the page.',

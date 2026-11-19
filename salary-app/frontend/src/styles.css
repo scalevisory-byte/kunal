@@ -1562,6 +1562,44 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
 .pr-table .pr-off { background: #f1f1f1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /*
+ * A SALARY SLIP, printed — one to a page, always.
+ *
+ * A slip is handed to one person. Two people's pay on one sheet is the
+ * thing a payslip exists to avoid, so every slip but the last breaks the
+ * page after it, whether one was printed or eighty-five.
+ */
+.pr-slips .pr-slip { page-break-after: always; break-after: page; }
+.pr-slips .pr-slip:last-of-type { page-break-after: auto; break-after: auto; }
+.pr-slip { font-size: 10px; }
+/*
+ * THE <header> TRAP, fourth time. A global rule stacks every `header` into
+ * a column, so the employee's name landed under the company name instead of
+ * opposite it. The direction is explicit and important here for that
+ * reason - same family as the help panel's close button and the checkbox a
+ * global `input` rule flattened.
+ */
+.pr-slip-head {
+  display: flex !important; flex-direction: row !important;
+  justify-content: space-between; align-items: flex-start; gap: 16px;
+  padding: 0 0 6px; border-bottom: 1.5px solid #000; margin: 0 0 8px;
+}
+.pr-slip-head h2 { margin: 0; font-size: 14px; }
+.pr-slip-what { margin: 2px 0 0; font-size: 10px; color: #444; }
+.pr-slip-who { text-align: right; }
+.pr-slip-who strong { display: block; font-size: 12px; }
+.pr-slip-who span { font-size: 9.5px; color: #444; }
+.pr-slip-facts { width: 100%; margin: 0 0 8px; }
+.pr-slip-facts th { width: 60%; font-weight: 400; }
+.pr-slip-cols { display: flex; gap: 10px; align-items: flex-start; }
+.pr-slip-cols > table { width: 50%; }
+.pr-slip-total td { border-top: 1px solid #000; font-weight: 700; background: #f3f3f3;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pr-slip-net { margin-top: 8px; }
+.pr-slip-grand td { font-size: 11.5px; font-weight: 700; background: #e8e8e8;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pr-slip-note { margin: 6px 0 0; font-size: 9px; color: #444; }
+
+/*
  * A MUSTER IS THIRTY-EIGHT COLUMNS. One line per person, one column per day
  * of the month, then the tallies - it only fits read small, and a mark is
  * one or two letters, so small is still legible.

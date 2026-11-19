@@ -1,6 +1,37 @@
 import { useMemo } from 'react';
 import { calculateRow } from '../../../shared/calc.js';
+import { payslipFacts, payslipLines } from '../../../shared/payslipLines.js';
 import { days, rupees, rupees2 } from '../format.js';
+import { printSlips } from '../printReport.js';
+
+/**
+ * The slip for printing, from the same lines the screen is showing.
+ *
+ * Exported so the salary sheet can print a batch of them without a second
+ * copy of this layout — one was written by hand first and had already lost
+ * the penalty line.
+ */
+export function slipFor(row, period, calc) {
+  const { earned, earnings, deductions, totalDeductions, net, sunday } = payslipLines(row, calc);
+  return {
+    company: row.company_name || '',
+    what: `Salary slip — ${period.label}`,
+    name: row.employee_name,
+    about: [row.employee_code, row.designation].filter(Boolean).join(' · '),
+    facts: payslipFacts(row, calc).map(([label, value]) => [
+      label,
+      label === 'Rate per day' ? rupees2(value) : days(value),
+    ]),
+    earnings: earnings.map(([label, amount]) => [label, rupees(amount)]),
+    earningsTotal: ['Gross salary', rupees(earned)],
+    deductions: deductions.map(([label, amount]) => [label, rupees(amount)]),
+    deductionsTotal: ['Total deductions', rupees(totalDeductions)],
+    net: ['Net payable', rupees(net)],
+    /* Stated for the record, never added in: it is paid from its own register. */
+    extras: sunday > 0 ? [[`Sunday / holiday pay — paid separately`, rupees(sunday)]] : [],
+    note: `Paid by ${row.payment_mode || 'bank'}. Computer generated slip — no signature required.`,
+  };
+}
 
 /** A printable slip for one employee. Print with the browser to get a PDF. */
 export default function Payslip({ period, row, onClose }) {
@@ -15,47 +46,7 @@ export default function Payslip({ period, row, onClose }) {
   // once, and still balancing.
   // The late/early charge is inside the gross too, and gets the same treatment,
   // so "earned less deductions" still balances to the rupee.
-  const earned = calc.gross_salary + calc.deduction + (calc.late_salary || 0);
-
-  /*
-   * With a salary structure set, the slip lists Basic, HRA and the rest as
-   * this month EARNED them - already pro-rated for the days absent, which the
-   * table above states - and they add up to the gross exactly.
-   *
-   * Without one, it reads as it always has: the month's salary, less the days
-   * absent. Both shapes end at the same gross; the breakup only describes it.
-   */
-  const broken = calc.earned_basic !== null && calc.earned_basic !== undefined;
-  const structureLines = broken
-    ? [
-        ['Basic', calc.earned_basic],
-        ['HRA', calc.earned_hra],
-        ['Conveyance', calc.earned_conveyance],
-        ['Medical', calc.earned_medical],
-        ['Special allowance', calc.earned_special],
-      ]
-    : [['Salary for the month', calc.salary], ['Less: absent days', -calc.absent_salary]];
-
-  const earnings = [
-    ...structureLines,
-    ['Overtime / short hours', calc.ot_salary],
-    [row.remark ? `Added: ${row.remark}` : 'Other additions', calc.addition],
-  ].filter(([, amount]) => Number(amount) !== 0);
-
-  const deductions = [
-    ['Professional tax', calc.pt],
-    ['ESI', calc.esi],
-    ['PF', calc.pf],
-    ['Loan / advance', calc.loan_deduction],
-    ['Penalty', calc.penalty_deduction],
-    [
-      `Late / early (${calc.late_chargeable_minutes} min past ${calc.late_concession_minutes} free)`,
-      calc.late_salary,
-    ],
-    [row.remark ? `Deducted: ${row.remark}` : 'Other deductions', calc.deduction],
-  ].filter(([, amount]) => Number(amount) !== 0);
-
-  const totalDeductions = deductions.reduce((sum, [, amount]) => sum + Number(amount), 0);
+  const { earned, earnings, deductions, totalDeductions, broken } = payslipLines(row, calc);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -66,7 +57,9 @@ export default function Payslip({ period, row, onClose }) {
             <p className="muted">Salary slip — {period.label}</p>
           </div>
           <div className="no-print">
-            <button onClick={() => window.print()}>Print / PDF</button>
+            {/* Builds the slip as a document rather than printing the
+                dialog it is sitting in. */}
+            <button onClick={() => printSlips({ slips: [slipFor(row, period, calc)] })}>Print / PDF</button>
             <button onClick={onClose}>Close</button>
           </div>
         </div>
