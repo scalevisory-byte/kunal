@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../printReport.js';
 import { api } from '../api.js';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
@@ -87,6 +88,64 @@ export default function Leave({
 
   const overCount = rows.filter((r) => over(r).length > 0).length;
 
+  /**
+   * THE YEAR'S LEAVE AS A REGISTER.
+   *
+   * Due, taken and left for each kind, straight off the rows on screen — and
+   * `taken` is COUNTED FROM THE MARKS across the year's months, never a
+   * running total somebody could edit, so this page and the attendance grid
+   * cannot drift apart.
+   *
+   * Unpaid leave is shown with no balance beside it, because there is no
+   * quota for it: it was taken anyway and it was docked.
+   */
+  const printLeave = () => {
+    const narrowed = [
+      query.trim() && `matching “${query.trim()}”`,
+      onlyOver && 'only those over their entitlement',
+    ].filter(Boolean);
+    const names = [...new Set(filtered.map((r) => r.company_name).filter(Boolean))];
+    printReport({
+      title: 'Leave register',
+      subtitle: [names.length === 1 ? names[0] : 'All companies', String(year), ...narrowed].join(' · '),
+      meta: [
+        `${filtered.length} ${filtered.length === 1 ? 'person' : 'people'}`,
+        overCount ? `${overCount} over their entitlement` : 'nobody over their entitlement',
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_r, i) => i + 1, '3%'),
+        col('Employee', (r) => r.name),
+        col('Company', (r) => r.company_name || ''),
+        col('Department', (r) => r.department || ''),
+        ...LEAVE_TYPES.flatMap((t) => [
+          num(`${t.code} due`, (r) => days(r.quotas[t.code])),
+          num(`${t.code} taken`, (r) => days(r.taken[t.code])),
+          num(`${t.code} left`, (r) => {
+            const left = r.quotas[t.code] - r.taken[t.code];
+            // Over the entitlement is said as a minus, never hidden at zero.
+            return `${left < 0 ? '-' : ''}${days(Math.abs(left))}`;
+          }),
+        ]),
+        num('Unpaid', (r) => days(r.taken.UL)),
+      ],
+      rows: filtered,
+      totals: {
+        label: `Total (${filtered.length})`,
+        ...Object.fromEntries(
+          LEAVE_TYPES.flatMap((t) => [
+            [`${t.code} due`, days(totals.quota[t.code])],
+            [`${t.code} taken`, days(totals.taken[t.code])],
+            [`${t.code} left`, days(totals.quota[t.code] - totals.taken[t.code])],
+          ])
+        ),
+        Unpaid: days(totals.unpaid),
+      },
+      footer:
+        'Taken is counted from the attendance marks across the year, not kept as a separate running total — so this register and the attendance grid cannot disagree. Unpaid leave has no entitlement behind it: it was taken and it was docked.',
+    });
+  };
+
   if (view === 'weekly') {
     return (
       <section className="stack">
@@ -138,6 +197,11 @@ export default function Leave({
             <input type="checkbox" checked={onlyOver} onChange={(e) => setOnlyOver(e.target.checked)} />
             Only over their entitlement
           </label>
+          {/* The balances as a register — asked for by name alongside the
+              attendance muster. */}
+          <button className="ghost" onClick={printLeave} disabled={!filtered.length}>
+            Print the leave register
+          </button>
           <span className="grow" />
           {loading && <span className="pill saving">Loading…</span>}
           {overCount > 0 && (

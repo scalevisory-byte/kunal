@@ -52,16 +52,34 @@ const today = () =>
  * the same `rupees()` the screen used. `align: 'num'` only sets the column
  * right and keeps the digits in one width.
  */
+/*
+ * `tint` shades a whole column - the weekly off days on a muster. Without
+ * it thirty-one identical columns are read by counting across with a finger.
+ */
+const alignOf = (column) => {
+  const classes = [
+    column.align === 'num' ? 'num' : column.align === 'mid' ? 'mid' : '',
+    column.tint ? 'pr-off' : '',
+  ].filter(Boolean);
+  return classes.length ? ` class="${classes.join(' ')}"` : '';
+};
+
 const cell = (column, row, index) => {
   const value = typeof column.get === 'function' ? column.get(row, index) : row[column.get];
-  const klass = column.align === 'num' ? ' class="num"' : '';
-  return `<td${klass}>${esc(value)}</td>`;
+  return `<td${alignOf(column)}>${esc(value)}</td>`;
 };
 
 const tableOf = ({ columns = [], rows = [], totals = null, empty = 'Nothing to show.' }) => {
   if (!rows.length) return `<p class="pr-empty">${esc(empty)}</p>`;
   const head = columns
-    .map((c) => `<th${c.align === 'num' ? ' class="num"' : ''}${c.width ? ` style="width:${esc(c.width)}"` : ''}>${esc(c.head)}</th>`)
+    .map(
+      (c) =>
+        `<th${alignOf(c)}${c.width ? ` style="width:${esc(c.width)}"` : ''}>${esc(c.head)}${
+          /* A day column carries its weekday under the number, so a Sunday
+             is obvious on a muster somebody reads across. */
+          c.sub ? `<span class="pr-sub-head">${esc(c.sub)}</span>` : ''
+        }</th>`
+    )
     .join('');
   const body = rows
     .map((row, i) => `<tr>${columns.map((c) => cell(c, row, i)).join('')}</tr>`)
@@ -84,7 +102,7 @@ const tableOf = ({ columns = [], rows = [], totals = null, empty = 'Nothing to s
     const cells = [`<td colspan="${firstTotalled}">${esc(totals.label || 'Total')}</td>`];
     for (let i = firstTotalled; i < columns.length; i += 1) {
       const c = columns[i];
-      cells.push(`<td${c.align === 'num' ? ' class="num"' : ''}>${esc(totals[c.head] ?? '')}</td>`);
+      cells.push(`<td${alignOf(c)}>${esc(totals[c.head] ?? '')}</td>`);
     }
     foot = `<tfoot><tr>${cells.join('')}</tr></tfoot>`;
   }
@@ -131,13 +149,14 @@ export function reportHtml({
   totals = null,
   empty,
   landscape = false,
+  compact = false,
   footer = '',
   printedOn = null,
 } = {}) {
   const blocks = sections || [{ columns, rows, totals, empty }];
   const count = blocks.reduce((sum, b) => sum + (b.rows?.length || 0), 0);
   return `
-    <article class="pr-doc${landscape ? ' pr-wide' : ''}">
+    <article class="pr-doc${landscape ? ' pr-wide' : ''}${compact ? ' pr-tight' : ''}">
       <header class="pr-head">
         <h1>${esc(title)}</h1>
         ${subtitle ? `<p class="pr-sub">${esc(subtitle)}</p>` : ''}
@@ -158,6 +177,7 @@ export function printReport({
   totals = null,
   empty,
   landscape = false,
+  compact = false,
   footer = '',
 } = {}) {
   let root = document.getElementById(PRINT_ROOT);
@@ -167,7 +187,9 @@ export function printReport({
     document.body.appendChild(root);
   }
 
-  root.innerHTML = reportHtml({ title, subtitle, meta, sections, columns, rows, totals, empty, landscape, footer });
+  root.innerHTML = reportHtml({
+    title, subtitle, meta, sections, columns, rows, totals, empty, landscape, compact, footer,
+  });
 
   /*
    * The orientation is written into the document itself, because `@page`

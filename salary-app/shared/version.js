@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.32.0';
+export const VERSION = '1.33.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.33.0',
+    date: '19 Nov 2026',
+    title: 'The attendance muster and the leave register, printed',
+    items: [
+      '**Attendance → Print the muster.** The whole month as a muster roll: every name down the side, every day across the top with its weekday, **Sundays shaded**, and each person’s P / A / HF / leave / days lost / OT minutes at the end. The attendance codes are printed at the foot, because a muster is read by somebody who did not mark it.',
+      'It prints the marks **on screen**, anything you have just typed included, and the search you have narrowed it with. Nothing is recounted — the tallies are the sheet’s own.',
+      '**Leave → Print the leave register.** Due, taken and left for CL, SL and PL for each person, unpaid leave beside it, and the year’s totals. Over the entitlement prints as a **minus**, not as a zero.',
+      'The register says on it that **taken is counted from the attendance marks**, not kept as a separate running total — so the leave register and the attendance grid cannot disagree.',
+      'Both honour the company filter and the search, and both say at the top what they were narrowed to.',
+    ],
+  },
   {
     version: '1.32.0',
     date: '19 Nov 2026',

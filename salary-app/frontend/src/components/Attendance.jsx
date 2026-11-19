@@ -9,6 +9,7 @@ import {
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
 import ScrollFrame from './ScrollFrame.jsx';
+import { col, num, printReport } from '../printReport.js';
 
 /**
  * The day-by-day grid from the left of the sheet.
@@ -42,6 +43,67 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
       (r) => r.employee_name.toLowerCase().includes(q) || (r.company_name || '').toLowerCase().includes(q)
     );
   }, [rows, query]);
+
+  /**
+   * The month as a muster roll — one line per person, one column per day.
+   *
+   * It reads the SAME marks the grid is showing, unsaved edits included
+   * (`effectiveAttendance`), so the paper is what is on the screen in front
+   * of whoever pressed the button. Nothing is counted twice: the tallies at
+   * the end are the row's own, from `countMarks`, which is what the sheet is
+   * paid from.
+   */
+  const printMuster = () => {
+    const lines = filtered.map((row) => {
+      const merged = effectiveAttendance(row);
+      return {
+        row,
+        merged,
+        counts: countMarks(merged),
+        minutes: minutesFromAttendance(merged),
+        absent: absentDaysFromAttendance(merged),
+      };
+    });
+    const tally = (line, ...codes) => codes.reduce((sum, c) => sum + (line.counts[c] || 0), 0);
+    printReport({
+      title: 'Attendance muster',
+      subtitle: [`${monthName} ${period.year}`, query.trim() && `matching “${query.trim()}”`]
+        .filter(Boolean)
+        .join(' · '),
+      meta: [`${lines.length} ${lines.length === 1 ? 'person' : 'people'} · ${total} days`],
+      landscape: true,
+      compact: true,
+      columns: [
+        col('#', (_l, i) => i + 1, '2%'),
+        col('Employee', (l) => l.row.employee_name, '12%'),
+        ...dayList.map((d) => ({
+          head: String(d),
+          /* The weekday under the number, so a Sunday is obvious on paper. */
+          sub: weekday(period.year, period.month, d),
+          /*
+           * The off days are shaded, the column shaded on screen. Thirty-one
+           * identical columns are otherwise read by counting across with a
+           * finger - and the week it is in is the first thing somebody
+           * checking a muster looks for.
+           */
+          tint: isSunday(period.year, period.month, d),
+          get: (l) => (l.merged[d]?.code || l.merged[d] || '').toString(),
+          align: 'mid',
+        })),
+        num('P', (l) => tally(l, 'P', 'WH') || ''),
+        num('A', (l) => tally(l, 'A', 'AD') || ''),
+        num('HF', (l) => tally(l, 'HF') || ''),
+        num('Leave', (l) => tally(l, 'CL', 'SL', 'PL', 'UL') || ''),
+        num('Days lost', (l) => l.absent || ''),
+        num('OT/LT min', (l) => l.minutes || ''),
+      ],
+      rows: lines,
+      /* The codes, because a muster is read by somebody who did not mark it. */
+      footer: `${Object.entries(ATTENDANCE_CODES)
+        .map(([code, meta]) => `${code} ${meta.label}`)
+        .join(' · ')}. Days lost is in days of PAY — a half day costs 0.5 and a double absence costs 2.`,
+    });
+  };
 
   const entryOf = (row, day) => {
     const key = `${row.employee_id}:${day}`;
@@ -266,6 +328,15 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
             Import from Excel
           </button>
         ) : null}
+        {/*
+          * THE MUSTER ROLL. Dinesh: *"attendance aur leave ka bhi print
+          * report do"*. The grid on screen is a month of boxes to click;
+          * what the office files is a muster - every name, every day, and
+          * what each person's month came to.
+          */}
+        <button className="ghost" onClick={printMuster} disabled={!filtered.length}>
+          Print the muster
+        </button>
         <span className="muted small">Click any day to set the mark and its short hours.</span>
         <span className="grow" />
         {status && <span className="pill saving">{status}</span>}

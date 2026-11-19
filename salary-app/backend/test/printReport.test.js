@@ -92,3 +92,30 @@ test('the foot counts the lines when the caller says nothing', () => {
     /<footer class="pr-foot">2 lines<\/footer>/
   );
 });
+
+test('a muster column can carry its weekday and shade its off days', () => {
+  /*
+   * Thirty-one identical columns are otherwise read by counting across with
+   * a finger, and the week a day falls in is the first thing somebody
+   * checking a muster looks for.
+   */
+  const html = reportHtml({
+    columns: [
+      col('Employee', (r) => r.name),
+      { head: '1', sub: 'SUN', tint: true, align: 'mid', get: (r) => r.d1 },
+      { head: '2', sub: 'MON', align: 'mid', get: (r) => r.d2 },
+    ],
+    rows: [{ name: 'Amit Patel', d1: 'S', d2: 'P' }],
+    printedOn: 'today',
+  });
+  assert.match(html, /<th class="mid pr-off"[^>]*>1<span class="pr-sub-head">SUN<\/span><\/th>/);
+  assert.match(html, /<th class="mid"[^>]*>2<span class="pr-sub-head">MON<\/span><\/th>/);
+  // The shading follows the column down the rows, not only its header.
+  assert.match(html, /<td class="mid pr-off">S<\/td>/);
+  assert.match(html, /<td class="mid">P<\/td>/);
+});
+
+test('a compact report says so, for the one that is thirty-eight columns wide', () => {
+  assert.match(reportHtml({ compact: true, printedOn: 'today' }), /class="pr-doc pr-tight"/);
+  assert.ok(!reportHtml({ printedOn: 'today' }).includes('pr-tight'));
+});

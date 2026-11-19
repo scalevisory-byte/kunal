@@ -496,7 +496,7 @@ export const HELP = [
       'chhapna', 'print karna', 'nikalna', 'hard copy', 'a4', 'page',
     ],
     lines: [
-      '**A Print button builds a report, it does not photograph the screen.** Six screens have one: Assets → Register, Assets → Full register, one person’s asset ledger, Maintenance, Employees, and the Salary sheet. Each comes out as a document — a title saying what it is and what it was narrowed to, the columns, a totals row, and the rule that matters at the foot.',
+      '**A Print button builds a report, it does not photograph the screen.** Eight screens have one: **Attendance** (the month as a muster roll — every day across, Sundays shaded, each person’s tallies at the end, the codes printed at the foot), **Leave** (due / taken / left for CL, SL and PL, with unpaid beside it), Assets → Register, Assets → Full register, one person’s asset ledger, Maintenance, Employees, and the Salary sheet. Each comes out as a document — a title saying what it is and what it was narrowed to, the columns, a totals row, and the rule that matters at the foot.',
       '**It prints exactly what is on screen** — your filters, your search and the company picker already applied, and the paper says which. Nothing is recalculated, so the sheet and the page cannot disagree about a rupee.',
       'While a report prints, **the app itself is not on the paper at all**, so nothing open on screen can reach the page.',
       'Ctrl+P on a screen with no Print button still works and leaves out the sidebar, the navy bar, the tabs and the month and company pickers — they are controls, and a control on paper is something somebody cannot press.',

@@ -2184,3 +2184,30 @@ test('a printed staff list says it carries salaries', () => {
    */
   assert.match(src('components/Employees.jsx'), /This list carries salaries/);
 });
+
+test('attendance and leave each print their own register', () => {
+  /*
+   * "attendance aur leave ka bhi print report do". The grid is a month of
+   * boxes to click and the balances screen is a table of quota boxes; what
+   * the office files is a muster and a leave register.
+   */
+  const att = src('components/Attendance.jsx');
+  assert.match(att, /printReport/);
+  assert.match(att, /title: 'Attendance muster'/);
+  // The marks it prints are the ones ON SCREEN, unsaved edits included.
+  assert.match(att, /effectiveAttendance\(row\)/);
+  // Every day of the month, with its weekday, and the off days shaded.
+  assert.match(att, /\.\.\.dayList\.map/);
+  assert.match(att, /sub: weekday\(period\.year, period\.month, d\)/);
+  assert.match(att, /tint: isSunday\(period\.year, period\.month, d\)/);
+  // The codes are on the paper: a muster is read by somebody who did not
+  // mark it.
+  assert.match(att, /ATTENDANCE_CODES/);
+
+  const leave = src('components/Leave.jsx');
+  assert.match(leave, /title: 'Leave register'/);
+  // Due / taken / left for each kind, and over-entitlement shown as a minus
+  // rather than hidden at zero.
+  assert.match(leave, /left < 0 \? '-' : ''/);
+  assert.match(leave, /Taken is counted from the attendance marks/);
+});
