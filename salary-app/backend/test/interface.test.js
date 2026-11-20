@@ -2617,3 +2617,31 @@ test('the front office report opens WhatsApp with itself already typed', () => {
   // The text is the same one the screen is showing and the Copy button copies.
   assert.match(fo, /openWhatsApp\(reportText\)/);
 });
+
+test('the front desk registers read like registers', () => {
+  /*
+   * He sent a picture of one visitor row: "ye format sahi karo". Three
+   * things were wrong with it - an em dash in every empty box, a table that
+   * hugged its own width and left half the card blank, and Delete spelled
+   * out in full on every line.
+   */
+  const fo = src('components/FrontOffice.jsx');
+
+  // A blank cell is blank. No dash standing in for "nothing to say".
+  assert.ok(!/\|\| '—'/.test(fo), 'an empty cell must not carry a dash');
+
+  // Numbered and full width, like every other register in this app.
+  assert.match(fo, /className="sheet numbered fo-table"/);
+  assert.match(css, /table\.sheet\.fo-table \{ width: 100%; \}/);
+  assert.equal(fo.match(/className="row-no"/g).length >= 6, true);
+
+  // Headings over words line up with the words.
+  assert.match(css, /table\.sheet\.fo-table thead th \{ text-align: left; \}/);
+
+  // Delete is a ✕ at the end of the row, and still asks first.
+  assert.match(fo, /className="icon-x"/);
+  assert.match(fo, /window\.confirm\(`Remove \$\{v\.name\} from the register\?`\)/);
+
+  // The "saved" note goes away rather than sitting on the page for ever.
+  assert.match(fo, /setTimeout\(\(\) => setSaid\(''\), 4000\)/);
+});

@@ -4667,3 +4667,48 @@ tr.fo-flagged td:first-child::before { content: '• '; color: var(--danger, #c0
   margin: 0.6rem 0 0;
   overflow-x: auto;
 }
+
+/* THE FRONT DESK'S REGISTERS.
+ *
+ * `table.sheet` is width:auto, which is right for the salary sheet's twenty
+ * columns and wrong here: a visitor book with one line in it hugged its own
+ * text and left half the card empty. These fill the card, and the name (or
+ * the area, or who the parcel is from) takes the slack. */
+table.sheet.fo-table { width: 100%; }
+table.sheet.fo-table th.grow, table.sheet.fo-table td:nth-child(4) { width: auto; }
+table.sheet.fo-table td:last-child, table.sheet.fo-table th:last-child { width: 2.2rem; }
+
+/* Clock times, mobile numbers and tracking numbers: figures, so they line up
+   under each other rather than wandering with the typeface. */
+.fo-tel { font-variant-numeric: tabular-nums; }
+
+/* Somebody who has not been signed out, marked down the edge the way the roll
+   call marks a row - not a colour anybody has to learn. */
+table.sheet.fo-table tr.fo-in td:nth-child(2) { box-shadow: inset 3px 0 var(--brand); }
+
+/* Delete is a ✕ at the end of the row, not the loudest word on the page. */
+.icon-x {
+  border: 0; background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.85rem; line-height: 1; padding: 0.15rem 0.3rem; border-radius: 4px;
+}
+.icon-x:hover { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.icon-x:disabled { opacity: 0.4; cursor: default; }
+
+/* "Nothing in or out for this date" belongs under the columns it is about,
+   not centred in the middle of an empty card. */
+.fo-empty { text-align: left; padding: 0.6rem 0.4rem; }
+
+/* A register's headings sit over words, not figures, so they line up with the
+   words. (The salary sheet keeps its centred headings - twenty number columns
+   read better that way, which is why this is scoped here.) */
+table.sheet.fo-table thead th { text-align: left; }
+table.sheet.fo-table thead th.row-no { text-align: center; }
+
+/* "Out now" has to look like something you press. */
+table.sheet.fo-table button.tiny.ghost {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.05rem 0.45rem;
+  background: var(--card, #fff);
+}
+table.sheet.fo-table button.tiny.ghost:hover { border-color: var(--brand); color: var(--brand); }

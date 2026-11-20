@@ -45,10 +45,19 @@ const prettyDay = (iso) => {
 };
 
 export default function FrontOffice({ onError }) {
-  /* Its own one-line "saved" note rather than the app's, so the desk sees it
-     where it is standing. */
+  /*
+   * Its own one-line "saved" note rather than the app's, so the desk sees it
+   * where it is standing - and it GOES AWAY. A note that stays reads as part
+   * of the page: his screenshot had "Signed in" sitting above the tabs long
+   * after the visitor it belonged to.
+   */
   const [said, setSaid] = useState('');
   const onToast = (message) => setSaid(message);
+  useEffect(() => {
+    if (!said) return undefined;
+    const timer = window.setTimeout(() => setSaid(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [said]);
   const [day, setDay] = useState(todayISO);
   const [view, setView] = useState('today');
   const [data, setData] = useState(null);
@@ -296,15 +305,19 @@ export default function FrontOffice({ onError }) {
               </button>
             </div>
             {data.areas.length ? (
-              <table className="sheet">
+              <table className="sheet numbered fo-table">
                 <thead>
-                  <tr><th className="grow">Area</th><th>Verdict</th><th>Remark</th><th>Checked by</th></tr>
+                  <tr>
+                    <th className="row-no">#</th>
+                    <th className="grow">Area</th><th>Verdict</th><th>Remark</th><th>Checked by</th>
+                  </tr>
                 </thead>
                 <tbody>
                   {data.areas.map((area) => {
                     const now = statusOf(area);
                     return (
                       <tr key={area.id} className={isFlag(now.status) ? 'fo-flagged' : undefined}>
+                        <td className="row-no">{data.areas.indexOf(area) + 1}</td>
                         <td>{area.name}</td>
                         <td>
                           <select
@@ -390,21 +403,38 @@ export default function FrontOffice({ onError }) {
                 Print the register
               </button>
             </div>
-            <table className="sheet">
+            {/*
+              * A REGISTER, not a form that has been filled in.
+              *
+              * Dinesh sent a picture of one row and said *"ye format sahi
+              * karo"*. Three things were wrong with it: every empty box
+              * carried an em dash, which is five dashes shouting on a row
+              * that says nothing; the table hugged its own width and left
+              * half the card blank; and Delete sat spelled out in full on
+              * every line, which is the loudest word on a page where nothing
+              * should be deleted.
+              *
+              * A blank cell is blank now, the table fills the card with the
+              * name taking the slack, the rows are numbered the way every
+              * other register in this app is, and Delete is a ✕ at the end.
+              */}
+            <table className="sheet numbered fo-table">
               <thead>
                 <tr>
+                  <th className="row-no">#</th>
                   <th>In</th><th>Out</th><th className="grow">Name</th><th>Company</th>
-                  <th>To meet</th><th>Purpose</th><th>Mobile</th><th />
+                  <th>To meet</th><th>Purpose</th><th>Mobile</th><th>Pass</th><th />
                 </tr>
               </thead>
               <tbody>
-                {data.visitors.map((v) => (
-                  <tr key={v.id}>
-                    <td className="small">{v.in_time || '—'}</td>
-                    <td className="small">
+                {data.visitors.map((v, i) => (
+                  <tr key={v.id} className={v.out_time ? undefined : 'fo-in'}>
+                    <td className="row-no">{i + 1}</td>
+                    <td className="fo-tel">{v.in_time || ''}</td>
+                    <td className="fo-tel">
                       {v.out_time || (
                         <button
-                          className="tiny"
+                          className="tiny ghost"
                           disabled={busy}
                           onClick={() => act(() => api.patch(`/front-office/visitors/${v.id}`, { out_time: nowHHMM() }))}
                         >
@@ -416,27 +446,31 @@ export default function FrontOffice({ onError }) {
                       )}
                     </td>
                     <td>{v.name}</td>
-                    <td className="small">{v.company || '—'}</td>
-                    <td className="small">{v.meeting || '—'}</td>
-                    <td className="small">{v.purpose || '—'}</td>
-                    <td className="small">{v.mobile || '—'}</td>
+                    <td className="small">{v.company}</td>
+                    <td className="small">{v.meeting}</td>
+                    <td className="small">{v.purpose}</td>
+                    <td className="small fo-tel">{v.mobile}</td>
+                    <td className="small">{v.pass_no}</td>
                     <td className="right">
                       <button
-                        className="tiny danger"
+                        className="icon-x"
+                        title={`Remove ${v.name} from the register`}
                         disabled={busy}
                         onClick={() => {
                           if (!window.confirm(`Remove ${v.name} from the register?`)) return;
                           act(() => api.del(`/front-office/visitors/${v.id}`));
                         }}
                       >
-                        Delete
+                        ✕
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!data.visitors.length ? <p className="empty">Nobody signed in for this date.</p> : null}
+            {!data.visitors.length ? (
+              <p className="empty fo-empty">Nobody signed in for this date.</p>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -497,40 +531,45 @@ export default function FrontOffice({ onError }) {
                 Print the register
               </button>
             </div>
-            <table className="sheet">
+            <table className="sheet numbered fo-table">
               <thead>
                 <tr>
+                  <th className="row-no">#</th>
                   <th>Time</th><th>In / Out</th><th>Courier</th><th>Ref</th>
                   <th className="grow">From / To</th><th>By</th><th>Remark</th><th />
                 </tr>
               </thead>
               <tbody>
-                {data.courier.map((c) => (
+                {data.courier.map((c, i) => (
                   <tr key={c.id}>
-                    <td className="small">{c.at_time || '—'}</td>
+                    <td className="row-no">{i + 1}</td>
+                    <td className="fo-tel">{c.at_time || ''}</td>
                     <td><span className={`tag ${c.direction === 'Inward' ? 'open' : ''}`}>{c.direction}</span></td>
-                    <td className="small">{c.company || '—'}</td>
-                    <td className="small">{c.ref_no || '—'}</td>
-                    <td className="small">{c.party || '—'}</td>
-                    <td className="small">{c.handler || '—'}</td>
-                    <td className="small">{c.remark || '—'}</td>
+                    <td className="small">{c.company}</td>
+                    <td className="small fo-tel">{c.ref_no}</td>
+                    <td className="small">{c.party}</td>
+                    <td className="small">{c.handler}</td>
+                    <td className="small">{c.remark}</td>
                     <td className="right">
                       <button
-                        className="tiny danger"
+                        className="icon-x"
+                        title="Remove this courier entry"
                         disabled={busy}
                         onClick={() => {
                           if (!window.confirm('Remove this courier entry?')) return;
                           act(() => api.del(`/front-office/courier/${c.id}`));
                         }}
                       >
-                        Delete
+                        ✕
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {!data.courier.length ? <p className="empty">Nothing in or out for this date.</p> : null}
+            {!data.courier.length ? (
+              <p className="empty fo-empty">Nothing in or out for this date.</p>
+            ) : null}
           </div>
         </>
       ) : null}

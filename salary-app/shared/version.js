@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.48.0';
+export const VERSION = '1.49.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.49.0',
+    date: '20 Nov 2026',
+    title: 'The front desk registers, tidied',
+    items: [
+      '**The visitor book, the courier register and the housekeeping check now read like registers.** They fill the card instead of hugging one row of text, the rows are numbered, and the headings line up with the words under them.',
+      '**An empty box is empty.** The dash that stood in every blank column is gone — a visitor with no company and no purpose no longer reads as a row of dashes.',
+      '**Delete is a ✕ at the end of the row**, not the loudest word on the page. It still asks before it removes anything.',
+      'Times, mobile numbers and tracking numbers line up under each other, and a visitor who has not been signed out is marked down the edge of the row.',
+      'The “saved” note now goes away after a few seconds instead of sitting above the tabs for the rest of the day.',
+    ],
+  },
   {
     version: '1.48.0',
     date: '20 Nov 2026',
