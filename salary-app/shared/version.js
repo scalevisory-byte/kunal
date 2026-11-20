@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.47.0';
+export const VERSION = '1.48.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.48.0',
+    date: '20 Nov 2026',
+    title: 'Send the front office report on WhatsApp',
+    items: [
+      '**Send on WhatsApp** on the front office’s Daily report and Monthly summary: one tap opens WhatsApp with the whole message already typed — pick the group and press send.',
+      'The same link works on a phone, in the WhatsApp desktop app and on WhatsApp Web. **Copy the text** is still there beside it.',
+      '**Nothing is sent by itself**, so it cannot land in the wrong chat. Sending it unattended at a set time needs a WhatsApp number this app is allowed to send from — that part is a decision, not a build, and the screen says so.',
+    ],
+  },
   {
     version: '1.47.0',
     date: '20 Nov 2026',

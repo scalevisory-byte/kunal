@@ -2599,3 +2599,21 @@ test('somebody who has left is not offered in any "pick somebody" box', () => {
   assert.ok(!employees.includes('Typing it does not take them off the payroll'));
   assert.match(employees, /A date that has passed takes them off the list/);
 });
+
+test('the front office report opens WhatsApp with itself already typed', () => {
+  /*
+   * "front office ka daily report whatsapp pe auto bhej sakte he kya?" -
+   * unattended sending needs a number this app may send from, which it does
+   * not have yet. This is the honest half, and the screen says exactly that:
+   * one tap opens WhatsApp with the message in the box, and the person picks
+   * the chat. NOTHING IS SENT BY ITSELF, so it cannot land in the wrong group.
+   */
+  const fo = src('components/FrontOffice.jsx');
+  assert.match(fo, /https:\/\/wa\.me\/\?text=\$\{encodeURIComponent\(text\)\}/);
+  assert.match(fo, /Send on WhatsApp/);
+  // wa.me, not whatsapp://, so the same link works on a phone and on the desktop.
+  assert.ok(!fo.includes('whatsapp://'));
+  assert.match(fo, /It is never sent by itself/);
+  // The text is the same one the screen is showing and the Copy button copies.
+  assert.match(fo, /openWhatsApp\(reportText\)/);
+});

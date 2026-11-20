@@ -209,6 +209,23 @@ export default function FrontOffice({ onError }) {
     });
   };
 
+  /**
+   * OPEN WHATSAPP WITH THE REPORT ALREADY TYPED.
+   *
+   * Dinesh: *"front office ka daily report whatsapp pe auto bhej sakte he
+   * kya?"*. Truly unattended sending needs a channel this app does not have
+   * (see the note under the button), and until there is one this is the
+   * honest half: one tap opens WhatsApp with the whole report in the box, he
+   * picks the group, and presses send. Nothing is sent by itself, and nothing
+   * can go to the wrong group.
+   *
+   * A `wa.me` link rather than the app's own URL scheme, because the same
+   * one works on his phone, in the desktop app and on WhatsApp Web.
+   */
+  const openWhatsApp = (text) => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  };
+
   const copy = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -523,7 +540,10 @@ export default function FrontOffice({ onError }) {
           <div className="row">
             <h3>Daily front office report</h3>
             <span className="grow" />
-            <button onClick={() => copy(reportText)}>Copy for WhatsApp</button>
+            <button className="primary" onClick={() => openWhatsApp(reportText)}>
+              Send on WhatsApp
+            </button>
+            <button onClick={() => copy(reportText)}>Copy the text</button>
             <button className="ghost" onClick={printWalk}>Print the check</button>
           </div>
           <p className="muted small">
@@ -532,6 +552,12 @@ export default function FrontOffice({ onError }) {
             are said to be unchecked, and a visitor with no out time is shown as still in.
           </p>
           <pre className="fo-report">{reportText}</pre>
+          <p className="muted small">
+            <strong>Send on WhatsApp</strong> opens WhatsApp with this message already typed —
+            pick the group and press send. It is never sent by itself, so it cannot land in the
+            wrong chat. Sending it unattended at a set time needs a WhatsApp number this app is
+            allowed to send from; ask and it can be set up.
+          </p>
         </div>
       ) : null}
 
@@ -543,8 +569,15 @@ export default function FrontOffice({ onError }) {
               <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
             </label>
             <span className="grow" />
+            <button
+              className="primary"
+              onClick={() => summary && openWhatsApp(monthSummaryText(summary))}
+              disabled={!summary}
+            >
+              Send on WhatsApp
+            </button>
             <button onClick={() => summary && copy(monthSummaryText(summary))} disabled={!summary}>
-              Copy for WhatsApp
+              Copy the text
             </button>
             <button className="ghost" onClick={printMonth} disabled={!summary}>
               Print the summary
