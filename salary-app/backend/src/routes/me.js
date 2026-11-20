@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireSelf } from '../auth.js';
+import { logoDataUri } from '../companyLogos.js';
 import {
   getEmployee,
   listDocuments,
@@ -385,6 +386,24 @@ meRouter.patch('/', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+/*
+ * THEIR OWN COMPANY'S LOGO, so the payslip they print carries the letterhead
+ * the office's copy does.
+ *
+ * The same shape the office asks for at /companies/logos, narrowed to the one
+ * company they work for - a staff login has no `read` and must not be handed
+ * a list of the other companies. The slip is built in the browser, so the
+ * picture has to travel; the employee id comes off the LOGIN, as every route
+ * here does.
+ */
+meRouter.get('/logos', (req, res) => {
+  const employee = getEmployee(req.employeeId);
+  const logo = employee && logoDataUri(employee.company_id);
+  res.json({
+    logos: logo ? [{ id: employee.company_id, name: employee.company_name, logo }] : [],
+  });
 });
 
 /*

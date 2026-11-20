@@ -26,6 +26,8 @@
  * the same one.
  */
 
+import { safeLogo } from './logoUri.js';
+
 /* ---------------- the states ---------------- */
 
 export const OFFER_STATUSES = [
@@ -203,9 +205,8 @@ export function offerFileName(offer = {}) {
  * type, exactly as it did before there was one.
  */
 export function offerLetterHtml(offer = {}, { note, logo } = {}) {
-  const mark = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(logo || ''))
-    ? String(logo)
-    : '';
+  // One gate, shared with the payslip - see shared/logoUri.js for why.
+  const mark = safeLogo(logo);
   const lines = [
     ['Position', offer.designation],
     ['Department', offer.department],

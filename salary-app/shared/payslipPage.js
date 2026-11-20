@@ -24,6 +24,7 @@
  * single file produce the same document.
  */
 
+import { safeLogo } from './logoUri.js';
 import { ATTENDANCE_CODES } from './calc.js';
 
 const esc = (v) =>
@@ -65,9 +66,15 @@ export function payslipFileName(employee = {}, period = {}) {
  * `row` is what `calculateRow` returned - this ASSEMBLES, it never
  * recalculates, so the file and the sheet cannot disagree.
  */
-export function payslipHtml({ employee = {}, period = {}, row = {}, leave = null, note } = {}) {
+export function payslipHtml({ employee = {}, period = {}, row = {}, leave = null, note, logo } = {}) {
   const name = employee.name || row.employee_name || 'Employee';
   const company = employee.company_name || row.company_name || '';
+  /*
+   * The company's logo, carried INSIDE this file like everything else here -
+   * it is forwarded on WhatsApp and opened on a phone with no signal. Same
+   * gate as the offer letter: only a base64 data: image is written out.
+   */
+  const mark = safeLogo(logo);
 
   /* ---- how it was worked out, as a sum you can follow down the page ---- */
   const lines = [];
@@ -178,6 +185,8 @@ export function payslipHtml({ employee = {}, period = {}, row = {}, leave = null
   .sheet { max-width: 620px; margin: 0 auto; background: #fff; padding: 20px;
            border: 1px solid #e3e3df; border-radius: 10px; }
   h1 { font-size: 1.15rem; margin: 0 0 2px; }
+  /* Held to a height, so a wordmark and a 2000px signboard look the same. */
+  .logo { display: block; max-height: 46px; max-width: 13rem; margin-bottom: 10px; }
   h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: .07em;
        color: #6b6f76; margin: 22px 0 6px; font-weight: 600; }
   .sub { color: #6b6f76; font-size: .84rem; margin: 0; }
@@ -211,6 +220,7 @@ export function payslipHtml({ employee = {}, period = {}, row = {}, leave = null
 </head><body>
 <div class="no-print"><button onclick="window.print()">Print / save as PDF</button></div>
 <div class="sheet">
+  ${mark ? `<img class="logo" src="${mark}" alt="${esc(company)}">` : ''}
   <h1>${esc(name)}</h1>
   <p class="sub">${[company, employee.code, employee.designation].filter(Boolean).map(esc).join(' · ')}</p>
 

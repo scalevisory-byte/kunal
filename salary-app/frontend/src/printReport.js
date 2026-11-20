@@ -30,6 +30,8 @@
  *   ordinary, and this builds HTML.
  */
 
+import { safeLogo } from '../../shared/logoUri.js';
+
 const PRINT_ROOT = 'print-root';
 
 /** `<` in a name is a person's name, never markup. */
@@ -264,6 +266,15 @@ const slipOf = (slip) => `
   <section class="pr-slip">
     <header class="pr-slip-head">
       <div>
+        ${
+          /*
+           * The company's logo above its name, where a letterhead goes. Only
+           * a data: image is ever written here - the one gate in
+           * shared/logoUri.js, shared with the offer letter and the payslip
+           * that is forwarded on WhatsApp.
+           */
+          safeLogo(slip.logo) ? `<img class="pr-slip-logo" src="${safeLogo(slip.logo)}" alt="">` : ''
+        }
         <h2>${esc(slip.company || '')}</h2>
         <p class="pr-slip-what">${esc(slip.what || 'Salary slip')}</p>
       </div>

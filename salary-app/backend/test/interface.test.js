@@ -2230,8 +2230,19 @@ test('the payslip and the batch of payslips are one document, built once', () =>
 
   // Neither prints the screen any more.
   assert.ok(!slip.includes('window.print()'));
-  assert.match(slip, /printSlips\(\{ slips: \[slipFor\(row, period, calc\)\] \}\)/);
+  assert.match(slip, /printSlips\(\{ slips: \[slipFor\(row, period, calc, logo\)\] \}\)/);
   assert.match(sheet, /Print \{filtered\.length\} payslip/);
+
+  /*
+   * The company's letterhead, handed IN rather than looked up inside the
+   * slip: these are built in the browser, so the picture has to travel.
+   * "payslip me bhi logo aana chahiye".
+   */
+  assert.match(slip, /export function slipFor\(row, period, calc, logo = ''\)/);
+  for (const file of [slip, sheet]) assert.match(file, /logoFor\(/);
+  // The whole stack is built AFTER they arrive, so it cannot come out with
+  // the first few carrying a logo and the rest not.
+  assert.match(sheet, /await loadCompanyLogos\(\);\s*\n\s*printSlips/);
 
   // One slip to a page, and the last one does not leave a blank sheet.
   assert.match(css, /\.pr-slips \.pr-slip \{ page-break-after: always/);

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.44.0';
+export const VERSION = '1.45.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.45.0',
+    date: '20 Nov 2026',
+    title: 'The logo on the payslip too',
+    items: [
+      '**Every payslip now carries the company’s logo** — the slip on screen, the stack printed off the salary sheet (one to a page), and the small file you forward on WhatsApp.',
+      'It is the same logo set in **Admin → Company logos**, and it comes from **that person’s own company** — so a BOOKNFLY slip and a SCALE VISORY slip carry different marks.',
+      'The picture travels **inside** the sent file, like the rest of it: it still shows on a phone with no signal, and nothing is fetched from this server when somebody opens their slip.',
+      '**An employee printing their own payslip gets the same letterhead**, through their own login — without being handed a list of the other companies.',
+      '**Nothing waits on a picture.** If the logo is slow or missing, the slip goes out with the company’s name in type, exactly as before. No payslip is ever held up by a logo.',
+    ],
+  },
   {
     version: '1.44.0',
     date: '20 Nov 2026',

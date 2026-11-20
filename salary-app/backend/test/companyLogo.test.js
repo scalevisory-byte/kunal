@@ -182,3 +182,60 @@ test('only a data: image is written into the letter', () => {
   // And with none at all the letter is unchanged from what it always was.
   assert.ok(!offerLetterHtml(offer).includes('<img'));
 });
+
+/* ---------------- on the payslip ---------------- */
+
+test('the payslip forwarded on WhatsApp carries the logo inside it', async () => {
+  const { payslipHtml } = await import('../../shared/payslipPage.js');
+  const row = {
+    employee_name: 'Amit Shah', company_name: 'BOOKNFLY', salary: 24000,
+    net_salary: 23800, per_day: 923, present_days: 26, working_days: 26,
+  };
+  const period = { label: 'October 2026', year: 2026, month: 10 };
+
+  const withLogo = payslipHtml({
+    employee: { name: 'Amit Shah', company_name: 'BOOKNFLY' },
+    period, row, logo: 'data:image/png;base64,iVBORw0KGgo=',
+  });
+  assert.match(withLogo, /<img class="logo" src="data:image\/png;base64,iVBORw0KGgo="/);
+  // And it is still one self-contained file that fetches nothing.
+  assert.ok(!/src="http/.test(withLogo));
+
+  // No logo: the name in type, exactly as the slip always looked.
+  const plain = payslipHtml({ employee: { name: 'Amit Shah' }, period, row });
+  assert.ok(!plain.includes('<img'));
+
+  // The same gate as the letter - a URL is ignored, never written out.
+  const url = payslipHtml({
+    employee: { name: 'Amit Shah' }, period, row, logo: 'https://example.com/logo.png',
+  });
+  assert.ok(!url.includes('<img'));
+});
+
+test('a staff login gets its OWN company logo, and no list of the others', async () => {
+  /*
+   * The slip an employee prints should carry the same letterhead as the
+   * office's copy - but /companies/logos needs `read`, which a staff login
+   * does not have and must not be given. /me/logos answers for the one
+   * company they work for, with the employee id taken off the login.
+   */
+  const me = await import('../src/routes/me.js');
+  assert.ok(me.meRouter, 'the staff router exists');
+  const file = fs.readFileSync(new URL('../src/routes/me.js', import.meta.url), 'utf8');
+  assert.match(file, /meRouter\.get\('\/logos'/);
+  // One company - their own, read from the employee the LOGIN names.
+  assert.match(file, /getEmployee\(req\.employeeId\)/);
+  assert.match(file, /logoDataUri\(employee\.company_id\)/);
+});
+
+test('the logos route hands over the pictures, and only for companies that have one', async () => {
+  const { logos } = (await api('GET', '/api/companies/logos')).body;
+  assert.ok(Array.isArray(logos));
+  for (const row of logos) {
+    assert.match(row.logo, /^data:image\/[a-z]+;base64,/);
+    assert.ok(row.id && row.name);
+  }
+  // BOOKNFLY has one from the first test; SCALE VISORY never got one.
+  assert.ok(logos.some((l) => l.name === 'BOOKNFLY'));
+  assert.ok(!logos.some((l) => l.name === 'SCALE VISORY'));
+});

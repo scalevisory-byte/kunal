@@ -1578,6 +1578,13 @@ a.button-like:hover { color: var(--text); background: var(--line-soft); }
  * reason - same family as the help panel's close button and the checkbox a
  * global `input` rule flattened.
  */
+/* The company's logo on a printed slip, where a letterhead goes. Held to a
+   height so one company's wordmark and another's square mark line up. */
+/* The logo on the payslip on screen, above the company's name. */
+.payslip-logo { display: block; max-height: 40px; max-width: 12rem; margin-bottom: 6px; }
+
+.pr-slip-logo { display: block; max-height: 34px; max-width: 11rem; margin-bottom: 4px; }
+
 .pr-slip-head {
   display: flex !important; flex-direction: row !important;
   justify-content: space-between; align-items: flex-start; gap: 16px;

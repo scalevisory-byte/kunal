@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { api } from '../../api.js';
+import { forgetCompanyLogos } from '../../companyLogos.js';
 
 /**
  * The letterhead: one logo per company.
@@ -36,6 +37,8 @@ export default function CompanyLogos({ companies = [], onError, onReload }) {
       const form = new FormData();
       form.append('logo', file);
       await api.upload(`/companies/${company.id}/logo`, form);
+      // So the next payslip printed in this session carries the new one.
+      forgetCompanyLogos();
       setStamp(Date.now());
       setSaid(`${company.name}: logo saved.`);
       onReload?.();
@@ -53,6 +56,7 @@ export default function CompanyLogos({ companies = [], onError, onReload }) {
     setBusy(company.id);
     try {
       await api.del(`/companies/${company.id}/logo`);
+      forgetCompanyLogos();
       setStamp(Date.now());
       setSaid(`${company.name}: logo removed.`);
       onReload?.();

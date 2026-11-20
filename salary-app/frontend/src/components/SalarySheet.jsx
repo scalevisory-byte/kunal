@@ -4,6 +4,7 @@ import { col, num, printReport, printSlips } from '../printReport.js';
 import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
+import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 import ScrollFrame from './ScrollFrame.jsx';
 
 /**
@@ -173,11 +174,27 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
     });
   };
 
-  /** A slip each, in the order the sheet is showing them. */
-  const printSlipsForAll = () =>
+  /**
+   * A slip each, in the order the sheet is showing them.
+   *
+   * The letterheads are fetched first and then the whole stack is built, so
+   * eighty-five slips cannot come out with the first few carrying a logo and
+   * the rest not. If the fetch fails they all go out with the company's name,
+   * which is what a company with no logo has anyway.
+   */
+  const printSlipsForAll = async () => {
+    await loadCompanyLogos();
     printSlips({
-      slips: filtered.map((row) => slipFor(row, period, calculateRow(row, period, row.attendance))),
+      slips: filtered.map((row) =>
+        slipFor(
+          row,
+          period,
+          calculateRow(row, period, row.attendance),
+          logoFor(row.company_id) || logoFor(row.company_name)
+        )
+      ),
     });
+  };
 
   return (
     /* `salary-page` only means one thing: twenty columns want landscape paper. */
@@ -344,6 +361,13 @@ function SendPayslips({ period, rows, onClose }) {
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
 
+  /*
+   * The letterheads, while somebody is still ticking names. Nothing waits on
+   * it: a file saved before it arrives carries the company's name in type,
+   * which is what a company with no logo has anyway.
+   */
+  useEffect(() => { loadCompanyLogos(); }, []);
+
   const save = (row) => {
     const calc = calculateRow(row, period, row.attendance);
     const html = payslipHtml({
@@ -356,6 +380,8 @@ function SendPayslips({ period, rows, onClose }) {
       period,
       row: { ...row, ...calc },
       note: note.trim() || undefined,
+      /* The letterhead, carried inside the file like everything else here. */
+      logo: logoFor(row.company_id) || logoFor(row.company_name),
     });
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const a = document.createElement('a');

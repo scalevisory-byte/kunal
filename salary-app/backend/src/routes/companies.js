@@ -10,7 +10,9 @@ import {
   updateBranch,
   updateCompany,
 } from '../db.js';
-import { MAX_LOGO_BYTES, logoFile, removeLogo, saveLogo, uploadLogo } from '../companyLogos.js';
+import {
+  MAX_LOGO_BYTES, logoDataUri, logoFile, removeLogo, saveLogo, uploadLogo,
+} from '../companyLogos.js';
 
 export const companiesRouter = Router();
 
@@ -46,6 +48,27 @@ companiesRouter.delete('/:id', (req, res) => {
  * Uploading and removing are changes, so the mount's `requireAdminForChanges`
  * already has them. Reading the picture is a read.
  */
+/*
+ * Every logo at once, as data: URIs, for the documents the BROWSER builds.
+ *
+ * The offer letter is written on the server and can read the file itself. A
+ * payslip is not: the slip on screen, the stack printed off the salary sheet
+ * and the file forwarded on WhatsApp are all assembled in the browser from
+ * `calculateRow`, so the picture has to get there.
+ *
+ * Asked for only when one of those is being made - never on the companies
+ * list, which every screen loads. A logo is a few kilobytes; eighty-five of
+ * them on every page load would not be.
+ */
+companiesRouter.get('/logos', (req, res) => {
+  res.json({
+    logos: listCompanies()
+      .filter((c) => c.has_logo)
+      .map((c) => ({ id: c.id, name: c.name, logo: logoDataUri(c.id) }))
+      .filter((c) => c.logo),
+  });
+});
+
 companiesRouter.post('/:id/logo', uploadLogo, (req, res) => {
   const company = getCompany(Number(req.params.id));
   if (!company) return res.status(404).json({ error: 'not found' });

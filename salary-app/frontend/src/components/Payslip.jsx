@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { calculateRow } from '../../../shared/calc.js';
 import { payslipFacts, payslipLines } from '../../../shared/payslipLines.js';
 import { days, rupees, rupees2 } from '../format.js';
 import { printSlips } from '../printReport.js';
+import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 
 /**
  * The slip for printing, from the same lines the screen is showing.
@@ -11,10 +12,16 @@ import { printSlips } from '../printReport.js';
  * copy of this layout — one was written by hand first and had already lost
  * the penalty line.
  */
-export function slipFor(row, period, calc) {
+/**
+ * @param logo  that company's logo as a data: URI, or '' for none - the slip
+ *              is built in the browser, so the picture has to be handed in.
+ *              Dinesh: *"payslip me bhi logo aana chahiye"*.
+ */
+export function slipFor(row, period, calc, logo = '') {
   const { earned, earnings, deductions, totalDeductions, net, sunday } = payslipLines(row, calc);
   return {
     company: row.company_name || '',
+    logo,
     what: `Salary slip — ${period.label}`,
     name: row.employee_name,
     about: [row.employee_code, row.designation].filter(Boolean).join(' · '),
@@ -40,6 +47,20 @@ export default function Payslip({ period, row, onClose }) {
   // server's last answer.
   const calc = useMemo(() => calculateRow(row, period, row.attendance), [row, period]);
 
+  /*
+   * The company's letterhead. Fetched once per session and kept; until it
+   * arrives the slip simply has the company's name, which is what a company
+   * with no logo has anyway - nothing waits on a picture.
+   */
+  const [logo, setLogo] = useState('');
+  useEffect(() => {
+    let alive = true;
+    loadCompanyLogos().then(() => {
+      if (alive) setLogo(logoFor(row.company_id) || logoFor(row.company_name));
+    });
+    return () => { alive = false; };
+  }, [row.company_id, row.company_name]);
+
   // A slip reads as "earned, less deductions". A manual deduction is already
   // inside the gross everywhere else in the app, so it is added back into what
   // was earned and then listed with the other deductions - shown both ways at
@@ -53,13 +74,16 @@ export default function Payslip({ period, row, onClose }) {
       <div className="modal payslip" onClick={(e) => e.stopPropagation()}>
         <div className="payslip-head">
           <div>
+            {logo ? <img className="payslip-logo" src={logo} alt="" /> : null}
             <h2>{row.company_name}</h2>
             <p className="muted">Salary slip — {period.label}</p>
           </div>
           <div className="no-print">
             {/* Builds the slip as a document rather than printing the
                 dialog it is sitting in. */}
-            <button onClick={() => printSlips({ slips: [slipFor(row, period, calc)] })}>Print / PDF</button>
+            <button onClick={() => printSlips({ slips: [slipFor(row, period, calc, logo)] })}>
+              Print / PDF
+            </button>
             <button onClick={onClose}>Close</button>
           </div>
         </div>
