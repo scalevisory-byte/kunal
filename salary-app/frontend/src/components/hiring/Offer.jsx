@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { STANDALONE, api } from '../../api.js';
-import { checkOffer, longDate, offerMovesFrom, offerStatusMeta } from '../../../../shared/offer.js';
+import {
+  checkOffer, longDate, offerLetterHtml, offerMovesFrom, offerStatusMeta,
+} from '../../../../shared/offer.js';
 
 /**
  * The offer: approve it, then send it.
@@ -83,6 +85,44 @@ export default function Offer({ applicationId, abilities = [], onChanged, onErro
     document.body.appendChild(a);
     a.click();
     a.remove();
+  };
+
+  /**
+   * THE LETTER, ON PAPER, NOW.
+   *
+   * Dinesh: *"ha to da sake wesa banavo"* — he wants to hand it over, not
+   * download a file and hunt for it in Downloads. So this prints the letter
+   * itself: he signs it and gives it to the person sitting across the desk,
+   * or saves it as a PDF from the same dialog.
+   *
+   * It is the SERVER'S OWN LETTER, not a second one. `offerLetterHtml` lives
+   * in shared/, so what prints here and what the download sends are the same
+   * document built by the same function — the trap the printed payslip
+   * already taught us, where a slip written out by hand from the screen's
+   * markup had quietly dropped a line.
+   *
+   * Built from the STORED offer, never from the boxes above it. A figure
+   * somebody is halfway through typing is not a figure anybody may be handed.
+   *
+   * An iframe rather than a new tab: the letter is a whole document with its
+   * own stylesheet, so it cannot be printed inside this page — and a tab
+   * opened after an await is a tab the pop-up blocker eats silently, which
+   * the CV button learnt the hard way.
+   */
+  const printLetter = () => {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.setAttribute('title', 'Offer letter');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    frame.srcdoc = offerLetterHtml(offer);
+    frame.onload = () => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+      // Taken away after the dialog, not before it: removing the frame while
+      // the print preview is still reading it prints a blank sheet.
+      window.setTimeout(() => frame.remove(), 1000);
+    };
+    document.body.appendChild(frame);
   };
 
   const FIELDS = [
@@ -192,9 +232,11 @@ export default function Offer({ applicationId, abilities = [], onChanged, onErro
             */}
           {status !== 'draft' ? (
             <div className="row" style={{ marginTop: '0.5rem' }}>
+              <button className="primary" onClick={printLetter}>Print the letter</button>
               <button onClick={download}>Download the letter</button>
               <span className="muted small">
-                One file, this person only. Opens on any phone, prints to PDF.
+                This person only. Print it to hand over or save as PDF; the download is
+                one file you can send on WhatsApp.
               </span>
             </div>
           ) : null}

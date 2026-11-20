@@ -3525,6 +3525,45 @@ export function hiringReport(key, filters = {}) {
     }
 
     /*
+     * EVERY OFFER, INCLUDING THE DRAFTS.
+     *
+     * Driven off job_offers rather than off the stage, which is what makes it
+     * a different report from `selected` above: a draft offer nobody has
+     * approved appears on no other screen in the app, and "we wrote it and
+     * then forgot to approve it" is exactly the thing a list of offers is for.
+     *
+     * The dates are the OFFER's, not the application's, so "offers written
+     * this month" means what it says.
+     *
+     * `past_valid` is read off the calendar, not stored and not decided:
+     * still waiting on them, and the day it was valid till has gone.
+     */
+    case 'offers': {
+      const { where, params } = applicationWhere(filters, 'o');
+      const base = where.length ? `AND ${where.join(' AND ')}` : '';
+      return db
+        .prepare(
+          `SELECT c.ref_no, c.name AS candidate_name, c.phone,
+                  v.title AS job_title, v.department, co.name AS company_name,
+                  o.salary, o.joining_date, o.valid_till, o.status,
+                  o.approved_by, o.sent_at, o.answered_at,
+                  CASE
+                    WHEN o.status IN ('approved', 'sent')
+                     AND o.valid_till IS NOT NULL AND o.valid_till <> ''
+                     AND o.valid_till < @today
+                    THEN 'yes' ELSE '' END AS past_valid
+             FROM job_offers o
+             JOIN applications a ON a.id = o.application_id
+             JOIN candidates c ON c.id = o.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+            WHERE 1 = 1 ${base}
+            ORDER BY o.created_at DESC`
+        )
+        .all({ ...params, today });
+    }
+
+    /*
      * On hold happens in two places - at screening, and after an evaluation -
      * and both have to be in one list. Somebody holding a candidate does not
      * care which screen it was recorded on; they want to know who is parked.

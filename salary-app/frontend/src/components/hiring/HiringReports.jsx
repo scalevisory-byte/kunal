@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api } from '../../api.js';
-import { REPORTS, asGrid, cell, reportFileName, reportMeta } from '../../../../shared/hiringReports.js';
+import {
+  REPORTS, asGrid, cell, reportFileName, reportMeta, reportTotals,
+} from '../../../../shared/hiringReports.js';
+import { printReport } from '../../printReport.js';
 import { toCsv } from '../../../../shared/hiringCsv.js';
 
 /**
@@ -54,6 +57,52 @@ export default function HiringReports({ companies, companyId, vacancies = [], on
 
   const set = (k, v) => setFilters((f) => ({ ...f, [k]: v || undefined }));
   const uses = (f) => report.uses.includes(f);
+
+  /**
+   * THE REPORT, NOT THE SCREEN.
+   *
+   * This button used to print the page it was standing on - the chips, the
+   * filter boxes, the sidebar - and Dinesh said what that is worth: *"PURA SCREEN PRINT NAHI KARNA HE, REPORT PRINT KARNA HOTA HE"*.
+   * It now builds the document: the report's name, what it was narrowed to,
+   * the columns from shared/hiringReports.js, and the figures that are worth
+   * adding up.
+   *
+   * It prints the same `grid` the table and the CSV are drawn from, so the
+   * paper cannot say something the screen does not.
+   */
+  const printIt = () => {
+    const named = [];
+    if (filters.from || filters.to) {
+      named.push(`${filters.from || 'the beginning'} to ${filters.to || 'today'}`);
+    }
+    const company = companies.find((c) => String(c.id) === String(filters.company_id ?? companyId));
+    if (company) named.push(company.name);
+    if (filters.department) named.push(filters.department);
+    const vacancy = vacancies.find((v) => String(v.id) === String(filters.vacancy_id));
+    if (vacancy) named.push(`${vacancy.ref_no} · ${vacancy.title}`);
+    if (filters.interviewer) named.push(filters.interviewer);
+    if (filters.round) named.push(`round ${filters.round}`);
+    if (filters.status) named.push(filters.status);
+
+    const totals = reportTotals(report, rows);
+    printReport({
+      title: report.label,
+      subtitle: named.length ? named.join(' · ') : 'Everything',
+      meta: [report.hint, `${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`],
+      landscape: report.columns.length > 7,
+      compact: report.columns.length > 10,
+      columns: report.columns.map((c, i) => ({
+        head: c.label,
+        get: (_row, index) => grid.rows[index]?.[i] ?? '',
+        align: ['number', 'money', 'percent', 'days'].includes(c.type) ? 'num' : undefined,
+      })),
+      rows,
+      totals: Object.keys(totals).length ? { label: `Total (${rows.length})`, ...totals } : undefined,
+      empty: 'Nothing matches. Try widening the dates.',
+      footer:
+        'Every figure here was decided on another screen and stored — a screening verdict, an interview decision, an approved salary. Nothing on this report is worked out a second time.',
+    });
+  };
 
   const download = () => {
     const csv = toCsv(report.columns.map((c) => c.label), grid.rows);
@@ -125,7 +174,7 @@ export default function HiringReports({ companies, companyId, vacancies = [], on
           ) : null}
           <span className="spacer" />
           <button onClick={() => setFilters({})}>Clear</button>
-          <button onClick={() => window.print()}>Print</button>
+          <button disabled={!rows.length} onClick={printIt}>Print</button>
           <button className="primary" disabled={!rows.length} onClick={download}>Export CSV</button>
         </div>
       </div>

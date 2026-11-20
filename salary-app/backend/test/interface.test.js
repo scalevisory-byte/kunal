@@ -2471,3 +2471,40 @@ test('candidates and interviews each print a register, and the CV never leaves',
   assert.match(ivs, /col\('Their form'/);
   assert.match(ivs, /col\('Evaluation'/);
 });
+
+test('vacancies print a register, and the offer letter prints itself', () => {
+  const vac = src('components/hiring/Vacancies.jsx');
+  const offer = src('components/hiring/Offer.jsx');
+
+  // "vacancy aur offer letter ka bhi print report do".
+  assert.match(vac, /title: 'Vacancies'/);
+  assert.match(vac, /printReport/);
+  // The three figures somebody asks about, added up at the foot.
+  for (const head of ['Openings', 'Hired', 'Applications']) {
+    assert.match(vac, new RegExp(`num\\('${head}'`), `the register needs a ${head} column`);
+  }
+  assert.match(vac, /Openings: sum/);
+  /*
+   * A printed list of openings reads as a list of live ones, and a draft is
+   * not one - nobody can apply to it.
+   */
+  assert.match(vac, /apply link is not live until it is published/);
+
+  /*
+   * "ha to da sake wesa banavo" - he hands the letter over, so it prints.
+   * It is the SERVER'S letter, built by the shared function the download
+   * uses, from the STORED offer and never from the boxes above it.
+   */
+  assert.match(offer, /offerLetterHtml/);
+  assert.match(offer, /offerLetterHtml\(offer\)/);
+  assert.ok(!/offerLetterHtml\(form/.test(offer), 'the letter must not be built from the form');
+  assert.match(offer, /Print the letter/);
+});
+
+test('the hiring reports print the report, not the screen', () => {
+  const rep = src('components/hiring/HiringReports.jsx');
+  assert.match(rep, /printReport/);
+  assert.ok(!rep.includes('window.print()'), 'HiringReports still prints the screen');
+  // It prints what is on screen, narrowed the same way, from the same grid.
+  assert.match(rep, /grid\.rows\[index\]/);
+});

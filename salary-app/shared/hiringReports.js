@@ -19,8 +19,12 @@
  * The columns live here rather than in the table markup so that what is on
  * screen, what prints and what lands in the CSV cannot drift apart.
  *
- * Dependency-free.
+ * Dependency-free apart from the offer statuses, which are named once in
+ * shared/offer.js — the report saying "sent" where the screen says "Sent to
+ * them" is two names for one fact.
  */
+
+import { offerStatusMeta } from './offer.js';
 
 /* ---------------- what can be asked for ---------------- */
 
@@ -106,11 +110,44 @@ export const REPORTS = [
     hint: 'Offer accepted or already joined',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id'],
     columns: [REF, WHO, PHONE, JOB, DEPT, COMPANY,
-      { label: 'Offered', key: 'salary', type: 'money' },
+      { label: 'Offered', key: 'salary', type: 'money', total: true },
       { label: 'Joining', key: 'joining_date', type: 'date' },
       { label: 'Offer', key: 'offer_status' },
       { label: 'Where they are', key: 'stage' },
       { label: 'On the payroll', key: 'on_payroll' }],
+  },
+  /*
+   * EVERY OFFER AND WHERE IT STANDS.
+   *
+   * Dinesh: *"vacancy aur offer letter ka bhi print report do"*. The letter
+   * itself is one person's document; this is the list - who has been offered
+   * what, who approved it, who has been sent it and who has answered.
+   *
+   * Deliberately NOT the same question as "Selected candidates" beside it.
+   * That one is read off the stage as well as the offer, so it carries
+   * somebody moved to Selected by hand with no offer ever written. This one
+   * is offers only, including the drafts nobody has approved - which is the
+   * half that goes missing otherwise, because a draft offer is invisible on
+   * every other screen in the app.
+   *
+   * "Past its date" is not a decision, it is a fact about the calendar: the
+   * offer still says sent and the day it was valid till has gone. Nothing
+   * expires itself.
+   */
+  {
+    key: 'offers',
+    label: 'Offers out',
+    hint: 'Every offer written, approved, sent or answered — drafts included',
+    uses: ['from', 'to', 'company_id', 'department', 'vacancy_id'],
+    columns: [REF, WHO, PHONE, JOB, COMPANY,
+      { label: 'Offered', key: 'salary', type: 'money', total: true },
+      { label: 'Joining', key: 'joining_date', type: 'date' },
+      { label: 'Valid till', key: 'valid_till', type: 'date' },
+      { label: 'Where it stands', key: 'status', type: 'offer_status' },
+      { label: 'Past its date', key: 'past_valid' },
+      { label: 'Approved by', key: 'approved_by' },
+      { label: 'Sent', key: 'sent_at', type: 'date' },
+      { label: 'Answered', key: 'answered_at', type: 'date' }],
   },
   {
     key: 'hold',
@@ -154,15 +191,15 @@ export const REPORTS = [
     uses: ['from', 'to', 'company_id'],
     columns: [
       { label: 'Interviewer', key: 'interviewer' },
-      { label: 'Interviews', key: 'total', type: 'number' },
-      { label: 'Done', key: 'done', type: 'number' },
-      { label: 'No show', key: 'no_show', type: 'number' },
-      { label: 'Cancelled', key: 'cancelled', type: 'number' },
-      { label: 'Still to come', key: 'scheduled', type: 'number' },
-      { label: 'Forms filled', key: 'forms', type: 'number' },
-      { label: 'Evaluations', key: 'evaluations', type: 'number' },
-      { label: 'Recommended', key: 'recommended', type: 'number' },
-      { label: 'Not recommended', key: 'not_recommended', type: 'number' },
+      { label: 'Interviews', key: 'total', type: 'number', total: true },
+      { label: 'Done', key: 'done', type: 'number', total: true },
+      { label: 'No show', key: 'no_show', type: 'number', total: true },
+      { label: 'Cancelled', key: 'cancelled', type: 'number', total: true },
+      { label: 'Still to come', key: 'scheduled', type: 'number', total: true },
+      { label: 'Forms filled', key: 'forms', type: 'number', total: true },
+      { label: 'Evaluations', key: 'evaluations', type: 'number', total: true },
+      { label: 'Recommended', key: 'recommended', type: 'number', total: true },
+      { label: 'Not recommended', key: 'not_recommended', type: 'number', total: true },
     ],
   },
   {
@@ -186,7 +223,7 @@ export const REPORTS = [
       { label: 'Applied', key: 'applied_on', type: 'date' },
       { label: 'Joined', key: 'joined_on', type: 'date' },
       { label: 'Days', key: 'days', type: 'number' },
-      { label: 'Salary', key: 'salary', type: 'money' }],
+      { label: 'Salary', key: 'salary', type: 'money', total: true }],
   },
 ];
 
@@ -214,10 +251,30 @@ export function cell(row, column) {
     case 'money': return money(value);
     case 'percent': return `${value}%`;
     case 'days': return value === 1 ? '1 day' : `${value} days`;
+    case 'offer_status': return offerStatusMeta(value)?.label || String(value);
     case 'date': return String(value).slice(0, 10);
     case 'datetime': return String(value).replace('T', ' ').slice(0, 16);
     default: return String(value);
   }
+}
+
+/**
+ * The figures worth adding up, as text, keyed by the column's own label.
+ *
+ * Only the columns that SAY they can be totalled are. A sum of "days to hire"
+ * is not a fact about anything, and the funnel's counts would double-count
+ * every candidate who got through a step - so neither carries the flag. The
+ * flag lives on the column beside the figure it describes, where somebody
+ * adding a column will see it.
+ */
+export function reportTotals(report, rows = []) {
+  const totals = {};
+  for (const column of report?.columns || []) {
+    if (!column.total) continue;
+    const sum = rows.reduce((t, row) => t + (Number(row?.[column.key]) || 0), 0);
+    totals[column.label] = cell({ [column.key]: sum }, column);
+  }
+  return totals;
 }
 
 /** The rows as a grid of strings, which both the CSV and the print view take. */

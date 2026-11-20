@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.42.0';
+export const VERSION = '1.43.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.43.0',
+    date: '20 Nov 2026',
+    title: 'Vacancies, offers, and a letter you can hand over',
+    items: [
+      '**Hiring → Vacancies → Print.** Every opening: ref, title, company, department, where, experience band, how many seats, how many hired against them and how many have applied — added up at the foot. It prints the chip you are standing on, so “Open” and “All” are different sheets.',
+      'The sheet says what a draft is: **an opening nobody can apply to**, because its apply link does not go live until it is published.',
+      '**The offer letter prints.** A new **Print the letter** button beside the download — sign it and hand it over, or save it as a PDF from the same dialog, instead of hunting for a downloaded file.',
+      'It is **the same letter the download sends**, built by the same code from the offer that was approved — not a second version that could one day say something else. And it is built from the stored offer, never from the boxes above it, so a figure somebody is halfway through typing can never be handed to anybody.',
+      'There is still **no letter at all until an Admin has approved the offer**, exactly as before.',
+      '**A new report: Hiring → Reports → Offers out.** Every offer written, approved, sent or answered — **including the drafts**, which no other screen shows. Who, for what, how much, joining date, valid till, who approved it, when it went out and when they answered, with the total offered at the foot.',
+      'It flags an offer that is **past its date** — still waiting on them and the day it was valid till has gone. That is the calendar, not a decision: nothing expires itself.',
+      '**The hiring reports now print the report, not the screen** — all twelve of them, with the filters you used named at the top and the figures worth adding up at the foot.',
+    ],
+  },
   {
     version: '1.42.0',
     date: '20 Nov 2026',
