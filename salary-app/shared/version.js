@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.41.0';
+export const VERSION = '1.42.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.42.0',
+    date: '20 Nov 2026',
+    title: 'Candidates and interviews, printed',
+    items: [
+      '**Hiring → Candidates → Print.** Ref, name, phone, email, what they applied for, experience, expected salary, where they are and where they will work, skills, which stage they are at, the screening verdict, whether a CV is on file, and when they were added.',
+      'It prints what is on screen — your search, the stage, and whether you are standing in the archive, all named at the top.',
+      '**The CV itself is never printed or exported.** The column says only whether one is on file; the document stays on the server behind a link that expires. And the page says what it carries: strangers’ phone numbers, salaries and emails, for the people hiring and not for circulating.',
+      '**Hiring → Interviews → Print.** Who is being seen and when, for what, which round, how and where, the interviewer and panel, the status — and the two columns the list exists for: **whether the candidate’s own form has come back, and whether the interviewer’s evaluation is in.**',
+      'The sheet says the rule the whole module holds to: a form that has come back and an evaluation that has been submitted are **papers, not decisions** — nothing moves a candidate on by itself, and nobody is rejected by a score.',
+    ],
+  },
   {
     version: '1.41.0',
     date: '20 Nov 2026',

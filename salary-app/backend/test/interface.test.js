@@ -2442,3 +2442,32 @@ test('exits print as a register, and a full and final as a statement', () => {
   // And a register could hide that the settlement is assembled until paid.
   assert.match(leaving, /worked out fresh each time it is opened/);
 });
+
+test('candidates and interviews each print a register, and the CV never leaves', () => {
+  const cands = src('components/hiring/Candidates.jsx');
+  const ivs = src('components/hiring/Interviews.jsx');
+
+  // "interview aur candidate ka bhi print report do".
+  assert.match(cands, /title: 'Candidates'/);
+  assert.match(ivs, /title: 'Interview schedule'/);
+
+  /*
+   * A CV is a stranger's own document, kept on disk behind an expiring
+   * signed link - and a printed list is exactly how one leaves the
+   * building. The column says only whether there is one on file, and the
+   * page says what it carries, because paper travels further than a screen.
+   */
+  assert.match(cands, /col\('CV', \(c\) => \(c\.has_cv \? 'on file' : ''\)\)/);
+  assert.ok(!cands.includes('resume_path'));
+  assert.match(cands, /This sheet carries strangers’ phone numbers/);
+  assert.match(cands, /never printed or exported/);
+
+  /*
+   * The hiring module's own rule, on the schedule: nothing moves a
+   * candidate on by itself and nobody is rejected by a score.
+   */
+  assert.match(ivs, /papers, not decisions/);
+  // The two columns the list exists for.
+  assert.match(ivs, /col\('Their form'/);
+  assert.match(ivs, /col\('Evaluation'/);
+});

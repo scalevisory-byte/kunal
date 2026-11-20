@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import ProcessSteps from './ProcessSteps.jsx';
 
@@ -72,6 +73,56 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
 
   const today = new Date().toISOString().slice(0, 10);
 
+  /**
+   * THE INTERVIEW SCHEDULE.
+   *
+   * Who is being seen, when, by whom, where — and the two columns that are
+   * the point of the list: whether the candidate's own form has come back,
+   * and whether the interviewer's evaluation has.
+   *
+   * **A form or an evaluation is a paper, not a decision.** A submitted
+   * evaluation moves nobody by itself; somebody still decides. That is the
+   * rule the whole module holds to, and it is on the sheet.
+   */
+  const printIt = () => {
+    const done = interviews.filter((i) => i.status === 'done');
+    printReport({
+      title: 'Interview schedule',
+      subtitle: `${interviews.length} on the list`,
+      meta: [
+        `${done.length} done · ${interviews.length - done.length} still to happen`,
+        `${interviews.filter((i) => i.candidate_filled_at).length} candidate forms back · ${
+          interviews.filter((i) => i.evaluation_status === 'submitted').length
+        } evaluations in`,
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_i, n) => n + 1, '3%'),
+        col('When', (i) => String(i.at || '').replace('T', ' ').slice(0, 16) || 'not fixed'),
+        col('Candidate', (i) => i.candidate_name || ''),
+        col('For', (i) => i.job_title || ''),
+        col('Round', (i) => i.round_name || (i.round ? `Round ${i.round}` : '')),
+        col('How', (i) => i.mode || ''),
+        col('Where / link', (i) => i.location_or_link || ''),
+        col('Interviewer', (i) => i.interviewer || ''),
+        col('Panel', (i) => i.panel || ''),
+        col('Status', (i) => i.status || ''),
+        col('Their form', (i) =>
+          i.candidate_filled_at
+            ? `filled ${String(i.candidate_filled_at).slice(0, 10)}`
+            : i.candidate_sent_at
+              ? `sent ${String(i.candidate_sent_at).slice(0, 10)}`
+              : 'not sent'
+        ),
+        col('Evaluation', (i) => i.evaluation_status || 'not started'),
+      ],
+      rows: interviews,
+      compact: true,
+      footer:
+        'A form that has come back and an evaluation that has been submitted are papers, not decisions: nothing moves a candidate on by itself, and nobody is rejected by a score. Somebody decides, and the decision is recorded where it was made.',
+    });
+  };
+
   return (
     <>
       {/*
@@ -114,7 +165,14 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
       ) : null}
 
       <div className="card scroll">
-      <h2>Interviews</h2>
+      <div className="late-head">
+        <h2 style={{ margin: 0 }}>Interviews</h2>
+        {/* The schedule somebody carries to the room, not the screen it is
+            booked on. */}
+        <button className="ghost" onClick={printIt} disabled={!interviews.length}>
+          Print {interviews.length}
+        </button>
+      </div>
       <table className="sheet hiring-table">
         <thead>
           <tr>

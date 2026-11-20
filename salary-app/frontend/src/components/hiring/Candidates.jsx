@@ -1,4 +1,5 @@
 import { QuickVerdict } from './Screening.jsx';
+import { col, printReport } from '../../printReport.js';
 import { useState } from 'react';
 import { api } from '../../api.js';
 
@@ -47,6 +48,55 @@ export default function Candidates({
     }
   };
 
+  /**
+   * THE CANDIDATE LIST, as a sheet somebody carries into a meeting.
+   *
+   * It prints what is on screen - the search, the stage, and whether you
+   * are standing in the archive, all named at the top - and **never the
+   * CV**: a CV is a stranger's own document, kept on disk behind an
+   * expiring signed link, and a printed list is exactly how one leaves the
+   * building. The column says only whether there is one on file.
+   */
+  const printIt = () => {
+    printReport({
+      title: 'Candidates',
+      subtitle: [
+        archived ? 'the archive' : 'on the list now',
+        stage ? `at ${stage}` : '',
+        query.trim() ? `matching “${query.trim()}”` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      meta: [`${candidates.length} of ${total}`],
+      landscape: true,
+      columns: [
+        col('#', (_c, i) => i + 1, '3%'),
+        col('Ref', (c) => c.ref_no || ''),
+        col('Name', (c) => c.name),
+        col('Phone', (c) => c.phone || ''),
+        col('Email', (c) => c.email || ''),
+        col('For', (c) => c.role || ''),
+        col('Experience', (c) => c.experience || ''),
+        col('Expected', (c) => c.expected_salary || ''),
+        col('Where', (c) => c.location || ''),
+        col('Will work at', (c) => c.preferred_location || ''),
+        col('Skills', (c) => c.skills || ''),
+        col('Where they are', (c) => c.latest_stage || 'on the list only'),
+        col('Screening', (c) => c.screening_verdict || ''),
+        col('CV', (c) => (c.has_cv ? 'on file' : '')),
+        col('Added', (c) => String(c.created_at || '').slice(0, 10)),
+      ],
+      rows: candidates,
+      compact: true,
+      /*
+       * Said on the paper, because this is somebody else's personal data
+       * and a printed sheet travels further than a screen.
+       */
+      footer:
+        'This sheet carries strangers’ phone numbers, salaries and emails. It is for the people hiring, not for circulating — and the CV itself is never printed or exported: it stays on the server behind a link that expires.',
+    });
+  };
+
   return (
     <>
       <div className="row" style={{ marginBottom: '0.8rem' }}>
@@ -76,6 +126,9 @@ export default function Candidates({
           {archived ? ' · archived' : ''}
         </span>
         <span className="spacer" />
+        <button onClick={printIt} disabled={!candidates.length}>
+          Print {candidates.length}
+        </button>
         <button onClick={onExport}>Export CSV</button>
         <button className="primary" onClick={() => setAdding((v) => !v)}>
           {adding ? 'Cancel' : 'Add candidate'}
