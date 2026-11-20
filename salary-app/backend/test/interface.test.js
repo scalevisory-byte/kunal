@@ -2327,3 +2327,33 @@ test('loans and advances print as a register', () => {
   // A loan on hold is not counted into what a full month would take.
   assert.match(loans, /l\.outstanding > 0 && l\.status !== 'held'/);
 });
+
+test('penalties and expense claims each print a register', () => {
+  const pen = src('components/people/Penalties.jsx');
+  const claims = src('components/people/Claims.jsx');
+
+  // "penalty aur expense claim ka bhi print report do".
+  assert.match(pen, /title: 'Penalties, losses and damage'/);
+  assert.match(claims, /title: 'Expense claims'/);
+
+  /*
+   * The penalty register takes the SERVER'S totals, so the paper and the
+   * panel cannot disagree about the line people get wrong: held money is
+   * still owed and sits inside the outstanding, and only waived money
+   * leaves it.
+   */
+  assert.match(pen, /report\?\.totals \|\| \{\}/);
+  assert.match(pen, /Held money is still owed/);
+  // The note is the whole reason the module exists, so it is a column.
+  assert.match(pen, /col\('Why it was charged', \(r\) => r\.note/);
+  // The Act is reported, never enforced - said where somebody signs it off.
+  assert.match(pen, /it does not enforce/);
+
+  /*
+   * A claim is paid only THROUGH A NAMED MONTH, and that month is now on
+   * the row by name: `paid_period_id` was there and nothing could say
+   * "November 2026".
+   */
+  assert.match(claims, /col\('Paid through', \(c\) => c\.paid_period_label/);
+  assert.match(claims, /An approved claim is not a paid claim/);
+});

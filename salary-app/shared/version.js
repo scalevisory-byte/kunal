@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.37.0';
+export const VERSION = '1.38.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.38.0',
+    date: '20 Nov 2026',
+    title: 'Penalties and expense claims, printed',
+    items: [
+      '**People → Penalties → Print.** Who, what kind, what was damaged or lost, **why it was charged** in full, when it happened, when they were told, when they accepted it, the amount, recovered, outstanding, over how many months, and the status.',
+      'The totals are the panel’s own, so the paper cannot disagree about the line that is easiest to get wrong: **money on hold is still owed** and sits inside the outstanding — only **waived** money leaves it.',
+      'The page states both rules it works by: recovery posts an instalment each month like a running loan (a month set to nothing by hand stays nothing), and **the Payment of Wages Act’s half-of-wages cap is reported, not enforced**.',
+      '**People → Claims → Print.** What was spent and on what, how much, where it stands, who decided and their note — and **which month it was actually paid through**.',
+      'That last column needed a fix: the month was on the row as a number and nothing could print “November 2026”. It says the month by name now, on screen and on paper.',
+      'Both print what is on screen — the status you have filtered to is named at the top of the page.',
+    ],
+  },
   {
     version: '1.37.0',
     date: '20 Nov 2026',

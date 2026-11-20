@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 
@@ -164,6 +165,70 @@ export default function Penalties({ employees, period, onError, onReload }) {
       .join('\n');
   }, [rows]);
 
+  /**
+   * THE PENALTY REGISTER.
+   *
+   * Every figure is the server's own `report.totals`, so the paper and the
+   * panel cannot disagree — including the one line people get wrong:
+   * **held money is still owed**, it is only not being taken this month, so
+   * it is inside the outstanding; **waived money has left**, because nobody
+   * is collecting it.
+   *
+   * And the note is on every row, because the note is the whole reason the
+   * module exists: the Deduct box always deducted fine, it just could not
+   * say what for.
+   */
+  const printIt = () => {
+    const names = [...new Set(rows.map((r) => r.company_name).filter(Boolean))];
+    const t = report?.totals || {};
+    printReport({
+      title: 'Penalties, losses and damage',
+      subtitle: [
+        names.length === 1 ? names[0] : 'All companies',
+        status ? `only ${status}` : 'every status',
+      ].join(' · '),
+      meta: [
+        `${rows.length} recorded · ${rupees(t.amount || 0)} charged`,
+        `${rupees(t.recovered || 0)} recovered · ${rupees(t.outstanding || 0)} outstanding`,
+        t.held ? `${rupees(t.held)} of that is on hold` : '',
+        t.waived ? `${rupees(t.waived)} waived` : '',
+      ].filter(Boolean),
+      landscape: true,
+      /* Fourteen columns, and the reason has to be readable: at the report's
+         usual size "Happened on" wrapped to "HAPPENE / D". */
+      compact: true,
+      columns: [
+        col('#', (_r, i) => i + 1, '3%'),
+        col('Employee', (r) => r.employee_name),
+        col('Code', (r) => r.employee_code || ''),
+        col('Kind', (r) => r.kind_label),
+        col('What', (r) => r.what || ''),
+        col('Why it was charged', (r) => r.note || ''),
+        col('Happened', (r) => r.happened_on || ''),
+        col('Told', (r) => r.told_on || ''),
+        col('Accepted', (r) => r.acknowledged_on || ''),
+        num('Amount', (r) => rupees(r.amount)),
+        num('Recovered', (r) => rupees(r.recovered)),
+        num('Outstanding', (r) => rupees(r.outstanding)),
+        num('Months', (r) => r.months),
+        col('Status', (r) => r.status),
+      ],
+      rows,
+      totals: {
+        label: `Total (${rows.length})`,
+        Amount: rupees(t.amount || 0),
+        Recovered: rupees(t.recovered || 0),
+        Outstanding: rupees(t.outstanding || 0),
+      },
+      /*
+       * The Act is REPORTED, never enforced - the panel's own rule, said on
+       * the paper where somebody signing it off will read it.
+       */
+      footer:
+        'Held money is still owed and is inside the outstanding; only waived money has left it. Recovery posts an instalment each month like a running loan — a month set to nothing by hand stays nothing, and a penalty on hold takes nothing. The Payment of Wages Act caps deductions at half of a month’s wages: this register reports, it does not enforce.',
+    });
+  };
+
   const download = () => {
     // A BOM, like every other export here, so Excel reads the rupee names.
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -297,6 +362,10 @@ export default function Penalties({ employees, period, onError, onReload }) {
               <option value="recovered">Recovered in full</option>
               <option value="waived">Waived</option>
             </select>
+            {/* The register somebody files, beside the sheet they open in Excel. */}
+            <button className="ghost" onClick={printIt} disabled={!rows.length}>
+              Print {rows.length}
+            </button>
             <button onClick={download} disabled={!rows.length}>CSV</button>
           </div>
           <div className="figures">

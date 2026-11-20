@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 
@@ -99,6 +100,49 @@ export default function Claims({ employees, period, onError, onReload, only = nu
   const pending = claims.filter((c) => c.status === 'pending');
   const approved = claims.filter((c) => c.status === 'approved');
 
+  /**
+   * THE CLAIMS REGISTER.
+   *
+   * What was spent, who decided, and — the column that matters at month end
+   * — **which month it was actually paid through**. A claim approved is not
+   * a claim paid; the money reaches somebody only through a named month, as
+   * an addition on that row, which is the rule the panel is built on.
+   */
+  const printIt = () => {
+    const names = [...new Set(claims.map((c) => c.company_name).filter(Boolean))];
+    const sum = (list) => list.reduce((t, c) => t + (Number(c.amount) || 0), 0);
+    const paid = claims.filter((c) => c.status === 'paid');
+    printReport({
+      title: 'Expense claims',
+      subtitle: [
+        names.length === 1 ? names[0] : 'All companies',
+        status ? `only ${status}` : 'every status',
+      ].join(' · '),
+      meta: [
+        `${claims.length} ${claims.length === 1 ? 'claim' : 'claims'} · ${rupees(sum(claims))}`,
+        `${pending.length} waiting · ${rupees(sum(approved))} approved and not yet paid`,
+        paid.length ? `${rupees(sum(paid))} paid` : '',
+      ].filter(Boolean),
+      landscape: true,
+      columns: [
+        col('#', (_c, i) => i + 1, '3%'),
+        col('Spent on', (c) => c.spent_on || ''),
+        col('Who', (c) => c.employee_name),
+        col('What for', (c) => c.kind || ''),
+        col('Detail', (c) => c.detail || ''),
+        num('How much', (c) => rupees(c.amount)),
+        col('Where it stands', (c) => c.status),
+        col('Decided by', (c) => c.decided_by || ''),
+        col('Note on the decision', (c) => c.decision_note || ''),
+        col('Paid through', (c) => c.paid_period_label || (c.paid_at ? String(c.paid_at).slice(0, 10) : '')),
+      ],
+      rows: claims,
+      totals: { label: `Total (${claims.length})`, 'How much': rupees(sum(claims)) },
+      footer:
+        'An approved claim is not a paid claim: money reaches somebody only when it is paid through a named month, as an addition on that month’s row. A claim cannot be paid twice, and a rejected one is recorded with its reason rather than deleted.',
+    });
+  };
+
   return (
     <section className="stack">
       <div className="figures">
@@ -122,6 +166,9 @@ export default function Claims({ employees, period, onError, onReload, only = nu
             )
           )}
         </div>
+        <button className="ghost" onClick={printIt} disabled={!claims.length}>
+          Print {claims.length}
+        </button>
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Raise a claim'}
         </button>

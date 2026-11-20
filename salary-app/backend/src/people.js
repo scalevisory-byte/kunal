@@ -2293,10 +2293,18 @@ export function assetHistory(id) {
 export const getClaim = (id) =>
   db
     .prepare(
-      `SELECT x.*, e.name AS employee_name, c.name AS company_name
+      /*
+       * The month it was PAID THROUGH, by name. The id alone was on the
+       * row and nothing could say "paid through November 2026" - which is
+       * the one column that matters at month end, because an approved
+       * claim is not a paid claim.
+       */
+      `SELECT x.*, e.name AS employee_name, c.name AS company_name,
+              p.label AS paid_period_label
        FROM expense_claims x
        JOIN employees e ON e.id = x.employee_id
        LEFT JOIN companies c ON c.id = e.company_id
+       LEFT JOIN periods p ON p.id = x.paid_period_id
        WHERE x.id = ?`
     )
     .get(id) || null;
@@ -2315,10 +2323,14 @@ export function listClaims({ employee_id, status, limit = 300 } = {}) {
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   return db
     .prepare(
-      `SELECT x.*, e.name AS employee_name, c.name AS company_name
+      // The month it was paid through, by name, here as well as on the
+      // single-claim read - the list is what the register prints from.
+      `SELECT x.*, e.name AS employee_name, c.name AS company_name,
+              p.label AS paid_period_label
        FROM expense_claims x
        JOIN employees e ON e.id = x.employee_id
        LEFT JOIN companies c ON c.id = e.company_id
+       LEFT JOIN periods p ON p.id = x.paid_period_id
        ${clause}
        ORDER BY CASE x.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,
                 x.spent_on DESC, x.id DESC
