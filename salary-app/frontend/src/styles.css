@@ -2717,10 +2717,35 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 .my-head > :last-child { margin-left: auto; }
 
 .my-net { display: flex; flex-direction: column; gap: 0.1rem; }
-.my-net .n { font-size: 1.8rem; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+/*
+ * NOT A HEADLINE. It was 1.8rem - somebody signing in at the counter had
+ * their own pay legible from across the room, which is what Dinesh saw and
+ * asked for. It reads at the size of the figures on every other screen now.
+ */
+.my-net .n { font-size: 1.05rem; font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.my-net .k { display: flex; align-items: baseline; gap: 0.5rem; }
+.my-eye { font-size: 0.68rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+/* What the month is worth so far: a line, not a second headline. */
+.my-sofar {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 0.45rem;
+  margin: 0.55rem 0 0; padding-top: 0.55rem; border-top: 1px solid var(--line-soft);
+}
+.my-sofar strong { font-variant-numeric: tabular-nums; }
+.my-sofar .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.my-sofar > .muted.small { flex-basis: 100%; }
 .my-net .k { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
-table.my-sum { width: 100%; }
+/*
+ * Fixed, because the first column carries a sentence ("the month is paid on
+ * 26 working days, whatever the calendar says") and the last one must not
+ * wrap. Left to itself the table grew wider than the card it sits in and
+ * the figures hung outside the border on a phone.
+ */
+table.my-sum { width: 100%; table-layout: fixed; }
+table.my-sum td:first-child { width: 68%; word-break: break-word; }
+/* The explaining line under a figure wraps inside its own column. */
+table.my-sum td:first-child .muted { white-space: normal; overflow-wrap: anywhere; }
 table.my-sum td { padding: 0.35rem 0.2rem; vertical-align: top; }
 table.my-sum td:last-child { text-align: right; white-space: nowrap; }
 table.my-sum tr.my-strong td { font-weight: 600; border-top: 1px solid var(--line); }

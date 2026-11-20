@@ -2265,3 +2265,44 @@ test('a Category added under Lists becomes a group, in the browser and on the se
   // The Lists panel says what a Category is for, instead of "broad groups".
   assert.match(src('components/people/AssetMasters.jsx'), /These ARE the register’s groups/);
 });
+
+test('the staff page does not shout somebody’s pay across the room', () => {
+  const my = src('components/MyPage.jsx');
+
+  /*
+   * "EMPLOYEE LOGIN PE FRONT PE ITNE BADHE FONDT ME SALARY MAT DIKHAVO" —
+   * it was 1.8rem, legible from the next desk while somebody signed in at
+   * the counter. It reads at the size of every other figure now, with a
+   * hide beside it for a shared screen.
+   */
+  assert.match(css, /\.my-net \.n \{ font-size: 1\.05rem/);
+  assert.ok(!/\.my-net \.n \{ font-size: 1\.8rem/.test(css));
+  assert.match(my, /showPay \? rupees\(row\.net_salary\) : '••••••'/);
+  // What is hidden is remembered on that device, and localStorage is
+  // wrapped because touching it throws in a private window.
+  assert.match(my, /localStorage\.getItem\('bnf-hrms-hide-pay'\)/);
+  assert.equal((my.match(/catch \{/g) || []).length >= 2, true);
+});
+
+test('the open month shows what has been earned up to today', () => {
+  const my = src('components/MyPage.jsx');
+
+  // "jo date ko open kare o date tak ki earning bhi dikhavo".
+  assert.match(my, /earnedSoFar\(\{/);
+  assert.match(my, /upto: now\.getDate\(\)/);
+  // Only for the month we are living in: a finished month's net IS the answer.
+  assert.match(my, /now\.getFullYear\(\) !== detail\.period\.year/);
+  // And it never pretends to be take-home.
+  assert.match(my, /It is not a promise of\s*\n?\s*what will be paid/);
+
+  /*
+   * EVERY HOOK ABOVE THE FIRST RETURN. This memo sat below the "no month
+   * has been run for you yet" return, so the page rendered a different
+   * number of hooks once the months arrived and React tore it down with
+   * error #310 - a staff login opened on a blank white page. Found by
+   * signing in as an employee and looking.
+   */
+  const memo = my.indexOf('earnedSoFar({');
+  const firstReturn = my.indexOf('if (!months.length)');
+  assert.ok(memo > 0 && memo < firstReturn, 'the memo must sit above the early return');
+});

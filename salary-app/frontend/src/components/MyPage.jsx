@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { earnedSoFar } from '../../../shared/earnedSoFar.js';
 import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
@@ -120,6 +121,26 @@ export default function MyPage({ me, onError, onSignOut }) {
  */
 function MyPay({ months, onError }) {
   const [openId, setOpenId] = useState(null);
+  /*
+   * Shown by default - it is their own pay, and hiding it by default would
+   * make somebody hunt for it every time. The choice is remembered per
+   * device, and `localStorage` is wrapped because merely touching it throws
+   * in a private window.
+   */
+  const [showPay, setShowPay] = useState(() => {
+    try {
+      return localStorage.getItem('bnf-hrms-hide-pay') !== '1';
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('bnf-hrms-hide-pay', showPay ? '0' : '1');
+    } catch {
+      // Nothing to do: the choice just will not be remembered.
+    }
+  }, [showPay]);
   const [detail, setDetail] = useState(null);
   const [slip, setSlip] = useState(null);
 
@@ -136,6 +157,40 @@ function MyPay({ months, onError }) {
       .catch(onError);
   }, [openId]);
 
+  /*
+   * EARNED SO FAR, for the month that is still running.
+   *
+   * Dinesh: *"jo date ko open kare o date tak ki earning bhi dikhavo"*.
+   * Opening your own page on the 20th and seeing the whole month's net pay
+   * answers a question nobody asked. A finished month needs none of this -
+   * the net below IS the answer - so it is shown only while the month the
+   * page is open on is the one we are living in.
+   */
+  const soFar = useMemo(() => {
+    if (!detail?.period || !detail?.row) return null;
+    const now = new Date();
+    if (now.getFullYear() !== detail.period.year || now.getMonth() + 1 !== detail.period.month) {
+      return null;
+    }
+    return earnedSoFar({
+      period: detail.period,
+      attendance: detail.row.attendance,
+      calc: detail.row,
+      upto: now.getDate(),
+    });
+  }, [detail]);
+
+  const asOf = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+
+  /*
+   * EVERY HOOK ABOVE THE FIRST `return`.
+   *
+   * This memo was below the "no month has been run for you yet" return, so
+   * the page rendered a different NUMBER of hooks before and after the
+   * months arrived, and React tore the screen down with error #310 - a
+   * staff login opened on a blank white page. Found by signing in as an
+   * employee and looking, which is the only way it shows.
+   */
   if (!months.length) {
     return (
       <div className="card">
@@ -171,12 +226,45 @@ function MyPay({ months, onError }) {
       ) : (
         <>
           <div className="card my-net">
-            <span className="k">Net pay for {detail.period.label}</span>
-            <strong className="n">{rupees(row.net_salary)}</strong>
+            {/*
+              * NOT IN A HEADLINE FONT any more. Dinesh: *"employee login pe
+              * front pe itne bade font me salary mat dikhavo"* - somebody
+              * signing in at a counter had their pay legible across the
+              * room. It reads at the size of every other figure now, and
+              * there is a Hide beside it for a shared screen; what is
+              * hidden is remembered on that device only.
+              */}
+            <span className="k">
+              Net pay for {detail.period.label}
+              <button className="link my-eye" onClick={() => setShowPay((v) => !v)}>
+                {showPay ? 'hide' : 'show'}
+              </button>
+            </span>
+            <strong className="n">{showPay ? rupees(row.net_salary) : '••••••'}</strong>
             <span className="muted small">
               {row.status === 'paid' ? 'Paid' : 'Not marked paid yet'} ·{' '}
               {row.payment_mode || 'Bank'}
             </span>
+            {soFar ? (
+              <p className="my-sofar">
+                <span className="k">Earned up to {asOf}</span>{' '}
+                <strong>{showPay ? rupees(soFar.amount) : '••••'}</strong>{' '}
+                <span className="muted small">
+                  {days(soFar.days_worked)} day{soFar.days_worked === 1 ? '' : 's'} at{' '}
+                  {rupees2(soFar.per_day)}
+                  {soFar.days_lost ? ` · ${days(soFar.days_lost)} not worked` : ''}
+                  {soFar.days_unmarked
+                    ? ` · ${soFar.days_unmarked} day${soFar.days_unmarked === 1 ? '' : 's'} not marked yet, counted as worked`
+                    : ''}
+                </span>
+                <span className="muted small">
+                  This is what the days so far add up to at your day rate —{' '}
+                  <strong>before</strong> PF, ESI, professional tax, any loan instalment and
+                  anything else that comes off at the end of the month. It is not a promise of
+                  what will be paid.
+                </span>
+              </p>
+            ) : null}
             {/*
              * The SAME slip the office prints - `Payslip.jsx`, not a second
              * one built for this page. A payslip an employee downloads and a

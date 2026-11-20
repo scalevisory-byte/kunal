@@ -447,8 +447,10 @@ export const HELP = [
       'The first password is three sayable words, because it gets read out. It is shown ONCE, on the screen that makes it.',
       'They are asked to choose their own password the moment they sign in; the handed-over one stops working.',
       'With a login they can see their own pay, attendance and payslip, apply for leave, and fix their own bank details and phone.',
+      '**On their own page the pay is not in a headline font** — it reads at the size of every other figure, and there is a **hide** beside it for a counter or a shared screen. What they hide is remembered on that device only.',
+      '**“Earned up to today”** sits under the net on the month that is still running: what the days so far add up to at their day rate. It says on the page that it is **before** PF, ESI, professional tax and anything else that comes off at month end, and that it is not a promise of what will be paid.',
     ],
-    note: 'There is no self-service password reset. If somebody forgets theirs, an admin resets it here and hands over a new one-time password.',
+    note: 'EARNED SO FAR IS NOT TAKE-HOME, and the page says so where an employee reads it. It counts days the way the month does — a day nobody has marked counts as worked — and it stops at today: approved leave next week is neither earned nor lost yet. There is no self-service password reset. If somebody forgets theirs, an admin resets it here and hands over a new one-time password.',
   },
   {
     id: 'roles',

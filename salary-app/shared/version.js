@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.35.0';
+export const VERSION = '1.36.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.36.0',
+    date: '20 Nov 2026',
+    title: 'The staff page: quieter, and what the month is worth so far',
+    items: [
+      '**An employee’s pay is no longer printed across the top of their page in a headline font.** It reads at the size of every other figure, and there is a **hide** beside it for a counter or a shared screen — what you hide is remembered on that device.',
+      '**Earned up to today.** On the month that is still running, the page now says what the days so far add up to: “Earned up to 20 November — 8,942”, with the working beside it (15.5 days at 576.92, 1.5 not worked, 7 days not marked yet).',
+      'It says plainly what it is **not**: the day-rate earning, **before** PF, ESI, professional tax, a loan instalment and anything else that comes off at month end — and not a promise of what will be paid.',
+      'It counts days the way the month does: a day nobody has marked counts as worked, an absence costs a day, a half day half. **It stops at today** — approved leave next week is neither earned nor lost yet — and a weekly off is neither.',
+      '**A bug worth knowing:** the staff page opened blank for anybody with no month run yet. Fixed, and pinned by a test.',
+    ],
+  },
   {
     version: '1.35.0',
     date: '20 Nov 2026',
