@@ -4,6 +4,9 @@ import {
   HK_STATUSES, dailyReportText, dayStats, hkLabel, isFlag, monthName, monthSummary, monthSummaryText,
 } from '../../../shared/frontOffice.js';
 import { col, printReport } from '../printReport.js';
+import VisitorDesk from './frontoffice/VisitorDesk.jsx';
+import CourierDesk from './frontoffice/CourierDesk.jsx';
+import VisitorReports from './frontoffice/VisitorReports.jsx';
 
 /**
  * THE FRONT DESK — the housekeeping walk, the visitor book and courier in/out.
@@ -44,7 +47,7 @@ const prettyDay = (iso) => {
   });
 };
 
-export default function FrontOffice({ onError }) {
+export default function FrontOffice({ onError, employees = [], companies = [], companyId, onGo }) {
   /*
    * Its own one-line "saved" note rather than the app's, so the desk sees it
    * where it is standing - and it GOES AWAY. A note that stays reads as part
@@ -360,218 +363,24 @@ export default function FrontOffice({ onError }) {
       ) : null}
 
       {view === 'visitors' ? (
-        <>
-          <div className="card">
-            <h3>Sign a visitor in</h3>
-            <div className="iv-grid">
-              {[
-                ['name', 'Name'], ['company', 'Company'], ['purpose', 'Purpose'],
-                ['meeting', 'Here to meet'], ['mobile', 'Mobile'], ['pass_no', 'Pass no.'],
-              ].map(([key, label]) => (
-                <label className="field" key={key}>
-                  {label}
-                  <input
-                    value={visitor[key] ?? ''}
-                    onChange={(e) => setVisitor((v) => ({ ...v, [key]: e.target.value }))}
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="row">
-              <span className="muted small">The time in is now, unless you change it after.</span>
-              <span className="grow" />
-              <button
-                className="primary"
-                disabled={busy || !String(visitor.name || '').trim()}
-                onClick={() =>
-                  act(async () => {
-                    await api.post('/front-office/visitors', { ...visitor, day, in_time: nowHHMM() });
-                    setVisitor({});
-                  }, 'Signed in')
-                }
-              >
-                Add visitor
-              </button>
-            </div>
-          </div>
-
-          <div className="card scroll">
-            <div className="row">
-              <h3>{prettyDay(day)}</h3>
-              <span className="grow" />
-              <button className="ghost" onClick={() => printVisitors()} disabled={!data.visitors.length}>
-                Print the register
-              </button>
-            </div>
-            {/*
-              * A REGISTER, not a form that has been filled in.
-              *
-              * Dinesh sent a picture of one row and said *"ye format sahi
-              * karo"*. Three things were wrong with it: every empty box
-              * carried an em dash, which is five dashes shouting on a row
-              * that says nothing; the table hugged its own width and left
-              * half the card blank; and Delete sat spelled out in full on
-              * every line, which is the loudest word on a page where nothing
-              * should be deleted.
-              *
-              * A blank cell is blank now, the table fills the card with the
-              * name taking the slack, the rows are numbered the way every
-              * other register in this app is, and Delete is a ✕ at the end.
-              */}
-            <table className="sheet numbered fo-table">
-              <thead>
-                <tr>
-                  <th className="row-no">#</th>
-                  <th>In</th><th>Out</th><th className="grow">Name</th><th>Company</th>
-                  <th>To meet</th><th>Purpose</th><th>Mobile</th><th>Pass</th><th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.visitors.map((v, i) => (
-                  <tr key={v.id} className={v.out_time ? undefined : 'fo-in'}>
-                    <td className="row-no">{i + 1}</td>
-                    <td className="fo-tel">{v.in_time || ''}</td>
-                    <td className="fo-tel">
-                      {v.out_time || (
-                        <button
-                          className="tiny ghost"
-                          disabled={busy}
-                          onClick={() => act(() => api.patch(`/front-office/visitors/${v.id}`, { out_time: nowHHMM() }))}
-                        >
-                          {/* "Out now", not "Sign out" - the sidebar already
-                              has a Sign out, and the one on a visitor row
-                              must never read as the way out of the app. */}
-                          Out now
-                        </button>
-                      )}
-                    </td>
-                    <td>{v.name}</td>
-                    <td className="small">{v.company}</td>
-                    <td className="small">{v.meeting}</td>
-                    <td className="small">{v.purpose}</td>
-                    <td className="small fo-tel">{v.mobile}</td>
-                    <td className="small">{v.pass_no}</td>
-                    <td className="right">
-                      <button
-                        className="icon-x"
-                        title={`Remove ${v.name} from the register`}
-                        disabled={busy}
-                        onClick={() => {
-                          if (!window.confirm(`Remove ${v.name} from the register?`)) return;
-                          act(() => api.del(`/front-office/visitors/${v.id}`));
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!data.visitors.length ? (
-              <p className="empty fo-empty">Nobody signed in for this date.</p>
-            ) : null}
-          </div>
-        </>
+        <VisitorDesk
+          day={day}
+          employees={employees}
+          companyId={companyId}
+          onError={onError}
+          onToast={onToast}
+          onCount={() => load(day)}
+        />
       ) : null}
 
       {view === 'courier' ? (
-        <>
-          <div className="card">
-            <h3>Log a courier</h3>
-            <div className="iv-grid">
-              <label className="field">
-                In or out
-                <select
-                  value={parcel.direction}
-                  onChange={(e) => setParcel((p) => ({ ...p, direction: e.target.value }))}
-                >
-                  <option value="Inward">Inward (received)</option>
-                  <option value="Outward">Outward (sent)</option>
-                </select>
-              </label>
-              {[
-                ['company', 'Courier company'], ['ref_no', 'Ref / tracking no.'],
-                ['party', parcel.direction === 'Inward' ? 'From' : 'To'],
-                ['handler', parcel.direction === 'Inward' ? 'Received by' : 'Sent by'],
-                ['remark', 'Remark'],
-              ].map(([key, label]) => (
-                <label className="field" key={key}>
-                  {label}
-                  <input
-                    value={parcel[key] ?? ''}
-                    onChange={(e) => setParcel((p) => ({ ...p, [key]: e.target.value }))}
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="row">
-              <span className="muted small">A courier company or a from/to name — one of the two at least.</span>
-              <span className="grow" />
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() =>
-                  act(async () => {
-                    await api.post('/front-office/courier', { ...parcel, day, at_time: nowHHMM() });
-                    setParcel({ direction: parcel.direction });
-                  }, 'Logged')
-                }
-              >
-                Add entry
-              </button>
-            </div>
-          </div>
-
-          <div className="card scroll">
-            <div className="row">
-              <h3>{prettyDay(day)}</h3>
-              <span className="grow" />
-              <button className="ghost" onClick={() => printCourier()} disabled={!data.courier.length}>
-                Print the register
-              </button>
-            </div>
-            <table className="sheet numbered fo-table">
-              <thead>
-                <tr>
-                  <th className="row-no">#</th>
-                  <th>Time</th><th>In / Out</th><th>Courier</th><th>Ref</th>
-                  <th className="grow">From / To</th><th>By</th><th>Remark</th><th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.courier.map((c, i) => (
-                  <tr key={c.id}>
-                    <td className="row-no">{i + 1}</td>
-                    <td className="fo-tel">{c.at_time || ''}</td>
-                    <td><span className={`tag ${c.direction === 'Inward' ? 'open' : ''}`}>{c.direction}</span></td>
-                    <td className="small">{c.company}</td>
-                    <td className="small fo-tel">{c.ref_no}</td>
-                    <td className="small">{c.party}</td>
-                    <td className="small">{c.handler}</td>
-                    <td className="small">{c.remark}</td>
-                    <td className="right">
-                      <button
-                        className="icon-x"
-                        title="Remove this courier entry"
-                        disabled={busy}
-                        onClick={() => {
-                          if (!window.confirm('Remove this courier entry?')) return;
-                          act(() => api.del(`/front-office/courier/${c.id}`));
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!data.courier.length ? (
-              <p className="empty fo-empty">Nothing in or out for this date.</p>
-            ) : null}
-          </div>
-        </>
+        <CourierDesk
+          day={day}
+          employees={employees}
+          companyId={companyId}
+          onError={onError}
+          onToast={onToast}
+        />
       ) : null}
 
       {view === 'report' ? (
@@ -600,8 +409,35 @@ export default function FrontOffice({ onError }) {
         </div>
       ) : null}
 
+      {/*
+        * The day's visitors, with the four figures above them: the message
+        * for the group is the housekeeping half, and this is the register
+        * half of the same day.
+        */}
+      {view === 'report' ? (
+        <VisitorReports
+          mode="day"
+          day={day}
+          employees={employees}
+          companyId={companyId}
+          onError={onError}
+        />
+      ) : null}
+
       {view === 'month' ? (
         <>
+          {/*
+            * The visitor side of the month sits above the housekeeping side:
+            * six breakdowns of who came, then the areas that were flagged.
+            */}
+          <VisitorReports
+            mode="month"
+            day={day}
+            employees={employees}
+            companyId={companyId}
+            onError={onError}
+            onGoEmployee={() => onGo?.('employees')}
+          />
           <div className="toolbar">
             <label className="field">
               Month

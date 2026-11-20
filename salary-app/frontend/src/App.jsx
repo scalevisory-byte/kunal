@@ -1105,7 +1105,15 @@ function Shell() {
           * courier in and out. Dinesh sent the single-file tool he had made
           * for this and said "need this all feature in this".
           */}
-        {tab === 'frontoffice' && <FrontOffice onError={handle} />}
+        {tab === 'frontoffice' && (
+          <FrontOffice
+            onError={handle}
+            employees={employees}
+            companies={companies}
+            companyId={companyId}
+            onGo={setTab}
+          />
+        )}
 
         {tab === 'hiring' && (
           <>

@@ -147,8 +147,15 @@ test('a visitor needs a name; a courier entry needs a company or a from/to', asy
 });
 
 test('signing a visitor out records a time; it is never filled in by itself', async () => {
+  /*
+   * A visitor now needs a purpose and a real mobile number - a register
+   * whose numbers cannot be rung is a register nobody can use after the
+   * fact. visitorRegister.test.js covers the refusals; this one is about
+   * the out time.
+   */
   const visitor = (await api('POST', '/api/front-office/visitors', {
-    day: DAY, name: 'Amit Trivedi', company: 'HDFC', purpose: 'KYC', in_time: '10:15',
+    day: DAY, name: 'Amit Trivedi', company: 'HDFC', purpose: 'KYC',
+    mobile: '9898011223', in_time: '10:15',
   })).body;
   assert.equal(visitor.out_time, null, 'nobody has left yet');
 
@@ -223,13 +230,17 @@ test('the month counts the DAYS SOMEBODY RECORDED, not the days in the month', (
 /* ---------------- clearing a day ---------------- */
 
 test('clearing a day empties THAT day and leaves every other one alone', async () => {
-  await api('POST', '/api/front-office/visitors', { day: '2026-11-19', name: 'Yesterday' });
-  await api('POST', '/api/front-office/visitors', { day: DAY, name: 'Today' });
+  const visitor = (over) => ({ purpose: 'visit', mobile: '9898012345', ...over });
+  await api('POST', '/api/front-office/visitors', visitor({ day: '2026-11-19', name: 'Yesterday' }));
+  await api('POST', '/api/front-office/visitors', visitor({ day: DAY, name: 'Today', mobile: '9898012346' }));
 
   const counts = (await api('DELETE', `/api/front-office/day/${DAY}`)).body;
   assert.ok(counts.visitors >= 1);
 
+  /* ARCHIVED, not destroyed: off the register, still on the record. */
   assert.equal((await api('GET', `/api/front-office/day/${DAY}`)).body.visitors.length, 0);
+  const kept = (await api('GET', `/api/front-office/visitors?day=${DAY}&archived=true`)).body;
+  assert.ok(kept.rows.length >= 1, 'a visitor book is a record of who was in the building');
   assert.equal((await api('GET', '/api/front-office/day/2026-11-19')).body.visitors.length, 1);
 });
 

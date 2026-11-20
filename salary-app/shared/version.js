@@ -20,10 +20,31 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.49.0';
+export const VERSION = '1.50.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.50.0',
+    date: '20 Nov 2026',
+    title: 'Front office: a proper visitor and courier system',
+    items: [
+      '**Visitor passes are issued by the system** — VIS-2026-0001, a series that never repeats and never hands the same number out twice, even if two people register a visitor at the same moment.',
+      'The sign-in form now takes the **visitor type**, the **purpose** (required), **who they are here to meet picked from the staff list**, and a **10-digit mobile** that is checked. The time in and the pass number fill themselves in.',
+      '**Print the pass** — the company’s logo, the number, who they are, who they are seeing, and a QR code. **The QR carries the pass number and nothing else**: a pass is walked around a building full of people who are not staff, so the mobile number and the purpose stay off it.',
+      '**Check-out records who pressed it**, works out how long they were in, and can be **corrected or taken back** — the arrival is never touched and both halves are on the audit trail.',
+      '**The same person cannot be signed in twice** while they are still inside, and the refusal says whose pass is already open.',
+      '**Quick filters** — All / Currently inside / Checked out — plus one search box for the name, the mobile or the pass number, and filters by who was met and by visitor type. The register is paged.',
+      '**Four figures** on the register and the daily report, and the fourth is not a second name for the second: “never signed out” counts rows from earlier days that nobody closed, not people still in the building.',
+      '**The courier register has a delivery half now.** An inward parcel gets its own number (CR-IN-2026-0001), can be addressed to an employee with their department, and stays **pending handover** until somebody takes it. Writing the handover — who took it, whether they acknowledged it — is what marks it delivered.',
+      '**“Still in the drawer”** lists everything pending whatever date is on screen, and the count reaches the dashboard’s Pending actions.',
+      '**Monthly summary, six ways**: by date, visitor’s company, branch, person met, visitor type and purpose, with the average visit and the busiest first. Every breakdown adds up to the same total — a blank column is grouped as “(not recorded)”, never dropped.',
+      '**Print and Excel** on the day’s register, the month’s register and every breakdown.',
+      '**Nothing is deleted any more.** A visitor or a parcel is **archived** — off the register, still on the record — and “Clear this day” archives the day’s books instead of destroying them.',
+      '**Everything is on the audit trail**: registration, every correction, check-out and its undo, courier received, handed over, returned, archived — each with the old value, the new value and who did it.',
+      'Areas can belong to a company and a branch; left blank they cover the whole office, as they do today.',
+    ],
+  },
   {
     version: '1.49.0',
     date: '20 Nov 2026',

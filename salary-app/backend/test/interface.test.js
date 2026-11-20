@@ -2531,24 +2531,38 @@ test('the front desk is a tab, and its help topic names the trap', () => {
    */
   const app = src('App.jsx');
   assert.match(app, /\['frontoffice', 'Front office', 'frontdesk', 'frontoffice'\]/);
-  assert.match(app, /tab === 'frontoffice' && <FrontOffice/);
+  assert.match(app, /tab === 'frontoffice' && \(/);
+  // It is handed the staff list, so "here to meet" is an employee.
+  assert.match(app, /<FrontOffice[\s\S]{0,200}employees=\{employees\}/);
 
   const fo = src('components/FrontOffice.jsx');
   // The six screens his tool had.
   for (const label of ['Today', 'Visitors', 'Courier', 'Daily report', 'Monthly summary', 'Areas']) {
     assert.match(fo, new RegExp(`'${label}'`), `the ${label} view is missing`);
   }
-  // Four papers, built as documents like every other print in this app.
+  /*
+   * The visitor book and the courier register moved into their own
+   * components when they grew a form, filters, a pass and a handover; the
+   * shell keeps the housekeeping walk and the month's own papers. Every one
+   * of them still builds a document rather than printing the screen.
+   */
   assert.match(fo, /printReport/);
-  assert.equal(fo.match(/title: '/g).length, 4);
+  for (const file of [
+    'components/frontoffice/VisitorDesk.jsx',
+    'components/frontoffice/CourierDesk.jsx',
+    'components/frontoffice/VisitorReports.jsx',
+  ]) {
+    assert.match(src(file), /printReport/, `${file} should print a built report`);
+  }
 
   /*
    * The row button must NOT be called "Sign out": the sidebar has one, and
    * a receptionist clicking the wrong one is signed out of the app. Found
-   * by a browser run doing exactly that.
+   * by a browser run doing exactly that. It lives on the visitor desk now.
    */
-  assert.ok(!/>\s*Sign out\s*</.test(fo));
-  assert.match(fo, /Out now/);
+  const visitors = src('components/frontoffice/VisitorDesk.jsx');
+  assert.ok(!/>\s*Sign out\s*</.test(visitors));
+  assert.match(visitors, /Out now/);
 
   // The rule the module exists for, said where somebody is standing.
   assert.match(fo, /never as clean/);
@@ -2633,14 +2647,25 @@ test('the front desk registers read like registers', () => {
   // Numbered and full width, like every other register in this app.
   assert.match(fo, /className="sheet numbered fo-table"/);
   assert.match(css, /table\.sheet\.fo-table \{ width: 100%; \}/);
-  assert.equal(fo.match(/className="row-no"/g).length >= 6, true);
+  for (const file of [
+    'components/frontoffice/VisitorDesk.jsx',
+    'components/frontoffice/CourierDesk.jsx',
+  ]) {
+    assert.match(src(file), /className="sheet numbered fo-table"/, `${file} is not a register`);
+    assert.match(src(file), /className="row-no"/);
+  }
 
   // Headings over words line up with the words.
   assert.match(css, /table\.sheet\.fo-table thead th \{ text-align: left; \}/);
 
-  // Delete is a ✕ at the end of the row, and still asks first.
-  assert.match(fo, /className="icon-x"/);
-  assert.match(fo, /window\.confirm\(`Remove \$\{v\.name\} from the register\?`\)/);
+  /*
+   * Nothing on the desk is deleted any more - a visitor book is a record of
+   * who was in the building, so a row is ARCHIVED, and the confirmation
+   * says so rather than saying "remove".
+   */
+  const desk = src('components/frontoffice/VisitorDesk.jsx');
+  assert.match(desk, /Archive \$\{open\.name\}'s visit\?/);
+  assert.match(desk, /nothing is deleted/);
 
   // The "saved" note goes away rather than sitting on the page for ever.
   assert.match(fo, /setTimeout\(\(\) => setSaid\(''\), 4000\)/);

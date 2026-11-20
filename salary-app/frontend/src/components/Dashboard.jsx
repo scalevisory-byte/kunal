@@ -1164,6 +1164,20 @@ export default function Dashboard({
       text: `${desk.still_in} visitor${desk.still_in === 1 ? '' : 's'} have not been signed out`,
       go: 'frontoffice',
     },
+    /*
+     * A parcel in the drawer is somebody's post sitting unopened. It
+     * ignores the day on screen on purpose - one from Tuesday is still
+     * undelivered on Friday, and an alert that empties at midnight is an
+     * alert nobody works.
+     */
+    frontOffice?.pending_courier > 0 && {
+      key: 'fo-courier',
+      tone: 'warn',
+      text: `${frontOffice.pending_courier} courier parcel${
+        frontOffice.pending_courier === 1 ? '' : 's'
+      } received and not yet handed over`,
+      go: 'frontoffice',
+    },
     money.holdCount > 0 && {
       key: 'hold',
       tone: 'warn',
@@ -2039,6 +2053,11 @@ export default function Dashboard({
                 <div><b>{desk.still_in}</b><span>still in</span></div>
                 <div><b>{desk.courier_in}</b><span>courier in</span></div>
                 <div><b>{desk.courier_out}</b><span>courier out</span></div>
+                {frontOffice?.pending_courier > 0 && (
+                  <div className="bad">
+                    <b>{frontOffice.pending_courier}</b><span>parcels waiting</span>
+                  </div>
+                )}
               </div>
 
               {desk.flagged.length > 0 && (

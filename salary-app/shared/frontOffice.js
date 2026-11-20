@@ -226,3 +226,173 @@ export function monthSummaryText(summary = {}, { company = 'BOOKNFLY' } = {}) {
   lines.push(`Courier — In: ${n(summary.courier_in)}, Out: ${n(summary.courier_out)}`);
   return lines.join('\n');
 }
+
+
+/* ---------------- visitors: the kinds, the pass, the clock ---------------- */
+
+/**
+ * WHO IS AT THE DESK. Dinesh's list, in his order.
+ *
+ * A type is for counting, not for deciding anything - nothing in this module
+ * treats a vendor differently from a client. It is on the register so the
+ * month can say what the office's traffic actually is.
+ */
+export const VISITOR_TYPES = [
+  'Business Visitor', 'Client', 'Vendor', 'Candidate',
+  'Personal Visitor', 'Government Official', 'Other',
+];
+
+/** A mobile number as the register wants it: ten digits, no decoration. */
+export function cleanMobile(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  /* +91 and a leading 0 are how people actually type it, so they are taken
+     off rather than refused - but anything else is left alone, because
+     silently trimming an eleven-digit number would store the wrong one. */
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+}
+
+export const isMobile = (value) => /^[6-9]\d{9}$/.test(cleanMobile(value));
+
+/**
+ * What a visitor pass number looks like: VIS-2026-0001.
+ *
+ * The year is in it because the series restarts each year, and four digits
+ * because an office that takes ten thousand visitors in a year has a bigger
+ * problem than its numbering.
+ */
+export const passNumber = (year, seq) => `VIS-${year}-${String(seq).padStart(4, '0')}`;
+export const inwardNumber = (year, seq) => `CR-IN-${year}-${String(seq).padStart(4, '0')}`;
+
+/** Inside, or gone home. Read off the out time rather than stored beside it. */
+export const visitorStatus = (visitor = {}) => (visitor.out_time || visitor.out_at ? 'Checked out' : 'Inside');
+export const isInside = (visitor = {}) => visitorStatus(visitor) === 'Inside';
+
+const stamp = (day, time, at) => {
+  if (at) return Date.parse(at);
+  if (!day || !time) return NaN;
+  return Date.parse(`${day}T${String(time).padStart(5, '0')}:00`);
+};
+
+/**
+ * How long they were in the building, in minutes - or null.
+ *
+ * NULL, NEVER ZERO. "Still inside" and "in and out within the minute" are
+ * different facts, and a nought in a duration column would be read as the
+ * second one.
+ */
+export function visitMinutes(visitor = {}) {
+  const inAt = stamp(visitor.day, visitor.in_time, visitor.in_at);
+  const outAt = stamp(visitor.day, visitor.out_time, visitor.out_at);
+  if (!Number.isFinite(inAt) || !Number.isFinite(outAt)) return null;
+  const minutes = Math.round((outAt - inAt) / 60000);
+  /* A visit that reads as negative is a time typed wrong, not a visit that
+     ended before it began: say nothing rather than something absurd. */
+  return minutes < 0 ? null : minutes;
+}
+
+/** "1h 25m", or "—" when there is nothing to say. */
+export function duration(minutes) {
+  if (minutes === null || minutes === undefined) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+
+/* ---------------- courier: where a parcel has got to ---------------- */
+
+/**
+ * The four states Dinesh listed, and what each one means here.
+ *
+ * `Pending handover` is the one the register exists for: it arrived, it is
+ * in the drawer, and the person it is for has not taken it yet.
+ */
+export const COURIER_STATUSES = ['Received', 'Pending handover', 'Delivered', 'Returned', 'Sent'];
+export const isPending = (row = {}) => row.direction === 'Inward' && row.status === 'Pending handover';
+
+/* ---------------- what the day and the month add up to ---------------- */
+
+/**
+ * The four figures on the daily report, and the one that is not obvious.
+ *
+ * `pending_checkout` is NOT a second name for "currently inside". Somebody
+ * who walked in ten minutes ago is inside; somebody signed in yesterday and
+ * never signed out is a row nobody closed. The first is the state of the
+ * office, the second is a job for the desk - counting them together is how
+ * the second one never gets done.
+ */
+export function visitorKpis(rows = [], { today } = {}) {
+  const inside = rows.filter((v) => isInside(v));
+  return {
+    total: rows.length,
+    inside: inside.length,
+    checked_out: rows.length - inside.length,
+    pending_checkout: today ? inside.filter((v) => v.day < today).length : 0,
+  };
+}
+
+/** The average visit, in minutes, over the visits that have actually ended. */
+export function averageMinutes(rows = []) {
+  const done = rows.map((v) => visitMinutes(v)).filter((m) => m !== null && m !== undefined);
+  if (!done.length) return null;
+  return Math.round(done.reduce((t, m) => t + m, 0) / done.length);
+}
+
+/**
+ * One breakdown of the month, by whatever is asked for.
+ *
+ * Six reports out of one function, because they are one question asked six
+ * ways - and because a sixth copy of "group, count, average" is a sixth
+ * chance for one of them to count differently from the others.
+ *
+ * A row with nothing in that column is NOT dropped: it is grouped under its
+ * own heading. Visitors whose purpose nobody typed are a fact about the
+ * register, and a report that quietly left them out would not add up to the
+ * total above it.
+ */
+export const VISITOR_BREAKDOWNS = [
+  ['day', 'Date', (v) => v.day],
+  ['company', 'Visitor’s company', (v) => v.company],
+  ['branch', 'Branch', (v) => v.branch_name],
+  ['employee', 'Person met', (v) => v.meeting],
+  ['visitor_type', 'Visitor type', (v) => v.visitor_type],
+  ['purpose', 'Purpose', (v) => v.purpose],
+];
+
+export function breakdown(rows = [], key = 'day') {
+  const entry = VISITOR_BREAKDOWNS.find(([k]) => k === key) || VISITOR_BREAKDOWNS[0];
+  const get = entry[2];
+  const groups = new Map();
+  for (const row of rows) {
+    const name = String(get(row) || '').trim() || '(not recorded)';
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(row);
+  }
+  const out = [...groups.entries()].map(([name, list]) => ({
+    name,
+    employee_id: key === 'employee' ? list.find((r) => r.meet_employee_id)?.meet_employee_id || null : null,
+    visitors: list.length,
+    inside: list.filter((v) => isInside(v)).length,
+    checked_out: list.filter((v) => !isInside(v)).length,
+    average_minutes: averageMinutes(list),
+  }));
+  /* By date it reads as a diary, so it stays in date order. Everything else
+     reads as a league table, so the busiest is at the top. */
+  return key === 'day'
+    ? out.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    : out.sort((a, b) => b.visitors - a.visitors || String(a.name).localeCompare(String(b.name)));
+}
+
+/** The courier register's own figures. */
+export function courierKpis(rows = []) {
+  const inward = rows.filter((c) => c.direction === 'Inward');
+  return {
+    total: rows.length,
+    inward: inward.length,
+    outward: rows.length - inward.length,
+    pending: inward.filter((c) => c.status === 'Pending handover').length,
+    delivered: inward.filter((c) => c.status === 'Delivered').length,
+    returned: rows.filter((c) => c.status === 'Returned').length,
+  };
+}

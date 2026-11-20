@@ -1,12 +1,22 @@
 import { Router } from 'express';
 import {
   addCourier,
+  archiveCourier,
+  archiveVisitor,
+  checkOut,
+  getCourier,
+  getVisitor,
+  handOver,
+  listHandovers,
+  pendingCourier,
+  searchCourier,
+  searchVisitors,
+  setCourierStatus,
+  undoCheckOut,
   addUsualAreas,
   addVisitor,
   clearDay,
   createArea,
-  deleteCourier,
-  deleteVisitor,
   frontOfficeDay,
   frontOfficeMonth,
   listAreas,
@@ -28,7 +38,12 @@ const fail = (res, err) => res.status(err.status || 400).json({ error: err.messa
 
 frontOfficeRouter.get('/day/:day', (req, res) => {
   try {
-    res.json(frontOfficeDay(req.params.day));
+    res.json(
+      frontOfficeDay(req.params.day, {
+        company_id: req.query.company_id,
+        branch_id: req.query.branch_id,
+      })
+    );
   } catch (err) {
     fail(res, err);
   }
@@ -53,7 +68,13 @@ frontOfficeRouter.get('/month/:month', (req, res) => {
 /* ---------------- housekeeping ---------------- */
 
 frontOfficeRouter.get('/areas', (req, res) =>
-  res.json({ areas: listAreas({ all: req.query.all === 'true' }) })
+  res.json({
+    areas: listAreas({
+      all: req.query.all === 'true',
+      company_id: req.query.company_id,
+      branch_id: req.query.branch_id,
+    }),
+  })
 );
 
 frontOfficeRouter.post('/areas', (req, res) => {
@@ -94,18 +115,75 @@ frontOfficeRouter.post('/visitors', (req, res) => {
   try {
     res.status(201).json(addVisitor({ ...(req.body || {}), by: actorName(req) }));
   } catch (err) {
+    /* A refusal that carries the visitor it clashed with, so the desk can
+       see whose pass is already open rather than being told "409". */
+    if (err.visitor) return res.status(err.status || 409).json({ error: err.message, visitor: err.visitor });
+    return fail(res, err);
+  }
+});
+
+/** The register, searched. One query for the screen and for the reports. */
+frontOfficeRouter.get('/visitors', (req, res) => {
+  try {
+    res.json(
+      searchVisitors({
+        day: req.query.day,
+        from: req.query.from,
+        to: req.query.to,
+        q: req.query.q,
+        employee_id: req.query.employee_id,
+        visitor_type: req.query.visitor_type,
+        status: req.query.status,
+        company_id: req.query.company_id,
+        branch_id: req.query.branch_id,
+        archived: req.query.archived === 'true',
+        limit: req.query.limit,
+        offset: req.query.offset,
+      })
+    );
+  } catch (err) {
     fail(res, err);
   }
 });
 
+frontOfficeRouter.get('/visitors/:id', (req, res) => {
+  const visitor = getVisitor(Number(req.params.id));
+  if (!visitor) return res.status(404).json({ error: 'not found' });
+  return res.json({ visitor });
+});
+
 frontOfficeRouter.patch('/visitors/:id', (req, res) => {
-  const visitor = updateVisitor(Number(req.params.id), req.body || {});
+  try {
+    const visitor = updateVisitor(Number(req.params.id), req.body || {}, { by: actorName(req) });
+    if (!visitor) return res.status(404).json({ error: 'not found' });
+    return res.json(visitor);
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+/** Sign them out. Posting again with a time corrects it; DELETE takes it back. */
+frontOfficeRouter.post('/visitors/:id/checkout', (req, res) => {
+  try {
+    const visitor = checkOut(Number(req.params.id), { time: req.body?.time, by: actorName(req) });
+    if (!visitor) return res.status(404).json({ error: 'not found' });
+    return res.json(visitor);
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+frontOfficeRouter.delete('/visitors/:id/checkout', (req, res) => {
+  const visitor = undoCheckOut(Number(req.params.id), { by: actorName(req) });
   if (!visitor) return res.status(404).json({ error: 'not found' });
   return res.json(visitor);
 });
 
+/* Archived, never destroyed - see archiveVisitor. */
 frontOfficeRouter.delete('/visitors/:id', (req, res) => {
-  if (!deleteVisitor(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  if (!archiveVisitor(Number(req.params.id), { by: actorName(req) })) {
+    return res.status(404).json({ error: 'not found' });
+  }
   return res.status(204).end();
 });
 
@@ -119,7 +197,65 @@ frontOfficeRouter.post('/courier', (req, res) => {
   }
 });
 
+frontOfficeRouter.get('/courier', (req, res) => {
+  try {
+    res.json(
+      searchCourier({
+        day: req.query.day,
+        from: req.query.from,
+        to: req.query.to,
+        q: req.query.q,
+        employee_id: req.query.employee_id,
+        status: req.query.status,
+        direction: req.query.direction,
+        company_id: req.query.company_id,
+        branch_id: req.query.branch_id,
+        archived: req.query.archived === 'true',
+        limit: req.query.limit,
+        offset: req.query.offset,
+      })
+    );
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+/** Everything still in the drawer, for the alert. */
+frontOfficeRouter.get('/courier/pending', (req, res) => res.json({ rows: pendingCourier() }));
+
+frontOfficeRouter.get('/courier/:id', (req, res) => {
+  const row = getCourier(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'not found' });
+  return res.json({ courier: row, handovers: listHandovers(row.id) });
+});
+
+/** Writing a handover is what makes it delivered. */
+frontOfficeRouter.post('/courier/:id/handover', (req, res) => {
+  try {
+    const row = handOver(Number(req.params.id), { ...(req.body || {}), by: actorName(req) });
+    if (!row) return res.status(404).json({ error: 'not found' });
+    return res.json(row);
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
+frontOfficeRouter.patch('/courier/:id', (req, res) => {
+  try {
+    const row = setCourierStatus(Number(req.params.id), req.body?.status, {
+      by: actorName(req),
+      remark: req.body?.remark,
+    });
+    if (!row) return res.status(404).json({ error: 'not found' });
+    return res.json(row);
+  } catch (err) {
+    return fail(res, err);
+  }
+});
+
 frontOfficeRouter.delete('/courier/:id', (req, res) => {
-  if (!deleteCourier(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
+  if (!archiveCourier(Number(req.params.id), { by: actorName(req) })) {
+    return res.status(404).json({ error: 'not found' });
+  }
   return res.status(204).end();
 });
