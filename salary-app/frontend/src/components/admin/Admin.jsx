@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { STANDALONE } from '../../api.js';
 import Backups from './Backups.jsx';
 import Branches from './Branches.jsx';
+import CompanyLogos from './CompanyLogos.jsx';
 import Logins from './Logins.jsx';
 import Settings from './Settings.jsx';
 import Users from './Users.jsx';
@@ -11,6 +12,7 @@ const PANELS = [
   ['users', 'Logins'],
   ['staff', 'Staff logins'],
   ['branches', 'Branches'],
+  ['logos', 'Company logos'],
   ['settings', 'Month settings'],
   ['backups', 'Backups'],
   ['logins', 'Sign-ins'],
@@ -66,6 +68,7 @@ export default function Admin({ me, companies, period, locked, onPatchPeriod, on
       {panel === 'users' && <Users me={me} onError={onError} />}
       {panel === 'staff' && <StaffLogins onError={onError} />}
       {panel === 'branches' && <Branches companies={companies} onError={onError} onReload={onReload} />}
+      {panel === 'logos' && <CompanyLogos companies={companies} onError={onError} onReload={onReload} />}
       {panel === 'settings' && <Settings period={period} locked={locked} onPatch={onPatchPeriod} />}
       {panel === 'backups' && <Backups onError={onError} />}
       {panel === 'logins' && <Logins onError={onError} />}

@@ -94,6 +94,7 @@ import {
 } from '../hiring.js';
 import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
 import { config } from '../config.js';
+import { logoFile } from '../companyLogos.js';
 import { getSetting, setSetting } from '../users.js';
 import { cleanPublicUrl, reachablePublicly } from '../../../shared/publicUrl.js';
 import { testFor } from '../../../shared/hiringTest.js';
@@ -927,7 +928,14 @@ hiringRouter.put('/applications/:id/screening', (req, res) => {
 
 hiringRouter.get('/applications/:id/offer', (req, res) => {
   const found = offerFor(Number(req.params.id));
-  return found ? res.json(found) : res.status(404).json({ error: 'no such application' });
+  if (!found) return res.status(404).json({ error: 'no such application' });
+  /*
+   * Whether this company has a letterhead - a boolean, never the picture. The
+   * screen says so where somebody is about to print, because the moment you
+   * notice a logo is missing is the moment you are printing the letter, not
+   * the moment you are in the settings.
+   */
+  return res.json({ ...found, has_logo: !!logoFile(found.application.company_id) });
 });
 
 hiringRouter.put('/applications/:id/offer', (req, res) => {

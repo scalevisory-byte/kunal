@@ -500,6 +500,7 @@ export const HELP = [
     lines: [
       '**Hiring → Candidates → Print** is the candidate sheet — and the **CV is never printed or exported**, only whether one is on file. **Hiring → Interviews → Print** is the schedule, with whether the candidate’s form has come back and whether the evaluation is in. **Hiring → Vacancies → Print** is every opening with its seats, hires and applications.',
       '**The offer letter prints.** Open the application, and beside the download there is **Print the letter** — sign it and hand it over, or save it as a PDF. It is the same letter the download sends, built from the offer that was approved, and there is no letter at all until an Admin has approved it.',
+      'It carries **that company’s logo**, set in Admin → Company logos — inlined into the letter, so it shows on a phone with no signal.',
       '**Hiring → Reports** prints any of its twelve reports, including the new **Offers out** — every offer written, approved, sent or answered, drafts included, with the ones past their valid-till date flagged.',
       '**People → Leaving → Print the exit register** lists everybody who has gone and whether their full and final is settled; **Print the statement** on one person gives the settlement itself — Payable against To be recovered, with an unreturned asset named and valued below the net, never deducted.',
       '**People → Tasks → Print** is the register of work given to staff, with overdue said on the row — a job with no date is not late. **People → Helpdesk → Print** is every ticket, with who it is waiting on: “the office” means nobody here has replied yet.',
@@ -652,6 +653,23 @@ export const HELP = [
       '**Archive** is a place, not a delete. Somebody put on the payroll goes there by itself, because they work here now; **Restore** brings them back in one press and nothing about them is ever removed. Turning somebody down does NOT archive them — that is how the next opening finds them.',
     ],
     note: 'Nothing moves on its own — no auto-advance, no auto-reject. The match score orders a list and a test result is one more thing to weigh. Hiring needs the server: an apply link cannot live in a file on a laptop.',
+  },
+  {
+    id: 'company-logo',
+    title: 'The company logo on the offer letter',
+    tab: 'admin',
+    keywords: [
+      'logo', 'letterhead', 'letter head', 'brand', 'offer letter', 'company logo',
+      'image', 'picture', 'upload logo', 'logo lagana', 'nishan', 'chitra',
+    ],
+    lines: [
+      '**Admin → Company logos.** One logo per company, because these are separate businesses — an offer from BOOKNFLY must not go out under SCALE VISORY’s mark. The letter picks up the logo of the opening’s own company.',
+      'PNG, JPG, WEBP or GIF, up to 512 KB. A wide wordmark works best; it prints about 54 pixels tall. Replacing one simply replaces it.',
+      'The picture travels **inside** the letter, so it still shows on a phone with no signal — and nothing is fetched from this server when a candidate opens it.',
+      '**No logo is not a fault.** A company without one has its name printed in type, exactly as the letter always looked. Nothing is blocked for want of a picture.',
+      'The offer screen says so where you are standing: if that company has no logo it tells you, rather than letting you find out from the paper.',
+    ],
+    note: 'SVG IS NOT ACCEPTED. An SVG can carry script, and this letter is emailed, forwarded and opened on somebody else’s phone. Use a PNG.',
   },
   {
     id: 'hiring-test',

@@ -1,4 +1,5 @@
 import { db, createEmployee, getEmployee, audit } from './db.js';
+import { logoDataUri } from './companyLogos.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { ALL_STAGES, REJECTED, STAGES } from '../../shared/stages.js';
@@ -3382,7 +3383,16 @@ export function offerLetter(applicationId, { note } = {}) {
   }
   return {
     filename: offerFileName(found.offer),
-    html: offerLetterHtml(found.offer, { note }),
+    /*
+     * The logo comes from the OPENING'S OWN COMPANY, not from a setting
+     * somewhere: these are separate businesses, and an offer from BOOKNFLY
+     * must not go out under SCALE VISORY's mark. It is inlined, because the
+     * letter loads nothing from the internet.
+     */
+    html: offerLetterHtml(found.offer, {
+      note,
+      logo: logoDataUri(found.application.company_id),
+    }),
   };
 }
 

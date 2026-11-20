@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.43.0';
+export const VERSION = '1.44.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.44.0',
+    date: '20 Nov 2026',
+    title: 'The company logo on the offer letter',
+    items: [
+      '**Admin → Company logos.** Upload a logo for each company — PNG, JPG, WEBP or GIF, up to 512 KB — and the **offer letter goes out on it**.',
+      '**One logo per company, not one for the app.** These are separate businesses: the letter picks up the logo of the opening’s own company, so an offer from BOOKNFLY cannot go out under SCALE VISORY’s mark.',
+      'The picture travels **inside** the letter. It still shows on a phone with no signal, and nothing is fetched from this server when a candidate opens it — which also means the letter cannot report back when it is read.',
+      '**No logo is not a fault.** A company without one has its name printed in type, exactly as before. Nothing is blocked, and the offer screen tells you when that company has none rather than letting you find out from the paper.',
+      '**SVG is not accepted**, because an SVG can carry script into a document we hand to strangers. PNG, JPG, WEBP or GIF only.',
+      'The printed letter is now **fetched from the server**, so what prints and what you download are one document rather than two copies that could drift.',
+    ],
+  },
   {
     version: '1.43.0',
     date: '20 Nov 2026',

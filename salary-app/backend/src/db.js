@@ -549,6 +549,18 @@ if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'we
   db.exec(`ALTER TABLE companies ADD COLUMN weekly_off TEXT`);
   log.info('Migrated companies: added weekly_off.');
 }
+/*
+ * The company's own logo, for the papers that leave the building - the offer
+ * letter first. Only the generated file name is held here; the picture is on
+ * disk under DATA_DIR/company-logos, like every other upload in this app.
+ * Null means no logo, which is not a fault: the letter simply goes out with
+ * the company's name set in type, as it always has.
+ */
+if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'logo_path')) {
+  db.exec(`ALTER TABLE companies ADD COLUMN logo_path TEXT`);
+  log.info('Migrated companies: added logo_path, for the letterhead.');
+}
+
 if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'weekly_off')) {
   db.exec(`ALTER TABLE employees ADD COLUMN weekly_off TEXT`);
   log.info('Migrated employees: added weekly_off, for anybody not off on the company day.');
@@ -684,13 +696,36 @@ log.info(`SQLite ready at ${config.dbPath}`);
 
 /* ---------------- companies ---------------- */
 
+/**
+ * The companies, with whether each has a logo on file.
+ *
+ * `logo_path` is a path on the server's disk and never travels: the browser is
+ * told only that there is one, and asks for the picture itself by id. The same
+ * rule the employee photographs and the candidate CVs already follow.
+ */
 export function listCompanies() {
   return db
     .prepare(
-      `SELECT c.*, (SELECT COUNT(*) FROM employees e WHERE e.company_id = c.id AND e.active = 1) AS employee_count
+      `SELECT c.*, (SELECT COUNT(*) FROM employees e WHERE e.company_id = c.id AND e.active = 1) AS employee_count,
+              (c.logo_path IS NOT NULL) AS has_logo
        FROM companies c ORDER BY c.sort_order, c.name`
     )
-    .all();
+    .all()
+    .map(({ logo_path, ...company }) => ({ ...company, has_logo: !!company.has_logo }));
+}
+
+/** One company, as it is stored - logo_path included, for the server's own use. */
+export const getCompany = (id) => db.prepare(`SELECT * FROM companies WHERE id = ?`).get(id);
+
+/**
+ * Point a company at an uploaded logo file, or at none.
+ *
+ * Only the file NAME is stored, never a path somebody sent: the directory is
+ * the server's business, and a name that travelled could reach out of it.
+ */
+export function setCompanyLogo(id, filename) {
+  db.prepare(`UPDATE companies SET logo_path = ? WHERE id = ?`).run(filename || null, id);
+  return getCompany(id);
 }
 
 export function createCompany({ name, sort_order = 0 }) {
@@ -699,7 +734,7 @@ export function createCompany({ name, sort_order = 0 }) {
   const info = db
     .prepare(`INSERT INTO companies (name, sort_order) VALUES (?, ?)`)
     .run(clean, Number(sort_order) || 0);
-  return db.prepare(`SELECT * FROM companies WHERE id = ?`).get(info.lastInsertRowid);
+  return withoutPath(getCompany(info.lastInsertRowid));
 }
 
 /** Used by the importer and the seeder: get by name, create if missing. */
@@ -719,10 +754,19 @@ export function updateCompany(id, patch) {
     fields.push(`${key} = ?`);
     values.push(patch[key] === '' ? null : patch[key]);
   }
-  if (!fields.length) return db.prepare(`SELECT * FROM companies WHERE id = ?`).get(id);
+  /*
+   * `logo_path` is deliberately not in that list and never will be. It is set
+   * by uploading a file, not by sending a name - a patch that could write it
+   * would let a caller point a company at any file on the disk.
+   */
+  if (!fields.length) return withoutPath(getCompany(id));
   db.prepare(`UPDATE companies SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
-  return db.prepare(`SELECT * FROM companies WHERE id = ?`).get(id);
+  return withoutPath(getCompany(id));
 }
+
+/** A company as the browser may see it: no server path, just whether there is one. */
+const withoutPath = (company) =>
+  company ? (({ logo_path, ...rest }) => ({ ...rest, has_logo: !!logo_path }))(company) : company;
 
 export function deleteCompany(id) {
   return db.prepare(`DELETE FROM companies WHERE id = ?`).run(id).changes > 0;

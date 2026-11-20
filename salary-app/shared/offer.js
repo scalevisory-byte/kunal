@@ -190,8 +190,22 @@ export function offerFileName(offer = {}) {
  * Everything here comes from the stored offer. It does not recalculate a
  * salary or look anything up: the figure on the letter is the figure that was
  * approved, and the two cannot disagree.
+ *
+ * THE LOGO TRAVELS INSIDE THE FILE. Dinesh: *"offer letter me company ka logo
+ * bhi aana chahiye"*. It arrives as a `data:` URI and is written straight into
+ * the src, because an <img> pointing at our server would be a letter that
+ * stops working the moment it is forwarded - and would tell us every time a
+ * candidate opened it. Anything that is not a data: image is ignored rather
+ * than written out: this file is handed to strangers, and a src is the one
+ * place a URL somebody else chose could reach back out of it.
+ *
+ * No logo is not a fault. The letter goes out with the company's name set in
+ * type, exactly as it did before there was one.
  */
-export function offerLetterHtml(offer = {}, { note } = {}) {
+export function offerLetterHtml(offer = {}, { note, logo } = {}) {
+  const mark = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(String(logo || ''))
+    ? String(logo)
+    : '';
   const lines = [
     ['Position', offer.designation],
     ['Department', offer.department],
@@ -225,6 +239,8 @@ export function offerLetterHtml(offer = {}, { note } = {}) {
   h2 { font-size: 1rem; margin: 1.6rem 0 0.6rem; }
   .muted { color: #6a6f7a; font-size: 0.85rem; }
   .head { border-bottom: 2px solid #15284b; padding-bottom: 0.8rem; margin-bottom: 1.2rem; }
+  /* Held to a size rather than printed at whatever the file happens to be. */
+  .head img { display: block; max-height: 54px; max-width: 16rem; margin-bottom: 0.6rem; }
   table { width: 100%; border-collapse: collapse; margin: 0.6rem 0 1rem; }
   th, td { text-align: left; padding: 0.42rem 0.2rem; border-bottom: 1px solid #ececea; }
   th { width: 42%; font-weight: 500; color: #6a6f7a; }
@@ -240,6 +256,7 @@ export function offerLetterHtml(offer = {}, { note } = {}) {
 <body>
 <div class="sheet">
   <div class="head">
+    ${mark ? `<img src="${mark}" alt="${esc(offer.company_name || '')}">` : ''}
     <h1>${esc(offer.company_name || 'BOOKNFLY')}</h1>
     <p class="muted">Offer of employment${
       offer.approved_at ? ` · ${esc(longDate(String(offer.approved_at).slice(0, 10)))}` : ''

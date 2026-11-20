@@ -2492,13 +2492,17 @@ test('vacancies print a register, and the offer letter prints itself', () => {
 
   /*
    * "ha to da sake wesa banavo" - he hands the letter over, so it prints.
-   * It is the SERVER'S letter, built by the shared function the download
-   * uses, from the STORED offer and never from the boxes above it.
+   *
+   * It FETCHES the server's letter rather than building a second copy here.
+   * It was built here at first, from the same shared function; once the
+   * company's logo had to be inlined into it on the server, a copy built in
+   * the browser would have been a copy that could say something else.
    */
-  assert.match(offer, /offerLetterHtml/);
-  assert.match(offer, /offerLetterHtml\(offer\)/);
-  assert.ok(!/offerLetterHtml\(form/.test(offer), 'the letter must not be built from the form');
+  assert.match(offer, /fetchPage\(`\/hiring\/applications\/\$\{applicationId\}\/offer\/letter`\)/);
+  assert.ok(!offer.includes('offerLetterHtml'), 'the browser must not build the letter again');
   assert.match(offer, /Print the letter/);
+  // An iframe, because a whole document cannot print inside this page.
+  assert.match(offer, /frame\.srcdoc = html/);
 });
 
 test('the hiring reports print the report, not the screen', () => {

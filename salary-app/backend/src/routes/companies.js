@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  getCompany,
   createBranch,
   createCompany,
   deleteBranch,
@@ -9,6 +10,7 @@ import {
   updateBranch,
   updateCompany,
 } from '../db.js';
+import { MAX_LOGO_BYTES, logoFile, removeLogo, saveLogo, uploadLogo } from '../companyLogos.js';
 
 export const companiesRouter = Router();
 
@@ -31,6 +33,48 @@ companiesRouter.patch('/:id', (req, res) => {
 companiesRouter.delete('/:id', (req, res) => {
   if (!deleteCompany(Number(req.params.id))) return res.status(404).json({ error: 'not found' });
   res.status(204).end();
+});
+
+/* ---------------- the logo, for the papers that leave the building ---------------- */
+
+/*
+ * "offer letter me company ka logo bhi aana chahiye".
+ *
+ * One logo per company, because these are separate businesses: an offer from
+ * BOOKNFLY must not go out under SCALE VISORY's mark.
+ *
+ * Uploading and removing are changes, so the mount's `requireAdminForChanges`
+ * already has them. Reading the picture is a read.
+ */
+companiesRouter.post('/:id/logo', uploadLogo, (req, res) => {
+  const company = getCompany(Number(req.params.id));
+  if (!company) return res.status(404).json({ error: 'not found' });
+  if (!req.file) {
+    const kb = Math.round(MAX_LOGO_BYTES / 1024);
+    return res.status(400).json({ error: `Choose a PNG, JPG, WEBP or GIF of up to ${kb} KB.` });
+  }
+  return res.json({ company: company.name, ...saveLogo(company.id, req.file) });
+});
+
+companiesRouter.delete('/:id/logo', (req, res) => {
+  const company = getCompany(Number(req.params.id));
+  if (!company) return res.status(404).json({ error: 'not found' });
+  res.json({ company: company.name, ...removeLogo(company.id) });
+});
+
+/*
+ * The picture itself, served inline behind the session.
+ *
+ * Deliberately NOT a signed expiring link like a document: this is drawn by an
+ * <img> on a settings page that may sit open all afternoon, and it is a logo -
+ * the one picture in this app that is meant to be seen by outsiders anyway.
+ * The same reasoning as the employee photograph route.
+ */
+companiesRouter.get('/:id/logo', (req, res) => {
+  const file = logoFile(Number(req.params.id));
+  if (!file) return res.status(404).json({ error: 'no logo on file' });
+  res.setHeader('cache-control', 'private, max-age=3600');
+  return res.sendFile(file);
 });
 
 /* ---------------- branches, beneath a company ---------------- */

@@ -120,6 +120,33 @@ export const api = {
 };
 
 /**
+ * A page the server builds, fetched as TEXT rather than downloaded.
+ *
+ * The offer letter is the one of these: it is a whole HTML document with its
+ * own stylesheet, so it cannot be rendered inside the app - it goes into an
+ * iframe and is printed from there. Fetching it means the paper is literally
+ * what the server sends, not a copy of it assembled here.
+ *
+ * Server build only. In the single file there is nothing to fetch from.
+ */
+export async function fetchPage(path) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`/api${path}`, { headers, credentials: 'same-origin' });
+  if (res.status === 401) throw new AuthError('Sign in again');
+  const text = await res.text();
+  if (!res.ok) {
+    // The server answers a refusal with JSON, and its sentence is the useful
+    // half - "this offer has not been approved yet", not "failed (409)".
+    let said = '';
+    try { said = JSON.parse(text)?.error || ''; } catch { said = ''; }
+    throw new Error(said || `Could not open that page (${res.status})`);
+  }
+  return text;
+}
+
+/**
  * Downloads go through fetch rather than a plain link so the bearer token
  * travels with them.
  */

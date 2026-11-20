@@ -4614,3 +4614,12 @@ table.sheet.ledger-table tr.ledger-balance td {
   border-bottom: 1px solid var(--navy-line);
 }
 .ledger-page .table-wrap { max-height: 70vh; }
+
+/* A company's logo on the Admin screen. Held to a height so a 2000px
+   signboard and a 300px wordmark sit on the same line as each other. */
+.co-logo {
+  display: block;
+  max-height: 38px;
+  max-width: 14rem;
+  object-fit: contain;
+}
