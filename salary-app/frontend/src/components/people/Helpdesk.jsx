@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 
 const when = (v) => String(v || '').replace('T', ' ').slice(0, 16);
@@ -103,6 +104,54 @@ export default function Helpdesk({ employees, onError, only = null }) {
 
   const waiting = tickets.filter((t) => t.waiting);
 
+  /**
+   * WHAT STAFF HAVE ASKED, AND WHO IS WAITING ON WHOM.
+   *
+   * Two rules of this module ride onto the paper, because both are easy to
+   * read the wrong way round:
+   *
+   *   **Waiting means waiting on US.** A ticket somebody has answered is
+   *   waiting on the employee, not on the office, and the column says which.
+   *
+   *   **Answering is not closing.** The employee decides whether the answer
+   *   settled it, and replying puts it back to open.
+   */
+  const printIt = () => {
+    printReport({
+      title: 'Helpdesk — what staff have asked',
+      subtitle: { open: 'open', answered: 'answered', closed: 'closed' }[status] || 'every ticket on record',
+      meta: [
+        `${tickets.length} ${tickets.length === 1 ? 'ticket' : 'tickets'}`,
+        `${waiting.length} waiting on the office`,
+      ],
+      landscape: true,
+      /* Thirteen columns once the detail is on it. */
+      compact: true,
+      columns: [
+        col('#', (_t, i) => i + 1, '3%'),
+        col('Raised', (t) => String(t.created_at || '').slice(0, 10)),
+        col('Who', (t) => t.employee_name || ''),
+        col('About', (t) => t.category || ''),
+        col('Priority', (t) => t.priority || ''),
+        col('With', (t) => t.assigned_to || ''),
+        col('What they asked', (t) => t.subject || ''),
+        col('Detail', (t) => t.detail || ''),
+        col('Where it stands', (t) => t.status || ''),
+        col('Waiting on', (t) => (t.waiting ? 'the office' : t.status === 'closed' ? '—' : 'them')),
+        /* The row's own field names, read off the API rather than guessed:
+           `last_reply_at` and `last_side`, not an `answered_at` that does
+           not exist. */
+        col('Last reply', (t) => String(t.last_reply_at || '').slice(0, 10)),
+        col('By', (t) => (t.last_side === 'office' ? 'the office' : t.last_side ? 'them' : '')),
+        col('Replies', (t) => t.replies ?? ''),
+        col('Closed', (t) => String(t.closed_on || '').slice(0, 10)),
+      ],
+      rows: tickets,
+      footer:
+        '“Waiting on the office” means nobody here has replied yet. Answering is not closing: the person who raised it decides whether the answer settled it, and a reply from them puts it back to open.',
+    });
+  };
+
   return (
     <section className="stack">
       <div className="figures">
@@ -126,6 +175,9 @@ export default function Helpdesk({ employees, onError, only = null }) {
             )
           )}
         </div>
+        <button className="ghost" onClick={printIt} disabled={!tickets.length}>
+          Print {tickets.length}
+        </button>
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Log one for somebody'}
         </button>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -70,6 +71,47 @@ export default function Tasks({ employees, onError, only = null }) {
   const open = tasks.filter((t) => t.status === 'open');
   const overdue = open.filter((t) => t.overdue);
 
+  /**
+   * WHO WAS GIVEN WHAT — office work assigned to staff.
+   *
+   * NOT the WhatsApp task assistant: these are jobs somebody in the office
+   * handed to somebody else, with a date and a priority.
+   *
+   * `overdue` is worked out on reading, never stored, so a list printed
+   * today cannot carry yesterday's opinion of what is late. The overdue
+   * ones lead, because that is what the page is opened for.
+   */
+  const printIt = () => {
+    const late = tasks.filter((t) => t.overdue && t.status === 'open');
+    printReport({
+      title: 'Work given to staff',
+      subtitle: { open: 'still open', done: 'done', dropped: 'dropped' }[status] || 'every job on record',
+      meta: [
+        `${tasks.length} ${tasks.length === 1 ? 'job' : 'jobs'}`,
+        late.length ? `${late.length} past the date` : 'none past its date',
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_t, i) => i + 1, '3%'),
+        col('Who', (t) => t.employee_name || ''),
+        col('The job', (t) => t.title || ''),
+        col('Detail', (t) => t.detail || ''),
+        col('Priority', (t) => t.priority || ''),
+        col('Due', (t) => `${t.due_on || 'no date'}${t.overdue && t.status === 'open' ? ' — overdue' : ''}`),
+        col('Where it stands', (t) => t.status || ''),
+        col('Finished', (t) => t.done_on || ''),
+        col('What they said', (t) => t.done_note || ''),
+      ],
+      rows: tasks,
+      /*
+       * The two rules the module holds to, said where somebody reading the
+       * list will act on it.
+       */
+      footer:
+        'A job with no date is not late — it has no date. A done job is never deleted, only dropped, and dropping work somebody gave you is the office’s call, not the phone’s. This is office work given to staff, not the WhatsApp task assistant.',
+    });
+  };
+
   return (
     <section className="stack">
       <div className="figures">
@@ -93,6 +135,9 @@ export default function Tasks({ employees, onError, only = null }) {
             )
           )}
         </div>
+        <button className="ghost" onClick={printIt} disabled={!tasks.length}>
+          Print {tasks.length}
+        </button>
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Give somebody a job'}
         </button>

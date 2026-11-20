@@ -2386,3 +2386,36 @@ test('appraisals and asset handovers each print a register', () => {
   assert.match(slips, /This is the handover LOG/);
   assert.match(slips, /Print the handover register/);
 });
+
+test('staff jobs and the helpdesk each print a register', () => {
+  const tasks = src('components/people/Tasks.jsx');
+  const desk = src('components/people/Helpdesk.jsx');
+
+  // "helpdesk aur staff tasks ka bhi print report do".
+  assert.match(tasks, /title: 'Work given to staff'/);
+  assert.match(desk, /title: 'Helpdesk — what staff have asked'/);
+
+  /*
+   * Two rules of the task module, said where somebody reading the list
+   * will act on it: a job with no date is not late, and a done job is
+   * never deleted - only dropped, and that is the office's call.
+   */
+  assert.match(tasks, /A job with no date is not late/);
+  assert.match(tasks, /not the WhatsApp task assistant/);
+
+  /*
+   * And two of the helpdesk's, both easy to read the wrong way round:
+   * waiting means waiting on US, and answering is not closing.
+   */
+  assert.match(desk, /t\.waiting \? 'the office' :/);
+  assert.match(desk, /Answering is not closing/);
+
+  /*
+   * The columns use the row's OWN field names, read off the API rather
+   * than guessed: `last_reply_at` and `last_side`. The first attempt
+   * printed an `answered_at` that does not exist, so the column was blank
+   * on a ticket that had been answered that morning.
+   */
+  assert.match(desk, /t\.last_reply_at/);
+  assert.match(desk, /t\.last_side === 'office'/);
+});

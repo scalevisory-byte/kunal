@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.39.0';
+export const VERSION = '1.40.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.40.0',
+    date: '20 Nov 2026',
+    title: 'Staff jobs and the helpdesk, printed',
+    items: [
+      '**People → Tasks → Print.** Who was given what, the detail, priority, when it is due — with **overdue said on the row** — where it stands, when it was finished and what they said about it.',
+      'The page says the two things the list is read wrongly for: **a job with no date is not late**, it has no date; and a finished job is never deleted, only dropped, which is the office’s call. (This is office work given to staff, not the WhatsApp task assistant.)',
+      '**People → Helpdesk → Print.** Every ticket: raised when and by whom, what it is about, priority, who it is with, what they asked, where it stands, **who it is waiting on**, the last reply and from which side, how many replies, and when it was closed.',
+      '**“Waiting on the office” means nobody here has replied yet** — a ticket that has been answered is waiting on them, not on us. And **answering is not closing**: the person who raised it decides whether the answer settled it, and their reply puts it back to open. Both are printed on the page.',
+      'Both print what is on screen, and the status you have filtered to is named at the top.',
+    ],
+  },
   {
     version: '1.39.0',
     date: '20 Nov 2026',
