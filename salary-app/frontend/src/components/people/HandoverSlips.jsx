@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import ScrollFrame from '../ScrollFrame.jsx';
 import { rupees } from '../../format.js';
@@ -150,8 +151,69 @@ export default function HandoverSlips({ onError }) {
     );
   }
 
+  /**
+   * THE HANDOVER REGISTER — every movement in the log, not who holds what.
+   *
+   * The list on screen answers "who has what NOW" and is built from the
+   * REGISTER, which is why somebody holding an imported asset with no slip
+   * is on it. This prints the other thing: the LOG — every issue and every
+   * return, signed or not — which is what an auditor asks for and what
+   * somebody chasing a signature works down.
+   *
+   * The two cannot be the same list, and the paper says which one it is.
+   */
+  const printRegister = async () => {
+    try {
+      const { handovers } = await api.get('/people/assets/handovers');
+      const open = handovers.filter((h) => !h.returned_on);
+      printReport({
+        title: 'Asset handover register',
+        subtitle: 'every issue and return in the log',
+        meta: [
+          `${handovers.length} ${handovers.length === 1 ? 'handover' : 'handovers'}`,
+          `${open.length} still out · ${open.filter((h) => !h.acknowledged_on).length} of those not signed for`,
+        ],
+        landscape: true,
+        columns: [
+          col('#', (_h, i) => i + 1, '3%'),
+          col('Issued on', (h) => h.issued_on || ''),
+          col('To', (h) => h.employee_name || ''),
+          col('Code', (h) => h.code || ''),
+          col('Asset', (h) => `${h.kind || ''} ${h.label || ''}`.trim()),
+          col('Serial', (h) => h.identifier || ''),
+          num('Cost to buy', (h) => (Number(h.purchase_cost) ? rupees(h.purchase_cost) : '—')),
+          col('Issued by', (h) => h.issued_by || ''),
+          col('Condition out', (h) => h.condition_out || ''),
+          col('Returned on', (h) => h.returned_on || 'still out'),
+          col('Taken back by', (h) => h.returned_by || ''),
+          col('Condition back', (h) => h.condition_in || ''),
+          col('Signed', (h) => (h.acknowledged_on ? h.acknowledged_on : 'not signed')),
+        ],
+        rows: handovers,
+        /*
+         * Said on the paper, because the two lists answer different
+         * questions and a register that looked like the other one would be
+         * read as a shorter truth.
+         */
+        footer:
+          'This is the handover LOG — every issue and return, including assets since given back. Who holds something now comes from the asset register instead, which is why somebody holding an imported asset with no slip is on that list and not on this one. Nothing is deleted here: a transfer closes one handover and opens the next.',
+      });
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   return (
     <section className="stack">
+      {/* The slip is one person's to sign; this is the whole log. */}
+      <div className="toolbar">
+        <button className="ghost" onClick={printRegister}>
+          Print the handover register
+        </button>
+        <span className="muted small">
+          Every issue and return in the log. The list below is who holds something <strong>now</strong>.
+        </span>
+      </div>
       {!people.length ? (
         <p className="muted small">Nothing is out with anybody.</p>
       ) : (

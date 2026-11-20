@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.38.0';
+export const VERSION = '1.39.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.39.0',
+    date: '20 Nov 2026',
+    title: 'Appraisals and asset handovers, printed',
+    items: [
+      '**People → Appraisals → Print.** Reviewed on, cycle, rating, **what they were on**, what is proposed, the rise and the percentage, from when, **whether it has been applied** — and what was said about them.',
+      'The total is only of the ones **actually applied**, and the page says why that matters: an appraisal is a proposal until it is applied, and until the Applied column carries a date nobody’s salary has moved. A printed list of increments is exactly the thing somebody reads as a decision already taken.',
+      '**Assets → Who holds what → Print the handover register.** Every issue and every return in the log: issued on, to whom, the asset and its serial, what it cost, who issued it and in what condition, when it came back, to whom and in what condition, and whether it was signed for.',
+      'The page states the difference between the two lists, because they answer different questions: **this is the log**, while “who holds what” comes from the asset register — which is why somebody holding an imported asset with no slip appears on that list and not in this one.',
+    ],
+  },
   {
     version: '1.38.0',
     date: '20 Nov 2026',

@@ -2357,3 +2357,32 @@ test('penalties and expense claims each print a register', () => {
   assert.match(claims, /col\('Paid through', \(c\) => c\.paid_period_label/);
   assert.match(claims, /An approved claim is not a paid claim/);
 });
+
+test('appraisals and asset handovers each print a register', () => {
+  const app = src('components/people/Appraisals.jsx');
+  const slips = src('components/people/HandoverSlips.jsx');
+
+  // "appraisal aur asset handover ka bhi print report do".
+  assert.match(app, /title: 'Appraisals and increments'/);
+  assert.match(slips, /title: 'Asset handover register'/);
+
+  /*
+   * An appraisal is a PROPOSAL until applied, and a printed list of
+   * increments is exactly the thing somebody reads as a decision already
+   * taken. So the paper carries the applied date per row, totals only the
+   * applied ones, and says both out loud.
+   */
+  assert.match(app, /r\.applied \? String\(r\.applied_at \|\| ''\)\.slice\(0, 10\) : 'not yet'/);
+  assert.match(app, /label: `Applied \(\$\{applied\.length\}\)`/);
+  assert.match(app, /An appraisal is a proposal until it is applied/);
+
+  /*
+   * The handover register is the LOG - every issue and return - and the
+   * list on screen is who holds something NOW, built from the register so
+   * that somebody holding an imported asset with no slip is on it. Two
+   * different questions, and the paper says which one it answers.
+   */
+  assert.match(slips, /api\.get\('\/people\/assets\/handovers'\)/);
+  assert.match(slips, /This is the handover LOG/);
+  assert.match(slips, /Print the handover register/);
+});

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 
@@ -51,6 +52,60 @@ export default function Appraisals({ employees, onError, onReload, only = null }
 
   const current = employees.find((e) => String(e.id) === String(draft.employee_id));
 
+  /**
+   * THE INCREMENT REGISTER — what was proposed, and what has actually been
+   * applied.
+   *
+   * The distinction is the whole module: an appraisal is a PROPOSAL until
+   * it is applied, and until then nobody's salary has moved. The paper
+   * carries both the "from" it was measured against and the date it was
+   * applied, so a sheet of proposals can never be read as a sheet of
+   * rises.
+   */
+  const printIt = () => {
+    const names = [...new Set(rows.map((r) => r.company_name).filter(Boolean))];
+    const applied = rows.filter((r) => r.applied);
+    const sum = (list, pick) => list.reduce((t, r) => t + (Number(pick(r)) || 0), 0);
+    printReport({
+      title: 'Appraisals and increments',
+      subtitle: [
+        names.length === 1 ? names[0] : 'All companies',
+        pendingOnly ? 'only the ones not applied yet' : 'every appraisal on record',
+      ].join(' · '),
+      meta: [
+        `${rows.length} ${rows.length === 1 ? 'appraisal' : 'appraisals'}`,
+        `${applied.length} applied · ${rows.length - applied.length} not applied yet`,
+        `${rupees(sum(applied, (r) => r.increment))} a month added by the ones applied`,
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_r, i) => i + 1, '3%'),
+        col('Reviewed', (r) => r.reviewed_on || ''),
+        col('Employee', (r) => r.employee_name),
+        col('Cycle', (r) => r.cycle || ''),
+        col('Rating', (r) => r.rating || ''),
+        num('Was on', (r) => rupees(r.from_salary)),
+        num('Proposed', (r) => (r.to_salary ? rupees(r.to_salary) : '—')),
+        num('Rise', (r) => (r.to_salary ? rupees(r.increment) : '—')),
+        num('%', (r) => (r.increment_pct === null || r.increment_pct === undefined ? '' : `${r.increment_pct}%`)),
+        col('From when', (r) => r.effective_from || ''),
+        col('Applied', (r) => (r.applied ? String(r.applied_at || '').slice(0, 10) : 'not yet')),
+        col('What was said', (r) => r.summary || ''),
+      ],
+      rows,
+      totals: {
+        label: `Applied (${applied.length})`,
+        Rise: rupees(sum(applied, (r) => r.increment)),
+      },
+      /*
+       * Said on the paper, because a printed list of increments is exactly
+       * the thing somebody reads as a decision already taken.
+       */
+      footer:
+        'An appraisal is a proposal until it is applied: until the Applied column carries a date, nobody’s salary has moved. “Was on” is what they were on when it was measured, so an increment can never be worked off a stale figure. The total is of the ones actually applied.',
+    });
+  };
+
   const save = async () => {
     if (!draft.employee_id) return;
     try {
@@ -102,6 +157,9 @@ export default function Appraisals({ employees, onError, onReload, only = null }
           />{' '}
           Only the ones not applied yet
         </label>
+        <button className="ghost" onClick={printIt} disabled={!rows.length}>
+          Print {rows.length}
+        </button>
         <button className="ghost" onClick={() => setAdding(!adding)}>
           {adding ? 'Cancel' : 'Record an appraisal'}
         </button>
