@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import { onStaff } from '../../onStaff.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -107,7 +108,7 @@ export default function Records({ employees, onError, only = null }) {
                 onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}
               >
                 <option value="">Pick somebody</option>
-                {employees.map((e) => (
+                {onStaff(employees).map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}
                     {e.company_name ? ` — ${e.company_name}` : ''}

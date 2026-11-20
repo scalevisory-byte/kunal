@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
+import { onStaff } from '../../onStaff.js';
 
 const KINDS = ['Travel', 'Food', 'Petrol', 'Lodging', 'Phone', 'Other'];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -184,7 +185,7 @@ export default function Claims({ employees, period, onError, onReload, only = nu
                 onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}
               >
                 <option value="">Pick somebody</option>
-                {employees.map((e) => (
+                {onStaff(employees).map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}
                   </option>

@@ -17,6 +17,7 @@ import AssetExport from './AssetExport.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
+import { onStaff } from '../../onStaff.js';
 
 const KINDS = ['Laptop', 'Desktop', 'Mobile', 'SIM card', 'ID card', 'Access card', 'Vehicle', 'Tools', 'Furniture', 'Other'];
 const today = () => new Date().toISOString().slice(0, 10);
@@ -1499,7 +1500,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                         <option value="">
                           {allocationProblem(asset) ? statusLabel(assetStatus(asset)) : 'issue to…'}
                         </option>
-                        {employees.map((e) => (
+                        {onStaff(employees).map((e) => (
                           <option key={e.id} value={e.id}>
                             {e.name}
                           </option>

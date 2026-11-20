@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.46.0';
+export const VERSION = '1.47.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.47.0',
+    date: '20 Nov 2026',
+    title: 'People who have left, and the front desk on the dashboard',
+    items: [
+      '**Somebody who has left stops appearing where you pick people.** Warnings, appraisals, claims, penalties, staff tasks, helpdesk tickets, loans, asset handovers, licence seats and the weekly-off policy all now offer only people who are still here.',
+      '**Typing a last working day is enough.** A date that has already passed takes them off the list by itself — you no longer have to remember to untick Active as well. A date still to come leaves them working, because somebody serving notice is still here and still paid.',
+      '**Opening a month catches up**: anybody whose last working day has gone comes off the list then too, so opening December cannot put November’s leaver on the sheet.',
+      '**What they are owed is untouched.** Somebody who left on the 10th keeps this month’s row — marked or not — because an unmarked month pays a full month and deleting that row would quietly stop them being paid. Only somebody who was already gone before the month began comes off it.',
+      '**And nothing about them is deleted.** Their warnings, the loan still outstanding and the asset they never returned stay exactly where they are — the full and final is worked out from precisely those.',
+      '**The front desk is on the dashboard.** A card under the roll call shows the same day’s housekeeping (clean / flagged / **not checked**), visitors, who is still in the building, and courier in and out — with the flagged areas and the names of anybody not signed out.',
+      'It follows the ‹ › arrows with the roll call, because who came to work and who visited are two halves of one morning. A day nobody wrote anything at says so, rather than showing zeroes that read as a quiet day.',
+      '**Pending actions** gained three lines from the desk: areas flagged, areas not checked, and visitors who have not been signed out.',
+    ],
+  },
   {
     version: '1.46.0',
     date: '20 Nov 2026',

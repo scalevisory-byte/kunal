@@ -846,7 +846,13 @@ export default function Employees({
                   * DATE. The dashboard then read "Nobody left" for a month
                   * somebody had plainly left in.
                   */}
-                <th title="The last working day. Unticking Active does not set one, so type it here.">
+                {/*
+                  * Typing a date that has already passed now takes them off
+                  * the list as well - "exited employee abhi bhi dikha rahe he
+                  * current list me". Two switches for one fact is how one of
+                  * them gets forgotten.
+                  */}
+                <th title="The last working day. A date that has passed takes them off the list; unticking Active records no date, so type it here.">
                   Left
                 </th>
                 <th>Salary</th>
@@ -1005,7 +1011,7 @@ export default function Employees({
                       defaultValue={emp.left_on || ''}
                       title={
                         emp.active
-                          ? 'Their last working day. Typing it does not take them off the payroll — untick Active for that.'
+                          ? 'Their last working day. A date that has passed takes them off the list; a date still to come leaves them on it until that day.'
                           : 'Their last working day.'
                       }
                       onBlur={(e) =>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
+import { onStaff } from '../../onStaff.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -150,7 +151,7 @@ export default function Tasks({ employees, onError, only = null }) {
               Who
               <select value={draft.employee_id} onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}>
                 <option value="">Nobody in particular</option>
-                {employees.map((e) => (
+                {onStaff(employees).map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}
                   </option>

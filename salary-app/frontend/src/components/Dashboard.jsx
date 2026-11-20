@@ -17,6 +17,7 @@ import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.
 import Glyph from '../icons.jsx';
 import { shiftOfMonth } from '../standardTimes.js';
 import DailyReport from './DailyReport.jsx';
+import { dayStats } from '../../../shared/frontOffice.js';
 
 /**
  * The month at a glance, on one screen.
@@ -63,6 +64,7 @@ export default function Dashboard({
   const [waiting, setWaiting] = useState(null);
   const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
+  const [frontOffice, setFrontOffice] = useState(null); // the desk's book for that day
   const [showPresent, setShowPresent] = useState(false);
   const [showUniform, setShowUniform] = useState(false);
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
@@ -229,6 +231,40 @@ export default function Dashboard({
 
   useEffect(() => setDay(null), [period?.id]);
   const shownDay = Math.min(Math.max(day ?? defaultDay, 1), monthLength || 1);
+
+  /**
+   * The front desk's book for the SAME DAY the roll call is showing.
+   *
+   * Dinesh: *"front office ka data dashboard me bhi dikhao"*. It follows the
+   * ‹ › arrows, because "who came to work" and "who visited" are two halves
+   * of one morning and reading them against different days would be worse
+   * than not showing it at all.
+   *
+   * A nice-to-have, like the digest and the asset figures beside it: no
+   * right to the front office, or the single file, or a server that cannot
+   * answer, and the card is simply not there.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    if (STANDALONE || !period || !mayUse('frontoffice')) {
+      setFrontOffice(null);
+      return undefined;
+    }
+    const iso = `${period.year}-${String(period.month).padStart(2, '0')}-${String(shownDay).padStart(2, '0')}`;
+    api
+      .get(`/front-office/day/${iso}`)
+      .then((body) => !cancelled && setFrontOffice(body))
+      .catch(() => !cancelled && setFrontOffice(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [period?.id, period?.year, period?.month, shownDay]);
+
+  /* The same figures the Front office tab shows, from the same module. */
+  const desk = useMemo(() => (frontOffice ? dayStats(frontOffice) : null), [frontOffice]);
+  /* Nothing written down at all is a different thing from a quiet day. */
+  const deskUsed =
+    !!desk && (desk.clean + desk.flags > 0 || desk.visitors > 0 || desk.courier > 0);
 
   /**
    * The roll call for one day: who was in, who was not, who came in late and
@@ -1095,6 +1131,39 @@ export default function Dashboard({
       } have not been checked for uniform`,
       go: 'attendance',
     },
+    /*
+     * The desk's own flags, on the one list the office reads every morning.
+     * The areas are named, because "2 flagged" sends somebody to another
+     * screen to find out which.
+     */
+    desk && desk.flags > 0 && {
+      key: 'fo-flags',
+      tone: 'warn',
+      text: `${desk.flags} area${desk.flags === 1 ? '' : 's'} flagged at the front desk on ${shownDay} ${
+        MONTHS[period.month - 1]
+      } — ${desk.flagged.slice(0, 3).map((f) => f.area.name).join(', ')}${
+        desk.flagged.length > 3 ? ` and ${desk.flagged.length - 3} more` : ''
+      }`,
+      go: 'frontoffice',
+    },
+    /*
+     * Not checked is NOT clean - the whole reason that module counts three
+     * figures. A morning nobody walked is worth saying out loud, quietly.
+     */
+    desk && deskUsed && desk.not_checked > 0 && desk.clean + desk.flags > 0 && {
+      key: 'fo-unchecked',
+      tone: 'muted',
+      text: `${desk.not_checked} area${desk.not_checked === 1 ? '' : 's'} at the front desk were not checked on ${
+        shownDay
+      } ${MONTHS[period.month - 1]}`,
+      go: 'frontoffice',
+    },
+    desk && desk.still_in > 0 && {
+      key: 'fo-in',
+      tone: 'muted',
+      text: `${desk.still_in} visitor${desk.still_in === 1 ? '' : 's'} have not been signed out`,
+      go: 'frontoffice',
+    },
     money.holdCount > 0 && {
       key: 'hold',
       tone: 'warn',
@@ -1943,6 +2012,81 @@ export default function Dashboard({
           </>
         )}
       </div>
+
+      {/*
+       * THE FRONT DESK, SAME DAY. "front office ka data dashboard me bhi
+       * dikhao". It reads the same book the Front office tab does, through
+       * the same module, so the two can never disagree - and it follows the
+       * ‹ › arrows above, because this is the other half of that morning.
+       */}
+      {desk && (
+        <div className="card" data-go="frontoffice">
+          <h2 className="roll-head">
+            <span>Front desk — {shownDay} {MONTHS[period.month - 1]}</span>
+            <span className="grow" />
+            <button className="ghost tiny" onClick={() => onGo('frontoffice')}>
+              open the front office
+            </button>
+          </h2>
+
+          {deskUsed ? (
+            <>
+              <div className="fo-figures">
+                <div><b>{desk.clean}</b><span>clean</span></div>
+                <div className={desk.flags ? 'bad' : undefined}><b>{desk.flags}</b><span>flagged</span></div>
+                <div><b>{desk.not_checked}</b><span>not checked</span></div>
+                <div><b>{desk.visitors}</b><span>visitors</span></div>
+                <div><b>{desk.still_in}</b><span>still in</span></div>
+                <div><b>{desk.courier_in}</b><span>courier in</span></div>
+                <div><b>{desk.courier_out}</b><span>courier out</span></div>
+              </div>
+
+              {desk.flagged.length > 0 && (
+                <p className="muted small">
+                  {/*
+                    * Separated by a character, not by a margin: a gap drawn in
+                    * CSS disappears the moment the line is read as text, and
+                    * "…(bin not emptied)Washroom — needs attention" is one
+                    * unreadable sentence.
+                    */}
+                  {desk.flagged.slice(0, 4).map((f, i) => (
+                    <span key={f.area.id}>
+                      {i > 0 ? ' · ' : ''}
+                      <strong>{f.area.name}</strong> — {f.status.toLowerCase()}
+                      {f.remark ? ` (${f.remark})` : ''}
+                    </span>
+                  ))}
+                  {desk.flagged.length > 4 ? ` · and ${desk.flagged.length - 4} more` : ''}
+                </p>
+              )}
+
+              {/*
+               * Who has not been signed out, by name. The number alone sends
+               * somebody to another screen to find out who, and this is the
+               * one line on a visitor book anybody reads twice.
+               */}
+              {desk.still_in > 0 && (
+                <p className="muted small">
+                  Still in:{' '}
+                  {frontOffice.visitors
+                    .filter((v) => !v.out_time)
+                    .slice(0, 5)
+                    .map((v) => [v.name, v.company].filter(Boolean).join(' · '))
+                    .join(', ')}
+                  {desk.still_in > 5 ? ` and ${desk.still_in - 5} more` : ''}
+                </p>
+              )}
+            </>
+          ) : (
+            /* Zeroes here would read as a clean, quiet day. Nothing was written down. */
+            <p className="muted small">
+              Nothing recorded at the desk for this day — no housekeeping check, no visitors,
+              no courier. <button className="link" onClick={() => onGo('frontoffice')}>Open the front office</button>{' '}
+              to write the day up.
+            </p>
+          )}
+        </div>
+      )}
 
       {/*
        * The message HR types into the group every morning, written from the

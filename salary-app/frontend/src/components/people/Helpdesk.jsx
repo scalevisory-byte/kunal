@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
+import { onStaff } from '../../onStaff.js';
 
 const when = (v) => String(v || '').replace('T', ' ').slice(0, 16);
 
@@ -194,7 +195,7 @@ export default function Helpdesk({ employees, onError, only = null }) {
               Who
               <select value={draft.employee_id} onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}>
                 <option value="">Pick somebody</option>
-                {employees.map((e) => (
+                {onStaff(employees).map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.name}
                   </option>

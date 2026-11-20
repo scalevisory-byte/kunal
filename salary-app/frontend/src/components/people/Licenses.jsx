@@ -8,6 +8,7 @@ import {
   termNote,
 } from '../../../../shared/licenses.js';
 import Glyph from '../../icons.jsx';
+import { onStaff } from '../../onStaff.js';
 
 /**
  * SOFTWARE LICENCES.
@@ -858,7 +859,7 @@ function LicencePage({ id, employees, companies, onClose, onChanged, onError }) 
           <div className="row" style={{ marginTop: '0.6rem', flexWrap: 'wrap' }}>
             <select value={seat.employee_id} onChange={(e) => setSeat({ ...seat, employee_id: e.target.value })}>
               <option value="">— somebody —</option>
-              {employees.map((e) => (
+              {onStaff(employees).map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name}
                 </option>

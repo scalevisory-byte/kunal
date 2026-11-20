@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
+import { onStaff } from '../../onStaff.js';
 
 /*
  * Fines, losses and damage recovered from somebody's salary.
@@ -257,7 +258,7 @@ export default function Penalties({ employees, period, onError, onReload }) {
               onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
             >
               <option value="">Choose…</option>
-              {employees.map((e) => (
+              {onStaff(employees).map((e) => (
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>

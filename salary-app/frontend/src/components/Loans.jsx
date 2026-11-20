@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
 import { api } from '../api.js';
 import { rupees } from '../format.js';
+import { onStaff } from '../onStaff.js';
 
 /**
  * Loans and salary advances.
@@ -199,7 +200,7 @@ export default function Loans({ period, employees, onReload }) {
               onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
             >
               <option value="">Select…</option>
-              {employees.filter((e) => e.active).map((e) => (
+              {onStaff(employees).map((e) => (
                 <option key={e.id} value={e.id}>{e.name} — {e.company_name}</option>
               ))}
             </select>

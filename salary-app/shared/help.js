@@ -372,6 +372,24 @@ export const HELP = [
     note: 'Uploading files needs the server. The single-file build shows initials instead of a face and says so, rather than offering a picker that could never work.',
   },
   {
+    id: 'leavers',
+    title: 'Somebody leaving — taking them off the list',
+    tab: 'employees',
+    keywords: [
+      'left', 'leaving', 'leaver', 'exit', 'resign', 'resignation', 'terminate',
+      'remove employee', 'delete employee', 'inactive', 'off the list',
+      'chhod diya', 'nikal gaya', 'job chhodi', 'hata do',
+    ],
+    lines: [
+      'Type their **last working day** in the Left column on Employees (or record the resignation under People → Leaving). **A date that has already passed takes them off the list by itself.**',
+      'A date **still to come** leaves them working — somebody serving notice is still here, still on the sheet and still paid. Opening the next month catches up with them once the day has passed.',
+      'Once they are off, they stop appearing wherever you pick somebody: a loan, a warning, a penalty, an asset handover, a licence seat, a task, a ticket.',
+      '**Nothing about them is deleted.** Their record, their warnings, the loan still outstanding and the asset they never returned are all still there — the full and final under People → Leaving is worked out from exactly those.',
+      'Put somebody back on with the **Active** tick, which still works on its own.',
+    ],
+    note: 'THEY KEEP THE MONTH THEY LEFT IN. Somebody who left on the 10th stays on that month’s salary sheet whether or not anything is marked against them, because an unmarked month pays a full month and taking the row away would stop them being paid for the days they worked. Only somebody already gone before the month began is left off it.',
+  },
+  {
     id: 'tidy-names',
     title: 'Names in capitals — tidying the letters',
     tab: 'employees',
@@ -674,6 +692,7 @@ export const HELP = [
       '**Areas** is the list the walk runs down. “Add the usual twelve” fills an empty list; taking one off stops it being asked about and **keeps every day it was flagged**.',
       'All four papers print as documents: the check, the visitor register, the courier register and the monthly summary. The visitor and courier registers also print for a whole month.',
       'Reception can be given a login that reaches **only** this: Admin → Logins → Front office.',
+      'The same day’s figures also sit on the **Dashboard**, under the roll call, and follow the same ‹ › arrows.',
     ],
     note: 'A DAY NOBODY WALKED IS NOT A CLEAN DAY. Clean, flagged and not-checked are three separate figures everywhere, so an empty morning can never read as a spotless office. And a visitor with no out time has simply not been signed out — it is not a time anybody left.',
   },

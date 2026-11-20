@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { DEFAULT_POLICY, WEEKDAYS, describePolicy, readPolicy, writePolicy } from '../../../shared/weeklyOff.js';
+import { onStaff } from '../onStaff.js';
 
 /**
  * Which day of the week is the day off.
@@ -134,7 +135,7 @@ export default function WeeklyOff({ companies, employees, onPatchCompany, onPatc
           Who
           <select value={who} onChange={(e) => setWho(e.target.value)}>
             <option value="">Pick somebody</option>
-            {employees.map((e) => (
+            {onStaff(employees).map((e) => (
               <option key={e.id} value={e.id}>
                 {e.name}
                 {e.weekly_off ? ' ·' : ''}

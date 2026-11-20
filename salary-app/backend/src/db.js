@@ -4,6 +4,18 @@ import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
+/**
+ * Today, by the clock on this machine rather than in UTC.
+ *
+ * `toISOString()` is UTC, and in India that is yesterday's date until half
+ * past five in the morning - which would leave somebody's last working day
+ * unacted on for the first five hours of it.
+ */
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export const db = new Database(config.dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -1116,6 +1128,27 @@ export function updateEmployee(id, patch) {
   const before = getEmployee(id);
   if (!before) return null;
 
+  /*
+   * A LAST WORKING DAY THAT HAS PASSED MEANS THEY HAVE LEFT.
+   *
+   * Dinesh: *"exited employee abhi bhi dikha rahe he current list me"*.
+   * Typing a leaving date used to record the date and nothing else - the
+   * person stayed on the payroll, in every picker and on the next month's
+   * sheet, until somebody also remembered to untick Active. Two switches for
+   * one fact is how one of them gets forgotten.
+   *
+   * A date in the FUTURE does not: somebody serving notice is still here, is
+   * still paid, and must stay on this month's sheet. And an `active` sent in
+   * the same patch always wins, so putting somebody back on is still one
+   * tick.
+   */
+  if ('left_on' in patch && !('active' in patch)) {
+    const date = String(patch.left_on || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayLocal()) {
+      patch = { ...patch, active: 0 };
+    }
+  }
+
   if ('reports_to_id' in patch) {
     const manager = patch.reports_to_id ? Number(patch.reports_to_id) : null;
     if (manager && wouldLoop(id, manager)) {
@@ -1509,6 +1542,13 @@ export function updatePayrollRow(id, patch) {
  * typed-over figure, no addition or deduction, nothing paid. There is, by
  * definition, nothing to lose.
  *
+ * AND NOT EVEN THEN, IF THEY WORKED ANY OF THIS MONTH. An unmarked month
+ * pays a full month, so an untouched row is not an empty row - it is this
+ * month's pay with nothing deducted. Somebody whose last working day falls
+ * on or after the first of this month worked part of it and is owed
+ * something, so their row stays whatever is or is not marked on it; only a
+ * row for somebody who was already gone before the month began can go.
+ *
  * `salary` is NOT on this list. Sync writes it itself when it creates the
  * row, so counting it as "recorded" would mean nothing ever qualified.
  */
@@ -1522,6 +1562,7 @@ const strandedRows = db.prepare(`
     JOIN employees e ON e.id = r.employee_id
    WHERE r.period_id = @period_id
      AND e.active = 0
+     AND (e.left_on IS NULL OR e.left_on < @starts)
      AND r.status = 'pending'
      AND COALESCE(r.sunday_status, 'pending') = 'pending'
      AND r.addition = 0 AND r.deduction = 0 AND r.adjustment = 0
@@ -1538,9 +1579,24 @@ export const syncPayrollRows = db.transaction((periodId) => {
    * A LOCKED MONTH IS NEVER TOUCHED. It has been paid and filed; taking a
    * name off it afterwards changes a figure that was already reported.
    */
-  const period = db.prepare(`SELECT locked FROM periods WHERE id = ?`).get(periodId);
+  const period = db.prepare(`SELECT locked, year, month FROM periods WHERE id = ?`).get(periodId);
+
+  /*
+   * Anybody whose last working day has gone comes off the active list here.
+   *
+   * A date typed in advance - resigned, serving a month's notice - leaves
+   * them on the payroll until that day actually passes, which is what the
+   * office means by it. This is the sweep that catches up afterwards, so
+   * opening December cannot put November's leaver on the sheet.
+   */
+  db.prepare(
+    `UPDATE employees SET active = 0
+      WHERE active = 1 AND left_on IS NOT NULL AND left_on <> '' AND left_on <= ?`
+  ).run(todayLocal());
+
+  const starts = `${period?.year}-${String(period?.month).padStart(2, '0')}-01`;
   if (!period?.locked) {
-    for (const row of strandedRows.all({ period_id: periodId })) {
+    for (const row of strandedRows.all({ period_id: periodId, starts })) {
       db.prepare(`DELETE FROM payroll_rows WHERE id = ?`).run(row.id);
     }
   }

@@ -2553,3 +2553,49 @@ test('the front desk is a tab, and its help topic names the trap', () => {
   // The rule the module exists for, said where somebody is standing.
   assert.match(fo, /never as clean/);
 });
+
+test('the front desk shows on the dashboard, for the day the roll call is on', () => {
+  /*
+   * "front office ka data dashboard me bhi dikhao". It is the other half of
+   * the same morning, so it follows the ‹ › arrows rather than carrying a
+   * date of its own - two halves read against different days would be worse
+   * than not showing it.
+   */
+  const dash = src('components/Dashboard.jsx');
+  assert.match(dash, /front-office\/day\//);
+  // The SAME module the tab counts with, so the two cannot disagree.
+  assert.match(dash, /import \{ dayStats \} from '\.\.\/\.\.\/\.\.\/shared\/frontOffice\.js'/);
+  assert.match(dash, /Front desk —/);
+
+  // Its own right: no front office on this login, no card and no refusals.
+  assert.match(dash, /mayUse\('frontoffice'\)/);
+
+  /*
+   * Zeroes would read as a clean, quiet day. A desk nobody wrote anything
+   * at says so instead - the rule the whole module exists for.
+   */
+  assert.match(dash, /Nothing recorded at the desk for this day/);
+  assert.match(dash, /key: 'fo-flags'/);
+  assert.match(dash, /key: 'fo-unchecked'/);
+});
+
+test('somebody who has left is not offered in any "pick somebody" box', () => {
+  /*
+   * "agar employee exited he to o current list me nahi aana chahiye". One
+   * rule in one file: they go from the lists you choose FROM and stay in
+   * every list of what already happened.
+   */
+  const helper = fs.readFileSync(
+    new URL('../../frontend/src/onStaff.js', import.meta.url),
+    'utf8'
+  );
+  assert.match(helper, /export const onStaff/);
+  // The line wraps in the file, so the words are checked rather than the line.
+  assert.match(helper, /lists you choose FROM/);
+  assert.match(helper, /already happened/);
+
+  // And the Employees grid no longer tells you to untick Active as well.
+  const employees = src('components/Employees.jsx');
+  assert.ok(!employees.includes('Typing it does not take them off the payroll'));
+  assert.match(employees, /A date that has passed takes them off the list/);
+});

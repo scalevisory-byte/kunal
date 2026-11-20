@@ -5,6 +5,7 @@ import { EXIT_TYPES } from '../../../../shared/settlement.js';
 import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
 import ExitClearance from './ExitClearance.jsx';
+import { onStaff } from '../../onStaff.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -225,7 +226,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
           Somebody leaving
           <select value={picked || ''} onChange={(e) => open(Number(e.target.value) || null)}>
             <option value="">Pick somebody</option>
-            {employees.map((e) => (
+            {onStaff(employees).map((e) => (
               <option key={e.id} value={e.id}>
                 {e.name}
                 {e.left_on ? ` — left ${e.left_on}` : ''}
