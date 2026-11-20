@@ -270,7 +270,26 @@ export const HELP = [
     note: 'Sunday pay is not in the net. The sheet ends at Net payable.',
   },
   {
-    id: 'add-deduct',
+    id: 'payroll-review',
+    title: 'Payroll exceptions, approval and locking the month',
+    tab: 'sheet',
+    keywords: [
+      'exception', 'exceptions', 'alert', 'verify', 'check', 'approve', 'approval',
+      'lock', 'locked', 'reopen', 'workflow', 'stage', 'payment tracking', 'utr',
+      'galti', 'check karna', 'approve karna', 'lock karna',
+    ],
+    lines: [
+      'The strip above the sheet shows where the month has got to: attendance, salary preparation, verification, approval, locked. **The first three tick themselves** — they are facts about the month. **Approval and locking never happen by themselves.**',
+      '**Important alerts** under the sheet lists what to check before paying: a salary of nought, a zero or negative net, absent days beyond the month, nothing marked all month, PF with no UAN, deductions over half the gross, the same name twice, and anything marked paid with no reference.',
+      'Each flag can be marked **Resolved** or **Ignored** with a reason. Only a **serious** flag stands in the way of approval — the rest are there to be looked at.',
+      '**Approve the payroll** records who and when. **Lock the month** needs that approval first and stops every figure moving. **Reopen** asks for a reason and keeps it.',
+      '**Payment tracking** is its own tab: status, the date the money went and the UTR or cheque number. Marking somebody paid fills in today’s date — change it to the day it actually went.',
+      '**Monthly summary** is its own tab: the month’s totals and six breakdowns, each printable.',
+    ],
+    note: 'AN EXCEPTION IS A QUESTION, NOT A CORRECTION. Nothing on that list changes a salary — it names the person, the figure and what to check. A net of nought is right for somebody who joined on the 30th, and “ignored, because…” is a proper answer that stays on the record.',
+  },
+  {
+    id: 'add-deduct',    id: 'add-deduct',
     title: 'One-off additions and deductions',
     tab: 'sheet',
     keywords: ['add', 'deduct', 'incentive', 'bonus', 'fine', 'reimbursement', 'extra', 'katna'],
@@ -334,7 +353,7 @@ export const HELP = [
     tab: 'sheet',
     keywords: ['payslip', 'salary slip', 'print', 'pdf', 'send', 'whatsapp', 'parchi'],
     lines: [
-      'Click a row on the salary sheet to see that person’s payslip, and print it or save it as PDF.',
+      '**Click a name on the salary sheet** for that person’s full statement: the calculation line by line, the month’s attendance day by day, every addition and deduction with where it came from, and their payment history. The payslip prints from inside it.',
       '**Send payslips** on the toolbar writes one small HTML file per person, which you can forward on WhatsApp. It opens on any phone with no login, no app and no network, and prints to PDF.',
       'A free line typed once rides onto every slip.',
     ],

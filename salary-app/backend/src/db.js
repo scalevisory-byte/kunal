@@ -568,6 +568,47 @@ if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'we
  * Null means no logo, which is not a fault: the letter simply goes out with
  * the company's name set in type, as it always has.
  */
+/*
+ * WHEN THE MONEY ACTUALLY LEFT, AND WHAT IT LEFT AS.
+ *
+ * `status` has always said pending / paid / hold, which is a claim with
+ * nothing behind it: three months later nobody can say which transfer a row
+ * was. These two are what make "paid" checkable - and the exception report
+ * names any row marked paid without them.
+ *
+ * Nothing is derived from them and no existing figure moves: a payslip, a
+ * gross, a net and every total are exactly what they were.
+ */
+if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === 'payment_date')) {
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN payment_date TEXT`);
+  log.info('Migrated payroll_rows: added payment_date.');
+}
+if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === 'payment_ref')) {
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN payment_ref TEXT`);
+  log.info('Migrated payroll_rows: added payment_ref, for the UTR or cheque number.');
+}
+
+/*
+ * WHO APPROVED THE MONTH, AND WHEN.
+ *
+ * `locked` has always been one flag: paid and filed, no more editing. His
+ * brief asks for the step before it - management approval - and for a reopen
+ * that has to give a reason. Both are facts about the month, so they live on
+ * it; neither changes a single figure in it.
+ */
+for (const [column, type] of [
+  ['approved_by', 'TEXT'],
+  ['approved_at', 'TEXT'],
+  ['approval_note', 'TEXT'],
+  ['locked_by', 'TEXT'],
+  ['locked_at', 'TEXT'],
+  ['reopen_reason', 'TEXT'],
+]) {
+  if (db.prepare(`PRAGMA table_info(periods)`).all().some((c) => c.name === column)) continue;
+  db.exec(`ALTER TABLE periods ADD COLUMN ${column} ${type}`);
+  log.info(`Migrated periods: added ${column}.`);
+}
+
 if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'logo_path')) {
   db.exec(`ALTER TABLE companies ADD COLUMN logo_path TEXT`);
   log.info('Migrated companies: added logo_path, for the letterhead.');
@@ -779,6 +820,32 @@ export function updateCompany(id, patch) {
 /** A company as the browser may see it: no server path, just whether there is one. */
 const withoutPath = (company) =>
   company ? (({ logo_path, ...rest }) => ({ ...rest, has_logo: !!logo_path }))(company) : company;
+
+/**
+ * Who approved the month, and who locked it.
+ *
+ * Their own calls rather than a patch, because these are decisions: an
+ * approval that could be set by a stray field in a body is an approval
+ * nobody made. Neither touches a figure.
+ */
+export function setPeriodApproval(id, { approved_by, note = null, reopen_reason = null } = {}) {
+  db.prepare(
+    `UPDATE periods SET approved_by = ?, approved_at = ?, approval_note = ?, reopen_reason = ?
+      WHERE id = ?`
+  ).run(approved_by || null, approved_by ? nowStamp() : null, note, reopen_reason, id);
+  return getPeriod(id);
+}
+
+export function setPeriodLock(id, { locked, by, reason = null } = {}) {
+  db.prepare(
+    `UPDATE periods SET locked = ?, locked_by = ?, locked_at = ?, reopen_reason = COALESCE(?, reopen_reason)
+      WHERE id = ?`
+  ).run(locked ? 1 : 0, locked ? by || null : null, locked ? nowStamp() : null, reason, id);
+  return getPeriod(id);
+}
+
+/** A timestamp the whole app reads the same way. */
+const nowStamp = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 
 export function deleteCompany(id) {
   return db.prepare(`DELETE FROM companies WHERE id = ?`).run(id).changes > 0;
@@ -1462,12 +1529,17 @@ const PAYROLL_FIELDS = [
   'sunday_status',
   'sunday_mode',
   'remark',
+  /* When it was paid and what it was paid as. See the migration above. */
+  'payment_date',
+  'payment_ref',
 ];
 
 /** The ones that hold words. Everything else in PAYROLL_FIELDS is a number. */
 const PAYROLL_TEXT_FIELDS = new Set([
   'adjustment_note',
   'payment_mode',
+  'payment_date',
+  'payment_ref',
   'status',
   'sunday_status',
   'sunday_mode',

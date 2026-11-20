@@ -20,10 +20,28 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.50.0';
+export const VERSION = '1.51.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.51.0',
+    date: '20 Nov 2026',
+    title: 'Salary sheet: the month at a glance, and every employee in detail',
+    items: [
+      '**No salary figure has changed.** Not one formula was touched — gross, net, PT, ESI, PF, OT, loans and penalties are exactly what they were, and the whole test suite (1,555 checks) says so. Everything below is presentation, checking and tracking.',
+      '**Five figures across the top**: employees, gross salary, total deductions, net payable and open exceptions — counted off the rows on screen, so the company filter and the search narrow them exactly as they narrow the sheet.',
+      '**A workflow strip** showing where the month has got to: attendance finalisation, salary preparation, payroll verification, management approval, payroll locked. The first three are **observations** and tick themselves; **approval and locking are decisions and never happen by themselves.**',
+      '**Approve the payroll** records who approved it and when. **Locking** needs an approval first, and **reopening needs a reason**, which is kept. All three are on the audit trail.',
+      '**Click an employee’s name for their full salary statement** — four tabs: the calculation line by line, the month’s attendance day by day, every addition and deduction with where it came from, and their payment history. The payslip prints from inside it.',
+      '**It assembles, it never recalculates**: every figure on that statement is the one the sheet holds.',
+      '**Payroll exceptions.** The month is checked for a salary of nought, a day rate of nought, a zero or negative net, absent days beyond the month, nothing marked all month, PF with no UAN, deductions over half the gross, the same name twice on one company, and rows marked paid with nothing behind them.',
+      '**Nothing is corrected automatically.** Each flag names the person, the figure and what to check, and can be marked **resolved** or **ignored with a reason** — a nought is right for somebody who joined on the 30th. Only a serious flag stands in the way of approval.',
+      '**Payment tracking**, a tab of its own: net payable, mode, status (pending / processing / paid / failed / hold), **the date the money went and the UTR or cheque number**. Marking somebody paid fills in today’s date to be corrected, and the exception report names anything marked paid without a reference.',
+      '**Monthly summary**, a tab of its own: the month’s totals (gross, additions, deductions, net, PF, ESI, PT, loan, penalty) and six breakdowns — company, employee, department, attendance band, payment mode and payment status — each printable. They reconcile with the register by construction, because they add up the same rows.',
+      'The register gained **PL and LWP columns** and a grouped band over the headings (Attendance · Salary calculation · OT · Add/deduct · Statutory · Recoveries · Payment). **No column moved and nothing was removed.**',
+    ],
+  },
   {
     version: '1.50.0',
     date: '20 Nov 2026',

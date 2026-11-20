@@ -21,7 +21,15 @@ import {
   syncPayrollRows,
   updatePayrollRow,
   updatePeriod,
+  setPeriodApproval,
+  setPeriodLock,
+  audit,
 } from '../db.js';
+import { reviewPeriod, noteException, employeeStatement } from '../payrollReview.js';
+import { exceptionSummary } from '../../../shared/payrollExceptions.js';
+import { payrollStage } from '../../../shared/payrollStages.js';
+/** Approving and locking a month are an admin's, whatever the mount allows. */
+const requireAdmin = requireAbility('admin');
 import { buildPayroll, buildPayslip } from '../payroll.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { TIME_FIELDS, parseTime } from '../../../shared/timesheet.js';
@@ -199,6 +207,10 @@ const ADMIN_PERIOD_FIELDS = [
   'locked',
 ];
 
+/** Whoever is signed in, for an approval that has to carry a name. */
+const actorOf = (req) =>
+  (req.actor?.via === 'session' ? req.actor.name : null) || req.body?.by || req.actor?.name || 'office';
+
 const adminOnlyFields = (req, res, next) => {
   const named = ADMIN_PERIOD_FIELDS.filter((f) => f in (req.body || {}));
   if (!named.length || req.actor?.abilities?.includes('admin')) return next();
@@ -361,4 +373,146 @@ periodsRouter.get('/:id/payslip/:employeeId', (req, res) => {
   const payslip = buildPayslip(Number(req.params.id), Number(req.params.employeeId));
   if (!payslip) return res.status(404).json({ error: 'not found' });
   res.json(payslip);
+});
+
+/* ---------------- the month, reviewed ---------------- */
+
+/**
+ * The exceptions on a month, and where it has got to.
+ *
+ * NOTHING HERE WRITES A PAYROLL ROW. The flags are worked out fresh each
+ * time - a figure corrected this morning stops being flagged this afternoon
+ * - and only the DECISION about a flag is kept.
+ */
+periodsRouter.get('/:id/review', (req, res) => {
+  const review = reviewPeriod(Number(req.params.id), {
+    company_id: Number(req.query.company_id) || undefined,
+    today: req.query.today || undefined,
+  });
+  if (!review) return res.status(404).json({ error: 'not found' });
+  const payroll = buildPayroll(Number(req.params.id), { sync: false });
+  return res.json({
+    ...review,
+    summary: exceptionSummary(review.exceptions),
+    workflow: payrollStage({
+      period: review.period,
+      rows: payroll?.rows || [],
+      exceptions: review.exceptions,
+    }),
+  });
+});
+
+/** Open / resolved / ignored, with a reason and who said so. */
+periodsRouter.put('/:id/review', (req, res) => {
+  try {
+    res.json(
+      noteException({
+        ...(req.body || {}),
+        period_id: Number(req.params.id),
+        by: actorOf(req),
+      })
+    );
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message });
+  }
+});
+
+/** One person's month: the figures, their months, and what was paid. */
+periodsRouter.get('/:id/statement/:employeeId', (req, res) => {
+  const statement = employeeStatement(Number(req.params.id), Number(req.params.employeeId));
+  if (!statement) return res.status(404).json({ error: 'not found' });
+  res.json(statement);
+});
+
+/**
+ * APPROVING AND LOCKING ARE DECISIONS, so they are their own calls rather
+ * than a field somebody can set by accident - and both are an admin's.
+ *
+ * Approving does not lock: the office still has to pay the month and tick
+ * the rows off. Locking after that is what stops the figures moving.
+ */
+periodsRouter.post('/:id/approve', requireAdmin, (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'not found' });
+  if (period.approved_at) return res.status(409).json({ error: 'this month is already approved' });
+
+  const payroll = buildPayroll(period.id, { sync: false });
+  const review = reviewPeriod(period.id, {});
+  const stage = payrollStage({ period, rows: payroll?.rows || [], exceptions: review?.exceptions || [] });
+  /*
+   * A serious flag has to be looked at before the month is approved - but
+   * "looked at" can mean ignored with a reason, which is what the review
+   * screen is for. This refuses only while something is still OPEN.
+   */
+  if (stage.blocking.length && !req.body?.anyway) {
+    return res.status(409).json({
+      error: `${stage.blocking.length} serious exception(s) are still open. Settle or ignore them first.`,
+      blocking: stage.blocking,
+    });
+  }
+
+  const by = actorOf(req);
+  setPeriodApproval(period.id, { approved_by: by, note: req.body?.note || null });
+  audit({
+    who: by,
+    action: 'approved',
+    entity: 'periods',
+    entity_id: period.id,
+    label: period.label,
+    to_value: 'approved',
+    note: req.body?.note || null,
+  });
+  return res.json(getPeriod(period.id));
+});
+
+/** Taking the approval back, which needs a reason like reopening does. */
+periodsRouter.delete('/:id/approve', requireAdmin, (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'not found' });
+  if (period.locked) return res.status(409).json({ error: 'unlock it first' });
+  const reason = String(req.body?.reason || '').trim();
+  if (!reason) return res.status(400).json({ error: 'say why the approval is being taken back' });
+
+  const by = actorOf(req);
+  setPeriodApproval(period.id, { approved_by: null, note: null, reopen_reason: reason });
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'periods',
+    entity_id: period.id,
+    label: period.label,
+    field: 'approved',
+    from_value: period.approved_by,
+    to_value: null,
+    note: reason,
+  });
+  return res.json(getPeriod(period.id));
+});
+
+/** Locked: paid and filed. Reopening needs a reason, and keeps it. */
+periodsRouter.post('/:id/lock', requireAdmin, (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'not found' });
+  const by = actorOf(req);
+
+  if (req.body?.open) {
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) return res.status(400).json({ error: 'say why the month is being reopened' });
+    setPeriodLock(period.id, { locked: 0, by, reason });
+    audit({
+      who: by, action: 'changed', entity: 'periods', entity_id: period.id, label: period.label,
+      field: 'locked', from_value: 'locked', to_value: 'open', note: reason,
+    });
+    return res.json(getPeriod(period.id));
+  }
+
+  if (!period.approved_at) {
+    return res.status(409).json({ error: 'the month has to be approved before it is locked' });
+  }
+  setPeriodLock(period.id, { locked: 1, by });
+  audit({
+    who: by, action: 'locked', entity: 'periods', entity_id: period.id, label: period.label,
+    to_value: 'locked',
+  });
+  return res.json(getPeriod(period.id));
 });

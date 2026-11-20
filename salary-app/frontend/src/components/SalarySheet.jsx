@@ -6,6 +6,12 @@ import { days, rupees, rupees2 } from '../format.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 import ScrollFrame from './ScrollFrame.jsx';
+import PayrollWorkflow from './salary/PayrollWorkflow.jsx';
+import PayrollExceptions from './salary/PayrollExceptions.jsx';
+import PaymentTracking from './salary/PaymentTracking.jsx';
+import MonthlySummary from './salary/MonthlySummary.jsx';
+import EmployeeStatement from './salary/EmployeeStatement.jsx';
+import { api } from '../api.js';
 
 /**
  * The calculation sheet. Typing in a cell recalculates the row immediately with
@@ -82,10 +88,47 @@ function EditableCell({ row, field, disabled, onCommit, auto }) {
   );
 }
 
-export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCompany, saving, locked }) {
+/** Lakhs, the way the office reads a payroll total: ₹23.20 L. */
+const short = (value) => {
+  const v = Math.round(Number(value) || 0);
+  if (Math.abs(v) >= 10000000) return `₹${(v / 10000000).toFixed(2)} Cr`;
+  if (Math.abs(v) >= 100000) return `₹${(v / 100000).toFixed(2)} L`;
+  return rupees(v);
+};
+
+const VIEWS = [
+  ['sheet', 'Salary sheet'],
+  ['summary', 'Monthly summary'],
+  ['payments', 'Payment tracking'],
+];
+
+export default function SalarySheet({
+  period, rows, onPatchRow, onPayslip, onCompany, saving, locked, me, onGo, onReload,
+}) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
   const [sending, setSending] = useState(false);
+  const [view, setView] = useState('sheet');
+  const [review, setReview] = useState(null);
+  const [open, setOpen] = useState(null);
+
+  /*
+   * The month's exceptions and where it has got to. A nice-to-have, like the
+   * dashboard's extras: if it cannot be read the sheet still works, because
+   * nothing on the sheet depends on it.
+   */
+  const loadReview = () => {
+    if (!period) return;
+    const today = new Date().toISOString().slice(0, 10);
+    api
+      .get(`/periods/${period.id}/review?today=${today}`)
+      .then(setReview)
+      .catch(() => setReview(null));
+  };
+  useEffect(() => {
+    loadReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period?.id, rows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -196,9 +239,87 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
     });
   };
 
+  const money = useMemo(() => {
+    const sum = (get) => filtered.reduce((t, r) => t + (Number(get(r)) || 0), 0);
+    const deductions =
+      sum((r) => r.pt) + sum((r) => r.esi) + sum((r) => r.pf) +
+      sum((r) => r.loan_deduction) + sum((r) => r.penalty_deduction) + sum((r) => r.deduction);
+    return { gross: sum((r) => r.gross_salary), deductions, net: sum((r) => r.net_salary) };
+  }, [filtered]);
+
+  const isAdmin = !!me?.abilities?.includes('admin');
+  const statementFor = (employeeId) => {
+    const found = rows.find((r) => r.employee_id === employeeId);
+    if (found) setOpen(found);
+  };
+
   return (
     /* `salary-page` only means one thing: twenty columns want landscape paper. */
     <section className="salary-page">
+      {/*
+        * THE MONTH IN FIVE FIGURES, counted off the rows on screen - so the
+        * company filter and the search narrow them exactly as they narrow
+        * the sheet, and nothing here is a figure of its own.
+        */}
+      <div className="kpi-row">
+        <div className="kpi"><span className="kpi-ico people">👥</span>
+          <div><b>{filtered.length}</b><span>Total employees</span></div>
+        </div>
+        <div className="kpi"><span className="kpi-ico money">₹</span>
+          <div><b>{short(money.gross)}</b><span>Gross salary</span></div>
+        </div>
+        <div className="kpi"><span className="kpi-ico minus">−</span>
+          <div><b>{short(money.deductions)}</b><span>Total deductions</span></div>
+        </div>
+        <div className="kpi"><span className="kpi-ico ok">✓</span>
+          <div><b>{short(money.net)}</b><span>Net payable</span></div>
+        </div>
+        <div className={`kpi ${review?.summary?.open ? 'flag' : ''}`}>
+          <span className="kpi-ico warn">!</span>
+          <div><b>{review?.summary?.open ?? 0}</b><span>Payroll exceptions</span></div>
+        </div>
+      </div>
+
+      <PayrollWorkflow
+        workflow={review?.workflow}
+        period={period}
+        isAdmin={isAdmin}
+        onError={(err) => window.alert(err.message)}
+        onChanged={() => { loadReview(); onReload?.(); }}
+      />
+
+      <nav className="tabs sub-tabs">
+        {VIEWS.map(([key, label]) => (
+          <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'summary' ? <MonthlySummary period={period} rows={filtered} /> : null}
+
+      {view === 'payments' ? (
+        <PaymentTracking
+          period={period}
+          rows={filtered}
+          locked={locked}
+          onError={(err) => window.alert(err.message)}
+          onChanged={() => { onReload?.(); loadReview(); }}
+          onOpenEmployee={statementFor}
+        />
+      ) : null}
+
+      {open && (
+        <EmployeeStatement
+          period={period}
+          row={open}
+          onClose={() => setOpen(null)}
+          onGo={onGo}
+        />
+      )}
+
+      {view !== 'sheet' ? null : (
+      <>
       <div className="toolbar">
         <input
           className="search"
@@ -249,9 +370,36 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
         <SendPayslips period={period} rows={filtered} onClose={() => setSending(false)} />
       )}
 
+      {review?.exceptions?.length ? (
+        <PayrollExceptions
+          period={period}
+          review={review}
+          onError={(err) => window.alert(err.message)}
+          onChanged={loadReview}
+          onOpenEmployee={statementFor}
+        />
+      ) : null}
+
       <ScrollFrame className={dense ? 'dense' : ''}>
         <table className="sheet numbered">
           <thead>
+            {/*
+              * The grouped band from his mock-up. It is labels only: not one
+              * column moved, so every figure is where it always was and the
+              * Excel, the print and the payslip are untouched.
+              */}
+            <tr className="band">
+              <th className="row-no" />
+              <th className="sticky-name" />
+              <th colSpan={6}>Attendance</th>
+              <th colSpan={5}>Salary calculation</th>
+              <th colSpan={2}>OT</th>
+              <th colSpan={3}>Add / deduct</th>
+              <th colSpan={3}>Statutory</th>
+              <th colSpan={2}>Recoveries</th>
+              <th />
+              <th colSpan={3}>Payment</th>
+            </tr>
             <tr>
               <th className="row-no" title="Serial number within the company" />
               <th className="sticky-name">Employee</th>
@@ -259,6 +407,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <th title="Sundays / holidays worked - paid extra at the day rate">Sun</th>
               <th title="A = 1 day, HF = half day, AD = 2 days">Absent</th>
               <th>Present</th>
+              <th title="Paid leave taken: CL, SL and PL. It costs nothing - it is here because the register is read for it.">PL</th>
+              <th title="Unpaid leave (UL). It docks a day like an absence, and is counted apart so the two are never confused.">LWP</th>
               <th>Salary</th>
               <th title="Salary / working days">Per day</th>
               <th title="Salary / working days / hours per day">Per hr</th>
@@ -279,7 +429,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <th title="Gross - PT - ESI - PF - loan. Sunday duty is paid apart, on the Sunday tab.">Net payable</th>
               <th>Mode</th>
               <th>Status</th>
-              <th />
+              <th>Remark</th>
             </tr>
           </thead>
           <tbody>
@@ -287,7 +437,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
                   <td className="row-no" />
-                  <td className="sticky-name" colSpan={23}>
+                  <td className="sticky-name" colSpan={25}>
                     <button
                       className="company-link"
                       title="Show only this company - click again for all of them"
@@ -306,6 +456,7 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
                   locked={locked}
                   onPatchRow={onPatchRow}
                   onPayslip={onPayslip}
+                  onOpen={setOpen}
                 />
               )
             )}
@@ -323,7 +474,9 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
               <tr>
                 <td className="row-no" />
                 <td className="sticky-name">Total ({totals.count})</td>
-                <td colSpan={4} />
+                {/* WD, Sun, Absent, Present, PL, LWP - six columns before the
+                    salary now that paid and unpaid leave are shown. */}
+                <td colSpan={6} />
                 <td>{rupees(totals.salary)}</td>
                 <td colSpan={2} />
                 <td>{rupees(totals.absent_salary)}</td>
@@ -345,6 +498,8 @@ export default function SalarySheet({ period, rows, onPatchRow, onPayslip, onCom
           )}
         </table>
       </ScrollFrame>
+      </>
+      )}
     </section>
   );
 }
@@ -479,7 +634,7 @@ function SendPayslips({ period, rows, onClose }) {
   );
 }
 
-function Row({ row, serial, period, locked, onPatchRow, onPayslip }) {
+function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
   // Recompute here rather than waiting for the round trip, so the row and the
   // totals move the moment a number is typed.
   const calc = useMemo(() => calculateRow(row, period, row.attendance), [row, period]);
@@ -489,7 +644,13 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip }) {
     <tr className={row.status === 'paid' ? 'paid' : undefined}>
       <td className="row-no">{serial}</td>
       <td className="sticky-name">
-        <button className="link" onClick={() => onPayslip(row)} title="Open payslip">
+        {/*
+          * The name opens the full statement now - attendance, every
+          * addition, the payment history - and the payslip is one press
+          * inside it. It was the payslip straight away, which is one of four
+          * things somebody wants from a name.
+          */}
+        <button className="link" onClick={() => onOpen(row)} title="Open this employee's salary statement">
           {row.employee_name}
         </button>
         {row.error && <span className="pill error-pill" title={row.error}>save failed</span>}
@@ -514,6 +675,12 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip }) {
         />
       </td>
       <td className="num">{days(calc.present_days)}</td>
+      {/* Paid leave and unpaid leave, counted off the marks the month is paid
+          from - CL/SL/PL cost nothing, UL docks a day like an absence. */}
+      <td className="num muted">
+        {days((row.mark_counts?.PL || 0) + (row.mark_counts?.CL || 0) + (row.mark_counts?.SL || 0))}
+      </td>
+      <td className="num muted">{days(row.mark_counts?.UL || 0)}</td>
       <td><EditableCell row={row} field="salary" disabled={locked} onCommit={commit} /></td>
       <td className="num muted">{rupees2(calc.per_day)}</td>
       <td className="num muted">{rupees2(calc.per_hour)}</td>

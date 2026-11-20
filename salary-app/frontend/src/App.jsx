@@ -931,6 +931,9 @@ function Shell() {
             onPatchRow={patchRow}
             onPayslip={setPayslip}
             onCompany={pickCompany}
+            me={me}
+            onGo={setTab}
+            onReload={() => loadPayroll(periodId)}
           />
         )}
 
