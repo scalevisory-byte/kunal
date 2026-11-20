@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.40.0';
+export const VERSION = '1.41.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.41.0',
+    date: '20 Nov 2026',
+    title: 'Exits, and the full and final statement',
+    items: [
+      '**People → Leaving → Print the exit register.** Everybody who has gone: joined, how they went, when they told you, notice asked for, last working day, why — and whether the full and final has been settled, with what it was settled at.',
+      '**Print the statement** on any one person’s settlement gives the full and final as a document you can hand over: joined, last working day, service, notice served against notice required, day rate — then **Payable** against **To be recovered**, and the net across the foot.',
+      '**An asset still with them is named and valued below the net, never deducted** — and the page says why: a laptop docked for and then found in a drawer cannot be undone once the payment is made. Somebody decides; the statement only reports.',
+      '**Gratuity carries its own sentence**, because the Act’s rounding reads as a contradiction otherwise: “7 years 7 months of service, counted as 8 (a part year over six months counts as one)”.',
+      'The register says the thing it could otherwise hide: a full and final is **worked out fresh every time it is opened**, and only once it is marked paid do the figures behind it stop moving. The register’s total is of the ones actually settled.',
+    ],
+  },
   {
     version: '1.40.0',
     date: '20 Nov 2026',

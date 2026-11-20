@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { col, num, printReport, printSlips } from '../../printReport.js';
 import { api } from '../../api.js';
 import { EXIT_TYPES } from '../../../../shared/settlement.js';
 import { rupees } from '../../format.js';
@@ -102,9 +103,124 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
   const exit = detail?.exit;
   const paid = Boolean(exit?.settled_on);
 
+  /** Everybody who has left, as a register. */
+  const printExits = () => {
+    const names = [...new Set(exits.map((x) => x.company_name).filter(Boolean))];
+    const settled = exits.filter((x) => x.settled_on);
+    printReport({
+      title: 'Exit register',
+      subtitle: names.length === 1 ? names[0] : 'All companies',
+      meta: [
+        `${exits.length} ${exits.length === 1 ? 'exit' : 'exits'}`,
+        `${settled.length} settled · ${exits.length - settled.length} not settled yet`,
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_x, i) => i + 1, '3%'),
+        col('Employee', (x) => x.employee_name),
+        col('Code', (x) => x.employee_code || ''),
+        col('Company', (x) => x.company_name || ''),
+        col('Joined', (x) => x.joined_on || ''),
+        col('How they went', (x) => EXIT_TYPES.find((t) => t.code === x.type)?.label || x.type || ''),
+        col('Told us', (x) => x.resigned_on || ''),
+        num('Notice asked', (x) => x.notice_days ?? ''),
+        col('Last working day', (x) => x.last_working_day || 'not set'),
+        col('Why', (x) => x.reason || ''),
+        col('Full and final', (x) =>
+          x.settled_on ? `settled ${String(x.settled_on).slice(0, 10)}` : 'not settled yet'
+        ),
+        num('Settled at', (x) => (x.settled_on ? rupees(x.settled_amount) : '')),
+      ],
+      rows: exits,
+      totals: {
+        label: `Settled (${settled.length})`,
+        'Settled at': rupees(settled.reduce((t, x) => t + (Number(x.settled_amount) || 0), 0)),
+      },
+      /*
+       * The one rule of this module that a register could hide: the
+       * settlement is ASSEMBLED from the month and the records until it is
+       * marked paid, and only then do the dates behind it stop moving.
+       */
+      footer:
+        'A full and final is worked out fresh each time it is opened — until it is marked paid, the figures still follow the final month and the records. The total is of the ones actually settled.',
+    });
+  };
+
+  /**
+   * ONE PERSON'S FULL AND FINAL, as a statement they can be handed.
+   *
+   * The same shape as a payslip, because it is the same kind of document:
+   * what is payable against what is being recovered, and one figure at the
+   * foot. It ASSEMBLES and recalculates nothing — the final month's net is
+   * the payslip's own.
+   *
+   * **AN UNRETURNED ASSET IS NAMED AND VALUED, NEVER DEDUCTED.** It sits
+   * below the net with its worth, because a laptop docked for and then
+   * found in a drawer cannot be undone once the payment is made. That is
+   * the module's rule and it had to survive onto the paper.
+   */
+  const printFnF = () => {
+    if (!s || !detail?.employee) return;
+    const person = detail.employee;
+    printSlips({
+      slips: [
+        {
+          company: person.company_name || '',
+          what: `Full and final settlement${paid ? ` — settled ${String(exit.settled_on).slice(0, 10)}` : ' — not settled yet'}`,
+          name: person.name,
+          about: [person.employee_code, person.designation].filter(Boolean).join(' · '),
+          facts: [
+            ['Joined', person.joined_on || 'not recorded'],
+            ['Last working day', exit?.last_working_day || 'not set'],
+            [
+              'Service',
+              s.service.known
+                /* `gratuity.years` is the Act's rounded count, which reads
+                   as a contradiction beside the plain service length unless
+                   it says so - the note below spells it out too. */
+                ? `${s.service.years} years ${s.service.months} months${
+                    s.gratuity.years && s.gratuity.years !== s.service.years
+                      ? `, counted as ${s.gratuity.years} for gratuity`
+                      : ''
+                  }`
+                : 'not known',
+            ],
+            [
+              'Notice',
+              s.notice.known
+                ? `${s.notice.served} of ${s.notice.required} days${
+                    s.notice.short > 0 ? ` — ${s.notice.short} short, owed by the ${s.notice.owed_by}` : ''
+                  }`
+                : 'not known',
+            ],
+            ['Day rate', rupees(s.per_day)],
+          ],
+          earningsHead: 'Payable',
+          deductionsHead: 'To be recovered',
+          earnings: s.pays.map((l) => [l.label, l.missing ? 'not calculated yet' : rupees(l.amount)]),
+          earningsTotal: ['Payable', rupees(s.payable)],
+          deductions: s.recovers.map((l) => [l.label, rupees(l.amount)]),
+          deductionsTotal: ['To be recovered', rupees(s.recoverable)],
+          net: [paid ? 'Settled at' : 'Net payable', rupees(paid ? exit.settled_amount : s.net)],
+          extras: [
+            ...s.assets_out.map((a) => [`Still with them: ${a.label} — not deducted`, rupees(a.value)]),
+            ...(s.open.length ? [['Still open', s.open.join('; ')]] : []),
+          ],
+          note:
+            'Assets still out are listed with what they are worth and are NOT deducted — somebody decides, because a deduction against something later found in a drawer cannot be undone. Gratuity: ' +
+            s.gratuity.note,
+        },
+      ],
+    });
+  };
+
   return (
     <section className="stack">
       <div className="toolbar">
+        {/* The whole list as a register; the statement below is one person's. */}
+        <button className="ghost" onClick={printExits} disabled={!exits.length}>
+          Print the exit register ({exits.length})
+        </button>
         <label>
           Somebody leaving
           <select value={picked || ''} onChange={(e) => open(Number(e.target.value) || null)}>
@@ -367,6 +483,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
 
           {!paid ? (
             <>
+              <button className="ghost" onClick={printFnF}>Print the statement</button>{' '}
               <button onClick={settle}>Mark the full and final paid at {rupees(s.net)}</button>
               {detail?.clearance && !detail.clearance.ready && (
                 <p className="lic-alert warn" style={{ marginTop: '0.5rem' }}>

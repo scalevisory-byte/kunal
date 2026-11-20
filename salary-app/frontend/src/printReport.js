@@ -254,6 +254,12 @@ const slipRows = (lines = [], total = null) =>
       : '',
   ].join('');
 
+/*
+ * The two column heads are overridable because the same shape serves two
+ * documents: a payslip's Earnings against Deductions, and a full and final's
+ * Payable against To be recovered - which is not a deduction, it is money
+ * going back the other way.
+ */
 const slipOf = (slip) => `
   <section class="pr-slip">
     <header class="pr-slip-head">
@@ -275,11 +281,11 @@ const slipOf = (slip) => `
     }
     <div class="pr-slip-cols">
       <table class="pr-table">
-        <thead><tr><th>Earnings</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>${esc(slip.earningsHead || 'Earnings')}</th><th class="num">Amount</th></tr></thead>
         <tbody>${slipRows(slip.earnings, slip.earningsTotal)}</tbody>
       </table>
       <table class="pr-table">
-        <thead><tr><th>Deductions</th><th class="num">Amount</th></tr></thead>
+        <thead><tr><th>${esc(slip.deductionsHead || 'Deductions')}</th><th class="num">Amount</th></tr></thead>
         <tbody>${
           slip.deductions?.length
             ? slipRows(slip.deductions, slip.deductionsTotal)

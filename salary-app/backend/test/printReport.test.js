@@ -177,3 +177,21 @@ test('Sunday pay rides on the slip as an extra line, below the net', () => {
   const sunday = html.indexOf('Sunday / holiday pay');
   assert.ok(net < sunday, 'Sunday pay must sit BELOW the net, never inside it');
 });
+
+test('a slip can name its two columns, for a full and final', () => {
+  /*
+   * The same shape serves two documents: a payslip's Earnings against
+   * Deductions, and a full and final's Payable against To be recovered -
+   * which is not a deduction, it is money going back the other way.
+   */
+  const html = slipsHtml({
+    slips: [SLIP({ earningsHead: 'Payable', deductionsHead: 'To be recovered' })],
+    printedOn: 'today',
+  });
+  assert.match(html, /<th>Payable<\/th>/);
+  assert.match(html, /<th>To be recovered<\/th>/);
+  // And without them it is still a payslip.
+  const plain = slipsHtml({ slips: [SLIP()], printedOn: 'today' });
+  assert.match(plain, /<th>Earnings<\/th>/);
+  assert.match(plain, /<th>Deductions<\/th>/);
+});

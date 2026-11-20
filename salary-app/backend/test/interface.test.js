@@ -2419,3 +2419,26 @@ test('staff jobs and the helpdesk each print a register', () => {
   assert.match(desk, /t\.last_reply_at/);
   assert.match(desk, /t\.last_side === 'office'/);
 });
+
+test('exits print as a register, and a full and final as a statement', () => {
+  const leaving = src('components/people/Leaving.jsx');
+
+  // "exit aur full and final ka bhi print report do".
+  assert.match(leaving, /title: 'Exit register'/);
+  assert.match(leaving, /printSlips\(\{/);
+  assert.match(leaving, /Full and final settlement/);
+
+  /*
+   * THE RULE THAT HAD TO SURVIVE ONTO THE PAPER: an unreturned asset is
+   * named and valued, NEVER deducted - a laptop docked for and then found
+   * in a drawer cannot be undone once the payment is made.
+   */
+  assert.match(leaving, /Still with them: \$\{a\.label\} — not deducted/);
+  assert.match(leaving, /are NOT deducted/);
+
+  // The Act's rounding reads as a contradiction unless it says so.
+  assert.match(leaving, /counted as \$\{s\.gratuity\.years\} for gratuity/);
+
+  // And a register could hide that the settlement is assembled until paid.
+  assert.match(leaving, /worked out fresh each time it is opened/);
+});
