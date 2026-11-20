@@ -4630,3 +4630,40 @@ table.sheet.ledger-table tr.ledger-balance td {
   max-width: 14rem;
   object-fit: contain;
 }
+
+/* The front desk's figures: a row of counts, hairline-separated like the
+   rest of the app's stat strips. */
+.fo-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 0.6rem;
+}
+.fo-figures > div {
+  padding: 0 1.1rem;
+  border-left: 1px solid var(--line, #e4e7ef);
+}
+.fo-figures > div:first-child { padding-left: 0; border-left: 0; }
+.fo-figures b {
+  display: block;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.fo-figures span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.65; }
+.fo-figures .bad b { color: var(--danger, #c0392b); }
+
+/* A flagged area reads at a glance down the housekeeping list. */
+tr.fo-flagged td:first-child { font-weight: 600; }
+tr.fo-flagged td:first-child::before { content: '• '; color: var(--danger, #c0392b); }
+
+/* The report text, as it will be pasted into WhatsApp. */
+.fo-report {
+  white-space: pre-wrap;
+  font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--sunk, #f6f6f4);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin: 0.6rem 0 0;
+  overflow-x: auto;
+}

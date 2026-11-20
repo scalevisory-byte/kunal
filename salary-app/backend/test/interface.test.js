@@ -2523,3 +2523,33 @@ test('the hiring reports print the report, not the screen', () => {
   // It prints what is on screen, narrowed the same way, from the same grid.
   assert.match(rep, /grid\.rows\[index\]/);
 });
+
+test('the front desk is a tab, and its help topic names the trap', () => {
+  /*
+   * Dinesh sent the single-file tool he had built for reception and said
+   * "need this all feature in this".
+   */
+  const app = src('App.jsx');
+  assert.match(app, /\['frontoffice', 'Front office', 'frontdesk', 'frontoffice'\]/);
+  assert.match(app, /tab === 'frontoffice' && <FrontOffice/);
+
+  const fo = src('components/FrontOffice.jsx');
+  // The six screens his tool had.
+  for (const label of ['Today', 'Visitors', 'Courier', 'Daily report', 'Monthly summary', 'Areas']) {
+    assert.match(fo, new RegExp(`'${label}'`), `the ${label} view is missing`);
+  }
+  // Four papers, built as documents like every other print in this app.
+  assert.match(fo, /printReport/);
+  assert.equal(fo.match(/title: '/g).length, 4);
+
+  /*
+   * The row button must NOT be called "Sign out": the sidebar has one, and
+   * a receptionist clicking the wrong one is signed out of the app. Found
+   * by a browser run doing exactly that.
+   */
+  assert.ok(!/>\s*Sign out\s*</.test(fo));
+  assert.match(fo, /Out now/);
+
+  // The rule the module exists for, said where somebody is standing.
+  assert.match(fo, /never as clean/);
+});

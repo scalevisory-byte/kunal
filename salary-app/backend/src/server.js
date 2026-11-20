@@ -26,6 +26,7 @@ import { publicRouter } from './routes/public.js';
 import { attendanceSelfRouter } from './routes/attendanceSelf.js';
 import { punchRouter } from './routes/punch.js';
 import { companiesRouter } from './routes/companies.js';
+import { frontOfficeRouter } from './routes/frontOffice.js';
 import { VERSION } from '../../shared/version.js';
 import { leaveRouter } from './routes/leave.js';
 import { loansRouter } from './routes/loans.js';
@@ -244,6 +245,12 @@ export function createServer() {
    */
   app.use('/api/periods', ...office, requireWriteForChanges, periodsRouter);
   app.use('/api/hiring', ...office, requireArea('hiring'), requireWriteForChanges, hiringRouter);
+  /*
+   * The front desk. Its own area, so the person on reception can be given a
+   * login that records visitors and courier and nothing else - which is the
+   * whole reason areas exist.
+   */
+  app.use('/api/front-office', ...office, requireArea('frontoffice'), requireWriteForChanges, frontOfficeRouter);
   app.use('/api/attendance', ...office, requireArea('attendance'), requireWriteForChanges, attendanceSelfRouter);
   app.use('/api', ...office, requireWriteForChanges, reportsRouter);
 

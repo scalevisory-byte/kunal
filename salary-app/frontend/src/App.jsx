@@ -8,6 +8,7 @@ import Festivals from './components/Festivals.jsx';
 import HolidayDetail from './components/HolidayDetail.jsx';
 import Apply from './components/hiring/Apply.jsx';
 import Hiring from './components/hiring/Hiring.jsx';
+import FrontOffice from './components/FrontOffice.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
 import PunchPage from './components/PunchPage.jsx';
 import SitTest from './components/hiring/SitTest.jsx';
@@ -76,6 +77,7 @@ const TABS = [
   ['license', 'License', 'license', 'license'],
   ['hiring', 'Hiring', 'hiring', 'hiring'],
   ['people', 'People', 'person', 'people'],
+  ['frontoffice', 'Front office', 'frontdesk', 'frontoffice'],
   ['reports', 'Reports', 'reports', 'reports'],
   ['admin', 'Admin', 'admin', ''],
 ];
@@ -1097,6 +1099,13 @@ function Shell() {
             onDeleteCompany={masterAction((id) => api.del(`/companies/${id}`))}
           />
         )}
+
+        {/*
+          * The front desk: the housekeeping walk, the visitor book and
+          * courier in and out. Dinesh sent the single-file tool he had made
+          * for this and said "need this all feature in this".
+          */}
+        {tab === 'frontoffice' && <FrontOffice onError={handle} />}
 
         {tab === 'hiring' && (
           <>

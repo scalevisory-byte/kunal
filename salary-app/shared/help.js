@@ -656,7 +656,29 @@ export const HELP = [
     note: 'Nothing moves on its own — no auto-advance, no auto-reject. The match score orders a list and a test result is one more thing to weigh. Hiring needs the server: an apply link cannot live in a file on a laptop.',
   },
   {
-    id: 'company-logo',
+    id: 'front-office',
+    title: 'Front office — housekeeping, visitors and courier',
+    tab: 'frontoffice',
+    keywords: [
+      'front office', 'reception', 'visitor', 'visitors', 'guest', 'courier', 'parcel',
+      'housekeeping', 'cleaning', 'clean', 'inspection', 'daily report', 'front desk',
+      'safai', 'mehmaan', 'aagantuk', 'parcel aaya', 'register',
+    ],
+    lines: [
+      '**Front office** is the desk’s own book: the housekeeping walk, who visited, and every courier in or out — one date at a time, picked at the top of the tab.',
+      '**Housekeeping.** Each area is Clean, Not clean or Needs attention, with a remark. **An area you have not looked at stays blank** — it is counted as “not checked”, never as clean.',
+      '**Visitors.** Name, company, who they are here to meet, purpose, mobile and a pass number. Press **Out now** when they leave; until then they count as still in the building.',
+      '**Courier.** Inward or outward, the courier company, the tracking number, who it is from or to, and who handled it. At least a courier company or a from/to name is needed.',
+      '**Daily report** compiles all three into the text you paste into the group — one press to copy.',
+      '**Monthly summary** rolls the month up: days recorded, flags by area, visitors, courier in and out, and the same text to copy.',
+      '**Areas** is the list the walk runs down. “Add the usual twelve” fills an empty list; taking one off stops it being asked about and **keeps every day it was flagged**.',
+      'All four papers print as documents: the check, the visitor register, the courier register and the monthly summary. The visitor and courier registers also print for a whole month.',
+      'Reception can be given a login that reaches **only** this: Admin → Logins → Front office.',
+    ],
+    note: 'A DAY NOBODY WALKED IS NOT A CLEAN DAY. Clean, flagged and not-checked are three separate figures everywhere, so an empty morning can never read as a spotless office. And a visitor with no out time has simply not been signed out — it is not a time anybody left.',
+  },
+  {
+    id: 'company-logo',    id: 'company-logo',
     title: 'The company logo on the offer letter',
     tab: 'admin',
     keywords: [

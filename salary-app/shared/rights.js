@@ -46,6 +46,11 @@ export const AREAS = [
   ['license', 'Software licences', 'The licence register: keys, seats, renewals and what they cost.'],
   ['hiring', 'Hiring', 'Vacancies, candidates, interviews, tests and offers.'],
   ['people', 'People', 'Warnings, appraisals, claims, penalties, tickets and exits.'],
+  [
+    'frontoffice',
+    'Front office',
+    'The housekeeping walk, the visitor register and courier in and out.',
+  ],
   ['reports', 'Reports', 'Every report and export.'],
 ];
 

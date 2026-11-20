@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.45.0';
+export const VERSION = '1.46.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.46.0',
+    date: '20 Nov 2026',
+    title: 'Front office — housekeeping, visitors and courier',
+    items: [
+      'A new **Front office** tab, from the tool you sent: the **housekeeping walk**, the **visitor register**, **courier in and out**, the **daily report** for the group, a **monthly summary** and the **area list**.',
+      'It is the same book from every machine now, behind the same login — not one browser on one desk. And **the person on reception can be given a login that opens this and nothing else**: Front office is its own right under Admin → Logins.',
+      '**One thing is deliberately different from your version: a day nobody walked is not a clean day.** Every area used to start at “Clean”, so a morning the app was never opened reported a spotless office. Now a verdict is blank until somebody records one, and the figures are always three — **clean, flagged, and not checked** — on the screen, on the report and on the paper.',
+      '**A visitor with no out time is “still in”, never a guessed departure.** Press **Out now** on their row when they leave; the report says how many are still in the building.',
+      '**The daily report is your layout**, ready to copy into the boss group — what was flagged and why, how many areas were not checked, who came, and the courier in and out with the tracking number.',
+      '**The monthly summary** rolls up the days somebody actually recorded, flags by area, visitors and courier — and says plainly that few flags across few days is a month nobody walked, not a clean month.',
+      '**Four things print properly**: the housekeeping check, the visitor register, the courier register (for a day or a whole month) and the monthly summary.',
+      'Taking an area off the list **keeps what it was flagged for** — adding it back later is the same area, not a second one with half the history.',
+      '“Clear this day” empties one date after naming exactly what goes, and it is on the audit trail.',
+    ],
+  },
   {
     version: '1.45.0',
     date: '20 Nov 2026',
