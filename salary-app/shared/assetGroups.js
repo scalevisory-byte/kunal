@@ -86,9 +86,82 @@ export const GROUP_LABELS = new Map([
   ['other', 'Other'],
 ]);
 
-export const groupLabel = (key) => GROUP_LABELS.get(key) || 'Other';
+/* ---------------------------------------------------------------------
+ * THE OFFICE'S OWN GROUPS.
+ *
+ * Dinesh: *"ASSET ME NEW GROP KAHA SE ADD HOTA HE"*. It could not be: the
+ * nine above are written here, and a kind nobody mapped read as Other for
+ * ever. Meanwhile **Lists → Categories and Types already existed** and did
+ * nothing at all for this - a Category added there reclassified nothing,
+ * which is the shape this app keeps running into: the thing exists and is
+ * not joined up.
+ *
+ * So a Category under Lists IS a group now, and the Types under it are its
+ * kinds. Adding one is a line somebody types, not a release.
+ *
+ * TWO RULES, both of them the ones the built-in table already follows:
+ *
+ *   **THE OFFICE'S MAP WINS.** Somebody who files Printers under "IT
+ *   equipment" has said where printers go; this file's opinion that a
+ *   printer is a Computer is a default, not a correction.
+ *
+ *   **NOTHING IS STORED ON THE ASSET.** The group is still worked out from
+ *   the kind every time, so moving a Type to another Category reclassifies
+ *   the whole register at once and no column can disagree with the row it
+ *   sits in.
+ *
+ * It is module state because `groupOf` is called from a dozen places that
+ * have no business being handed a map; the server sets it from the database
+ * and the browser from the same list it already loads. Untouched, this file
+ * behaves exactly as it did before - there is a test saying so.
+ * ------------------------------------------------------------------- */
 
-/** Every group a filter can offer, Other last because it is the leftovers. */
+/** category key -> label, and kind (normalised) -> category key. */
+let CUSTOM_LABELS = new Map();
+let CUSTOM_OF = new Map();
+
+const keyOf = (name) => `own:${String(name).trim().toLowerCase()}`;
+
+/**
+ * Hand it the office's own lists.
+ *
+ * @param categories [{ name }] from Lists → Categories
+ * @param types      [{ name, parent_name }] from Lists → Types
+ */
+export function setOwnGroups(categories = [], types = []) {
+  CUSTOM_LABELS = new Map();
+  CUSTOM_OF = new Map();
+  for (const category of categories) {
+    const name = String(category?.name || '').trim();
+    if (name) CUSTOM_LABELS.set(keyOf(name), name);
+  }
+  for (const type of types) {
+    const kind = String(type?.name || '').trim();
+    const parent = String(type?.parent_name || '').trim();
+    if (!kind || !parent) continue;
+    // A type under a category nobody listed still names its group.
+    if (!CUSTOM_LABELS.has(keyOf(parent))) CUSTOM_LABELS.set(keyOf(parent), parent);
+    CUSTOM_OF.set(norm(kind), keyOf(parent));
+  }
+}
+
+/** For a test, and for the standalone build starting from nothing. */
+export const clearOwnGroups = () => setOwnGroups([], []);
+
+export const groupLabel = (key) => CUSTOM_LABELS.get(key) || GROUP_LABELS.get(key) || 'Other';
+
+/**
+ * Every group a filter can offer: the office's own first, because they are
+ * the ones somebody chose, then the built-ins, then Other - the leftovers,
+ * always last.
+ */
+export const groupKeys = () => [
+  ...CUSTOM_LABELS.keys(),
+  ...ASSET_GROUPS.map(([key]) => key),
+  'other',
+];
+
+/** The old constant, kept so nothing that imported it breaks. */
 export const GROUP_KEYS = [...ASSET_GROUPS.map(([key]) => key), 'other'];
 
 const norm = (v) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -111,6 +184,12 @@ const says = (haystack, word) =>
  */
 export function groupOf(kind, label = '') {
   const k = norm(kind);
+  /*
+   * THE OFFICE'S OWN MAP FIRST. Somebody who filed Printers under "IT
+   * equipment" has said where printers go, and this file saying Computer is
+   * a default rather than a correction.
+   */
+  if (k && CUSTOM_OF.has(k)) return CUSTOM_OF.get(k);
   // The table is keyed with dashes ("access-point"); norm gives spaces.
   if (k && GROUP_OF.has(k.replace(/ /g, '-'))) return GROUP_OF.get(k.replace(/ /g, '-'));
 
@@ -123,6 +202,11 @@ export function groupOf(kind, label = '') {
   }
 
   const name = norm(label);
+  if (name) {
+    for (const [mapped, group] of CUSTOM_OF) {
+      if (says(name, mapped)) return group;
+    }
+  }
   if (name) {
     for (const [mapped, group] of GROUP_OF) {
       if (says(name, mapped.replace(/-/g, ' '))) return group;

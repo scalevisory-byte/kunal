@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GROUP_KEYS, groupLabel, groupOf, groupTally } from '../../shared/assetGroups.js';
+import { GROUP_KEYS, clearOwnGroups, groupKeys, groupLabel, groupOf, groupTally, setOwnGroups } from '../../shared/assetGroups.js';
 import { kindOf } from '../../shared/assetImport.js';
 
 /*
@@ -137,4 +137,70 @@ test('a kind typed as the group’s own name lands in that group', () => {
   // And the ones that already worked still do.
   assert.equal(groupOf('SIM Card', ''), 'mobile');
   assert.equal(groupOf('Laptop', ''), 'computer');
+});
+
+/* ---------------- the office's own groups ---------------- */
+
+test('untouched, the file behaves exactly as it always did', () => {
+  /*
+   * The office's map is module state, so the first thing worth pinning is
+   * that nothing which never sets it can change behaviour.
+   */
+  clearOwnGroups();
+  assert.equal(groupLabel(groupOf('Printer', '')), 'Computer');
+  assert.equal(groupLabel(groupOf('Drone', '')), 'Other');
+  assert.deepEqual(groupKeys().slice(-1), ['other']);
+});
+
+test('a Category added under Lists IS a group, and its Types fall into it', () => {
+  /*
+   * "ASSET ME NEW GROP KAHA SE ADD HOTA HE" — the answer used to be
+   * nowhere, although Lists → Categories had existed all along and
+   * reclassified nothing.
+   */
+  clearOwnGroups();
+  setOwnGroups([{ name: 'Drones' }], [{ name: 'Drone', parent_name: 'Drones' }]);
+  assert.equal(groupLabel(groupOf('Drone', 'DJI Mini 4')), 'Drones');
+  // And the group is offered as a filter, before the built-in ones.
+  assert.equal(groupLabel(groupKeys()[0]), 'Drones');
+  clearOwnGroups();
+});
+
+test('the office’s map WINS over the built-in table', () => {
+  /*
+   * Somebody who files printers under "IT equipment" has said where
+   * printers go. This file saying Computer is a default, not a correction.
+   */
+  clearOwnGroups();
+  setOwnGroups([{ name: 'IT equipment' }], [{ name: 'Printer', parent_name: 'IT equipment' }]);
+  assert.equal(groupLabel(groupOf('Printer', 'HP LaserJet')), 'IT equipment');
+  // A kind they have NOT mapped still follows the built-in table.
+  assert.equal(groupLabel(groupOf('Laptop', '')), 'Computer');
+  clearOwnGroups();
+});
+
+test('a Type under a Category nobody listed still names its own group', () => {
+  clearOwnGroups();
+  setOwnGroups([], [{ name: 'Microwave', parent_name: 'Kitchen' }]);
+  assert.equal(groupLabel(groupOf('Microwave', '')), 'Kitchen');
+  clearOwnGroups();
+});
+
+test('taking the Category away puts its assets back, and touches no asset', () => {
+  clearOwnGroups();
+  setOwnGroups([{ name: 'Kitchen' }], [{ name: 'Microwave', parent_name: 'Kitchen' }]);
+  assert.equal(groupLabel(groupOf('Microwave', '')), 'Kitchen');
+  // Deleting the category is `setOwnGroups` without it: the asset is
+  // untouched and falls back to where the built-in table puts it, or to
+  // Other, which is honest - nobody has said where it belongs any more.
+  clearOwnGroups();
+  assert.equal(groupLabel(groupOf('Microwave', '')), 'Other');
+});
+
+test('a blank or nameless entry is ignored rather than making a group called ""', () => {
+  clearOwnGroups();
+  setOwnGroups([{ name: '   ' }, {}], [{ name: '', parent_name: 'Kitchen' }, { name: 'Pan' }]);
+  assert.ok(!groupKeys().some((key) => groupLabel(key).trim() === ''));
+  assert.equal(groupLabel(groupOf('Pan', '')), 'Other');
+  clearOwnGroups();
 });

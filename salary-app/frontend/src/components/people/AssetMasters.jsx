@@ -24,8 +24,16 @@ const VENDOR_BOXES = [
 ];
 
 const LISTS = [
-  ['category', 'Categories', 'The broad groups: IT equipment, Furniture, Vehicles'],
-  ['type', 'Types', 'What sits under a category: Laptop, Printer, Desk'],
+  [
+    'category',
+    'Categories',
+    'These ARE the register’s groups — IT equipment, Furniture, Vehicles. Add one here and it becomes a group button on the register, with the Types under it counting towards it.',
+  ],
+  [
+    'type',
+    'Types',
+    'What sits under a category: Laptop, Printer, Desk. A Type decides which group an asset of that kind falls into, so moving one re-files every asset that carries it at once.',
+  ],
   ['brand', 'Brands', 'Dell, HP, Samsung'],
   ['vendor', 'Vendors', 'Who it was bought from'],
 ];

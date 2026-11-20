@@ -36,6 +36,7 @@ import {
   termLabel,
 } from '../../shared/licenses.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
+import { setOwnGroups } from '../../shared/assetGroups.js';
 import { CLEARANCE_STEPS, cleanState, exitClearance } from '../../shared/exitClearance.js';
 import {
   instalmentOf,
@@ -484,6 +485,23 @@ export const listMasters = (kind) =>
     )
     .all(...(kind ? [kind] : []));
 
+/*
+ * THE OFFICE'S OWN CATEGORIES ARE GROUPS, on the server too.
+ *
+ * Every report that names a group - the statement, the register export, the
+ * service report - runs here, so the engine has to be told the same lists
+ * the browser was told. One process, one database, one map; it is refreshed
+ * whenever a master changes rather than read per row.
+ */
+export function refreshOwnGroups() {
+  const all = listMasters();
+  setOwnGroups(
+    all.filter((m) => m.kind === 'category'),
+    all.filter((m) => m.kind === 'type')
+  );
+}
+refreshOwnGroups();
+
 export function createMaster(input = {}) {
   const kind = String(input.kind || '').trim();
   if (!MASTER_KINDS.includes(kind)) throw new Error(`a master is one of ${MASTER_KINDS.join(', ')}`);
@@ -514,6 +532,8 @@ export function createMaster(input = {}) {
         VENDOR_FIELDS.map((f) => [f, kind === 'vendor' ? input[f] || null : null])
       ),
     });
+  // A new Category is a new GROUP, so the engine hears about it now.
+  refreshOwnGroups();
   return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(info.lastInsertRowid);
 }
 
@@ -538,6 +558,8 @@ export function updateMaster(id, patch = {}) {
        address = @address, gstin = @gstin
      WHERE id = @id`
   ).run({ ...next, id });
+  // Renaming a Category renames a group, which the reports read by name.
+  refreshOwnGroups();
   return db.prepare(`SELECT * FROM asset_masters WHERE id = ?`).get(id);
 }
 
@@ -548,8 +570,16 @@ export function updateMaster(id, patch = {}) {
  * after Dell comes off the vendor list. That is the point: a master is a
  * convenience for typing, not a foreign key that can rewrite history.
  */
-export const deleteMaster = (id) =>
-  db.prepare(`DELETE FROM asset_masters WHERE id = ?`).run(id).changes > 0;
+export const deleteMaster = (id) => {
+  const gone = db.prepare(`DELETE FROM asset_masters WHERE id = ?`).run(id).changes > 0;
+  /*
+   * A deleted Category stops being a group, and its assets fall back to
+   * where the built-in table puts them - or to Other, which is honest:
+   * nobody has said where they belong any more. No asset is touched.
+   */
+  if (gone) refreshOwnGroups();
+  return gone;
+};
 
 /** Today, as the app writes dates everywhere: YYYY-MM-DD. */
 const dayNow = () => new Date().toISOString().slice(0, 10);

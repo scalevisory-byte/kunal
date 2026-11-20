@@ -458,7 +458,13 @@ test('all four asset lists are behind a picker', () => {
    * without this the new Type simply was not there - which reads exactly like
    * the list not working.
    */
-  assert.match(a, /<AssetMasters onError=\{onError\} onChanged=\{setMasters\} \/>/);
+  /*
+   * It used to pin the exact JSX. Adding a Category now also tells the
+   * group engine, so the callback does two things rather than one - the
+   * rule this stands for is that a change on the Lists tab reaches the
+   * register's own copy WITHOUT a reload, and that is what is checked.
+   */
+  assert.match(a, /<AssetMasters[\s\S]{0,400}onChanged=\{\(list\) => \{[\s\S]{0,400}setMasters\(list \|\| \[\]\);/);
   assert.match(src('components/people/AssetMasters.jsx'), /onChanged\?\.\(masters\)/);
 
   // The chip counts had no space before them - "Categories2" - because .chip
@@ -2237,4 +2243,25 @@ test('the payslip and the batch of payslips are one document, built once', () =>
    * of opposite it. Measured on a printed PDF.
    */
   assert.match(css, /\.pr-slip-head \{\s*display: flex !important; flex-direction: row !important/);
+});
+
+test('a Category added under Lists becomes a group, in the browser and on the server', () => {
+  /*
+   * "ASSET ME NEW GROP KAHA SE ADD HOTA HE". It could not be: the groups
+   * were written in shared/assetGroups.js. Meanwhile Lists → Categories had
+   * existed all along and reclassified nothing — the shape this app keeps
+   * running into, where the thing exists and is not joined up.
+   */
+  const assets = src('components/people/Assets.jsx');
+  assert.match(assets, /setOwnGroups\(/);
+  // Both places the lists arrive: the first load, and an add on the Lists tab.
+  assert.equal(assets.match(/setOwnGroups\(/g).length, 2);
+  // The buttons are redrawn when the categories change.
+  assert.match(assets, /\[assets, filter, query, narrowed, masters\]/);
+  // And the way in sits where somebody is already looking at the groups.
+  assert.match(assets, /\+ group/);
+  assert.match(assets, /Groups come from Lists → Categories/);
+
+  // The Lists panel says what a Category is for, instead of "broad groups".
+  assert.match(src('components/people/AssetMasters.jsx'), /These ARE the register’s groups/);
 });

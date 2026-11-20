@@ -6,7 +6,7 @@ import AssetPrefixes, { Renumber } from './AssetPrefixes.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
-import { groupLabel, groupOf, groupTally } from '../../../../shared/assetGroups.js';
+import { groupLabel, groupOf, groupTally, setOwnGroups } from '../../../../shared/assetGroups.js';
 import { assetAlerts, nameSome } from '../../../../shared/assetAlerts.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
@@ -255,7 +255,22 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   useEffect(() => {
     api
       .get('/people/asset-masters')
-      .then(({ masters: list }) => setMasters(list || []))
+      .then(({ masters: list }) => {
+        /*
+         * THE OFFICE'S OWN CATEGORIES BECOME GROUPS.
+         *
+         * Dinesh: *"ASSET ME NEW GROP KAHA SE ADD HOTA HE"* - and the
+         * answer was nowhere, although Lists → Categories had existed all
+         * along and reclassified nothing. Handing the lists to the engine
+         * is the whole join: a Category is a group, the Types under it are
+         * its kinds, and the buttons below come out of the register itself.
+         */
+        setOwnGroups(
+          (list || []).filter((m) => m.kind === 'category'),
+          (list || []).filter((m) => m.kind === 'type')
+        );
+        setMasters(list || []);
+      })
       .catch(() => setMasters([]));
     api
       .get('/companies/branches')
@@ -411,7 +426,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .some((v) => String(v).toLowerCase().includes(q));
     });
     return groupTally(base);
-  }, [assets, filter, query, narrowed]);
+    /* `masters` is in here because the office's own categories decide what
+       the groups ARE - adding one has to redraw these buttons. */
+  }, [assets, filter, query, narrowed, masters]);
 
   /*
    * The code the next asset would get, for the form to show.
@@ -645,7 +662,18 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           * one under four others is how somebody reports it as missing.
           */}
         <AssetPrefixes onError={onError} onToast={setSaid} />
-        <AssetMasters onError={onError} onChanged={setMasters} />
+        {/* Adding a Category here adds a GROUP, so the engine is told at
+            the same moment rather than on the next page load. */}
+        <AssetMasters
+          onError={onError}
+          onChanged={(list) => {
+            setOwnGroups(
+              (list || []).filter((m) => m.kind === 'category'),
+              (list || []).filter((m) => m.kind === 'type')
+            );
+            setMasters(list || []);
+          }}
+        />
       </section>
     );
   }
@@ -967,6 +995,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
               {g.label} <span className="muted">{g.count}</span>
             </button>
           ))}
+          {/*
+            * THE WAY IN, where somebody is already looking at the groups.
+            * Dinesh asked where a new group is added; the answer is Lists →
+            * Categories, which nothing on this strip said.
+            */}
+          <button className="link" onClick={() => setView('masters')} title="Groups come from Lists → Categories">
+            + group
+          </button>
         </div>
       )}
 

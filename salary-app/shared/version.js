@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.34.0';
+export const VERSION = '1.35.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.35.0',
+    date: '20 Nov 2026',
+    title: 'Your own asset groups',
+    items: [
+      '**A new group is added under Assets → Lists → Categories**, and it is a real group now: it shows as a button on the register with its own count, and every report that names a group follows it.',
+      'Until now the nine groups — Computer, Mobile, Furniture and the rest — were fixed, and anything they did not know read as **Other**. Categories and Types were already on the Lists tab and **changed nothing at all**; they are joined up now.',
+      '**A Category is the group, the Types under it are its kinds.** Put “Drone” under “Drones” and every drone on the register moves there at once. Move a Type to another Category and the whole register re-files itself — nothing is stored on the asset, so no column can disagree with the row it sits in.',
+      '**What you have said wins.** File Printers under “IT equipment” and that is where printers go, whatever the built-in list thinks. Kinds you have not mapped still follow the built-in groups, so nothing you have today moves.',
+      'Taking a Category off the list puts its assets back where they were, and **touches no asset**.',
+      'There is a **+ group** link beside the group buttons on the register, because that is where somebody is standing when they want one.',
+    ],
+  },
   {
     version: '1.34.0',
     date: '19 Nov 2026',
