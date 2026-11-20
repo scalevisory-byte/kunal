@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { col, num, printReport } from '../printReport.js';
 import { api } from '../api.js';
 import { rupees } from '../format.js';
 
@@ -63,6 +64,68 @@ export default function Loans({ period, employees, onReload }) {
     }),
     { given: 0, outstanding: 0, thisMonth: 0 }
   );
+
+  /**
+   * LOANS AND ADVANCES AS A REGISTER.
+   *
+   * Every figure is the one on screen — `repaid` and `outstanding` are the
+   * server's, and "this month" is the instalment actually posted against
+   * this month's row, not the standing instalment. Those two differ the
+   * moment a month is skipped, which is the whole reason a month can be
+   * skipped without losing the debt.
+   */
+  const printIt = () => {
+    const narrowed = [
+      query.trim() && `matching “${query.trim()}”`,
+      showClosed ? 'including loans already repaid' : 'still running',
+    ].filter(Boolean);
+    const names = [...new Set(filtered.map((l) => l.company_name).filter(Boolean))];
+    printReport({
+      title: 'Loans and advances',
+      subtitle: [names.length === 1 ? names[0] : 'All companies', ...narrowed].join(' · '),
+      meta: [
+        `${filtered.length} ${filtered.length === 1 ? 'loan' : 'loans'}`,
+        `${rupees(totals.outstanding)} outstanding of ${rupees(totals.given)} given`,
+        period ? `${rupees(totals.thisMonth)} coming off in ${period.label}` : 'no month open',
+      ],
+      landscape: true,
+      columns: [
+        col('#', (_l, i) => i + 1, '3%'),
+        col('Employee', (l) => l.employee_name),
+        col('Given on', (l) => l.given_on || ''),
+        col('What for', (l) => l.reason || ''),
+        num('Amount', (l) => rupees(l.amount)),
+        num('Per month', (l) => rupees(l.instalment)),
+        num('Repaid', (l) => rupees(l.repaid)),
+        num('Outstanding', (l) => (l.outstanding > 0 ? rupees(l.outstanding) : 'repaid')),
+        num(period ? `In ${period.label}` : 'This month', (l) =>
+          period ? rupees(thisMonth.get(l.id) || 0) : '—'
+        ),
+        col('Status', (l) => (l.outstanding <= 0 ? 'Repaid' : l.status === 'held' ? 'On hold' : 'Running')),
+      ],
+      rows: filtered,
+      totals: {
+        label: `Total (${filtered.length})`,
+        Amount: rupees(totals.given),
+        /* What a full month would take if every one of these ran. */
+        'Per month': rupees(
+          filtered
+            .filter((l) => l.outstanding > 0 && l.status !== 'held')
+            .reduce((sum, l) => sum + (Number(l.instalment) || 0), 0)
+        ),
+        Repaid: rupees(filtered.reduce((sum, l) => sum + (Number(l.repaid) || 0), 0)),
+        Outstanding: rupees(totals.outstanding),
+        [period ? `In ${period.label}` : 'This month']: period ? rupees(totals.thisMonth) : '—',
+      },
+      /*
+       * Both halves of the rule the module was built on, said on the paper:
+       * a month can be skipped without the debt going anywhere, and nothing
+       * here deducts by itself.
+       */
+      footer:
+        'The instalment is what comes off a month when the month is opened; a month set to zero or a loan on hold simply takes nothing that month, and the outstanding stays. Nothing here deducts by itself — the figure in the month column is what the salary sheet is actually taking.',
+    });
+  };
 
   const add = async (e) => {
     e.preventDefault();
@@ -196,6 +259,14 @@ export default function Loans({ period, employees, onReload }) {
             <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
             Show repaid
           </label>
+          {/*
+            * The ledger the office files, not the screen it is typed on.
+            * Two instalment boxes and a status picker are controls; what
+            * somebody signs off at month end is a list.
+            */}
+          <button className="ghost" onClick={printIt} disabled={!filtered.length}>
+            Print {filtered.length}
+          </button>
           <span className="grow" />
           <span className="muted small">
             {rupees(totals.outstanding)} outstanding

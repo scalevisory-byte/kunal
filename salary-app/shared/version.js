@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.36.0';
+export const VERSION = '1.37.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.37.0',
+    date: '20 Nov 2026',
+    title: 'Loans and advances, printed',
+    items: [
+      '**Loans → Print.** Who was given what and when, what it was for, the monthly instalment, repaid so far, still outstanding, what is coming off in the open month, and whether it is running, on hold or repaid — with the totals at the foot.',
+      'It prints what is on screen: your search, and whether you have ticked **Show repaid**. The page says which.',
+      '**The month column is what is actually being taken this month**, not the standing instalment — the two differ the moment a month is skipped, which is exactly what skipping a month is for. The paper says so, and that nothing here deducts by itself.',
+      '**A loan on hold is not counted** into what a full month would take.',
+    ],
+  },
   {
     version: '1.36.0',
     date: '20 Nov 2026',

@@ -2306,3 +2306,24 @@ test('the open month shows what has been earned up to today', () => {
   const firstReturn = my.indexOf('if (!months.length)');
   assert.ok(memo > 0 && memo < firstReturn, 'the memo must sit above the early return');
 });
+
+test('loans and advances print as a register', () => {
+  const loans = src('components/Loans.jsx');
+
+  // "loan aur advance ka bhi print report do". The screen is two instalment
+  // boxes and a status picker; what the office files is a list.
+  assert.match(loans, /printReport/);
+  assert.match(loans, /title: 'Loans and advances'/);
+
+  /*
+   * The month column is the instalment POSTED against this month's row, not
+   * the standing instalment - the two differ the moment a month is skipped,
+   * which is the whole reason a month can be skipped without the debt going
+   * anywhere. The paper says that out loud.
+   */
+  assert.match(loans, /thisMonth\.get\(l\.id\) \|\| 0/);
+  assert.match(loans, /Nothing here deducts by itself/);
+
+  // A loan on hold is not counted into what a full month would take.
+  assert.match(loans, /l\.outstanding > 0 && l\.status !== 'held'/);
+});
