@@ -549,6 +549,12 @@ hiringRouter.post('/applications/:id/hire', (req, res) => {
   try {
     res.status(201).json(hireApplication(Number(req.params.id), req.body || {}));
   } catch (err) {
+    /* 409 carries the row it resembles, so the screen can say WHO and offer
+       "Add them anyway" - the same shape as the maintenance duplicate
+       check. A plain 400 would read as a fault and get worked around. */
+    if (err.status === 409) {
+      return res.status(409).json({ error: err.message, resembles: err.resembles });
+    }
     res.status(400).json({ error: err.message });
   }
 });

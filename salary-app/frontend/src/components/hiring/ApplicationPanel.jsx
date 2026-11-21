@@ -578,15 +578,36 @@ export default function ApplicationPanel({ applicationId, config, onClose, onCha
                         application.offer_salary
                       ).toLocaleString('en-IN')} a month?`
                     )) return;
-                    try {
-                      await api.post(`/hiring/applications/${applicationId}/hire`, {
+                    /*
+                     * IT ASKS BEFORE MAKING A SECOND RECORD FOR ONE PERSON.
+                     *
+                     * A 409 means somebody on the staff list already has this
+                     * mobile number - a rehire, or a duplicate. Only the
+                     * office can tell which, so it is told who it resembles
+                     * and presses again. Refusing outright would block a real
+                     * rehire; going ahead quietly is two payslips.
+                     */
+                    const add = async (confirm) =>
+                      api.post(`/hiring/applications/${applicationId}/hire`, {
                         code: hireCode || undefined,
+                        ...(confirm ? { confirm: true } : {}),
                       });
-                      onToast('Added to the payroll');
+                    try {
+                      const out = await add(false);
+                      onToast(out?.note || 'Added to the payroll');
                       await load();
                       onChanged?.();
                     } catch (err) {
-                      onError(err);
+                      if (!/already on the staff list/i.test(err.message || '')) return onError(err);
+                      if (!window.confirm(`${err.message}\n\nAdd them anyway?`)) return;
+                      try {
+                        const out = await add(true);
+                        onToast(out?.note || 'Added to the payroll');
+                        await load();
+                        onChanged?.();
+                      } catch (err2) {
+                        onError(err2);
+                      }
                     }
                   }}
                 >

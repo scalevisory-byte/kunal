@@ -884,6 +884,30 @@ export function hireSuggestion(id) {
   };
 }
 
+/**
+ * ONE PERSON IS ONE EMPLOYEE, however many openings they applied to.
+ *
+ * The guard below used to be on the APPLICATION, which covers pressing the
+ * button twice on the same one - and nothing else. Somebody who applied for
+ * two seats and was hired into the second after the first went through came
+ * out as TWO employee rows: two codes, two salaries, two payslips, two PF
+ * records for one person, and no way afterwards to say which was real.
+ *
+ * So the check is on the CANDIDATE. The second application is joined to the
+ * employee that already exists rather than making another, and the salary on
+ * it is deliberately NOT written through - a figure typed on a hiring screen
+ * must not quietly change what somebody is already paid. The caller is told
+ * in words to change it on their record.
+ */
+const alreadyHired = (candidateId) =>
+  db
+    .prepare(
+      `SELECT employee_id FROM applications
+        WHERE candidate_id = ? AND employee_id IS NOT NULL
+        ORDER BY id LIMIT 1`
+    )
+    .get(candidateId)?.employee_id || null;
+
 export function hireApplication(id, input = {}) {
   const application = getApplication(id);
   if (!application) throw new Error('application not found');
@@ -891,7 +915,69 @@ export function hireApplication(id, input = {}) {
     return { employee: getEmployee(application.employee_id), application, created: false };
   }
 
+  const already = alreadyHired(application.candidate_id);
+  const existing = already ? getEmployee(already) : null;
+  if (existing) {
+    /* Link this application to the person who is already on the payroll.
+       `moveApplication` takes it to Joined as usual, so the pipeline reads
+       the same - there is simply no second employee. */
+    update('applications', id, { employee_id: existing.id });
+    const moved = moveApplication(id, 'Joined', {
+      by: input.by || 'office',
+      note: `Already on the payroll as ${existing.code || existing.id}`,
+    });
+    return {
+      employee: existing,
+      application: moved || getApplication(id),
+      created: false,
+      already_on_payroll: true,
+      note:
+        `${existing.name} is already on the payroll as ${existing.code || `employee ${existing.id}`}. ` +
+        'This opening has been joined to that record. Change their designation or salary ' +
+        'on their employee record — a figure typed here does not move what they are paid.',
+    };
+  }
+
   const candidate = getCandidate(application.candidate_id);
+
+  /*
+   * SOMEBODY WHO IS ALREADY ON THE STAFF LIST, by mobile number.
+   *
+   * The guard above only catches people hired THROUGH this module. The
+   * eighty-five people already on the payroll never were, and a rehire or a
+   * second application from somebody who works here reaches this point
+   * looking brand new.
+   *
+   * So it ASKS rather than refusing or going ahead - the same shape as the
+   * maintenance duplicate check. A genuine rehire of a leaver is real and
+   * must not be blocked; a second record for somebody already being paid is
+   * two payslips. Only the office can tell which, so it is told what it
+   * resembles and presses again.
+   */
+  const phone = String(candidate?.phone || '').replace(/\D/g, '').slice(-10);
+  if (phone && !input.confirm) {
+    const match = db
+      .prepare(
+        `SELECT e.id, e.name, e.code, e.active, c.name AS company_name
+           FROM employees e LEFT JOIN companies c ON c.id = e.company_id
+          WHERE REPLACE(REPLACE(REPLACE(COALESCE(e.phone, ''), ' ', ''), '-', ''), '+', '') LIKE ?
+          ORDER BY e.active DESC, e.id LIMIT 1`
+      )
+      .get(`%${phone}`);
+    if (match) {
+      const err = new Error(
+        `${match.name}${match.code ? ` (${match.code})` : ''} is already on the staff list at ` +
+          `${match.company_name || 'this company'} on the same mobile number, and is ` +
+          `${match.active ? 'still working here' : 'marked as left'}. ` +
+          'If this is the same person coming back, add them anyway — they get a second record ' +
+          'and a second payslip, so check it is really them first.'
+      );
+      err.status = 409;
+      err.resembles = match;
+      throw err;
+    }
+  }
+
   const salary = Number(input.monthly_salary ?? application.offer_salary) || 0;
   if (salary <= 0) throw new Error('a monthly salary is needed before somebody goes on the payroll');
   const joined = input.joined_on || application.joining_date || nowIso().slice(0, 10);

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.74.0';
+export const VERSION = '1.75.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.75.0',
+    date: '22 Nov 2026',
+    title: 'One person is one employee, however many openings they applied to',
+    items: [
+      '**A real bug on the payroll, found by auditing it.** Somebody who applied for two seats and was hired into the second after the first had gone through came out as **TWO employee rows** \u2014 two codes, two salaries, two payslips, two PF records for one person, and nothing afterwards to say which was real. The check was on the APPLICATION, which only ever caught pressing the same button twice.',
+      '**Now the second opening is joined to the person who is already on the payroll.** The application still reaches Joined and still points at them \u2014 there is simply no second record.',
+      '**A salary typed on the hiring screen does not move what they are already paid.** That changes on their employee record, where it is kept with the date \u2014 never as a side effect of a second application going through. The screen says so.',
+      '**Somebody already on the staff list on the same mobile number is NAMED, and it asks.** A genuine rehire of a leaver is real and must not be blocked; a second record for somebody already being paid is two payslips. Only the office can tell which, so it says who it resembles and offers **Add them anyway**.',
+      '**A record that has been deleted is not a record to join to** \u2014 an application pointing at an employee who is gone reads as nobody, so the person can be put back on the payroll.',
+    ],
+  },
   {
     version: '1.74.0',
     date: '22 Nov 2026',

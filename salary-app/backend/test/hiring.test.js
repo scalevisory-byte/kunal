@@ -688,3 +688,131 @@ test('an application says whether there is a CV, not where it is', async () => {
     assert.ok(row.has_cv === 0 || row.has_cv === 1 || typeof row.has_cv === 'boolean');
   }
 });
+
+/* ------------------------------------------------------------------
+ * ONE PERSON IS ONE EMPLOYEE, however many openings they applied to.
+ *
+ * The old guard was on the APPLICATION, which covers pressing the button
+ * twice on the same one and nothing else. Somebody hired into a second
+ * opening came out as TWO employee rows - two codes, two salaries, two
+ * payslips, two PF records for one person.
+ * ------------------------------------------------------------------ */
+
+test('a second opening joins the person who is already on the payroll', async () => {
+  /* The real shape: somebody applies for two seats, BOTH applications exist,
+     and then each is pressed. (Hiring archives the candidate, so a second
+     application cannot be raised afterwards.) */
+  const cand = await api('POST', '/api/hiring/candidates', {
+    name: 'Meera Joshi', phone: '9700011122',
+  });
+  const v1 = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId, title: 'Travel Desk', positions: 1,
+  });
+  const v2 = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId, title: 'Ticketing', positions: 1,
+  });
+  const a1 = (await api('POST', '/api/hiring/applications', {
+    vacancy_id: v1.body.id, candidate_id: cand.body.id,
+  })).body.application;
+  const a2 = (await api('POST', '/api/hiring/applications', {
+    vacancy_id: v2.body.id, candidate_id: cand.body.id,
+  })).body.application;
+
+  const first = await api('POST', `/api/hiring/applications/${a1.id}/hire`, {
+    monthly_salary: 24000,
+  });
+  assert.equal(first.status, 201);
+  assert.equal(first.body.created, true);
+
+  const second = await api('POST', `/api/hiring/applications/${a2.id}/hire`, {
+    monthly_salary: 99000,
+  });
+  assert.equal(second.status, 201);
+  assert.equal(second.body.created, false);
+  assert.equal(second.body.already_on_payroll, true);
+  assert.match(second.body.note, /already on the payroll/);
+
+  /* ONE row for Meera, not two. Two would be two codes, two salaries, two
+     payslips and two PF records for one person. */
+  const rows = (await api('GET', '/api/employees')).body.employees.filter(
+    (e) => e.name === 'Meera Joshi'
+  );
+  assert.equal(rows.length, 1);
+  /* And the 99,000 typed on the hiring screen did NOT move what she is paid.
+     A salary changes on the employee record, where it is recorded with the
+     date - never as a side effect of a second application going through. */
+  assert.equal(rows[0].monthly_salary, 24000);
+
+  /* The second application still reaches Joined, pointing at that one person. */
+  const after = (await api('GET', `/api/hiring/applications/${a2.id}`)).body;
+  const application = after.application || after;
+  assert.equal(application.stage, 'Joined');
+  assert.equal(application.employee_id, rows[0].id);
+});
+
+test('somebody already on the staff list is named, and can still be added', async () => {
+  /* A candidate carrying the mobile number of somebody who is already an
+     employee - a rehire, or a duplicate. The app cannot tell which. */
+  const them = (await api('GET', '/api/employees')).body.employees.find(
+    (e) => e.name === 'Meera Joshi'
+  );
+  assert.ok(them, 'she is on the payroll from the test above');
+  await api('PATCH', `/api/employees/${them.id}`, { phone: '9898989898' });
+
+  const cand = await api('POST', '/api/hiring/candidates', {
+    name: 'Meera J', phone: '9898989898',
+  });
+  const vac = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId, title: 'Front Desk', positions: 1,
+  });
+  const app = (await api('POST', '/api/hiring/applications', {
+    vacancy_id: vac.body.id, candidate_id: cand.body.id,
+  })).body.application;
+
+  const asked = await api('POST', `/api/hiring/applications/${app.id}/hire`, {
+    monthly_salary: 21000,
+  });
+  /* 409, not 400: it is a question, not a fault. And it says WHO. */
+  assert.equal(asked.status, 409);
+  assert.match(asked.body.error, /already on the staff list/);
+  assert.equal(asked.body.resembles.id, them.id);
+
+  /* NOT REFUSED. A genuine rehire of a leaver is real, and a system that
+     will not record the truth gets worked around. */
+  const anyway = await api('POST', `/api/hiring/applications/${app.id}/hire`, {
+    monthly_salary: 21000, confirm: true,
+  });
+  assert.equal(anyway.status, 201);
+  assert.equal(anyway.body.created, true);
+});
+
+test('an application pointing at a deleted employee does not block a rehire', async () => {
+  /* Deleting an employee leaves `applications.employee_id` pointing at a row
+     that is no longer there. The guard reads the employee, not just the id,
+     so a dangling pointer reads as "nobody" and the person can be put back
+     on the payroll - rather than being joined to a record that is gone. */
+  const cand = (await api('POST', '/api/hiring/candidates', {
+    name: 'Imran Shaikh', phone: '9733344455',
+  })).body;
+  const vac = await api('POST', '/api/hiring/vacancies', {
+    company_id: companyId, title: 'Operations', positions: 1,
+  });
+  const first = (await api('POST', '/api/hiring/applications', {
+    vacancy_id: vac.body.id, candidate_id: cand.id,
+  })).body.application;
+  const second = (await api('POST', '/api/hiring/applications', {
+    vacancy_id: vac.body.id, candidate_id: cand.id,
+  })).body.application;
+
+  const hired = await api('POST', `/api/hiring/applications/${first.id}/hire`, {
+    monthly_salary: 18000,
+  });
+  assert.equal(hired.body.created, true);
+  await api('DELETE', `/api/employees/${hired.body.employee.id}`);
+
+  const again = await api('POST', `/api/hiring/applications/${second.id}/hire`, {
+    monthly_salary: 18000, confirm: true,
+  });
+  assert.equal(again.status, 201);
+  assert.equal(again.body.created, true, 'a record that is gone is not a record to join to');
+});

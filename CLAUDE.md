@@ -963,6 +963,28 @@ Three decisions he made before any of it was built, which still hold:
 - **Hiring needs the server.** The single-file build says so plainly: an apply link and a CV
   cannot live in a file on a laptop.
 
+### One person is one employee — the hiring audit (v1.75)
+
+Auditing the hiring actions that MOVE people (not the ones that merely decide) found a real
+defect on the payroll: **`hireApplication`'s guard was on the APPLICATION**, which catches
+pressing the same button twice and nothing else. Somebody who applied for two seats and was
+hired into the second after the first had gone through came out as **two employee rows** —
+two codes, two salaries, two payslips, two PF records for one person.
+
+- The guard is now on the **candidate** (`alreadyHired`): the second application is joined to
+  the employee that already exists, still reaches Joined, still points at them.
+- **A salary typed on the hiring screen is deliberately NOT written through** on that path.
+  It changes on the employee record, where `employee_history` keeps it with the date — never
+  as a side effect of a second application going through.
+- **Somebody already on the staff list on the same mobile is named, and it ASKS** (409 carrying
+  the row, `confirm: true` to go ahead) — the same shape as the maintenance duplicate check.
+  Refusing would block a genuine rehire; going ahead quietly is two payslips. The eighty-five
+  people already on the payroll never came through hiring, so only this catches them.
+- **A deleted employee is not a record to join to**: deleting an employee leaves
+  `applications.employee_id` dangling, so the guard reads the employee rather than the id.
+- The scenario only exists if both applications are raised BEFORE the first is hired — hiring
+  archives the candidate, so a second application cannot be raised afterwards.
+
 ### Still to settle with Dinesh
 The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
 and where this is hosted, so `PUBLIC_URL` can be set and the apply links actually work.
