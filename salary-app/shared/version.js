@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.62.0';
+export const VERSION = '1.63.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.63.0',
+    date: '21 Nov 2026',
+    title: 'The attendance grid: a code column, dates that stay put, and a month per person',
+    items: [
+      '**The employee code is on the grid**, frozen beside the name. It is what the machine and the bank file call them, and it was on every row and shown nowhere.',
+      '**The date row stays put when you scroll.** Eighty-five names deep the day numbers had gone off the top, and the only way to know which column you were clicking was to count across with a finger — which is how the wrong day gets marked.',
+      '**Today’s column is marked**, and only when today is actually in the month you have open.',
+      '**Branch and department filters** beside the search, which also now matches the employee code. They only appear when there is more than one to choose from.',
+      '**Seven summary columns instead of four** — Present, Absent, WO, PL, LWP, HD, Sun, and **Hours**, which is what was actually clocked in and out. Counted off the same marks the salary sheet is paid from, so they cannot disagree with it.',
+      '**Clicking a name opens that person’s month**: every day, the mark and what it means, in / lunch / out, hours worked, OT or short minutes, the reason, and whether it was approved — with Export CSV and Print. It is **read-only on purpose**: the grid behind it is where attendance is marked, and a day that can be changed from two screens gets changed from the wrong one.',
+      '**A new mark: OD — Official Duty.** A bank run, a client’s office, a day at a supplier. There was no mark for it, so it went down as Present (which hides it) or as leave (which docks a day somebody spent working). **It is paid exactly like a present day** and no existing month can move. Nobody is called late for a day they spent elsewhere, nobody is asked about their uniform, and the GPS fence no longer flags a punch from a place the office sent them to.',
+      '**The legend speaks the office’s language.** WO, H, LWP and HD are shown beside the codes the app saves — as *names*, not as new marks. A second LWP beside UL would be two names for one thing, which is how two things come to disagree.',
+      '**S is now “Weekly off”, not “Sunday (off)”** — it has covered alternate Saturdays for a while and the label had not caught up.',
+    ],
+  },
   {
     version: '1.62.0',
     date: '21 Nov 2026',

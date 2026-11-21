@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ATTENDANCE_CODES,
+  CODE_ALIASES,
   absentDaysFromAttendance,
   countMarks,
   minutesFromAttendance,
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
+import { formatDuration, monthTotals } from '../../../shared/timesheet.js';
 import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
 import ScrollFrame from './ScrollFrame.jsx';
+import AttendanceStatement from './AttendanceStatement.jsx';
+import { api } from '../api.js';
 import { col, num, printReport } from '../printReport.js';
 
 /**
@@ -26,23 +30,70 @@ const MINUTE_PRESETS = [15, 30, 40, 45, 60, 90, 120];
 export default function Attendance({ period, rows, codes, onSave, locked, onGo }) {
   const [draft, setDraft] = useState({}); // "employeeId:day" -> { code, minutes }
   const [query, setQuery] = useState('');
+  const [branch, setBranch] = useState('');
+  const [department, setDepartment] = useState('');
   const [picker, setPicker] = useState(null); // { employeeId, day, name }
   const [dayMarker, setDayMarker] = useState(null); // a whole day, for many people
   const [rangeFor, setRangeFor] = useState(null); // a stretch of days, for one person
   const [status, setStatus] = useState('');
+  const [statementFor, setStatementFor] = useState(null);
+  /*
+   * The month's holidays, so a person's own statement can name the festival
+   * on a day rather than leaving it as an unexplained blank. A nice-to-have:
+   * if it cannot be read the grid works exactly as before.
+   */
+  const [holidays, setHolidays] = useState([]);
+  useEffect(() => {
+    if (!period?.id) return;
+    api
+      .get(`/periods/${period.id}/holidays`)
+      .then(({ holidays: list }) => setHolidays(list || []))
+      .catch(() => setHolidays([]));
+  }, [period?.id]);
   const saveTimer = useRef(null);
 
   const total = daysInMonth(period.year, period.month);
+  /*
+   * TODAY'S COLUMN, marked - and only when today is actually IN this month.
+   * Opening October in November and seeing a day lit up would be worse than
+   * not marking it at all, because it would be wrong rather than missing.
+   */
+  const todayDay = useMemo(() => {
+    const now = new Date();
+    return now.getFullYear() === Number(period.year) && now.getMonth() + 1 === Number(period.month)
+      ? now.getDate()
+      : 0;
+  }, [period.year, period.month]);
   const monthName = new Date(period.year, period.month - 1, 1).toLocaleString('en-IN', { month: 'long' });
   const dayList = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
 
+  /*
+   * The branches and departments actually on THIS month's rows - not every
+   * one the company has ever had. A filter offering a branch nobody on
+   * screen belongs to only ever empties the grid.
+   */
+  const branches = useMemo(
+    () => [...new Set(rows.map((r) => r.branch_name).filter(Boolean))].sort(),
+    [rows]
+  );
+  const departments = useMemo(
+    () => [...new Set(rows.map((r) => r.department).filter(Boolean))].sort(),
+    [rows]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
-      (r) => r.employee_name.toLowerCase().includes(q) || (r.company_name || '').toLowerCase().includes(q)
-    );
-  }, [rows, query]);
+    return rows.filter((r) => {
+      if (branch && (r.branch_name || '') !== branch) return false;
+      if (department && (r.department || '') !== department) return false;
+      if (!q) return true;
+      return (
+        r.employee_name.toLowerCase().includes(q) ||
+        (r.employee_code || '').toLowerCase().includes(q) ||
+        (r.company_name || '').toLowerCase().includes(q)
+      );
+    });
+  }, [rows, query, branch, department]);
 
   /**
    * The month as a muster roll — one line per person, one column per day.
@@ -311,6 +362,24 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        {branches.length > 1 && (
+          <label className="field inline">
+            Branch
+            <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+              <option value="">All branches</option>
+              {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </label>
+        )}
+        {departments.length > 1 && (
+          <label className="field inline">
+            Department
+            <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="">All departments</option>
+              {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </label>
+        )}
         <button className="primary" disabled={locked} onClick={markEveryonePresent}>
           Mark everyone Present
         </button>
@@ -348,12 +417,21 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           <thead>
             <tr>
               <th className="sticky-name">Employee</th>
+              {/* The code they are known by on the machine and in the bank
+                  file. It is on every row already and was shown nowhere. */}
+              <th className="sticky-code">Code</th>
               {dayList.map((d) => (
-                <th key={d} className={isSunday(period.year, period.month, d) ? 'sunday' : undefined}>
+                <th
+                  key={d}
+                  className={[
+                    isSunday(period.year, period.month, d) ? 'sunday' : '',
+                    d === todayDay ? 'today' : '',
+                  ].filter(Boolean).join(' ') || undefined}
+                >
                   <button
                     className="day-head"
                     disabled={locked}
-                    title={`Mark ${d} ${monthName} for several people at once`}
+                    title={`Mark ${d} ${monthName} for several people at once${d === todayDay ? ' (today)' : ''}`}
                     onClick={() => setDayMarker(d)}
                   >
                     <span className="dow">{weekday(period.year, period.month, d)}</span>
@@ -361,10 +439,20 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                   </button>
                 </th>
               ))}
+              {/*
+                * THE MONTH, PER PERSON. Counted off the marks on screen,
+                * unsaved edits included - the same `countMarks` the salary
+                * sheet is paid from, so these columns and the payslip cannot
+                * disagree.
+                */}
+              <th title="Days present, including work from home and official duty">P</th>
               <th title="Days of salary these marks cost">Absent</th>
+              <th title="Weekly off days (S)">WO</th>
               <th title="Paid leave taken">PL</th>
-              <th title="Unpaid leave taken">UL</th>
+              <th title="Leave without pay (unpaid leave)">LWP</th>
+              <th title="Half days">HD</th>
               <th title="Sundays and holidays worked">Sun</th>
+              <th title="Hours actually clocked this month, from the in and out times">Hours</th>
               <th title="Short hours (negative) and overtime (positive) for the month">Minutes</th>
               <th>Whole row</th>
             </tr>
@@ -374,6 +462,15 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
               const merged = effectiveAttendance(row);
               const counts = countMarks(merged);
               const minutes = minutesFromAttendance(merged);
+              /* Hours actually clocked, off the in/out times on the day -
+                 NOT the OT/LT column, which is the difference from expected
+                 and is a different question. */
+              const worked = Math.round(
+                monthTotals(Object.values(merged), {
+                  hoursPerDay: Number(period.hours_per_day) || 9,
+                  deductLunch: !period.lunch_paid,
+                }).worked
+              );
               return (
                 <tr key={row.employee_id}>
                   {/*
@@ -387,18 +484,32 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                     * rather than as money still to pay.
                     */}
                   <td className="sticky-name" title={row.company_name}>
-                    {row.employee_name}
+                    {/* The name is the way into that person's own month. It
+                        was plain text, which is not a way in - the fifth time
+                        that exact shape has come up. */}
+                    <button
+                      type="button"
+                      className="link name-link"
+                      onClick={() => setStatementFor(row)}
+                      title={`${row.employee_name} — their attendance, day by day`}
+                    >
+                      {row.employee_name}
+                    </button>
                     {row.active === 0 ? (
                       <span className="muted small" title="No longer on the staff list — still here because this month owes them something">
                         {' '}· left
                       </span>
                     ) : null}
                   </td>
+                  <td className="sticky-code muted small">{row.employee_code || '—'}</td>
                   {dayList.map((d) => {
                     const entry = entryOf(row, d);
                     const open = picker?.employeeId === row.employee_id && picker?.day === d;
                     return (
-                      <td key={d} className={`mark${offFor(row, d) ? ' sunday' : ''}`}>
+                      <td
+                        key={d}
+                        className={`mark${offFor(row, d) ? ' sunday' : ''}${d === todayDay ? ' today' : ''}`}
+                      >
                         <button
                           type="button"
                           className={`mark-cell code-${entry.code || 'none'}${open ? ' open' : ''}`}
@@ -435,10 +546,14 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                       </td>
                     );
                   })}
+                  <td className="num">{(counts.P || 0) + (counts.WH || 0) + (counts.OD || 0) || '-'}</td>
                   <td className="num strong">{days(absentDaysFromAttendance(merged))}</td>
+                  <td className="num">{counts.S || '-'}</td>
                   <td className="num">{counts.PL || '-'}</td>
                   <td className="num">{counts.UL || '-'}</td>
+                  <td className="num">{counts.HF || '-'}</td>
                   <td className="num">{days(sundaysFromAttendance(merged))}</td>
+                  <td className="num">{worked ? formatDuration(worked) : '-'}</td>
                   <td className={`num strong${minutes < 0 ? ' deduct' : ''}`}>
                     {minutes ? `${minutes > 0 ? '+' : ''}${minutes}` : '-'}
                   </td>
@@ -466,7 +581,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
             })}
             {!filtered.length && (
               <tr>
-                <td colSpan={total + 7} className="empty">No employees in this month yet.</td>
+                <td colSpan={total + 12} className="empty">No employees in this month yet.</td>
               </tr>
             )}
           </tbody>
@@ -512,13 +627,30 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
         />
       )}
 
+      {statementFor && (
+        <AttendanceStatement
+          row={{ ...statementFor, attendance: effectiveAttendance(statementFor) }}
+          period={period}
+          holidays={holidays}
+          onClose={() => setStatementFor(null)}
+        />
+      )}
+
       <div className="legend card">
         <strong>What each mark does to the salary</strong>
         <ul>
           {Object.entries(codes).map(([code, meta]) => (
             <li key={code}>
               <span className={`brush code-${code}`}>{code}</span>
-              <span>{meta.label}</span>
+              <span>
+                {meta.label}
+                {/* The name the office uses on paper, beside the code the app
+                    has always saved. NOT a second mark - a second LWP next to
+                    UL is exactly the duplicate category to avoid. */}
+                {CODE_ALIASES[code] ? (
+                  <span className="muted small"> · also written {CODE_ALIASES[code]}</span>
+                ) : null}
+              </span>
               <em>
                 {meta.absent > 0
                   ? `−${meta.absent} day${meta.absent === 1 ? '' : 's'} salary`

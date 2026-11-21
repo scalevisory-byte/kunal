@@ -196,10 +196,15 @@ export function nextKind(todaysPunches = []) {
 /**
  * Marks on which being away from the office is the point of the day.
  *
- * Only WH. An absence is not here - somebody who is not working is not
- * working from somewhere else - and neither is leave.
+ * WH and OD. One is working from home, the other is out on the company's
+ * business - a bank run, a client's office - and in both cases a punch from
+ * somewhere else is the day going as intended, not something to flag.
+ *
+ * An absence is NOT here: somebody who is not working is not working from
+ * somewhere else. Neither is leave. And neither mark switches punching on,
+ * nor excuses a punch with no location at all.
  */
-export const REMOTE_MARKS = new Set(['WH']);
+export const REMOTE_MARKS = new Set(['WH', 'OD']);
 
 export const DEFAULT_RESTRICTIONS = {
   // Punching from a phone at all. Off until somebody turns it on.
@@ -228,9 +233,10 @@ export function punchAllowed(judgement, restrictions = {}, { code = '' } = {}) {
   }
   /*
    * The strict setting refuses a punch from outside the fence. It must not
-   * refuse one on a day the office has already APPROVED as working from home -
-   * that would make an approved remote day unpunchable, so the hours would be
-   * typed in from memory a week later, which is exactly what punching was for.
+   * refuse one on a day the office itself put them elsewhere - an approved
+   * day working from home, or a day out on the company's business. That
+   * would make such a day unpunchable, so the hours would be typed in from
+   * memory a week later, which is exactly what punching was for.
    */
   const remote = REMOTE_MARKS.has(String(code || '').trim().toUpperCase());
   if (!rules.allowOutsideFence && !remote && judgement.inside_fence === false) {

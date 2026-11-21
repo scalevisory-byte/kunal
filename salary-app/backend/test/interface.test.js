@@ -2724,3 +2724,58 @@ test('Signing out by itself is on the Logins screen, with never as a choice', ()
   // nobody has to read.
   assert.match(users, /A login that does nothing for \$\{minutes\} minutes is signed out/);
 });
+
+/*
+ * THE ATTENDANCE GRID - his brief's first section.
+ *
+ * Frozen name AND code, sticky date headers, today marked, the summary
+ * columns he named, and the name as a way into that person's own month.
+ */
+test('the attendance grid freezes the code beside the name and pins the dates', () => {
+  const att = src('components/Attendance.jsx');
+
+  assert.match(att, /className="sticky-code"/);
+  assert.match(att, /<th className="sticky-code">Code<\/th>/);
+
+  // The date row stays put. Eighty-five names deep, the day numbers have
+  // scrolled off and the only way to know which column you are clicking is
+  // to count across with a finger - which is how the wrong day gets marked.
+  assert.match(css, /table\.attendance thead th \{[^}]*position: sticky/);
+  assert.match(css, /table\.attendance \.sticky-code \{[^}]*position: sticky/);
+
+  // Today, and ONLY when today is in this month: October opened in November
+  // with a day lit up would be wrong rather than merely missing.
+  assert.match(att, /now\.getFullYear\(\) === Number\(period\.year\)/);
+  assert.match(css, /table\.attendance th\.today/);
+});
+
+test('the summary columns are the ones he listed, counted off the same marks', () => {
+  const att = src('components/Attendance.jsx');
+  for (const head of ['>P<', '>Absent<', '>WO<', '>PL<', '>LWP<', '>HD<', '>Sun<', '>Hours<']) {
+    assert.ok(att.includes(head), `the ${head} column is missing`);
+  }
+  // Present includes work from home and official duty - all three are days
+  // somebody was at work.
+  assert.match(att, /counts\.P \|\| 0\) \+ \(counts\.WH \|\| 0\) \+ \(counts\.OD \|\| 0\)/);
+  // Hours are what was CLOCKED, not the OT/LT column, which is a different
+  // question and already has its own column beside it.
+  assert.match(att, /monthTotals\(Object\.values\(merged\)/);
+});
+
+test('the name in the grid is a way in, and it looks like one', () => {
+  const att = src('components/Attendance.jsx');
+  assert.match(att, /className="link name-link"/);
+  assert.match(att, /setStatementFor\(row\)/);
+  assert.match(css, /\.name-link \{/);
+});
+
+test('the attendance statement assembles and cannot be edited from', () => {
+  const stm = src('components/AttendanceStatement.jsx');
+  // Read-only: the grid behind it is where attendance is marked, and a day
+  // that can be changed from two screens gets changed from the wrong one.
+  const code = stm.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/api\.(post|put|patch|del)\(/.test(code), 'the statement is writing something');
+  assert.match(stm, /attendanceStatement\(row, period/);
+  assert.match(stm, /Export CSV/);
+  assert.match(stm, /onClick=\{print\}/);
+});

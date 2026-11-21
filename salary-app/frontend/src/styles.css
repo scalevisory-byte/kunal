@@ -715,6 +715,56 @@ table.sheet select:focus { box-shadow: inset 0 0 0 2px var(--brand); border-radi
 table.attendance th { text-align: center; }
 table.attendance th .dow { display: block; font-size: 0.6rem; opacity: 0.75; }
 table.attendance th.sunday, table.attendance td.sunday { background: color-mix(in srgb, var(--bad) 8%, transparent); }
+
+/*
+ * THE DATE ROW STAYS PUT. Eighty-five names deep, the day numbers have
+ * scrolled off and the only way to know which column you are clicking is to
+ * count across with a finger from the left edge - which is how somebody
+ * marks the wrong day.
+ */
+table.attendance thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--line-soft);
+}
+table.attendance thead th.sticky-name,
+table.attendance thead th.sticky-code { z-index: 6; }
+
+/*
+ * The employee code, frozen beside the name. It is what the machine and the
+ * bank file call them, and it was on every row and shown nowhere.
+ */
+table.attendance .sticky-code {
+  position: sticky;
+  left: 10rem;
+  z-index: 3;
+  background: var(--surface);
+  min-width: 4.5rem;
+  white-space: nowrap;
+}
+table.attendance thead .sticky-code { background: var(--line-soft); }
+table.attendance tbody tr:hover .sticky-code { background: var(--row-hover, var(--line-soft)); }
+/* The name column is pinned at a known width so the code can sit against it. */
+table.attendance .sticky-name { min-width: 10rem; max-width: 10rem; }
+
+/*
+ * TODAY. A single column, marked by its edges rather than a fill, so it
+ * reads on top of the weekly-off shading instead of fighting it.
+ */
+table.attendance th.today,
+table.attendance td.today {
+  box-shadow: inset 1px 0 0 var(--brand), inset -1px 0 0 var(--brand);
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+}
+table.attendance th.today { box-shadow: inset 1px 0 0 var(--brand), inset -1px 0 0 var(--brand), inset 0 2px 0 var(--brand); }
+table.attendance th.today .day-head { color: var(--brand); font-weight: 700; }
+
+/* The name is a way into that person's own month, so it looks like one. */
+.name-link { font: inherit; text-align: left; }
+
+/* An off day in somebody's statement, shaded like the grid shades it. */
+tr.off-row > td { background: color-mix(in srgb, var(--bad) 5%, transparent); }
 td.mark { padding: 0.1rem !important; }
 
 .mark-cell {
@@ -4827,6 +4877,14 @@ table.sheet thead tr.band th {
 .stm-close { color: #fff; }
 .stm-tabs { margin: 0.6rem 0; }
 .stm-body { max-height: 62vh; overflow: auto; }
+/*
+ * The salary statement has a row of tabs between its navy header and its
+ * body, which happens to provide the gap. The attendance statement has no
+ * tabs, so its first row of figures started hard against the header band and
+ * the top of the numbers was clipped by it. Only this case, so the tabbed
+ * one is untouched.
+ */
+.stm-head + .stm-body { margin-top: 0.9rem; }
 .stm-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.7rem; }
 .stm-kv th { font-weight: 500; opacity: 0.75; }
 .stm-kv tr.strong th, .stm-kv tr.strong td { font-weight: 700; border-top: 1px solid var(--line); }

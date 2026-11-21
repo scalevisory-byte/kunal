@@ -53,6 +53,9 @@ export const DEFAULT_LATE_RULES = {
  * Marks that mean a full day at work, and so can be judged late or early.
  * A blank day is included: somebody with clock times and no mark yet was here.
  */
+/* OD is deliberately NOT here. Somebody who went straight to a client at
+   eight cannot be "late" against this office's hours, and nobody here saw
+   when they arrived - which is "not known", never "on time". */
 export const FULL_DAY_MARKS = new Set(['', 'P', 'WH', 'SP', 'HP']);
 
 const num = (v, fallback = 0) => {

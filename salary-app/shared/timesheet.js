@@ -245,6 +245,9 @@ export function timesToDay(times, { hoursPerDay = 9, rules, deductLunch = true }
  *   SP HP   worked, but paid BY THE DAY on the Sunday register, not by the
  *           hour, so the salary must not also be reduced for the hours
  *   CL SL PL paid leave - no hours expected
+ *   OD      out on the company's business - at work, but not where this
+ *           office's clock is, so a shortfall against its hours is not
+ *           theirs to answer for
  */
 export const HOURS_EXPECTED = new Set(['', 'P', 'WH']);
 

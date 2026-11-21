@@ -16,7 +16,7 @@
 import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS, codeOf } from './calc.js';
 
 /** Marks that mean the person was at work. */
-const WORKED = ['P', 'SP', 'HP', 'WH'];
+const WORKED = ['P', 'SP', 'HP', 'WH', 'OD'];
 /** Marks that are time off and still paid. */
 const PAID_OFF = ['CL', 'SL', 'PL', 'PH'];
 /** Marks that cost pay. */

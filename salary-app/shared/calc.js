@@ -53,6 +53,24 @@ import { earnedStructure } from './structure.js';
 import { esiFor, isAuto, isNone, pfFor } from './contributions.js';
 import { lateEarlyLine, onConcession } from './lateEarly.js';
 
+/**
+ * WHAT THE OFFICE CALLS EACH MARK.
+ *
+ * Dinesh's attendance brief lists the codes in his own words - WO, H, LWP,
+ * HD, OD - and then says *"Do not introduce duplicate or conflicting leave
+ * categories."* Two of those are this app's marks under another name, and
+ * adding a second LWP beside UL is exactly the duplicate he is warning
+ * against. So the CODE never changes (it is in every saved month, every
+ * export and every import) and the alias is shown beside it, so the legend
+ * reads in the words the office uses.
+ */
+export const CODE_ALIASES = {
+  S: 'WO',     // Weekly Off - and it is no longer only Sundays
+  PH: 'H',     // Holiday
+  UL: 'LWP',   // Leave Without Pay
+  HF: 'HD',    // Half Day
+};
+
 export const ATTENDANCE_CODES = {
   P: { label: 'Present', absent: 0, sunday: 0, paid: true },
   A: { label: 'Absent', absent: 1, sunday: 0, paid: false },
@@ -65,7 +83,19 @@ export const ATTENDANCE_CODES = {
   SP: { label: 'Sunday Present', absent: 0, sunday: 1, paid: true },
   HP: { label: 'Holiday Present', absent: 0, sunday: 1, paid: true },
   WH: { label: 'Work From Home', absent: 0, sunday: 0, paid: true },
-  S: { label: 'Sunday (off)', absent: 0, sunday: 0, paid: true },
+  /*
+   * OUT ON THE COMPANY'S BUSINESS. A bank run, a client's office, a day at
+   * a supplier - at work, just not at this desk. The office had no mark for
+   * it, so it went down as P (which hides it) or as leave (which docks it).
+   *
+   * It is paid exactly like a present day, so NO EXISTING MONTH CAN MOVE:
+   * nothing carries this code yet, and it changes none of the twelve above.
+   * Deliberately NOT the same as Work From Home - both are paid in full,
+   * but a day at a client's office is not a day at home, and the GPS fence
+   * treats them differently.
+   */
+  OD: { label: 'Official Duty', absent: 0, sunday: 0, paid: true },
+  S: { label: 'Weekly off', absent: 0, sunday: 0, paid: true },
   AD: { label: 'Absent (2 days)', absent: 2, sunday: 0, paid: false },
 };
 
