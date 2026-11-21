@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api } from '../api.js';
 import {
-  HK_STATUSES, dailyReportText, dayStats, hkLabel, isFlag, monthName, monthSummary, monthSummaryText,
+  HK_STATUSES, USUAL_AREAS, dailyReportText, dayStats, hkLabel, isFlag, monthName,
+  monthSummary, monthSummaryText,
 } from '../../../shared/frontOffice.js';
 import { col, printReport } from '../printReport.js';
 import VisitorDesk from './frontoffice/VisitorDesk.jsx';
@@ -70,6 +71,17 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
   const [visitor, setVisitor] = useState({});
   const [parcel, setParcel] = useState({ direction: 'Inward' });
   const [newArea, setNewArea] = useState('');
+  /*
+   * EVERY AREA, INCLUDING THE ONES TAKEN OFF.
+   *
+   * Dinesh's front desk had nine areas on screen and three of the usual
+   * twelve missing, with no way to see which - somebody had taken them off
+   * months ago and the only way back was typing the name exactly. So the
+   * settings page loads the whole list, shows what is off it, and puts one
+   * back on a click. Loaded only on this tab: the day's walk has no use for
+   * areas nobody walks.
+   */
+  const [allAreas, setAllAreas] = useState([]);
 
   const load = async (which = day) => {
     if (STANDALONE) return;
@@ -81,6 +93,29 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
   };
 
   useEffect(() => { load(day); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [day]);
+
+  /* Taken off the list, and still on the record. */
+  const offList = allAreas.filter((a) => !a.active);
+  /*
+   * Which of the usual ones are not there AT ALL - an area that is merely
+   * off the list is in the section below, where it can be put back by name
+   * rather than typed back from memory.
+   */
+  const have = new Set(allAreas.map((a) => String(a.name).trim().toLowerCase()));
+  const missingUsual = USUAL_AREAS.filter((name) => !have.has(name.toLowerCase()));
+
+  const loadAreas = () => {
+    if (STANDALONE) return;
+    api
+      .get('/front-office/areas?all=true')
+      .then(({ areas }) => setAllAreas(areas || []))
+      .catch(() => setAllAreas([]));
+  };
+
+  useEffect(() => {
+    if (view === 'areas') loadAreas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, data]);
 
   useEffect(() => {
     if (STANDALONE || view !== 'month') return;
@@ -554,15 +589,33 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
             >
               Add
             </button>
-            {!data.areas.length ? (
+            {/*
+              * SHOWN WHENEVER SOMETHING IS MISSING, not only on an empty
+              * list. Hidden behind "the list is empty", this button was
+              * unreachable for the one office that needed it: nine areas on
+              * screen, three of the usual ones off, and nothing saying which.
+              * It adds only what is absent, and an area that was taken off
+              * comes BACK with its history rather than as a second of itself.
+              */}
+            {missingUsual.length ? (
               <button
                 disabled={busy}
-                onClick={() => act(() => api.post('/front-office/areas/usual', {}), 'The usual twelve are on the list')}
+                title={`Would add: ${missingUsual.join(', ')}`}
+                onClick={() =>
+                  act(async () => {
+                    await api.post('/front-office/areas/usual', {});
+                    loadAreas();
+                  }, 'The usual areas are on the list')
+                }
               >
-                Add the usual twelve
+                Add the usual areas ({missingUsual.length} missing)
               </button>
             ) : null}
           </div>
+          <p className="muted small">
+            <strong>Click a name to change it</strong> — renaming keeps that area&apos;s whole
+            history, which typing a new one does not.
+          </p>
 
           <table className="sheet">
             <thead><tr><th className="grow">Area</th><th /></tr></thead>
@@ -595,6 +648,39 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
               ))}
             </tbody>
           </table>
+
+          {offList.length ? (
+            <>
+              <h4 style={{ marginBottom: '0.2rem' }}>Off the list ({offList.length})</h4>
+              <p className="muted small">
+                Not walked any more, and <strong>not deleted</strong> — every day they were
+                flagged is still on the record. Put one back and it carries that history with it.
+              </p>
+              <table className="sheet">
+                <tbody>
+                  {offList.map((area) => (
+                    <tr key={area.id}>
+                      <td className="grow muted">{area.name}</td>
+                      <td className="right">
+                        <button
+                          className="tiny"
+                          disabled={busy}
+                          onClick={() =>
+                            act(async () => {
+                              await api.patch(`/front-office/areas/${area.id}`, { active: true });
+                              loadAreas();
+                            }, `${area.name} is back on the list`)
+                          }
+                        >
+                          Put it back
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : null}
           {!data.areas.length ? <p className="empty">No areas yet.</p> : null}
         </div>
       ) : null}

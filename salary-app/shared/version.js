@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.56.0';
+export const VERSION = '1.57.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.57.0',
+    date: '21 Nov 2026',
+    title: 'Front office: where the missing areas went',
+    items: [
+      '**“Off the list (3)” now shows what was taken off**, with a **Put it back** button on each. The front desk had nine areas on screen against the twelve the app knows and no way to see which were missing — the only way back was typing the name exactly right.',
+      '**Putting one back is the same area, not a second of it** — every day it was flagged for comes back with it. Typing a name that is off the list does the same thing, whatever the capitals.',
+      '**“Add the usual areas” is no longer hidden.** It used to appear only when the list was completely empty, which is the one case where nobody needs it. It now appears whenever one of the usual twelve is missing, says how many, and adds only those.',
+      '**Said on the screen: click a name to change it.** Renaming keeps that area’s whole history — typing a new name starts a new area with none. The box looked like plain text, so nobody tried.',
+      'Add your own areas freely — Meeting Room 1, Meeting Room 2, HR Admin — and take off the ones you do not walk. The twelve are a starting point, not the list.',
+    ],
+  },
   {
     version: '1.56.0',
     date: '21 Nov 2026',
