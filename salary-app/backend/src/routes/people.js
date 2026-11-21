@@ -1277,12 +1277,25 @@ peopleRouter.get('/exits', (req, res) => {
   res.json({ exits: listExits({ settled }) });
 });
 
+/*
+ * ONE SHAPE FOR THE EXIT, whoever asked for it.
+ *
+ * The checklist rides along: it is read on the same screen, and half of it is
+ * worked out from registers this call has already opened. It used to ride
+ * along with the GET only, so recording a resignation answered without it and
+ * the checklist stayed off the screen until somebody closed the page and came
+ * back - which is precisely the moment it is wanted. A read and a write that
+ * describe the same thing differently is how the two come to disagree.
+ */
+const exitReply = (employeeId) => {
+  const found = fullAndFinal(employeeId);
+  return found && { ...found, clearance: clearanceFor(employeeId) };
+};
+
 peopleRouter.get('/exits/:employeeId', (req, res) => {
-  const found = fullAndFinal(Number(req.params.employeeId));
+  const found = exitReply(Number(req.params.employeeId));
   if (!found) return res.status(404).json({ error: 'nothing recorded for this person' });
-  // The checklist rides along: it is read on the same screen, and half of it
-  // is worked out from registers this call has already opened.
-  res.json({ ...found, clearance: clearanceFor(Number(req.params.employeeId)) });
+  res.json(found);
 });
 
 /**
@@ -1314,7 +1327,7 @@ peopleRouter.put('/exits/:employeeId/clearance/:step', (req, res) => {
 peopleRouter.put('/exits/:employeeId', (req, res) => {
   try {
     saveExit(Number(req.params.employeeId), { ...req.body, by: who(req) });
-    res.json(fullAndFinal(Number(req.params.employeeId)));
+    res.json(exitReply(Number(req.params.employeeId)));
   } catch (err) {
     bad(res, err);
   }
@@ -1323,7 +1336,7 @@ peopleRouter.put('/exits/:employeeId', (req, res) => {
 peopleRouter.post('/exits/:employeeId/settle', (req, res) => {
   try {
     markSettled(Number(req.params.employeeId), { ...req.body, by: who(req) });
-    res.json(fullAndFinal(Number(req.params.employeeId)));
+    res.json(exitReply(Number(req.params.employeeId)));
   } catch (err) {
     bad(res, err);
   }

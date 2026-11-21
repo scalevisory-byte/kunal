@@ -272,6 +272,51 @@ function sortedEmployees() {
 /** Adds a row for every active employee who has none yet, like syncPayrollRows. */
 function syncRows(periodId) {
   const db = load();
+  const period = db.periods.find((p) => p.id === periodId);
+
+  /*
+   * ANYBODY WHOSE LAST WORKING DAY HAS GONE COMES OFF THE ACTIVE LIST HERE,
+   * exactly as the server sweeps them.
+   *
+   * This file had the Left column and none of the rule behind it, so the
+   * answer to *"exited employee abhi bhi dikha rahe he"* was only ever true
+   * of the served build. A date typed in advance - resigned, serving a
+   * month's notice - still leaves them on the payroll until that day
+   * actually passes, which is what the office means by it.
+   */
+  const today = dayNow();
+  for (const emp of db.employees) {
+    if (emp.active && emp.left_on && String(emp.left_on).slice(0, 10) <= today) emp.active = 0;
+  }
+
+  /*
+   * And a month opened before the exit was recorded loses the row again -
+   * but ONLY a row with nothing whatever on it, and only for somebody who
+   * had already left before the month began. Anything typed, paid, marked or
+   * noted stays: a month that has been worked on is a record, not a draft.
+   */
+  if (period && !period.locked) {
+    const starts = `${period.year}-${String(period.month).padStart(2, '0')}-01`;
+    const gone = new Set(
+      db.employees
+        .filter((e) => !e.active && (!e.left_on || String(e.left_on).slice(0, 10) < starts))
+        .map((e) => e.id)
+    );
+    db.payroll_rows = db.payroll_rows.filter((r) => {
+      if (r.period_id !== periodId || !gone.has(r.employee_id)) return true;
+      const untouched =
+        (r.status || 'pending') === 'pending' &&
+        (r.sunday_status || 'pending') === 'pending' &&
+        !r.addition && !r.deduction && !r.adjustment &&
+        !(r.remark || '') && !(r.adjustment_note || '') &&
+        r.absent_days_override == null && r.sundays_override == null &&
+        r.ot_minutes_override == null && r.ot_amount_override == null &&
+        r.sunday_salary_override == null &&
+        !db.attendance.some((a) => a.period_id === periodId && a.employee_id === r.employee_id);
+      return !untouched;
+    });
+  }
+
   const have = new Set(
     db.payroll_rows.filter((r) => r.period_id === periodId).map((r) => r.employee_id)
   );
@@ -1700,6 +1745,19 @@ export async function handle(method, path, body) {
         if (manager && wouldLoop(db.employees, employee.id, manager)) {
           throw new HttpError(400, 'That would make the reporting line circle back on itself.');
         }
+      }
+      /*
+       * A LAST WORKING DAY THAT HAS PASSED TAKES THEM OFF THE LIST, the same
+       * rule the server keeps. Two switches for one fact - a Left date and an
+       * Active tick - is how one of them gets forgotten, and the forgotten
+       * one is always the tick. A date still to come leaves them on, because
+       * somebody serving notice is still here and still paid; an `active`
+       * sent in the same patch always wins, so putting somebody back on the
+       * list is still one tick.
+       */
+      if ('left_on' in (body || {}) && !('active' in (body || {}))) {
+        const date = String(body.left_on || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date <= dayNow()) employee.active = 0;
       }
       for (const key of EMPLOYEE_FIELDS) {
         if (!(key in (body || {}))) continue;
@@ -3433,6 +3491,17 @@ export async function handle(method, path, body) {
         };
         if (existing) Object.assign(existing, row);
         else db.employee_exits.push(row);
+        /*
+         * The master's own left_on is what every other tab reads, so keep
+         * them one. Recording the resignation here and then having to type
+         * the same date into the Employees row is how the two come to
+         * disagree. Whether it takes them off the list is the master's rule,
+         * not this one's: a last working day still to come leaves them on.
+         */
+        if (row.last_working_day && employee.left_on !== row.last_working_day) {
+          employee.left_on = row.last_working_day;
+          if (String(row.last_working_day).slice(0, 10) <= dayNow()) employee.active = 0;
+        }
         auditLine({
           who: by, action: existing ? 'changed' : 'created', entity: 'employee_exits',
           entity_id: employee.id, label: `exit for ${employee.name}`,

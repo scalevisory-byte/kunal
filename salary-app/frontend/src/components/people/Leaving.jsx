@@ -37,10 +37,24 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
     }
   };
 
+  /*
+   * ONE PERSON, OR EVERYBODY.
+   *
+   * `only` is this panel handed a single person - from the Employees row's
+   * **exit** button, and from their own file. Then there is nobody to pick,
+   * no register of other people's exits to print, and no list of everyone who
+   * has ever left: all three belong to the whole-company view, and on one
+   * person's screen they are somebody else's business. So it opens them
+   * straight away and the rest is hidden.
+   *
+   * It is the SAME component either way. A second resignation form built for
+   * the Employees tab is the copy that stops matching the first one.
+   */
   useEffect(() => {
-    loadList();
+    if (only) open(only.id);
+    else loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [only?.id]);
 
   /* Whose asset ledger is on screen, if any. */
   const [ledgerFor, setLedgerFor] = useState(null);
@@ -75,7 +89,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
       const saved = await api.put(`/people/exits/${picked}`, patch);
       setDetail(saved);
       setDraft(null);
-      await loadList();
+      if (!only) await loadList();
       onReload?.();
     } catch (err) {
       onError(err);
@@ -94,7 +108,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
     try {
       const saved = await api.post(`/people/exits/${picked}/settle`, { amount: net });
       setDetail(saved);
-      await loadList();
+      if (!only) await loadList();
     } catch (err) {
       onError(err);
     }
@@ -215,26 +229,54 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
     });
   };
 
+  const working = onStaff(employees);
+  /*
+   * PEOPLE ALREADY OFF THE LIST BELONG IN THIS PICKER, and nowhere else.
+   *
+   * Every other picker in the app hides them on purpose - you do not assign a
+   * task or a laptop to somebody who has gone. This one is the exception,
+   * because the usual order of events is that somebody unticks Active on the
+   * day the person stops coming in, and the exit is recorded afterwards. With
+   * only the active staff listed there was then NO WAY IN AT ALL: they had
+   * left, so they could not be picked, so their resignation, their notice and
+   * their full and final could never be recorded.
+   */
+  const gone = employees.filter((e) => !e.active);
+
   return (
     <section className="stack">
-      <div className="toolbar">
-        {/* The whole list as a register; the statement below is one person's. */}
-        <button className="ghost" onClick={printExits} disabled={!exits.length}>
-          Print the exit register ({exits.length})
-        </button>
-        <label>
-          Somebody leaving
-          <select value={picked || ''} onChange={(e) => open(Number(e.target.value) || null)}>
-            <option value="">Pick somebody</option>
-            {onStaff(employees).map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-                {e.left_on ? ` — left ${e.left_on}` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {!only && (
+        <div className="toolbar">
+          {/* The whole list as a register; the statement below is one person's. */}
+          <button className="ghost" onClick={printExits} disabled={!exits.length}>
+            Print the exit register ({exits.length})
+          </button>
+          <label>
+            Somebody leaving
+            <select value={picked || ''} onChange={(e) => open(Number(e.target.value) || null)}>
+              <option value="">Pick somebody</option>
+              <optgroup label="Working">
+                {working.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                    {e.left_on ? ` — last day ${e.left_on}` : ''}
+                  </option>
+                ))}
+              </optgroup>
+              {gone.length > 0 && (
+                <optgroup label="Already off the list">
+                  {gone.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                      {e.left_on ? ` — left ${e.left_on}` : ' — no date'}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </label>
+        </div>
+      )}
 
       {draft && (
         <div className="card">
@@ -283,10 +325,17 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
               onChange={(e) => setDraft({ ...draft, reason: e.target.value })}
             />
           </label>
+          {/*
+            * The rule, said where the date is typed. A date still to come
+            * must not read as "they are off the payroll now": somebody
+            * serving a month's notice is still here, still working and still
+            * owed that month.
+            */}
           <p className="muted small">
-            Setting a last working day also takes them off the active list, so next month opens
-            without them. It is not the same as paying them — the settlement below is a separate
-            step.
+            A last working day that has <strong>passed</strong> takes them off the active list;
+            one still to come leaves them on it until that day, so notice is served and paid as
+            usual. Recording this is not the same as paying them — the full and final below is a
+            separate step.
           </p>
           <button onClick={() => save(draft)}>Record it</button>
         </div>
@@ -502,7 +551,7 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
         </>
       )}
 
-      {exits.length > 0 && (
+      {!only && exits.length > 0 && (
         <div className="card">
           <h4>Everyone who has left</h4>
           <table className="sheet">

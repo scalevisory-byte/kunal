@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.51.0';
+export const VERSION = '1.52.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.52.0',
+    date: '21 Nov 2026',
+    title: 'Exiting somebody, from their own row',
+    items: [
+      '**Every employee\u2019s row now has an `exit` button**, beside Delete and pinned to the right of the list so it is there without scrolling sideways. It opens the resignation, the notice, the clearance checklist and the full and final \u2014 which the app has always had, under **People \u2192 Leaving**, where nobody standing in the employee master could find it.',
+      'It is the **same panel**, opened on one person: there is no second resignation form to drift out of step with the first.',
+      '**A resignation served with notice no longer takes somebody off the payroll on the day it is recorded.** A last working day still to come leaves them on the list and on the month they are still working; only a date that has passed takes them off. This was wrong before: somebody resigning on the 1st with a month\u2019s notice dropped off the sheet the same afternoon and would not have been paid for the month they worked.',
+      '**Somebody already off the active list can still have their exit recorded.** The picker only offered people still working \u2014 so for anybody whose Active tick had already been removed, which is the usual order of events, there was no way in at all.',
+      '**The single-file build follows the same rule now.** It had the Left column and none of the rule behind it, so on a laptop copy a leaving date changed nothing: the person stayed active, stayed on every new month and stayed in every picker.',
+      'The checklist now comes back with the exit the moment it is recorded, instead of appearing only after the screen was closed and opened again.',
+      'A row for somebody who has left is marked **left**, the tick that reveals them says **Show people who have left** and counts them, and the note under the list points at `exit` rather than at the Active tick.',
+      '**A login that cannot open a month is no longer told to open one.** The front desk\u2019s dashboard said \u201cNo month is open yet. Use New month above to start one\u201d \u2014 an instruction they cannot follow, under a red banner about a right somebody set on purpose. Neither appears now.',
+    ],
+  },
   {
     version: '1.51.0',
     date: '20 Nov 2026',

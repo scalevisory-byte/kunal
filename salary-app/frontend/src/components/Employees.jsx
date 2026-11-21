@@ -11,6 +11,7 @@ import { bulkManagerPlan } from '../../../shared/orgChart.js';
 import { namePlan } from '../../../shared/properName.js';
 import { rupees } from '../format.js';
 import ScrollFrame from './ScrollFrame.jsx';
+import ExitEmployee from './ExitEmployee.jsx';
 
 import BulkEmployees from './BulkEmployees.jsx';
 /* The people with nothing in that field - a group, not a gap. */
@@ -177,12 +178,22 @@ export default function Employees({
   // The same people, read two ways: down a list, or up a reporting line.
   const [asChart, setAsChart] = useState(false);
   const [reportFor, setReportFor] = useState(null);
+  /*
+   * Whose leaving is on screen. The row holds the whole employee rather than
+   * an id, because the modal's header reads their name and dates before the
+   * exit record has been fetched - and for somebody being exited today there
+   * is no exit record to fetch yet.
+   */
+  const [exitFor, setExitFor] = useState(null);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [showTemplate, setShowTemplate] = useState(false);
   // Setting the reporting line one record at a time is the reason twenty-six
   // people had no manager at all.
   const [bulkManager, setBulkManager] = useState('');
   const [showManager, setShowManager] = useState(false);
+
+  /* Everybody who has left, counted on the tick that reveals them. */
+  const left = useMemo(() => employees.filter((e) => !e.active), [employees]);
 
   /* Everybody a filter could show: the active/inactive rule and nothing else. */
   const onShow = useMemo(
@@ -474,9 +485,16 @@ export default function Employees({
       <div className="card">
         <div className="toolbar">
           <input className="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <label className="check">
+          {/*
+            * "Show inactive" said nothing about who was behind it. The list
+            * it reveals is people who have LEFT, which is what somebody is
+            * looking for when they cannot find an ex-employee, so the tick
+            * says that and counts them.
+            */}
+          <label className="check" title="People who have left stay on every month they were paid in — they are only kept off the current list.">
             <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            Show inactive
+            Show people who have left
+            {left.length > 0 ? ` (${left.length})` : ''}
           </label>
           <button
             className={asChart ? 'active' : undefined}
@@ -817,7 +835,7 @@ export default function Employees({
           </div>
         ) : (
         <ScrollFrame>
-          <table className="sheet">
+          <table className="sheet staff-table">
             <thead>
               <tr>
                 <th>
@@ -860,7 +878,13 @@ export default function Employees({
                 <th>ESI</th>
                 <th>Pay by</th>
                 <th>Active</th>
-                <th />
+                {/*
+                  * PINNED TO THE RIGHT EDGE, the way the name is pinned to
+                  * the left. Twenty columns scroll between them, and an exit
+                  * button somebody has to scroll sideways to find is the
+                  * thing that was wrong in the first place.
+                  */}
+                <th className="row-acts" />
               </tr>
             </thead>
             <tbody>
@@ -890,6 +914,22 @@ export default function Employees({
                     >
                       {emp.name}
                     </button>
+                    {/* The word only: the date is two columns along under
+                        Left, and this cell is clipped at 17rem - a second
+                        copy of the date pushed "report" and the bank warning
+                        out of sight. */}
+                    {!emp.active && (
+                      <span
+                        className="pill"
+                        title={
+                          emp.left_on
+                            ? `Left ${emp.left_on}. They stay on every month they were already paid in.`
+                            : 'Off the active list, with no leaving date recorded.'
+                        }
+                      >
+                        left
+                      </span>
+                    )}
                     {!emp.bank_account && <span className="pill todo" title="No bank details yet">bank?</span>}
                     <button
                       className="ghost tiny"
@@ -1076,7 +1116,7 @@ export default function Employees({
                       title="An inactive employee is left out of new months. It does not record a leaving date — type that in the Left column."
                     />
                   </td>
-                  <td>
+                  <td className="row-acts">
                     {/*
                       * IT COUNTS BEFORE IT ASKS.
                       *
@@ -1088,6 +1128,27 @@ export default function Employees({
                       * wrongly added person comes back with nothing against
                       * their name, which IS the answer.
                       */}
+                    {/*
+                      * EXIT SITS BEFORE DELETE, and it is the one that is
+                      * nearly always meant.
+                      *
+                      * Somebody who has resigned has a last working day, a
+                      * notice period, a clearance list and a final payment.
+                      * Deleting them has none of that - it takes away every
+                      * month they were ever paid in, which is the opposite of
+                      * what an exit is for.
+                      */}
+                    <button
+                      className="ghost tiny"
+                      title={
+                        emp.active
+                          ? 'Record their resignation — notice, last working day, clearance and the full and final'
+                          : 'Their leaving record and full and final'
+                      }
+                      onClick={() => setExitFor(emp)}
+                    >
+                      exit
+                    </button>{' '}
                     <button
                       className="danger tiny"
                       title="Deletes the employee and every month they appear in"
@@ -1115,8 +1176,10 @@ export default function Employees({
           built from, so they are worth filling in once.
         </p>
         <p className="muted small">
-          Finished with someone? Untick <strong>Active</strong> rather than deleting - that keeps their
-          past months intact. Total salary bill: <strong>{rupees(
+          Somebody leaving? Use <strong>exit</strong> on their row — it records the last working
+          day, the notice and the full and final. Unticking <strong>Active</strong> only keeps
+          them off the current list, and deleting takes their past months with them. Total
+          salary bill: <strong>{rupees(
             filtered.reduce((sum, e) => sum + Number(e.monthly_salary || 0), 0)
           )}</strong> per month.
         </p>
@@ -1401,6 +1464,16 @@ export default function Employees({
           employeeId={reportFor}
           onClose={() => setReportFor(null)}
           onError={(err) => setError(err.message)}
+        />
+      )}
+
+      {exitFor && (
+        <ExitEmployee
+          employee={employees.find((e) => e.id === exitFor.id) || exitFor}
+          companies={companies}
+          onClose={() => setExitFor(null)}
+          onError={(err) => setError(err.message)}
+          onReload={onReload}
         />
       )}
     </section>

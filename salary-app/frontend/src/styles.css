@@ -4812,3 +4812,25 @@ table.sheet thead tr.band th {
 .stm-net strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
 .stm-foot { margin-top: 0.7rem; }
 td.minus, .num.minus { color: var(--bad); }
+
+/*
+ * The employee master's last column: exit, then delete.
+ *
+ * Pinned to the right edge, as the name is pinned to the left. Twenty columns
+ * of salary, statutory numbers and dates scroll between the two, and the
+ * whole reason this column was rebuilt is that the way out of the payroll was
+ * somewhere off the side of the screen.
+ */
+table.sheet.staff-table th.row-acts,
+table.sheet.staff-table td.row-acts {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.sheet.staff-table thead th.row-acts { background: var(--line-soft); z-index: 4; }
+table.sheet.staff-table tbody tr:hover td.row-acts {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+}

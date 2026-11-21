@@ -1018,7 +1018,34 @@ export default function Dashboard({
   }, [trendBy, daily, history, companies, companyId]);
 
 
+    /*
+     * NOBODY IS TOLD TO PRESS A BUTTON THEY HAVE NOT GOT.
+     *
+     * A month belongs to the salary sheet and the attendance grid. The front
+     * desk has neither, so "Use New month above to start one" was a dead end
+     * on the screen their app opens on - an instruction they cannot follow,
+     * about a thing they do not need. And a login that marks attendance but
+     * does not see pay has a month open; what it has not got is the figures,
+     * which is a different sentence.
+     */
     if (!period || !payroll) {
+      if (!mayUse('salary') && !mayUse('attendance')) {
+        return (
+          <p className="card muted">
+            This login does not cover the salary sheet or attendance, so there is no month to
+            show here. <strong>Front office</strong> has today&apos;s visitors, couriers and the
+            housekeeping round.
+          </p>
+        );
+      }
+      if (period && !mayUse('salary')) {
+        return (
+          <p className="card muted">
+            This login does not cover the salary sheet, so the month&apos;s figures are not shown
+            here. <strong>Attendance</strong> is where the marking is done.
+          </p>
+        );
+      }
       return (
         <p className="card muted">
           No month is open yet. Use <strong>New month</strong> above to start one.

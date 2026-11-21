@@ -295,7 +295,26 @@ function Shell() {
 
   /* ---- loading ---- */
 
+  /*
+   * A MONTH BELONGS TO THE SALARY SHEET AND THE ATTENDANCE GRID.
+   *
+   * A login that has neither - the front desk, say - cannot open one and
+   * cannot be shown one, so asking anyway collected a 403 and opened the app
+   * on a red banner reading "this login covers neither the salary sheet nor
+   * attendance". The right that was set deliberately looked like a fault.
+   * Same bug as the employee master above, same fix: do not ask.
+   */
+  const mayHaveMonths = useCallback(
+    () => mayUse('salary') || mayUse('attendance'),
+    [mayUse]
+  );
+
   const loadPeriods = useCallback(async () => {
+    if (!mayHaveMonths()) {
+      setPeriods([]);
+      setPeriodId(null);
+      return [];
+    }
     const { periods: list, codes: marks } = await api.get('/periods');
     setPeriods(list);
     setCodes(marks);
@@ -304,7 +323,7 @@ function Shell() {
       return list[0]?.id || null;
     });
     return list;
-  }, []);
+  }, [mayHaveMonths]);
 
   const loadPayroll = useCallback(
     async (id) => {
@@ -806,7 +825,10 @@ function Shell() {
           */}
         <div className="page-filters">
         <div className="top-row">
-          {MONTHLY_TABS.has(tab) && (
+          {/* A login with neither the salary sheet nor attendance has no month
+              to pick and cannot open one, so the picker would offer nothing
+              but "No months yet" and a New month button that is refused. */}
+          {MONTHLY_TABS.has(tab) && mayHaveMonths() && (
           <PeriodBar
             periods={periods}
             period={period}
@@ -895,7 +917,9 @@ function Shell() {
           * was noise on that tab, and noise above the figures is how a real
           * warning stops being read.
           */}
-        {!period && !['employees', 'dashboard', 'hiring', 'assets', 'license'].includes(tab) && (
+        {!period &&
+          mayHaveMonths() &&
+          !['employees', 'dashboard', 'hiring', 'assets', 'license'].includes(tab) && (
           <p className="card muted">
             No month is open yet. Use <strong>New month</strong> above to start one — then add
             employees, or import last month's sheet from <strong>Reports</strong>.

@@ -2631,11 +2631,20 @@ export function saveExit(employeeId, input = {}) {
     ).run(row);
   }
 
-  // The master's own left_on is what every other tab reads, so keep them one.
+  /*
+   * The master's own left_on is what every other tab reads, so keep them one.
+   *
+   * WHETHER IT TAKES THEM OFF THE LIST IS THE MASTER'S RULE, NOT THIS ONE'S.
+   * This used to force active = 0 here, which contradicted it: a resignation
+   * recorded on the 1st with a month's notice took that person off the
+   * active list the same afternoon, so the month they were still working -
+   * and still owed - opened without them. Sending left_on alone lets the one
+   * rule decide: a date that has passed takes them off, a date still to come
+   * leaves them on until it arrives, and the sweep catches up then.
+   */
   if (row.last_working_day && employee.left_on !== row.last_working_day) {
     updateEmployee(employee.id, {
       left_on: row.last_working_day,
-      active: 0,
       history_note: `Left: ${row.type}${row.reason ? ` - ${row.reason}` : ''}`,
     });
   }

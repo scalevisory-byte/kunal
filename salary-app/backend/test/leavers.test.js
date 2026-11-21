@@ -146,7 +146,7 @@ test('every "pick somebody" box offers only people who are still here', () => {
   for (const file of [
     'people/Claims.jsx', 'people/Records.jsx', 'people/Tasks.jsx', 'people/Appraisals.jsx',
     'people/Penalties.jsx', 'people/Helpdesk.jsx', 'people/Assets.jsx', 'people/Licenses.jsx',
-    'people/Leaving.jsx', 'WeeklyOff.jsx', 'Loans.jsx',
+    'WeeklyOff.jsx', 'Loans.jsx',
   ]) {
     const src = read(file);
     assert.match(src, /onStaff\(employees\)\.map/, `${file} still offers everybody`);
@@ -155,4 +155,25 @@ test('every "pick somebody" box offers only people who are still here', () => {
       `${file} has a picker that was missed`
     );
   }
+});
+
+test('LEAVING is the one box that must still offer somebody who has gone', () => {
+  /*
+   * Every other picker hides them on purpose - you do not issue a laptop or
+   * write a warning against somebody who left in August. This one is where
+   * the leaving itself is recorded, and the usual order of events is that
+   * Active is unticked on the day they stop coming in and the resignation,
+   * the notice and the full and final are recorded afterwards. Listing only
+   * the active staff left NO WAY IN AT ALL for exactly the people the panel
+   * exists for.
+   */
+  const src = fs.readFileSync(
+    new URL('../../frontend/src/components/people/Leaving.jsx', import.meta.url),
+    'utf8'
+  );
+  // Still two groups, still named: who is working, and who has already gone.
+  assert.match(src, /const working = onStaff\(employees\)/);
+  assert.match(src, /const gone = employees\.filter\(\(e\) => !e\.active\)/);
+  assert.match(src, /label="Working"/);
+  assert.match(src, /label="Already off the list"/);
 });
