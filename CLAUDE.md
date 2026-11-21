@@ -1420,6 +1420,50 @@ Four releases in one night, from briefs Dinesh sent while using the app.
   attendance** (in/out/worked per day, built by `attendanceStatement`, the same module the
   office's statement uses; "no out time" rather than a guessed departure).
 
+## The rest of leave — calendar, year end, encashment, two reports (v1.73)
+
+`shared/leaveCalendar.js`, `shared/leaveYearEnd.js`, `shared/leaveReports.js`,
+`LeaveCalendar.jsx`, `LeaveYearEnd.jsx`, `LeaveReports.jsx`, routes under `/api/leave/*`.
+
+- **The calendar** draws approved leave and a still-waiting application **apart**, and counts
+  them apart. A pending day is not a day off yet; showing them alike books out people nobody
+  granted anything to. Approved comes off the marks, pending off the request queue.
+- **The year end** carries what is left into the new year up to a cap, or lapses it. Preview,
+  then post; running it twice is refused. **Two entries per carried line** — out of the old
+  year, into the new — so each year stands on its own. Somebody who took more than they had is
+  **named and left alone**: that is a decision, not a sum.
+  **UNPAID LEAVE IS NOT A BALANCE** (`balance: false` in `DEFAULT_RULES`) and never appears —
+  without it the page listed everybody who ever took an unpaid day as owing leave.
+- **Encashment** takes the days off the ledger and **pays nobody**; the money reaches a payslip
+  only as an addition typed on the month's sheet. Same split as a penalty and its recovery, and
+  the screen says so — a screen that took the days and went quiet would read as having paid.
+- **THE BUG THIS FOUND, by driving it.** Until something is posted, a ledger's balance is an
+  **assumption** — the entitlement on the record less what the grid shows as taken — and the
+  **first entry ends it**. Encashing 3 of somebody's 7 days left them on **MINUS 3**, a debt
+  they did not owe. The year end had the same hole. Now `entitlementOf()` is written down
+  first: automatically inside `entriesFor` at a year end, and before an encashment the panel
+  refuses and names the button that does it. `refuseOverdraw` is **one guard on the routes**
+  (not inside `addLeaveCredit`, because the year end posts exactly the closing balance and must
+  stay able to), so the plain credits form can no longer walk past the check — it used to.
+- **An encashment's year is its `on_date`**: there is no year column. Checked against 2027 and
+  dated today, the days came off 2026. The date is now forced into the year that was checked.
+- **Reports → Department-wise leave summary** — was `planned` on a note ("nothing joins the
+  two") that had stopped being true: `listPayrollRows` carries `e.department`. It assembles
+  `leaveLine` rows rather than counting marks again, so it cannot disagree with the register,
+  and **everybody is in the headcount** — four days across three people and four across forty
+  are different months.
+- **Reports → Leave application status** says **whose move it is and for how long**: with the
+  **manager** while pending where somebody has one, with the **office** once backed or where
+  nobody manages them. **Ageing runs from the last thing that happened**, not from the day it
+  was raised — a request backed yesterday has been with the office for one day, and reporting
+  the whole wait sends somebody chasing the wrong person. A decided one keeps its line and
+  stops ageing.
+- The catalogue test pinning the spec's counts was **rewritten, not patched**: the spec is
+  still pinned per category, with anything beyond it named one by one (`beyondSpec`).
+- **Still not built from the leave brief:** cancelling an approved leave, a configurable leave
+  type master (the types come off `ATTENDANCE_CODES`, deliberately), and a configurable
+  approval hierarchy (it is `reports_to_id`, one step, plus HR).
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
