@@ -32,6 +32,8 @@ import {
   writeEmployeeSheet,
 } from '../../../shared/employeeSheet.js';
 import { listCompanies, upsertCompany } from '../db.js';
+import { nextEmployeeCode } from '../../../shared/employeeCode.js';
+import { duplicatesOf } from '../../../shared/employeeMaster.js';
 
 export const employeesRouter = Router();
 
@@ -146,9 +148,73 @@ employeesRouter.get('/', (req, res) => {
   });
 });
 
+/**
+ * THE NEXT CODE IN A COMPANY'S SERIES.
+ *
+ * Dinesh: *"Generate unique Employee Code automatically."* Read, not
+ * reserved: the number is only taken when somebody is actually saved, so
+ * two people opening the form do not burn two codes between them and leave
+ * a hole. If they both save, the second one is refused as a clash and asks
+ * again - which is the right way round, because a gap in the series is a
+ * question nobody can answer afterwards.
+ */
+employeesRouter.get('/next-code', (req, res) => {
+  const companyId = Number(req.query.company_id);
+  const company = listCompanies().find((c) => c.id === companyId);
+  if (!company) return res.status(400).json({ error: 'which company?' });
+  /* The SAME generator hiring already uses when a candidate is turned into
+     an employee, so a person taken on through the pipeline and a person
+     typed in by hand draw from one series and cannot collide. */
+  const codes = listEmployees({}).map((e) => e.code).filter(Boolean);
+  res.json({ code: nextEmployeeCode(company.name, codes) });
+});
+
+/**
+ * IS THIS PERSON ALREADY ON THE LIST?
+ *
+ * Asked as the form is filled in, before anything is saved. It WARNS rather
+ * than refuses: two brothers at one company really do share a surname, and a
+ * system that will not have them gets the second one typed as "Amit Shah 2".
+ * The one exception is an exact employee code, which is a clash and not a
+ * resemblance - the create below refuses that outright.
+ */
+employeesRouter.post('/check-duplicate', (req, res) => {
+  const found = duplicatesOf(req.body || {}, listEmployees({}), {
+    exceptId: req.body?.id ?? null,
+  });
+  res.json({ duplicates: found });
+});
+
 employeesRouter.post('/', (req, res) => {
   try {
-    res.status(201).json(createEmployee(req.body || {}));
+    const body = req.body || {};
+
+    /*
+     * NOTHING EXTRA IS REFUSED HERE.
+     *
+     * `createEmployee` wants a name and a company and nothing else, and this
+     * route must want exactly the same - the staff spreadsheet import, the
+     * hiring handover and the bulk add all reach the same table by other
+     * doors, and a rule enforced on one of them is a surprise rather than a
+     * rule. The form stars the joining date and the salary, `completeness`
+     * counts them and the joining checklist chases them.
+     *
+     * A draft is held to the same low bar on purpose: the point of it is a
+     * form started mid-shift and finished on Monday. `syncPayrollRows` keeps
+     * a draft off every payroll month until it is saved properly.
+     */
+    /* A code clash IS refused - unlike a resemblance. Two people with one
+       code means the punch import, the bank file and the muster roll each
+       pick whichever they find first. */
+    const clash = duplicatesOf(body, listEmployees({})).find((d) => d.blocking);
+    if (clash) {
+      return res.status(409).json({
+        error: `${clash.code} is already ${clash.name}'s code`,
+        duplicate: clash,
+      });
+    }
+
+    res.status(201).json(createEmployee(body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

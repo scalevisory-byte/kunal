@@ -688,6 +688,54 @@ if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'pr
   log.info('Migrated employees: added probation_until.');
 }
 
+/*
+ * THE EMPLOYEE MASTER'S REMAINING COLUMNS.
+ *
+ * Dinesh's brief for a proper joining form: employment type, a head of
+ * department beside the reporting manager, a work location, and a PRESENT
+ * and PERMANENT address instead of one free-text box.
+ *
+ * `address` is left exactly as it is and is still read. Rewriting eighty-six
+ * rows of typed address into guessed lines is the kind of migration that
+ * cannot be undone, so the structured fields are ADDITIVE: `fullAddress()`
+ * prefers them and falls back to the old box, and nothing already typed
+ * moves. The same for `is_draft`, which defaults to 0, so every existing
+ * person stays a real employee.
+ *
+ * None of these reaches `calculateRow`. Not one figure can move.
+ */
+for (const column of [
+  'employment_type', 'work_location', 'nationality',
+  'address_line1', 'address_line2', 'city', 'state', 'pincode',
+  'perm_line1', 'perm_line2', 'perm_city', 'perm_state', 'perm_pincode',
+  'emergency_phone_alt', 'emergency_address',
+]) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated employees: added ${column}.`);
+  }
+}
+
+for (const [column, sql] of [
+  ['perm_same', 'INTEGER NOT NULL DEFAULT 0'],
+  /* A record somebody started and has not finished. It stays OFF every
+     payroll until it is saved properly, which is the whole point of it. */
+  ['is_draft', 'INTEGER NOT NULL DEFAULT 0'],
+  ['hod_id', 'INTEGER REFERENCES employees(id) ON DELETE SET NULL'],
+]) {
+  if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employees ADD COLUMN ${column} ${sql}`);
+    log.info(`Migrated employees: added ${column}.`);
+  }
+}
+
+/* A company's own prefix for the employee codes it hands out, so BOOKNFLY
+   VENTURE does not have to be BVL just because its name says so. */
+if (!db.prepare(`PRAGMA table_info(companies)`).all().some((c) => c.name === 'code_prefix')) {
+  db.exec(`ALTER TABLE companies ADD COLUMN code_prefix TEXT`);
+  log.info('Migrated companies: added code_prefix for the employee code series.');
+}
+
 export function audit(entry = {}) {
   try {
     return db
@@ -855,6 +903,26 @@ export function deleteCompany(id) {
 
 const EMPLOYEE_FIELDS = [
   'reports_to_id',
+  /* The employee master's own fields. None of them reaches calculateRow:
+     a joining form cannot move a rupee. */
+  'hod_id',
+  'employment_type',
+  'work_location',
+  'nationality',
+  'address_line1',
+  'address_line2',
+  'city',
+  'state',
+  'pincode',
+  'perm_same',
+  'perm_line1',
+  'perm_line2',
+  'perm_city',
+  'perm_state',
+  'perm_pincode',
+  'emergency_phone_alt',
+  'emergency_address',
+  'is_draft',
   'pf_mode',
   'esi_mode',
   'shift_in',
@@ -1072,6 +1140,32 @@ export function createEmployee(input) {
     bank_account: input.bank_account || null,
     ifsc: input.ifsc || null,
     reports_to_id: Number(input.reports_to_id) || null,
+    /* The head of department, which is NOT always the reporting manager -
+       five people on a desk report to a supervisor who reports to the HOD,
+       and a leave approval has to know which of the two it means. */
+    hod_id: Number(input.hod_id) || null,
+    employment_type: input.employment_type || null,
+    work_location: input.work_location || null,
+    nationality: input.nationality || null,
+    /* Present address, in parts. The old free-text `address` is kept and
+       still read: rewriting eighty-six typed addresses into guessed lines
+       cannot be undone. */
+    address_line1: input.address_line1 || null,
+    address_line2: input.address_line2 || null,
+    city: input.city || null,
+    state: input.state || null,
+    pincode: input.pincode || null,
+    perm_same: input.perm_same ? 1 : 0,
+    perm_line1: input.perm_line1 || null,
+    perm_line2: input.perm_line2 || null,
+    perm_city: input.perm_city || null,
+    perm_state: input.perm_state || null,
+    perm_pincode: input.perm_pincode || null,
+    emergency_phone_alt: input.emergency_phone_alt || null,
+    emergency_address: input.emergency_address || null,
+    /* A record somebody started and has not finished. It is off every
+       payroll until it is saved properly. */
+    is_draft: input.is_draft ? 1 : 0,
     // 'none' means PF (or ESI) does not apply to this person at all: nothing
     // is deducted and they are left off the register. 'fixed' stays the
     // default, so an existing row and a new one behave exactly as before.
@@ -1124,6 +1218,9 @@ export const TRACKED_FIELDS = {
   department: 'Department',
   company_id: 'Company',
   reports_to_id: 'Reports to',
+  hod_id: 'Head of department',
+  employment_type: 'Employment type',
+  work_location: 'Work location',
   basic: 'Basic',
   hra: 'HRA',
   pf_mode: 'PF',
@@ -1697,7 +1794,18 @@ export const syncPayrollRows = db.transaction((periodId) => {
     }
   }
 
-  const employees = db.prepare(`SELECT * FROM employees WHERE active = 1`).all();
+  /*
+   * A DRAFT IS NOT ON THE PAYROLL.
+   *
+   * "Save draft" exists so somebody can start a joining form and finish it
+   * on Monday. A half-typed record landing on the salary sheet - with no
+   * salary, no joining date and nothing marked - would produce a payslip for
+   * a person who has not started, and that is exactly the surprise the draft
+   * is meant to avoid.
+   */
+  const employees = db
+    .prepare(`SELECT * FROM employees WHERE active = 1 AND COALESCE(is_draft, 0) = 0`)
+    .all();
   const existing = new Set(
     db.prepare(`SELECT employee_id FROM payroll_rows WHERE period_id = ?`).all(periodId).map((r) => r.employee_id)
   );
