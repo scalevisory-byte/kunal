@@ -1385,8 +1385,8 @@ Four releases in one night, from briefs Dinesh sent while using the app.
   invitation id read from the TOKEN not the URL, same as the punch link and with the same stated
   limit. A submitted form cannot change under the office; a correction goes back with required
   remarks. One mobile number is one person. **Nothing is sent** — the link is handed over.
-  **Not built: document upload during onboarding.** Documents go on the record after approval,
-  where the KYC checklist chases them.
+  Document upload during onboarding was added in v1.72 (the papers come across at approval,
+  **unchecked**, because approving a form is not the same as having read the Aadhaar card).
 - **The leave ledger** (`shared/leaveLedger.js`, `LeaveLedger.jsx`, `/api/leave/ledger/:id`,
   `/api/leave/balances`) — Dinesh called it the most important thing in the leave brief.
   **Debits are DERIVED from the attendance marks, every time, never stored**: the marks are what
@@ -1398,8 +1398,7 @@ Four releases in one night, from briefs Dinesh sent while using the app.
   **The trap: posting ends the assumption that the yearly entitlement applies**, so a 4-day
   opening balance alone drops somebody 6 → 3. Found by driving it; the panel now offers
   "Start the ledger with their 7-day entitlement" first. A negative balance is shown, never
-  clamped. **Not built: the leave calendar, encashment, automatic carry-forward and the 14
-  reports.**
+  clamped. The calendar, encashment, carry-forward and the leave reports followed in v1.73.
 - **Printing on every report** (`shared/csvTable.js`, `frontend/src/printCsv.js`) — half the
   reports were a Download and nothing else. The file is fetched and laid out through the same
   `printReport` the muster roll uses, with the month, the filters and a total under every column
@@ -1460,9 +1459,30 @@ Four releases in one night, from briefs Dinesh sent while using the app.
   stops ageing.
 - The catalogue test pinning the spec's counts was **rewritten, not patched**: the spec is
   still pinned per category, with anything beyond it named one by one (`beyondSpec`).
-- **Still not built from the leave brief:** cancelling an approved leave, a configurable leave
-  type master (the types come off `ATTENDANCE_CODES`, deliberately), and a configurable
-  approval hierarchy (it is `reports_to_id`, one step, plus HR).
+### Cancelling an approved leave (v1.74)
+
+His brief: *"Never permanently delete approved leave transactions."* `canCancel` in
+`shared/attendanceRequests.js`, `cancelRequest`/`askToCancel` in `backend/src/attendanceSelf.js`.
+
+- **It CLEARS the days; it does not decide what happened instead.** They may have come in,
+  been absent, or taken something else — writing `P` pays for a day nobody said was worked and
+  writing `A` docks one. The day goes back to **unmarked**, carrying the reason, and whoever
+  cancelled it marks what really happened. The confirmation says so, because anybody pressing
+  it will assume otherwise.
+- **The row is kept**: dates, who approved it, who called it off and why. Deleting it would
+  leave the attendance changed with nothing behind it. A reason is **required**.
+- Only an **approved** one (anything still waiting has written nothing — that is a withdrawal);
+  never twice; **never into a locked month**, because that leave has been paid.
+- Only the fields the approval wrote are cleared, the same per-field merge rule as everywhere.
+  `approved` goes back to **null** — an approval that has been undone is not an approval.
+- **The employee ASKS, the office decides** (`cancel_requested_at`), the same one rule: a
+  request never writes attendance, a decision does. The queue shows *asks to cancel*.
+
+- **Still not built from the leave brief, both on purpose:** a configurable leave **type**
+  master — the types come off `ATTENDANCE_CODES`, which is what the grid marks and the sheet
+  pays from, and a second list of types is exactly how two answers come to exist; and a
+  configurable approval **hierarchy** — it is `reports_to_id`, one step, plus HR, and a chain
+  four deep quietly makes the top manager everybody's approver.
 
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
