@@ -304,6 +304,55 @@ export const HELP = [
     ],
   },
   {
+    id: 'leave-calendar',
+    title: 'The leave calendar — who is off this month',
+    tab: 'leave',
+    keywords: ['calendar', 'who is off', 'month', 'kaun chutti pe', 'planner', 'off days'],
+    lines: [
+      'Leave → **Calendar** shows the month as a calendar: who is off on each day, how many, and the holidays.',
+      'Click a day to see the names and what kind of leave each one is on.',
+      'The busiest day is named at the top — the one to look at before granting another.',
+    ],
+    note: 'Leave already APPROVED and an application still WAITING are drawn apart, and counted apart. A pending day is not a day off yet — nobody is covered for it and nothing has been marked on the grid.',
+  },
+  {
+    id: 'leave-year-end',
+    title: 'Carry forward and lapsed leave at the end of the year',
+    tab: 'leave',
+    keywords: ['carry forward', 'lapse', 'year end', 'expire', 'saal ke ant', 'agle saal'],
+    lines: [
+      'Leave → **Year end**. What is left either carries into next year, up to a cap, or lapses.',
+      'CL and SL lapse, PL carries up to 30 days — change any of it before pressing anything.',
+      '**Show me what it would do** first; nothing is written until you press the button after it.',
+      'Running it twice is refused, so nobody is carried across twice.',
+      'Somebody who has taken more than they had is named and left alone — that one is a decision, not a sum.',
+    ],
+    note: 'It writes TWO entries per carried line: the days leave the old year and arrive in the new one, so each year adds up on its own. And on a ledger nobody has posted to, it writes the entitlement down FIRST — otherwise closing the year would read as a debt the person does not owe.',
+  },
+  {
+    id: 'leave-encash',
+    title: 'Encashing leave — paid out instead of taken',
+    tab: 'leave',
+    keywords: ['encash', 'encashment', 'paid out', 'chutti ka paisa', 'leave cash'],
+    lines: [
+      'Open somebody from Leave → **Balances**, pick the kind of leave, and use **Encash days**.',
+      'More days than they have is refused, and so is a ledger nobody has started — post the entitlement first with the button the panel offers.',
+    ],
+    note: 'IT PAYS NOBODY. The days come off the ledger here; the money reaches a payslip only as an addition typed on that month’s salary sheet, with a note — the same split as a penalty and its recovery.',
+  },
+  {
+    id: 'leave-applications-report',
+    title: 'Who is waiting for a leave decision',
+    tab: 'reports',
+    keywords: ['pending leave', 'waiting', 'ageing', 'approval', 'kiska pending', 'application status'],
+    lines: [
+      'Reports → **Leave application status**: every application, whose move it is, and how long it has been theirs.',
+      'A pending one is with the **manager** where somebody has one; once they have backed it, it is with the **office**.',
+      'Reports → **Department-wise leave summary** is the other half: days per department, with everybody counted in the headcount.',
+    ],
+    note: 'Ageing runs from the LAST thing that happened to it, not from the day it was raised. A request a manager backed yesterday has been with the office for one day, however long it sat before that — reporting the whole wait sends somebody chasing the wrong person.',
+  },
+  {
     id: 'sunday-register',
     title: 'Sunday and holiday working',
     // Not its own tab: it is a fold on Attendance, which is exactly the kind

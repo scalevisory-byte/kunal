@@ -13,6 +13,7 @@ import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import Statutory from './Statutory.jsx';
 import LeaveRegister from './LeaveRegister.jsx';
+import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
@@ -186,7 +187,10 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
       <AttendanceRequests period={period} onReload={onReload} onError={(err) => setError(err.message)} />
     ),
     'leave-status': () => (
-      <AttendanceRequests period={period} onReload={onReload} onError={(err) => setError(err.message)} />
+      <LeaveApplications period={period} companyId={filters.company_id || null} onGo={onGo} />
+    ),
+    'leave-by-department': () => (
+      <LeaveByDepartment period={period} companyId={filters.company_id || null} />
     ),
     'leave-month': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
     'leave-lop': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),

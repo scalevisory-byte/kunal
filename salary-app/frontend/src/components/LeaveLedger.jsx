@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { LEDGER_COLUMNS, creditLabel, CREDIT_KINDS } from '../../../shared/leaveLedger.js';
+import { LEDGER_COLUMNS, creditLabel, CREDIT_KINDS, entitlementOf } from '../../../shared/leaveLedger.js';
 import { days } from '../format.js';
 import { col, num, printReport } from '../printReport.js';
 
@@ -27,12 +27,19 @@ import { col, num, printReport } from '../printReport.js';
 
 const BLANK = { kind: 'adjustment', days: '', on_date: '', note: '', reference: '' };
 
+/* Encashing and lapsing have their OWN control below, which goes through
+   /leave/encash and so cannot take more days than somebody has. Offering
+   them here as well would be a second way in with no such check. */
+const POSTABLE = CREDIT_KINDS.filter(([k]) => k !== 'annual' && k !== 'encashed');
+
 export default function LeaveLedger({ employeeId, year, onClose }) {
   const [data, setData] = useState(null);
   const [code, setCode] = useState('CL');
   const [form, setForm] = useState(BLANK);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [cash, setCash] = useState('');
+  const [paid, setPaid] = useState('');
 
   const load = async () => {
     setError('');
@@ -52,9 +59,7 @@ export default function LeaveLedger({ employeeId, year, onClose }) {
 
   /* The entitlement this ledger is standing in for, when nothing is posted:
      the single derived credit line the fallback produced. */
-  const entitlement = ledger?.summary.posted
-    ? 0
-    : ledger?.lines.find((l) => l.derived)?.credit || 0;
+  const entitlement = entitlementOf(ledger);
 
   const startLedger = async () => {
     setBusy(true);
@@ -91,6 +96,35 @@ export default function LeaveLedger({ employeeId, year, onClose }) {
         reference: form.reference,
       });
       setForm(BLANK);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * ENCASHING: THE DAYS COME OFF HERE, THE MONEY DOES NOT.
+   *
+   * The same split as a penalty and its recovery. Taking the days off the
+   * ledger is this button; paying for them is an addition on a named month,
+   * typed on the salary sheet where every other one-off payment is. Saying
+   * so out loud is the point - a screen that took the days and went quiet
+   * would read as having paid.
+   */
+  const encash = async () => {
+    const want = Number(cash);
+    if (!(want > 0)) return setError('how many days?');
+    setBusy(true);
+    setError('');
+    setPaid('');
+    try {
+      const out = await api.post('/leave/encash', {
+        employee_id: employeeId, code, days: want, year,
+      });
+      setCash('');
+      setPaid(out.note);
       await load();
     } catch (err) {
       setError(err.message);
@@ -283,7 +317,7 @@ export default function LeaveLedger({ employeeId, year, onClose }) {
             <label>
               What
               <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
-                {CREDIT_KINDS.filter(([k]) => k !== 'annual').map(([k]) => (
+                {POSTABLE.map(([k]) => (
                   <option key={k} value={k}>{creditLabel(k)}</option>
                 ))}
               </select>
@@ -335,6 +369,43 @@ export default function LeaveLedger({ employeeId, year, onClose }) {
             A credit gives somebody leave to take. It does <strong>not</strong> mark a day and it
             changes nobody&rsquo;s pay — marking a day is the attendance grid&rsquo;s job, and an
             approval&rsquo;s.
+          </p>
+        </div>
+
+        <div className="card">
+          <h3>Encash days</h3>
+          {!s.posted ? (
+            /*
+             * NOTHING CAN BE TAKEN OFF A LEDGER NOBODY HAS STARTED. The
+             * balance above is an assumption until something is posted, and
+             * posting the encashment would end it - 3 days off an untouched
+             * 7-day ledger reads as MINUS 3. The server refuses it too; this
+             * is so the screen does not offer it.
+             */
+            <p className="muted small">
+              This ledger has not been started, so there is nothing on it to take. Post the
+              entitlement first — the button above does it — and then the days can come off.
+            </p>
+          ) : (
+            <div className="row">
+              <input
+                inputMode="decimal"
+                style={{ maxWidth: '6rem' }}
+                placeholder="days"
+                value={cash}
+                onChange={(e) => setCash(e.target.value)}
+              />
+              <button disabled={busy || !cash} onClick={encash}>
+                Take {cash || '0'} day(s) of {code} off the ledger
+              </button>
+              <span className="muted small">{days(s.closing)} available</span>
+            </div>
+          )}
+          {paid ? <p className="warn small">{paid}</p> : null}
+          <p className="muted small">
+            This takes the days off the ledger and <strong>pays nobody</strong>. Put the amount on
+            the month&rsquo;s salary sheet as an addition, with a note — that is the one place
+            money reaches a payslip.
           </p>
         </div>
       </div>

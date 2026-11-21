@@ -20,10 +20,29 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.72.0';
+export const VERSION = '1.73.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.73.0',
+    date: '22 Nov 2026',
+    title: 'Leave: a month on a calendar, the end of the year, encashment, and two reports that were listed but could not be opened',
+    items: [
+      '**Leave \u2192 Calendar.** The month as a calendar rather than a list: who is off on which day, how many, and the holidays. **Leave already approved and an application still waiting are drawn apart** \u2014 a pending day is not a day off yet, and a calendar that showed them the same way would have two people booked out who were never granted anything. Click a day to see who.',
+      '**Leave \u2192 Year end.** What is left at the end of the year either **carries** into next year, up to a cap, or **lapses**. CL and SL lapse, PL carries up to 30 \u2014 all of it editable before anything is done.',
+      '**It shows you what it would do, and then you press the button.** Running it twice is refused rather than carrying everybody across twice.',
+      '**Two entries per line, not one**: the days are taken out of the old year and put into the new one, so each year\u2019s ledger stands on its own and adds up. A year that only credited the new side would leave last year showing days still in hand that are not there.',
+      '**Somebody who has taken more than they had is NAMED and left alone**, never quietly carried as a negative. That one is a decision, not a sum.',
+      '**Unpaid leave never appears at a year end.** It is not a balance \u2014 it was taken and it was docked. Without that rule the page listed everybody who ever took an unpaid day as owing leave.',
+      '**Encashing leave** is on the ledger: it takes the days off and **pays nobody**. The amount goes onto the month\u2019s salary sheet as an addition, with a note \u2014 the same split as a penalty and its recovery, and the screen says so rather than going quiet and reading as having paid.',
+      '**A ledger nobody has started has nothing on it to take.** Until something is posted, the balance shown is the yearly entitlement on the record less what the grid shows as taken \u2014 an assumption, which the first entry ends. Encashing 3 of somebody\u2019s 7 days left them on **MINUS 3**, reading as a debt they did not owe. Now the entitlement is written down first \u2014 at a year end automatically, and before an encashment the screen says to press the button that does it. **Found by driving it.**',
+      '**Nothing can be lapsed or encashed beyond what is there**, through either door. The plain posting form used to walk straight past the check.',
+      '**Reports \u2192 Department-wise leave summary** \u2014 listed for months as not built, on a note that had stopped being true. Days per department, what paid leave cost, and **everybody counted in the headcount**: four days across three people and four across forty are different months.',
+      '**Reports \u2192 Leave application status** now says **whose move it is and for how long**. A pending application is with the **manager** where somebody has one; once they have backed it, it is with the **office**. **Ageing runs from the last thing that happened to it** \u2014 a request backed yesterday has been with the office for one day, however long it sat before that. Reporting the whole wait sends somebody chasing the wrong person.',
+      'Both print and download, like every other report.',
+    ],
+  },
   {
     version: '1.72.0',
     date: '22 Nov 2026',

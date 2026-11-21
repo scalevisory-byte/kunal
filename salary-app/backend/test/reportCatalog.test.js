@@ -64,18 +64,35 @@ test('every category in the specification carries exactly what it asked for', ()
     attendance: 10, payroll: 10, leave: 5, statutory: 8,
     employee: 6, loans: 5, assets: 7, mis: 9,
   };
+  /*
+   * Reports the APP carries beyond the specification, named one by one. The
+   * count is still pinned per category, so dropping a report is caught and
+   * adding one has to be declared here - but the spec is not a ceiling. The
+   * leave ledger and the year end were asked for by name in the leave
+   * brief and are reports in their own right.
+   */
+  const beyondSpec = { leave: ['leave-ledger', 'leave-year-end'] };
   for (const [key, count] of Object.entries(spec)) {
-    assert.equal(reportsIn(key).length, count, `${key} should carry ${count}`);
+    const extras = beyondSpec[key] || [];
+    assert.equal(
+      reportsIn(key).length,
+      count + extras.length,
+      `${key} should carry ${count}${extras.length ? ` plus ${extras.join(', ')}` : ''}`
+    );
+    for (const id of extras) {
+      assert.ok(REPORTS.some((r) => r.id === id), `${id} is declared but not listed`);
+    }
   }
   assert.equal(Object.values(spec).reduce((a, b) => a + b, 0), 60);
 
-  // Beyond the spec: hiring, because the module exists and its reports were
-  // reachable only from inside the Hiring tab.
+  // Beyond the spec as a whole category: hiring, because the module exists
+  // and its reports were reachable only from inside the Hiring tab.
   const extra = CATEGORIES.map((c) => c.key).filter((k) => !(k in spec));
   assert.deepEqual(extra, ['hiring']);
 
+  const beyond = Object.values(beyondSpec).reduce((n, list) => n + list.length, 0);
   const totals = catalogueTotals();
-  assert.equal(totals.total, 60 + reportsIn('hiring').length);
+  assert.equal(totals.total, 60 + beyond + reportsIn('hiring').length);
   assert.equal(totals.ready + totals.partial + totals.planned, totals.total);
   // Every category carries something; an empty heading is a hole in the screen.
   for (const c of CATEGORIES) {

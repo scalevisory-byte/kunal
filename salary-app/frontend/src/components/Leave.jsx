@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
 import { api } from '../api.js';
 import LeaveLedger from './LeaveLedger.jsx';
+import LeaveCalendar from './LeaveCalendar.jsx';
+import LeaveYearEnd from './LeaveYearEnd.jsx';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
 import SandwichLeave from './SandwichLeave.jsx';
@@ -19,6 +21,8 @@ export default function Leave({
   periods,
   employees,
   companies = [],
+  companyId = null,
+  onGo,
   period,
   // The month's calculated rows, for the sandwich tool. Named apart from the
   // `rows` below, which are this year's leave balances.
@@ -158,6 +162,34 @@ export default function Leave({
           onPatchCompany={onPatchCompany}
           onPatchEmployee={onPatch}
           locked={locked}
+        />
+      </section>
+    );
+  }
+
+  if (view === 'calendar') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        <LeaveCalendar
+          period={period}
+          companyId={companyId}
+          onGo={onGo}
+          onError={(m) => setError(m)}
+        />
+      </section>
+    );
+  }
+
+  if (view === 'yearend') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        <LeaveYearEnd
+          year={year}
+          companyId={companyId}
+          onDone={() => load(year)}
+          onError={(m) => setError(m)}
         />
       </section>
     );
@@ -332,6 +364,8 @@ function LeaveTabs({ view, setView }) {
     <div className="sub-tabs toolbar">
       {[
         ['balances', 'Balances'],
+        ['calendar', 'Calendar'],
+        ['yearend', 'Year end'],
         ['weekly', 'The day off'],
         ['sandwich', 'Sandwich leave'],
       ].map(([key, label]) => (

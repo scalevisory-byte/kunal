@@ -5604,3 +5604,30 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
 
 .join-docs li { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.2rem 0; }
 .join-docs li > span:nth-child(2) { flex: 1 1 auto; }
+
+/* ---- the leave calendar ---- */
+.lc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: var(--line-soft); border: 1px solid var(--line); }
+.lc-head { background: var(--bg); padding: 0.3rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); text-align: center; }
+.lc-cell {
+  background: var(--surface); border: 0; min-height: 4.6rem; padding: 0.3rem;
+  display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.lc-cell.empty { background: var(--bg); cursor: default; }
+.lc-cell.off { background: var(--line-soft); }
+.lc-cell.holiday { background: color-mix(in srgb, var(--brand) 8%, var(--surface)); }
+.lc-cell.on { outline: 2px solid var(--brand); outline-offset: -2px; }
+.lc-date { font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lc-holiday { font-size: 0.62rem; color: var(--brand); overflow-wrap: anywhere; }
+.lc-count { font-size: 0.65rem; padding: 0.05rem 0.3rem; border-radius: 4px; }
+.lc-count.approved { background: color-mix(in srgb, var(--good) 20%, var(--surface)); color: var(--good); }
+.lc-count.pending { background: color-mix(in srgb, var(--warn) 22%, var(--surface)); color: var(--warn); }
+.lc-key { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.72rem; color: var(--muted); }
+.lc-key i { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 3px; margin-right: 0.3rem; }
+.lc-key i.approved { background: var(--good); }
+.lc-key i.pending { background: var(--warn); }
+.lc-key i.holiday { background: var(--brand); }
+@media (max-width: 620px) {
+  .lc-cell { min-height: 3.4rem; }
+  .lc-count { font-size: 0.58rem; }
+}

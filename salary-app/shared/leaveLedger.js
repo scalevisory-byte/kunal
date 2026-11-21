@@ -156,6 +156,20 @@ export function ledgerFor({ code, credits = [], taken = [], quota = 0, year } = 
 }
 
 /**
+ * THE ENTITLEMENT A LEDGER IS STANDING IN FOR, when nothing has been posted.
+ *
+ * Zero once anything is posted, because then the ledger IS the answer.
+ *
+ * This matters more than it looks. The fallback above is an assumption, not
+ * an entry - so the first thing posted onto a ledger ENDS it. Post a 3-day
+ * encashment onto somebody's untouched 7-day ledger and the closing balance
+ * is not 4, it is MINUS 3: the 7 was never there. Anything that takes days
+ * away has to write this figure down first, or refuse until somebody has.
+ */
+export const entitlementOf = (ledger) =>
+  ledger?.summary?.posted ? 0 : Number(ledger?.lines?.find((l) => l.derived)?.credit) || 0;
+
+/**
  * The same person across every leave type they have.
  *
  * `types` is the configured list, so a company that adds Compensatory Off

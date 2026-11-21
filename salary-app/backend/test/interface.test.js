@@ -3274,10 +3274,20 @@ test('the ledger opens from the name, and says when nothing has been posted', ()
 test('the ledger says a credit marks no day and moves no money', () => {
   const ledger = src('components/LeaveLedger.jsx');
   assert.match(ledger, /It does <strong>not<\/strong> mark a day/);
-  /* It writes only to the credits endpoint: nothing on this page can reach
-     attendance. */
+  /* NOTHING ON THIS PAGE CAN REACH ATTENDANCE OR A PAYSLIP. It writes to
+     the ledger (credits) and to the encashment door, which takes days off
+     the ledger and pays nobody - the amount reaches a payslip only as an
+     addition typed on the month's salary sheet. */
   const calls = [...ledger.matchAll(/api\.(post|patch|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
-  assert.ok(calls.every((u) => u.startsWith('/leave/credits')), `the ledger wrote to ${calls}`);
+  assert.ok(
+    calls.every((u) => u.startsWith('/leave/credits') || u === '/leave/encash'),
+    `the ledger wrote to ${calls}`
+  );
+  assert.ok(calls.some((u) => u === '/leave/encash'), 'encashing is on this page');
+  /* And it says out loud that the days are off the ledger and nothing has
+     been paid - a screen that took the days and went quiet would read as
+     having paid for them. */
+  assert.match(ledger, /pays nobody/);
 });
 
 /*

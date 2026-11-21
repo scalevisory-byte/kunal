@@ -1068,6 +1068,12 @@ function Shell() {
             periods={periods}
             employees={employees}
             companies={companies}
+            companyId={companyId}
+            onGo={(toTab, what) => {
+              setTab(toTab);
+              if (typeof what === 'string') setFocusOn(what);
+              if (typeof what === 'number') setOpenEmployee(what);
+            }}
             period={period}
             payrollRows={visibleRows}
             locked={locked}

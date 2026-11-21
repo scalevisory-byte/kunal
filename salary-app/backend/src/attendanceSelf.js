@@ -219,6 +219,7 @@ export const listRequests = ({ status, employee_id, period_id } = {}) => {
   return db
     .prepare(
       `SELECT r.*, e.name AS employee_name, e.code AS employee_code, c.name AS company_name,
+              e.department, e.reports_to_id, e.company_id,
               p.label AS period_label, p.year, p.month
        FROM attendance_requests r
        JOIN employees e ON e.id = r.employee_id
