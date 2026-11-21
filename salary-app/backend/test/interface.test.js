@@ -3252,3 +3252,30 @@ test('the office writes the board, and nothing is sent anywhere', () => {
   /* And it says plainly that it needs the server. */
   assert.match(panel, /STANDALONE/);
 });
+
+/*
+ * THE LEAVE LEDGER, on screen.
+ */
+test('the ledger opens from the name, and says when nothing has been posted', () => {
+  const leave = src('components/Leave.jsx');
+  /* The name was plain text, which is not a way in - the sixth time that
+     exact shape has come up in this app. */
+  assert.match(leave, /name-link/);
+  assert.match(leave, /LeaveLedger/);
+
+  const ledger = src('components/LeaveLedger.jsx');
+  assert.match(ledger, /Nothing has been posted on this ledger yet/);
+  /* And the button that stops a posted opening balance silently ending the
+     yearly entitlement. */
+  assert.match(ledger, /Start the ledger with their/);
+  assert.match(ledger, /kind: 'annual'/);
+});
+
+test('the ledger says a credit marks no day and moves no money', () => {
+  const ledger = src('components/LeaveLedger.jsx');
+  assert.match(ledger, /It does <strong>not<\/strong> mark a day/);
+  /* It writes only to the credits endpoint: nothing on this page can reach
+     attendance. */
+  const calls = [...ledger.matchAll(/api\.(post|patch|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
+  assert.ok(calls.every((u) => u.startsWith('/leave/credits')), `the ledger wrote to ${calls}`);
+});

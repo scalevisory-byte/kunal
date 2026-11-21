@@ -460,6 +460,21 @@ export const HELP = [
     note: 'ONE FILE HOLDS ONE PERSON. Never forward the whole single-file app to an employee — that one carries every salary in the company.',
   },
   {
+    id: 'leave-ledger',
+    title: 'The leave ledger \u2014 one person, every day accounted for',
+    tab: 'leave',
+    keywords: ['ledger', 'leave ledger', 'balance', 'opening balance', 'carry forward', 'khata', 'chutti ka hisab', 'bakaya'],
+    lines: [
+      '**Leave \u2192 Balances, then click a name.** Date, particulars, credit, debit, running balance and a reference \u2014 the same shape as a ledger in Tally. Print it or take the CSV.',
+      '**Every debit is a mark on the attendance grid.** Nothing about days taken is stored here; it is counted off the marks each time, so the ledger and the grid can never disagree.',
+      '**Credits are what you post**: an opening balance, a monthly credit, leave carried forward, a correction (which must say why), an encashment, a lapse.',
+      '**Until you post something**, the ledger shows the yearly entitlement on the person\u2019s record less what the grid says was taken \u2014 exactly the balance this app has always shown \u2014 and it says so on the page.',
+      '**Posting an entry ends that assumption.** Use **Start the ledger with their entitlement** first, or the entitlement simply stops counting and the balance drops.',
+      '**A credit moves no money and marks no day.** Marking a day is the grid\u2019s job, and an approval\u2019s.',
+    ],
+    note: 'A NEGATIVE BALANCE IS NOT AN ERROR — it is leave taken beyond the entitlement, and somebody has to decide about it. The app shows it rather than rounding it up to nought.',
+  },
+  {
     id: 'print-reports',
     title: 'Printing a report',
     tab: 'reports',

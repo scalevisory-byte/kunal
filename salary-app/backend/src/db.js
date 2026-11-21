@@ -2089,6 +2089,153 @@ export function setRepayment(loanId, periodId, amount) {
  * have taken, and what is left. Taken is counted from the marks themselves
  * across every month of that year, so it can never drift from the grid.
  */
+/* ---------------- the leave ledger ---------------- */
+
+/*
+ * A CREDIT IS A DECISION; A DEBIT IS A MARK.
+ *
+ * Only credits are stored. What somebody has TAKEN is counted off the
+ * attendance marks every time it is asked for, because those marks are what
+ * the salary sheet is paid from - and two records of the same fact is how
+ * two answers to "how much leave has she had" come to exist.
+ *
+ * Nothing here can move a rupee: `calculateRow` never reads this table.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS leave_credits (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    -- CL, SL, PL... the same codes the grid marks and the sheet pays from.
+    code        TEXT NOT NULL,
+    -- opening | annual | monthly | carry_forward | adjustment | encashed | expiry
+    kind        TEXT NOT NULL DEFAULT 'adjustment',
+    on_date     TEXT NOT NULL,
+    days        REAL NOT NULL,
+    note        TEXT,
+    reference   TEXT,
+    by_whom     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_leave_credits ON leave_credits(employee_id, code, on_date);
+`);
+
+export const listLeaveCredits = ({ employee_id, code, year } = {}) => {
+  const where = [];
+  const params = [];
+  if (employee_id) {
+    where.push('employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  if (code) {
+    where.push('code = ?');
+    params.push(String(code).toUpperCase());
+  }
+  if (year) {
+    where.push("substr(on_date, 1, 4) = ?");
+    params.push(String(year));
+  }
+  return db
+    .prepare(
+      `SELECT * FROM leave_credits ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY on_date, id`
+    )
+    .all(...params);
+};
+
+export function addLeaveCredit(input = {}, by) {
+  const employee = getEmployee(Number(input.employee_id));
+  if (!employee) throw new Error('employee not found');
+  const code = String(input.code || '').trim().toUpperCase();
+  if (!code) throw new Error('which kind of leave?');
+  const days = Number(input.days);
+  if (!Number.isFinite(days) || days === 0) throw new Error('how many days?');
+  /* A reason is required on an adjustment and on nothing else: the other
+     kinds say what they are by their name. */
+  if (input.kind === 'adjustment' && !String(input.note || '').trim()) {
+    throw new Error('say why it is being adjusted');
+  }
+  const info = db
+    .prepare(
+      `INSERT INTO leave_credits (employee_id, code, kind, on_date, days, note, reference, by_whom)
+       VALUES (@employee_id, @code, @kind, @on_date, @days, @note, @reference, @by_whom)`
+    )
+    .run({
+      employee_id: employee.id,
+      code,
+      kind: input.kind || 'adjustment',
+      on_date: input.on_date || new Date().toISOString().slice(0, 10),
+      days: Math.abs(days),
+      note: input.note || null,
+      reference: input.reference || null,
+      by_whom: by || null,
+    });
+  audit({
+    who: by,
+    action: 'created',
+    entity: 'leave_credits',
+    entity_id: info.lastInsertRowid,
+    label: `${employee.name} — ${code}`,
+    to_value: String(days),
+    note: input.note || input.kind || null,
+  });
+  return db.prepare(`SELECT * FROM leave_credits WHERE id = ?`).get(info.lastInsertRowid);
+}
+
+export function deleteLeaveCredit(id, by) {
+  const before = db.prepare(`SELECT * FROM leave_credits WHERE id = ?`).get(Number(id));
+  if (!before) return false;
+  const gone = db.prepare(`DELETE FROM leave_credits WHERE id = ?`).run(Number(id)).changes > 0;
+  if (gone) {
+    audit({
+      who: by,
+      action: 'deleted',
+      entity: 'leave_credits',
+      entity_id: Number(id),
+      label: `${nameOfEmployee(before.employee_id)} — ${before.code}`,
+      from_value: String(before.days),
+    });
+  }
+  return gone;
+}
+
+const nameOfEmployee = (id) => getEmployee(id)?.name || `#${id}`;
+
+/**
+ * WHAT SOMEBODY HAS TAKEN, off the marks - never stored.
+ *
+ * One row per person, per code, per month, carrying the days of the month it
+ * was taken on so the ledger can print "18, 19, 20 October" rather than a
+ * bare count nobody can check.
+ */
+export function leaveTaken({ year, employee_id, codes = ['CL', 'SL', 'PL', 'UL'] } = {}) {
+  const marks = codes.map(() => '?').join(', ');
+  const params = [Number(year), ...codes];
+  let filter = '';
+  if (employee_id) {
+    filter = 'AND a.employee_id = ?';
+    params.push(Number(employee_id));
+  }
+  return db
+    .prepare(
+      `SELECT a.employee_id, a.code, p.id AS period_id, p.label AS period_label,
+              p.year, p.month, COUNT(*) AS days,
+              GROUP_CONCAT(a.day, ', ') AS days_of_month
+       FROM attendance a JOIN periods p ON p.id = a.period_id
+       WHERE p.year = ? AND a.code IN (${marks}) ${filter}
+       GROUP BY a.employee_id, a.code, p.id
+       ORDER BY p.year, p.month`
+    )
+    .all(...params)
+    .map((r) => ({
+      ...r,
+      dates: r.days_of_month,
+      /* A date the ledger can sort on: the first of the month it was marked
+         in. The exact days are in `dates`; a leave taken on the 18th and one
+         on the 20th of the same month are one line, as a ledger would. */
+      date: `${r.year}-${String(r.month).padStart(2, '0')}-01`,
+    }));
+}
+
 export function leaveSummary(year) {
   const taken = db
     .prepare(

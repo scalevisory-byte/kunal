@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
 import { api } from '../api.js';
+import LeaveLedger from './LeaveLedger.jsx';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
 import SandwichLeave from './SandwichLeave.jsx';
@@ -34,6 +35,7 @@ export default function Leave({
   const [onlyOver, setOnlyOver] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [ledgerFor, setLedgerFor] = useState(null);
 
   const years = useMemo(() => {
     const set = new Set(periods.map((p) => p.year));
@@ -237,7 +239,20 @@ export default function Leave({
             <tbody>
               {filtered.map((row) => (
                 <tr key={row.employee_id}>
-                  <td className="sticky-name">{row.name}</td>
+                  <td className="sticky-name">
+                    {/* THE NAME IS THE WAY INTO THAT PERSON'S LEDGER - date,
+                        particulars, credit, debit, balance. It was plain
+                        text, which is not a way in; the sixth time that
+                        exact shape has come up in this app. */}
+                    <button
+                      type="button"
+                      className="link name-link"
+                      onClick={() => setLedgerFor(row.employee_id)}
+                      title={`${row.name} — their leave ledger`}
+                    >
+                      {row.name}
+                    </button>
+                  </td>
                   <td className="muted">{row.department || row.company_name}</td>
                   {LEAVE_TYPES.map((t) => {
                     const left = row.quotas[t.code] - row.taken[t.code];
@@ -303,6 +318,10 @@ export default function Leave({
           should not be. <strong>Unpaid</strong> counts the UL marks, which already cost a day each.
         </p>
       </div>
+
+      {ledgerFor ? (
+        <LeaveLedger employeeId={ledgerFor} year={year} onClose={() => { setLedgerFor(null); load(year); }} />
+      ) : null}
     </section>
   );
 }

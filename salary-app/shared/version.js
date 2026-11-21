@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.69.0';
+export const VERSION = '1.70.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.70.0',
+    date: '22 Nov 2026',
+    title: 'The leave ledger \u2014 every day accounted for, like a Tally account',
+    items: [
+      '**Click a name on Leave \u2192 Balances and you get that person\u2019s ledger**: date, particulars, credit, debit, running balance and a reference, with opening and closing. Print it or take it as a CSV.',
+      '**Every debit is a mark on the attendance grid**, counted fresh each time \u2014 never stored here. That is the whole design: the marks are what the salary sheet is paid from and what the muster roll prints, and a second record of days taken is how two answers to “how much leave has she had” come to exist.',
+      '**The credits are the half that was missing.** An opening balance, a monthly accrual, leave carried forward, a correction with a reason, an encashment, a lapse \u2014 none of which a quota-minus-taken figure could ever show.',
+      '**Nobody\u2019s balance moved.** With nothing posted, the ledger shows exactly what this app has always shown: the yearly entitlement on their record, less what the grid says was taken \u2014 and it says out loud that the figure was not posted by anybody. Verified: the old register and the new ledger agree to the day.',
+      '**One trap, and the button that exists for it.** Posting an opening balance ends the assumption that the yearly entitlement applies \u2014 so a 4-day opening on its own would drop somebody from 6 days to 3. The panel says so before you post, and offers **“Start the ledger with their 7-day entitlement”** so the common case writes that entitlement down first.',
+      '**Posting on casual leave does not touch sick leave.** Each type keeps its own ledger and its own fallback.',
+      '**A negative balance is shown, not hidden.** Leave taken beyond the entitlement happens; clamping it to nought would be the app deciding something somebody has to.',
+      '**A credit gives leave to take. It marks no day and moves no money** \u2014 marking a day is still the grid\u2019s job and an approval\u2019s. There is a test over a real month asserting the net is unmoved.',
+      '**Leave types come from the attendance marks**, not a second list \u2014 so they cannot drift from what the sheet pays.',
+    ],
+  },
   {
     version: '1.69.0',
     date: '22 Nov 2026',
