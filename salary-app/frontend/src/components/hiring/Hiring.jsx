@@ -195,8 +195,18 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
 
   // Somebody going on the payroll changes the employee list the rest of the
   // app is drawn from, so that has to be reloaded too.
+  /*
+   * The screening card keeps its OWN three lists, so Hiring reloading its
+   * data left it stale: an interview booked from the application panel left
+   * that person sitting under "ready for interview" until the tab was
+   * changed and come back to - which is exactly how one person gets called
+   * twice. A counter rather than a prop drill through three components.
+   */
+  const [changed, setChanged] = useState(0);
+
   const afterChange = useCallback(async () => {
     await load();
+    setChanged((n) => n + 1);
     onEmployeesChanged?.();
   }, [load, onEmployeesChanged]);
 
@@ -255,6 +265,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
         <Screening
           companyId={companyId}
           config={config}
+          refresh={changed}
           onOpen={setOpenApplication}
           onOpenCandidate={setOpenCandidate}
           onError={onError}
@@ -412,7 +423,13 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           applicationId={openApplication}
           abilities={abilities}
           config={config}
-          onClose={() => setOpenApplication(null)}
+          onClose={() => {
+            setOpenApplication(null);
+            /* Closing is the last chance to notice what was done inside. The
+               panel reports its own changes too; this catches the ones it
+               does not, and reloading twice costs nothing. */
+            setChanged((n) => n + 1);
+          }}
           onChanged={afterChange}
           onToast={say}
           onError={onError}

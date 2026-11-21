@@ -3033,11 +3033,29 @@ export function testQueue({ company_id } = {}) {
       WHERE t.candidate_id = ? ORDER BY t.id DESC LIMIT 1`
   );
 
+  /*
+   * WHETHER THE INTERVIEW IS ALREADY BOOKED.
+   *
+   * Dinesh: *"screening me pass hone ke baad interview kiya jayega"*. That is
+   * the flow, and the queue could not show it - somebody who had passed and
+   * somebody who had passed and already been called read exactly the same,
+   * so the list of people to ring was being kept in somebody's head.
+   *
+   * A cancelled interview does not count as booked: that person is waiting
+   * again, which is the whole reason the row has to come back.
+   */
+  const booked = db.prepare(
+    `SELECT at, round, status FROM interviews
+      WHERE application_id = ? AND status <> 'Cancelled'
+      ORDER BY at DESC LIMIT 1`
+  );
+
   return rows.map((row) => {
     const attempt = latest.get(row.candidate_id) || null;
     return {
       ...row,
       attempt,
+      interview: booked.get(row.application_id) || null,
       state: !attempt ? 'not_sent' : attempt.submitted_at ? 'sat' : 'sent',
     };
   });

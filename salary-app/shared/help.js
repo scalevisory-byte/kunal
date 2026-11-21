@@ -779,6 +779,7 @@ export const HELP = [
       'bulana', 'hatana', 'delete karna', 'interview rakhna', 'result',
     ],
     lines: [
+      '**The order of the day is on Screening & tests**: no paper yet \u2192 paper sent \u2192 **Qualified, ready for interview** \u2192 Not qualified \u2192 **Interview booked**. The qualified group is the list of people to ring; once somebody is booked their row says the date instead of offering to book again.',
       '**Screening & tests \u2192 Test results** is every paper anybody has sat. **Click the name** to open them \u2014 their application if they applied to an opening, their record if they are only on the list.',
       '**Schedule interview** on the row opens the same application. The booking itself \u2014 when, round, mode, interviewer, where or the link \u2014 is on that panel, because that is where everything else about the person is.',
       '**The score decides nothing.** It orders a list; you choose. A flagged paper is a reason to ring somebody back, never proof.',

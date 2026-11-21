@@ -141,7 +141,7 @@ export function ScreeningForm({ applicationId, screening, report, onSaved, onErr
   );
 }
 
-export default function Screening({ companyId, config, onOpen, onOpenCandidate, onError, onToast }) {
+export default function Screening({ companyId, config, refresh = 0, onOpen, onOpenCandidate, onError, onToast }) {
   const [queue, setQueue] = useState([]);
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState(null);
@@ -169,7 +169,7 @@ export default function Screening({ companyId, config, onOpen, onOpenCandidate, 
   useEffect(() => {
     if (!STANDALONE) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId]);
+  }, [companyId, refresh]);
 
   if (STANDALONE) {
     return (
@@ -260,14 +260,39 @@ export default function Screening({ companyId, config, onOpen, onOpenCandidate, 
       </div>
       {ready.length ? (
         <div className="card">
-          <h3>The test</h3>
+          <h3>The test, and who is ready for interview</h3>
           <p className="muted small">
-            Everybody screened in, and where their test has got to. The link stays here until they
-            have sat it — sending a second paper would let somebody read the questions, close it
-            and start again. A score is one more thing to weigh; it moves nobody.
+            Everybody screened in, in the order the day goes: no paper yet, paper sent, qualified,
+            not qualified, interview booked. The link stays here until they have sat it — sending
+            a second paper would let somebody read the questions, close it and start again.
           </p>
-          {['not_sent', 'sent', 'sat'].map((state) => {
-            const group = ready.filter((r) => r.state === state);
+          <p className="muted small">
+            <strong>The score decides nothing.</strong> “Qualified” only means the paper reached
+            its pass mark; anybody on this card can be called for interview, and nobody is called
+            by the app. Turning somebody down is still a decision taken on their application.
+          </p>
+          {/*
+            * THE ORDER OF THE DAY: screened in, paper, result, interview.
+            *
+            * Dinesh: *"screening me pass hone ke baad interview kiya jayega"*.
+            * That is the flow, and the list could not show it - "Done" held
+            * everybody who had sat a paper, so somebody who passed, somebody
+            * who did not and somebody already called for interview were one
+            * undifferentiated heap, and the list of people to ring was being
+            * kept in somebody's head.
+            *
+            * THE SPLIT DECIDES NOTHING. A paper not passed is not a
+            * rejection, and the Schedule button is on that group too - the
+            * office calls who it wants to call. The headings only say what
+            * the records already say.
+            */}
+          {['not_sent', 'sent', 'passed', 'failed', 'booked'].map((state) => {
+            const group = ready.filter((r) => {
+              if (state === 'not_sent' || state === 'sent') return r.state === state;
+              if (r.state !== 'sat') return false;
+              if (r.interview) return state === 'booked';
+              return state === (r.attempt?.passed ? 'passed' : 'failed');
+            });
             if (!group.length) return null;
             return (
               <div key={state}>
@@ -286,7 +311,11 @@ export default function Screening({ companyId, config, onOpen, onOpenCandidate, 
                     ? `No paper yet (${group.length})`
                     : state === 'sent'
                       ? `Paper ready — not sat yet (${group.length})`
-                      : `Done (${group.length})`}
+                      : state === 'passed'
+                        ? `Qualified — ready for interview (${group.length})`
+                        : state === 'failed'
+                          ? `Not qualified (${group.length})`
+                          : `Interview booked (${group.length})`}
                 </p>
                 {group.map((row) => (
                   <SendTest
@@ -560,9 +589,12 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
           <div className="muted small">
             {row.attempt.paper_name}
             {row.attempt.submitted_at
+              /* ?? 0, not the bare column: an attempt saved before these
+                 counts existed has nulls on it, and "19 right, null wrong"
+                 is how a perfectly good paper reads as broken. */
               ? ` · sat ${String(row.attempt.submitted_at).replace('T', ' ').slice(0, 16)} · ${
-                  row.attempt.right_count
-                } right, ${row.attempt.wrong_count} wrong${
+                  row.attempt.right_count ?? 0
+                } right, ${row.attempt.wrong_count ?? 0} wrong${
                   row.attempt.skipped_count ? `, ${row.attempt.skipped_count} blank` : ''
                 }`
               : ` · paper drawn ${String(row.attempt.assigned_at).slice(0, 10)}${
@@ -578,6 +610,27 @@ function SendTest({ row, config, onDone, onError, onToast, onOpen, onSheet }) {
             {row.attempt.percentage}%
           </strong>
           <button onClick={() => onSheet(row.attempt.id)}>Answer sheet</button>
+          {/*
+            * The next step, on the row where the result is read.
+            *
+            * The booking itself is on the application - when, round, mode,
+            * interviewer, where - so this opens it rather than pretending to
+            * book from a queue. Once something is booked the button stops
+            * asking and says what is booked instead; a second "Schedule" on
+            * a person already called is how two interviews get booked for
+            * one afternoon.
+            */}
+          {row.interview ? (
+            <span className="muted small">
+              Interview {String(row.interview.at).replace('T', ' ').slice(0, 16)}
+              {row.interview.round > 1 ? ` · round ${row.interview.round}` : ''} ·{' '}
+              {row.interview.status}
+            </span>
+          ) : (
+            <button className="primary" onClick={() => onOpen(row.application_id)}>
+              Schedule interview
+            </button>
+          )}
           {/*
             * Another paper, when something went wrong rather than badly.
             *

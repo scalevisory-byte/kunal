@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.55.0';
+export const VERSION = '1.56.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.56.0',
+    date: '21 Nov 2026',
+    title: 'Screened in → paper → qualified → interview',
+    items: [
+      '**Screening & tests now lists people in the order the day goes:** no paper yet · paper sent, not sat · **Qualified — ready for interview** · Not qualified · **Interview booked**. “Done” used to hold all of them together, so the list of people to ring was kept in somebody’s head.',
+      '**“Schedule interview” is on the result row**, and opens that person’s application where the booking is made — when, round, mode, interviewer, and where or the link.',
+      '**Once it is booked the row says so** — the date, the round and the status — instead of offering Schedule again. That is how one person ends up called twice.',
+      '**A cancelled interview is not a booking**: that person comes straight back onto the ready list, because they are waiting again.',
+      '**The score still decides nothing.** “Qualified” only means the paper reached its pass mark. Schedule is on the Not-qualified group too — the office calls who it wants to call, and nobody is called by the app.',
+      'Fixed: an interview booked inside the application panel left that person sitting under “ready for interview” until the tab was changed and come back to.',
+      'Fixed: a paper saved before the counts existed read as “19 right, null wrong”.',
+    ],
+  },
   {
     version: '1.55.0',
     date: '21 Nov 2026',
