@@ -11,7 +11,7 @@ import { log } from './logger.js';
  * past five in the morning - which would leave somebody's last working day
  * unacted on for the first five hours of it.
  */
-const todayLocal = () => {
+export const todayLocal = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
@@ -1352,9 +1352,30 @@ export function employeeDeleteSummary(id) {
  * An open month is not blocked. That is exactly where a wrongly added person
  * sits, and it is the case this was asked for.
  */
+/**
+ * Somebody with an exit recorded is a PAST EMPLOYEE, and that is a record.
+ *
+ * Dinesh: *"Past employe k data bhi proper rehne chaiye"*. Once the leaving
+ * has been written down - the date, the notice, the settlement, the letters
+ * issued from it - deleting them does not tidy anything up, it throws away
+ * the only account of somebody who worked here. The table is read at call
+ * time and only if it exists, because db.js is loaded before people.js
+ * builds it.
+ */
+function hasExitRecorded(id) {
+  const there = db
+    .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'employee_exits'`)
+    .get();
+  if (!there) return false;
+  return Boolean(db.prepare(`SELECT 1 FROM employee_exits WHERE employee_id = ?`).get(id));
+}
+
 export function employeeDeleteProblem(id) {
   const summary = employeeDeleteSummary(id);
   if (!summary) return 'not found';
+  if (hasExitRecorded(id)) {
+    return `${summary.name} has left and their exit is on the record — the dates, the settlement and the letters issued from it. That is the account of somebody who worked here, so it stays. They are already off the active list.`;
+  }
   if (summary.locked_months > 0) {
     return `${summary.name} has been paid in ${summary.locked_months} closed month${
       summary.locked_months === 1 ? '' : 's'

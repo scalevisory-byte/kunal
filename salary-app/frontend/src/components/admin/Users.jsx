@@ -19,8 +19,9 @@ export default function Users({ me, onError }) {
   // Set the moment somebody types in the username box themselves, after
   // which the name no longer writes over it.
   const [ownUsername, setOwnUsername] = useState(false);
-  const [draft, setDraft] = useState({ username: '', name: '', password: '', role: 'hr' });
+  const [draft, setDraft] = useState({ username: '', name: '', password: '', role: 'hr', areas: [] });
   const [said, setSaid] = useState('');
+  const [saidBad, setSaidBad] = useState(false);
 
   const load = async () => {
     try {
@@ -41,11 +42,13 @@ export default function Users({ me, onError }) {
   const add = async () => {
     try {
       await api.post('/auth/users', draft);
-      setDraft({ username: '', name: '', password: '', role: 'hr' });
+      setSaidBad(false);
+      setDraft({ username: '', name: '', password: '', role: 'hr', areas: [] });
       setAdding(false);
       setSaid('');
       load();
     } catch (err) {
+      setSaidBad(true);
       setSaid(err.message);
     }
   };
@@ -53,9 +56,11 @@ export default function Users({ me, onError }) {
   const patch = async (user, body) => {
     try {
       await api.patch(`/auth/users/${user.id}`, body);
+      setSaidBad(false);
       setSaid('');
       load();
     } catch (err) {
+      setSaidBad(true);
       setSaid(err.message);
     }
   };
@@ -68,9 +73,11 @@ export default function Users({ me, onError }) {
     if (!password) return;
     try {
       await api.post(`/auth/users/${user.id}/password`, { password });
+      setSaidBad(false);
       setSaid(`${user.name}'s password is set. Tell them it, and they will be asked to change it.`);
       load();
     } catch (err) {
+      setSaidBad(true);
       setSaid(err.message);
     }
   };
@@ -81,6 +88,7 @@ export default function Users({ me, onError }) {
       await api.del(`/auth/users/${user.id}`);
       load();
     } catch (err) {
+      setSaidBad(true);
       setSaid(err.message);
     }
   };
@@ -158,8 +166,19 @@ export default function Users({ me, onError }) {
             </label>
             <label>
               Role
-              <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
-                {roles.map((r) => (
+              <select
+                value={draft.role}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    role: e.target.value,
+                    // An Admin cannot be narrowed, so the ticks go with the
+                    // choice rather than being left on screen meaning nothing.
+                    areas: e.target.value === 'admin' ? [] : draft.areas,
+                  })
+                }
+              >
+                {roles.filter((r) => r.key !== 'employee').map((r) => (
                   <option key={r.key} value={r.key}>
                     {r.label}
                   </option>
@@ -167,6 +186,57 @@ export default function Users({ me, onError }) {
               </select>
             </label>
           </div>
+
+          {/*
+            * WHICH MODULES, ASKED HERE AND NOT AFTERWARDS.
+            *
+            * This was a second job on the row once the login already
+            * existed - so a login made for the front desk could sign in that
+            * minute and read the whole payroll, and the person who made it
+            * believed they had narrowed it. Dinesh: *"sirf front desk ka
+            * rights diya he to bhi"*.
+            */}
+          {draft.role === 'admin' ? (
+            <p className="lic-alert warn">
+              <strong>An Admin can do everything, on every module</strong> — including this
+              screen, so they can change any right, their own included. For somebody who should
+              only see part of the app, choose <strong>HR</strong> or <strong>Viewer</strong> and
+              tick what they need.
+            </p>
+          ) : (
+            <>
+              <p className="muted small" style={{ marginBottom: '0.3rem' }}>
+                Which modules — <strong>nothing ticked means every one of them</strong>.
+              </p>
+              <div className="area-ticks">
+                {areas.map(([key, label, what]) => (
+                  <label key={key} title={what}>
+                    <input
+                      type="checkbox"
+                      checked={draft.areas.includes(key)}
+                      onChange={() =>
+                        setDraft({
+                          ...draft,
+                          areas: draft.areas.includes(key)
+                            ? draft.areas.filter((a) => a !== key)
+                            : [...draft.areas, key],
+                        })
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <p className="muted small">
+                {draft.areas.length
+                  ? `They will see ${draft.areas
+                      .map((a) => areas.find(([k]) => k === a)?.[1] || a)
+                      .join(', ')} — and nothing else.`
+                  : 'They will see every module. Tick the ones they need to narrow it.'}
+              </p>
+            </>
+          )}
+
           <p className="muted small">
             The password is shown rather than hidden, because you have to read it out to them.
             They can change it themselves once they are in.
@@ -177,7 +247,9 @@ export default function Users({ me, onError }) {
         </div>
       )}
 
-      {said && <p className="muted small">{said}</p>}
+      {/* A refusal in grey is a refusal nobody reads - and the refusals on
+          this screen are the ones that matter most. */}
+      {said && <p className={saidBad ? 'lic-alert warn' : 'muted small'}>{said}</p>}
 
       <table className="sheet">
         <thead>
@@ -222,6 +294,13 @@ export default function Users({ me, onError }) {
               <td className="small">
                 {user.role === 'employee' ? (
                   <span className="muted">their own record only</span>
+                ) : user.role === 'admin' ? (
+                  /* No ticks against an Admin: they can open this screen and
+                     untick them. A fence drawn where there is none is worse
+                     than none at all. */
+                  <span className="muted" title="An Admin can use every module and change any right, their own included.">
+                    Everything, and every right
+                  </span>
                 ) : (
                   <AreaTicks user={user} areas={areas} onPatch={patch} />
                 )}

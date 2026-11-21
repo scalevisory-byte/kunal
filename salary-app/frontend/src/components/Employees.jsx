@@ -12,6 +12,7 @@ import { namePlan } from '../../../shared/properName.js';
 import { rupees } from '../format.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import ExitEmployee from './ExitEmployee.jsx';
+import PastEmployees from './PastEmployees.jsx';
 
 import BulkEmployees from './BulkEmployees.jsx';
 /* The people with nothing in that field - a group, not a gap. */
@@ -1186,6 +1187,20 @@ export default function Employees({
       </div>
 
       <OnboardingQueue employees={filtered} onOpen={(emp) => setProfileFor(emp.id)} />
+
+      {/* The people who have gone, as their own register rather than as grey
+          rows folded back into the staff list. */}
+      <PastEmployees
+        /* The company filter narrows this like every other list on the page;
+           the "show people who have left" tick does not - this register IS
+           them. */
+        employees={employees.filter((e) => !companyId || e.company_id === companyId)}
+        companies={companies}
+        onOpen={(id) => setProfileFor(id)}
+        onExit={(emp) => setExitFor(emp)}
+        onReport={(id) => setReportFor(id)}
+        onError={(err) => setError(err.message)}
+      />
 
       <BulkEmployees onReload={onReload} onError={(m) => (onError ? onError(m) : setError(m))} />
 

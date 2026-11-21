@@ -172,6 +172,7 @@ import {
   returnAsset,
   returnAssets,
   transferAssets,
+  exitLetter,
   saveExit,
   setTaskStatus,
   updateAppraisal,
@@ -1330,6 +1331,29 @@ peopleRouter.put('/exits/:employeeId', (req, res) => {
     res.json(exitReply(Number(req.params.employeeId)));
   } catch (err) {
     bad(res, err);
+  }
+});
+
+/**
+ * The relieving letter and the experience certificate, as one file each.
+ *
+ * Sent as an attachment, exactly like the offer letter: the browser prints it
+ * from an iframe or saves it, and either way the company's own logo is
+ * already inside it. ONE FILE HOLDS ONE PERSON.
+ */
+peopleRouter.get('/exits/:employeeId/letter/:kind', (req, res) => {
+  try {
+    const letter = exitLetter(Number(req.params.employeeId), {
+      kind: String(req.params.kind),
+      note: String(req.query.note || ''),
+      conduct: req.query.conduct === 'true',
+      signedBy: String(req.query.by || ''),
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${letter.filename}"`);
+    return res.send(letter.html);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message });
   }
 });
 

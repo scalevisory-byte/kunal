@@ -6,8 +6,11 @@ import {
   getEmployee,
   leaveSummary,
   listLoans,
+  todayLocal,
   updateEmployee,
 } from './db.js';
+import { logoDataUri } from './companyLogos.js';
+import { fileNameFor, isLetterKind, letterHtml } from '../../shared/exitLetters.js';
 import { buildPayroll } from './payroll.js';
 import { log } from './logger.js';
 import { settlement } from '../../shared/settlement.js';
@@ -2705,6 +2708,54 @@ export function markSettled(employeeId, { amount, settled_on, by } = {}) {
  * not been opened, the settlement says so and values the leave off the master
  * salary rather than refusing to show anything.
  */
+/**
+ * A relieving letter or an experience certificate, built on the server.
+ *
+ * On the server because the company's own logo has to be inlined into it -
+ * the same reason the offer letter moved here. The wording lives in
+ * shared/exitLetters.js, so the browser preview and the printed copy cannot
+ * come to say different things.
+ *
+ * It refuses where the facts are not there: no exit recorded, or no last
+ * working day. "Relieved with effect from ____" is not a letter.
+ */
+export function exitLetter(employeeId, { kind = 'relieving', note = '', conduct = false, signedBy = '', issued = '' } = {}) {
+  if (!isLetterKind(kind)) throw new Error(`unknown letter: ${kind}`);
+  const employee = getEmployee(employeeId);
+  if (!employee) throw new Error('employee not found');
+  const exit = getExit(employee.id);
+  if (!exit) {
+    const error = new Error('Nothing is recorded about them leaving yet, so there is no letter to issue.');
+    error.status = 409;
+    throw error;
+  }
+  if (!exit.last_working_day) {
+    const error = new Error('Set their last working day first — a letter cannot relieve somebody from no date.');
+    error.status = 409;
+    throw error;
+  }
+
+  return {
+    filename: fileNameFor(kind, employee, exit),
+    html: letterHtml(kind, {
+      employee,
+      exit,
+      company: employee.company_name || '',
+      logo: logoDataUri(employee.company_id),
+      issued: issued || todayLocal(),
+      /*
+       * NOT A FIELD ON THE FORM: it is whether the settlement has actually
+       * been marked paid. "All dues settled" is read as a receipt, and one
+       * printed over an unpaid full and final cannot be taken back.
+       */
+      settled: Boolean(exit.settled_on),
+      note,
+      conduct: Boolean(conduct),
+      signedBy,
+    }),
+  };
+}
+
 export function fullAndFinal(employeeId) {
   const employee = getEmployee(employeeId);
   if (!employee) throw new Error('employee not found');

@@ -374,10 +374,20 @@ test('switching a login off stops it working immediately', async () => {
   assert.equal((await viewer('GET', '/api/employees')).status, 200);
 });
 
-test('the only admin cannot demote, disable or delete themselves out of existence', async () => {
+test('the only admin cannot disable or delete themselves out of existence', async () => {
   const me = (await admin('GET', '/api/auth/users')).body.users.find((u) => u.username === 'dinesh');
+
+  /*
+   * Their own ROLE is not theirs to change at all now, whether or not
+   * anybody else is an admin: a role or a module tick changed on your own row
+   * is the one edit with nobody checking it, and the quiet way back out of
+   * every fence the Logins screen draws.
+   */
+  const own = await admin('PATCH', `/api/auth/users/${me.id}`, { role: 'hr' });
+  assert.equal(own.status, 403);
+  assert.match(own.body.error, /your own role/);
+
   for (const [method, url, payload] of [
-    ['PATCH', `/api/auth/users/${me.id}`, { role: 'hr' }],
     ['PATCH', `/api/auth/users/${me.id}`, { active: false }],
     ['DELETE', `/api/auth/users/${me.id}`, undefined],
   ]) {
@@ -386,18 +396,18 @@ test('the only admin cannot demote, disable or delete themselves out of existenc
     assert.match(res.body.error, /only admin left/);
   }
 
-  // With a second admin, it is allowed.
+  // Another admin may demote them, and the last-admin rule still stands guard.
   await admin('POST', '/api/auth/users', {
     username: 'second',
     name: 'Second Admin',
     password: 'second-password',
     role: 'admin',
   });
-  const freed = await admin('PATCH', `/api/auth/users/${me.id}`, { role: 'hr' });
+  const other = await login('second', 'second-password');
+  const freed = await other('PATCH', `/api/auth/users/${me.id}`, { role: 'hr' });
   assert.equal(freed.status, 200);
   assert.equal(freed.body.role, 'hr');
   // Put it back, as the other tests sign in as this one.
-  const other = await login('second', 'second-password');
   await other('PATCH', `/api/auth/users/${me.id}`, { role: 'admin' });
 });
 

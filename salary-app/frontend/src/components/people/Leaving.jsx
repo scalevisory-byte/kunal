@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { col, num, printReport, printSlips } from '../../printReport.js';
-import { api } from '../../api.js';
+import { STANDALONE, api, fetchPage } from '../../api.js';
 import { EXIT_TYPES } from '../../../../shared/settlement.js';
+import { exitSteps } from '../../../../shared/exitSteps.js';
+import { LETTERS } from '../../../../shared/exitLetters.js';
 import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
 import ExitClearance from './ExitClearance.jsx';
@@ -58,6 +60,14 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
 
   /* Whose asset ledger is on screen, if any. */
   const [ledgerFor, setLedgerFor] = useState(null);
+
+  /*
+   * What goes ON the letters. The conduct sentence is a tick rather than
+   * boilerplate, with its exact wording shown beside it, because it is a
+   * judgement about a person - and a letter that vouches for somebody who
+   * was dismissed is a letter nobody meant to sign.
+   */
+  const [letter, setLetter] = useState({ conduct: true, note: '', by: '' });
 
   const open = async (employeeId) => {
     setPicked(employeeId);
@@ -243,6 +253,50 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
    */
   const gone = employees.filter((e) => !e.active);
 
+  /*
+   * The letter is the SERVER'S letter, fetched - never a second copy built
+   * here. The company's logo is inlined into it there, and two builders
+   * would be two documents that one day say different things. An iframe
+   * rather than a tab: the letter is a whole document with its own
+   * stylesheet, and a tab opened after an await is eaten silently by the
+   * pop-up blocker.
+   */
+  const letterUrl = (kind) =>
+    `/people/exits/${picked}/letter/${kind}?conduct=${letter.conduct ? 'true' : 'false'}` +
+    `&note=${encodeURIComponent(letter.note || '')}&by=${encodeURIComponent(letter.by || '')}`;
+
+  const printLetter = async (kind) => {
+    try {
+      const html = await fetchPage(letterUrl(kind));
+      const frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.setAttribute('title', kind);
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      frame.srcdoc = html;
+      frame.onload = () => {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+        // Taken away after the dialog, not before it - removing the frame
+        // while the preview is still reading it prints a blank sheet.
+        window.setTimeout(() => frame.remove(), 1000);
+      };
+      document.body.appendChild(frame);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const downloadLetter = (kind) => {
+    const a = document.createElement('a');
+    a.href = `${window.location.origin}/api${letterUrl(kind)}`;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const progress = detail ? exitSteps({ exit, clearance: detail.clearance, settlement: s }) : null;
+
   return (
     <section className="stack">
       {!only && (
@@ -341,8 +395,25 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
         </div>
       )}
 
-      {detail && s && (
+      {detail && s && progress && (
         <>
+          {/* WHERE THEY HAVE GOT TO, before any of the detail. It computes
+              nothing - each step reads the record that owns it. */}
+          <div className="card wf-card">
+            <ol className="wf">
+              {progress.steps.map((step) => (
+                <li
+                  key={step.key}
+                  className={`wf-step ${step.done ? 'done' : ''} ${step.current ? 'at' : ''}`}
+                >
+                  <span className="wf-dot">{step.done ? '✓' : step.step}</span>
+                  <span className="wf-label">{step.label}</span>
+                  <span className="wf-why">{step.why}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+
           <div className="card">
             <div className="late-head">
               <div>
@@ -548,6 +619,77 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
               Paid {exit.settled_on} at {rupees(exit.settled_amount)}.
             </p>
           )}
+
+          {/*
+            * THE LAST STEP, AND THE ONLY ONE THE PERSON LEAVING EVER SEES.
+            *
+            * Both letters are built on the server with the company's own
+            * logo in them, one file per person, and they open on any phone.
+            */}
+          <div className="card">
+            <h4>Letters</h4>
+            {STANDALONE ? (
+              /* The letter is built on the server, with the company's logo
+                 inlined into it. There is no server here, and a second
+                 builder in this file is the copy that drifts. */
+              <p className="muted small">
+                The relieving letter and the experience certificate are printed by the server
+                copy, which has the company logos. Everything else on this page works here.
+              </p>
+            ) : !exit.last_working_day ? (
+              <p className="muted small">
+                Set their last working day first — a letter cannot relieve somebody from no date.
+              </p>
+            ) : (
+              <>
+                {!paid && (
+                  <p className="lic-alert warn">
+                    The full and final is <strong>not settled</strong>, so the relieving letter
+                    will <strong>not</strong> say the dues are cleared. That sentence is read as
+                    a receipt; it is printed only once the settlement actually is.
+                  </p>
+                )}
+                <div className="form-grid">
+                  <label>
+                    Signed by
+                    <input
+                      value={letter.by}
+                      placeholder="whoever signs it"
+                      onChange={(e) => setLetter({ ...letter, by: e.target.value })}
+                    />
+                  </label>
+                  <label className="wide">
+                    A line of your own, if any
+                    <input
+                      value={letter.note}
+                      onChange={(e) => setLetter({ ...letter, note: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={letter.conduct}
+                    onChange={(e) => setLetter({ ...letter, conduct: e.target.checked })}
+                  />
+                  Print: “we found their conduct and performance satisfactory”
+                </label>
+                {LETTERS.map(([kind, label, what]) => (
+                  <div className="row" key={kind} style={{ marginTop: '0.5rem' }}>
+                    <button className="primary" onClick={() => printLetter(kind)}>
+                      Print the {label.toLowerCase()}
+                    </button>
+                    <button onClick={() => downloadLetter(kind)}>Download</button>
+                    <span className="muted small">{what}</span>
+                  </div>
+                ))}
+                <p className="muted small">
+                  One file holds one person. The download is a single page you can send on
+                  WhatsApp; it needs no app and no internet to open.
+                </p>
+              </>
+            )}
+          </div>
         </>
       )}
 

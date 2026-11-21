@@ -127,6 +127,21 @@ if (!db.prepare(`PRAGMA table_info(users)`).all().some((c) => c.name === 'areas'
   log.info('Migrated users: added areas, for per-login rights.');
 }
 
+/*
+ * An Admin carries no narrowing, so any already stored is cleared.
+ *
+ * Not tidiness: the Admin screen no longer draws ticks against an Admin, and
+ * setting them is refused - so a row that arrived here with both would be
+ * narrowed for ever with nothing able to widen it again. The rule has to
+ * reach the rows that were saved before it existed.
+ */
+{
+  const fixed = db.prepare(`UPDATE users SET areas = NULL WHERE role = 'admin' AND areas IS NOT NULL`).run();
+  if (fixed.changes) {
+    log.info(`Migrated users: cleared module ticks on ${fixed.changes} admin login(s) - an Admin uses every module.`);
+  }
+}
+
 export const ROLES = [
   {
     key: 'admin',
@@ -241,7 +256,57 @@ export const listUsers = () =>
 const tidyName = (v) => String(v || '').trim();
 const tidyUsername = (v) => String(v || '').trim().toLowerCase();
 
-export function createUser({ username, name, password, role = 'viewer', employee_id = null } = {}) {
+/**
+ * The modules a login may use, as they go into the database.
+ *
+ * `null` means "nobody has narrowed this login", which `may` reads as
+ * everything. A stored `[]` would read as nothing, and a login that can open
+ * no tab at all is somebody ringing up to be let back in.
+ */
+function areasColumn(list) {
+  const wanted = Array.isArray(list)
+    ? [...new Set(list.map((a) => String(a)).filter((a) => AREA_KEYS.includes(a)))]
+    : [];
+  return wanted.length ? JSON.stringify(wanted) : null;
+}
+
+/**
+ * AN ADMIN CANNOT BE NARROWED, AND A NARROWED LOGIN CANNOT BE AN ADMIN.
+ *
+ * Dinesh: *"sirf front desk ka rights diya he to bhi ... admin rights bhi mil
+ * rahe he"*. An Admin can open the Logins screen and untick their own
+ * narrowing, so ticking three modules against an Admin is a right that is not
+ * one - it reads as a fence on a screen where the person is holding the gate
+ * key. Said out loud and refused, rather than drawn and quietly meaningless.
+ */
+function checkNarrowing(role, areasJson) {
+  if (role === 'admin' && areasJson) {
+    throw new Error(
+      'An Admin can change every right, including their own — so a login narrowed to some ' +
+        'modules cannot be an Admin. Make them HR or a Viewer, or untick the modules.'
+    );
+  }
+  if (role === 'employee' && areasJson) {
+    throw new Error('a staff login covers their own record only - the module ticks mean nothing on it');
+  }
+}
+
+export function createUser({
+  username,
+  name,
+  password,
+  role = 'viewer',
+  employee_id = null,
+  /*
+   * ASKED FOR WHEN THE LOGIN IS MADE, not only afterwards.
+   *
+   * This was dropped on the floor here: the screen could tick three modules
+   * and the login was still created carrying every one of them, because
+   * nothing read the field. It had to be narrowed a second time, on the row,
+   * by somebody who already believed they had done it.
+   */
+  areas = null,
+} = {}) {
   const user = tidyUsername(username);
   if (!/^[a-z0-9._-]{3,40}$/.test(user)) {
     throw new Error('a username is 3-40 characters: letters, numbers, dot, dash or underscore');
@@ -270,12 +335,16 @@ export function createUser({ username, name, password, role = 'viewer', employee
     if (taken) throw new Error(`they already have a login (${taken.username})`);
   }
 
+  const narrowing = areasColumn(areas);
+  checkNarrowing(role, narrowing);
+
   const salt = crypto.randomBytes(16).toString('hex');
   const id = db
     .prepare(
-      `INSERT INTO users (username, name, role, salt, hash, employee_id) VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO users (username, name, role, salt, hash, employee_id, areas)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(user, tidyName(name), role, salt, hashWith(password, salt), person).lastInsertRowid;
+    .run(user, tidyName(name), role, salt, hashWith(password, salt), person, narrowing).lastInsertRowid;
   return getUser(id);
 }
 
@@ -369,6 +438,16 @@ export function updateUser(id, patch = {}) {
   const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id);
   if (!row) throw new Error('not found');
 
+  /*
+   * The role and the narrowing are checked TOGETHER, against what the row
+   * will be once this patch lands - not against what each half is now.
+   * Checking them one at a time lets the pair be reached in two clicks:
+   * narrow a Viewer, then promote them to Admin.
+   */
+  const nextRole = 'role' in patch ? patch.role : row.role;
+  const nextAreas = 'areas' in patch ? areasColumn(patch.areas) : row.areas || null;
+  if ('role' in patch || 'areas' in patch) checkNarrowing(nextRole, nextAreas);
+
   const fields = [];
   const values = [];
   if ('name' in patch) {
@@ -394,11 +473,8 @@ export function updateUser(id, patch = {}) {
      * Unticking the last box is far likelier to mean "stop narrowing this
      * one" than "lock them out of the whole app".
      */
-    const wanted = Array.isArray(patch.areas)
-      ? [...new Set(patch.areas.map((a) => String(a)).filter((a) => AREA_KEYS.includes(a)))]
-      : [];
     fields.push('areas = ?');
-    values.push(wanted.length ? JSON.stringify(wanted) : null);
+    values.push(areasColumn(patch.areas));
   }
   if ('active' in patch) {
     const next = patch.active ? 1 : 0;

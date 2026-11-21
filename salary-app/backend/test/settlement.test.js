@@ -57,6 +57,18 @@ test('somebody who resigns and leaves early owes the shortfall', () => {
   assert.equal(n.owed_by, 'employee');
 });
 
+test('a last working day BEFORE the day they told us is nought days served, never minus', () => {
+  /*
+   * Walked out on the Tuesday and put it in writing on the Friday, or a date
+   * corrected afterwards. It read "-11/30" on the exit strip, which is
+   * nonsense on the screen and carries into what is owed.
+   */
+  const n = noticeOf({ type: 'resigned', resigned_on: '2026-11-21', last_working_day: '2026-11-10', notice_days: 30 });
+  assert.equal(n.served, 0);
+  assert.equal(n.short, 30);
+  assert.equal(n.owed_by, 'employee');
+});
+
 test('an employer who terminates without notice owes it instead', () => {
   const n = noticeOf({ type: 'terminated', resigned_on: '2026-10-01', last_working_day: '2026-10-11' });
   assert.equal(n.short, 20);

@@ -113,12 +113,22 @@ export function serviceLength(joinedOn, lastDay) {
  */
 export function noticeOf({ type = 'resigned', resigned_on, last_working_day, notice_days } = {}) {
   const required = Math.max(0, num(notice_days, SETTLEMENT_RULES.notice_days));
-  const served = daysBetween(resigned_on, last_working_day);
+  const between = daysBetween(resigned_on, last_working_day);
   const owedBy = EXIT_TYPE[type]?.notice_from || 'employee';
 
-  if (served === null) {
+  if (between === null) {
     return { required, served: null, short: null, owed_by: owedBy, known: false };
   }
+  /*
+   * NOTICE SERVED IS NEVER NEGATIVE.
+   *
+   * A last working day BEFORE the day they told us is a real thing - walked
+   * out on the Tuesday and put it in writing on the Friday, or a date
+   * corrected afterwards. It is nought days of notice served, not minus
+   * eleven: the figure is read as "served against required" and a negative
+   * one reads as nonsense on the screen and carries into what is owed.
+   */
+  const served = Math.max(0, between);
   const short = Math.max(0, required - served);
   return {
     required,

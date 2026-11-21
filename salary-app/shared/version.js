@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.52.0';
+export const VERSION = '1.53.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.53.0',
+    date: '21 Nov 2026',
+    title: 'Logins that are actually narrowed, and a proper exit',
+    items: [
+      '**FIXED: a login made for one module was being created with every module.** The modules ticked when a login was made were dropped on the way in — the login was created carrying all of them and had to be narrowed a second time, on its row, by somebody who already believed they had done it. This is why a front-desk login could read the whole payroll. **Ticking the modules on the Add-a-login form now does what it says**, and the form states in words what the person will be able to see.',
+      '**An Admin cannot be narrowed, and a narrowed login cannot be made an Admin.** An Admin can open the Logins screen and untick their own narrowing, so ticks against one were a fence in front of the gate key. For somebody who should see part of the app, make them **HR** or a **Viewer** and tick what they need. Any ticks already saved against an Admin are cleared when this update runs.',
+      '**Nobody can change their own role or module ticks** — another Admin has to. Everything else on your own login (name, password) is still yours.',
+      '**Relieving letter and experience certificate**, printed from the exit — the company’s logo on them, one page, one file per person, ready to hand over or send on WhatsApp.',
+      '**“All dues settled” is printed only when the full and final actually is.** That line is read as a receipt by the next employer; the screen says so before you print.',
+      'How they went decides the words: a dismissal does not read “resigned”. The conduct sentence is a **tick with its exact wording shown**, not boilerplate — so nobody vouches for somebody by accident.',
+      '**The exit now shows its five steps** — resignation, last working day, handover and clearance, full and final, letters — with what is holding each one up.',
+      '**Past employees are their own register**, under Employees: who left, when, how, and whether their full and final was settled, with anybody off the list but with no exit recorded named rather than hidden. It prints.',
+      '**Somebody whose exit is on the record can no longer be deleted.** Nothing about a past employee is thrown away: their months, attendance, documents, loans, assets and records stay exactly as they were.',
+      'Fixed: notice served read as a negative number when the last working day was before the day they told you. It is nought days served, which is what it means.',
+    ],
+  },
   {
     version: '1.52.0',
     date: '21 Nov 2026',

@@ -163,9 +163,27 @@ authRouter.post('/staff', requireAbility('admin'), (req, res) => {
   res.status(made.length ? 201 : 400).json({ made, refused });
 });
 
+/*
+ * NOBODY WIDENS THEIR OWN LOGIN.
+ *
+ * Everything else on this screen is one admin administering another; a role
+ * or a module tick changed on your OWN row is the one edit with nobody
+ * checking it. It is also the quiet way back out of every fence this screen
+ * draws, so it is refused here rather than argued about.
+ *
+ * The name, the password and switching a login off are still your own to
+ * change - none of them hands anybody a right they had not got.
+ */
 authRouter.patch('/users/:id', requireAbility('admin'), (req, res) => {
   try {
-    res.json(updateUser(Number(req.params.id), req.body || {}));
+    const id = Number(req.params.id);
+    const patch = req.body || {};
+    if (id === req.actor?.id && ('role' in patch || 'areas' in patch)) {
+      return res.status(403).json({
+        error: 'You cannot change your own role or module ticks — another Admin has to do it.',
+      });
+    }
+    res.json(updateUser(id, patch));
   } catch (err) {
     bad(res, err);
   }

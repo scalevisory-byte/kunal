@@ -148,12 +148,19 @@ test('unticking the last box means "stop narrowing", not "lock them out"', () =>
   );
 });
 
-test('a staff login carries no office area, whatever is ticked', async () => {
+test('a staff login cannot be given an office area at all', async () => {
+  /*
+   * It used to be possible to tick one and simply have it ignored. A tick
+   * that is stored and means nothing is a tick somebody will one day read as
+   * a right that was granted - so it is refused where it is set, and the
+   * login's authority is still only its own person.
+   */
   const staff = users.createUser({
     name: 'Amit Shah', username: 'amit.shah', role: 'employee',
     employee_id: amit.id, password: 'staff-pass-123',
   });
-  users.updateUser(staff.id, { areas: ['salary', 'attendance'] });
+  assert.throws(() => users.updateUser(staff.id, { areas: ['salary', 'attendance'] }), /own record only/);
+
   db.db.prepare(`UPDATE users SET must_change = 0 WHERE id = ?`).run(staff.id);
   const cookie = await signIn('amit.shah', 'staff-pass-123');
   const res = await call(cookie, 'GET', `/api/periods/${month.id}/payroll`);
