@@ -20,13 +20,38 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.65.0';
+export const VERSION = '1.66.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
   {
+    version: '1.66.0',
+    date: '21 Nov 2026',
+    title: 'The employee portal: a proper self-service page for every member of staff',
+    items: [
+      '**Staff now sign in to a portal, not a page of tabs.** A navy rail down the side — Dashboard, My attendance, My leave, My salary, My profile, Holidays, Documents — with Help and Sign out at its foot, and the page you are on marked in gold.',
+      '**A dashboard that opens on today.** Four cards: whether you are marked today, your hours so far, leave left against your quota, and last month’s net pay — each one a link into the page it came from.',
+      '**“Not marked yet” is not an absence**, and no hours is not nought hours. Where the app does not know, it says so. Clocked in and not out reads *still in*, because the hours are not final.',
+      '**Six-month attendance bars**, at work / on leave / absent, drawn without a charting library. A month nobody marked shows a dash, never 100%.',
+      '**Quick actions** — apply for leave, view attendance, view payslip, documents, holidays, contact HR. Every one opens a real page; none of them is decoration.',
+      '**Holidays, and only yours.** A festival kept by some staff and not others shows for the people it covers. One not yet marked on the grid says **planned**, because a planned holiday is not a day off until the office applies it.',
+      '**Documents** — what the office holds on file for you, and what is still wanted for PF and the bank transfer.',
+      '**Coming up** — your own birthday, your work anniversary and the holidays ahead. Nobody else’s: the portal is the one screen that must not leak sideways.',
+      '**Profile menu on your photograph** — profile, documents, change password, help, sign out.',
+      '**Works on a phone**: the rail becomes a drawer that closes when you go somewhere, and nothing overflows sideways on desktop, laptop or tablet.',
+      '**Announcements shows nothing, and says why.** There is no noticeboard in the system to read from, so the card is honest rather than filled with something invented.',
+      '**Nothing of the office is reachable.** Checked against eleven office routes — employees, periods, payroll, logins, audit, assets, hiring, front office, penalties, loans, companies — every one refused.',
+      '**My record — appreciations, warnings and penalties.** The office has kept all three since the People tab was built and the person they are about had never seen any of them: an appreciation nobody reads is a filing exercise, and a fine you first meet on a payslip is an argument.',
+      '**The good list comes first**, then warnings, then anything being recovered from your salary — with the months it came out of and how much, which is the half that answers “where did my ₹500 go”.',
+      '**You can acknowledge a warning yourself.** That date used to be typed in on your behalf. Pressing *I have seen this* records that you read it — it is **not agreement**, it changes nothing about your pay, and it cannot be undone, so the record cannot later say you never saw it.',
+      '**A penalty shows up once you have been told, or once money has come out of it.** One still being looked into is not shown, because it may never be charged — but nothing that reaches your salary can be hidden: the first rupee recovered makes it visible either way.',
+      '**Accepting a penalty is NOT a button.** The office’s column means *accepted*, and agreeing to money coming out of your pay is a conversation, not a tap on a phone. The page shows whether it was accepted and offers no way to do it.',
+      '**The office’s own working notes stay the office’s.** A plain note — “thinking of moving him to the Surat desk” — was never handed to anybody, so it is not on your page. Publishing those would just mean they stopped being written.',
+    ],
+  },
+  {
     version: '1.65.0',
-    date: '22 Nov 2026',
+    date: '21 Nov 2026',
     title: 'Everyone can work their own shift — and Fill now writes theirs',
     items: [
       '**“Fill the usual timings” was writing the office day onto everybody.** One click put 09:00–18:00 onto somebody who works nights. Their hours came out wrong, and because the fill looks like it worked, nothing on the screen said so.',

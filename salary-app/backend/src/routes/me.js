@@ -21,9 +21,25 @@ import {
   listRequests,
   withdrawRequest,
 } from '../attendanceSelf.js';
-import { listTickets, createTicket, getTicket, replyToTicket, listAssets } from '../people.js';
+import {
+  listTickets,
+  createTicket,
+  getTicket,
+  replyToTicket,
+  listAssets,
+  listNotes,
+  getNote,
+  updateNote,
+  listPenalties,
+  listRecoveries,
+} from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
+import {
+  recordSummary,
+  visibleNotes,
+  visiblePenalties,
+} from '../../../shared/myRecord.js';
 
 /**
  * The staff side: one person, their own records, and nothing else.
@@ -475,6 +491,70 @@ meRouter.get('/holidays', (req, res) => {
   }
   out.sort((a, b) => a.date.localeCompare(b.date));
   res.json({ holidays: out });
+});
+
+/* ---------------- what is on their record ---------------- */
+
+/**
+ * APPRECIATIONS, WARNINGS AND PENALTIES - their own copy.
+ *
+ * Dinesh: *"emp[loyee me unke achvemnet and penlatlites bhi dikhe esa karo"*.
+ * The office has kept both lists since the People tab was built; neither had
+ * ever been shown to the person they are about.
+ *
+ * `shared/myRecord.js` holds the rule about what is theirs to see - a warning
+ * and an appreciation yes, the office's own plain jotting no, a penalty once
+ * it has been told or once money has come out of it - so the route, the page
+ * and the tests cannot each have their own idea of it.
+ *
+ * The employee id comes off the LOGIN, as everything in this file does, and
+ * both lists travel through a whitelist rather than a strip.
+ */
+meRouter.get('/record', (req, res) => {
+  const notes = visibleNotes(listNotes(req.employeeId));
+  const penalties = visiblePenalties(
+    listPenalties({ employee_id: req.employeeId }),
+    listRecoveries
+  );
+  res.json({ notes, penalties, summary: recordSummary({ notes, penalties }) });
+});
+
+/**
+ * "I have seen this warning."
+ *
+ * `acknowledged_on` was a date the office typed in on the person's behalf.
+ * This is the person saying it themselves, which is the only way the column
+ * means anything.
+ *
+ * Three deliberate limits:
+ *
+ *   ONLY A WARNING. An appreciation needs no acknowledging, and a plain note
+ *       is not shown here at all.
+ *   ONLY ONCE, AND NEVER BACK. Asking again returns the row unchanged rather
+ *       than moving the date; there is no un-acknowledge, because letting
+ *       somebody take it back would let them deny having seen it.
+ *   NOT FOR A PENALTY. The penalty column means *accepted*, and accepting a
+ *       deduction is a conversation, not a tap on a phone - one column cannot
+ *       tell "I have seen this" from "I agree to this money coming out". So
+ *       the portal shows whether it was accepted and offers no button.
+ */
+meRouter.post('/notes/:id/acknowledge', (req, res) => {
+  const note = getNote(Number(req.params.id));
+  // Theirs, or nothing - and "nothing" reads as missing, which is also what
+  // it is from where they are standing.
+  if (!note || note.employee_id !== req.employeeId) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  if (note.kind !== 'warning') {
+    return res.status(400).json({ error: 'only a warning is acknowledged' });
+  }
+  if (note.acknowledged_on) return res.json({ note });
+  const me = getEmployee(req.employeeId);
+  const updated = updateNote(note.id, {
+    acknowledged_on: new Date().toISOString().slice(0, 10),
+    by: me?.name || 'employee',
+  });
+  res.json({ note: updated });
 });
 
 /** Any loan of theirs, and what is left on it. */

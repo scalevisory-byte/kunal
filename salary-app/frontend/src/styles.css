@@ -3012,7 +3012,15 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 /* ---- the page beside it ---- */
 .my-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .my-top {
-  display: flex; align-items: center; gap: 0.8rem;
+  /*
+   * `flex-direction: row` EXPLICITLY. A global rule stacks every `<header>`
+   * into a column, so the welcome line came out centred with the avatar on
+   * its own row under it. Fourth time for this trap - the Help panel's
+   * header, the salary statement's, the sign-in card's checkbox, and now
+   * this one.
+   */
+  display: flex; flex-direction: row; align-items: center; gap: 0.8rem;
+  text-align: left;
   padding: 0.85rem 1.1rem;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
@@ -3066,7 +3074,7 @@ table.sheet tr.picked td { background: var(--brand-soft); }
   padding: 0.8rem 0.9rem;
   display: flex; flex-direction: column; gap: 0.15rem;
 }
-.my-card header { display: flex; align-items: center; gap: 0.45rem; flex-direction: row; }
+.my-card header { display: flex; align-items: center; gap: 0.45rem; flex-direction: row; text-align: left; }
 .my-card h3 { margin: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
 .my-ico {
   width: 1.5rem; height: 1.5rem; border-radius: 7px; flex: none;
@@ -3079,6 +3087,7 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 .my-card.tone-ok .my-big { color: var(--good, #1f8a5f); }
 .my-card.tone-bad .my-big { color: var(--bad); }
 .my-card.tone-muted .my-big { color: var(--muted); font-size: 1.15rem; }
+.my-card.tone-warn .my-big { color: var(--warn); }
 .my-link {
   margin-top: auto; padding: 0.35rem 0 0;
   background: none; border: 0; text-align: left;
@@ -3115,6 +3124,48 @@ table.sheet tr.picked td { background: var(--brand-soft); }
   text-transform: uppercase; letter-spacing: 0.04em;
 }
 .my-empty { max-width: 34rem; }
+
+/* ---- my record: appreciations, warnings and penalties ---- */
+/*
+ * Its own classes. `.pf-*` belongs to the office's employee record and
+ * `.pa-*` to the People tab - borrowing either is how one restyle silently
+ * moves a screen nobody was looking at.
+ */
+.my-rec { display: flex; flex-direction: column; gap: 0.8rem; }
+.my-rec-list { display: flex; flex-direction: column; gap: 0.1rem; }
+.my-rec-item {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.55rem 0.1rem 0.55rem 0.7rem;
+  border-top: 1px solid var(--line-soft);
+  /* A hairline down the left says which kind it is without colouring the
+     whole row - the same restraint as the rest of the app. */
+  border-left: 3px solid var(--line-soft);
+}
+.my-rec-list > .my-rec-item:first-child { border-top: 0; }
+.my-rec-item.good { border-left-color: var(--good); }
+.my-rec-item.warn { border-left-color: var(--warn); }
+.my-rec-item.pen { border-left-color: var(--bad); }
+/* Waived: nothing is owed, so it does not shout. */
+.my-rec-item.pen.waived { border-left-color: var(--line-soft); }
+.my-rec-when {
+  flex: 0 0 5.5rem; font-size: 0.7rem; color: var(--muted);
+  font-variant-numeric: tabular-nums; padding-top: 0.15rem;
+}
+.my-rec-what { flex: 1 1 auto; min-width: 0; }
+.my-rec-what p { margin: 0.2rem 0 0; }
+/* The kind or severity tag sits beside the subject, not jammed against it. */
+.my-rec-what .pill { margin-left: 0.4rem; }
+.my-rec-act { flex: 0 0 auto; text-align: right; padding-top: 0.1rem; }
+.my-rec-out { font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The dashboard card's three lines. `.my-when` is 5.5rem wide for a date;
+   here it holds one glyph. */
+.my-rec-sum li { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.2rem 0; }
+.my-rec-sum .my-when { flex: 0 0 1.3rem; font-size: 0.9rem; }
+@media (max-width: 620px) {
+  .my-rec-item { flex-wrap: wrap; }
+  .my-rec-when { flex-basis: 100%; }
+  .my-rec-act { flex-basis: 100%; text-align: left; }
+}
 
 /* ---- tablet and phone ---- */
 @media (max-width: 1000px) {

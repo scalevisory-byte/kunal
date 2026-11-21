@@ -17,6 +17,7 @@ import Help from './Help.jsx';
 import MyDashboard from './my/MyDashboard.jsx';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
+import MyRecord from './my/MyRecord.jsx';
 
 /*
  * What an employee sees when they sign in.
@@ -56,6 +57,7 @@ const TABS = [
   ['attendance', 'My attendance', '\u2713'],
   ['leave', 'My leave', '\u2708'],
   ['pay', 'My salary', '\u20b9'],
+  ['record', 'My record', '\u2605'],
   ['me', 'My profile', '\u25cf'],
   ['holidays', 'Holidays', '\u2600'],
   ['documents', 'Documents', '\u25a4'],
@@ -175,6 +177,7 @@ export default function MyPage({ me, onError, onSignOut }) {
                     <span className="muted small">{employee?.code || me?.username || ''}</span>
                   </div>
                   <button role="menuitem" onClick={() => go('me')}>My profile</button>
+                  <button role="menuitem" onClick={() => go('record')}>My record</button>
                   <button role="menuitem" onClick={() => go('documents')}>My documents</button>
                   <button
                     role="menuitem"
@@ -207,6 +210,7 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
           {tab === 'leave' && <MyLeave onError={onError} />}
           {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
+          {tab === 'record' && <MyRecord onError={onError} />}
           {tab === 'holidays' && <MyHolidays onError={onError} />}
           {tab === 'documents' && <MyDocuments onError={onError} />}
           {tab === 'team' && <MyTeam onError={onError} />}
@@ -880,7 +884,7 @@ function MyDetails({ employee, onSaved, onError }) {
       </div>
 
       <div className="card">
-        <h3>On your record</h3>
+        <h3>Held by the office</h3>
         <dl className="pf-facts">
           {THEIRS.map(([key, label]) => (
             <div className="pf-fact" key={key}>

@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 import { formatDuration } from '../../../../shared/timesheet.js';
 import { comingUp, leaveFor, monthFor, todayFor, trendFor } from '../../../../shared/myDashboard.js';
+import { recordSummary } from '../../../../shared/myRecord.js';
 
 /**
  * WHAT ONE PERSON SEES WHEN THEY SIGN IN.
@@ -35,6 +36,7 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
   const [requests, setRequests] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [pay, setPay] = useState(null);
+  const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -52,12 +54,13 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
     (async () => {
       try {
         const want = months.slice(0, 6);
-        const [mine, lv, rq, hol, slip, ...rest] = await Promise.all([
+        const [mine, lv, rq, hol, slip, rec, ...rest] = await Promise.all([
           api.get(`/me/attendance/${latestId}`),
           api.get('/me/leave').catch(() => null),
           api.get('/me/requests').catch(() => ({ requests: [] })),
           api.get('/me/holidays').catch(() => ({ holidays: [] })),
           api.get(`/me/months/${latestId}`).catch(() => null),
+          api.get('/me/record').catch(() => null),
           ...want.slice(1).map((m) => api.get(`/me/attendance/${m.period_id ?? m.id}`).catch(() => null)),
         ]);
         setCurrent(mine);
@@ -65,6 +68,7 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
         setRequests(rq?.requests || []);
         setHolidays(hol?.holidays || []);
         setPay(slip);
+        setRecord(rec);
         setHistory([mine, ...rest.filter(Boolean)]);
       } catch (err) {
         onError?.(err);
@@ -97,6 +101,13 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
   const trend = useMemo(
     () => trendFor([...history].reverse().map((h) => ({ period: h.period, marks: h.marks }))),
     [history]
+  );
+  /* Warnings, appreciations and penalties. The summary is worked out from
+     the same lists the My record page shows, so a count here and the page
+     behind it cannot disagree. */
+  const onRecord = useMemo(
+    () => (record ? recordSummary(record) : null),
+    [record]
   );
   const upcoming = useMemo(
     () => comingUp({ holidays, employee: employee || {}, today }),
@@ -283,6 +294,52 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
             There is no announcements noticeboard in the system yet, so this shows nothing rather
             than something invented. It needs a place for the office to write them.
           </p>
+        </section>
+
+        {/* APPRECIATIONS, WARNINGS AND PENALTIES - asked for by name. Only
+            what was issued to them; the rule is in shared/myRecord.js. */}
+        <section className="card">
+          <div className="row">
+            <h3>My record</h3>
+            <span className="grow" />
+            <button className="ghost small" onClick={() => onGo('record')}>Open</button>
+          </div>
+          {!onRecord ? (
+            <p className="muted small">Not available.</p>
+          ) : onRecord.empty ? (
+            <p className="empty fo-empty">
+              Nothing on your record &mdash; no warning, and no penalty. An appreciation the
+              office puts on your record appears here too.
+            </p>
+          ) : (
+            <ul className="plain-list my-rec-sum">
+              <li>
+                <span className="my-when">&#127942;</span>
+                <span>
+                  <strong>{onRecord.appreciations}</strong> appreciation
+                  {onRecord.appreciations === 1 ? '' : 's'}
+                </span>
+              </li>
+              <li>
+                <span className="my-when">&#9888;</span>
+                <span>
+                  <strong>{onRecord.warnings}</strong> warning{onRecord.warnings === 1 ? '' : 's'}
+                  {onRecord.warnings_unacknowledged
+                    ? <span className="muted small"> &middot; {onRecord.warnings_unacknowledged} to acknowledge</span>
+                    : null}
+                </span>
+              </li>
+              <li>
+                <span className="my-when">&#8377;</span>
+                <span>
+                  {onRecord.penalties
+                    ? <><strong>&#8377;{rupees(onRecord.outstanding)}</strong> still to come out
+                        <span className="muted small"> &middot; &#8377;{rupees(onRecord.recovered)} already recovered</span></>
+                    : <span className="muted">No penalty on your record</span>}
+                </span>
+              </li>
+            </ul>
+          )}
         </section>
 
         <section className="card">

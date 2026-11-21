@@ -688,3 +688,187 @@ test('HR still sees and can decide everything, manager or no manager', async () 
   assert.equal(byOffice.status, 200);
   assert.equal(byOffice.body.decided_by, 'Dinesh');
 });
+
+/*
+ * THE COMPANY'S HOLIDAYS, as they apply to ONE person.
+ *
+ * Holidays carry the religions they cover - Diwali for the Hindu staff, Eid
+ * for the Muslim staff, everybody else at work. A list showing all of them
+ * would tell somebody they have days off they do not have, and that is how
+ * somebody does not turn up.
+ */
+test('holidays are narrowed to the person asking, and never to anybody else', async () => {
+  await admin('PATCH', `/api/employees/${amit.id}`, { religion: 'Hindu' });
+  await admin('PATCH', `/api/employees/${riya.id}`, { religion: 'Muslim' });
+  await admin('POST', `/api/periods/${periodId}/holidays`, { day: 10, name: 'Diwali', religions: ['Hindu'] });
+  await admin('POST', `/api/periods/${periodId}/holidays`, { day: 12, name: 'Eid', religions: ['Muslim'] });
+  await admin('POST', `/api/periods/${periodId}/holidays`, { day: 14, name: 'Republic Day' });
+
+  const mine = await staff('GET', '/api/me/holidays');
+  assert.equal(mine.status, 200);
+  const names = mine.body.holidays.map((h) => h.name).sort();
+  /* Amit is Hindu: his own festival and the one for the whole office. */
+  assert.deepEqual(names, ['Diwali', 'Republic Day']);
+  assert.ok(!names.includes('Eid'), 'somebody else’s festival is not his day off');
+
+  /* A holiday with no religions on it is the whole office, by definition. */
+  const all = mine.body.holidays.find((h) => h.name === 'Republic Day');
+  assert.deepEqual(all.religions, []);
+
+  /*
+   * And a holiday the office has not applied to the grid yet is PLANNED,
+   * not a day off - saying otherwise is how somebody stays at home on a
+   * working day.
+   */
+  assert.equal(all.applied, false);
+  assert.match(all.date, /^\d{4}-\d{2}-\d{2}$/);
+
+  /* Nothing in the payload belongs to anybody: no employee id, no name. */
+  const text = JSON.stringify(mine.body);
+  assert.ok(!text.includes('employee_id'));
+  assert.ok(!text.includes(riya.name));
+});
+
+/*
+ * WHAT IS ON MY RECORD - appreciations, warnings and penalties.
+ *
+ * Dinesh: *"emp[loyee me unke achvemnet and penlatlites bhi dikhe esa karo"*.
+ * The office has kept both lists since the People tab was built, and the
+ * person they are about had never seen either.
+ *
+ * The rule the module holds: THE PORTAL SHOWS WHAT WAS ISSUED TO THEM. A
+ * warning and an appreciation yes; the office's own plain jotting no; a
+ * penalty once it has been told or once money has come out of it.
+ */
+test('the record shows what was issued to them, and not the office’s own jottings', async () => {
+  await admin('POST', '/api/people/notes', {
+    employee_id: amit.id, kind: 'appreciation', dated: '2026-09-04',
+    subject: 'Handled the Dubai group single-handed', issued_by: 'Dinesh',
+  });
+  await admin('POST', '/api/people/notes', {
+    employee_id: amit.id, kind: 'warning', severity: 'written', dated: '2026-10-02',
+    subject: 'Late four times in September', issued_by: 'Dinesh',
+  });
+  /* The office's own jotting. Never handed to anybody, so never shown -
+     publishing it would turn a jotting into a document and the office would
+     simply stop writing them. */
+  await admin('POST', '/api/people/notes', {
+    employee_id: amit.id, kind: 'note', dated: '2026-10-05',
+    subject: 'Thinking about moving him to the Surat desk',
+  });
+  /* And somebody else's, which must not appear whatever happens. */
+  await admin('POST', '/api/people/notes', {
+    employee_id: riya.id, kind: 'warning', dated: '2026-10-06',
+    subject: 'Riya’s own warning',
+  });
+
+  const mine = await staff('GET', '/api/me/record');
+  assert.equal(mine.status, 200);
+  const kinds = mine.body.notes.map((n) => n.kind).sort();
+  assert.deepEqual(kinds, ['appreciation', 'warning']);
+  assert.equal(mine.body.summary.appreciations, 1);
+  assert.equal(mine.body.summary.warnings, 1);
+  assert.equal(mine.body.summary.warnings_unacknowledged, 1);
+
+  const text = JSON.stringify(mine.body);
+  assert.ok(!text.includes('Surat desk'), 'the office’s own jotting is not theirs to read');
+  assert.ok(!text.includes(riya.name));
+  assert.ok(!text.includes('Riya'));
+  /* A whitelist, not a strip: nothing says whose record this is, because the
+     login already did. */
+  assert.ok(!text.includes('employee_id'));
+});
+
+test('a penalty is shown once told, and hidden while it is only being considered', async () => {
+  /* Recorded and NOT told. Recording deducts nothing and it can still be
+     waived; telling somebody by screen before their manager has spoken to
+     them is not the office doing its job. */
+  const quiet = await admin('POST', '/api/people/penalties', {
+    employee_id: amit.id, kind: 'fine', amount: 500,
+    note: 'Still being looked into',
+  });
+  assert.equal(quiet.status, 201);
+
+  const told = await admin('POST', '/api/people/penalties', {
+    employee_id: amit.id, kind: 'damage', amount: 2000, what: 'Office chair',
+    note: 'Chair broken in the Vadodara office', happened_on: '2026-10-09',
+    told_on: '2026-10-10', months: 2,
+  });
+  assert.equal(told.status, 201);
+
+  let mine = (await staff('GET', '/api/me/record')).body;
+  assert.equal(mine.penalties.length, 1);
+  assert.equal(mine.penalties[0].amount, 2000);
+  assert.ok(!JSON.stringify(mine).includes('Still being looked into'));
+
+  /* NOTHING THAT REACHES THEIR SALARY CAN BE HIDDEN. The first rupee
+     recovered makes it visible whether it was told or not. */
+  const took = await admin('POST', `/api/people/penalties/${quiet.body.id}/recover`, {
+    period_id: periodId, amount: 500,
+  });
+  assert.equal(took.status, 200);
+
+  mine = (await staff('GET', '/api/me/record')).body;
+  assert.equal(mine.penalties.length, 2);
+  const now = mine.penalties.find((p) => p.amount === 500);
+  assert.equal(now.told_on, null, 'it was never told - and it is still shown');
+  assert.equal(now.recovered, 500);
+  /* The months it came out of: the half that answers "where did my ₹500 go". */
+  assert.equal(now.recoveries.length, 1);
+  assert.equal(now.recoveries[0].amount, 500);
+
+  /* The note is required when a penalty is recorded, and it is the answer to
+     "why was this cut" - so it must travel. */
+  const chair = mine.penalties.find((p) => p.amount === 2000);
+  assert.match(chair.note, /Vadodara/);
+  assert.equal(chair.outstanding, 2000);
+  assert.equal(mine.summary.outstanding, 2000);
+  assert.equal(mine.summary.recovered, 500);
+});
+
+test('a warning is acknowledged by the person it is about, once, and never back', async () => {
+  const before = (await staff('GET', '/api/me/record')).body;
+  const warning = before.notes.find((n) => n.kind === 'warning');
+  assert.equal(warning.acknowledged_on, null);
+
+  const said = await staff('POST', `/api/me/notes/${warning.id}/acknowledge`, {});
+  assert.equal(said.status, 200);
+  const on = said.body.note.acknowledged_on;
+  assert.match(on, /^\d{4}-\d{2}-\d{2}$/);
+
+  /* Asking again returns it unchanged rather than moving the date. There is
+     no un-acknowledge: letting somebody take it back would let them deny
+     having seen it. */
+  const again = await staff('POST', `/api/me/notes/${warning.id}/acknowledge`, {});
+  assert.equal(again.status, 200);
+  assert.equal(again.body.note.acknowledged_on, on);
+
+  const after = (await staff('GET', '/api/me/record')).body;
+  assert.equal(after.summary.warnings_unacknowledged, 0);
+});
+
+test('nobody can acknowledge somebody else’s warning, or anything but a warning', async () => {
+  const hers = (await admin('POST', '/api/people/notes', {
+    employee_id: riya.id, kind: 'warning', dated: '2026-10-11', subject: 'Hers alone',
+  })).body;
+  /* Not refused - MISSING, which is also what it is from where they are
+     standing. The same shape the ticket routes use. */
+  const reach = await staff('POST', `/api/me/notes/${hers.id}/acknowledge`, {});
+  assert.equal(reach.status, 404);
+  assert.equal((await admin('GET', `/api/people/notes?employee_id=${riya.id}`)).body.notes
+    .find((n) => n.id === hers.id).acknowledged_on, null);
+
+  const good = (await admin('POST', '/api/people/notes', {
+    employee_id: amit.id, kind: 'appreciation', dated: '2026-10-12', subject: 'Nothing to acknowledge',
+  })).body;
+  const no = await staff('POST', `/api/me/notes/${good.id}/acknowledge`, {});
+  assert.equal(no.status, 400);
+  assert.match(no.body.error, /only a warning/);
+});
+
+test('the office’s own penalty and note routes stay shut to a staff login', async () => {
+  for (const url of ['/api/people/penalties', '/api/people/notes']) {
+    const shut = await staff('GET', url);
+    assert.equal(shut.status, 403, `${url} is the office's`);
+  }
+});

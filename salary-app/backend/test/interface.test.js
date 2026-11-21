@@ -2907,3 +2907,160 @@ test('THE TIME TAB REDESIGN TOUCHES ONLY THE TIME TAB', () => {
   assert.ok(app.includes("import TimeSheet from './components/TimeSheet.jsx'"));
   assert.match(src('components/TimeSheet.jsx'), /import LatePolicy/);
 });
+
+/*
+ * THE EMPLOYEE SELF-SERVICE PORTAL.
+ *
+ * Dinesh's brief, with its own capitals: *"Employees must only access their
+ * own data"*, *"Do not rely only on hiding frontend menus"*, *"Do not use
+ * fake attendance, salary or leave data"*, and *"If some dashboard data is
+ * unavailable, display a proper empty state instead of inventing values."*
+ */
+test('the portal is a rail of pages, and the actions are not pretend pages', () => {
+  const page = src('components/MyPage.jsx');
+
+  assert.match(page, /my-shell\$\{navOpen \? ' nav-open'/);
+  assert.match(page, /className="my-rail"/);
+  for (const label of [
+    'Dashboard', 'My attendance', 'My leave', 'My salary',
+    'My profile', 'Holidays', 'Documents', 'My record',
+  ]) {
+    assert.ok(page.includes(`'${label}'`), `${label} is missing from the rail`);
+  }
+  // Help and Sign out are ACTIONS, so they sit at the foot of the rail
+  // rather than pretending to be pages.
+  assert.match(page, /Help &amp; support/);
+  assert.match(page, /onClick=\{onSignOut\}/);
+
+  /*
+   * "My Time" is deliberately NOT a separate entry: it is the same days as
+   * My attendance with the clock times on them, and two entries showing one
+   * set of days is how two things come to disagree.
+   */
+  assert.ok(!/\['time',/.test(page), 'a second page showing the same days');
+});
+
+test('the portal reads ONLY /api/me - there is no id in any URL on it', () => {
+  const files = ['components/MyPage.jsx', 'components/my/MyDashboard.jsx',
+    'components/my/MyHolidays.jsx', 'components/my/MyDocuments.jsx',
+    'components/my/MyRecord.jsx'];
+  for (const file of files) {
+    const text = src(file);
+    const calls = [...text.matchAll(/api\.(get|post|patch|put|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
+    for (const url of calls) {
+      assert.ok(
+        url.startsWith('/me') || url.startsWith('/auth'),
+        `${file} reaches ${url}, which is not the employee's own door`
+      );
+    }
+    // And no employee id is ever interpolated into a path - the server takes
+    // it off the login, which is the whole of the design.
+    assert.ok(
+      !/\/employees\/\$\{/.test(text),
+      `${file} puts an employee id in a URL`
+    );
+  }
+});
+
+test('the dashboard says NOT KNOWN rather than nought, and admits what is not built', () => {
+  const dash = src('components/my/MyDashboard.jsx');
+
+  // A day nobody has marked is not an absence, and no hours is not 0 hours.
+  assert.match(dash, /worked === null \|\| worked === undefined \? '\u2014'/);
+  assert.match(dash, /Nothing on your record yet/);
+  assert.match(dash, /Nothing is marked for you yet/);
+
+  /*
+   * ANNOUNCEMENTS HAS NO NOTICEBOARD BEHIND IT ANYWHERE IN THE SYSTEM, so
+   * the card says so instead of being filled with something invented. His
+   * brief asks for exactly this rather than demo data.
+   */
+  assert.match(dash, /no announcements noticeboard in the system/);
+  const code = dash.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/const DEMO|placeholder|lorem/i.test(code), 'demo data on the employee dashboard');
+});
+
+test('the portal styles cannot reach the office app', () => {
+  /*
+   * "Do not change Dashboard / Salary Sheet / Attendance / ..." inside one
+   * shared stylesheet means every selector has to be prefixed. `.my-*` is
+   * carried by MyPage and the three files under components/my/ and by
+   * nothing else.
+   */
+  const office = ['components/Dashboard.jsx', 'components/SalarySheet.jsx',
+    'components/Attendance.jsx', 'components/Employees.jsx'];
+  for (const file of office) {
+    assert.ok(
+      !/className="[^"]*\bmy-(shell|rail|card|cards|grid|top|body|dash)\b/.test(src(file)),
+      `${file} has picked up a portal class`
+    );
+  }
+  assert.match(css, /\.my-shell \{/);
+  assert.match(css, /\.my-rail \{/);
+  // The header trap, for the fourth time: a global rule stacks every
+  // <header> into a column.
+  assert.match(css, /\.my-top \{[^}]*flex-direction: row/);
+});
+
+/*
+ * MY RECORD - appreciations, warnings and penalties on the person's own page.
+ *
+ * Dinesh: *"emp[loyee me unke achvemnet and penlatlites bhi dikhe esa karo"*.
+ */
+test('the record page shows the good list first, and offers no way to change anything', () => {
+  const page = src('components/my/MyRecord.jsx');
+
+  /*
+   * THE GOOD LIST FIRST, deliberately. Putting somebody's fines at the top of
+   * their own page is a choice about how the company talks to its staff.
+   */
+  /* The row classes, not the headings: "Appreciations" and "Warnings" are
+     also the names of two stat tiles above, so an indexOf on the words finds
+     the tile and not the list. */
+  const good = page.indexOf('my-rec-item good');
+  const warn = page.indexOf('my-rec-item warn');
+  const pen = page.indexOf('my-rec-item pen');
+  assert.ok(good > 0 && warn > good && pen > warn, 'appreciations come first');
+
+  /*
+   * The ONE thing it can write is the acknowledgement, and nothing else -
+   * an employee cannot waive their own fine or edit a warning.
+   */
+  const writes = [...page.matchAll(/api\.(post|patch|del|put)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
+  assert.deepEqual(writes, ['/me/notes/${id}/acknowledge']);
+
+  /* Every empty list says what it is empty OF, not just "nothing". */
+  assert.match(page, /No penalty on your record/);
+  assert.match(page, /No warning on your record/);
+
+  /* And the penalty note travels, because it is the answer to "why was this
+     cut" and the same line the payslip prints. */
+  assert.match(page, /\{p\.note\}/);
+  /* Where the money went: the months it came out of. */
+  assert.match(page, /Taken from:/);
+});
+
+test('acknowledging is reading, not agreeing - and there is no such button on a penalty', () => {
+  const page = src('components/my/MyRecord.jsx');
+  /*
+   * `employee_notes.acknowledged_on` means SEEN, which is exactly what a tap
+   * can mean. `penalties.acknowledged_on` means ACCEPTED, and one column
+   * cannot tell "I have seen this" from "I agree to this money coming out" -
+   * so the portal shows whether it was accepted and offers no button.
+   */
+  assert.match(page, /it is not agreement, and it\s+changes nothing about your pay/);
+  const penaltyBlock = page.slice(page.indexOf('Penalties &amp; recoveries'));
+  assert.ok(!/acknowledge\(/.test(penaltyBlock), 'a penalty must not be acceptable by tap');
+});
+
+test('the record rule lives in one place, not in the page', () => {
+  const page = src('components/my/MyRecord.jsx');
+  /*
+   * What is theirs to see is decided in shared/myRecord.js, which the route,
+   * the page and the tests all read. A page with its own idea of it is how
+   * the screen and the payload come to disagree.
+   */
+  assert.match(page, /from '\.\.\/\.\.\/\.\.\/\.\.\/shared\/myRecord\.js'/);
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/kind === 'note'/.test(code), 'the page must not re-decide which kinds are shown');
+});

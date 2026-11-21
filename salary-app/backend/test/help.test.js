@@ -39,13 +39,27 @@ test('a topic that names a tab names a real one', () => {
    * stopped finding ANY tab the moment a fourth item was added, and reported
    * it as "0 tabs to check against" rather than as a help topic being wrong.
    */
-  const tabs = new Set(
-    [...app.matchAll(/^\s*\['([a-z]+)',\s*'[^']+',/gm)].map((m) => m[1])
-  );
+  const keys = (text) => [...text.matchAll(/^\s*\['([a-z]+)',\s*'[^']+',/gm)].map((m) => m[1]);
+  const tabs = new Set(keys(app));
   assert.ok(tabs.size >= 8, `only found ${tabs.size} tabs to check against`);
+
+  /*
+   * A STAFF topic belongs to the STAFF app, which is MyPage and not App.
+   * The portal has its own rail - Dashboard, My attendance, Holidays and
+   * the rest - and a staff topic naming one of those is correct, not a
+   * drift. Checking everything against the office's tabs reported the
+   * portal's own Dashboard as a tab that does not exist.
+   */
+  const staffTabs = new Set(keys(src('components/MyPage.jsx')));
+  assert.ok(staffTabs.size >= 5, `only found ${staffTabs.size} staff tabs`);
+
   for (const topic of HELP) {
     if (!topic.tab) continue;
-    assert.ok(tabs.has(topic.tab), `${topic.id} points at "${topic.tab}", which is not a tab`);
+    const allowed = topic.staff ? new Set([...tabs, ...staffTabs]) : tabs;
+    assert.ok(
+      allowed.has(topic.tab),
+      `${topic.id} points at "${topic.tab}", which is not a ${topic.staff ? 'staff or office' : 'tab'}`
+    );
   }
 });
 
