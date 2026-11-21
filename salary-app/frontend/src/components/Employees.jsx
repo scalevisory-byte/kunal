@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
 import { openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
-import { DEFAULT_TEMPLATE, applyTemplate, salaryStructure } from '../../../shared/structure.js';
+import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
+import EmployeeForm from './EmployeeForm.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
 import OrgChart from './OrgChart.jsx';
 import DepartmentManagers from './DepartmentManagers.jsx';
@@ -18,29 +19,6 @@ import BulkEmployees from './BulkEmployees.jsx';
 /* The people with nothing in that field - a group, not a gap. */
 const NOT_SET = '\u0000none';
 
-const BLANK = {
-  name: '',
-  company_id: '',
-  monthly_salary: '',
-  pf: '',
-  esi: '',
-  payment_mode: 'Bank',
-  code: '',
-  designation: '',
-  religion: '',
-  // Where the salary goes. Asked for here rather than only on the record,
-  // because a bank transfer needs all three and the day somebody is added is
-  // the day the passbook is in front of you.
-  bank_name: '',
-  bank_account: '',
-  ifsc: '',
-  // The salary breakup. Blank is a real answer - "no structure yet" - and the
-  // app pays exactly the same either way.
-  basic: '',
-  hra: '',
-  conveyance: '',
-  medical: '',
-};
 
 /*
  * Naming people in a note. Capped, because the honest thing is to say who is
@@ -141,7 +119,6 @@ export default function Employees({
   onReload,
   onError,
 }) {
-  const [form, setForm] = useState(BLANK);
   const [companyName, setCompanyName] = useState('');
   const [query, setQuery] = useState('');
   /*
@@ -166,6 +143,7 @@ export default function Employees({
   const [bulkDepartment, setBulkDepartment] = useState('');
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
+  const [adding, setAdding] = useState(false);
   /*
    * Opened from elsewhere - the dashboard's register has a "view" beside each
    * name. Cleared straight away so returning to this tab later does not
@@ -351,43 +329,6 @@ export default function Employees({
       setError(err.message);
     } finally {
       setBusy(false);
-    }
-  };
-
-  /* What the four boxes currently add up to, and what is left over. */
-  const addSplit = salaryStructure({
-    monthly_salary: Number(form.monthly_salary) || 0,
-    basic: Number(form.basic) || 0,
-    hra: Number(form.hra) || 0,
-    conveyance: Number(form.conveyance) || 0,
-    medical: Number(form.medical) || 0,
-  });
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      const made = await onCreate({
-        ...form,
-        company_id: Number(form.company_id),
-        monthly_salary: Number(form.monthly_salary) || 0,
-        pf: Number(form.pf) || 0,
-        esi: Number(form.esi) || 0,
-        basic: Number(form.basic) || 0,
-        hra: Number(form.hra) || 0,
-        conveyance: Number(form.conveyance) || 0,
-        medical: Number(form.medical) || 0,
-      });
-      setForm({ ...BLANK, company_id: form.company_id });
-      /*
-       * A document cannot be attached to somebody who does not exist yet - the
-       * file is stored against an employee id. So the row is made first and
-       * their record opens straight away, on the same click: the PAN card and
-       * the passbook photo go on there, with the rest of the joining form.
-       */
-      if (made?.id) setProfileFor(made.id);
-    } catch (err) {
-      setError(err.message);
     }
   };
 
@@ -915,6 +856,18 @@ export default function Employees({
                     >
                       {emp.name}
                     </button>
+                    {/* A DRAFT IS SAID OUT LOUD. It is on this list because
+                        it is a real row, and it is on no payroll at all -
+                        reading it as an ordinary employee is how somebody
+                        wonders in December why there is no payslip. */}
+                    {emp.is_draft ? (
+                      <span
+                        className="pill draft"
+                        title="Started and not finished. On no payroll month until it is saved properly — open it and press Finish."
+                      >
+                        draft
+                      </span>
+                    ) : null}
                     {/* The word only: the date is two columns along under
                         Left, and this cell is clipped at 17rem - a second
                         copy of the date pushed "report" and the bank warning
@@ -1204,196 +1157,55 @@ export default function Employees({
 
       <BulkEmployees onReload={onReload} onError={(m) => (onError ? onError(m) : setError(m))} />
 
+      {/*
+        * THE JOINING FORM, behind a button.
+        *
+        * It used to be six boxes sitting on this page - company, name,
+        * salary, PF, ESI, how they are paid - and everything else about a
+        * person was typed into the drawer afterwards, if anybody remembered.
+        * The eight-section form is `EmployeeForm`; the shape of it lives in
+        * shared/employeeMaster.js so the form, the validation and the
+        * completeness figure cannot drift apart.
+        */}
       <div className="card">
-        <h2>Add employee</h2>
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            Company
-            <select
-              required
-              value={form.company_id}
-              onChange={(e) => setForm({ ...form, company_id: e.target.value })}
-            >
-              <option value="">Select…</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Name
-            <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </label>
-          <label>
-            Monthly salary
-            <input
-              required
-              inputMode="decimal"
-              value={form.monthly_salary}
-              onChange={(e) => setForm({ ...form, monthly_salary: e.target.value })}
-            />
-          </label>
-          <label>
-            PF
-            <input inputMode="decimal" value={form.pf} onChange={(e) => setForm({ ...form, pf: e.target.value })} />
-          </label>
-          <label>
-            ESI
-            <input inputMode="decimal" value={form.esi} onChange={(e) => setForm({ ...form, esi: e.target.value })} />
-          </label>
-          <label>
-            Pay by
-            <select value={form.payment_mode} onChange={(e) => setForm({ ...form, payment_mode: e.target.value })}>
-              <option>Bank</option>
-              <option>Cash</option>
-              <option>Gpay</option>
-              <option>Cheque</option>
-            </select>
-          </label>
-          {/* Cash in hand needs no account, and asking for one is noise. */}
-          {form.payment_mode !== 'Cash' && (
-            <>
-              <label>
-                Bank
-                <input
-                  value={form.bank_name}
-                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
-                />
-              </label>
-              <label>
-                Account number
-                <input
-                  value={form.bank_account}
-                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
-                />
-              </label>
-              <label>
-                IFSC
-                <input
-                  placeholder="SBIN0001234"
-                  value={form.ifsc}
-                  onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })}
-                />
-              </label>
-            </>
-          )}
-          <label title="Decides which festivals are a paid holiday for this person">
-            Religion
-            <input
-              list="religion-list"
-              placeholder="optional"
-              value={form.religion}
-              onChange={(e) => setForm({ ...form, religion: e.target.value })}
-            />
-          </label>
-          <button className="primary" type="submit">Add</button>
-        </form>
-
-        {/*
-         * The breakup, on the same form. It is worth saying out loud that it
-         * changes nothing about what this person is paid: Basic, HRA and the
-         * rest are a division of the salary already typed above, and gross,
-         * net, PT and every deduction come out identical with or without
-         * them. What it buys is a payslip that shows lines, and PF charged on
-         * Basic rather than on the whole gross.
-         *
-         * Blank is a real answer. Most people will leave it and split later,
-         * or in bulk further down the page.
-         */}
-        <div className="split-add">
-          <div className="row">
-            <strong className="small">Salary structure</strong>
-            <button
-              type="button"
-              className="ghost tiny"
-              disabled={!(Number(form.monthly_salary) > 0)}
-              title={`Basic ${DEFAULT_TEMPLATE.basicPercent}%, HRA ${DEFAULT_TEMPLATE.hraPercentOfBasic}% of Basic, conveyance ${DEFAULT_TEMPLATE.conveyance}, medical ${DEFAULT_TEMPLATE.medical}`}
-              onClick={() => setForm({ ...form, ...applyTemplate(Number(form.monthly_salary)) })}
-            >
-              Use the usual split
-            </button>
-            {(form.basic || form.hra || form.conveyance || form.medical) && (
-              <button
-                type="button"
-                className="ghost tiny"
-                onClick={() =>
-                  setForm({ ...form, basic: '', hra: '', conveyance: '', medical: '' })
-                }
-              >
-                clear it
-              </button>
-            )}
-          </div>
-          <div className="form-grid">
-            <label>
-              Basic
-              <input
-                inputMode="decimal"
-                value={form.basic}
-                onChange={(e) => setForm({ ...form, basic: e.target.value })}
-              />
-            </label>
-            <label>
-              HRA
-              <input
-                inputMode="decimal"
-                value={form.hra}
-                onChange={(e) => setForm({ ...form, hra: e.target.value })}
-              />
-            </label>
-            <label>
-              Conveyance
-              <input
-                inputMode="decimal"
-                value={form.conveyance}
-                onChange={(e) => setForm({ ...form, conveyance: e.target.value })}
-              />
-            </label>
-            <label>
-              Medical
-              <input
-                inputMode="decimal"
-                value={form.medical}
-                onChange={(e) => setForm({ ...form, medical: e.target.value })}
-              />
-            </label>
-            <label title="Whatever is left of the salary. Never typed, so the parts cannot drift from the total.">
-              Special allowance
-              <input value={addSplit.set ? rupees(addSplit.special) : ''} readOnly disabled />
-            </label>
-          </div>
-          {addSplit.over ? (
-            <p className="error">
-              The parts come to {rupees(addSplit.named)}, which is {rupees(addSplit.overBy)} more
-              than the salary. Lower one of them.
-            </p>
-          ) : (
-            <p className="muted small">
-              Optional, and it does <strong>not</strong> change what they are paid — it only
-              divides the salary above into lines on the payslip. Leave it blank and the payslip
-              shows one figure.
-            </p>
-          )}
+        <div className="row">
+          <h2>Add employee</h2>
+          <span className="grow" />
+          <button className="primary" onClick={() => setAdding(true)}>Add employee</button>
         </div>
-        {error && <p className="error">{error}</p>}
         <p className="muted small">
-          <strong>Religion</strong> decides which festivals count as a paid holiday for someone.
-          Set it once and the <strong>Festivals</strong> panel on the attendance grid does the
-          rest — Eid marks the Muslim staff paid, Diwali the Hindu staff, and everyone else works
-          that day as normal. To fill it in for a lot of people at once, tick them in the list
-          below and use <strong>Set religion to</strong>. The box takes anything you type; the
-          suggestions are only suggestions.
-        </p>
-        <p className="muted small">
-          <strong>Documents</strong> — PAN card, Aadhaar, photograph, cancelled cheque — attach to
-          the person, so their record opens the moment you press <strong>Add</strong> and the
-          upload box is waiting there. The rest of the joining form is on the same screen.
+          Eight sections — who they are, the job, where they live, the statutory numbers, pay
+          and bank, the emergency contact, their documents and their access. Only a{' '}
+          <strong>name and a company</strong> are needed to save; the rest is chased by the
+          joining checklist on their record. <strong>Save draft</strong> keeps a half-finished
+          form off every payroll until it is finished.
         </p>
         <p className="muted small">
           A new employee joins the open month the next time it is refreshed - salary, PF and ESI carry
           across, and anything already typed into that month stays put.
         </p>
       </div>
+
+      {adding && (
+        <div className="picker-backdrop" onClick={() => setAdding(false)}>
+          <div className="modal ef-modal" onClick={(e) => e.stopPropagation()}>
+            <EmployeeForm
+              companies={companies}
+              employees={employees}
+              companyId={companyId || ''}
+              onCreate={onCreate}
+              onClose={(made) => {
+                setAdding(false);
+                /* A document cannot be attached to somebody who does not
+                   exist yet - the file is stored against an employee id. So
+                   their record opens on the same click, with the upload
+                   boxes waiting. */
+                if (made?.id) setProfileFor(made.id);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2>Companies</h2>

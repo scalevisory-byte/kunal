@@ -16,6 +16,7 @@ import {
   newestPhoto,
   recordHistory,
   updateEmployee,
+  audit,
 } from '../db.js';
 import fs from 'node:fs';
 import { deleteDocumentFile, documentFile, documentLink, uploadDocument } from '../documents.js';
@@ -338,6 +339,39 @@ employeesRouter.get('/:id/punch-link', (req, res) => {
 });
 
 /** A note on the record - "promoted", "moved to Surat" - with no field change. */
+/**
+ * SOMEBODY LOOKED AT A PAN, AN AADHAAR OR A BANK ACCOUNT.
+ *
+ * The record masks all three on screen - `••••••234F` - and reveals one only
+ * when somebody presses "show". This writes that down.
+ *
+ * Honest about what it is: the figure already travelled to the browser,
+ * because the PF return, the ESI return and the staff export all need it and
+ * the Employees area is exactly the permission that covers them. This is not
+ * encryption and nothing here pretends it is. What the mask does is keep an
+ * Aadhaar off a shared screen, out of a screenshot and away from a shoulder,
+ * and what this route adds is a name against the moment somebody chose to
+ * see one.
+ */
+employeesRouter.post('/:id/viewed', (req, res) => {
+  const employee = getEmployee(Number(req.params.id));
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  const field = String(req.body?.field || '').trim();
+  if (!['pan', 'aadhaar', 'bank_account'].includes(field)) {
+    return res.status(400).json({ error: 'not a masked field' });
+  }
+  audit({
+    who: req.actor?.name || 'office',
+    action: 'viewed',
+    entity: 'employees',
+    entity_id: employee.id,
+    label: employee.name,
+    field,
+    note: 'revealed on the employee record',
+  });
+  res.json({ ok: true });
+});
+
 employeesRouter.post('/:id/history', (req, res) => {
   const employee = getEmployee(Number(req.params.id));
   if (!employee) return res.status(404).json({ error: 'not found' });

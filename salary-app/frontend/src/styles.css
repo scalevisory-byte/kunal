@@ -5492,3 +5492,88 @@ table.sheet.results-table thead th.tr-acts { background: var(--line-soft); z-ind
 table.sheet.results-table tbody tr:hover td.tr-acts {
   background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
+
+/* ---- the joining form: eight sections behind tabs ---- */
+/*
+ * Its own classes. `.modal.profile` belongs to the record drawer and
+ * `.pf-*` to its panels - borrowing either means one restyle silently
+ * changes a screen nobody was looking at.
+ */
+.ef-modal { max-width: 56rem; width: min(96vw, 56rem); }
+.ef-wrap { display: flex; flex-direction: column; gap: 0.6rem; }
+/* A <header> is stacked into a column by the global rule. Row, explicitly. */
+.ef-head { display: flex; flex-direction: row; align-items: flex-start; gap: 0.6rem; }
+.ef-head h2 { margin: 0; }
+.ef-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; border-bottom: 1px solid var(--line); }
+.ef-tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 0.4rem 0.6rem; font-size: 0.82rem; color: var(--muted); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.ef-tabs button.on { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
+.ef-no {
+  display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem;
+  border-radius: 50%; background: var(--line-soft); font-size: 0.65rem; font-weight: 700;
+}
+.ef-tabs button.on .ef-no { background: var(--brand); color: #fff; }
+.ef-pc { font-size: 0.65rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ef-body { min-height: 16rem; }
+.ef-why { margin: 0 0 0.5rem; }
+.ef-grid label { font-size: 0.78rem; }
+.ef-star { color: var(--bad); }
+.ef-problem { color: var(--warn); font-size: 0.7rem; }
+.ef-check { display: flex; align-items: center; gap: 0.4rem; grid-column: 1 / -1; }
+/* The global `input, select` rule gives a checkbox a border, a background and
+   padding, which replaces the native tick with an empty box. Handed back. */
+.ef-check input[type="checkbox"] {
+  width: 15px; height: 15px; margin: 0; padding: 0;
+  border: initial; background: initial; appearance: auto;
+}
+.ef-note { border-left: 3px solid var(--brand); padding: 0.1rem 0 0.1rem 0.7rem; }
+.ef-dup {
+  border: 1px solid var(--warn); border-left-width: 3px; border-radius: var(--radius);
+  padding: 0.5rem 0.7rem; background: color-mix(in srgb, var(--warn) 7%, var(--surface));
+}
+.ef-dup.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.ef-dup ul { margin: 0.35rem 0 0; font-size: 0.8rem; }
+.ef-error { margin: 0; }
+.ef-foot {
+  display: flex; flex-direction: row; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding-top: 0.6rem;
+}
+@media (max-width: 620px) {
+  .ef-tabs button { padding: 0.35rem 0.45rem; font-size: 0.75rem; }
+  .ef-foot .muted { flex-basis: 100%; }
+}
+
+/* A masked identifier, and the way to see it. */
+.masked-box { display: flex; align-items: center; gap: 0.4rem; }
+.masked-value {
+  flex: 1 1 auto; font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+  padding: 0.3rem 0.4rem; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--line-soft); color: var(--muted);
+}
+
+/* A record somebody started and has not finished. */
+.pill.draft { border-color: var(--warn); color: var(--warn); }
+
+/* ---- "who stands out": eight rankings, laid out as rankings ---- */
+.so-grid { display: grid; gap: 0.7rem 1.4rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.so-rank h4 {
+  margin: 0 0 0.25rem; font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+.so-list { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.so-list li {
+  display: flex; align-items: baseline; gap: 0.45rem;
+  padding: 0.15rem 0; border-bottom: 1px solid var(--line-soft);
+}
+.so-list li:last-child { border-bottom: 0; }
+.so-no {
+  flex: none; width: 1.1rem; text-align: right;
+  font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.so-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-value { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
+.so-value.bad { color: var(--bad); }
+.so-value.good { color: var(--good); }

@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.67.0';
+export const VERSION = '1.68.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.68.0',
+    date: '22 Nov 2026',
+    title: 'The joining form: eight sections, an automatic code and a duplicate check',
+    items: [
+      '**Adding somebody was six boxes** \u2014 company, name, salary, PF, ESI, how they are paid \u2014 and everything else about a person got typed into the record afterwards, if anybody remembered. The PF return does not file for want of a UAN and the transfer fails for want of an IFSC, and neither shows up until month end.',
+      '**Now it is eight sections behind tabs**: who they are, the job, where they live, the statutory numbers, pay and bank, the emergency contact, their documents and their access \u2014 each tab saying what it is for and showing how much of it is filled in.',
+      '**The employee code is generated**, from the company\u2019s own series \u2014 BOO-001, BOO-002. It is **suggested, never reserved**: two people with the form open do not burn two numbers between them and leave a hole. A code you type by hand is left alone for good, because the punch machine already knows those.',
+      '**It tells you if the person is already on the list**, while you type, and says **why**: the same mobile number, the same PAN, the same name and date of birth. It is a **warning, not a refusal** \u2014 two brothers at one company really do share a surname. The one thing refused outright is an **exact employee code**, because two people with one code means the punch import, the bank file and the muster roll each pick whichever they find first.',
+      '**Save draft** keeps a half-finished form **off every payroll month** \u2014 nothing counted, no payslip \u2014 until you press *Finish*. A form started mid-shift can be finished on Monday without inventing a payslip for somebody who has not started.',
+      '**Only a name and a company are needed to save.** Not the joining date, not the salary, however loudly the form stars them \u2014 the staff spreadsheet import, the hiring handover and the bulk add all want no more than that, and a rule enforced on one door of several is a surprise rather than a rule. The joining checklist chases the rest.',
+      '**New on the record**: employment type, a **head of department** beside the reporting manager (five people on a desk report to a supervisor who reports to the HOD, and a leave approval has to know which), work location, nationality, and a **present and permanent address in parts** instead of one box.',
+      '**PAN, Aadhaar and the bank account are hidden** on the record \u2014 ••••••234F — with a **show** button, and **showing one is written to the audit trail** with the name of whoever looked. Said plainly in the app: this keeps an Aadhaar off a shared screen and out of a screenshot. It is not encryption and does not pretend to be.',
+      '**Nothing anywhere in this moves a rupee.** Not one of the new fields reaches the salary calculation, and there is a test over a real month asserting the net comes out identical.',
+      '**“Who stands out this month” reads as rankings now** \u2014 numbered lists with the figure beside each name, two to a row, instead of eight run-on strips of chips. It was also printing **most hours worked** and **fewest hours worked** as two findings when, in a month where everybody clocked one nine-hour day, they were the same five people at the same figure: now that case is said once, as “everybody is level”. And “over 1 days” reads “over 1 day”.',
+    ],
+  },
   {
     version: '1.67.0',
     date: '21 Nov 2026',

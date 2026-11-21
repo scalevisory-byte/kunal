@@ -3121,3 +3121,60 @@ test('the roll call’s reasons column is styled by class, not by position', () 
   assert.match(css, /table\.sheet\.roll-table td\.what-cell/);
   assert.match(src('components/Dashboard.jsx'), /<th className="what-cell">What<\/th>/);
 });
+
+/*
+ * THE JOINING FORM.
+ *
+ * Dinesh's brief: a *"complete, professional New Employee form with 8
+ * sections"*, tabbed, mandatory fields marked, drafts, duplicate detection,
+ * and PAN and Aadhaar masked.
+ */
+test('the form reads its shape from the shared module, not from its own JSX', () => {
+  const form = src('components/EmployeeForm.jsx');
+  /*
+   * A form whose fields live in its own markup cannot answer "what is still
+   * missing", and the answer drifts the first time a field is added. The
+   * sections, what is starred and what counts towards completeness all come
+   * from shared/employeeMaster.js.
+   */
+  assert.match(form, /from '\.\.\/\.\.\/\.\.\/shared\/employeeMaster\.js'/);
+  assert.match(form, /SECTIONS\.map|tabs\.map/);
+  const code = form.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/'Full name'|'Date of joining'/.test(code), 'a field label typed into the form');
+});
+
+test('the form warns about a duplicate and refuses only a code clash', () => {
+  const form = src('components/EmployeeForm.jsx');
+  assert.match(form, /check-duplicate/);
+  assert.match(form, /This is a warning, not a refusal/);
+  /* Save draft is a real second button, not the same one with a tick. */
+  assert.match(form, /Save draft/);
+  assert.match(form, /Save employee/);
+});
+
+test('the old six-box add form is gone, and nothing else kept its fields', () => {
+  const list = src('components/Employees.jsx');
+  assert.match(list, /import EmployeeForm/);
+  /* The inline form had its own state; leaving it behind would mean two
+     ways to add somebody, one of which nobody maintains. */
+  const code = list.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/const BLANK = \{/.test(code), 'the old add form is still here');
+  assert.ok(!/setForm\(\{ \.\.\.BLANK/.test(code));
+});
+
+test('PAN, Aadhaar and the account are masked on the record, and the reveal is recorded', () => {
+  const profile = src('components/EmployeeProfile.jsx');
+  assert.match(profile, /MASKED\[field\]/);
+  assert.match(profile, /\/viewed/);
+  assert.match(profile, /hidden — showing it is recorded/);
+  /* Honest about what the mask is: the value already travelled, because the
+     PF return and the staff export need it. */
+  assert.match(profile, /not encryption/);
+});
+
+test('a draft says so on the list and on the record', () => {
+  assert.match(src('components/Employees.jsx'), /pill draft/);
+  assert.match(src('components/EmployeeProfile.jsx'), /This record is a draft/);
+  /* And it says what being a draft MEANS, which is the part that matters. */
+  assert.match(src('components/EmployeeProfile.jsx'), /no payroll month/);
+});

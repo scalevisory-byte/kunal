@@ -460,6 +460,21 @@ export const HELP = [
     note: 'ONE FILE HOLDS ONE PERSON. Never forward the whole single-file app to an employee — that one carries every salary in the company.',
   },
   {
+    id: 'add-employee',
+    title: 'Adding somebody \u2014 the joining form',
+    tab: 'employees',
+    keywords: ['add employee', 'joining', 'new joiner', 'form', 'naya aadmi', 'bharti', 'code', 'duplicate', 'draft'],
+    lines: [
+      '**Employees \u2192 Add employee** opens eight sections: basic details, the job, address, statutory numbers, pay and bank, emergency contact, documents and access.',
+      '**Only a name and a company are needed to save.** The joining date and the salary are starred because a finished record has them \u2014 but the save goes through without, and the **joining checklist** on their record chases the rest.',
+      '**The code fills itself in** from the company\u2019s series. Type your own and it is left alone \u2014 the punch machine already knows those codes.',
+      '**If somebody similar is already on the list it says so, and why** \u2014 the same mobile, the same PAN, the same name and date of birth. Add them anyway if they are a different person; the only thing actually refused is an exact employee code.',
+      '**Save draft** when the details are not to hand. A draft is on **no payroll month** until you open it and press *Finish*.',
+      '**Documents go on the record, not on the form** \u2014 a file has to hang on somebody, so their record opens the moment you save, with the upload boxes waiting.',
+    ],
+    note: 'PAN, AADHAAR AND THE BANK ACCOUNT ARE HIDDEN on the record until you press “show”, and showing one is recorded with your name. It keeps them off a shared screen; it is not encryption.',
+  },
+  {
     id: 'employees',
     title: 'The employee record',
     tab: 'employees',

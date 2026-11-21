@@ -2597,54 +2597,79 @@ export default function Dashboard({
             <Stat label="Late arrivals" value={monthTotalsOf.late} plain />
             <Stat label="Early finishes" value={monthTotalsOf.early} plain />
           </div>
-          <NameList
-            label="Most days present"
-            list={outliers.mostPresent}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${days(m.present)} day${m.present === 1 ? '' : 's'}`}
-          />
-          <NameList
-            label="Most days lost"
-            list={outliers.mostAbsent}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${days(m.absent)} day${m.absent === 1 ? '' : 's'}`}
-          />
-          <NameList
-            label="Most hours worked"
-            list={outliers.mostHours}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${formatDuration(m.worked)} over ${m.clocked} days`}
-          />
-          <NameList
-            label="Fewest hours worked"
-            list={outliers.leastHours}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${formatDuration(m.worked)} over ${m.clocked} days`}
-          />
-          <NameList
-            label="Most late arrivals"
-            list={outliers.late}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${m.late} day${m.late === 1 ? '' : 's'}`}
-          />
-          <NameList
-            label="Most early finishes"
-            list={outliers.early}
-            name={(m) => m.employee_name}
-            suffix={(m) => `${m.early} day${m.early === 1 ? '' : 's'}`}
-          />
-          <NameList
-            label="Most hours short"
-            list={outliers.short}
-            name={(r) => r.employee_name}
-            suffix={(r) => formatDuration(-r.ot_minutes)}
-          />
-          <NameList
-            label="Most overtime"
-            list={outliers.over}
-            name={(r) => r.employee_name}
-            suffix={(r) => formatDuration(r.ot_minutes)}
-          />
+          {/*
+            * EIGHT RANKINGS, LAID OUT AS RANKINGS.
+            *
+            * They were eight run-on strips of chips down the card, which is
+            * hard to read and - worse - printed "most hours worked" and
+            * "fewest hours worked" as two findings when, in a month where
+            * everybody clocked one nine-hour day, they are the same five
+            * people with the same figure. Two lists that cannot differ are
+            * not two facts.
+            */}
+          <div className="so-grid">
+            <Rank
+              label="Most days present"
+              list={outliers.mostPresent}
+              value={(m) => `${days(m.present)} ${m.present === 1 ? 'day' : 'days'}`}
+            />
+            <Rank
+              label="Most days lost"
+              list={outliers.mostAbsent}
+              value={(m) => `${days(m.absent)} ${m.absent === 1 ? 'day' : 'days'}`}
+              tone="bad"
+            />
+            {/* Most and fewest are one list when they hold the same people at
+                the same figure - said once, with why. */}
+            {sameRanking(outliers.mostHours, outliers.leastHours, (m) => m.worked) ? (
+              <Rank
+                label="Hours worked"
+                list={outliers.mostHours}
+                value={(m) => `${formatDuration(m.worked)} over ${m.clocked} ${m.clocked === 1 ? 'day' : 'days'}`}
+                note="everybody with hours recorded is level, so there is no most or fewest"
+              />
+            ) : (
+              <>
+                <Rank
+                  label="Most hours worked"
+                  list={outliers.mostHours}
+                  value={(m) => `${formatDuration(m.worked)} over ${m.clocked} ${m.clocked === 1 ? 'day' : 'days'}`}
+                />
+                <Rank
+                  label="Fewest hours worked"
+                  list={outliers.leastHours}
+                  value={(m) => `${formatDuration(m.worked)} over ${m.clocked} ${m.clocked === 1 ? 'day' : 'days'}`}
+                  tone="bad"
+                />
+              </>
+            )}
+            <Rank
+              label="Most late arrivals"
+              list={outliers.late}
+              value={(m) => `${m.late} ${m.late === 1 ? 'day' : 'days'}`}
+              tone="bad"
+            />
+            <Rank
+              label="Most early finishes"
+              list={outliers.early}
+              value={(m) => `${m.early} ${m.early === 1 ? 'day' : 'days'}`}
+              tone="bad"
+            />
+            <Rank
+              label="Most hours short"
+              list={outliers.short}
+              name={(r) => r.employee_name}
+              value={(r) => formatDuration(-r.ot_minutes)}
+              tone="bad"
+            />
+            <Rank
+              label="Most overtime"
+              list={outliers.over}
+              name={(r) => r.employee_name}
+              value={(r) => formatDuration(r.ot_minutes)}
+              tone="good"
+            />
+          </div>
           {!outliers.mostPresent.length && !outliers.mostAbsent.length && (
             <p className="muted small">
               Nothing marked this month yet, so there is nobody to rank.
@@ -2876,6 +2901,57 @@ function DateGroup({ icon, title, list, month, note, empty }) {
  * the roll call itself: who was absent is exactly the list you want in full.
  */
 const NAME_LIMIT = 12;
+
+/**
+ * DO TWO RANKINGS SAY THE SAME THING?
+ *
+ * "Most hours worked" and "fewest hours worked" over a month where everybody
+ * clocked one nine-hour day are the same five people at the same figure.
+ * Printing both is not two findings, it is one fact typed twice - and it
+ * makes the whole card read as something that does not know what it is
+ * saying. Compared on WHO and on WHAT, because either alone would be wrong.
+ */
+function sameRanking(a = [], b = [], valueOf) {
+  if (!a.length || a.length !== b.length) return false;
+  /*
+   * THE TEST IS A TIE, NOT THE SAME SET OF PEOPLE.
+   *
+   * With five people on the list, "most" and "fewest" always hold the same
+   * five - what differs is the ORDER, and the order is the whole finding.
+   * They only say one thing when every figure is equal. Written the other
+   * way round first, and it folded 161h and 8h into one list because both
+   * lists named the same two people.
+   */
+  return new Set([...a, ...b].map((x) => valueOf(x))).size === 1;
+}
+
+/**
+ * One ranking: a numbered list of names and figures.
+ *
+ * A numbered list, not a row of chips. These are ORDERED - first is the most
+ * - and a chip strip says nothing about order, so the eye has to read every
+ * one of them to find the top.
+ */
+function Rank({ label, list, name = (m) => m.employee_name, value, tone, note }) {
+  if (!list?.length) return null;
+  return (
+    <div className="so-rank">
+      <h4>
+        {label} <span className="count">{list.length}</span>
+      </h4>
+      <ol className="so-list">
+        {list.map((item, i) => (
+          <li key={item.employee_id ?? item.id ?? i}>
+            <span className="so-no">{i + 1}</span>
+            <span className="so-name">{name(item)}</span>
+            <span className={`so-value${tone ? ` ${tone}` : ''}`}>{value(item)}</span>
+          </li>
+        ))}
+      </ol>
+      {note ? <p className="muted small">{note}</p> : null}
+    </div>
+  );
+}
 
 function NameList({ label, list, name = (e) => e.name, suffix, all }) {
   const [expanded, setExpanded] = useState(false);

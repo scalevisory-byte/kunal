@@ -6,6 +6,7 @@ import Contributions from './Contributions.jsx';
 import EmployeeRecord, { Reporting } from './EmployeeRecord.jsx';
 import AssetLedger from './people/AssetLedger.jsx';
 import EmployeePhoto from './EmployeePhoto.jsx';
+import { EMPLOYMENT_TYPES, MASKED } from '../../../shared/employeeMaster.js';
 
 /**
  * One employee's full record.
@@ -28,6 +29,8 @@ const SECTIONS = [
       ['branch_id', 'Branch', 'branch', 'leave empty if the company has only one place'],
       ['designation', 'Designation', 'text'],
       ['department', 'Department', 'text'],
+      ['employment_type', 'Employment type', 'select', '', ['', ...EMPLOYMENT_TYPES]],
+      ['work_location', 'Work location', 'text', 'if they do not sit at the branch address'],
       ['joined_on', 'Joined on', 'date'],
       ['left_on', 'Left on', 'date', 'leave empty while they are still with you'],
       // Only for somebody who does not work the office's usual day. A night
@@ -50,10 +53,33 @@ const SECTIONS = [
         ['', 'Single', 'Married', 'Widowed', 'Divorced'],
       ],
       ['blood_group', 'Blood group', 'text', 'e.g. B+'],
+      ['nationality', 'Nationality', 'text', 'Indian'],
       ['phone', 'Mobile', 'tel'],
       ['phone_alt', 'Second mobile', 'tel', 'a brother, a landline - somewhere else to try'],
       ['email', 'Email', 'email'],
-      ['address', 'Address', 'textarea'],
+      ['address', 'Address (as typed before)', 'textarea', 'the old single box — still read where the lines below are empty'],
+    ],
+  },
+  {
+    /*
+     * PRESENT AND PERMANENT, in parts.
+     *
+     * The old free-text `address` above is KEPT and still read: rewriting
+     * eighty-six typed addresses into guessed lines cannot be undone. Fill
+     * these in and they win; leave them and nothing changes.
+     */
+    title: 'Address',
+    fields: [
+      ['address_line1', 'Address line 1', 'text'],
+      ['address_line2', 'Address line 2', 'text'],
+      ['city', 'City', 'text'],
+      ['state', 'State', 'text'],
+      ['pincode', 'PIN code', 'text'],
+      ['perm_line1', 'Permanent line 1', 'text', 'leave empty if it is the same'],
+      ['perm_line2', 'Permanent line 2', 'text'],
+      ['perm_city', 'Permanent city', 'text'],
+      ['perm_state', 'Permanent state', 'text'],
+      ['perm_pincode', 'Permanent PIN code', 'text'],
     ],
   },
   {
@@ -80,6 +106,8 @@ const SECTIONS = [
       ['emergency_name', 'Who to call', 'text'],
       ['emergency_phone', 'Their number', 'tel'],
       ['emergency_relation', 'Relation', 'text', 'father, wife, brother…'],
+      ['emergency_phone_alt', 'Another number', 'tel', 'somewhere else to try'],
+      ['emergency_address', 'Their address', 'textarea'],
     ],
   },
   {
@@ -134,6 +162,9 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
    */
   const [assets, setAssets] = useState(false);
   const [saving, setSaving] = useState(false);
+  /* Which masked fields this person has chosen to see, this time the drawer
+     is open. Closing it hides them again, deliberately. */
+  const [shown, setShown] = useState({});
   // Bumped when the photograph changes, so the documents panel re-reads.
   const [recordRefresh, setRecordRefresh] = useState(0);
   const [error, setError] = useState('');
@@ -179,9 +210,46 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
     }
   };
 
+  /*
+   * PAN, AADHAAR AND THE BANK ACCOUNT ARE HIDDEN UNTIL SOMEBODY ASKS.
+   *
+   * `\u2022\u2022\u2022\u2022\u2022\u2022234F` is enough to check you are on the right record and
+   * not enough to copy down. Pressing "show" reveals it AND writes a line to
+   * the audit trail - a name against the moment somebody chose to look.
+   *
+   * Honest about what this is: the value has already travelled, because the
+   * PF return, the ESI return and the staff export all need it and the
+   * Employees area is the permission that covers them. This keeps an Aadhaar
+   * off a shared screen, out of a screenshot and away from a shoulder. It is
+   * not encryption and does not pretend to be.
+   */
+  const reveal = async (field) => {
+    setShown((s) => ({ ...s, [field]: true }));
+    try {
+      await api.post(`/employees/${employee.id}/viewed`, { field });
+    } catch {
+      /* Offline, or a build with no server. The value is still shown - the
+         trail is the extra, not the gate. */
+    }
+  };
+
   const box = ([field, label, kind, hint, options]) => {
     const value = draft[field] ?? '';
     const warning = complain(field, value);
+    if (MASKED[field] && value && !shown[field]) {
+      return (
+        <label key={field}>
+          {label}
+          <span className="masked-box">
+            <span className="masked-value">{MASKED[field](value)}</span>
+            <button type="button" className="ghost tiny" onClick={() => reveal(field)}>
+              show
+            </button>
+          </span>
+          <span className="muted small">hidden — showing it is recorded</span>
+        </label>
+      );
+    }
     return (
       <label key={field} className={kind === 'textarea' ? 'wide-field' : undefined}>
         {label}
@@ -405,6 +473,33 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
             />
           </label>
         </div>
+
+        {/*
+          * A DRAFT, AND THE WAY OUT OF BEING ONE.
+          *
+          * It is on no payroll month until this is pressed. Said here rather
+          * than only as a badge on the list, because this is the screen
+          * somebody is on when they finish the form.
+          */}
+        {draft.is_draft ? (
+          <div className="ef-dup">
+            <strong>This record is a draft.</strong>
+            <p className="muted small">
+              It is on <strong>no payroll month</strong> and no attendance grid — nothing is
+              counted for them and no payslip can be made. Finish it when the details are in.
+            </p>
+            <button
+              className="primary"
+              disabled={saving}
+              onClick={async () => {
+                setDraft({ ...draft, is_draft: 0 });
+                await commit('is_draft', 0);
+              }}
+            >
+              Finish — add them to the payroll
+            </button>
+          </div>
+        ) : null}
 
         {SECTIONS.map((section) => (
           <section
