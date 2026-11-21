@@ -5,6 +5,7 @@ import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
 import EmployeeForm from './EmployeeForm.jsx';
+import Onboarding from './Onboarding.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
 import OrgChart from './OrgChart.jsx';
 import DepartmentManagers from './DepartmentManagers.jsx';
@@ -1185,6 +1186,18 @@ export default function Employees({
           across, and anything already typed into that month stays put.
         </p>
       </div>
+
+      {/*
+        * THE OTHER WAY SOMEBODY JOINS: invite them to fill it in themselves.
+        * Nothing reaches the payroll until the office approves it.
+        */}
+      <details className="card fold">
+        <summary>
+          <strong>Invite somebody to fill in their own form</strong>
+          <span className="muted small"> — they type their details, you check and approve</span>
+        </summary>
+        <Onboarding companies={companies} employees={employees} onReload={onReload} />
+      </details>
 
       {adding && (
         <div className="picker-backdrop" onClick={() => setAdding(false)}>

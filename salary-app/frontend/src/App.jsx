@@ -13,6 +13,7 @@ import Jobs from './components/hiring/Jobs.jsx';
 import PunchPage from './components/PunchPage.jsx';
 import SitTest from './components/hiring/SitTest.jsx';
 import CandidateInterviewForm from './components/hiring/CandidateInterviewForm.jsx';
+import JoinPage from './components/JoinPage.jsx';
 import Leave from './components/Leave.jsx';
 import Loans from './components/Loans.jsx';
 import Login from './components/Login.jsx';
@@ -165,6 +166,11 @@ export default function App() {
     // rule again: the token IS the identity, and it reaches one interview.
     const filling = window.location.pathname.match(/^\/interview\/([^/]+)/);
     if (filling) return <CandidateInterviewForm token={decodeURIComponent(filling[1])} />;
+    /* Somebody filling in their own joining form before they are an
+       employee. Same rule again: the token IS the identity, and it reaches
+       exactly one invitation. */
+    const joining = window.location.pathname.match(/^\/join\/([^/]+)/);
+    if (joining) return <JoinPage token={decodeURIComponent(joining[1])} />;
   }
   return <Shell />;
 }

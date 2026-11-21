@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.70.0';
+export const VERSION = '1.71.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.71.0',
+    date: '22 Nov 2026',
+    title: 'Let a new joiner fill in their own record, and check it before they exist',
+    items: [
+      '**Employees \u2192 “Invite somebody to fill in their own form”.** Type what the office decided \u2014 company, job, joining date \u2014 and you get a **link to hand over**. They fill in the rest from their phone: their details, address, emergency contact, PAN, UAN, bank.',
+      '**An invitation is not an employee.** Nothing reaches the payroll, the attendance grid or any register until somebody in the office presses **Approve**. That is the one call in the whole module that creates an employee.',
+      '**The salary is typed by the office at the moment of approval and is never read from what they filled in.** Nor is their status, nor anything else the office did not decide \u2014 what they typed comes through a whitelist, because this is data from outside the office.',
+      '**They cannot change what the office set.** Company, designation, joining date and reporting manager are shown as facts, with a line saying a correction goes through HR.',
+      '**No password, because there is nobody to be yet.** The link carries a signed token, exactly as the punch link and the apply link do \u2014 and with the same honest limit, said on the page: anybody who has the link can open the form, so send it to them and nobody else.',
+      '**It saves as they type**, so a form started on a bus can be finished at home from the same link.',
+      '**The declaration is required**, and a half-filled form will not go in \u2014 it names what is still wanted. Once sent in, they cannot change it under you: a correction goes back through **Send back for correction**, which needs remarks saying what to fix.',
+      '**One mobile number, one person.** An invitation is refused if that number is already on the staff list or on another open invitation \u2014 the cheapest place to stop one person becoming two records.',
+      '**Every step is on the invitation\u2019s own history** \u2014 invited, opened, submitted, returned, approved \u2014 with who and when.',
+      '**Nothing is sent.** No message, no email. The office hands the link over on WhatsApp or on paper, and the panel says so rather than letting anybody assume an invitation went out by itself.',
+    ],
+  },
   {
     version: '1.70.0',
     date: '22 Nov 2026',

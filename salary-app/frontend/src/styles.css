@@ -5594,3 +5594,10 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
   .my-job { flex-wrap: wrap; }
   .my-job-act { align-items: flex-start; max-width: 100%; }
 }
+
+/* ---- the joining form somebody fills in from a link ---- */
+.join-page { max-width: 46rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+/* A <header> is stacked into a column by the global rule. Row, explicitly. */
+.join-head { display: flex; flex-direction: row; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+.join-head h1 { margin: 0; font-size: 1.3rem; }
+.join-foot { text-align: center; }

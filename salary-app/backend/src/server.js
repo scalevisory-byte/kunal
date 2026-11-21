@@ -24,6 +24,7 @@ import { documentFile, documentLinkValid } from './documents.js';
 import { resumeFile, resumeLinkValid } from './resumes.js';
 import { hiringRouter } from './routes/hiring.js';
 import { publicRouter } from './routes/public.js';
+import { onboardSelfRouter, onboardingRouter } from './routes/onboarding.js';
 import { attendanceSelfRouter } from './routes/attendanceSelf.js';
 import { punchRouter } from './routes/punch.js';
 import { companiesRouter } from './routes/companies.js';
@@ -88,6 +89,17 @@ export function createServer() {
    * salary, and cannot approve anything.
    */
   app.use('/api/punch', punchRouter);
+  /*
+   * SOMEBODY FILLING IN THEIR OWN JOINING FORM, before they are an employee.
+   *
+   * No password, because there is nobody to be yet: the token in the link
+   * says which invitation, and the invitation id is read from the TOKEN
+   * rather than the URL, so one link cannot reach another person's form. It
+   * can do three things - read its own form, save it, send it in - and
+   * nothing it sends can create an employee. Only an approval in the office
+   * does that.
+   */
+  app.use('/api/join', onboardSelfRouter);
 
   app.get('/files/resume/:id', (req, res) => {
     const candidate = getCandidate(Number(req.params.id));
@@ -244,6 +256,9 @@ export function createServer() {
    */
   app.use('/api/companies', ...office, requireAdminForChanges, companiesRouter);
   app.use('/api/employees', ...office, requireArea('employees'), requireWriteForChanges, employeesRouter);
+  /* Inviting, checking and approving is the staff master's own work, so it
+     sits behind the same area as the staff master. */
+  app.use('/api/onboarding', ...office, requireArea('employees'), requireWriteForChanges, onboardingRouter);
   app.use('/api/leave', ...office, requireArea('leave'), requireWriteForChanges, leaveRouter);
   app.use('/api/loans', ...office, requireArea('loans'), requireWriteForChanges, loansRouter);
   app.use('/api/people', ...office, requireWriteForChanges, peopleRouter);

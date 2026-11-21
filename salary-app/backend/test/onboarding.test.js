@@ -1,122 +1,199 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STEPS, onboardingStatus, openOnboarding } from '../../shared/onboarding.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const complete = {
-  id: 1,
-  name: 'Rohit Shah',
-  dob: '1999-04-12',
-  gender: 'Male',
-  // The joining-form half Dinesh asked for: who the forms want named, and
-  // somebody to ring on a bad day.
-  marital_status: 'Married',
-  father_name: 'Mahesh Shah',
-  phone: '9876543210',
-  emergency_name: 'Nisha Shah',
-  emergency_phone: '9876500000',
-  designation: 'Accountant',
-  department: 'Accounts',
-  joined_on: '2026-11-10',
-  monthly_salary: 20000,
-  pan: 'ABCDE1234F',
-  aadhaar: '123456789012',
-  uan: '100200300400',
-  esic_no: '1234567890',
-  bank_name: 'SBI',
-  bank_account: '30012345678',
-  ifsc: 'SBIN0001234',
-  cl_quota: 7,
-  sl_quota: 7,
-  pl_quota: 12,
-  payment_mode: 'Bank',
-  active: 1,
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'onboard-'));
+process.env.LINK_SECRET = 'test-secret';
+process.env.SERVE_FRONTEND = 'false';
+process.env.ALLOW_OPEN = 'true';
+delete process.env.APP_PASSWORD;
+
+const { createServer } = await import('../src/server.js');
+const server = createServer().listen(0);
+const base = `http://127.0.0.1:${server.address().port}`;
+test.after(() => server.close());
+
+const call = async (method, url, body) => {
+  const res = await fetch(`${base}${url}`, {
+    method,
+    headers: body ? { 'content-type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  return { status: res.status, body: text ? JSON.parse(text) : null };
 };
 
-test('every step says what it is for, because a silent checklist gets ignored', () => {
-  for (const step of STEPS) {
-    assert.ok(step.title, 'a step with no title');
-    assert.ok(step.why, `${step.key} does not say what breaks without it`);
-    assert.ok(step.fields.length);
-  }
+let company;
+let invitation;
+let token;
+
+test('the office invites somebody', async () => {
+  company = (await call('POST', '/api/companies', { name: 'BOOKNFLY' })).body;
+  const made = await call('POST', '/api/onboarding', {
+    company_id: company.id,
+    name: 'Nisha Rawal',
+    phone: '9825099887',
+    designation: 'Accounts Executive',
+    department: 'Accounts',
+    employment_type: 'Permanent',
+    joined_on: '2026-12-01',
+  });
+  assert.equal(made.status, 201);
+  invitation = made.body;
+  assert.equal(invitation.status, 'invited');
+  assert.ok(invitation.link.includes('/join/'));
+  token = invitation.link.split('/join/')[1];
 });
 
-test('a complete record is complete', () => {
-  const status = onboardingStatus(complete);
-  assert.equal(status.complete, true);
-  assert.equal(status.percent, 100);
-  assert.deepEqual(status.missing, []);
-  assert.deepEqual(status.blocking, []);
+test('one mobile number, one person', async () => {
+  /* The cheapest place to stop one person becoming two records. */
+  const again = await call('POST', '/api/onboarding', {
+    company_id: company.id, name: 'Nisha R', phone: '+91 98250 99887',
+  });
+  assert.equal(again.status, 400);
+  assert.match(again.body.error, /already has an invitation open/);
 });
 
-test('somebody straight off the hiring tab is mostly empty, and says what is missing', () => {
-  // This is exactly what "Add to payroll" produces: a name, a number, a salary.
-  const fresh = {
-    id: 2,
-    name: 'Priya Desai',
-    phone: '9000011111',
-    email: 'priya@example.com',
-    monthly_salary: 21000,
-    joined_on: '2026-11-01',
-    designation: 'Accountant',
-    payment_mode: 'Bank',
-    active: 1,
-  };
-  const status = onboardingStatus(fresh);
-  assert.equal(status.complete, false);
-  // Nothing required is missing - payroll will still run.
-  assert.deepEqual(status.blocking, []);
-  // But the things that bite later are named.
-  for (const label of ['UAN', 'ESIC number', 'PAN', 'IFSC', 'Account number']) {
-    assert.ok(status.missing.includes(label), `${label} was not flagged`);
-  }
+test('the link shows them what the office decided, and their own blank form', async () => {
+  const seen = await call('GET', `/api/join/${token}`);
+  assert.equal(seen.status, 200);
+  assert.equal(seen.body.status, 'opened', 'opening it is recorded');
+  assert.equal(seen.body.office.designation, 'Accounts Executive');
+  assert.equal(seen.body.office.joined_on, '2026-12-01');
+  /* No ids of anybody, and nothing about pay. */
+  const text = JSON.stringify(seen.body);
+  assert.ok(!text.includes('company_id'));
+  assert.ok(!text.includes('monthly_salary'));
 });
 
-test('no joining date and no salary are the two that actually block', () => {
-  const status = onboardingStatus({ name: 'Nobody', phone: '9876543210', active: 1 });
-  assert.ok(status.blocking.includes('Joining date'));
-  assert.ok(status.blocking.includes('Monthly salary'));
-  // A salary of zero is not an answer; a leave quota of zero is.
-  const zero = onboardingStatus({ ...complete, monthly_salary: 0 });
-  assert.ok(zero.blocking.includes('Monthly salary'));
-  const noLeave = onboardingStatus({ ...complete, cl_quota: 0, sl_quota: 0, pl_quota: 0 });
-  assert.equal(noLeave.complete, true);
+test('a bad token reaches nothing', async () => {
+  assert.equal((await call('GET', '/api/join/not-a-token')).status, 404);
+  /* And a token of the right shape with the wrong signature is no better. */
+  const tampered = `${token.split('.')[0]}.AAAA`;
+  assert.equal((await call('GET', `/api/join/${tampered}`)).status, 404);
 });
 
-test('somebody paid in cash is not chased for bank details', () => {
-  const cash = { ...complete, payment_mode: 'Cash', bank_name: '', bank_account: '', ifsc: '' };
-  const chased = onboardingStatus(cash);
-  assert.equal(chased.complete, false, 'without the cash hint the bank step is still open');
-
-  const status = onboardingStatus(cash, { paidInCash: true });
-  assert.equal(status.steps.find((s) => s.key === 'bank').skipped, true);
-  assert.equal(status.complete, true);
+test('they fill it in, and a draft is merged rather than replaced', async () => {
+  await call('PATCH', `/api/join/${token}`, { name: 'Nisha Rawal', phone: '9825099887' });
+  const second = await call('PATCH', `/api/join/${token}`, { dob: '1998-04-11' });
+  assert.equal(second.status, 200);
+  /* The first save is still there: two tabs open would otherwise have the
+     last save wipe the other's answers. */
+  assert.equal(second.body.draft.name, 'Nisha Rawal');
+  assert.equal(second.body.draft.dob, '1998-04-11');
+  assert.ok(second.body.progress.percent > 0);
 });
 
-test('a malformed number is flagged, and only once something has been typed', () => {
-  const typo = onboardingStatus({ ...complete, pan: 'NOTAPAN', ifsc: '12345' });
-  const statutory = typo.steps.find((s) => s.key === 'statutory');
-  const bank = typo.steps.find((s) => s.key === 'bank');
-  assert.deepEqual(statutory.malformed.map((f) => f.label), ['PAN']);
-  assert.deepEqual(bank.malformed.map((f) => f.label), ['IFSC']);
-  assert.equal(typo.complete, false);
+test('it cannot be sent in without the declaration, or half filled', async () => {
+  const noDeclaration = await call('POST', `/api/join/${token}/submit`, {});
+  assert.equal(noDeclaration.status, 400);
+  assert.match(noDeclaration.body.error, /declaration/);
 
-  // Blank is "not filled in yet", never "wrong".
-  const blank = onboardingStatus({ ...complete, pan: '' });
-  assert.deepEqual(blank.steps.find((s) => s.key === 'statutory').malformed, []);
+  const half = await call('POST', `/api/join/${token}/submit`, { declared: true });
+  assert.equal(half.status, 400);
+  assert.match(half.body.error, /still wanted/);
 });
 
-test('spaces in a typed number do not make it wrong', () => {
-  const spaced = onboardingStatus({ ...complete, aadhaar: '1234 5678 9012' });
-  assert.equal(spaced.complete, true);
+test('sent in, and then it cannot be changed under the office', async () => {
+  await call('PATCH', `/api/join/${token}`, {
+    address_line1: '14 Gokul Flats',
+    emergency_name: 'Rakesh Rawal',
+    emergency_phone: '9898012345',
+    pan: 'ABCDE1234F',
+    bank_account: '50100123456789',
+    /* Things that are NOT theirs to decide, sent anyway. */
+    monthly_salary: 999999,
+    active: 0,
+  });
+  const sent = await call('POST', `/api/join/${token}/submit`, { declared: true });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.status, 'submitted');
+
+  const after = await call('PATCH', `/api/join/${token}`, { phone: '0000000000' });
+  assert.equal(after.status, 400);
+  assert.match(after.body.error, /send it back/);
 });
 
-test('the queue lists who is unfinished, newest joiner first, and skips leavers', () => {
-  const open = openOnboarding([
-    complete,
-    { id: 3, name: 'Older', phone: '9000000001', joined_on: '2026-01-01', monthly_salary: 1, active: 1 },
-    { id: 4, name: 'Newer', phone: '9000000002', joined_on: '2026-11-20', monthly_salary: 1, active: 1 },
-    { id: 5, name: 'Gone', active: 0 },
-  ]);
-  assert.deepEqual(open.map((o) => o.employee.name), ['Newer', 'Older']);
-  assert.ok(open[0].status.missing.length);
+test('an approval is the ONLY thing that makes an employee, and it ignores what they typed about pay', async () => {
+  const before = (await call('GET', '/api/employees')).body.employees.length;
+
+  const done = await call('POST', `/api/onboarding/${invitation.id}/approve`, {
+    code: 'BOO-001',
+    extra: { monthly_salary: 24000, payment_mode: 'Bank' },
+  });
+  assert.equal(done.status, 200);
+  const employee = done.body.employee;
+  assert.equal(employee.name, 'Nisha Rawal');
+  /* The office's own decisions came from the INVITATION. */
+  assert.equal(employee.designation, 'Accounts Executive');
+  assert.equal(employee.joined_on, '2026-12-01');
+  /* THE SALARY IS THE OFFICE'S, not the one in the draft. */
+  assert.equal(employee.monthly_salary, 24000);
+  assert.equal(employee.active, 1);
+  /* And their own details came across. */
+  assert.equal(employee.address_line1, '14 Gokul Flats');
+  assert.equal(employee.pan, 'ABCDE1234F');
+
+  assert.equal((await call('GET', '/api/employees')).body.employees.length, before + 1);
+});
+
+test('approving twice does not make a second person', async () => {
+  const again = await call('POST', `/api/onboarding/${invitation.id}/approve`, {});
+  assert.equal(again.status, 400);
+  assert.match(again.body.error, /already on the staff list/);
+});
+
+test('an approved link is dead', async () => {
+  assert.equal((await call('GET', `/api/join/${token}`)).status, 404);
+});
+
+test('a form is sent back with remarks, and remarks are required', async () => {
+  const made = (await call('POST', '/api/onboarding', {
+    company_id: company.id, name: 'Second Person', phone: '9000000001',
+  })).body;
+  const t = made.link.split('/join/')[1];
+  await call('PATCH', `/api/join/${t}`, {
+    name: 'Second Person', phone: '9000000001', dob: '1995-01-01',
+    address_line1: 'somewhere', emergency_name: 'Somebody', emergency_phone: '9000000002',
+  });
+  await call('POST', `/api/join/${t}/submit`, { declared: true });
+
+  const silent = await call('POST', `/api/onboarding/${made.id}/return`, {});
+  assert.equal(silent.status, 400);
+
+  const sent = await call('POST', `/api/onboarding/${made.id}/return`, {
+    remarks: 'the Aadhaar number is missing',
+  });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.status, 'returned');
+
+  /* They can edit again, and the remarks tell them what to fix. */
+  const theirs = await call('GET', `/api/join/${t}`);
+  assert.equal(theirs.body.remarks, 'the Aadhaar number is missing');
+  assert.equal((await call('PATCH', `/api/join/${t}`, { aadhaar: '123456781234' })).status, 200);
+
+  /* And an unsubmitted form cannot be approved at all. */
+  const early = await call('POST', `/api/onboarding/${made.id}/approve`, {});
+  assert.equal(early.status, 400);
+  assert.match(early.body.error, /submitted/);
+});
+
+test('a cancelled invitation stops working at once', async () => {
+  const made = (await call('POST', '/api/onboarding', {
+    company_id: company.id, name: 'Third Person', phone: '9000000003',
+  })).body;
+  const t = made.link.split('/join/')[1];
+  assert.equal((await call('GET', `/api/join/${t}`)).status, 200);
+  await call('POST', `/api/onboarding/${made.id}/cancel`, { why: 'offer withdrawn' });
+  assert.equal((await call('GET', `/api/join/${t}`)).status, 404);
+});
+
+test('every step is on the invitation’s own history', async () => {
+  const one = (await call('GET', `/api/onboarding/${invitation.id}`)).body;
+  assert.deepEqual(
+    one.history.map((h) => h.status),
+    ['invited', 'opened', 'submitted', 'approved']
+  );
 });

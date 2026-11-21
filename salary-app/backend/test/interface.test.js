@@ -3279,3 +3279,38 @@ test('the ledger says a credit marks no day and moves no money', () => {
   const calls = [...ledger.matchAll(/api\.(post|patch|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
   assert.ok(calls.every((u) => u.startsWith('/leave/credits')), `the ledger wrote to ${calls}`);
 });
+
+/*
+ * ONBOARDING: the office invites, the person fills in their own record.
+ */
+test('the joining form shows what the office set as read-only, and never asks a salary', () => {
+  const page = src('components/JoinPage.jsx');
+  /* The fields are the MASTER's own - a second list here would drift from
+     it the first time one was added. */
+  assert.match(page, /from '\.\.\/\.\.\/\.\.\/shared\/employeeMaster\.js'/);
+  assert.match(page, /THEIRS_TO_FILL\.includes/);
+  /* What the office decided is shown and cannot be typed over. */
+  assert.match(page, /These were set when you were taken on/);
+  /* And the pay section is relabelled, because what is left of it is the
+     bank details - "Salary & bank" reads as a form about to ask. */
+  assert.match(page, /title: 'Bank details'/);
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/monthly_salary/.test(code), 'the joining form mentions a salary');
+});
+
+test('the joining link can only reach its own form', () => {
+  const page = src('components/JoinPage.jsx');
+  const calls = [...page.matchAll(/api\.(get|post|patch|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
+  /* Everything goes through /join/<token>, and the server reads the
+     invitation from the TOKEN rather than the URL. */
+  assert.ok(calls.every((u) => u.startsWith('/join/')), `the joining page reached ${calls}`);
+  assert.match(page, /Nothing is final until the office approves it/);
+});
+
+test('the office panel says nothing is sent, and the salary is typed there', () => {
+  const panel = src('components/Onboarding.jsx');
+  assert.match(panel, /<strong>Nothing is sent\.<\/strong>/);
+  assert.match(panel, /never read from what they filled in/);
+  /* Approving is the only thing that creates an employee. */
+  assert.match(panel, /Approve — add to the staff list/);
+});

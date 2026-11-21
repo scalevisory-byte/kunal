@@ -516,6 +516,21 @@ export const HELP = [
     note: 'You see the advert, not the office’s own notes about the job. Nothing you do here tells anybody you referred somebody — if you want credit for it, say so to HR.',
   },
   {
+    id: 'onboarding',
+    title: 'Inviting somebody to fill in their own joining form',
+    tab: 'employees',
+    keywords: ['invite', 'onboarding', 'joining form', 'new joiner', 'link', 'bulana', 'form bharna', 'approve'],
+    lines: [
+      '**Employees \u2192 “Invite somebody to fill in their own form”.** Type the company, the job and the joining date, and you get a **link**. Hand it over on WhatsApp or on paper \u2014 **nothing is sent by the app**.',
+      '**They fill in the rest from their phone** and it saves as they type, so they can come back to the same link.',
+      '**They cannot change what you set**, and they are never asked their salary \u2014 you type that when you approve.',
+      '**Approve is the only thing that creates an employee.** Until then nothing is on the payroll, the attendance grid or any register.',
+      '**Send back for correction** needs remarks saying what to fix; they see those remarks on their form and can send it in again.',
+      '**One mobile number, one person** \u2014 an invitation is refused if that number is already on the staff list or on another open invitation.',
+    ],
+    note: 'ANYBODY WHO HAS THE LINK CAN OPEN THE FORM. It carries a signed token and expires on the date you set, and it can be withdrawn — but it is not a password. Send it to the person and nobody else.',
+  },
+  {
     id: 'add-employee',
     title: 'Adding somebody \u2014 the joining form',
     tab: 'employees',
