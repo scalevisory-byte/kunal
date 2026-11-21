@@ -4834,3 +4834,25 @@ table.sheet.staff-table thead th.row-acts { background: var(--line-soft); z-inde
 table.sheet.staff-table tbody tr:hover td.row-acts {
   background: color-mix(in srgb, var(--brand) 5%, var(--surface));
 }
+
+/*
+ * The test-results row's buttons: open the person, schedule, remove.
+ *
+ * Pinned to the right edge inside the scrolling table, like the employee
+ * master's exit column. The Integrity cell grows to fit its longest warning,
+ * so on an ordinary laptop these were the first thing off the end - and they
+ * are the three things somebody opens this screen to do.
+ */
+table.sheet.results-table th.tr-acts,
+table.sheet.results-table td.tr-acts {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.sheet.results-table thead th.tr-acts { background: var(--line-soft); z-index: 4; }
+table.sheet.results-table tbody tr:hover td.tr-acts {
+  background: color-mix(in srgb, var(--brand) 5%, var(--surface));
+}

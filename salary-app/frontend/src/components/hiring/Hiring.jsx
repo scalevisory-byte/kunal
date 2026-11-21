@@ -256,6 +256,7 @@ export default function Hiring({ companies, companyId, onEmployeesChanged, onErr
           companyId={companyId}
           config={config}
           onOpen={setOpenApplication}
+          onOpenCandidate={setOpenCandidate}
           onError={onError}
           onToast={say}
         />

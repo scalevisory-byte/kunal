@@ -5,6 +5,7 @@ import {
   answerSheetDocument,
   attemptReview,
   listTestResults,
+  setTestRemoved,
   candidatePackDocument,
   candidateFormLink,
   createApplication,
@@ -885,6 +886,32 @@ const resultQuery = (req) => ({
 });
 
 hiringRouter.get('/test-results', (req, res) => res.json(listTestResults(resultQuery(req))));
+
+/*
+ * Take a paper off the list, or put it back.
+ *
+ * DELETE and POST, because that is what the two acts are - but neither
+ * destroys anything: the row stays and the Removed list shows it. A hard
+ * delete of somebody's answer sheet is the one thing on this screen that
+ * could not be undone.
+ */
+hiringRouter.delete('/test-results/:id', (req, res) => {
+  try {
+    const done = setTestRemoved(Number(req.params.id), { removed: true, by: actorName(req) });
+    return done ? res.json({ removed: true }) : res.status(404).json({ error: 'no such paper' });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+hiringRouter.post('/test-results/:id/restore', (req, res) => {
+  try {
+    const done = setTestRemoved(Number(req.params.id), { removed: false, by: actorName(req) });
+    return done ? res.json({ removed: false }) : res.status(404).json({ error: 'no such paper' });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 
 hiringRouter.get('/attempts/:id', (req, res) => {
   const found = attemptReview(Number(req.params.id));

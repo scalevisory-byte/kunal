@@ -770,6 +770,24 @@ export const HELP = [
     note: 'Each question has its own seconds and the next comes up by itself — but what is ENFORCED is the whole paper’s clock, which the server times from its own start. A flag catches tab-switching, copy and paste, impossible speed and timeouts — it cannot catch a second phone or another person in the room, so treat it as a reason to ring somebody back, never as proof. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
   },
   {
+    id: 'test-results-next',
+    title: 'After the test \u2014 who to call for interview, and tidying the list',
+    tab: 'hiring',
+    keywords: [
+      'test result', 'score', 'shortlist', 'interview', 'schedule', 'call for interview',
+      'delete', 'remove', 'answer sheet', 'qualified', 'flagged',
+      'bulana', 'hatana', 'delete karna', 'interview rakhna', 'result',
+    ],
+    lines: [
+      '**Screening & tests \u2192 Test results** is every paper anybody has sat. **Click the name** to open them \u2014 their application if they applied to an opening, their record if they are only on the list.',
+      '**Schedule interview** on the row opens the same application. The booking itself \u2014 when, round, mode, interviewer, where or the link \u2014 is on that panel, because that is where everything else about the person is.',
+      '**The score decides nothing.** It orders a list; you choose. A flagged paper is a reason to ring somebody back, never proof.',
+      '**Remove** takes a paper off the list \u2014 a practice run, a test somebody sat twice. It is **not deleted**: it moves to **Removed**, which is a place you can open, and **Put it back** returns it. Who removed it and when is on the record.',
+      'To take a whole person off the list, use **Archive** on the Candidates tab \u2014 also a place, also reversible. Nothing about a candidate is ever wiped.',
+    ],
+    note: 'Nothing on this screen moves anybody a single stage. A score, a flag and a removal are all records; the decision is taken on the application, by a person.',
+  },
+  {
     id: 'hiring-reports',
     title: 'Who applied \u2014 and the other hiring reports',
     tab: 'hiring',

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.54.0';
+export const VERSION = '1.55.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.55.0',
+    date: '21 Nov 2026',
+    title: 'From a test result to the person — and tidying the list',
+    items: [
+      '**Click a name on Test results and the person opens** — their application where they applied to an opening, their record where they are only on the list. The score was on the row and the person was nowhere; the decision is taken on the application.',
+      '**“Schedule interview” on the row** opens that application, where the booking is made: when, round, mode, interviewer, and where or the link.',
+      '**“Remove” takes a paper off the list — it does NOT delete it.** It moves to **Removed**, which is its own place with a count, and **Put it back** returns it in one press. The question names whose paper, what it scored and when it was sat, so a practice run and somebody’s real 19/20 can never read the same.',
+      'Who removed a paper, and when, is kept on the record.',
+      'The row’s buttons are pinned to the right of the table, so they do not fall off the end of a laptop screen.',
+    ],
+  },
   {
     version: '1.54.0',
     date: '21 Nov 2026',

@@ -2031,6 +2031,25 @@ db.exec(`
  * remain exactly as they were; nothing already configured changes because this
  * column appeared.
  */
+/*
+ * TAKEN OFF THE LIST, NOT WIPED.
+ *
+ * Dinesh, looking at nine practice papers he had sat himself: *"agar koi
+ * data delete karna he to kya option he"*. There was none, and a screen that
+ * will not let you tidy a test run is a screen people stop trusting.
+ *
+ * It is removed the way a candidate is archived and an asset is written off:
+ * the row stays, the list stops showing it, and there is a place to see
+ * what was taken off and put it back. A hard delete of somebody's answer
+ * sheet is the one thing that cannot be undone, and the one most likely to
+ * be done to the wrong row.
+ */
+if (!columnsOf('test_attempts').has('removed_at')) {
+  db.exec(`ALTER TABLE test_attempts ADD COLUMN removed_at TEXT`);
+  db.exec(`ALTER TABLE test_attempts ADD COLUMN removed_by TEXT`);
+  log.info('Migrated test_attempts: added removed_at, for taking a paper off the list.');
+}
+
 /* How many times somebody left the page, for attempts made before it counted. */
 if (!columnsOf('test_attempts').has('left_count')) {
   db.exec(`ALTER TABLE test_attempts ADD COLUMN left_count INTEGER NOT NULL DEFAULT 0`);
@@ -3059,6 +3078,7 @@ export function listTestResults({ company_id, paper_id, q = '', verdict = 'all' 
          LEFT JOIN vacancies v ON v.id = a.vacancy_id
          LEFT JOIN companies co ON co.id = v.company_id
         WHERE t.submitted_at IS NOT NULL
+          ${verdict === 'removed' ? 'AND t.removed_at IS NOT NULL' : 'AND t.removed_at IS NULL'}
           ${company_id ? 'AND co.id = @company_id' : ''}
           ${paper_id ? 'AND p.id = @paper_id' : ''}
         ORDER BY t.submitted_at DESC, t.id DESC`
@@ -3101,11 +3121,28 @@ export function listTestResults({ company_id, paper_id, q = '', verdict = 'all' 
    * counting only what is already on screen would make every one of them read
    * as the whole list.
    */
+  /*
+   * How many are off the list, counted separately and always - the chip that
+   * reveals them has to be able to say how many are behind it, and it cannot
+   * be counted off a list those rows are not in.
+   */
+  const removed = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM test_attempts t
+         LEFT JOIN applications a ON a.id = t.application_id
+         LEFT JOIN vacancies v ON v.id = a.vacancy_id
+         LEFT JOIN companies co ON co.id = v.company_id
+        WHERE t.submitted_at IS NOT NULL AND t.removed_at IS NOT NULL
+          ${company_id ? 'AND co.id = @company_id' : ''}`
+    )
+    .get(company_id ? { company_id: Number(company_id) } : {}).n;
+
   const counts = {
     total: found.length,
     passed: found.filter((r) => r.passed).length,
     failed: found.filter((r) => !r.passed).length,
     flagged: found.filter((r) => !r.clean).length,
+    removed,
   };
 
   const shown =
@@ -3116,6 +3153,35 @@ export function listTestResults({ company_id, paper_id, q = '', verdict = 'all' 
     : found;
 
   return { results: shown, counts };
+}
+
+/**
+ * Take a paper off the list, or put it back.
+ *
+ * Both are recorded. "Who took that result off" has to have an answer, and
+ * the row itself carries who and when so the removed list can say it without
+ * going to the audit trail.
+ */
+export function setTestRemoved(id, { removed, by } = {}) {
+  const row = db.prepare(`SELECT * FROM test_attempts WHERE id = ?`).get(Number(id));
+  if (!row) return null;
+  if (!row.submitted_at) throw new Error('that paper has not been sat yet');
+
+  db.prepare(`UPDATE test_attempts SET removed_at = ?, removed_by = ? WHERE id = ?`).run(
+    removed ? new Date().toISOString() : null,
+    removed ? by || null : null,
+    row.id
+  );
+  const who = db.prepare(`SELECT name FROM candidates WHERE id = ?`).get(row.candidate_id);
+  audit({
+    who: by,
+    action: removed ? 'removed' : 'restored',
+    entity: 'test_attempts',
+    entity_id: row.id,
+    label: `${who?.name || 'a candidate'}'s paper`,
+    note: `${row.right_count ?? 0}/${row.max_score ?? 0}, sat ${String(row.submitted_at).slice(0, 16)}`,
+  });
+  return db.prepare(`SELECT * FROM test_attempts WHERE id = ?`).get(row.id);
 }
 
 export function screeningSummary({ company_id } = {}) {

@@ -141,7 +141,7 @@ export function ScreeningForm({ applicationId, screening, report, onSaved, onErr
   );
 }
 
-export default function Screening({ companyId, config, onOpen, onError, onToast }) {
+export default function Screening({ companyId, config, onOpen, onOpenCandidate, onError, onToast }) {
   const [queue, setQueue] = useState([]);
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState(null);
@@ -315,7 +315,13 @@ export default function Screening({ companyId, config, onOpen, onError, onToast 
         * somebody looks for "the results". This is that place, and it keeps
         * a score after the person has moved on.
         */}
-      <TestResults companyId={companyId} onSheet={setOpenSheet} onError={onError} />
+      <TestResults
+        companyId={companyId}
+        onSheet={setOpenSheet}
+        onOpen={onOpen}
+        onOpenCandidate={onOpenCandidate}
+        onError={onError}
+      />
 
       {/*
         * The questions and papers, folded in.

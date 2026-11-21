@@ -25,6 +25,12 @@ const VERDICTS = [
   ['failed', 'Not qualified'],
   ['flagged', 'Flagged'],
   ['clean', 'Clean'],
+  /*
+   * A PLACE, not a tick. Papers taken off the list are somewhere you can go
+   * and look, the way the candidate archive is - so "removed" never means
+   * "gone", and putting one back is one button rather than a support call.
+   */
+  ['removed', 'Removed'],
 ];
 
 const when = (iso) => {
@@ -37,14 +43,47 @@ const when = (iso) => {
       });
 };
 
-export default function TestResults({ companyId, onSheet, onError }) {
+export default function TestResults({ companyId, onSheet, onOpen, onOpenCandidate, onError }) {
   const [rows, setRows] = useState([]);
-  const [counts, setCounts] = useState({ total: 0, passed: 0, failed: 0, flagged: 0 });
+  const [counts, setCounts] = useState({ total: 0, passed: 0, failed: 0, flagged: 0, removed: 0 });
   const [papers, setPapers] = useState([]);
   const [q, setQ] = useState('');
   const [paperId, setPaperId] = useState('');
   const [verdict, setVerdict] = useState('all');
   const [loaded, setLoaded] = useState(false);
+
+  /*
+   * IT NAMES THE PAPER BEFORE IT ASKS.
+   *
+   * "Remove this result?" is true and useless - the nine practice runs and
+   * somebody's real 19/20 read identically in that question, and only one of
+   * them should go.
+   */
+  const remove = async (r) => {
+    if (
+      !window.confirm(
+        `Take ${r.candidate_name}'s ${r.paper_name} off the list?\n\n` +
+          `${r.right_count}/${r.asked} · ${r.percentage}% · sat ${when(r.submitted_at)}\n\n` +
+          'It is not deleted — it moves to Removed, and you can put it back.'
+      )
+    )
+      return;
+    try {
+      await api.del(`/hiring/test-results/${r.id}`);
+      load();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const restore = async (r) => {
+    try {
+      await api.post(`/hiring/test-results/${r.id}/restore`, {});
+      load();
+    } catch (err) {
+      onError(err);
+    }
+  };
 
   const query = () => {
     const bits = [];
@@ -128,14 +167,25 @@ export default function TestResults({ companyId, onSheet, onError }) {
             {key === 'passed' ? ` (${counts.passed})`
               : key === 'failed' ? ` (${counts.failed})`
               : key === 'flagged' ? ` (${counts.flagged})`
+              : key === 'removed' ? ` (${counts.removed || 0})`
               : key === 'all' ? ` (${counts.total})` : ''}
           </button>
         ))}
       </div>
 
       <p className="muted small">
-        {counts.total} result{counts.total === 1 ? '' : 's'} · {counts.passed} qualified ·{' '}
-        {counts.failed} not qualified · {counts.flagged} flagged
+        {verdict === 'removed' ? (
+          <>
+            {counts.total} paper{counts.total === 1 ? '' : 's'} taken off the list. Nothing is
+            deleted — <strong>Put it back</strong> returns one to the results.
+          </>
+        ) : (
+          <>
+            {counts.total} result{counts.total === 1 ? '' : 's'} · {counts.passed} qualified ·{' '}
+            {counts.failed} not qualified · {counts.flagged} flagged
+            {counts.removed ? ` · ${counts.removed} removed` : ''}
+          </>
+        )}
       </p>
 
       {!rows.length ? (
@@ -146,7 +196,7 @@ export default function TestResults({ companyId, onSheet, onError }) {
         </p>
       ) : (
         <div className="scroll-x">
-          <table className="sheet">
+          <table className="sheet results-table">
             <thead>
               <tr>
                 <th>Candidate</th>
@@ -157,14 +207,40 @@ export default function TestResults({ companyId, onSheet, onError }) {
                 <th>Time</th>
                 <th>Integrity</th>
                 <th>Sat on</th>
-                <th />
+                {/* Pinned to the right edge: the Integrity column is as wide
+                    as its longest warning, and the buttons were the first
+                    thing to fall off the end of a narrow screen. */}
+                <th className="tr-acts" />
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <strong>{r.candidate_name}</strong>
+                    {/*
+                      * THE NAME IS THE WAY IN.
+                      *
+                      * Dinesh, on this screen: *"yaha se interview k liye
+                      * kisko bhejna he"*. The score is on the row and the
+                      * person was nowhere - the decision is taken on their
+                      * application, and nothing here opened it. Eighth time
+                      * for that shape. Somebody on the list with no opening
+                      * yet opens as a candidate instead, which is the only
+                      * thing there is to open.
+                      */}
+                    <button
+                      className="link"
+                      title={
+                        r.application_id
+                          ? 'Open their application — screening, interviews, the offer'
+                          : 'Open their record. They have not applied to an opening yet.'
+                      }
+                      onClick={() =>
+                        r.application_id ? onOpen?.(r.application_id) : onOpenCandidate?.(r.candidate_id)
+                      }
+                    >
+                      {r.candidate_name}
+                    </button>
                     <div className="muted small">{[r.ref_no, r.phone].filter(Boolean).join(' · ')}</div>
                   </td>
                   <td>
@@ -205,8 +281,23 @@ export default function TestResults({ companyId, onSheet, onError }) {
                     )}
                   </td>
                   <td>{when(r.submitted_at)}</td>
-                  <td>
-                    <button className="tiny" onClick={() => onSheet(r.id)}>Answer sheet</button>
+                  <td className="tr-acts">
+                    <button className="tiny" onClick={() => onSheet(r.id)}>Answer sheet</button>{' '}
+                    {verdict === 'removed' ? (
+                      <button className="tiny" onClick={() => restore(r)}>Put it back</button>
+                    ) : (
+                      <>
+                        {/* Scheduling happens on the application, so this
+                            opens it rather than pretending to book from a
+                            list of scores. */}
+                        {r.application_id ? (
+                          <button className="tiny" onClick={() => onOpen?.(r.application_id)}>
+                            Schedule interview
+                          </button>
+                        ) : null}{' '}
+                        <button className="danger tiny" onClick={() => remove(r)}>Remove</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
