@@ -3358,3 +3358,30 @@ test('the joining form takes documents, and the register counts unchecked apart'
   assert.match(reg, /All four on file/);
   assert.match(reg, /All four checked/);
 });
+
+/*
+ * CANCELLING AN APPROVED LEAVE — what the two screens promise.
+ */
+test('cancelling says the days are cleared, not marked present', () => {
+  const queue = src('components/AttendanceRequests.jsx');
+  /* The confirmation has to say this, because anybody pressing it will
+     assume the opposite - that the day goes back to a day at work. */
+  assert.match(queue, /left UNMARKED/);
+  assert.match(queue, /Cancel it/);
+  /* And the row keeps saying who cancelled it and why: the whole point of
+     cancelling rather than deleting. */
+  assert.match(queue, /cancelled by \{r\.cancelled_by\}/);
+});
+
+test('asking to cancel says plainly that nothing has changed yet', () => {
+  const mine = src('components/MyPage.jsx');
+  assert.match(mine, /Ask to cancel/);
+  /* The same rule the whole queue runs on. A screen that said "cancelled"
+     here would have somebody turn up to work on an approved day off. */
+  assert.match(mine, /waiting for the office/);
+  const calls = [...mine.matchAll(/api\.post\(`\/me\/requests\/[^`]*`/g)].map((m) => m[0]);
+  assert.ok(
+    calls.every((u) => u.includes('/cancel')),
+    `the leave page posted to ${calls}`
+  );
+});

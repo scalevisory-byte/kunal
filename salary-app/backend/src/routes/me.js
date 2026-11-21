@@ -19,6 +19,7 @@ import {
   decideRequest,
   getRequest,
   listRequests,
+  askToCancel,
   withdrawRequest,
 } from '../attendanceSelf.js';
 import {
@@ -277,13 +278,38 @@ meRouter.post('/requests', (req, res) => {
  *
  * It works while the request is still open - including after a manager has
  * backed it, because the office has not acted on it yet. Once it is approved
- * the day is on the grid and taking it back is the office's call.
+ * the day is on the grid and taking it back is the office's call - which is
+ * what the cancellation below is for.
  */
 meRouter.delete('/requests/:id', (req, res) => {
   try {
     const request = withdrawRequest(Number(req.params.id), req.employeeId);
     if (!request) return res.status(404).json({ error: 'not found' });
     res.json(request);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * ASKING FOR AN APPROVED LEAVE TO BE CALLED OFF.
+ *
+ * Plans change after an approval too, and until now the only route was a
+ * phone call. This does NOT cancel anything: the same rule as everywhere
+ * else here - a request never writes attendance, a decision does. It marks
+ * the row as waiting to be called off, and the office presses the button.
+ *
+ * The employee id comes off the LOGIN, so nobody can ask for somebody
+ * else's leave to be dropped.
+ */
+meRouter.post('/requests/:id/cancel', (req, res) => {
+  try {
+    const request = askToCancel(Number(req.params.id), req.employeeId, req.body?.reason);
+    if (!request) return res.status(404).json({ error: 'not found' });
+    res.json({
+      request,
+      note: 'The office has been told. Nothing changes on the grid until they cancel it.',
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

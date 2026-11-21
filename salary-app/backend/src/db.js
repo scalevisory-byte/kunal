@@ -638,6 +638,18 @@ for (const [column, type] of [['recommended_by', 'TEXT'], ['recommended_at', 'TE
   }
 }
 
+/*
+ * Cancelling an approved leave. His brief: "Never permanently delete approved
+ * leave transactions" - so the row stays and these say who called it off,
+ * when, and why, with `cancel_requested_at` for the employee who asked.
+ */
+for (const column of ['cancelled_by', 'cancelled_at', 'cancel_reason', 'cancel_requested_at']) {
+  if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE attendance_requests ADD COLUMN ${column} TEXT`);
+    log.info(`Migrated attendance_requests: added ${column}, for cancelling an approved leave.`);
+  }
+}
+
 if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'minutes')) {
   db.exec(`ALTER TABLE attendance_requests ADD COLUMN minutes INTEGER`);
   log.info('Migrated attendance_requests: added minutes, so a few hours off can be asked for.');

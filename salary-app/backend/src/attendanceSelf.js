@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { judgePunch, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
 import {
+  canCancel,
   canDecide,
   daysOf,
   describeMinutes,
@@ -349,6 +350,86 @@ export function decideRequest(id, { approve, by = 'office', note: req_note, asMa
     [backed, note, req_note].filter(Boolean).join(' · ') || null,
     id
   );
+  return getRequest(id);
+}
+
+/**
+ * CALLING OFF LEAVE THAT WAS ALREADY APPROVED.
+ *
+ * Dinesh's leave brief: *"Never permanently delete approved leave
+ * transactions."* So the row stays, with its dates, who approved it and who
+ * cancelled it and why - and the days it put on the grid are taken back off.
+ *
+ * ---------------------------------------------------------------------------
+ * IT CLEARS THE DAY; IT DOES NOT DECIDE WHAT HAPPENED INSTEAD.
+ *
+ * A cancelled leave day is not automatically a day at work. They may have
+ * come in, or been absent, or taken a different kind of leave - and the app
+ * has no way to know which. Writing `P` would pay for a day nobody has said
+ * was worked; writing `A` would dock one. So the mark is CLEARED, the day
+ * goes back to unmarked, and whoever cancelled it marks what really
+ * happened. The reason is left on the day so the grid says why it is blank.
+ *
+ * Only the fields the approval wrote are touched, the same per-field merge
+ * rule everything else here follows - a lunch time typed by hand on a leave
+ * day that was later cancelled is not collateral.
+ * ---------------------------------------------------------------------------
+ */
+export function cancelRequest(id, { by = 'office', reason } = {}) {
+  const request = getRequest(id);
+  const period = request ? getPeriod(request.period_id) : null;
+  const may = canCancel(request, { periodLocked: !!period?.locked });
+  if (!may.ok) throw new Error(may.reason);
+
+  const why = String(reason || '').trim();
+  /* A cancellation has to say why. An approved leave disappearing off the
+     grid with no reason is the one thing nobody can reconstruct later. */
+  if (!why) throw new Error('say why it is being cancelled');
+
+  const marks = attendanceByEmployee(request.period_id).get(request.employee_id) || {};
+  const entries = entriesFor(request, { storedOf: (day) => marks[day] || null }).map((entry) => {
+    const undo = { employee_id: entry.employee_id, day: entry.day, by };
+    /* Clear exactly what the approval set, and nothing else. */
+    if ('code' in entry) undo.code = '';
+    if ('ot_minutes' in entry) undo.ot_minutes = null;
+    if ('in_time' in entry) undo.in_time = '';
+    if ('out_time' in entry) undo.out_time = '';
+    undo.reason = `leave cancelled — ${why}`;
+    /* The decision goes back to nobody's: the day is unmarked again, and an
+       approval that has been undone is not an approval. */
+    undo.approved = null;
+    return undo;
+  });
+  setAttendance(request.period_id, entries);
+
+  db.prepare(
+    `UPDATE attendance_requests
+        SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'),
+            cancel_reason = ?
+      WHERE id = ?`
+  ).run(by, why, id);
+  log.info(`Attendance request ${id} cancelled by ${by} — the days were cleared off the grid`);
+  return getRequest(id);
+}
+
+/**
+ * The employee ASKS; the office cancels.
+ *
+ * The same rule as everywhere else here - a request never writes attendance,
+ * a decision does. Somebody whose plans changed can say so from their own
+ * login, and it shows in the office queue as waiting to be called off.
+ */
+export function askToCancel(id, employeeId, reason) {
+  const request = getRequest(id);
+  if (!request || request.employee_id !== Number(employeeId)) return null;
+  const may = canCancel(request, { periodLocked: false });
+  if (!may.ok) throw new Error(may.reason);
+  if (request.cancel_requested_at) throw new Error('you have already asked for this one');
+  db.prepare(
+    `UPDATE attendance_requests
+        SET cancel_requested_at = datetime('now'), cancel_reason = ?
+      WHERE id = ?`
+  ).run(String(reason || '').trim() || null, id);
   return getRequest(id);
 }
 

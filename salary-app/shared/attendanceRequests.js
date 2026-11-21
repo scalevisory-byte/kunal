@@ -114,7 +114,39 @@ export const SHORT_LEAVE_MIN_MINUTES = 15;
  * outright, which is what happens for somebody who has no manager at all -
  * otherwise their leave would wait for a recommendation that could never come.
  */
-export const STATUSES = ['pending', 'recommended', 'approved', 'rejected', 'withdrawn'];
+export const STATUSES = [
+  'pending', 'recommended', 'approved', 'rejected', 'withdrawn', 'cancelled',
+];
+
+/**
+ * CANCELLED IS NOT DELETED, and that is the whole point of it.
+ *
+ * Dinesh's leave brief: *"Never permanently delete approved leave
+ * transactions."* So an approved leave that is called off keeps its row, its
+ * dates, who approved it and who cancelled it - and the days it wrote are
+ * taken back off the grid. Deleting it would leave the attendance written
+ * and nothing anywhere saying where it came from.
+ */
+export const canCancel = (request, { periodLocked = false } = {}) => {
+  if (!request) return { ok: false, reason: 'not found' };
+  if (request.status === 'cancelled') return { ok: false, reason: 'that one was already cancelled' };
+  /* Only an APPROVED one. A pending or recommended request has written
+     nothing, so taking it back is a withdrawal, which already exists; a
+     rejected one never happened. */
+  if (request.status !== 'approved') {
+    return {
+      ok: false,
+      reason:
+        request.status === 'pending' || request.status === 'recommended'
+          ? 'nothing has been written for this yet — withdraw it or reject it'
+          : `this was ${request.status}, so there is nothing to cancel`,
+    };
+  }
+  /* A locked month is closed. The leave was paid; undoing it now would move
+     a month somebody has already been paid for. */
+  if (periodLocked) return { ok: false, reason: 'that month is locked' };
+  return { ok: true };
+};
 
 /** Still waiting on somebody — not yet settled either way. */
 export const OPEN_STATUSES = ['pending', 'recommended'];
@@ -342,4 +374,5 @@ export const STATUS_LABEL = {
   approved: 'approved',
   rejected: 'rejected',
   withdrawn: 'withdrawn',
+  cancelled: 'cancelled after approval',
 };

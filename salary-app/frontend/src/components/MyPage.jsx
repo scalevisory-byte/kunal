@@ -728,7 +728,29 @@ function MyLeave({ onError }) {
     }
   };
 
-  useEffect(() => {
+    /**
+   * ASKING FOR AN APPROVED LEAVE TO BE CALLED OFF.
+   *
+   * It does not cancel anything. The same rule the whole queue runs on - a
+   * request never writes attendance, a decision does - so the days stay on
+   * the grid until somebody in the office cancels it.
+   */
+  const askCancel = async (request) => {
+    const reason = window.prompt('Why do you want this cancelled?');
+    if (!reason || !reason.trim()) return;
+    setBusy(true);
+    try {
+      const out = await api.post(`/me/requests/${request.id}/cancel`, { reason: reason.trim() });
+      setSaid(out.note);
+      await load();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+useEffect(() => {
     load();
   }, []);
 
@@ -911,8 +933,22 @@ function MyLeave({ onError }) {
                     : ATTENDANCE_CODES[r.code]?.label || r.kind}{' '}
                   · {r.to_day ? `${r.day}–${r.to_day}` : r.day}
                   <span className="muted small"> {r.reason}</span>
+                  {r.cancelled_at ? (
+                    <span className="muted small"> · cancelled{r.cancel_reason ? ` — ${r.cancel_reason}` : ''}</span>
+                  ) : r.cancel_requested_at ? (
+                    /* Asking changes NOTHING on the grid. Until the office
+                       cancels it, the leave stands and the days are theirs. */
+                    <span className="muted small"> · you asked to cancel this — waiting for the office</span>
+                  ) : null}
                 </span>
-                <span className={`pf-status ${r.status === 'approved' ? '' : r.status}`}>{r.status}</span>
+                {r.status === 'approved' && !r.cancel_requested_at ? (
+                  <button className="tiny" disabled={busy} onClick={() => askCancel(r)}>
+                    Ask to cancel
+                  </button>
+                ) : null}
+                <span className={`pf-status ${r.status === 'approved' ? '' : r.status}`}>
+                  {r.cancelled_at ? 'cancelled' : r.status}
+                </span>
               </div>
             ))}
           </div>

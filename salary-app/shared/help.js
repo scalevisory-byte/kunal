@@ -304,6 +304,21 @@ export const HELP = [
     ],
   },
   {
+    id: 'leave-cancel',
+    staff: true,
+    title: 'Cancelling a leave that was already approved',
+    tab: 'reports',
+    keywords: ['cancel', 'call off', 'approved leave', 'rad karna', 'chutti cancel', 'undo leave'],
+    lines: [
+      'Reports → **Attendance corrections and approvals** → **Cancel it** on the approved row.',
+      'It asks why, and the reason stays on the record.',
+      'An employee can **ask** from their own login (My leave → Ask to cancel) — that changes nothing until the office cancels it.',
+      'A locked month refuses: that leave has already been paid.',
+      'Something still waiting has written nothing — withdraw it instead.',
+    ],
+    note: 'IT CLEARS THOSE DAYS; IT DOES NOT MARK THEM PRESENT. They may have come in, been absent or taken something else, and either guess moves money — so mark what really happened afterwards. The request itself is never deleted: it keeps its dates, who approved it and who called it off.',
+  },
+  {
     id: 'leave-calendar',
     title: 'The leave calendar — who is off this month',
     tab: 'leave',

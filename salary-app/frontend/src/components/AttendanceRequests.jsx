@@ -86,6 +86,37 @@ export default function AttendanceRequests({ period, onReload, onError }) {
     }
   };
 
+
+  /**
+   * CALLING OFF A LEAVE THAT WAS ALREADY APPROVED.
+   *
+   * It CLEARS those days rather than marking them present: the app cannot
+   * know whether they came in, were absent or took something else, and
+   * either guess moves money. The confirmation says exactly that, because
+   * somebody pressing this will assume otherwise.
+   */
+  const cancel = async (request) => {
+    const reason = window.prompt(
+      `Cancel ${request.employee_name}'s ${kindLabel(request.kind).toLowerCase()}?\n\n` +
+        'The days come back OFF the grid and are left UNMARKED — mark what really ' +
+        'happened afterwards.\n\nWhy is it being cancelled?'
+    );
+    if (!reason || !reason.trim()) return;
+    setBusy(request.id);
+    try {
+      await api.post(`/attendance/requests/${request.id}/cancel`, {
+        by: 'office',
+        reason: reason.trim(),
+      });
+      await load();
+      onReload();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(0);
+    }
+  };
+
   /*
    * Open means pending OR recommended. A manager backing something does not
    * take it off the office's list - it puts it one click from done, which is
@@ -158,6 +189,17 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                         <div className="muted small">backed by {r.recommended_by}</div>
                       ) : null}
                       {r.decided_by ? <div className="muted small">by {r.decided_by}</div> : null}
+                      {r.cancelled_by ? (
+                        <div className="muted small">
+                          cancelled by {r.cancelled_by} — {r.cancel_reason}
+                        </div>
+                      ) : r.cancel_requested_at ? (
+                        /* They have ASKED. Nothing has changed on the grid;
+                           the office still presses the button. */
+                        <div className="warn small">
+                          asks to cancel{r.cancel_reason ? ` — ${r.cancel_reason}` : ''}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="right decide">
                       {isOpen(r) ? (
@@ -169,6 +211,14 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                             Reject
                           </button>
                         </>
+                      ) : r.status === 'approved' ? (
+                        <button
+                          className="tiny danger"
+                          disabled={busy === r.id}
+                          onClick={() => cancel(r)}
+                        >
+                          Cancel it
+                        </button>
                       ) : null}
                     </td>
                   </tr>

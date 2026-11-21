@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createOffice,
   createRequest,
+  cancelRequest,
   decideRequest,
   deleteOffice,
   listOffices,
@@ -86,6 +87,27 @@ attendanceSelfRouter.post('/requests', (req, res) => {
  * Approve or reject. Approving is the only thing here that writes attendance,
  * and nothing is ever approved automatically.
  */
+/**
+ * CALL OFF A LEAVE THAT WAS ALREADY APPROVED.
+ *
+ * His brief: *"Never permanently delete approved leave transactions."* The
+ * row stays and the days come back off the grid. It CLEARS those days rather
+ * than marking them present - the app has no way to know whether they came
+ * in, were absent or took something else, and guessing either way moves pay.
+ */
+attendanceSelfRouter.post('/requests/:id/cancel', (req, res) => {
+  try {
+    res.json(
+      cancelRequest(Number(req.params.id), {
+        by: req.body?.by || 'office',
+        reason: req.body?.reason,
+      })
+    );
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 attendanceSelfRouter.post('/requests/:id/decide', (req, res) => {
   try {
     const decided = decideRequest(Number(req.params.id), {

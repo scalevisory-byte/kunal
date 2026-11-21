@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.73.0';
+export const VERSION = '1.74.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.74.0',
+    date: '22 Nov 2026',
+    title: 'Calling off a leave that was already approved',
+    items: [
+      '**Reports \u2192 Attendance corrections and approvals \u2192 Cancel it**, on any approved leave. The days come back **off** the grid and the balance goes back into their hand.',
+      '**IT CLEARS THOSE DAYS; IT DOES NOT MARK THEM PRESENT.** They may have come in, been absent, or taken something else \u2014 the app has no way to know, and either guess moves money. The day goes back to **unmarked**, carrying the reason, and whoever cancelled it marks what really happened. The confirmation says exactly that before anything is pressed.',
+      '**The row is kept, never deleted** \u2014 his brief says so by name. It still shows the dates, who approved it, who cancelled it and why. Deleting it would leave the attendance changed with nothing anywhere saying where it came from.',
+      '**A cancellation has to say why.** An approved leave disappearing off the grid with no reason is the one thing nobody can reconstruct afterwards.',
+      '**Nothing is cancelled twice**, and **a locked month refuses** \u2014 that leave has been paid, and undoing it would move a month already settled.',
+      '**Only an approved one can be cancelled.** Something still waiting has written nothing, so taking it back is a withdrawal \u2014 which the employee can already do themselves.',
+      '**The employee can ASK** from their own login: **My leave \u2192 Ask to cancel**. It changes nothing on the grid \u2014 the same rule as everywhere else, a request never writes attendance and a decision does \u2014 and the office queue shows it as *asks to cancel* with their reason.',
+    ],
+  },
   {
     version: '1.73.0',
     date: '22 Nov 2026',
