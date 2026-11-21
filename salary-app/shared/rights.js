@@ -141,3 +141,47 @@ export function withoutPay(value, depth = 0) {
   }
   return out;
 }
+
+/**
+ * TAKING SOMETHING AWAY WITHOUT A DELETE.
+ *
+ * `requireWriteForChanges` says a DELETE needs `destroy` and everything else
+ * needs `write`, which is the right rule for nearly every route - and wrong
+ * for a handful that take something away through a POST because the thing is
+ * never actually deleted. An Operator's whole promise is "fills things in and
+ * cannot take anything away", and these six went straight past it:
+ *
+ *   write-off   an asset struck off the register.
+ *   renumber    rewrites every asset code at once. A code is deliberately
+ *               never reused, so this is one-way: an old service bill and a
+ *               signed handover slip still name the number it had.
+ *   waive       a penalty cancelled - money forgiven after it was recorded.
+ *   settle      the full and final closed, after which the dates stop moving.
+ *   cancel      a licence cancelled.
+ *   archive     a candidate taken off the list.
+ *
+ * Held as a LIST rather than as a tag on each route, for the same reason the
+ * gate is one line: a seventh of these will be written one day, and a tag is
+ * the thing that gets forgotten. A route added without thinking lands on the
+ * safe side - `write` - and this list is where somebody puts it right.
+ */
+export const TAKES_AWAY = [
+  { path: /^\/api\/people\/assets\/\d+\/write-off$/, what: 'write an asset off' },
+  { path: /^\/api\/people\/assets\/renumber$/, what: 'renumber the asset register' },
+  { path: /^\/api\/people\/penalties\/\d+\/waive$/, what: 'waive a penalty' },
+  { path: /^\/api\/people\/exits\/\d+\/settle$/, what: 'settle a full and final' },
+  { path: /^\/api\/people\/licenses\/\d+\/cancel$/, what: 'cancel a licence' },
+  { path: /^\/api\/hiring\/candidates\/\d+\/archive$/, what: 'take a candidate off the list' },
+];
+
+/**
+ * What this request takes away, or null if it only fills something in.
+ *
+ * A GET never takes anything away however it is spelt, and a DELETE is
+ * already covered by the gate's own rule.
+ */
+export function takesAway(method, path) {
+  if (method === 'GET' || method === 'HEAD') return null;
+  const hit = TAKES_AWAY.find((rule) => rule.path.test(String(path || '')));
+  return hit ? hit.what : null;
+}

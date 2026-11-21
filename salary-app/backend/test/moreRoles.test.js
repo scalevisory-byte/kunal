@@ -137,3 +137,60 @@ test('a Viewer still changes nothing, and now cannot delete either', async () =>
   assert.equal((await call(cookie, 'POST', '/api/front-office/areas', { name: 'X' })).status, 403);
   assert.equal((await call(cookie, 'DELETE', `/api/employees/${amit.id}`)).status, 403);
 });
+
+/*
+ * TAKING SOMETHING AWAY THROUGH A POST.
+ *
+ * The gate's rule is on the METHOD - a DELETE needs `destroy`, everything
+ * else needs `write`. That is right for nearly every route and wrong for a
+ * handful that take something away through a POST, because the thing is never
+ * actually deleted: an asset is written off, a penalty is waived, a candidate
+ * is archived. An Operator's whole promise is "fills things in and cannot
+ * take anything away", and these went straight past it.
+ */
+test('AN OPERATOR CANNOT WRITE OFF, WAIVE, SETTLE, CANCEL OR ARCHIVE', async () => {
+  const taken = [
+    ['POST', '/api/people/assets/1/write-off', /write an asset off/],
+    ['POST', '/api/people/assets/renumber', /renumber the asset register/],
+    ['POST', '/api/people/penalties/1/waive', /waive a penalty/],
+    ['POST', `/api/people/exits/${amit.id}/settle`, /settle a full and final/],
+    ['POST', '/api/people/licenses/1/cancel', /cancel a licence/],
+    ['POST', '/api/hiring/candidates/1/archive', /take a candidate off the list/],
+  ];
+
+  for (const [method, url, says] of taken) {
+    const no = await call(operator, method, url, {});
+    assert.equal(no.status, 403, `${url} should be refused`);
+    // And it says WHICH act, not just "no" - the Operator is being told what
+    // their login is for, not that something is broken.
+    assert.match(no.body.error, says);
+    assert.match(no.body.error, /may fill things in but not/);
+  }
+});
+
+test('...and HR, who may destroy, is not stopped by that gate', async () => {
+  // Not 403. What it IS depends on whether asset 1 exists in this fixture -
+  // the point is only that the gate let it through to the route.
+  for (const url of [
+    '/api/people/assets/1/write-off',
+    '/api/people/penalties/1/waive',
+    '/api/hiring/candidates/1/archive',
+  ]) {
+    const res = await call(hr, 'POST', url, { reason: 'checked' });
+    assert.notEqual(res.status, 403, `${url} should reach the route for HR`);
+  }
+});
+
+test('the gate still lets an Operator do the ordinary writes beside them', async () => {
+  /* The list is six exact paths, not "anything under assets". Whether these
+     bodies satisfy each route is the route's business - 403 is the gate's,
+     and 403 is the only answer that would mean the list is too wide. */
+  for (const [url, body] of [
+    ['/api/people/assets', { name: 'Dell laptop', kind: 'Laptop', company_id: company.id }],
+    ['/api/people/penalties', { employee_id: amit.id, kind: 'fine', amount: 100, note: 'late' }],
+    ['/api/hiring/candidates', { name: 'Hiren Patel', mobile: '9825099999' }],
+  ]) {
+    const res = await call(operator, 'POST', url, body);
+    assert.notEqual(res.status, 403, `${url} is an ordinary write and must stay theirs`);
+  }
+});

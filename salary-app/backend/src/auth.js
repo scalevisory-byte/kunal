@@ -1,4 +1,4 @@
-import { areaLabel, may, withoutPay } from '../../shared/rights.js';
+import { areaLabel, may, takesAway, withoutPay } from '../../shared/rights.js';
 import crypto from 'node:crypto';
 import { config } from './config.js';
 import { abilitiesOf, countUsers, getSetting, getUser, sessionSecret, setSetting } from './users.js';
@@ -286,6 +286,23 @@ export const requireForChanges = (ability) => (req, res, next) =>
 export const requireWriteForChanges = (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD') return next();
   if (req.method === 'DELETE') return requireAbility('destroy')(req, res, next);
+
+  /*
+   * A handful of routes take something away through a POST, because the thing
+   * is never actually deleted - an asset is written off, a penalty is waived,
+   * a candidate is archived. The method says "write"; the act says otherwise,
+   * and an Operator's promise is that they cannot take anything away. The list
+   * is in shared/rights.js, with what each one takes.
+   */
+  const away = takesAway(req.method, `${req.baseUrl || ''}${req.path}`);
+  if (away) {
+    if ((req.actor?.abilities || []).includes('destroy')) return next();
+    if (!req.actor) return res.status(401).json({ error: 'unauthorized' });
+    return res.status(403).json({
+      error: `This login may fill things in but not ${away}.`,
+    });
+  }
+
   return requireAbility('write')(req, res, next);
 };
 

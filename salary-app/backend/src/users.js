@@ -1,4 +1,5 @@
 import { AREA_KEYS, areasOf } from '../../shared/rights.js';
+import { LOGIN_THROTTLE, throttleState } from '../../shared/loginThrottle.js';
 import crypto from 'node:crypto';
 import { db } from './db.js';
 import { log } from './logger.js';
@@ -205,7 +206,7 @@ export const ROLES = [
     key: 'operator',
     label: 'Operator',
     abilities: ['read', 'write'],
-    what: 'Can fill things in — attendance, visitors, courier, entries — but cannot DELETE, archive or clear anything, and cannot approve. For data entry.',
+    what: 'Can fill things in — attendance, visitors, courier, entries — but cannot take anything away: no delete, no archive or clear, and none of the quiet ones either (write off an asset, waive a penalty, cancel a licence, settle a full and final, renumber the register). Cannot approve. For data entry.',
   },
   {
     key: 'viewer',
@@ -642,6 +643,79 @@ export function signIn({ username, password, ip, agent } = {}) {
   db.prepare(`UPDATE users SET last_login_at = datetime('now') WHERE id = ?`).run(row.id);
   recordLogin({ username: user, user_id: row.id, ok: true, ip, agent });
   return getUser(row.id);
+}
+
+/**
+ * Wrong passwords for this username since the last time somebody got in.
+ *
+ * Counted off `login_events`, which has recorded every attempt since the
+ * beginning - so there is no new table, nothing to sweep, and a restart does
+ * not hand an attacker a clean slate the way an in-memory counter would.
+ *
+ * "Since the last success" is the whole of why the right password clears it:
+ * two typos and then the real one leaves nothing behind.
+ */
+export function recentFailures(username) {
+  const user = tidyUsername(username);
+  if (!user) return { failures: 0, seconds_since_last: null };
+
+  const since = `-${LOGIN_THROTTLE.window_minutes} minutes`;
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n, MAX(at) AS last_at
+         FROM login_events
+        WHERE username = ?
+          AND ok = 0
+          AND at > datetime('now', ?)
+          AND at > COALESCE(
+                (SELECT MAX(at) FROM login_events WHERE username = ? AND ok = 1),
+                '0000-01-01'
+              )`
+    )
+    .get(user, since, user);
+
+  if (!row || !row.n) return { failures: 0, seconds_since_last: null };
+  const last = Date.parse(`${row.last_at.replace(' ', 'T')}Z`);
+  return {
+    failures: row.n,
+    seconds_since_last: Number.isFinite(last) ? Math.max(0, (Date.now() - last) / 1000) : null,
+  };
+}
+
+/**
+ * Whether this username has to wait before being answered again.
+ *
+ * Asked BEFORE the password is checked, so a guess that is slowed down costs
+ * nothing to check - and so the answer cannot be used to find out whether the
+ * login exists: an unknown name earns failures and waits exactly like a real
+ * one.
+ */
+export function loginGate(username) {
+  const { failures, seconds_since_last: secondsSinceLast } = recentFailures(username);
+  return throttleState({ failures, secondsSinceLast });
+}
+
+/**
+ * Every username being answered slowly right now.
+ *
+ * So the Logins screen can say so out loud. A throttle nobody can see is a
+ * throttle nobody checks - and a run of wrong passwords against a real
+ * username is the one thing on that screen worth acting on.
+ */
+export function slowedLogins() {
+  const names = db
+    .prepare(
+      `SELECT DISTINCT username FROM login_events
+        WHERE ok = 0 AND username IS NOT NULL
+          AND at > datetime('now', ?)`
+    )
+    .all(`-${LOGIN_THROTTLE.window_minutes} minutes`)
+    .map((r) => r.username);
+
+  return names
+    .map((username) => ({ username, ...loginGate(username) }))
+    .filter((row) => row.blocked)
+    .sort((a, b) => b.seconds_left - a.seconds_left);
 }
 
 export function listLogins({ limit = 200, ok } = {}) {

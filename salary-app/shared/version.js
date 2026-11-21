@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.60.0';
+export const VERSION = '1.61.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.61.0',
+    date: '21 Nov 2026',
+    title: 'Guessing passwords is slowed down, and an Operator really cannot take things away',
+    items: [
+      '**A run of wrong passwords is now answered more slowly.** There was no limit at all before — the sign-in screen would answer as fast as it was asked, for ever, so a short password was only as safe as the number of guesses somebody could be bothered to send.',
+      'The first **five** wrong passwords cost nothing (fingers slip, and caps lock is on more often than anybody admits). The sixth waits fifteen seconds, and each one after that doubles — thirty seconds, a minute, two, four — up to five minutes.',
+      '**It is a wait, never a lockout.** An account that closed after a few wrong guesses could be shut by anybody who knew the username, on the day payroll had to go out. So nothing is ever locked: the wait runs out on its own, and the right password clears the count at once.',
+      'Counted **per username**, so one person being guessed at never slows anybody else down. Admin → Logins now names anybody being answered slowly right now, so a real attempt is visible instead of being buried in a column of timestamps.',
+      '**An Operator could still waive a penalty, write off an asset, cancel a licence, settle a full and final, archive a candidate or renumber the whole asset register.** The rule only looked at delete, and none of those is a delete — the thing is kept and struck off instead. All six now need a login that may take things away, and the refusal says which act it was.',
+      'Nothing changed for Admin, Manager, HR or Accounts: all four could already do those, and still can.',
+    ],
+  },
   {
     version: '1.60.0',
     date: '21 Nov 2026',

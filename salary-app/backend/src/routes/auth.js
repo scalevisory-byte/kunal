@@ -4,6 +4,7 @@ import {
   actorOf, clearSessionCookie, idleMinutes, makeSession, requireAbility, setIdleMinutes,
   setSessionCookie, wideOpen,
 } from '../auth.js';
+import { waitInWords } from '../../../shared/loginThrottle.js';
 import {
   ROLES,
   countUsers,
@@ -14,9 +15,11 @@ import {
   getUser,
   listLogins,
   listUsers,
+  loginGate,
   noteFirstSignIn,
   setPassword,
   signIn,
+  slowedLogins,
   staffLogins,
   updateUser,
 } from '../users.js';
@@ -94,6 +97,23 @@ authRouter.post('/setup', (req, res) => {
 });
 
 authRouter.post('/login', (req, res) => {
+  /*
+   * A RUN OF WRONG PASSWORDS IS ANSWERED MORE SLOWLY, never shut out.
+   *
+   * Asked before the password is checked, so a guess that is being slowed
+   * down costs nothing to check. The rule - and the reason it is a wait and
+   * not a lockout - is in shared/loginThrottle.js.
+   */
+  const gate = loginGate(req.body?.username);
+  if (gate.blocked) {
+    log.warn(`Throttled sign-in for "${req.body?.username}" from ${req.ip}`);
+    res.set('retry-after', String(gate.seconds_left));
+    return res.status(429).json({
+      error: `Too many wrong passwords. Try again in ${waitInWords(gate.seconds_left)}.`,
+      seconds_left: gate.seconds_left,
+    });
+  }
+
   const user = signIn({ ...(req.body || {}), ...where(req) });
   if (!user) {
     // One message for both a wrong name and a wrong password, so this cannot be
@@ -264,5 +284,7 @@ authRouter.get('/backups/:name', requireAbility('admin'), (req, res) => {
 
 authRouter.get('/logins', requireAbility('admin'), (req, res) => {
   const ok = req.query.ok === 'true' ? true : req.query.ok === 'false' ? false : undefined;
-  res.json({ logins: listLogins({ limit: req.query.limit, ok }) });
+  /* `slowed` is whoever is being answered slowly right now. Sent with the
+     list rather than worked out in the browser, so the rule has one home. */
+  res.json({ logins: listLogins({ limit: req.query.limit, ok }), slowed: slowedLogins() });
 });
