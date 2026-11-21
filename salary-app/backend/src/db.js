@@ -2142,6 +2142,27 @@ export function listRepayments(periodId) {
     .all(periodId);
 }
 
+/**
+ * Every repayment ever posted, with the month it came out of.
+ *
+ * `listRepayments` above answers "what is coming out THIS month", which the
+ * salary sheet needs. The settlement report needs the other question - the
+ * whole history of a loan - because that is where the month it finished in
+ * actually lives. Closure is never stored: the repayments ARE the record,
+ * and a second `closed_on` column would disagree with them the first time an
+ * instalment was edited, which the office is allowed to do.
+ */
+export function allRepayments() {
+  return db
+    .prepare(
+      `SELECT r.loan_id, r.amount, p.year, p.month, p.label AS period_label
+         FROM loan_repayments r
+         JOIN periods p ON p.id = r.period_id
+        ORDER BY p.year, p.month`
+    )
+    .all();
+}
+
 export function setRepayment(loanId, periodId, amount) {
   db.prepare(
     `INSERT INTO loan_repayments (loan_id, period_id, amount) VALUES (?, ?, ?)

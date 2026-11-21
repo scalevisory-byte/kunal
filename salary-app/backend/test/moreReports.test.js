@@ -4,6 +4,7 @@ import { missingPunches, problemOf } from '../../shared/missingPunch.js';
 import { deductionStatement, DEDUCTION_HEADS } from '../../shared/deductionStatement.js';
 import { salaryByDepartment } from '../../shared/salaryByDepartment.js';
 import { calculateRow } from '../../shared/calc.js';
+import { loanSettlement, settlementOf } from '../../shared/loanSettlement.js';
 
 /* ---------------- missing punches ---------------- */
 
@@ -187,4 +188,89 @@ test('a department where somebody was paid nothing says how many were actually p
      and an average over the headcount would say it was. */
   assert.equal(lines[0].people, 2);
   assert.equal(lines[0].paid, 1);
+});
+
+/* ---------------- loans closed over a period ---------------- */
+
+test('a loan is closed when the repayments reach what was advanced', () => {
+  const loan = { id: 1, employee_id: 1, employee_name: 'Riya', amount: 6000, instalment: 1000 };
+  const paid = [3, 4, 5, 6, 7, 8].map((month) => ({
+    amount: 1000, year: 2026, month, period_label: `M${month}`,
+  }));
+  const out = settlementOf(loan, paid);
+  assert.equal(out.closed, true);
+  /* The month it finished in is the month of the repayment that got it
+     there - the sixth, not the last row in the table or today. */
+  assert.equal(out.closed_on, 'M8');
+  assert.equal(out.instalments_paid, 6);
+  assert.equal(out.outstanding, 0);
+});
+
+test('closure is DERIVED, so editing an instalment cannot leave it stale', () => {
+  const loan = { id: 1, amount: 6000, instalment: 1000 };
+  /* The office is allowed to set a month to zero when somebody cannot pay.
+     A stored `closed_on` would still say the loan had finished. */
+  const paid = [
+    { amount: 1000, year: 2026, month: 3, period_label: 'M3' },
+    { amount: 0, year: 2026, month: 4, period_label: 'M4' },
+    { amount: 1000, year: 2026, month: 5, period_label: 'M5' },
+  ];
+  const out = settlementOf(loan, paid);
+  assert.equal(out.closed, false);
+  assert.equal(out.closed_on, '');
+  assert.equal(out.outstanding, 4000);
+  assert.equal(out.instalments_paid, 2, 'a month set to zero is not an instalment paid');
+});
+
+test('with no instalment set, months left is NOT KNOWN — never a guess', () => {
+  const out = settlementOf({ id: 1, amount: 5000, instalment: 0 }, []);
+  /* Null, not 1 and not 0. "Not known" is not "next month". */
+  assert.equal(out.months_left, null);
+  assert.equal(out.outstanding, 5000);
+});
+
+test('a held loan is counted apart, because none of it is coming back yet', () => {
+  const { totals } = loanSettlement(
+    [
+      { id: 1, amount: 12000, instalment: 1000, status: 'active' },
+      { id: 2, amount: 5000, instalment: 500, status: 'held' },
+    ],
+    () => [],
+    {}
+  );
+  assert.equal(totals.running, 2);
+  assert.equal(totals.outstanding, 17000);
+  /* An outstanding figure that quietly included a held loan reads as money
+     coming back this month when none of it is. */
+  assert.equal(totals.held, 1);
+  assert.equal(totals.held_outstanding, 5000);
+});
+
+test('over-recovery is shown, never rounded away — it is money owed back', () => {
+  const out = settlementOf({ id: 1, amount: 3000, instalment: 1000 }, [
+    { amount: 1000, year: 2026, month: 1, period_label: 'M1' },
+    { amount: 1000, year: 2026, month: 2, period_label: 'M2' },
+    { amount: 1500, year: 2026, month: 3, period_label: 'M3' },
+  ]);
+  assert.equal(out.outstanding, 0, 'never negative');
+  assert.equal(out.over_recovered, 500);
+  assert.equal(out.closed, true);
+});
+
+test('the year narrows what CLOSED, and never what is still running', () => {
+  const loans = [
+    { id: 1, amount: 1000, instalment: 1000 },
+    { id: 2, amount: 1000, instalment: 1000 },
+    { id: 3, amount: 9000, instalment: 1000 },
+  ];
+  const paid = {
+    1: [{ amount: 1000, year: 2025, month: 6, period_label: 'June 2025' }],
+    2: [{ amount: 1000, year: 2026, month: 6, period_label: 'June 2026' }],
+    3: [{ amount: 1000, year: 2026, month: 6, period_label: 'June 2026' }],
+  };
+  const out = loanSettlement(loans, (id) => paid[id] || [], { year: 2026 });
+  assert.deepEqual(out.closed.map((l) => l.loan_id), [2]);
+  /* A loan still being recovered is outstanding whatever year it started
+     in, so the running list is never narrowed by the year. */
+  assert.deepEqual(out.running.map((l) => l.loan_id), [3]);
 });

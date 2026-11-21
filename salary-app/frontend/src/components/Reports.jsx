@@ -16,6 +16,7 @@ import LeaveRegister from './LeaveRegister.jsx';
 import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
 import { DeductionStatement, SalaryByDepartment } from './PayReports.jsx';
 import MissingPunch from './MissingPunch.jsx';
+import LoanSettlement from './LoanSettlement.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
@@ -192,6 +193,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
       <LeaveApplications period={period} companyId={filters.company_id || null} onGo={onGo} />
     ),
     'missing-punch': () => (payroll ? <MissingPunch payroll={payroll} /> : null),
+    'loan-settled': () => <LoanSettlement period={period} />,
     deductions: () => (payroll ? <DeductionStatement payroll={payroll} /> : null),
     'cost-department': () => (payroll ? <SalaryByDepartment payroll={payroll} /> : null),
     'leave-by-department': () => (

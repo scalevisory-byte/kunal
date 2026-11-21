@@ -174,9 +174,8 @@ export const REPORTS = [
     { filters: ['month', 'company', 'employee'], note: 'Deducted each month and in the export. No report of what was recovered.' }),
   R('loan-outstanding', 'Outstanding loan report', 'loans', 'partial',
     { filters: ['company', 'employee'], note: 'Outstanding is computed per loan. No ageing, no company totals.' }),
-  R('loan-settled', 'Loan settlement report', 'loans', 'planned',
-    { filters: ['range', 'company'],
-      note: 'Closure is a status on the loan. Nothing reports loans closed over a period.' }),
+  R('loan-settled', 'Loan settlement report', 'loans', 'ready',
+    { filters: ['month', 'company'], at: 'panel:loan-settled' }),
 
   /* ---- G. Assets ---- */
   R('asset-register', 'Asset register', 'assets', 'ready', { filters: ['company', 'search'], at: 'file:asset-register' }),

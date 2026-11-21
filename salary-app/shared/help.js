@@ -304,6 +304,18 @@ export const HELP = [
     ],
   },
   {
+    id: 'loan-settlement',
+    title: 'Which loans are finished, and what is still owed',
+    tab: 'reports',
+    keywords: ['loan', 'advance', 'settled', 'closed', 'karz', 'udhaar', 'baaki', 'EMI'],
+    lines: [
+      'Reports → **Loan settlement report**: what is still being recovered, and what finished this year.',
+      'Months left is worked out at the agreed instalment.',
+      'A loan on hold is counted apart — the debt stands, but nothing is coming back until it is resumed.',
+    ],
+    note: 'Closure is worked out from the repayments, never stored. A loan is finished when what has been repaid reaches what was advanced — so a month set to zero, which the office is allowed to do, cannot leave a stale “closed” date behind. With no instalment set, months left reads as a dash: not known is not next month.',
+  },
+  {
     id: 'missing-punch',
     title: 'Days the clock cannot account for',
     tab: 'reports',

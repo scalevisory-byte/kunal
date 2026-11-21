@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.76.0';
+export const VERSION = '1.77.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.77.0',
+    date: '22 Nov 2026',
+    title: 'Loans closed over a year, and what is still being recovered',
+    items: [
+      '**Reports \u2192 Loan settlement report.** Which loans finished and in which month, and which are still being recovered \u2014 how much is left, and how many months at the agreed instalment.',
+      '**Closure is worked out from the repayments, never stored.** A loan is finished when what has been repaid reaches what was advanced, and the month it finished in is the month of the repayment that got it there. Writing a “closed on” date would be a second record of the same fact, and it would disagree the moment an instalment was edited \u2014 which the office is allowed to do, because somebody who cannot pay this month gets it set to zero.',
+      '**A loan on hold is counted apart.** The debt stands, but none of it is coming back this month, and an outstanding figure that quietly included it reads as money arriving when none is.',
+      '**With no instalment set, months left reads as not known** \u2014 a dash, never 1 and never 0.',
+      '**Over-recovery is shown, not rounded away**: if more came out than was advanced, that is money owed back and it is named.',
+      'This was the report the last release said could not be built. The note on it \u2014 “closure is a status on the loan” \u2014 was the **fourth stale note of its kind** found in a row. They are worth re-reading rather than trusting.',
+    ],
+  },
   {
     version: '1.76.0',
     date: '22 Nov 2026',

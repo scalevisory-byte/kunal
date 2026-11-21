@@ -1011,9 +1011,34 @@ month, like `LeaveRegister` and `AttendanceReport`, so they work in the single-f
   on its own register.
 - Layout: ten columns ran off a 1280px laptop, so the department moved under the name, empty
   heads are dropped, and the table sits in a `ScrollFrame`.
-- **Every report in the catalogue that can be built from what the app holds is now built.** The
-  five left need a portal's own template (PF ECR, ESI) or a record of what has actually been
-  paid to the authorities, which nothing tracks.
+- That claim was made too early: the **loan settlement report** was buildable too (v1.77,
+  below). **Four stale "cannot be built" notes in a row now** — leave by department, salary cost
+  by department, and loan closure. A note explaining why something is impossible outlives the
+  thing that made it so, so re-read them rather than trusting them.
+
+### Loans closed over a year (v1.77)
+
+`shared/loanSettlement.js`, `LoanSettlement.jsx`, `GET /api/loans/settlement`, `allRepayments()`.
+
+- The stale note was *"Closure is a status on the loan"* — half true. `loans.status` is
+  active/held and never says closed, but **closure is already a fact the data holds**: a loan is
+  finished when the repayments reach what was advanced, and the month it finished in is the
+  month of the repayment that got it there.
+- **CLOSURE IS DERIVED, NEVER STORED.** A `closed_on` column would be a second record of the
+  same fact and would disagree the first time an instalment was edited — which the office is
+  allowed to do, because somebody who cannot pay this month gets it set to zero. There is a test
+  for exactly that: a zeroed month leaves the loan open and is not counted as an instalment paid.
+- **A held loan is counted apart** — the debt stands, but none of it is coming back this month,
+  and an outstanding total that quietly included it reads as money arriving when none is.
+- **Months left is null with no instalment set**, never 1 and never 0. **Over-recovery is shown**,
+  never clamped: it is money owed back.
+- The year narrows what **closed**, never what is still running — a loan being recovered is
+  outstanding whatever year it started in.
+
+**Now genuinely all that can be built: the four left are PF ECR and the ESI export (both need a
+file the portal has actually accepted — these templates drift and must not be written from
+memory), the statutory challan summary and pending statutory payments (nothing records what has
+actually been paid to the authorities).**
 
 ### Still to settle with Dinesh
 The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
