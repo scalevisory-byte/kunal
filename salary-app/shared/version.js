@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.58.0';
+export const VERSION = '1.59.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.59.0',
+    date: '21 Nov 2026',
+    title: 'Three more roles, and the front desk gets its own tabs',
+    items: [
+      '**Three new roles — Manager, Accounts, Operator.** The reason three of your people were all Admin is that **approving** a month or an offer was only an Admin’s, so anybody who had to approve anything was handed the Logins screen with it.',
+      '**Manager** = everything HR does, **plus approving**: approve a month’s payroll, lock it, approve or withdraw an offer. **No logins, no branches, no month settings, and a month still cannot be deleted.**',
+      '**Operator** = fills things in and **cannot take anything away**. Attendance, visitors, courier, entries — yes. Delete, archive, clear — no. For data entry.',
+      '**Accounts** = the same rights as HR, started off with **Salary sheet and Reports** ticked. The role says why the login exists; the **May use** ticks beside it say what it reaches, and those are the truth.',
+      '**Nothing changed for anybody already set up.** Admin and HR carry exactly what they carried, plus the new names for the same things; Viewer still changes nothing and now cannot delete either.',
+      '**Front office has a Dashboard tab and a Housekeeping tab**, as your own front-office tool did. “Today” held the figures and the walk together, so neither had a name.',
+      'The **Dashboard** names what the figures are about: the areas flagged today with their remarks, and who is still in the building — each with a link to the tab it came from.',
+    ],
+  },
   {
     version: '1.58.0',
     date: '21 Nov 2026',

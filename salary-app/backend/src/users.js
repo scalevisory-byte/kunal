@@ -142,18 +142,70 @@ if (!db.prepare(`PRAGMA table_info(users)`).all().some((c) => c.name === 'areas'
   }
 }
 
+/*
+ * THE ROLES, AND WHAT EACH ABILITY ACTUALLY DECIDES.
+ *
+ * Dinesh, with three of his people all Admin: *"or bhi roll banavo"*. The
+ * reason they were all Admin is that `admin` was the only thing that could
+ * APPROVE - a month's payroll, an offer - so anybody who had to approve
+ * anything was handed the Logins screen as well.
+ *
+ *   `read`     look at the office side
+ *   `write`    change it
+ *   `destroy`  delete, archive, retire, clear - the acts that take something
+ *              away. Separated out so a data-entry login can fill the day in
+ *              and still not be able to empty it.
+ *   `approve`  approve and lock a month, approve or withdraw an offer. NOT
+ *              administration: no logins, no branches, no month settings.
+ *   `admin`    the installation itself.
+ *
+ * The roles below are made of those, and nothing else. A role NEVER decides
+ * which modules somebody sees - that is the May-use ticks beside it, and
+ * mixing the two is how a "role" ends up meaning two different things.
+ */
 export const ROLES = [
   {
     key: 'admin',
     label: 'Admin',
-    abilities: ['read', 'write', 'admin'],
+    abilities: ['read', 'write', 'destroy', 'approve', 'admin'],
     what: 'Everything, including logins, branches, a month’s settings and closing a month.',
+  },
+  {
+    /*
+     * The missing middle. Everything HR does, plus the approvals - so
+     * approving a month's payroll no longer costs somebody the Logins
+     * screen.
+     */
+    key: 'manager',
+    label: 'Manager',
+    abilities: ['read', 'write', 'destroy', 'approve'],
+    what: 'Everything HR does, and can APPROVE — a month’s payroll, locking it, an offer. Cannot touch logins, branches or a month’s settings.',
   },
   {
     key: 'hr',
     label: 'HR',
+    abilities: ['read', 'write', 'destroy'],
+    what: 'Employees, attendance, leave, payroll and assets — salaries included. Cannot approve a payroll or an offer, and cannot change settings or logins.',
+  },
+  {
+    /*
+     * Abilities identical to HR on purpose: "Accounts" is not a different
+     * KIND of action, it is a different set of modules. The role says why
+     * the login exists; the May-use ticks say what it reaches, and they are
+     * the truth. The Add-a-login form ticks Salary sheet and Reports to
+     * start with, and they stay editable.
+     */
+    key: 'accounts',
+    label: 'Accounts',
+    abilities: ['read', 'write', 'destroy'],
+    what: 'The same as HR, started off with Salary sheet and Reports ticked. What it really reaches is the May-use ticks beside it — change them freely.',
+    areas: ['salary', 'reports'],
+  },
+  {
+    key: 'operator',
+    label: 'Operator',
     abilities: ['read', 'write'],
-    what: 'Employees, attendance, leave, payroll and assets — salaries included. Cannot change settings or logins.',
+    what: 'Can fill things in — attendance, visitors, courier, entries — but cannot DELETE, archive or clear anything, and cannot approve. For data entry.',
   },
   {
     key: 'viewer',

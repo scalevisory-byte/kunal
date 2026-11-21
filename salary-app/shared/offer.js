@@ -57,16 +57,16 @@ export const offerStatusMeta = (key) => OFFER_STATUSES.find((s) => s.key === key
  */
 export const OFFER_MOVES = {
   draft: [
-    { to: 'approved', label: 'Approve this offer', needs: 'admin', stage: null },
+    { to: 'approved', label: 'Approve this offer', needs: 'approve', stage: null },
   ],
   approved: [
     { to: 'sent', label: 'Mark as sent', needs: 'write', stage: 'Offer Sent' },
-    { to: 'withdrawn', label: 'Withdraw', needs: 'admin', stage: null },
+    { to: 'withdrawn', label: 'Withdraw', needs: 'approve', stage: null },
   ],
   sent: [
     { to: 'accepted', label: 'They accepted', needs: 'write', stage: 'Selected' },
     { to: 'declined', label: 'They declined', needs: 'write', stage: 'Rejected' },
-    { to: 'withdrawn', label: 'Withdraw', needs: 'admin', stage: null },
+    { to: 'withdrawn', label: 'Withdraw', needs: 'approve', stage: null },
   ],
   /*
    * Accepted is not the end of the road - they still have to turn up - but it
@@ -110,13 +110,19 @@ export function canMoveOffer(offer, to, abilities = []) {
       }.`,
     };
   }
-  if (!abilities.includes(move.needs)) {
+  /*
+   * An Admin can do anything an approver can. Said here rather than by
+   * giving every move two `needs`, so there is one place that decides what
+   * an ability covers.
+   */
+  const has = abilities.includes(move.needs) || (move.needs === 'approve' && abilities.includes('admin'));
+  if (!has) {
     return {
       ok: false,
       code: 'forbidden',
       why:
-        move.needs === 'admin'
-          ? 'Only an Admin login can approve or withdraw an offer.'
+        move.needs === 'approve'
+          ? 'Approving or withdrawing an offer needs a Manager or an Admin login.'
           : 'This login can look but not change.',
     };
   }

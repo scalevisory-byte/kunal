@@ -711,7 +711,8 @@ export const HELP = [
       'safai', 'mehmaan', 'aagantuk', 'parcel aaya', 'register',
     ],
     lines: [
-      '**Front office** is the desk’s own book: the housekeeping walk, who visited, and every courier in or out — one date at a time, picked at the top of the tab.',
+      '**Front office** is the desk\u2019s own book: the housekeeping walk, who visited, and every courier in or out \u2014 one date at a time, picked at the top of the tab.',
+      '**Dashboard** is the day at a glance \u2014 the figures, the areas flagged today with their remarks, and who is still in the building. **Housekeeping** is the walk itself.',
       '**Housekeeping.** Each area is Clean, Not clean or Needs attention, with a remark. **An area you have not looked at stays blank** — it is counted as “not checked”, never as clean.',
       '**Visitors.** Name, company, visitor type, purpose, who they are here to meet (picked from the staff list) and a 10-digit mobile. The **pass number is given by the system** — VIS-2026-0001 — and never typed.',
       'Press **Out now** when they leave; until then they count as still in the building. A check-out can be **corrected or taken back**, and the arrival is never touched. **Print** hands them a pass with the company logo and a QR code that carries the pass number and nothing else.',
@@ -835,7 +836,9 @@ export const HELP = [
       'adhikar', 'haq', 'rok', 'chhipana', 'tankhwah chhipana',
     ],
     lines: [
-      'Each login has a **role** — Admin, HR, Viewer or Staff — which says what KIND of thing they may do: look, change, or change the installation itself.',
+      'Each login has a **role**, which says what KIND of thing they may do \u2014 look, change, approve, or change the installation itself.',
+      '**Admin** everything, including logins, branches, a month\u2019s settings and deleting a month. **Manager** everything HR does plus **approving** \u2014 a month\u2019s payroll, locking it, an offer \u2014 and nothing administrative. **HR** employees, attendance, leave, payroll and assets, salaries included, but cannot approve. **Accounts** the same as HR, started off with Salary sheet and Reports ticked. **Operator** fills things in and **cannot delete, archive or clear anything**. **Viewer** looks and changes nothing. **Staff** their own record only.',
+      '**If somebody only needs to approve, make them a Manager, not an Admin.** That is why Admins multiply.',
       'Beside it, **May use** says WHERE. Tick the parts of the app that login covers — Salary sheet, Attendance & time, Leave, Loans, Employees, Assets, Hiring, People, Reports.',
       '**Nothing ticked means everything**, which is what every login already was, so this changes nobody until you narrow one. Unticking the last box puts it back to everything rather than locking somebody out.',
       'A login **without Salary sheet sees no pay figure anywhere** — not on the sheet, not on a payslip, not on the employee master, not in an export. It can still mark attendance on the same month.',

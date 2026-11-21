@@ -33,7 +33,16 @@ const todayISO = () => {
 const nowHHMM = () => new Date().toTimeString().slice(0, 5);
 
 const VIEWS = [
-  ['today', 'Today'],
+  /*
+   * The tabs his own front-office tool had, in its order.
+   *
+   * Dinesh: *"dashboard banavo / housekeeping ka tab banavo"*. "Today" held
+   * the day's figures AND the walk, so neither had a name: somebody sent to
+   * "the dashboard" and somebody sent to "housekeeping" were sent to the
+   * same tab and had to be told which half to look at.
+   */
+  ['dashboard', 'Dashboard'],
+  ['housekeeping', 'Housekeeping'],
   ['visitors', 'Visitors'],
   ['courier', 'Courier'],
   ['report', 'Daily report'],
@@ -64,7 +73,7 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
     return () => window.clearTimeout(timer);
   }, [said]);
   const [day, setDay] = useState(todayISO);
-  const [view, setView] = useState('today');
+  const [view, setView] = useState('dashboard');
   const [data, setData] = useState(null);
   const [month, setMonth] = useState(() => todayISO().slice(0, 7));
   const [monthData, setMonthData] = useState(null);
@@ -165,6 +174,12 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
 
   const statusOf = (area) =>
     data.inspections.find((i) => Number(i.area_id) === Number(area.id)) || {};
+
+  /* The day's own rows, read the way the registers read them. */
+  const flaggedToday = (data?.areas || [])
+    .map((area) => ({ area, ...(statusOf(area) || {}) }))
+    .filter((row) => isFlag(row.status));
+  const stillInToday = (data?.visitors || []).filter((v) => !v.out_time && !v.out_at);
 
   /* ---------------- the papers ---------------- */
 
@@ -319,7 +334,7 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
         ))}
       </nav>
 
-      {view === 'today' ? (
+      {view === 'dashboard' ? (
         <>
           <div className="card">
             <div className="fo-figures">
@@ -337,6 +352,63 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
             </p>
           </div>
 
+          {/*
+            * WHAT THE FIGURES ARE ABOUT, named.
+            *
+            * A count is a reason to go and look; the names save the going.
+            * Nothing here is worked out - each list is the day's own rows,
+            * read the same way the register reads them.
+            */}
+          <div className="card">
+            <h3>Needs a look</h3>
+            {flaggedToday.length ? (
+              <div className="lines">
+                {flaggedToday.map((f) => (
+                  <div key={f.area.id}>
+                    <span className="what">
+                      <strong>{f.area.name}</strong> — {hkLabel(f.status)}
+                      {f.remark ? ` · ${f.remark}` : ''}
+                    </span>
+                    <button className="link" onClick={() => setView('housekeeping')}>open the walk</button>
+                  </div>
+                ))}
+              </div>
+            ) : stats.clean ? (
+              <p className="muted small">
+                Nothing flagged. {stats.clean} area{stats.clean === 1 ? '' : 's'} checked and clean
+                {stats.not_checked ? `, ${stats.not_checked} not looked at` : ''}.
+              </p>
+            ) : (
+              <p className="muted small">
+                Nobody has walked the areas yet today —{' '}
+                <button className="link" onClick={() => setView('housekeeping')}>start the check</button>.
+              </p>
+            )}
+
+            {stillInToday.length ? (
+              <>
+                <h4>Still in the building ({stillInToday.length})</h4>
+                <div className="lines">
+                  {stillInToday.map((v) => (
+                    <div key={v.id}>
+                      <span className="what">
+                        <strong>{v.name}</strong>
+                        {v.company ? ` · ${v.company}` : ''}
+                        {v.in_time ? ` · in ${v.in_time}` : ''}
+                        {v.meeting_name ? ` · for ${v.meeting_name}` : ''}
+                      </span>
+                      <button className="link" onClick={() => setView('visitors')}>visitors</button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+
+      {view === 'housekeeping' ? (
+        <>
           <div className="card scroll">
             <div className="row">
               <h3>Housekeeping</h3>

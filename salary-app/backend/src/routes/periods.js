@@ -1,7 +1,7 @@
 import { may } from '../../../shared/rights.js';
 import { requireArea } from '../auth.js';
 import { Router } from 'express';
-import { requireAbility } from '../auth.js';
+import { requireAbility, requireApproval } from '../auth.js';
 import {
   applyHoliday,
   clearAttendance,
@@ -28,8 +28,12 @@ import {
 import { reviewPeriod, noteException, employeeStatement } from '../payrollReview.js';
 import { exceptionSummary } from '../../../shared/payrollExceptions.js';
 import { payrollStage } from '../../../shared/payrollStages.js';
-/** Approving and locking a month are an admin's, whatever the mount allows. */
-const requireAdmin = requireAbility('admin');
+/*
+ * Approving and locking a month need the APPROVE ability, whatever the mount
+ * allows - a Manager or an Admin. Deleting a month stays an Admin's: that is
+ * the installation, not a decision about a month.
+ */
+const requireApprover = requireApproval;
 import { buildPayroll, buildPayslip } from '../payroll.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { TIME_FIELDS, parseTime } from '../../../shared/timesheet.js';
@@ -431,7 +435,7 @@ periodsRouter.get('/:id/statement/:employeeId', (req, res) => {
  * Approving does not lock: the office still has to pay the month and tick
  * the rows off. Locking after that is what stops the figures moving.
  */
-periodsRouter.post('/:id/approve', requireAdmin, (req, res) => {
+periodsRouter.post('/:id/approve', requireApprover, (req, res) => {
   const period = getPeriod(Number(req.params.id));
   if (!period) return res.status(404).json({ error: 'not found' });
   if (period.approved_at) return res.status(409).json({ error: 'this month is already approved' });
@@ -466,7 +470,7 @@ periodsRouter.post('/:id/approve', requireAdmin, (req, res) => {
 });
 
 /** Taking the approval back, which needs a reason like reopening does. */
-periodsRouter.delete('/:id/approve', requireAdmin, (req, res) => {
+periodsRouter.delete('/:id/approve', requireApprover, (req, res) => {
   const period = getPeriod(Number(req.params.id));
   if (!period) return res.status(404).json({ error: 'not found' });
   if (period.locked) return res.status(409).json({ error: 'unlock it first' });
@@ -490,7 +494,7 @@ periodsRouter.delete('/:id/approve', requireAdmin, (req, res) => {
 });
 
 /** Locked: paid and filed. Reopening needs a reason, and keeps it. */
-periodsRouter.post('/:id/lock', requireAdmin, (req, res) => {
+periodsRouter.post('/:id/lock', requireApprover, (req, res) => {
   const period = getPeriod(Number(req.params.id));
   if (!period) return res.status(404).json({ error: 'not found' });
   const by = actorOf(req);

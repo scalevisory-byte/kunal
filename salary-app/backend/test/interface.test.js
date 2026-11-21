@@ -2536,8 +2536,15 @@ test('the front desk is a tab, and its help topic names the trap', () => {
   assert.match(app, /<FrontOffice[\s\S]{0,200}employees=\{employees\}/);
 
   const fo = src('components/FrontOffice.jsx');
-  // The six screens his tool had.
-  for (const label of ['Today', 'Visitors', 'Courier', 'Daily report', 'Monthly summary', 'Areas']) {
+  /*
+   * The screens his tool had, in its order. "Today" held the figures AND the
+   * walk, so neither had a name - somebody sent to the dashboard and
+   * somebody sent to housekeeping were sent to the same tab. Dinesh:
+   * *"dashboard banavo / housekeeping ka tab banavo"*.
+   */
+  for (const label of [
+    'Dashboard', 'Housekeeping', 'Visitors', 'Courier', 'Daily report', 'Monthly summary', 'Areas',
+  ]) {
     assert.match(fo, new RegExp(`'${label}'`), `the ${label} view is missing`);
   }
   /*

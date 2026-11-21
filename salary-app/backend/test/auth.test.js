@@ -90,11 +90,21 @@ test('before anybody exists, the app says it needs setting up', async () => {
   const { body } = await anon('GET', '/api/auth/state');
   assert.equal(body.needs_setup, true);
   assert.equal(body.signed_in, null);
+  /*
+   * Seven roles, made of five abilities. Dinesh had three people all Admin
+   * because `admin` was the only thing that could approve a month or an
+   * offer; `approve` is now its own ability and Manager carries it.
+   * 'employee' is the staff login: their own payslip and nothing else.
+   */
   assert.deepEqual(
     body.roles.map((r) => r.key),
-    // 'employee' is the staff login: their own payslip and nothing else.
-    ['admin', 'hr', 'viewer', 'employee'],
+    ['admin', 'manager', 'hr', 'accounts', 'operator', 'viewer', 'employee'],
   );
+  const ability = (key) => body.roles.find((r) => r.key === key).abilities;
+  assert.deepEqual(ability('admin'), ['read', 'write', 'destroy', 'approve', 'admin']);
+  assert.deepEqual(ability('manager'), ['read', 'write', 'destroy', 'approve'], 'approves, never administers');
+  assert.deepEqual(ability('operator'), ['read', 'write'], 'fills in, never takes away');
+  assert.deepEqual(ability('viewer'), ['read']);
 });
 
 test('a short password is refused, with a reason', async () => {
@@ -196,7 +206,7 @@ test('an admin can make the other two logins', async () => {
   });
   assert.equal(madeHr.status, 201);
   hrId = madeHr.body.id;
-  assert.deepEqual(madeHr.body.abilities, ['read', 'write']);
+  assert.deepEqual(madeHr.body.abilities, ['read', 'write', 'destroy']);
 
   const madeViewer = await admin('POST', '/api/auth/users', {
     username: 'auditor',

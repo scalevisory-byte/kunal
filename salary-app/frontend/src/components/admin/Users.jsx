@@ -168,15 +168,21 @@ export default function Users({ me, onError }) {
               Role
               <select
                 value={draft.role}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const picked = e.target.value;
+                  /*
+                   * An Admin cannot be narrowed, so the ticks go with the
+                   * choice rather than being left on screen meaning nothing.
+                   * A role that SUGGESTS a set of modules (Accounts) ticks
+                   * them to start with - visibly, and still editable.
+                   */
+                  const suggested = roles.find((r) => r.key === picked)?.areas;
                   setDraft({
                     ...draft,
-                    role: e.target.value,
-                    // An Admin cannot be narrowed, so the ticks go with the
-                    // choice rather than being left on screen meaning nothing.
-                    areas: e.target.value === 'admin' ? [] : draft.areas,
-                  })
-                }
+                    role: picked,
+                    areas: picked === 'admin' ? [] : suggested || draft.areas,
+                  });
+                }}
               >
                 {roles.filter((r) => r.key !== 'employee').map((r) => (
                   <option key={r.key} value={r.key}>

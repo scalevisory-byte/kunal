@@ -197,8 +197,36 @@ export const requireForChanges = (ability) => (req, res, next) =>
     ? next()
     : requireAbility(ability)(req, res, next);
 
-/** Anything that is not a plain read needs `write`. */
-export const requireWriteForChanges = requireForChanges('write');
+/**
+ * Anything that is not a plain read needs `write` - and a DELETE needs
+ * `destroy` as well.
+ *
+ * One gate, so the rule reaches every route mounted behind it rather than
+ * being remembered at forty of them. Taking something away is a different
+ * act from filling it in: an Operator can write the day's visitors and
+ * cannot empty the register.
+ */
+export const requireWriteForChanges = (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+  if (req.method === 'DELETE') return requireAbility('destroy')(req, res, next);
+  return requireAbility('write')(req, res, next);
+};
+
+/**
+ * Approving is its own ability, and an Admin has it.
+ *
+ * Approving a month and running the installation are different jobs; they
+ * were the same check, which is why everybody who had to approve anything
+ * was an Admin.
+ */
+export const requireApproval = (req, res, next) => {
+  const abilities = req.actor?.abilities || [];
+  if (abilities.includes('approve') || abilities.includes('admin')) return next();
+  if (!req.actor) return res.status(401).json({ error: 'unauthorized' });
+  return res.status(403).json({
+    error: 'Approving needs a Manager or an Admin login.',
+  });
+};
 
 /** Reads for anybody signed in; changes are an admin's. */
 export const requireAdminForChanges = requireForChanges('admin');
