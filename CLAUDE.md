@@ -1353,6 +1353,73 @@ ends of getting to it.
   explanatory comment** when first written — the same trap as `readable()`. Comments are
   stripped before the negative assertion.
 
+## The employee master, onboarding, the leave ledger and printing (v1.68–v1.71)
+
+Four releases in one night, from briefs Dinesh sent while using the app.
+
+- **The joining form** (`shared/employeeMaster.js`, `EmployeeForm.jsx`) — eight sections behind
+  tabs, replacing six boxes. **The shape is DATA, not JSX**: the form, the validation and the
+  completeness figure all read one list, because fields in markup cannot answer "what is still
+  missing". The employee code is suggested from the company's series and **never reserved** (two
+  people with the form open must not burn two numbers); a typed code is left alone, because the
+  punch machine knows those. Duplicates are reported as they are typed with the reason in words
+  and **warn rather than refuse** — only an exact employee code is refused. **Only a name and a
+  company are refused on save**: the staff spreadsheet import, the hiring handover and the bulk
+  add all reach `createEmployee`, which wants no more, and a rule on one door of several is a
+  surprise. A **draft** is kept off every payroll (`syncPayrollRows` skips `is_draft`).
+  New columns: `employment_type`, `hod_id` (the HOD is not always the reporting manager),
+  `work_location`, `nationality`, present/permanent address in parts, emergency alt/address.
+  **The old free-text `address` is kept and still read** — rewriting 86 typed addresses into
+  guessed lines cannot be undone.
+  **PAN, Aadhaar and the bank account are masked on the record** with a show button, and showing
+  one writes an audit line. Said plainly: the value already travelled, because the PF return and
+  the staff export need it. It is not encryption.
+  **Mistake worth remembering: `shared/employeeCode.js` already existed** (hiring uses it) and I
+  wrote over it. Restored from git; the new route calls that same generator.
+- **Onboarding** (`shared/onboardingFlow.js`, `backend/src/onboarding.js`, `JoinPage.jsx`,
+  `Onboarding.jsx`) — the office invites, the person fills in their own record from a link, the
+  office approves. **An invitation is not an employee**: `approve` is the only call that writes
+  to `employees`. `masterFieldsFrom` is a **whitelist** because this is data typed outside the
+  office — there is a test sending `monthly_salary: 999999` and `active: 0` in the draft and
+  asserting neither lands. The link is a purpose-scoped signed token (`/join/<token>`), the
+  invitation id read from the TOKEN not the URL, same as the punch link and with the same stated
+  limit. A submitted form cannot change under the office; a correction goes back with required
+  remarks. One mobile number is one person. **Nothing is sent** — the link is handed over.
+  **Not built: document upload during onboarding.** Documents go on the record after approval,
+  where the KYC checklist chases them.
+- **The leave ledger** (`shared/leaveLedger.js`, `LeaveLedger.jsx`, `/api/leave/ledger/:id`,
+  `/api/leave/balances`) — Dinesh called it the most important thing in the leave brief.
+  **Debits are DERIVED from the attendance marks, every time, never stored**: the marks are what
+  the sheet pays from, and a second record of days taken is how two answers come to exist.
+  **Credits are stored** (`leave_credits`): opening, monthly, carried forward, adjustment
+  (reason required), encashed, lapsed. **With nothing posted the ledger reads exactly what the
+  app always showed** — quota minus taken — and says the figure was not posted by anybody; there
+  is an API test that the old register and the ledger agree to the day.
+  **The trap: posting ends the assumption that the yearly entitlement applies**, so a 4-day
+  opening balance alone drops somebody 6 → 3. Found by driving it; the panel now offers
+  "Start the ledger with their 7-day entitlement" first. A negative balance is shown, never
+  clamped. **Not built: the leave calendar, encashment, automatic carry-forward and the 14
+  reports.**
+- **Printing on every report** (`shared/csvTable.js`, `frontend/src/printCsv.js`) — half the
+  reports were a Download and nothing else. The file is fetched and laid out through the same
+  `printReport` the muster roll uses, with the month, the filters and a total under every column
+  that is really figures (a code, a UAN, a PIN and a phone are digits and mean nothing added up).
+  **19 reports print; checked one by one in a browser.** `.xlsx` cannot be laid out, so the
+  salary register prints from the month's flat CSV. **`printReport` takes totals as an OBJECT
+  KEYED BY COLUMN HEAD** — handed an array it prints a row saying "Total" and nothing else;
+  caught by rendering to PDF and reading it back.
+- **The noticeboard** (`shared/announcements.js`) — People → Noticeboard, read by the staff
+  portal's new **Notices & jobs** page and its dashboard card. Nothing is sent. A notice with a
+  future start date stays off the board until its day.
+- **Openings on the staff portal** — `/api/me/openings` sends `publicVacancy`, the same narrowing
+  the advert uses, so internal notes do not travel and an unpublished opening is not sent.
+  "Copy the message" hands over the same advert the office posts.
+- **The employee portal** also gained **My record** (appreciations, warnings, penalties — the
+  rule is *the portal shows what was issued to them*, so the office's own plain jottings stay
+  out, and a penalty appears once told or once money has come out) and **hours on My
+  attendance** (in/out/worked per day, built by `attendanceStatement`, the same module the
+  office's statement uses; "no out time" rather than a guessed departure).
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
