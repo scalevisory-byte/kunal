@@ -475,6 +475,19 @@ export const HELP = [
     note: 'A NEGATIVE BALANCE IS NOT AN ERROR — it is leave taken beyond the entitlement, and somebody has to decide about it. The app shows it rather than rounding it up to nought.',
   },
   {
+    id: 'document-check',
+    title: 'Checking documents, and the register',
+    tab: 'reports',
+    keywords: ['document', 'kyc', 'verify', 'check', 'pan card', 'aadhaar', 'register', 'dastavej', 'jaanch'],
+    lines: [
+      '**On a person\u2019s record**, each document has three buttons: **ok** (checked), **no** (rejected \u2014 it asks what is wrong, and the reason shows on the record), and **—** meaning nobody has looked.',
+      '**Not checked is not rejected.** A document nobody has looked at is its own state and is counted apart.',
+      '**Reports \u2192 Employee document status** is every person against every KYC paper on one page: on file, checked, rejected, expired or missing. Chips narrow it to whose file is short. Print or download it for an audit.',
+      '**A new joiner can send their papers in with their joining form**, and they come across to the record when you approve it \u2014 **unchecked**, because approving the form is not the same as having read the Aadhaar.',
+    ],
+    note: 'Every decision on a document is on the audit trail with the name of whoever made it. Deleting one deletes the file as well, and that cannot be undone.',
+  },
+  {
     id: 'print-reports',
     title: 'Printing a report',
     tab: 'reports',

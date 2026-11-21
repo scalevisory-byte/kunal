@@ -14,6 +14,12 @@ import {
   updateInvitation,
 } from '../onboarding.js';
 import { config } from '../config.js';
+import { deleteDocumentFile, uploadDocument } from '../documents.js';
+import {
+  addInvitationDocument,
+  listInvitationDocuments,
+  removeInvitationDocument,
+} from '../onboarding.js';
 import { OFFICE_SET } from '../../../shared/onboardingFlow.js';
 
 /**
@@ -143,6 +149,49 @@ onboardSelfRouter.get('/:token', mine, (req, res) => {
 onboardSelfRouter.patch('/:token', mine, (req, res) => {
   try {
     res.json(forThem(saveDraft(req.invitation.id, req.body || {})));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/*
+ * THEIR OWN PAPERWORK: a PAN card, an Aadhaar, a photograph, a cancelled
+ * cheque.
+ *
+ * The file goes straight into the employee document store, so approval does
+ * not have to move anything - and like every other document in this app, the
+ * uploaded filename is discarded (it is user input and this is a path) and
+ * the server's own name is what is kept.
+ *
+ * What comes BACK never carries the path. Nothing on this router can read a
+ * file either: a document is read on the office's side, where there is a
+ * password and a signed link.
+ */
+onboardSelfRouter.post('/:token/documents', mine, uploadDocument, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'no file came through' });
+  try {
+    const doc = addInvitationDocument(req.invitation.id, {
+      kind: req.body?.kind || 'other',
+      file_path: req.file.path,
+      file_name: req.file.originalname,
+      number: req.body?.number,
+    });
+    const { file_path, ...rest } = doc;
+    res.status(201).json(rest);
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+onboardSelfRouter.get('/:token/documents', mine, (req, res) =>
+  res.json({ documents: listInvitationDocuments(req.invitation.id) })
+);
+
+onboardSelfRouter.delete('/:token/documents/:id', mine, (req, res) => {
+  try {
+    const gone = removeInvitationDocument(req.invitation.id, Number(req.params.id));
+    if (gone) deleteDocumentFile(gone);
+    res.json({ deleted: Boolean(gone) });
   } catch (err) {
     bad(res, err);
   }

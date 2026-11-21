@@ -6,6 +6,7 @@ import {
   EMPLOYEE_SECTIONS,
   THEIRS_TO_FILL,
 } from '../../../shared/onboardingFlow.js';
+import { DOCUMENT_KINDS, KYC_KINDS, kindLabel } from '../../../shared/documents.js';
 
 /**
  * FILLING IN YOUR OWN JOINING FORM, before you are an employee.
@@ -35,6 +36,7 @@ export default function JoinPage({ token }) {
   const [declared, setDeclared] = useState(false);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(EMPLOYEE_SECTIONS[0]);
+  const [docs, setDocs] = useState([]);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -44,6 +46,7 @@ export default function JoinPage({ token }) {
         setData(got);
         setDraft(got.draft || {});
         setDeclared(!!got.declared);
+        api.get(`/join/${token}/documents`).then((d) => setDocs(d.documents || [])).catch(() => {});
       })
       .catch((err) => setError(err.message));
   }, [token]);
@@ -235,6 +238,24 @@ export default function JoinPage({ token }) {
         </div>
       </div>
 
+      {/*
+        * THEIR OWN PAPERWORK.
+        *
+        * The four KYC ones are named first because those are what the PF
+        * return, the bank and an inspector actually ask for - the rest is
+        * "something else". Nothing here is REFUSED for want of a document:
+        * somebody joining tomorrow may not have a passbook photo today, and
+        * a form that will not go in is a form filled in on paper instead.
+        */}
+      <div className="card">
+        <h3>Your documents</h3>
+        <p className="muted small">
+          A photograph of each is enough — PDF, JPG or PNG. You can add them now or send the form
+          in and bring them on your first day.
+        </p>
+        <Uploads token={token} docs={docs} onChange={setDocs} onError={setError} />
+      </div>
+
       <div className="card">
         <h3>Send it in</h3>
         {data.progress?.missing?.length ? (
@@ -263,5 +284,87 @@ export default function JoinPage({ token }) {
         Anybody who has the link can open this form, so do not pass it on.
       </p>
     </div>
+  );
+}
+
+/* ---------------- the paperwork ---------------- */
+
+function Uploads({ token, docs, onChange, onError }) {
+  const [kind, setKind] = useState(KYC_KINDS[0]);
+  const [busy, setBusy] = useState(false);
+
+  const send = async (file) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('document', file);
+      form.append('kind', kind);
+      await api.uploadOpen(`/join/${token}/documents`, form);
+      const got = await api.get(`/join/${token}/documents`);
+      onChange(got.documents || []);
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (doc) => {
+    if (!window.confirm(`Remove the ${kindLabel(doc.kind)}?`)) return;
+    try {
+      await api.del(`/join/${token}/documents/${doc.id}`);
+      const got = await api.get(`/join/${token}/documents`);
+      onChange(got.documents || []);
+    } catch (err) {
+      onError(err.message);
+    }
+  };
+
+  const have = new Set(docs.map((d) => d.kind));
+
+  return (
+    <>
+      <ul className="plain-list join-docs">
+        {DOCUMENT_KINDS.filter((k) => KYC_KINDS.includes(k.key)).map((k) => (
+          <li key={k.key}>
+            <span aria-hidden="true">{have.has(k.key) ? '✓' : '○'}</span>
+            <span>{k.label}</span>
+            <span className="muted small">{have.has(k.key) ? 'on file' : 'not yet'}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="row">
+        <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          {DOCUMENT_KINDS.map((k) => (
+            <option key={k.key} value={k.key}>{k.label}</option>
+          ))}
+        </select>
+        <input
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png"
+          disabled={busy}
+          onChange={(e) => {
+            send(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+        {busy ? <span className="muted small">Sending…</span> : null}
+      </div>
+
+      {docs.length ? (
+        <ul className="plain-list join-docs">
+          {docs.map((d) => (
+            <li key={d.id}>
+              <span aria-hidden="true">📎</span>
+              <span>{kindLabel(d.kind)}</span>
+              <span className="muted small">{d.file_name}</span>
+              <button className="ghost tiny danger" onClick={() => remove(d)}>remove</button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </>
   );
 }

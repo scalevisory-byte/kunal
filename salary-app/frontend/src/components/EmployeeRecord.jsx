@@ -106,6 +106,29 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employee.id, refresh]);
 
+  /*
+   * A rejection must say why: a document refused with no reason is one
+   * nobody can put right.
+   *
+   * DECLARED ABOVE THE EARLY RETURN. Put below it, this landed inside the
+   * `if (STANDALONE)` branch, so the buttons in the real render called a
+   * function that was not in scope - every test passed and the control was
+   * dead. Found by pressing it.
+   */
+  const verify = async (doc, verified) => {
+    let note = '';
+    if (verified === false) {
+      note = window.prompt('What is wrong with it?') || '';
+      if (!note.trim()) return;
+    }
+    try {
+      await api.post(`/employees/${employee.id}/documents/${doc.id}/verify`, { verified, note });
+      await load();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   if (STANDALONE) {
     return (
       <div className="structure">
@@ -220,6 +243,41 @@ export default function EmployeeRecord({ employee, employees, onPatch, onError, 
                   </span>
                 </span>
                 <span className="muted small">{String(doc.uploaded_at).slice(0, 10)}</span>
+                {/*
+                  * CHECKED, OR SENT BACK - three states, not a tick box.
+                  *
+                  * Nobody-has-looked is its own answer and is NOT a
+                  * rejection: a register that read every unchecked PAN card
+                  * as refused would be a page of red nobody reads twice.
+                  * The same shape as the roll call's Allowed? control.
+                  */}
+                <span className="yesno" role="group" aria-label="Checked?">
+                  <button
+                    className={doc.verified === 1 ? 'on yes' : undefined}
+                    title="Checked — it is what it says it is"
+                    onClick={() => verify(doc, true)}
+                  >
+                    ok
+                  </button>
+                  <button
+                    className={doc.verified === 0 ? 'on no' : undefined}
+                    title="Rejected — say what is wrong with it"
+                    onClick={() => verify(doc, false)}
+                  >
+                    no
+                  </button>
+                  <button
+                    className={doc.verified === null || doc.verified === undefined ? 'on none' : undefined}
+                    aria-label="nobody has checked"
+                    title="Hand the decision back — nobody has checked"
+                    onClick={() => verify(doc, null)}
+                  >
+                    —
+                  </button>
+                </span>
+                {doc.verified === 0 && doc.verify_note ? (
+                  <span className="muted small" style={{ color: 'var(--bad)' }}>{doc.verify_note}</span>
+                ) : null}
                 <button
                   className="tiny danger"
                   onClick={async () => {

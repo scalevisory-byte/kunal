@@ -17,6 +17,7 @@ import {
   recordHistory,
   updateEmployee,
   audit,
+  verifyDocument,
 } from '../db.js';
 import fs from 'node:fs';
 import { deleteDocumentFile, documentFile, documentLink, uploadDocument } from '../documents.js';
@@ -399,6 +400,31 @@ employeesRouter.post('/:id/documents', uploadDocument, (req, res) => {
     notes: req.body?.notes,
   });
   res.status(201).json({ document: { ...doc, file_path: undefined, link: documentLink(doc) } });
+});
+
+/**
+ * CHECKED, OR SENT BACK.
+ *
+ * Three states: verified, rejected (which must say why), and handing the
+ * decision back to nobody-has-looked. Null is NOT a refusal - a register
+ * that read every unchecked PAN card as rejected would be a page of red on
+ * the day it shipped.
+ */
+employeesRouter.post('/:id/documents/:documentId/verify', (req, res) => {
+  try {
+    const doc = verifyDocument(Number(req.params.documentId), {
+      verified: req.body?.verified === null || req.body?.verified === undefined
+        ? null
+        : Boolean(req.body.verified),
+      note: req.body?.note,
+      by: req.actor?.name || 'office',
+    });
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    const { file_path, ...rest } = doc;
+    res.json(rest);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 employeesRouter.delete('/:id/documents/:documentId', (req, res) => {

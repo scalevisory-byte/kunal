@@ -1,4 +1,5 @@
-import { db, audit, createEmployee, getEmployee, listEmployees } from './db.js';
+import { db, audit, addDocument, createEmployee, getEmployee, listEmployees } from './db.js';
+import { deleteDocumentFile } from './documents.js';
 import { duplicatesOf } from '../../shared/employeeMaster.js';
 import { isOpen, masterFieldsFrom, progress, whatIsMissing } from '../../shared/onboardingFlow.js';
 import { makeToken, readToken } from './tokens.js';
@@ -50,6 +51,25 @@ db.exec(`
     created_at      TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  /*
+   * THE PAPERWORK THEY SEND IN BEFORE THEY EXIST.
+   *
+   * The file goes into the SAME store as an employee's documents, with the
+   * same uploader and the same generated name - so approval does not have
+   * to move anything on disk. It only writes the row against the employee
+   * and drops this one. A cancelled invitation deletes its files, because
+   * nothing will ever own them.
+   */
+  CREATE TABLE IF NOT EXISTS invitation_documents (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    invitation_id INTEGER NOT NULL REFERENCES employee_invitations(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL DEFAULT 'other',
+    file_path     TEXT NOT NULL,
+    file_name     TEXT,
+    number        TEXT,
+    uploaded_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS invitation_history (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     invitation_id INTEGER NOT NULL REFERENCES employee_invitations(id) ON DELETE CASCADE,
@@ -74,6 +94,9 @@ const dress = (r) => {
     company_name: company?.name || '',
     reports_to_name: manager?.name || '',
     progress: progress(draft),
+    documents: db
+      .prepare(`SELECT id, kind, file_name, number, uploaded_at FROM invitation_documents WHERE invitation_id = ? ORDER BY id`)
+      .all(r.id),
     history: db
       .prepare(`SELECT * FROM invitation_history WHERE invitation_id = ? ORDER BY id`)
       .all(r.id),
@@ -227,6 +250,12 @@ export function cancelInvitation(id, by, why) {
   const before = row(id);
   if (!before) throw new Error('not found');
   if (before.status === 'approved') throw new Error('that one has already been approved');
+  /* Nothing will ever own these files, so they go rather than sitting in
+     the store for ever with no row pointing at them. */
+  for (const doc of db.prepare(`SELECT * FROM invitation_documents WHERE invitation_id = ?`).all(Number(id))) {
+    deleteDocumentFile(doc);
+  }
+  db.prepare(`DELETE FROM invitation_documents WHERE invitation_id = ?`).run(Number(id));
   db.prepare(`UPDATE employee_invitations SET status = 'cancelled', remarks = ? WHERE id = ?`)
     .run(why || null, Number(id));
   note(id, 'cancelled', by, why || 'withdrawn');
@@ -290,6 +319,56 @@ export function submit(id, { declared } = {}) {
   return dress(row(id));
 }
 
+/* ---------------- the paperwork ---------------- */
+
+/** Theirs, and never the path: that is the server's own filename. */
+export const listInvitationDocuments = (invitationId) =>
+  db
+    .prepare(`SELECT * FROM invitation_documents WHERE invitation_id = ? ORDER BY id`)
+    .all(Number(invitationId))
+    .map(({ file_path, ...rest }) => rest);
+
+export const invitationDocument = (id) =>
+  db.prepare(`SELECT * FROM invitation_documents WHERE id = ?`).get(Number(id)) || null;
+
+export function addInvitationDocument(invitationId, values = {}) {
+  const invitation = row(invitationId);
+  if (!invitation) throw new Error('not found');
+  if (!isOpen(invitation.status)) throw new Error('this form has been closed');
+  const info = db
+    .prepare(
+      `INSERT INTO invitation_documents (invitation_id, kind, file_path, file_name, number)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(
+      Number(invitationId),
+      values.kind || 'other',
+      values.file_path,
+      values.file_name || null,
+      values.number || null
+    );
+  return invitationDocument(info.lastInsertRowid);
+}
+
+/**
+ * Taking one back off.
+ *
+ * Allowed while the form is still theirs to change - a rejected PAN card is
+ * replaced by deleting the old one and uploading the right one. Refused once
+ * it has been sent in, like every other change.
+ */
+export function removeInvitationDocument(invitationId, id) {
+  const invitation = row(invitationId);
+  if (!invitation) throw new Error('not found');
+  if (invitation.status === 'submitted') {
+    throw new Error('it has been sent in \u2014 the office has to send it back before it can change');
+  }
+  const doc = invitationDocument(id);
+  if (!doc || doc.invitation_id !== Number(invitationId)) return null;
+  db.prepare(`DELETE FROM invitation_documents WHERE id = ?`).run(Number(id));
+  return doc;
+}
+
 /* ---------------- the office's side ---------------- */
 
 /** Sent back, with remarks saying what to correct. Remarks are required. */
@@ -339,6 +418,27 @@ export function approve(id, { code, extra = {} } = {}, by) {
   if (clash) throw new Error(`${clash.code} is already ${clash.name}'s code`);
 
   const employee = createEmployee(fields);
+
+  /*
+   * THE PAPERWORK COMES ACROSS, and nothing moves on disk.
+   *
+   * The files were written into the employee document store in the first
+   * place, so approval only writes the row against the person and drops the
+   * invitation's. They arrive UNCHECKED - `verified` is null - because
+   * approving a joining form is not the same as having looked at the
+   * Aadhaar card behind it, and recording it as checked would put a tick
+   * against a document nobody read.
+   */
+  for (const doc of db.prepare(`SELECT * FROM invitation_documents WHERE invitation_id = ?`).all(Number(id))) {
+    addDocument(employee.id, {
+      kind: doc.kind,
+      file_path: doc.file_path,
+      file_name: doc.file_name,
+      number: doc.number,
+    });
+  }
+  db.prepare(`DELETE FROM invitation_documents WHERE invitation_id = ?`).run(Number(id));
+
   db.prepare(`UPDATE employee_invitations SET status = 'approved', employee_id = ? WHERE id = ?`)
     .run(employee.id, Number(id));
   note(id, 'approved', by, `added to the staff list as ${employee.name}`);

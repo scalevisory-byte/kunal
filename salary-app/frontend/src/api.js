@@ -112,6 +112,20 @@ export const api = {
     },
   },
 
+  /**
+   * AN UPLOAD WITH NO PASSWORD, for a joining form opened from a link.
+   *
+   * The token in the path is the identity - there is nobody to be yet - so
+   * no authorization header goes with it, and the server reads which
+   * invitation it is from the token rather than from anything sent.
+   */
+  async uploadOpen(path, formData) {
+    const res = await fetch(`/api${path}`, { method: 'POST', body: formData });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || 'Upload failed');
+    return data;
+  },
+
   /** Multipart upload for the spreadsheet importer. */
   async upload(path, formData) {
     if (STANDALONE) return (await localStore()).upload(path, formData);

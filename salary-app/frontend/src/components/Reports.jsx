@@ -13,6 +13,7 @@ import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import Statutory from './Statutory.jsx';
 import LeaveRegister from './LeaveRegister.jsx';
+import DocumentRegister from './DocumentRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
 import { rupees } from '../format.js';
@@ -189,6 +190,13 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     ),
     'leave-month': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
     'leave-lop': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
+    'employee-documents': () => (
+      <DocumentRegister
+        companyId={filters.company_id || null}
+        onGo={onGo}
+        onError={(m) => setError(m)}
+      />
+    ),
     'pf-register': () => <Statutory period={period} />,
     'esi-register': () => <Statutory period={period} />,
     'pt-register': () => <Statutory period={period} />,
@@ -235,6 +243,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   }
 
   Object.assign(FILES, {
+    'employee-documents': ['/documents/register.csv', 'Employee-documents.csv'],
     'asset-register': ['/people/assets/register.csv', 'Asset-register.csv'],
     'asset-allocation': ['/people/assets/register.csv', 'Asset-register.csv'],
     'asset-handovers': ['/people/assets/handovers.csv', 'Asset-handovers.csv'],

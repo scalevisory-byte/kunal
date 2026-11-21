@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.71.0';
+export const VERSION = '1.72.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.72.0',
+    date: '22 Nov 2026',
+    title: 'Documents: sent in with the joining form, checked, and a register that names whose file is short',
+    items: [
+      '**A new joiner can send their papers in with the form** \u2014 PAN card, Aadhaar, photograph, cancelled cheque \u2014 from their phone, before they are an employee. A tick list shows which of the four are in. **Nothing is refused for want of one**: somebody joining tomorrow may not have a passbook photo today, and a form that will not go in is a form filled in on paper instead.',
+      '**At approval the papers come across** to their record, and **nothing moves on disk** \u2014 the files were written into the employee document store in the first place.',
+      '**They arrive UNCHECKED, deliberately.** Approving a joining form is not the same as having looked at the Aadhaar card behind it, and a tick against a document nobody read is worse than no tick.',
+      '**A document can now be checked, or sent back.** Three states on each one \u2014 **ok**, **no** (which must say what is wrong), and a dash meaning **nobody has looked**. A rejection shows its reason on the record, and every decision is on the audit trail with the name of whoever made it.',
+      '**NOT CHECKED IS NOT REJECTED** and the two are counted apart everywhere. The alternative is a page of red on the day it is first opened, which nobody reads twice.',
+      '**Reports \u2192 Employee document status** is the register an audit asks for: every person against every KYC paper \u2014 on file, checked, rejected, expired or missing \u2014 with chips to show only whose file is short, and Print and Download.',
+      '**“All four on file” and “all four checked” are shown as two figures**, because they are two questions and an audit asks the second.',
+      '**A withdrawn invitation takes its files with it**, rather than leaving them in the store for ever with nothing pointing at them.',
+      '**Bug worth recording:** the three-state control on the record called a function that had landed inside the offline-build branch \u2014 every test passed and the buttons were dead until one was pressed. There is now a test asserting it is declared above that branch.',
+    ],
+  },
   {
     version: '1.71.0',
     date: '22 Nov 2026',

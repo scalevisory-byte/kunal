@@ -3314,3 +3314,37 @@ test('the office panel says nothing is sent, and the salary is typed there', () 
   /* Approving is the only thing that creates an employee. */
   assert.match(panel, /Approve — add to the staff list/);
 });
+
+/*
+ * DOCUMENTS: checked, sent back, or nobody has looked.
+ */
+test('the record verifies a document in three states, not a tick box', () => {
+  const record = src('components/EmployeeRecord.jsx');
+  assert.match(record, /documents\/\$\{doc\.id\}\/verify/);
+  /* Null is "nobody has checked", which is NOT rejected - the same shape as
+     the roll call's Allowed? control. */
+  assert.match(record, /verify\(doc, null\)/);
+  assert.match(record, /What is wrong with it\?/);
+  /*
+   * AND IT IS DECLARED ABOVE THE EARLY RETURN. Put below it, `verify`
+   * landed inside the `if (STANDALONE)` branch and the real render called a
+   * function that was not in scope: every test passed and the control was
+   * dead until somebody pressed it.
+   */
+  const verifyAt = record.indexOf('const verify = async');
+  const standaloneAt = record.indexOf('if (STANDALONE) {', record.indexOf('export default function EmployeeRecord'));
+  assert.ok(verifyAt > 0 && verifyAt < standaloneAt, 'verify is inside the standalone branch');
+});
+
+test('the joining form takes documents, and the register counts unchecked apart', () => {
+  const join = src('components/JoinPage.jsx');
+  assert.match(join, /uploadOpen/);
+  /* Nothing is refused for want of a document: somebody joining tomorrow
+     may not have a passbook photo today. */
+  assert.match(join, /bring them on your first day/);
+
+  const reg = src('components/DocumentRegister.jsx');
+  assert.match(reg, /Not checked is not rejected/);
+  assert.match(reg, /All four on file/);
+  assert.match(reg, /All four checked/);
+});

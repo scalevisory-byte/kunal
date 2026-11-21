@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { KYC_KINDS, documentRegister, kindLabel } from '../../../shared/documents.js';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
 import { buildWorkbook } from '../../../shared/workbook.js';
@@ -14,7 +15,7 @@ import {
 } from '../../../shared/monthlyStatus.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { leaveSummary, listAttendance, listEmployees, listHolidays, setAttendance } from '../db.js';
+import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance } from '../db.js';
 import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
@@ -29,6 +30,52 @@ const slug = (s) => String(s).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '
  * The three sheets Dinesh circulates every month - bank salary, cash salary,
  * and the Sunday + Festival register - in his own layout rather than the app's.
  */
+/**
+ * THE DOCUMENT REGISTER an audit asks for: every person, every KYC document,
+ * on one page.
+ *
+ * Built from the same `documentStatus` each employee's record shows, so a
+ * row here and the record behind it cannot disagree. It carries no file and
+ * no path - only what is on file, what is missing, what has expired and
+ * what nobody has checked yet.
+ */
+/** The same register as a file, for the audit that asked for it. */
+reportsRouter.get('/documents/register.csv', (req, res) => {
+  const employees = listEmployees({
+    active: req.query.include_left === 'true' ? undefined : true,
+    company_id: Number(req.query.company_id) || undefined,
+  });
+  const byEmployee = new Map();
+  for (const employee of employees) byEmployee.set(employee.id, listDocuments(employee.id));
+  const { rows } = documentRegister(employees, (id) => byEmployee.get(id) || []);
+
+  const columns = [
+    ['Code', (r) => r.code],
+    ['Name', (r) => r.name],
+    ['Company', (r) => r.company_name],
+    ['Department', (r) => r.department],
+    ...KYC_KINDS.map((kind) => [kindLabel(kind), (r) => r.kinds[kind].label]),
+    ['On file', (r) => r.count],
+    ['Not checked', (r) => r.unchecked],
+    ['Rejected', (r) => r.rejected],
+    ['Expired', (r) => r.expired],
+    ['Still missing', (r) => r.missing.join('; ')],
+  ];
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="Employee-documents.csv"');
+  res.send(toCsv(columns, rows));
+});
+
+reportsRouter.get('/documents/register', (req, res) => {
+  const employees = listEmployees({
+    active: req.query.include_left === 'true' ? undefined : true,
+    company_id: Number(req.query.company_id) || undefined,
+  });
+  const byEmployee = new Map();
+  for (const employee of employees) byEmployee.set(employee.id, listDocuments(employee.id));
+  res.json(documentRegister(employees, (id) => byEmployee.get(id) || []));
+});
+
 reportsRouter.get('/periods/:id/pack.xlsx', async (req, res, next) => {
   try {
     const payroll = buildPayroll(Number(req.params.id), {

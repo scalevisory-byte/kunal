@@ -5601,3 +5601,6 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
 .join-head { display: flex; flex-direction: row; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
 .join-head h1 { margin: 0; font-size: 1.3rem; }
 .join-foot { text-align: center; }
+
+.join-docs li { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.2rem 0; }
+.join-docs li > span:nth-child(2) { flex: 1 1 auto; }

@@ -683,6 +683,27 @@ db.exec(`
  * blocked by it - but without the date "probation completing" cannot be a
  * reminder, only something somebody is supposed to remember.
  */
+/*
+ * HAS SOMEBODY ACTUALLY LOOKED AT THIS DOCUMENT?
+ *
+ * Three states, not a tick box, for the same reason the attendance day's
+ * `approved` and `uniform` are three-state: NULL is "nobody has checked",
+ * which is NOT "rejected". A register that read every un-checked PAN card as
+ * refused would be a page of red on the day it shipped, and nobody would
+ * read it again.
+ */
+for (const [column, sql] of [
+  ['verified', 'INTEGER'],
+  ['verified_by', 'TEXT'],
+  ['verified_on', 'TEXT'],
+  ['verify_note', 'TEXT'],
+]) {
+  if (!db.prepare(`PRAGMA table_info(employee_documents)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE employee_documents ADD COLUMN ${column} ${sql}`);
+    log.info(`Migrated employee_documents: added ${column}.`);
+  }
+}
+
 if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === 'probation_until')) {
   db.exec(`ALTER TABLE employees ADD COLUMN probation_until TEXT`);
   log.info('Migrated employees: added probation_until.');
@@ -1389,6 +1410,41 @@ export function addDocument(employeeId, values) {
       expires_on: values.expires_on || null,
       notes: values.notes || null,
     }).lastInsertRowid;
+  return getDocument(id);
+}
+
+/**
+ * Checked, or sent back.
+ *
+ * `verified` is three-state on the way in too: true, false, or null to hand
+ * the decision back to nobody-has-looked. A rejection must say why - a
+ * document refused with no reason is one nobody can put right.
+ */
+export function verifyDocument(id, { verified, note, by } = {}) {
+  const doc = getDocument(id);
+  if (!doc) return null;
+  if (verified === false && !String(note || '').trim()) {
+    throw new Error('say what is wrong with it');
+  }
+  db.prepare(
+    `UPDATE employee_documents
+     SET verified = ?, verified_by = ?, verified_on = ?, verify_note = ?
+     WHERE id = ?`
+  ).run(
+    verified === null || verified === undefined ? null : verified ? 1 : 0,
+    verified === null || verified === undefined ? null : by || null,
+    verified === null || verified === undefined ? null : new Date().toISOString().slice(0, 10),
+    note || null,
+    Number(id)
+  );
+  audit({
+    who: by,
+    action: verified === null || verified === undefined ? 'changed' : verified ? 'verified' : 'rejected',
+    entity: 'employee_documents',
+    entity_id: Number(id),
+    label: `${getEmployee(doc.employee_id)?.name || ''} — ${doc.kind}`,
+    note: note || null,
+  });
   return getDocument(id);
 }
 

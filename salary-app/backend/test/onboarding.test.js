@@ -197,3 +197,120 @@ test('every step is on the invitation’s own history', async () => {
     ['invited', 'opened', 'submitted', 'approved']
   );
 });
+
+/*
+ * THE PAPERWORK SOMEBODY SENDS IN BEFORE THEY EXIST.
+ */
+test('documents uploaded on a joining form come across at approval, unchecked', async () => {
+  const made = (await call('POST', '/api/onboarding', {
+    company_id: company.id, name: 'Fourth Person', phone: '9000000004', joined_on: '2026-12-01',
+  })).body;
+  const t = made.link.split('/join/')[1];
+
+  /* A real multipart upload, as a phone would send it. */
+  const send = async (kind, name) => {
+    const form = new FormData();
+    form.append('document', new Blob([Buffer.from('%PDF-1.4 test')], { type: 'application/pdf' }), name);
+    form.append('kind', kind);
+    const res = await fetch(`${base}/api/join/${t}/documents`, { method: 'POST', body: form });
+    return { status: res.status, body: await res.json() };
+  };
+
+  const pan = await send('pan', 'pan.pdf');
+  assert.equal(pan.status, 201);
+  /* The server's own filename never travels: it is a path. */
+  assert.ok(!('file_path' in pan.body));
+  await send('aadhaar', 'aadhaar.pdf');
+
+  const theirs = await call('GET', `/api/join/${t}/documents`);
+  assert.equal(theirs.body.documents.length, 2);
+  assert.ok(!JSON.stringify(theirs.body).includes('file_path'));
+
+  /* One can be taken back off and replaced while the form is still theirs. */
+  const gone = await call('DELETE', `/api/join/${t}/documents/${pan.body.id}`);
+  assert.equal(gone.body.deleted, true);
+  await send('pan', 'the-right-pan.pdf');
+
+  await call('PATCH', `/api/join/${t}`, {
+    name: 'Fourth Person', phone: '9000000004', dob: '1994-02-02',
+    address_line1: 'somewhere', emergency_name: 'Somebody', emergency_phone: '9000000005',
+  });
+  await call('POST', `/api/join/${t}/submit`, { declared: true });
+
+  const done = await call('POST', `/api/onboarding/${made.id}/approve`, { code: 'BOO-444' });
+  assert.equal(done.status, 200);
+
+  const record = await call('GET', `/api/employees/${done.body.employee.id}/record`);
+  const kinds = record.body.documents.map((d) => d.kind).sort();
+  assert.deepEqual(kinds, ['aadhaar', 'pan']);
+  /*
+   * THEY ARRIVE UNCHECKED. Approving a joining form is not the same as
+   * having looked at the Aadhaar card behind it, and a tick against a
+   * document nobody read is worse than no tick at all.
+   */
+  assert.ok(record.body.documents.every((d) => d.verified === null));
+  /* And the path never leaves the server, here either. */
+  assert.ok(!JSON.stringify(record.body.documents).includes('file_path'));
+});
+
+test('a document is checked, or sent back with a reason', async () => {
+  const people = (await call('GET', '/api/employees')).body.employees;
+  const person = people.find((e) => e.name === 'Fourth Person');
+  const docs = (await call('GET', `/api/employees/${person.id}/record`)).body.documents;
+
+  const ok = await call('POST', `/api/employees/${person.id}/documents/${docs[0].id}/verify`, {
+    verified: true,
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.verified, 1);
+
+  /* A rejection with no reason is one nobody can put right. */
+  const silent = await call('POST', `/api/employees/${person.id}/documents/${docs[1].id}/verify`, {
+    verified: false,
+  });
+  assert.equal(silent.status, 400);
+
+  const no = await call('POST', `/api/employees/${person.id}/documents/${docs[1].id}/verify`, {
+    verified: false, note: 'the photograph is cut off',
+  });
+  assert.equal(no.body.verified, 0);
+  assert.equal(no.body.verify_note, 'the photograph is cut off');
+
+  /* And the decision can be handed back to nobody-has-looked. */
+  const back = await call('POST', `/api/employees/${person.id}/documents/${docs[1].id}/verify`, {
+    verified: null,
+  });
+  assert.equal(back.body.verified, null);
+});
+
+test('the register says whose file is short, and counts unchecked apart from rejected', async () => {
+  const reg = await call('GET', '/api/documents/register');
+  assert.equal(reg.status, 200);
+  const row = reg.body.rows.find((r) => r.name === 'Fourth Person');
+  assert.equal(row.kinds.pan.key, 'verified');
+  assert.equal(row.kinds.aadhaar.key, 'unchecked');
+  assert.equal(row.kinds.photo.key, 'missing');
+  assert.ok(row.missing.includes('Photograph'));
+
+  /* All four on file and all four CHECKED are different questions, and an
+     audit asks the second. */
+  assert.ok(reg.body.totals.checked <= reg.body.totals.complete);
+  assert.ok(!JSON.stringify(reg.body).includes('file_path'));
+});
+
+test('a withdrawn invitation takes its files with it', async () => {
+  const made = (await call('POST', '/api/onboarding', {
+    company_id: company.id, name: 'Fifth Person', phone: '9000000006',
+  })).body;
+  const t = made.link.split('/join/')[1];
+  const form = new FormData();
+  form.append('document', new Blob([Buffer.from('%PDF-1.4 x')], { type: 'application/pdf' }), 'x.pdf');
+  form.append('kind', 'pan');
+  await fetch(`${base}/api/join/${t}/documents`, { method: 'POST', body: form });
+
+  await call('POST', `/api/onboarding/${made.id}/cancel`, { why: 'offer withdrawn' });
+  /* Nothing will ever own that file, so it does not sit in the store for
+     ever with no row pointing at it. */
+  const after = await call('GET', `/api/onboarding/${made.id}`);
+  assert.deepEqual(after.body.documents, []);
+});
