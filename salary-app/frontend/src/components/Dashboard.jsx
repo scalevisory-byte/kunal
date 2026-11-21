@@ -31,6 +31,26 @@ import { dayStats } from '../../../shared/frontOffice.js';
  * Every figure links to the tab it came from, so a number that looks wrong is
  * one click from the place it can be fixed.
  */
+
+/**
+ * What it means when one of the roll-call lists is empty.
+ *
+ * Keyed by the chip. Said as a sentence, because "0" in a table that drew no
+ * rows reads as a screen that failed rather than as a quiet morning.
+ */
+const EMPTY_LINE = {
+  all: 'Nobody needs looking at — everybody is at work, on time and in full hours.',
+  present: 'Nobody is marked at work on this day.',
+  absent: 'Nobody was absent on this day.',
+  late: 'Nobody came in late on this day.',
+  early: 'Nobody left early on this day.',
+  halfDay: 'No half days on this day.',
+  leave: 'Nobody was on leave on this day.',
+  short: 'Nobody was short of hours on this day.',
+  uniform: 'Nobody was marked out of uniform. A day nobody checked is not the same as everybody in uniform — the uniform check below says how many were looked at.',
+  unmarked: 'Every person has a mark on this day.',
+};
+
 export default function Dashboard({
   period,
   periods = [],
@@ -65,7 +85,6 @@ export default function Dashboard({
   const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
   const [frontOffice, setFrontOffice] = useState(null); // the desk's book for that day
-  const [showPresent, setShowPresent] = useState(false);
   const [showUniform, setShowUniform] = useState(false);
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
   // asked for by name; 'all' is the morning's whole list.
@@ -561,7 +580,14 @@ export default function Dashboard({
       () =>
         roll
           ? [
-              ['all', 'Everyone', needsLooking.length],
+              /*
+               * "Everyone" counted only the people who needed looking at, which
+               * is not everyone - and on a day when nobody did, the whole table
+               * disappeared and there was no way to ask "who was absent?" at
+               * all. So it says what it is, and AT WORK is a list of its own.
+               */
+              ['all', 'Needs looking at', needsLooking.length],
+              ['present', 'At work', roll.present.length],
               ['absent', 'Absent', roll.absent.length],
               ['late', 'Late coming', roll.late.length],
               ['early', 'Early out', roll.early.length],
@@ -575,8 +601,32 @@ export default function Dashboard({
       [roll, needsLooking]
     );
 
+    /*
+     * The people who simply came to work, in the same row shape as the rest.
+     *
+     * They are deliberately NOT in `needsLooking` - a list of seventy-eight
+     * people nobody has to do anything about buries the five who matter - but
+     * they ARE a list somebody asks for, so the one table answers that too
+     * rather than a separate fold of bare names with no times on it.
+     */
+    const atWorkRows = useMemo(
+      () =>
+        (roll?.present || []).map((p) => ({
+          ...p,
+          rank: 9,
+          reasons: [{ what: 'At work', when: p.in_time || '' }],
+          in: new Set(['present']),
+        })),
+      [roll]
+    );
+
     const listed = useMemo(() => {
-      let only = bucket === 'all' ? needsLooking : needsLooking.filter((p) => p.in?.has(bucket));
+      let only =
+        bucket === 'all'
+          ? needsLooking
+          : bucket === 'present'
+            ? atWorkRows
+            : needsLooking.filter((p) => p.in?.has(bucket));
 
       if (regCompany) only = only.filter((p) => p.company_name === regCompany);
       if (regDept) only = only.filter((p) => (p.department || '') === regDept);
@@ -617,7 +667,7 @@ export default function Dashboard({
         only = [...only].sort((a, b) => (b.lateBy || 0) - (a.lateBy || 0));
       }
       return only;
-    }, [needsLooking, bucket, find, sort, regCompany, regDept]);
+    }, [needsLooking, atWorkRows, bucket, find, sort, regCompany, regDept]);
 
     /*
      * A page at a time. Eighteen people fit; eighty-five do not, and a table
@@ -1631,19 +1681,31 @@ export default function Dashboard({
           </div>
         ) : (
           <>
-        {needsLooking.length === 0 ? (
-          <p className="muted small">
-            Everybody on the list is at work, on time, and nobody is short of hours.
-          </p>
-        ) : (
-          <>
+        <>
+            {/*
+              * THE GOOD DAY IS A LINE, NOT AN EMPTY SCREEN.
+              *
+              * This used to stand INSTEAD of the table, so on a day when
+              * everybody turned up there were no chips, no search and no way
+              * to ask who was absent - the one list Dinesh asks for vanished
+              * exactly when it was quickest to check. It is a sentence above
+              * the table now, and the table stays.
+              */}
+            {needsLooking.length === 0 ? (
+              <p className="muted small">
+                Everybody on the list is at work, on time, and nobody is short of hours.
+              </p>
+            ) : null}
+
             {/* One list, narrowed - "Late coming 3" IS the late list. */}
             <div className="chips roll-chips">
               {buckets.map(([key, label, count]) => (
                 <button
                   key={key}
-                  className={`chip ${bucket === key ? 'active' : ''}`}
-                  disabled={count === 0 && key !== 'all'}
+                  className={`chip ${bucket === key ? 'active' : ''}${count === 0 ? ' chip-none' : ''}`}
+                  /* Deliberately NOT disabled at nought. "Absent 0" is an
+                     answer somebody wants to see said out loud, and a chip
+                     that cannot be pressed never says it. */
                   onClick={() => setBucket(key)}
                 >
                   {label} <span className="muted">{count}</span>
@@ -1692,7 +1754,7 @@ export default function Dashboard({
                 <tr>
                   <Th sort={sort} setSort={setSort} by="name" className="sticky-name">Name</Th>
                   <Th sort={sort} setSort={setSort} by="mark">Status</Th>
-                  <th>What</th>
+                  <th className="what-cell">What</th>
                   {bucket === 'late' ? (
                     <Th sort={sort} setSort={setSort} by="lateBy" className="num">Late this month</Th>
                   ) : null}
@@ -1727,7 +1789,7 @@ export default function Dashboard({
                         <span className="muted">not marked</span>
                       )}
                     </td>
-                    <td>
+                    <td className="what-cell">
                       {p.reasons.map((r, i) => (
                         <span key={i} className="why">
                           {r.what}
@@ -1856,6 +1918,22 @@ export default function Dashboard({
                     </td>
                   </tr>
                 ))}
+                {/*
+                  * AN EMPTY LIST SAYS WHAT IS EMPTY.
+                  *
+                  * A table with no rows reads as "it did not load". Naming the
+                  * list is the answer somebody pressed the chip for - "nobody
+                  * was absent on this day" is a fact worth reading.
+                  */}
+                {!listed.length ? (
+                  <tr>
+                    <td colSpan={bucket === 'late' ? 12 : 11} className="empty">
+                      {find || regCompany || regDept
+                        ? 'Nobody on this list matches what you are looking for.'
+                        : EMPTY_LINE[bucket] || 'Nobody on this list today.'}
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
             </div>
@@ -1910,8 +1988,7 @@ export default function Dashboard({
               <strong>Why</strong> and <strong>Allowed?</strong> are saved on the day itself and
               change nobody's pay.{saving > 0 ? ' Saving…' : ''}
             </p>
-          </>
-        )}
+        </>
         {/*
           * `roll.accounted`, not five buckets added by hand - the hand-written
           * sum left out holiday and weekly off, so on a Sunday this read
@@ -1928,27 +2005,12 @@ export default function Dashboard({
           {roll.dayHours}h.
         </p>
 
-        {roll.present.length > 0 && (
-          <>
-            <p className="name-list small">
-              <span className="muted">
-                Present
-                <button className="ghost tiny" onClick={() => setShowPresent((v) => !v)}>
-                  {showPresent ? 'hide the names' : `show all ${roll.present.length}`}
-                </button>
-              </span>
-            </p>
-            {showPresent && (
-              <NameList
-                label=""
-                list={roll.present}
-                name={(p) => p.employee_name}
-                suffix={(p) => p.in_time || undefined}
-                all
-              />
-            )}
-          </>
-        )}
+        {/*
+          * The Present fold is gone: "At work" is a chip on the table above,
+          * which gives the same names WITH their in and out times, their
+          * hours and the search - instead of a run-on line of bare names.
+          * Two places listing one thing is how two things come to disagree.
+          */}
 
         {/*
           * The uniform check.

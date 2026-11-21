@@ -3064,3 +3064,60 @@ test('the record rule lives in one place, not in the page', () => {
   const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!/kind === 'note'/.test(code), 'the page must not re-decide which kinds are shown');
 });
+
+/*
+ * THE ROLL CALL'S LISTS ARE ALWAYS REACHABLE.
+ *
+ * Dinesh, looking at a day when everybody turned up: *"yaha dashboard pe
+ * proper list chiaye / absent employee ki / late comiong / without uniform o
+ * sab"*. The lists existed — but the whole apparatus was rendered only when
+ * somebody needed looking at, so on a good morning there were no chips, no
+ * search and no way to ask who was absent. The one question vanished exactly
+ * when it was quickest to answer.
+ */
+test('the roll call keeps its chips and its table on a day when nobody needs looking at', () => {
+  const dash = src('components/Dashboard.jsx');
+
+  /* The "everybody is at work" line is a SENTENCE ABOVE the table now, not
+     something rendered instead of it. */
+  const line = dash.indexOf('Everybody on the list is at work');
+  const chips = dash.indexOf('roll-chips');
+  assert.ok(line > 0 && chips > line, 'the chips must survive a quiet morning');
+  assert.ok(
+    !/needsLooking\.length === 0 \? \([\s\S]{0,200}\) : \(\s*<>/.test(dash),
+    'the table is gated on there being something wrong'
+  );
+
+  /* A chip with nothing behind it still presses: "Absent 0" is an answer. */
+  assert.ok(!/disabled=\{count === 0/.test(dash), 'a zero chip that cannot be pressed');
+
+  /* And an empty list says WHAT is empty, rather than drawing no rows. */
+  assert.match(dash, /const EMPTY_LINE = \{/);
+  for (const key of ['absent', 'late', 'uniform', 'unmarked', 'present']) {
+    assert.ok(new RegExp(`\\b${key}:`).test(dash.slice(dash.indexOf('const EMPTY_LINE'))),
+      `${key} has no sentence for an empty list`);
+  }
+});
+
+test('“At work” is a chip on the one table, not a second list of bare names', () => {
+  const dash = src('components/Dashboard.jsx');
+  assert.match(dash, /\['present', 'At work'/);
+  /* The old fold listed the same people with no times, no hours and no
+     search. Two places listing one thing is how two things disagree. */
+  assert.ok(!/show all \$\{roll\.present\.length\}/.test(dash), 'the duplicate Present fold is back');
+  assert.ok(!/setShowPresent/.test(dash));
+  /* "Everyone" counted only the people who needed looking at, which is not
+     everyone. */
+  assert.ok(!/\['all', 'Everyone'/.test(dash));
+});
+
+test('the roll call’s reasons column is styled by class, not by position', () => {
+  /*
+   * It was `td:nth-child(2)` and the reasons had since moved to the third
+   * column — so fifteen rems went to Status while "Late by 42m at 10:12"
+   * wrapped down five lines beside it. The same drift the workbook's
+   * hand-numbered columns hit.
+   */
+  assert.match(css, /table\.sheet\.roll-table td\.what-cell/);
+  assert.match(src('components/Dashboard.jsx'), /<th className="what-cell">What<\/th>/);
+});

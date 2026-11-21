@@ -34,6 +34,7 @@ import {
   listRecoveries,
 } from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
+import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
 import {
   recordSummary,
@@ -155,13 +156,38 @@ meRouter.get('/months/:periodId', (req, res) => {
   res.json({ period: payroll.period, row });
 });
 
-/** Their attendance for a month, as the grid holds it. */
+/**
+ * Their attendance for a month, as the grid holds it - AND DAY BY DAY WITH
+ * THE CLOCK TIMES ON IT.
+ *
+ * Dinesh: *"employee ko time bhi dikhe roj kitne hhour kaam kiya o bhi
+ * banvo"*. The page was a strip of day numbers and marks: it could say P and
+ * could not say that P was 09:28 to 18:41 and came to 8h 43m.
+ *
+ * `statement` is built by `attendanceStatement` - THE SAME MODULE the office's
+ * own statement and its printout are built from. The figures are assembled,
+ * never recalculated here: a second opinion about somebody's hours is one
+ * opinion too many.
+ */
 meRouter.get('/attendance/:periodId', (req, res) => {
   const period = listPeriods().find((p) => p.id === Number(req.params.periodId));
   if (!period) return res.status(404).json({ error: 'not found' });
   const payroll = buildPayroll(period.id, { sync: false });
   const row = payroll?.rows.find((r) => r.employee_id === req.employeeId);
   if (!row) return res.status(404).json({ error: `nothing for you in ${period.label}` });
+
+  /*
+   * Their religion rides onto the row so a festival that covers them is named
+   * on the day. Without it every religion-specific holiday is skipped, and a
+   * day off reads as an unexplained blank.
+   */
+  const employee = getEmployee(req.employeeId);
+  const statement = attendanceStatement(
+    { ...row, religion: employee?.religion },
+    payroll.period,
+    { holidays: listHolidays(period.id) }
+  );
+
   res.json({
     period: payroll.period,
     attendance: row.attendance || {},
@@ -170,6 +196,9 @@ meRouter.get('/attendance/:periodId', (req, res) => {
     // Reading the report's name off the raw row gave undefined.
     payable_days: row.present_days,
     worked_minutes: row.worked_minutes,
+    /* Only the days and the summary: the statement's `employee` block is
+       their own name back again, which the page already has. */
+    statement: { days: statement.days, summary: statement.summary },
   });
 });
 

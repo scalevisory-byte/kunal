@@ -872,3 +872,50 @@ test('the office’s own penalty and note routes stay shut to a staff login', as
     assert.equal(shut.status, 403, `${url} is the office's`);
   }
 });
+
+/*
+ * THEIR OWN HOURS, DAY BY DAY.
+ *
+ * Dinesh: *"employee ko time bhi dikhe roj kitne hhour kaam kiya o bhi
+ * banvo"*. The page could say P and could not say that P was 09:28 to 18:34
+ * and came to 8h 36m.
+ *
+ * The days come from `attendanceStatement` — THE SAME module the office's own
+ * statement and its printout are built from, so the two cannot disagree about
+ * somebody's hours.
+ */
+test('my attendance carries the clock times and the hours worked', async () => {
+  await admin('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [
+      { employee_id: amit.id, day: 5, code: 'P', in_time: '09:28', out_time: '18:34',
+        lunch_out: '13:00', lunch_in: '13:30' },
+      // Started and never finished: the hours are NOT KNOWN, and it says why.
+      { employee_id: amit.id, day: 6, code: 'P', in_time: '09:30' },
+      { employee_id: riya.id, day: 5, code: 'P', in_time: '08:00', out_time: '20:00' },
+    ],
+  });
+
+  const mine = await staff('GET', `/api/me/attendance/${periodId}`);
+  assert.equal(mine.status, 200);
+  const days = mine.body.statement.days;
+  const fifth = days.find((d) => d.day === 5);
+  assert.equal(fifth.in_time, '09:28');
+  assert.equal(fifth.out_time, '18:34');
+  assert.equal(fifth.worked_minutes, 8 * 60 + 36);
+
+  const sixth = days.find((d) => d.day === 6);
+  assert.equal(sixth.worked_minutes, null, 'not nought — not known');
+  assert.equal(sixth.time_warning, 'no out time');
+
+  // The month's own totals ride with it, so the page adds nothing up itself.
+  assert.ok(mine.body.statement.summary.worked_minutes >= 8 * 60 + 36);
+  /* ONE, not two: a day with only half the clock on it is not a day whose
+     hours are known, so it cannot be counted among them. */
+  assert.equal(mine.body.statement.summary.clocked_days, 1);
+
+  /* And it is THEIR month. Riya was in from 08:00 to 20:00 on the same day;
+     nothing of hers is in what Amit is sent. */
+  const text = JSON.stringify(mine.body);
+  assert.ok(!text.includes('20:00'), 'somebody else’s clock times');
+  assert.ok(!text.includes(riya.name));
+});

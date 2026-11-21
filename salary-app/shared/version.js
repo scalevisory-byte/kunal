@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.66.0';
+export const VERSION = '1.67.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.67.0',
+    date: '21 Nov 2026',
+    title: 'Hours on the employee\u2019s own page, and the morning list that stopped hiding',
+    items: [
+      '**My attendance now shows the clock.** It could say *Present* and could not say that Present was 09:28 to 18:34 and came to 8h 36m. Every day now carries **in, out and the hours worked**, with the overtime or the shortfall under them, and the month\u2019s total hours at the top.',
+      '**A day you started and did not finish says so** \u2014 “no out time” \u2014 instead of looking exactly like a day nobody clocked. The hours stay unknown: nothing invents a departure.',
+      '**A dash means not known, never nought.** A day with no times is not a day you worked nothing, and the page says that in so many words.',
+      '**The figures are the office\u2019s own.** The day list is built by the same module the office\u2019s attendance statement and its printout are built from, so your hours and theirs cannot disagree.',
+      '**The morning roll call no longer disappears on a good day.** When everybody turned up, the chips, the search and the table were not drawn at all \u2014 so there was no way to ask *who was absent* exactly when it was quickest to check. The line “everybody is at work” now sits **above** the table, and the table stays.',
+      '**Absent 0 can be pressed.** A chip with nothing behind it is an answer, and it says it: “nobody was absent on this day”, “nobody came in late on this day”. An empty table used to read as a screen that had failed.',
+      '**Out of uniform is honest about the difference** between nobody being out of uniform and nobody having been looked at.',
+      '**“At work” is now a chip on the same table**, with everybody\u2019s in and out times and hours, instead of a fold of bare names underneath. One list, narrowed \u2014 not two lists of the same people.',
+      '**“Everyone” was never everyone**: it counted only the people who needed looking at. It says **Needs looking at** now.',
+      '**The reasons column got its width back.** “Late by 42m at 10:12” was wrapping down five lines while the Status column held one word in fifteen rems \u2014 a style rule pinned to a column number that had since moved.',
+    ],
+  },
   {
     version: '1.66.0',
     date: '21 Nov 2026',

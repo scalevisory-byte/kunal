@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { earnedSoFar } from '../../../shared/earnedSoFar.js';
 import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
+import { formatDuration } from '../../../shared/timesheet.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import {
   STATUS_LABEL,
@@ -501,9 +502,31 @@ function MyAttendance({ months, onError }) {
     api.get(`/me/attendance/${openId}`).then(setData).catch(onError);
   }, [openId]);
 
-  const marked = useMemo(() => Object.entries(data?.attendance || {}), [data]);
+  /*
+   * THE DAYS THE MONTH ACTUALLY HAS SOMETHING ON.
+   *
+   * `statement.days` is every day of the month, blanks included - right for
+   * the office, where a blank day is work to do. Here it would be a page of
+   * empty rows, so a day shows when it carries a mark, a clock time, or is a
+   * holiday. A plain weekly off with nothing on it is not listed; the summary
+   * counts it.
+   */
+  const lines = useMemo(() => {
+    const all = data?.statement?.days || [];
+    return all.filter((d) => d.code || d.in_time || d.out_time || d.ot_minutes || d.holiday);
+  }, [data]);
+  const summary = data?.statement?.summary || null;
 
   if (!months.length) return <div className="card"><p className="muted small">Nothing yet.</p></div>;
+
+  /* What the day was, in words - so a blank reads as "not marked" rather
+     than as a row somebody forgot. */
+  const what = (d) => {
+    if (d.code) return d.label || d.code;
+    if (d.holiday) return `${d.holiday} (not marked)`;
+    if (d.weekly_off) return 'Weekly off (not marked)';
+    return 'Not marked';
+  };
 
   return (
     <div className="stack">
@@ -520,39 +543,121 @@ function MyAttendance({ months, onError }) {
       {!data ? (
         <p className="loading">…</p>
       ) : (
-        <div className="card">
-          <div className="figures">
-            {Object.entries(data.marks || {})
-              .filter(([, n]) => n)
-              .map(([code, n]) => (
-                <div className="figure" key={code}>
-                  <span className="n">{n}</span>
-                  <span className="k">{ATTENDANCE_CODES[code]?.label || code}</span>
+        <>
+          <div className="card">
+            <div className="figures">
+              {Object.entries(data.marks || {})
+                .filter(([, n]) => n)
+                .map(([code, n]) => (
+                  <div className="figure" key={code}>
+                    <span className="n">{n}</span>
+                    <span className="k">{ATTENDANCE_CODES[code]?.label || code}</span>
+                  </div>
+                ))}
+              <div className="figure">
+                <span className="n">{days(data.payable_days)}</span>
+                <span className="k">Days paid</span>
+              </div>
+              {/* HOURS, asked for by name. Null is "not clocked", never nought. */}
+              <div className="figure">
+                <span className="n">
+                  {summary && summary.clocked_days ? formatDuration(summary.worked_minutes) : '—'}
+                </span>
+                <span className="k">
+                  {summary && summary.clocked_days
+                    ? `Hours worked · ${summary.clocked_days} day${summary.clocked_days === 1 ? '' : 's'} clocked`
+                    : 'Hours worked'}
+                </span>
+              </div>
+              {summary?.overtime_minutes ? (
+                <div className="figure">
+                  <span className="n">{formatDuration(summary.overtime_minutes)}</span>
+                  <span className="k">Overtime</span>
                 </div>
-              ))}
-            <div className="figure">
-              <span className="n">{days(data.payable_days)}</span>
-              <span className="k">Days paid</span>
+              ) : null}
+              {summary?.short_minutes ? (
+                <div className="figure">
+                  <span className="n">{formatDuration(summary.short_minutes)}</span>
+                  <span className="k">Short hours</span>
+                </div>
+              ) : null}
             </div>
           </div>
-          {!marked.length ? (
+
+          <div className="card">
+            <h3>Day by day</h3>
+            {!lines.length ? (
+              <p className="muted small">
+                Nothing has been marked for you this month yet. That is not the same as being
+                absent — an unmarked day is simply a day nobody has recorded.
+              </p>
+            ) : (
+              <div className="my-att-scroll">
+                <table className="sheet my-att">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Day</th>
+                      <th>Mark</th>
+                      <th>In</th>
+                      <th>Out</th>
+                      <th className="num">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((d) => (
+                      <tr key={d.day} className={d.weekly_off ? 'off' : undefined}>
+                        <td className="num">{d.day}</td>
+                        <td className="muted">{d.weekday}</td>
+                        <td title={what(d)}>
+                          <span className={`my-mark code-${d.code || 'none'}`}>{d.code || '·'}</span>
+                          <span className="my-mark-label">{what(d)}</span>
+                        </td>
+                        {/* A lunch break shows in the title: two more columns
+                            on a phone is two columns nobody can read. */}
+                        <td
+                          className="num"
+                          title={d.lunch_out || d.lunch_in ? `Lunch ${d.lunch_out || '—'} to ${d.lunch_in || '—'}` : undefined}
+                        >
+                          {d.in_time || '—'}
+                        </td>
+                        <td className="num">{d.out_time || '—'}</td>
+                        <td className="num">
+                          {/* NOT KNOWN is a dash. Nought hours would read as a
+                              day somebody turned up for and did nothing. */}
+                          {d.worked_minutes === null ? '—' : formatDuration(d.worked_minutes)}
+                          {/* The overtime or shortfall rides UNDER the hours
+                              rather than in a column of its own: a seventh
+                              column falls off the side of a phone, and it is
+                              the same number either way. */}
+                          {d.ot_minutes ? (
+                            <span className={`my-att-ot${d.ot_minutes < 0 ? ' deduct' : ''}`}>
+                              {d.ot_minutes > 0 ? `+${d.ot_minutes}m overtime` : `${-d.ot_minutes}m short`}
+                            </span>
+                          ) : null}
+                          {/* A day somebody started and did not finish reads
+                              exactly like a day nobody clocked unless it
+                              says so. Nothing is guessed - the hours stay
+                              unknown. */}
+                          {d.worked_minutes === null && d.time_warning ? (
+                            <span className="my-att-ot warn">{d.time_warning}</span>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <p className="muted small">
-              Nothing has been marked for you this month yet. That is not the same as being
-              absent — an unmarked day is simply a day nobody has recorded.
+              Hours are worked out from the in and out times on the day
+              {data.period?.lunch_paid ? ' (the lunch break is inside the paid day)' : ', less the lunch break'}.
+              A day with no clock times shows a dash — that means the times are not known, not that
+              you worked nothing. If a day looks wrong, raise it with the office; it is the same
+              record your salary is worked out from.
             </p>
-          ) : (
-            <div className="my-days">
-              {marked
-                .sort((a, b) => Number(a[0]) - Number(b[0]))
-                .map(([day, entry]) => (
-                  <span className="my-day" key={day} title={ATTENDANCE_CODES[entry.code]?.label || entry.code}>
-                    <b>{day}</b>
-                    <span>{entry.code || '·'}</span>
-                  </span>
-                ))}
-            </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

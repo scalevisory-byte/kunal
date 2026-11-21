@@ -88,6 +88,10 @@ export function attendanceStatement(row = {}, period = {}, { holidays = [] } = {
       /* The day's own OT/LT, as the sheet pays it. A day with no clock
          times can still carry minutes typed by hand. */
       ot_minutes: n(times.minutes),
+      /* What is WRONG with the times, in words - "no out time", "only one
+         lunch time is filled". A day somebody started and did not finish
+         reads exactly like a day nobody clocked unless it says so. */
+      time_warning: judged ? judged.warning || '' : '',
       reason: times.reason || '',
       approved: times.approved === null || times.approved === undefined ? null : !!times.approved,
       uniform: times.uniform === null || times.uniform === undefined ? null : !!times.uniform,

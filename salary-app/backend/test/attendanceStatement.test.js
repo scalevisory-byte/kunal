@@ -118,3 +118,29 @@ test('and it changes nothing it was handed', () => {
   attendanceStatement(AMIT, NOV, { holidays: [{ day: 10, name: 'Diwali', religions: [] }] });
   assert.equal(JSON.stringify(AMIT), before);
 });
+
+/*
+ * A DAY SOMEBODY STARTED AND DID NOT FINISH.
+ *
+ * In at 09:30 and no out time reads exactly like a day nobody clocked at all:
+ * both give "—" for the hours, which is right (they are not known) and tells
+ * nobody why. The warning says which it is, and the hours stay unknown — it
+ * is a flag, never a guess at when they left.
+ */
+test('the statement says what is wrong with a day’s times, and still guesses nothing', () => {
+  const stm = attendanceStatement(
+    { attendance: { 1: { code: 'P', in_time: '09:30' }, 2: { code: 'P', in_time: '09:30', out_time: '18:30' } } },
+    { year: 2026, month: 10, hours_per_day: 9 }
+  );
+  const unfinished = stm.days[0];
+  assert.equal(unfinished.time_warning, 'no out time');
+  assert.equal(unfinished.worked_minutes, null, 'not nought — not known');
+
+  // A whole day carries no warning at all.
+  assert.equal(stm.days[1].time_warning, '');
+  assert.equal(stm.days[1].worked_minutes, 9 * 60);
+
+  // And a day nobody clocked is not "wrong", it is simply empty.
+  assert.equal(stm.days[2].time_warning, '');
+  assert.equal(stm.days[2].worked_minutes, null);
+});
