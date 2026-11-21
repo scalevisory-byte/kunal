@@ -8,6 +8,7 @@ import { col, printReport } from '../printReport.js';
 import VisitorDesk from './frontoffice/VisitorDesk.jsx';
 import CourierDesk from './frontoffice/CourierDesk.jsx';
 import VisitorReports from './frontoffice/VisitorReports.jsx';
+import AreaHistory from './frontoffice/AreaHistory.jsx';
 
 /**
  * THE FRONT DESK — the housekeeping walk, the visitor book and courier in/out.
@@ -82,6 +83,8 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
    * areas nobody walks.
    */
   const [allAreas, setAllAreas] = useState([]);
+  /* Whose history is on screen. One area, down the days. */
+  const [historyFor, setHistoryFor] = useState(null);
 
   const load = async (which = day) => {
     if (STANDALONE) return;
@@ -516,8 +519,18 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
                   <table className="sheet">
                     <thead><tr><th className="grow">Area</th><th className="num">Days flagged</th></tr></thead>
                     <tbody>
+                      {/* "Parking: 4 days" is the right answer for a month
+                          and useless in an argument about the parking. The
+                          name opens WHICH four, and what was written. */}
                       {summary.flags_by_area.map((row) => (
-                        <tr key={row.area_id}><td>{row.name}</td><td className="num">{row.days}</td></tr>
+                        <tr key={row.area_id}>
+                          <td>
+                            <button className="link" onClick={() => setHistoryFor(row.area_id)}>
+                              {row.name}
+                            </button>
+                          </td>
+                          <td className="num">{row.days}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
@@ -633,6 +646,9 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
                     />
                   </td>
                   <td className="right">
+                    <button className="tiny" onClick={() => setHistoryFor(area.id)}>
+                      history
+                    </button>{' '}
                     <button
                       className="tiny danger"
                       disabled={busy}
@@ -662,6 +678,9 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
                     <tr key={area.id}>
                       <td className="grow muted">{area.name}</td>
                       <td className="right">
+                        <button className="tiny" onClick={() => setHistoryFor(area.id)}>
+                          history
+                        </button>{' '}
                         <button
                           className="tiny"
                           disabled={busy}
@@ -683,6 +702,12 @@ export default function FrontOffice({ onError, employees = [], companies = [], c
           ) : null}
           {!data.areas.length ? <p className="empty">No areas yet.</p> : null}
         </div>
+      ) : null}
+
+      {/* One area, down the days - opened from the list, from an area that
+          is off it, or from the month's flags. */}
+      {historyFor ? (
+        <AreaHistory areaId={historyFor} onClose={() => setHistoryFor(null)} onError={onError} />
       ) : null}
     </section>
   );

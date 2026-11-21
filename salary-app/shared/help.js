@@ -725,6 +725,7 @@ export const HELP = [
       '**Click a name to change it.** Renaming keeps that area\u2019s whole history; typing a new name starts a new area with none.',
       '**\u201cOff the list\u201d is not a delete.** Everything taken off is listed under **Off the list** with a **Put it back** button, and every day it was flagged for is still on the record \u2014 so an area that went off in March comes back in June as the SAME area, not a second of it.',
       '**Add the usual areas** appears whenever one of the twelve the app knows is missing altogether, and adds only the missing ones.',
+      '**history** on an area opens that one place down the days \u2014 date, verdict, remark and who looked \u2014 with days checked, clean, flagged and **not checked** over the dates you pick. The area name on the **Monthly summary** opens the same thing, so \u201cParking: 4 days\u201d can say WHICH four.',
       'All four papers print as documents: the check, the visitor register, the courier register and the monthly summary. The visitor and courier registers also print for a whole month.',
       'Reception can be given a login that reaches **only** this: Admin → Logins → Front office.',
       'The same day’s figures also sit on the **Dashboard**, under the roll call, and follow the same ‹ › arrows.',

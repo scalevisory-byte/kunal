@@ -322,6 +322,28 @@ export const listInspections = (day) =>
  * to be undoable, and a day with no verdict is "not checked", which is a real
  * state in this module and not a hole.
  */
+/**
+ * Every verdict ever recorded against ONE area, newest first.
+ *
+ * Read straight from the table rather than off a day or a month payload:
+ * the question is "when was the parking flagged, and what was said" and the
+ * answer runs across months.
+ */
+export function areaInspections(areaId, { from, to } = {}) {
+  const where = ['area_id = @area_id'];
+  const params = { area_id: Number(areaId) };
+  if (from) { where.push('day >= @from'); params.from = String(from).slice(0, 10); }
+  if (to) { where.push('day <= @to'); params.to = String(to).slice(0, 10); }
+  return db
+    .prepare(
+      `SELECT id, day, area_id, status, remark, checked_by, at
+         FROM fo_inspections
+        WHERE ${where.join(' AND ')}
+        ORDER BY day DESC, id DESC`
+    )
+    .all(params);
+}
+
 export function setInspection({ day, area_id, status, remark, by } = {}) {
   needDay(day);
   const area = db.prepare(`SELECT * FROM fo_areas WHERE id = ?`).get(area_id);

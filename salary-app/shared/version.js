@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.57.0';
+export const VERSION = '1.58.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.58.0',
+    date: '21 Nov 2026',
+    title: 'One area, day by day',
+    items: [
+      '**Area-wise history.** Press **history** on any area — on the list or off it — and you get that one place down the days: the date, the verdict, the remark and who looked.',
+      '**Four figures over the range you pick**: days checked, clean, flagged, and **not checked**. Plus one line saying when it was last looked at and what was said then — which is the figure somebody actually wants when they ask “is the parking sorted now”.',
+      '**The area name on the monthly summary now opens it.** “Parking: 4 days” is the right answer for a month and useless in an argument about the parking — it could not say which four, what was wrong, or who looked.',
+      '**A day nobody walked is still not a clean day.** Days with no verdict are counted and named as not checked; over a range with no dates the figure is a dash, because nought would read as “every day was walked”.',
+      'Prints as a document and exports to Excel. The history of an area taken **off** the list opens too — that record is exactly what somebody wants afterwards.',
+    ],
+  },
   {
     version: '1.57.0',
     date: '21 Nov 2026',

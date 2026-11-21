@@ -47,6 +47,60 @@ export const USUAL_AREAS = [
 export const DIRECTIONS = ['Inward', 'Outward'];
 export const isDirection = (value) => DIRECTIONS.includes(value);
 
+/* ---------------- one area, day by day ---------------- */
+
+/** Whole days from one date to another, inclusive. Null when either is missing. */
+function daysInRange(from, to) {
+  const a = Date.parse(String(from || '').slice(0, 10));
+  const b = Date.parse(String(to || '').slice(0, 10));
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b < a) return null;
+  return Math.round((b - a) / 86400000) + 1;
+}
+
+/**
+ * ONE AREA, DOWN THE DAYS.
+ *
+ * Dinesh: *"area wise history"*. The monthly summary answers "which places
+ * are flagged most", which is the right question for a month and the wrong
+ * one for an argument about the parking: it says four days and cannot say
+ * WHICH four, what was wrong, or who looked.
+ *
+ * TWO THINGS IT WILL NOT DO:
+ *
+ *   **It does not invent a verdict for a day nobody walked.** A day with no
+ *   row is not clean - it is a day nobody looked, and it is counted as that
+ *   and named as that. "Not checked" is its own figure here exactly as it is
+ *   everywhere else in this module.
+ *
+ *   **It counts nothing it cannot see.** Over a range with no dates, the
+ *   not-checked figure is `null` - "not known" - rather than nought, which
+ *   would read as "every day was walked".
+ */
+export function areaHistory({ area = null, inspections = [], from = '', to = '' } = {}) {
+  const id = Number(area?.id);
+  const rows = inspections
+    .filter((r) => Number(r.area_id) === id)
+    .filter((r) => (!from || String(r.day) >= from) && (!to || String(r.day) <= to))
+    .map((r) => ({ ...r, flagged: isFlag(r.status) }))
+    .sort((a, b) => String(b.day).localeCompare(String(a.day)));
+
+  const flagged = rows.filter((r) => r.flagged).length;
+  const span = daysInRange(from, to);
+
+  return {
+    area,
+    rows,
+    checked: rows.length,
+    clean: rows.length - flagged,
+    flagged,
+    days_in_range: span,
+    not_checked: span === null ? null : Math.max(0, span - rows.length),
+    /* The last word on it, whenever that was - the figure somebody actually
+       wants when they ask "is the parking sorted now". */
+    latest: rows[0] || null,
+  };
+}
+
 /* ---------------- what a day adds up to ---------------- */
 
 const n = (v) => Number(v) || 0;

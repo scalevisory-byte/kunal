@@ -14,6 +14,7 @@ import {
   setCourierStatus,
   undoCheckOut,
   addUsualAreas,
+  areaInspections,
   addVisitor,
   clearDay,
   createArea,
@@ -92,6 +93,21 @@ frontOfficeRouter.patch('/areas/:id', (req, res) => {
   const area = updateArea(Number(req.params.id), req.body || {});
   if (!area) return res.status(404).json({ error: 'not found' });
   return res.json(area);
+});
+
+/**
+ * One area, down the days.
+ *
+ * The area itself comes back with it, including one that is off the list -
+ * its history is exactly what somebody asks for after taking it off.
+ */
+frontOfficeRouter.get('/areas/:id/history', (req, res) => {
+  const area = listAreas({ all: true }).find((a) => a.id === Number(req.params.id));
+  if (!area) return res.status(404).json({ error: 'not found' });
+  return res.json({
+    area,
+    inspections: areaInspections(area.id, { from: req.query.from, to: req.query.to }),
+  });
 });
 
 /* Off the list, not out of the records - see retireArea. */
