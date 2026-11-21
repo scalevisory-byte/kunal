@@ -20,10 +20,19 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.53.0';
+export const VERSION = '1.53.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.53.1',
+    date: '21 Nov 2026',
+    title: 'The letters say when a company has no logo on file',
+    items: [
+      '**The letter carries the leaver’s OWN company’s logo**, inlined into the file so it opens on a phone with no signal. That was already true — what it did not do was say anything when there was no logo on file for that company, so it printed the name in type and looked broken.',
+      '**Four companies, four logos.** Uploading one is not uploading all four: BOOKNFLY PRIVATE LIMITED, BOOKNFLY, BOOKNFLY VENTURE LLP and SCALE each carry their own mark, in **Admin → Company logos**. The letters panel now names the company that has none and says where to add it.',
+    ],
+  },
   {
     version: '1.53.0',
     date: '21 Nov 2026',

@@ -179,6 +179,42 @@ test('and once there is, both letters come back as one file each', async () => {
   assert.ok(!/conduct/.test(experience.text), 'not ticked, not printed');
 });
 
+test('THE LOGO ON THE LETTER IS THE LEAVER\u2019S OWN COMPANY\u2019S, INLINED', async () => {
+  /*
+   * Dinesh: *"letters me logo nahi aa rahe"*. It was not that the letter
+   * dropped it - it was that no logo was on file for that company. Four
+   * companies share this installation and each carries its own mark, so
+   * uploading one is not uploading all four. Pinned both ways round, because
+   * "it prints nothing" and "there is nothing to print" look identical on
+   * paper and only one of them is a bug.
+   */
+  const before = await api('GET', `/api/people/exits/${who}/letter/relieving`);
+  assert.ok(!/src="data:image/.test(before.text), 'nothing on file, so nothing printed');
+  assert.match(before.text, /BOOKNFLY/, 'and the name is still at the top');
+
+  // A real 1x1 PNG, through the route the Admin screen uses.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64'
+  );
+  const form = new FormData();
+  form.append('logo', new Blob([png], { type: 'image/png' }), 'mark.png');
+  const up = await fetch(`${base}/api/companies/1/logo`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer the-key' },
+    body: form,
+  });
+  assert.equal(up.status, 200);
+
+  for (const kind of ['relieving', 'experience']) {
+    const after = await api('GET', `/api/people/exits/${who}/letter/${kind}`);
+    assert.match(after.text, /src="data:image\/png;base64,/, `${kind} carries the mark`);
+    // Inside the file, never fetched: a letter is opened on a phone with no
+    // signal as often as not.
+    assert.ok(!/src="http/.test(after.text));
+  }
+});
+
 test('an unknown letter is refused rather than guessed at', async () => {
   const bad = await api('GET', `/api/people/exits/${who}/letter/promotion`);
   assert.equal(bad.status, 400);

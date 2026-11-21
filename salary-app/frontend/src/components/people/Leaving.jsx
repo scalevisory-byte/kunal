@@ -8,6 +8,7 @@ import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
 import ExitClearance from './ExitClearance.jsx';
 import { onStaff } from '../../onStaff.js';
+import { loadCompanyLogos, logoFor } from '../../companyLogos.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -68,6 +69,27 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
    * was dismissed is a letter nobody meant to sign.
    */
   const [letter, setLetter] = useState({ conduct: true, note: '', by: '' });
+
+  /*
+   * WHETHER THERE IS A LOGO TO PRINT, said before it is printed.
+   *
+   * Dinesh: *"letters me logo nahi aa rahe"*. The letter was right - it
+   * inlines the logo of the LEAVER'S OWN COMPANY, and there was none on file
+   * for that one. Four companies share this installation and each carries
+   * its own mark, so uploading one is not uploading all four. The letter
+   * cannot invent it; what it can do is stop being silent about it, the way
+   * the offer letter already is.
+   *
+   * Read from the same cache the payslip uses - no new call.
+   */
+  const [logosRead, setLogosRead] = useState(false);
+  useEffect(() => {
+    // Looked is looked, whether or not it found any: a failed read must not
+    // leave the panel saying nothing at all about the logo.
+    loadCompanyLogos()
+      .catch(() => {})
+      .then(() => setLogosRead(true));
+  }, []);
 
   const open = async (employeeId) => {
     setPicked(employeeId);
@@ -296,6 +318,11 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
   };
 
   const progress = detail ? exitSteps({ exit, clearance: detail.clearance, settlement: s }) : null;
+  const hasLogo = Boolean(
+    detail &&
+      logosRead &&
+      (logoFor(detail.employee.company_id) || logoFor(detail.employee.company_name))
+  );
 
   return (
     <section className="stack">
@@ -642,6 +669,13 @@ export default function Leaving({ employees, onError, onReload, only = null }) {
               </p>
             ) : (
               <>
+                {logosRead && !hasLogo && (
+                  <p className="muted small">
+                    <strong>No logo on file for {detail.employee.company_name || 'this company'}</strong>{' '}
+                    — the letter goes out with the name in type. Each company carries its own:
+                    an admin uploads it in <strong>Admin → Company logos</strong>.
+                  </p>
+                )}
                 {!paid && (
                   <p className="lic-alert warn">
                     The full and final is <strong>not settled</strong>, so the relieving letter
