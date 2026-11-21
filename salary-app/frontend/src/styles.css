@@ -1028,6 +1028,180 @@ table.timesheet td { vertical-align: middle; }
 table.timesheet .sticky-name .hint { text-align: left; }
 table.timesheet tr.sunday-row td { background: color-mix(in srgb, var(--bad) 6%, transparent); }
 
+/* ===================== THE TIME TAB =====================
+ *
+ * Dinesh's brief, in his words: *"compact filter toolbar... avoid oversized
+ * input fields... improve table header contrast... subtle alternating row
+ * backgrounds... avoid excessive borders... avoid horizontal overflow"*.
+ *
+ * Everything here is scoped to `.time-*` or `table.timesheet`. Nothing else
+ * in the app has those, so the Attendance grid, the salary sheet and the
+ * eight screens on `.fo-figures` cannot move - which is the whole of what
+ * "modify the Time tab only" has to mean in a shared stylesheet.
+ */
+
+/* ---- one bar instead of four ---- */
+.time-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card, var(--surface));
+  margin-bottom: 0.6rem;
+}
+.time-bar > * { flex: 0 0 auto; }
+.time-bar .search { flex: 1 1 14rem; min-width: 10rem; max-width: 24rem; }
+.time-bar .time-person { flex: 1 1 18rem; max-width: 28rem; }
+.time-bar .time-count { white-space: nowrap; }
+
+/* A segmented control: one pill, the chosen half filled. Two separate
+   buttons read as two things you could have both of.
+   Named `.time-seg`, not `.seg`: the Dashboard already carries `viz-seg`,
+   and while CSS would not confuse the two, a bare `.seg` is a name the next
+   screen could reasonably take - and the brief says the Dashboard must not
+   move. The same goes for `.time-daystep`. */
+.time-seg {
+  display: inline-flex; padding: 2px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--line-soft);
+}
+.time-seg button {
+  border: 0; background: none; color: var(--muted);
+  font-size: 0.78rem; font-weight: 600;
+  padding: 0.3rem 0.7rem; border-radius: 6px; cursor: pointer;
+  white-space: nowrap;
+}
+.time-seg button.on { background: var(--brand); color: #fff; }
+.time-seg button:not(.on):hover { color: var(--ink, inherit); }
+.time-seg button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+/* The day stepper reads as ONE control, not three that happen to be beside
+   each other. */
+.time-daystep {
+  display: inline-flex; align-items: stretch;
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background: var(--surface);
+}
+.time-daystep select {
+  border: 0; border-radius: 0; background: none;
+  min-width: 8.5rem; padding: 0.25rem 0.4rem;
+}
+.time-daystep button {
+  border: 0; border-radius: 0; background: none;
+  padding: 0 0.5rem; color: var(--muted); font-size: 1rem; line-height: 1;
+}
+.time-daystep button:hover:not(:disabled) { background: var(--line-soft); color: var(--brand); }
+.time-daystep button:disabled { opacity: 0.35; }
+
+/* ---- the day's settings, one strip ---- */
+.time-settings {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.4rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card, var(--surface));
+}
+.ts-block { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.ts-label {
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--muted);
+}
+.ts-clock {
+  display: inline-flex; align-items: baseline; gap: 0.3rem;
+  font-variant-numeric: tabular-nums; font-size: 0.92rem;
+}
+.ts-arrow { color: var(--muted); }
+.ts-sum {
+  font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.92rem;
+  padding: 0.05rem 0.4rem; border-radius: 6px;
+  background: color-mix(in srgb, var(--good, #1f8a5f) 12%, transparent);
+  color: var(--good, #1f8a5f);
+}
+/* The figure that cost money: timings short of the paid day. Marked, not
+   shouted - it is a mismatch to look at, not an error. */
+.ts-sum.short { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+.ts-sum.over  { background: color-mix(in srgb, var(--warn, #b8860b) 14%, transparent); color: var(--warn, #b8860b); }
+
+.time-notes { margin: 0.45rem 0 0.7rem; line-height: 1.5; }
+
+/* ---- the grid, which is what the page is for ---- */
+/* The table had 766px of columns in a 1230px page: cramped cells with empty
+   space beside them. */
+table.timesheet { width: 100%; }
+table.timesheet .sticky-name { min-width: 9rem; width: 22%; }
+table.timesheet thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--line-soft);
+  font-size: 0.66rem; letter-spacing: 0.06em;
+}
+table.timesheet thead th.sticky-name { z-index: 6; }
+/* Subtle, and only on the rows that carry no colour of their own, so a
+   Sunday or a half-typed day still reads as itself. */
+table.timesheet tbody tr:nth-child(even):not(.sunday-row):not(.part-row) > td {
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
+}
+table.timesheet tbody tr:hover > td { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+table.timesheet tbody td { height: 2.1rem; }
+
+/* A day with a time on it looks different from an empty one, without a
+   border on every cell. */
+table.timesheet td.has-time .time-input { font-weight: 600; color: var(--ink, inherit); }
+table.timesheet .time-input { width: 100%; min-width: 3.2rem; }
+table.timesheet .time-input:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
+  border-radius: 5px;
+}
+/* Started and not finished: the row to go back to. It was
+   indistinguishable from an empty one. */
+table.timesheet tr.part-row > td { background: color-mix(in srgb, var(--warn, #b8860b) 7%, transparent); }
+table.timesheet .warn-pill {
+  background: color-mix(in srgb, var(--warn, #b8860b) 16%, transparent);
+  color: var(--warn, #b8860b);
+}
+table.timesheet td.time-flags { white-space: nowrap; }
+table.timesheet tfoot td { background: var(--line-soft); font-weight: 600; }
+
+/* ---- late and early: three figures and a fold ---- */
+.late-card { padding: 0.75rem 0.9rem; }
+.late-card .late-head h3 {
+  margin: 0; font-size: 0.95rem;
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+}
+/* Whether the rule is ON is the first thing to know about this card, and it
+   was buried in a sentence. */
+.late-state {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 0.1rem 0.42rem; border-radius: 999px;
+}
+.late-state.on  { background: color-mix(in srgb, var(--warn, #b8860b) 16%, transparent); color: var(--warn, #b8860b); }
+.late-state.off { background: var(--line-soft); color: var(--muted); }
+.late-card .late-head p { margin: 0.2rem 0 0; max-width: 56ch; }
+
+.late-figs {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.6rem;
+  margin: 0.55rem 0 0.1rem;
+}
+.late-figs > span { display: inline-flex; align-items: baseline; gap: 0.4rem; }
+.late-figs b { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.late-figs em { font-style: normal; font-size: 0.73rem; color: var(--muted); }
+/* Money only goes amber when there IS money. Nought charged is the
+   concession doing its job, not a figure to flag. */
+.late-figs .charge b { color: var(--warn, #b8860b); }
+
+.late-detail { margin-top: 0.5rem; }
+.late-detail > summary {
+  cursor: pointer; font-size: 0.75rem; color: var(--muted);
+  padding: 0.15rem 0;
+}
+.late-detail > summary:hover { color: var(--brand); }
+.late-detail .table-wrap { margin-top: 0.4rem; max-height: 18rem; }
+
+/* Tablet: the bar wraps rather than squeezing every control to nothing, and
+   the table keeps scrolling inside its own frame. */
+@media (max-width: 900px) {
+  .time-bar .search, .time-bar .time-person { flex: 1 1 100%; max-width: none; }
+  .time-settings { gap: 0.45rem 1rem; }
+  table.timesheet .sticky-name { width: auto; min-width: 9rem; }
+}
+
 /* ---- the dashboard ---- */
 
 .dash-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }

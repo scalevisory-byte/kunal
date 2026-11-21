@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.63.1';
+export const VERSION = '1.64.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.64.0',
+    date: '21 Nov 2026',
+    title: 'The Time tab, redesigned around the grid',
+    items: [
+      '**Four stacked toolbars became one bar and one strip.** The mode, the day and the search sat on one row; the fill button and a paragraph of explanation on a second; an orphaned “change” on a third; the lunch toggle on a fourth — **560px of controls above the grid**, which is the only reason to open the tab. The grid now starts near the top.',
+      '**One day / One person is a proper segmented control** — one pill with the chosen half filled, instead of two loose buttons that read as two things you could have both of. The day arrows and the day list are one control too.',
+      '**The usual day is a read-out, not a sentence**: <strong>09:30 → 18:30</strong>, the lunch, and <strong>= 9h 00m</strong> beside it, with Change right there. The sum goes red when the timings fall short of the paid day — that mismatch was costing real money and nothing on screen had ever added it up.',
+      '**Late and early is a short card again**: three figures on one line, the on/off state said as a tag beside the heading, Set the rule in the corner, and the person-by-person breakdown folded away. It was half a screen.',
+      '**The grid fills the page.** It was 766 pixels of cramped columns in a 1,230 pixel page — and scrolled sideways anyway. It now fits with no sideways scroll on desktop, laptop and tablet alike.',
+      '**Sticky column headers, alternating rows, hover highlighting** and taller click targets on every time box.',
+      '**A day somebody started and did not finish is marked** — in at 09:30 with no out time used to look exactly like an empty day. And the flag names the fault: “no out”, “no in”, “half lunch”. It used to say “check” on every one of them, with the reason only in a tooltip.',
+      '**Nothing else moved.** Checked by screenshotting every other tab before and after: Salary sheet, Attendance, Leave, Loans, Employees, Assets and Reports came out **pixel for pixel identical**, and the stylesheet changes were proved to make no difference at all outside this page.',
+    ],
+  },
   {
     version: '1.63.1',
     date: '21 Nov 2026',

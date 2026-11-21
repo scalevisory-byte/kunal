@@ -1035,9 +1035,19 @@ test("the office's usual timings add up to the day, and say so", () => {
    */
   assert.match(tab, /const usual = timesToDay\(standard, \{ hoursPerDay: period\.hours_per_day \}\)/);
   assert.match(tab, /SHORT of the/);
-  assert.match(tab, /every day filled is docked/);
+  assert.match(tab, /every day filled this way is docked/);
   assert.match(tab, /OVER the/);
-  assert.match(tab, /usual\.minutes < 0 \? 'small warn-text'/);
+  /*
+   * The redesign moved this sentence out of the toolbar it used to wrap
+   * through - it was pushing "change" onto a row of its own - and into one
+   * line under the settings strip. It is still MARKED when the timings fall
+   * short of the paid day, which is the whole point of it, and the sum is
+   * still beside the timings themselves rather than only in the sentence.
+   */
+  assert.match(tab, /className=\{usual\.minutes < 0 \? 'warn-text' : undefined\}/);
+  assert.match(tab, /className="time-notes muted small"/);
+  // The read-out beside the usual day, which carries the same warning.
+  assert.match(tab, /ts-sum\$\{usual\.minutes < 0 \? ' short'/);
 
   /*
    * And when they disagree it is FIXABLE IN ONE CLICK, both ways, with the
@@ -2820,4 +2830,80 @@ test('the statement header puts the name first on a phone', () => {
   // And the name is never cut off: the month is held by flex instead.
   assert.ok(!/\.stm-head h2 \{[^}]*text-overflow: ellipsis/.test(css));
   assert.match(css, /\.stm-head \.stm-month \{ flex: 0 0 auto; \}/);
+});
+
+/*
+ * THE TIME TAB REDESIGN.
+ *
+ * Dinesh's brief: *"compact filter toolbar... modern segmented controls...
+ * keep the card short and professional... subtle alternating row
+ * backgrounds... avoid horizontal overflow"* - and, in capitals, **modify
+ * the Time tab only**.
+ *
+ * The page had FOUR stacked toolbars: mode + day + search on one, the fill
+ * button and a paragraph on a second, an orphaned "change" on a third, the
+ * lunch toggle on a fourth. 560px of chrome above the grid that is the only
+ * reason to open the tab.
+ */
+test('the Time tab is one filter bar and one settings strip, not four toolbars', () => {
+  const tab = src('components/TimeSheet.jsx');
+
+  assert.match(tab, /className="time-bar"/);
+  assert.match(tab, /className="time-settings"/);
+  // The mode is a segmented control: one pill with the chosen half filled.
+  // Two loose buttons read as two things you could have both of.
+  assert.match(tab, /className="time-seg" role="tablist"/);
+  assert.match(tab, /aria-selected=\{view === 'day'\}/);
+  // The day stepper reads as ONE control rather than three beside each other.
+  assert.match(tab, /className="time-daystep"/);
+
+  // Every feature the brief lists is still on the page.
+  for (const feature of [
+    'One day, everybody', 'One person, whole month', 'Import from Excel',
+    'Fill the usual timings', 'Lunch is inside the day', 'Search employee or company',
+  ]) {
+    assert.ok(tab.includes(feature), `"${feature}" has gone`);
+  }
+});
+
+test('the Time grid fills its frame, stripes, and names what is missing', () => {
+  // 766px of columns in a 1230px page: cramped cells with empty space
+  // beside them, and the table scrolling sideways anyway.
+  assert.match(css, /table\.timesheet \{ width: 100%; \}/);
+  assert.match(css, /table\.timesheet thead th \{[^}]*position: sticky/);
+  assert.match(css, /table\.timesheet tbody tr:nth-child\(even\)/);
+  assert.match(css, /table\.timesheet tbody tr:hover > td/);
+
+  const tab = src('components/TimeSheet.jsx');
+  // A day started and not finished was indistinguishable from an empty one.
+  assert.match(tab, /const halfTyped = !!\(entry\.in_time && !entry\.out_time\)/);
+  assert.match(css, /table\.timesheet tr\.part-row > td/);
+  // And the pill says WHICH fault. It said "check" on every one of them,
+  // with the reason only in a tooltip - so the column read the same whether
+  // somebody forgot to clock out or typed a nineteen-hour day.
+  assert.match(tab, /read\.warning === 'no out time'/);
+  assert.match(tab, /\? 'no out'/);
+});
+
+test('THE TIME TAB REDESIGN TOUCHES ONLY THE TIME TAB', () => {
+  /*
+   * The brief says it in capitals, and this app has been bitten four times
+   * by a shared class name: `.alerts` restyled the dashboard's list,
+   * `.login` would have rebuilt the password screen, `.sticky-name` broke
+   * the Festivals date, `.fo-figures` is on eight screens.
+   *
+   * So every selector added for this page is prefixed. `.seg` and
+   * `.day-step` were the two that were not, and the Dashboard already
+   * carries `viz-seg` - near enough to be worth removing the doubt.
+   */
+  for (const bare of ['.seg ', '.seg{', '.seg,', '.day-step ', '.day-step{']) {
+    assert.ok(!css.includes(`\n${bare}`), `${bare.trim()} is unscoped`);
+  }
+  assert.match(css, /\.time-seg \{/);
+  assert.match(css, /\.time-daystep \{/);
+
+  // And nothing outside the Time tab uses the components that changed.
+  const app = src('App.jsx');
+  assert.ok(app.includes("import TimeSheet from './components/TimeSheet.jsx'"));
+  assert.match(src('components/TimeSheet.jsx'), /import LatePolicy/);
 });

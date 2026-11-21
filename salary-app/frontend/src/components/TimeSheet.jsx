@@ -233,37 +233,63 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
       {onPatchPeriod && (
         <LatePolicy period={period} rows={rows} onPatch={onPatchPeriod} locked={locked} />
       )}
-      <div className="toolbar">
-        <div className="sub-tabs toolbar">
-          <button className={view === 'day' ? 'active' : undefined} onClick={() => setView('day')}>
+      {/*
+        * ONE BAR, NOT FOUR.
+        *
+        * Dinesh: *"align all controls properly... compact filter toolbar"*.
+        * The page had the mode, the day and the search on one row, the fill
+        * button and a paragraph of explanation on a second, an orphaned
+        * "change" on a third and the lunch toggle on a fourth - 560px of
+        * chrome before the table, which is the only thing anybody came for.
+        * The controls are the same controls; they are just in one place now.
+        */}
+      <div className="time-bar">
+        <div className="time-seg" role="tablist" aria-label="What to show">
+          <button
+            role="tab"
+            aria-selected={view === 'day'}
+            className={view === 'day' ? 'on' : undefined}
+            onClick={() => setView('day')}
+          >
             One day, everybody
           </button>
-          <button className={view === 'month' ? 'active' : undefined} onClick={() => setView('month')}>
+          <button
+            role="tab"
+            aria-selected={view === 'month'}
+            className={view === 'month' ? 'on' : undefined}
+            onClick={() => setView('month')}
+          >
             One person, whole month
           </button>
         </div>
 
         {view === 'day' ? (
           <>
-            <button className="ghost" disabled={day <= 1} onClick={() => setDay(day - 1)}>‹</button>
-            <select value={day} onChange={(e) => setDay(Number(e.target.value))} title="Which day">
-              {dayList.map((d) => (
-                <option key={d} value={d}>
-                  {weekday(period.year, period.month, d)} {d}
-                  {isSunday(period.year, period.month, d) ? ' · Sunday' : ''}
-                </option>
-              ))}
-            </select>
-            <button className="ghost" disabled={day >= total} onClick={() => setDay(day + 1)}>›</button>
+            <div className="time-daystep">
+              <button className="ghost" disabled={day <= 1} title="Previous day" onClick={() => setDay(day - 1)}>‹</button>
+              <select value={day} onChange={(e) => setDay(Number(e.target.value))} title="Which day">
+                {dayList.map((d) => (
+                  <option key={d} value={d}>
+                    {weekday(period.year, period.month, d)} {d}
+                    {isSunday(period.year, period.month, d) ? ' · Sunday' : ''}
+                  </option>
+                ))}
+              </select>
+              <button className="ghost" disabled={day >= total} title="Next day" onClick={() => setDay(day + 1)}>›</button>
+            </div>
             <input
-              className="search"
+              className="search time-search"
               placeholder="Search employee or company"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </>
         ) : (
-          <select value={personId || ''} onChange={(e) => setPersonId(Number(e.target.value))}>
+          <select
+            className="time-person"
+            value={personId || ''}
+            onChange={(e) => setPersonId(Number(e.target.value))}
+          >
             {rows.map((r) => (
               <option key={r.employee_id} value={r.employee_id}>
                 {r.employee_name} — {r.company_name}
@@ -273,6 +299,9 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         )}
 
         <span className="grow" />
+        <span className="muted small time-count">
+          {lines.length} {view === 'day' ? (lines.length === 1 ? 'person' : 'people') : 'days'}
+        </span>
         {!STANDALONE && !locked && (
           <button className={importing ? 'active' : undefined} onClick={() => setImporting((v) => !v)}>
             {importing ? 'Close' : 'Import from Excel'}
@@ -308,82 +337,105 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         />
       )}
 
-      <div className="toolbar">
-        <button
-          disabled={locked || !lines.length}
-          onClick={() => fillStandard(lines.map(({ row, day: d }) => ({ row, day: d })))}
-        >
-          Fill the usual timings
-        </button>
-        {/*
-          * The timings are SHOWN AS A SUM against the day, because this one
-          * button writes the same figure onto everybody.
-          *
-          * The shipped default used to be 45 minutes short of the nine-hour
-          * day, so one click docked every person 45 minutes for a full day
-          * they had worked - invisible, because nothing on the screen ever
-          * added the timings up. Now it does, and a mismatch is stated
-          * before the button rather than discovered on the payslip.
-          */}
-        <span className={usual.minutes < 0 ? 'small warn-text' : 'muted small'}>
-          {standard.in_time}–{standard.out_time}
-          {standard.lunch_out || standard.lunch_in
-            ? `, less lunch ${standard.lunch_out}–${standard.lunch_in}`
-            : ', no lunch deducted'}{' '}
-          = <strong>{formatDuration(usual.worked || 0)}</strong>
-          {usual.minutes === 0
-            ? ', which is exactly the day. Come when you like — what counts is finishing it.'
-            : usual.minutes < 0
-              ? ` — ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled is docked ${formatDuration(-usual.minutes)}.`
-              : ` — ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled is paid that as overtime.`}{' '}
-          Only days with nothing on them are filled.
-        </span>
-        <button className="ghost tiny" onClick={() => setShowStandard((s) => !s)}>
-          {showStandard ? 'done' : 'change'}
-        </button>
+      {/*
+        * THE DAY'S SETTINGS, IN ONE STRIP.
+        *
+        * Three toolbars became one: the usual timings as a READ-OUT rather
+        * than a sentence (09:30 -> 18:30, less lunch, = 9h 00m), the button
+        * that writes them, and whether the break comes off the day. The long
+        * explanations are kept - they carry the 45-minute trap that cost
+        * real money - but they sit under the strip as one line each instead
+        * of wrapping through the controls and orphaning the "change" button
+        * onto a row of its own.
+        */}
+      <div className="time-settings">
+        <div className="ts-block">
+          <span className="ts-label">The usual day</span>
+          <span className="ts-clock">
+            <strong>{standard.in_time}</strong>
+            <span className="ts-arrow">→</span>
+            <strong>{standard.out_time}</strong>
+          </span>
+          <span className="muted small">
+            {standard.lunch_out || standard.lunch_in
+              ? `less lunch ${standard.lunch_out}\u2013${standard.lunch_in}`
+              : 'no lunch deducted'}
+          </span>
+          <span className={`ts-sum${usual.minutes < 0 ? ' short' : usual.minutes > 0 ? ' over' : ''}`}>
+            = {formatDuration(usual.worked || 0)}
+          </span>
+          <button className="ghost tiny" onClick={() => setShowStandard((v) => !v)}>
+            {showStandard ? 'done' : 'change'}
+          </button>
+        </div>
+
+        <div className="ts-block">
+          <button
+            disabled={locked || !lines.length}
+            onClick={() => fillStandard(lines.map(({ row, day: d }) => ({ row, day: d })))}
+          >
+            Fill the usual timings
+          </button>
+          <span className="muted small">onto the days that have nothing on them</span>
+        </div>
+
+        <div className="ts-block">
+          <label className="field inline" title="Whether the break comes off the day's hours">
+            <input
+              type="checkbox"
+              checked={lunchPaid}
+              disabled={locked || !onPatchPeriod}
+              onChange={(e) => {
+                const on = e.target.checked;
+                if (
+                  lunchEffect.days &&
+                  !window.confirm(
+                    on
+                      ? `Stop deducting the lunch break?\n\n` +
+                          `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
+                          `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
+                          `${formatDuration(lunchEffect.minutes)} in all. Those hours go back into ` +
+                          `the month, so short hours fall and overtime rises.\n\n` +
+                          'Only this month changes. The times themselves are not touched.'
+                      : `Deduct the lunch break again?\n\n` +
+                          `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
+                          `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
+                          `${formatDuration(lunchEffect.minutes)} in all, which will come off the ` +
+                          'hours worked.',
+                  )
+                ) {
+                  return;
+                }
+                onPatchPeriod({ lunch_paid: on ? 1 : 0 });
+              }}
+            />
+            Lunch is inside the day
+          </label>
+        </div>
       </div>
 
-      <div className="toolbar">
-        <label className="field inline" title="Whether the break comes off the day's hours">
-          <input
-            type="checkbox"
-            checked={lunchPaid}
-            disabled={locked || !onPatchPeriod}
-            onChange={(e) => {
-              const on = e.target.checked;
-              if (
-                lunchEffect.days &&
-                !window.confirm(
-                  on
-                    ? `Stop deducting the lunch break?\n\n` +
-                        `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
-                        `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
-                        `${formatDuration(lunchEffect.minutes)} in all. Those hours go back into ` +
-                        `the month, so short hours fall and overtime rises.\n\n` +
-                        'Only this month changes. The times themselves are not touched.'
-                    : `Deduct the lunch break again?\n\n` +
-                        `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ` +
-                        `${lunchEffect.days === 1 ? 'has' : 'have'} a lunch time on ${lunchEffect.days === 1 ? 'it' : 'them'}, ` +
-                        `${formatDuration(lunchEffect.minutes)} in all, which will come off the ` +
-                        'hours worked.',
-                )
-              ) {
-                return;
-              }
-              onPatchPeriod({ lunch_paid: on ? 1 : 0 });
-            }}
-          />
-          Lunch is inside the day
-        </label>
-        <span className="muted small">
-          {lunchPaid
-            ? 'Lunch times are recorded and NOT taken off the hours — the break sits inside the day.'
-            : 'Lunch times are taken off the hours worked.'}{' '}
-          {lunchEffect.days
-            ? `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ${lunchEffect.days === 1 ? 'carries' : 'carry'} one, ${formatDuration(lunchEffect.minutes)} in all.`
-            : 'No lunch times have been entered this month.'}
-        </span>
-      </div>
+      {/*
+        * The consequences, under the strip and not through it. The first of
+        * these is the one that cost money: the shipped default was 45
+        * minutes short of the nine-hour day, so one click docked every
+        * person 45 minutes for a full day they had worked - invisible,
+        * because nothing on screen ever added the timings up.
+        */}
+      <p className="time-notes muted small">
+        <span className={usual.minutes < 0 ? 'warn-text' : undefined}>
+          {usual.minutes === 0
+            ? `These timings come to exactly the ${formatDuration(usual.expected)} day. Come when you like \u2014 what counts is finishing it.`
+            : usual.minutes < 0
+              ? `These timings are ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled this way is docked ${formatDuration(-usual.minutes)}.`
+              : `These timings are ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled this way is paid that as overtime.`}
+        </span>{' '}
+        {lunchPaid
+          ? 'Lunch times are recorded and NOT taken off the hours \u2014 the break sits inside the day.'
+          : 'Lunch times are taken off the hours worked.'}{' '}
+        {lunchEffect.days
+          ? `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ${lunchEffect.days === 1 ? 'carries' : 'carry'} one, ${formatDuration(lunchEffect.minutes)} in all.`
+          : 'No lunch times have been entered this month.'}
+      </p>
 
       {/*
         * The two numbers that have to agree, and do not.
@@ -547,8 +599,21 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
     return monthTotals(Object.values(stored), { hoursPerDay: period.hours_per_day });
   }, [line.row.attendance, period.hours_per_day, view]);
 
+  /*
+   * A DAY SOMEBODY STARTED AND DID NOT FINISH.
+   *
+   * In at 09:30 and no out time is not an empty day and not a complete one -
+   * it is the row that has to be gone back to. It was indistinguishable from
+   * a blank row, so it got missed until the hours came out wrong.
+   */
+  const halfTyped = !!(entry.in_time && !entry.out_time);
+
   return (
-    <tr className={line.sunday ? 'sunday-row' : undefined}>
+    <tr
+      className={[line.sunday ? 'sunday-row' : '', halfTyped ? 'part-row' : '']
+        .filter(Boolean)
+        .join(' ') || undefined}
+    >
       <td className="sticky-name">
         {line.label}
         {line.sub && <span className="hint">{line.sub}</span>}
@@ -557,7 +622,7 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
         {mark || '·'}
       </td>
       {TIME_FIELDS.map((field) => (
-        <td key={field}>
+        <td key={field} className={entry[field] ? 'has-time' : undefined}>
           <TimeInput
             value={entry[field] || ''}
             disabled={locked}
@@ -575,9 +640,31 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
           {monthly.days ? formatDuration(monthly.worked) : '-'}
         </td>
       )}
-      <td>
+      <td className="time-flags">
+        {/*
+          * SAY WHAT IS WRONG, not "check".
+          *
+          * The reason was already worked out and put in the tooltip, while
+          * the pill said "check" on every one of them - so the whole column
+          * read the same whether somebody had forgotten to clock out or had
+          * typed a nineteen-hour day. Dinesh: *"improve missing-time
+          * indicators"*. The full sentence stays on hover.
+          */}
         {read.warning ? (
-          <span className="pill error-pill" title={read.warning}>check</span>
+          <span
+            className={`pill ${/^no (in|out) time$/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
+            title={read.warning}
+          >
+            {read.warning === 'no out time'
+              ? 'no out'
+              : read.warning === 'no in time'
+                ? 'no in'
+                : read.warning.startsWith('only one lunch')
+                  ? 'half lunch'
+                  : read.warning.startsWith('the lunch break is longer')
+                    ? 'long lunch'
+                    : 'check'}
+          </span>
         ) : (
           read.overnight && <span className="pill" title="Read as finishing after midnight">+1 day</span>
         )}

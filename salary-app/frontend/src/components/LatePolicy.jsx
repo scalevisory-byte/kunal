@@ -49,10 +49,15 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
   };
 
   return (
-    <section className="card">
+    <section className="card late-card">
       <div className="late-head">
         <div>
-          <h3>Late and early</h3>
+          <h3>
+            Late and early
+            <span className={`late-state ${on ? 'on' : 'off'}`}>
+              {on ? 'charged' : 'counted only'}
+            </span>
+          </h3>
           <p className="muted small">
             {on ? (
               <>
@@ -73,23 +78,37 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
         </button>
       </div>
 
-      <div className="figures">
-        <div className="figure">
-          <span className="k">This month, late or early</span>
-          <span className="n">{formatDuration(preview.minutes) || '0m'}</span>
-        </div>
-        <div className="figure">
-          <span className="k">Over the concession</span>
-          <span className="n">{preview.people.length} {preview.people.length === 1 ? 'person' : 'people'}</span>
-        </div>
-        <div className="figure">
-          <span className="k">{on ? 'Charged' : 'Would be charged'}</span>
-          <span className="n">{money(preview.charge)}</span>
-        </div>
+      {/*
+        * Three figures on one line, not three stacked blocks.
+        *
+        * Dinesh: *"use compact summary statistics... keep the card short and
+        * professional"*. They were big enough to be the page's headline,
+        * over a raw table of everybody - half a screen before the grid the
+        * tab exists for.
+        */}
+      <div className="late-figs">
+        <span>
+          <b>{formatDuration(preview.minutes) || '0m'}</b>
+          <em>late or early this month</em>
+        </span>
+        <span>
+          <b>{preview.people.length}</b>
+          <em>{preview.people.length === 1 ? 'person over the concession' : 'people over the concession'}</em>
+        </span>
+        <span className={preview.charge > 0 ? 'charge' : undefined}>
+          <b>{money(preview.charge)}</b>
+          <em>{on ? 'charged' : 'would be charged'}</em>
+        </span>
       </div>
 
       {preview.each.length > 0 ? (
-        <div className="table-wrap">
+        /* The per-person breakdown is DETAIL, so it folds. The three
+           figures above are the answer; this is the working behind them. */
+        <details className="late-detail">
+          <summary>
+            Who, person by person ({preview.each.length})
+          </summary>
+          <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
@@ -119,8 +138,9 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </details>
       ) : (
         <p className="muted small">
           {preview.unknown === rows.length
