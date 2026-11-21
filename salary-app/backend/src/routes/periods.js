@@ -12,6 +12,7 @@ import {
   deletePeriod,
   findPeriod,
   getPeriod,
+  listAudit,
   listPeriods,
   listAttendance,
   listEmployees,
@@ -389,12 +390,21 @@ periodsRouter.get('/:id/payslip/:employeeId', (req, res) => {
  * - and only the DECISION about a flag is kept.
  */
 periodsRouter.get('/:id/review', (req, res) => {
+  /*
+   * ONE COMPANY FILTER, BOTH HALVES.
+   *
+   * The flags were narrowed to the company and the workflow strip was not,
+   * so with a company picked the sheet showed BNF's rows under a headline
+   * counting every company's exceptions and "85 of 115 have attendance
+   * marked". Two figures about two different sets of people, side by side.
+   */
+  const company_id = Number(req.query.company_id) || undefined;
   const review = reviewPeriod(Number(req.params.id), {
-    company_id: Number(req.query.company_id) || undefined,
+    company_id,
     today: req.query.today || undefined,
   });
   if (!review) return res.status(404).json({ error: 'not found' });
-  const payroll = buildPayroll(Number(req.params.id), { sync: false });
+  const payroll = buildPayroll(Number(req.params.id), { company_id, sync: false });
   return res.json({
     ...review,
     summary: exceptionSummary(review.exceptions),
@@ -440,23 +450,41 @@ periodsRouter.post('/:id/approve', requireApprover, (req, res) => {
   if (!period) return res.status(404).json({ error: 'not found' });
   if (period.approved_at) return res.status(409).json({ error: 'this month is already approved' });
 
+  const today = String(req.body?.today || '').slice(0, 10) || undefined;
   const payroll = buildPayroll(period.id, { sync: false });
-  const review = reviewPeriod(period.id, {});
+  const review = reviewPeriod(period.id, { today });
   const stage = payrollStage({ period, rows: payroll?.rows || [], exceptions: review?.exceptions || [] });
+
   /*
-   * A serious flag has to be looked at before the month is approved - but
-   * "looked at" can mean ignored with a reason, which is what the review
+   * A CRITICAL flag has to be dealt with before the month is approved - but
+   * "dealt with" can mean ignored with a reason, which is what the review
    * screen is for. This refuses only while something is still OPEN.
    */
-  if (stage.blocking.length && !req.body?.anyway) {
+  const override = String(req.body?.override_reason || '').trim();
+  if (stage.blocking.length && !override) {
     return res.status(409).json({
-      error: `${stage.blocking.length} serious exception(s) are still open. Settle or ignore them first.`,
+      error: `${stage.blocking.length} critical exception(s) are still open. Settle or ignore them, or approve anyway with a reason.`,
       blocking: stage.blocking,
+      can_override: true,
     });
   }
 
+  /*
+   * AN OVERRIDE IS A DECISION SOMEBODY SIGNS FOR.
+   *
+   * It used to be `anyway: true` with nothing else - no reason asked for, no
+   * reason recorded, and no button on the screen. So the one way past the
+   * block was an undocumented field, and the trail could not say why a month
+   * with a negative net was approved. The reason is now required, it names
+   * what was open at the time, and it is on the audit trail.
+   */
+  if (stage.blocking.length && override.length < 5) {
+    return res.status(400).json({ error: 'say why the critical exceptions are being approved over' });
+  }
+
   const by = actorOf(req);
-  setPeriodApproval(period.id, { approved_by: by, note: req.body?.note || null });
+  const note = req.body?.note || null;
+  setPeriodApproval(period.id, { approved_by: by, note });
   audit({
     who: by,
     action: 'approved',
@@ -464,9 +492,47 @@ periodsRouter.post('/:id/approve', requireApprover, (req, res) => {
     entity_id: period.id,
     label: period.label,
     to_value: 'approved',
-    note: req.body?.note || null,
+    note,
   });
+  if (stage.blocking.length) {
+    audit({
+      who: by,
+      action: 'overrode',
+      entity: 'periods',
+      entity_id: period.id,
+      label: period.label,
+      field: 'critical exceptions',
+      from_value: `${stage.blocking.length} open`,
+      to_value: 'approved anyway',
+      /* Named, not just counted: "3 critical" six months later does not say
+         which three, and the people are the point. */
+      note: `${override} — ${stage.blocking
+        .map((b) => `${b.name || 'month'}: ${b.label}`)
+        .slice(0, 12)
+        .join('; ')}`,
+    });
+  }
   return res.json(getPeriod(period.id));
+});
+
+/**
+ * WHAT HAS HAPPENED TO THIS MONTH'S APPROVAL, in order.
+ *
+ * Read off the audit trail rather than kept in a second table: `periods`
+ * holds only the CURRENT approval, and a month approved, taken back and
+ * approved again has three entries and one row. Two stores would be two
+ * answers to "who approved this".
+ */
+periodsRouter.get('/:id/approvals', (req, res) => {
+  const period = getPeriod(Number(req.params.id));
+  if (!period) return res.status(404).json({ error: 'not found' });
+  const APPROVAL = new Set(['approved', 'overrode', 'locked']);
+  const history = listAudit({ entity: 'periods', entity_id: period.id, limit: 200 }).filter(
+    (row) =>
+      APPROVAL.has(row.action) ||
+      (row.action === 'changed' && ['approved', 'locked'].includes(row.field))
+  );
+  return res.json({ period, history });
 });
 
 /** Taking the approval back, which needs a reason like reopening does. */

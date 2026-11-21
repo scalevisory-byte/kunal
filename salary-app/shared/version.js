@@ -20,10 +20,29 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.61.0';
+export const VERSION = '1.62.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.62.0',
+    date: '21 Nov 2026',
+    title: 'The salary sheet’s alerts tell the truth now',
+    items: [
+      '**“4 Critical” used to sit over a list naming two people.** Three things were behind it, and all three are fixed.',
+      '**Three levels, and they add up.** *Critical* (no salary, nothing payable, a net below nought, a day rate of nought, more absences than the month has) is the only one that holds the payroll up. *Warning* is worth a look — attendance unfinished, PF with no UAN, a bank transfer with no IFSC. *Informational* is a status: a row on hold, a month waiting for approval. The three counts always add up to the number in the headline.',
+      '**One problem is reported once.** A day rate of nought makes the net nought; a net below nought IS a deduction bigger than the gross. Both used to be listed, which read as two faults where there was one.',
+      '**ATTENDANCE: Sundays and holidays are no longer counted as missing.** The check compared the marks against the calendar, so on the 21st it wanted twenty of them — three Sundays had gone by, which nobody marks, so everybody was flagged every month. It now counts only the days that person was actually due at work: not Sundays or their own weekly off, not the month’s holidays (and only the ones that cover them), not days before they joined, and **never a day that has not happened yet**.',
+      '**And a month that has ENDED is now checked in full**, which it never was — the old check only ran on the month in progress, so a closed month with five days marked said nothing at all.',
+      '**The headline figure is in days, not people.** It read “13 of 13 (100%)” over warnings saying the attendance was unfinished, because one mark on the 2nd made somebody “marked”. It now reads *221 of 221 days*, counted the same way the warnings are.',
+      '**Approving over a critical flag needs a reason, and there is now a button for it.** There was no button at all — the only way past the block was an undocumented field with no reason asked for and none recorded. The reason is now required, it names who was open at the time, and it is on the audit trail as an override. **Approval history** is on the strip.',
+      '**“Take the approval back” never once worked.** The reason was typed, the call went out empty, and the server refused it every time. Fixed.',
+      '**Approving no longer leaves the screen offering to approve.** It worked, and the strip went on showing the button because it was reading the month as it was when the page opened.',
+      '**The alerts panel shows five at a time**, folds away, and filters by Critical / Warning / Informational as well as Open / Resolved / Ignored. On a clean month it folds itself, so the register starts at the top of the screen instead of below the fold.',
+      '**With a company picked, the alerts now follow it.** The register showed one company and the headline counted every company’s exceptions.',
+      '**No salary calculation changed.** Gross, net, PT, PF, ESI and every deduction are exactly as they were — these are checks, and they still correct nothing.',
+    ],
+  },
   {
     version: '1.61.0',
     date: '21 Nov 2026',

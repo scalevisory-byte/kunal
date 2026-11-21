@@ -74,7 +74,9 @@ test('the flags name the person, the figure and what to check', () => {
   const [first] = payrollExceptions(rows, { period: { year: 2026, month: 11 } });
   assert.equal(first.name, 'Dinesh Parmar');
   assert.equal(first.code, 'no_salary');
-  assert.equal(first.severity, 'bad');
+  /* THREE LEVELS NOW, and only `critical` blocks the payroll. No salary on a
+     row is money that is missing, so it is the loudest of the three. */
+  assert.equal(first.severity, 'critical');
   assert.match(first.detail, /check the employee master/i);
 });
 
@@ -103,7 +105,11 @@ test('absent days cannot exceed the month, and a negative net is serious', () =>
   const list = payrollExceptions(rows, { period: {} });
   const by = Object.fromEntries(list.map((e) => [e.code, e]));
   assert.ok(by.absent_over_days);
-  assert.equal(by.negative_net.severity, 'bad');
+  assert.equal(by.negative_net.severity, 'critical');
+  /* And the large deduction is NOT listed beside it: a net below nought IS
+     the deduction being bigger than the gross, and saying both reads as two
+     problems where there is one. */
+  assert.ok(!by.big_deduction, 'the symptom is dropped when its cause is listed');
 });
 
 test('the same name twice on one company is flagged ONCE, not per row', () => {
@@ -182,22 +188,22 @@ test('the first three stages are observations; the last two are DECISIONS', () =
   assert.equal(approved.stages[4].done, true);
 });
 
-test('only a SERIOUS flag stands in the way of approval', () => {
+test('only a CRITICAL flag stands in the way of approval', () => {
   const rows = [{ attendance: { 1: 'P' } }];
   const noisy = payrollStage({
     period: {}, rows,
-    exceptions: [{ severity: 'warn', state: 'open' }, { severity: 'note', state: 'open' }],
+    exceptions: [{ severity: 'warning', state: 'open' }, { severity: 'info', state: 'open' }],
   });
-  assert.equal(noisy.blocking.length, 0, 'a note is not a blocker');
-  assert.match(noisy.stages[2].why, /none serious/);
+  assert.equal(noisy.blocking.length, 0, 'a warning and a status are not blockers');
+  assert.match(noisy.stages[2].why, /none critical/);
 
   const serious = payrollStage({
-    period: {}, rows, exceptions: [{ severity: 'bad', state: 'open' }],
+    period: {}, rows, exceptions: [{ severity: 'critical', state: 'open' }],
   });
   assert.equal(serious.blocking.length, 1);
   // …and an ignored one has been dealt with.
   const dealt = payrollStage({
-    period: {}, rows, exceptions: [{ severity: 'bad', state: 'ignored' }],
+    period: {}, rows, exceptions: [{ severity: 'critical', state: 'ignored' }],
   });
   assert.equal(dealt.blocking.length, 0);
 });
@@ -235,7 +241,7 @@ test('a month cannot be locked before it is approved, and reopening needs a reas
   assert.ok(entries.some((e) => e.note === 'OT missed'));
 });
 
-test('approving is refused while a serious flag is open', async () => {
+test('approving is refused while a CRITICAL flag is open', async () => {
   const other = (await api('POST', '/api/periods', { year: 2026, month: 12, label: 'December 2026' })).body;
   await api('POST', '/api/employees', { company_id: company.id, name: 'Another Zero', monthly_salary: 0 });
   await api('GET', `/api/periods/${other.id}/payroll`);
@@ -243,6 +249,54 @@ test('approving is refused while a serious flag is open', async () => {
   const refused = await api('POST', `/api/periods/${other.id}/approve`, {});
   assert.equal(refused.status, 409);
   assert.ok(refused.body.blocking.length >= 1);
+  /* And it says there IS a way past, rather than leaving somebody stuck on a
+     flag that is correct - a director really does take no salary. */
+  assert.equal(refused.body.can_override, true);
+  assert.match(refused.body.error, /approve anyway with a reason/);
+
+  /* THE OVERRIDE NEEDS A REASON, AND IT IS NOT OPTIONAL. It used to be
+     `anyway: true` with nothing else: no reason asked for, none recorded,
+     and no button on the screen - so the only way past the block was an
+     undocumented field, and the trail could not say why. */
+  const bare = await api('POST', `/api/periods/${other.id}/approve`, { anyway: true });
+  assert.equal(bare.status, 409, 'the old undocumented bypass does nothing');
+
+  const thin = await api('POST', `/api/periods/${other.id}/approve`, { override_reason: 'ok' });
+  assert.equal(thin.status, 400, 'one word is not a reason');
+
+  const done = await api('POST', `/api/periods/${other.id}/approve`, {
+    override_reason: 'Director takes no salary — confirmed with Dinesh',
+  });
+  assert.equal(done.status, 200);
+
+  /* The override is its own line on the trail, naming who, why, and which
+     people were open at the time. */
+  const { entries } = (await api('GET', `/api/people/audit?entity=periods&entity_id=${other.id}`)).body;
+  const over = entries.find((e) => e.action === 'overrode');
+  assert.ok(over, 'approving over a critical flag is recorded as an override');
+  assert.match(over.note, /Director takes no salary/);
+  assert.match(over.note, /Another Zero|No salary set/i, 'and it names what was open');
+
+  /* And the history route reads it back in order. */
+  const { history } = (await api('GET', `/api/periods/${other.id}/approvals`)).body;
+  assert.ok(history.some((h) => h.action === 'approved'));
+  assert.ok(history.some((h) => h.action === 'overrode'));
+});
+
+test('a month with nothing critical open is approved with no reason at all', async () => {
+  const clean = (await api('POST', '/api/periods', { year: 2027, month: 1, label: 'January 2027' })).body;
+  await api('GET', `/api/periods/${clean.id}/payroll`);
+  /* The zero-salary people are still on the books, so settle their flags the
+     way the review screen does - ignored, with a reason. */
+  const { exceptions } = (await api('GET', `/api/periods/${clean.id}/review`)).body;
+  for (const flag of exceptions.filter((e) => e.severity === 'critical')) {
+    await api('PUT', `/api/periods/${clean.id}/review`, {
+      employee_id: flag.employee_id, code: flag.code, state: 'ignored',
+      remark: 'takes no salary', by: 'Dinesh',
+    });
+  }
+  const done = await api('POST', `/api/periods/${clean.id}/approve`, {});
+  assert.equal(done.status, 200, 'nothing critical left, so nothing to explain');
 });
 
 /* ---------------- the statement ---------------- */
@@ -261,13 +315,49 @@ test('the statement is the sheet’s own figures, and carries their months', asy
 
 test('the summary counts what is open, not what has been dealt with', () => {
   const list = [
-    { severity: 'bad', state: 'open', employee_id: 1 },
-    { severity: 'warn', state: 'ignored', employee_id: 2 },
-    { severity: 'warn', state: 'open', employee_id: 1 },
+    { severity: 'critical', state: 'open', employee_id: 1 },
+    { severity: 'warning', state: 'ignored', employee_id: 2 },
+    { severity: 'warning', state: 'open', employee_id: 1 },
+    { severity: 'info', state: 'open', employee_id: null },
   ];
   const s = exceptionSummary(list);
-  assert.equal(s.total, 3);
-  assert.equal(s.open, 2);
-  assert.equal(s.bad, 1);
-  assert.equal(s.people, 1, 'two flags on one person is one person');
+  assert.equal(s.total, 4);
+  assert.equal(s.open, 3);
+  assert.equal(s.critical, 1);
+  assert.equal(s.warning, 1);
+  assert.equal(s.info, 1);
+  assert.equal(s.ignored, 1);
+  /* The three levels add up to what is open, so the chips and the headline
+     figure can never disagree - which is how "4 Critical" appeared over a
+     list naming two people. */
+  assert.equal(s.critical + s.warning + s.info, s.open);
+  assert.equal(s.people, 1, 'two flags on one person is one person, and the month belongs to nobody');
+});
+
+test('TAKING THE APPROVAL BACK CARRIES ITS REASON, and the browser sends one', async () => {
+  const month = (await api('POST', '/api/periods', { year: 2027, month: 2, label: 'February 2027' })).body;
+  await api('GET', `/api/periods/${month.id}/payroll`);
+  const { exceptions } = (await api('GET', `/api/periods/${month.id}/review`)).body;
+  for (const flag of exceptions.filter((e) => e.severity === 'critical')) {
+    await api('PUT', `/api/periods/${month.id}/review`, {
+      employee_id: flag.employee_id, code: flag.code, state: 'ignored', remark: 'takes none', by: 'Dinesh',
+    });
+  }
+  assert.equal((await api('POST', `/api/periods/${month.id}/approve`, {})).status, 200);
+
+  const bare = await api('DELETE', `/api/periods/${month.id}/approve`, {});
+  assert.equal(bare.status, 400, 'a reason is required');
+
+  const done = await api('DELETE', `/api/periods/${month.id}/approve`, { reason: 'OT was missed' });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.approved_at, null, 'the approval is off');
+
+  /*
+   * AND THE BROWSER HAS TO BE ABLE TO SEND IT. `api.del` took no body at
+   * all, so the reason was typed, the call went out empty and the server
+   * refused every time - the button never once worked. One caller passes a
+   * body and this is it.
+   */
+  const apiSrc = fs.readFileSync(new URL('../../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(apiSrc, /del: \(path, body\) => request\('DELETE', path, body\)/);
 });

@@ -87,7 +87,15 @@ export const api = {
   post: (path, body) => request('POST', path, body),
   patch: (path, body) => request('PATCH', path, body),
   put: (path, body) => request('PUT', path, body),
-  del: (path) => request('DELETE', path),
+  /*
+   * A DELETE CAN CARRY A BODY, and one of them has to.
+   *
+   * This took no body at all, so "Take the approval back" - which the server
+   * refuses without a reason - sent nothing and was refused every single
+   * time. The reason was typed, the call went out empty, and the office saw
+   * the app decline for no stated cause. It has never once worked.
+   */
+  del: (path, body) => request('DELETE', path, body),
 
   /**
    * The candidate's side of hiring, which has no password to send. Only

@@ -38,7 +38,9 @@ export function payrollStage({ period = {}, rows = [], exceptions = [] } = {}) {
   const marked = rows.filter((r) => Object.values(r.attendance || {})
     .some((e) => String((typeof e === 'object' ? e?.code : e) || '').trim())).length;
 
-  const openBad = exceptions.filter((e) => (e.state || 'open') === 'open' && e.severity === 'bad');
+  /* Only a CRITICAL flag stands in the way. A warning is there to be looked
+     at and an informational line is a status, not a problem. */
+  const openBad = exceptions.filter((e) => (e.state || 'open') === 'open' && e.severity === 'critical');
   const openAll = exceptions.filter((e) => (e.state || 'open') === 'open');
 
   const attendanceDone = rows.length > 0 && marked === rows.length;
@@ -54,6 +56,11 @@ export function payrollStage({ period = {}, rows = [], exceptions = [] } = {}) {
       why: rows.length
         ? `${marked} of ${rows.length} have attendance marked`
         : 'nobody is on this month yet',
+      /* The two halves of the strip's first stage, so the dashboard can show
+         attendance completion apart from salary preparation rather than
+         having to read it out of a sentence. */
+      marked,
+      of: rows.length,
     },
     {
       key: 'prepared',
@@ -69,9 +76,9 @@ export function payrollStage({ period = {}, rows = [], exceptions = [] } = {}) {
        * the rest are there to be looked at rather than cleared.
        */
       why: openBad.length
-        ? `${openBad.length} serious of ${openAll.length} open`
+        ? `${openBad.length} critical of ${openAll.length} open`
         : openAll.length
-          ? `${openAll.length} to look at, none serious`
+          ? `${openAll.length} to look at, none critical`
           : 'nothing flagged',
     },
     {

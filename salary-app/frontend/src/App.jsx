@@ -962,6 +962,7 @@ function Shell() {
           <SalarySheet
             period={period}
             rows={visibleRows}
+            companyId={companyId}
             saving={saving}
             locked={locked}
             onPatchRow={patchRow}

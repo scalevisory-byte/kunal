@@ -1,7 +1,7 @@
-import { db, audit, getPeriod } from './db.js';
+import { db, audit, getPeriod, listHolidays } from './db.js';
 import { log } from './logger.js';
 import { buildPayroll } from './payroll.js';
-import { payrollExceptions } from '../../shared/payrollExceptions.js';
+import { attendanceProgress, payrollExceptions } from '../../shared/payrollExceptions.js';
 
 /*
  * THE MONTH, REVIEWED — and nothing about it changed.
@@ -49,10 +49,17 @@ export function reviewPeriod(periodId, { company_id, today } = {}) {
   const payroll = buildPayroll(periodId, { company_id, sync: false });
   if (!payroll) return null;
 
-  const flags = payrollExceptions(
-    payroll.rows.map((row) => ({ row, calc: row, employee: row })),
-    { period, today }
-  );
+  /*
+   * The month's holidays ride in, because a festival is not a day somebody
+   * failed to mark. Without them the attendance check counted Diwali as a
+   * gap and asked eighty-five people to explain a day the office was shut.
+   */
+  const holidays = listHolidays(periodId);
+  const entries = payroll.rows.map((row) => ({ row, calc: row, employee: row }));
+  const flags = payrollExceptions(entries, { period, today, holidays });
+  /* In DAYS against days due, from the same function the warnings use - so
+     the headline and the flags cannot say different things. */
+  const attendance = attendanceProgress(entries, { period, today, holidays });
 
   const notes = db
     .prepare(`SELECT * FROM payroll_exception_notes WHERE period_id = ?`)
@@ -61,6 +68,7 @@ export function reviewPeriod(periodId, { company_id, today } = {}) {
 
   return {
     period,
+    attendance,
     exceptions: flags.map((flag) => {
       const note = byKey.get(`${flag.employee_id}::${flag.code}`);
       return {

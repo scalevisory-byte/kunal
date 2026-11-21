@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 
 /**
@@ -15,6 +15,26 @@ import { api } from '../../api.js';
  */
 export default function PayrollWorkflow({ workflow, period, isAdmin, onError, onChanged }) {
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState(null);
+
+  /*
+   * WHAT HAS HAPPENED TO THIS MONTH'S APPROVAL, in order.
+   *
+   * `periods` holds only the CURRENT approval, so a month approved, taken
+   * back and approved again shows one name and no sign of the rest. The
+   * trail has all three, and this reads it back - loaded only when somebody
+   * asks, because most months nobody does.
+   */
+  useEffect(() => { setHistory(null); }, [period?.id, period?.approved_at, period?.locked]);
+  const showHistory = async () => {
+    try {
+      const { history: rows } = await api.get(`/periods/${period.id}/approvals`);
+      setHistory(rows || []);
+    } catch (err) {
+      onError?.(err);
+    }
+  };
+
   if (!workflow) return null;
 
   const run = async (what, body) => {
@@ -30,7 +50,34 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
   };
 
   const approve = () =>
-    run(() => api.post(`/periods/${period.id}/approve`, {}));
+    run(() => api.post(`/periods/${period.id}/approve`, { today: new Date().toISOString().slice(0, 10) }));
+
+  /*
+   * APPROVING OVER A CRITICAL FLAG IS A DECISION SOMEBODY SIGNS FOR.
+   *
+   * There was no button for this at all - the only way past the block was an
+   * undocumented `anyway: true` with no reason asked for and none recorded.
+   * So somebody facing a flag that was CORRECT (a director really does take
+   * no salary) was simply stuck, and anybody who knew the field name went
+   * round the back with nothing on the trail.
+   */
+  const approveAnyway = () => {
+    const names = workflow.blocking
+      .slice(0, 6)
+      .map((b) => `• ${b.name || 'the month'}: ${b.label}`)
+      .join('\n');
+    const reason = window.prompt(
+      `${workflow.blocking.length} critical exception(s) are still open:\n\n${names}` +
+        `${workflow.blocking.length > 6 ? `\n…and ${workflow.blocking.length - 6} more` : ''}` +
+        '\n\nApproving over them is recorded against your name, with this reason.\n' +
+        'Why is the month being approved as it stands?'
+    );
+    if (!String(reason || '').trim() || reason.trim().length < 5) return;
+    run(() => api.post(`/periods/${period.id}/approve`, {
+      override_reason: reason.trim(),
+      today: new Date().toISOString().slice(0, 10),
+    }));
+  };
 
   const unapprove = () => {
     const reason = window.prompt('Why is the approval being taken back?');
@@ -85,21 +132,52 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
             )}
           </>
         ) : isAdmin ? (
-          <>
-            <button className="primary" disabled={busy} onClick={approve}>Approve the payroll</button>
-            {workflow.blocking.length > 0 && (
+          workflow.blocking.length > 0 ? (
+            <>
               <span className="muted small">
-                {workflow.blocking.length} serious exception(s) are open — settle or ignore them first.
+                <strong>{workflow.blocking.length} critical exception(s)</strong> are open. Settle or
+                ignore them below, or approve over them with a reason.
               </span>
-            )}
-          </>
+              <button className="ghost" disabled={busy} onClick={approveAnyway}>
+                Approve anyway, with a reason…
+              </button>
+            </>
+          ) : (
+            <button className="primary" disabled={busy} onClick={approve}>Approve the payroll</button>
+          )
         ) : (
           <span className="muted small">Approving and locking are an admin’s.</span>
         )}
+        <span className="grow" />
+        <button className="ghost small" onClick={showHistory}>Approval history</button>
         {period.reopen_reason && !period.locked ? (
           <span className="muted small">Reopened: {period.reopen_reason}</span>
         ) : null}
       </div>
+
+      {history !== null && (
+        <div className="wf-history">
+          <div className="row">
+            <strong className="small">Approval history</strong>
+            <span className="grow" />
+            <button className="tiny ghost" onClick={() => setHistory(null)}>Close</button>
+          </div>
+          {history.length ? (
+            <ul className="plain-list">
+              {history.map((h) => (
+                <li key={h.id} className="muted small">
+                  <strong>{String(h.at || '').replace('T', ' ').slice(0, 16)}</strong>{' '}
+                  {h.action === 'overrode' ? 'approved over open critical flags' : h.action}
+                  {h.who ? ` by ${h.who}` : ''}
+                  {h.note ? ` — ${h.note}` : ''}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">Nothing yet — this month has not been approved or locked.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

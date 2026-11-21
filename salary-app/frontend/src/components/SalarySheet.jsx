@@ -103,7 +103,7 @@ const VIEWS = [
 ];
 
 export default function SalarySheet({
-  period, rows, onPatchRow, onPayslip, onCompany, saving, locked, me, onGo, onReload,
+  period, rows, onPatchRow, onPayslip, onCompany, saving, locked, me, onGo, onReload, companyId,
 }) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
@@ -120,15 +120,22 @@ export default function SalarySheet({
   const loadReview = () => {
     if (!period) return;
     const today = new Date().toISOString().slice(0, 10);
+    /*
+     * THE COMPANY FILTER HAS TO REACH THIS TOO. The register shows one
+     * company's rows; without this the headline counted every company's
+     * exceptions and the strip said "85 of 115 have attendance marked" -
+     * two figures about two different sets of people, side by side.
+     */
+    const narrow = companyId ? `&company_id=${companyId}` : '';
     api
-      .get(`/periods/${period.id}/review?today=${today}`)
+      .get(`/periods/${period.id}/review?today=${today}${narrow}`)
       .then(setReview)
       .catch(() => setReview(null));
   };
   useEffect(() => {
     loadReview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period?.id, rows]);
+  }, [period?.id, rows, companyId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -247,6 +254,15 @@ export default function SalarySheet({
     return { gross: sum((r) => r.gross_salary), deductions, net: sum((r) => r.net_salary) };
   }, [filtered]);
 
+  /*
+   * HOW MUCH OF THE MONTH IS MARKED - in DAYS against days due, worked out
+   * by the server with the month's holidays in hand, by the same function
+   * the warnings come from. Counting PEOPLE WITH ANY MARK read "13 of 13
+   * (100%)" over a list of warnings saying the attendance was unfinished,
+   * because one mark on the 2nd made somebody "marked".
+   */
+  const attendance = review?.attendance || null;
+
   const isAdmin = !!me?.abilities?.includes('admin');
   const statementFor = (employeeId) => {
     const found = rows.find((r) => r.employee_id === employeeId);
@@ -274,15 +290,46 @@ export default function SalarySheet({
         <div className="kpi"><span className="kpi-ico ok">✓</span>
           <div><b>{short(money.net)}</b><span>Net payable</span></div>
         </div>
-        <div className={`kpi ${review?.summary?.open ? 'flag' : ''}`}>
+        {/*
+          * ATTENDANCE COMPLETION IS NOT SALARY PREPARATION. The two were one
+          * line inside the workflow strip, so "how much of the month is
+          * marked" - the figure that decides whether these salaries mean
+          * anything yet - had to be read out of a sentence.
+          */}
+        <div className={`kpi ${attendance && attendance.percent < 100 ? 'flag' : ''}`}>
+          <span className="kpi-ico cal">📅</span>
+          <div>
+            <b>{attendance?.days_expected ? `${attendance.percent}%` : '—'}</b>
+            <span>
+              {attendance?.days_expected
+                ? `Attendance marked · ${attendance.days_marked} of ${attendance.days_expected} days`
+                : 'Attendance marked'}
+            </span>
+          </div>
+        </div>
+        <div className={`kpi ${review?.summary?.critical ? 'flag' : ''}`}>
           <span className="kpi-ico warn">!</span>
-          <div><b>{review?.summary?.open ?? 0}</b><span>Payroll exceptions</span></div>
+          <div>
+            <b>{review?.summary?.open ?? 0}</b>
+            <span>
+              Things to check
+              {review?.summary?.critical ? ` · ${review.summary.critical} critical` : ''}
+            </span>
+          </div>
         </div>
       </div>
 
       <PayrollWorkflow
         workflow={review?.workflow}
-        period={period}
+        /*
+         * THE REVIEW'S OWN PERIOD, not the one the page was opened with.
+         * `period` is App.jsx state and nothing refreshes it when the month
+         * is approved - so approving worked, the trail recorded it, and the
+         * strip went on offering "Approve anyway" with no Lock button in
+         * sight. The review is re-read after every decision and carries the
+         * period it just looked at.
+         */
+        period={review?.period || period}
         isAdmin={isAdmin}
         onError={(err) => window.alert(err.message)}
         onChanged={() => { loadReview(); onReload?.(); }}

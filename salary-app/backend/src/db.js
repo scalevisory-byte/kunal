@@ -1498,6 +1498,9 @@ export function listPayrollRows(periodId, { company_id } = {}) {
               -- the weekly off, theirs then the company's, so the grid knows
               -- which squares were never working days for this person
               e.weekly_off, c.weekly_off AS company_weekly_off,
+              -- When they arrived and when they went, so the attendance check
+              -- never asks somebody to explain a day before they joined.
+              e.joined_on, e.left_on,
               -- Still on this month because they are OWED something, while no
               -- longer on the staff list. Without this the grid shows a name
               -- that the Employees tab and the Excel both say is gone, and it

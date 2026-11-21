@@ -4734,6 +4734,7 @@ table.sheet.fo-table button.tiny.ghost:hover { border-color: var(--brand); color
 .kpi-ico.minus  { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
 .kpi-ico.ok     { background: color-mix(in srgb, var(--good, #1f8a5f) 16%, transparent); color: var(--good, #1f8a5f); }
 .kpi-ico.warn   { background: color-mix(in srgb, var(--warn, #b8860b) 18%, transparent); color: var(--warn, #b8860b); }
+.kpi-ico.cal    { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
 .kpi.flag { border-color: color-mix(in srgb, var(--warn, #b8860b) 45%, var(--line)); }
 
 /* The five stages. An observation ticks itself; a decision does not - which
@@ -4773,9 +4774,34 @@ table.sheet.fo-table button.tiny.ghost:hover { border-color: var(--brand); color
   font-size: 0.7rem; font-weight: 700;
   background: color-mix(in srgb, var(--warn, #b8860b) 20%, transparent); color: var(--warn, #b8860b);
 }
-.pex.bad .pex-dot { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+/* THREE LEVELS, THREE COLOURS. `.bad` is kept because the dashboard's own
+   alert list still uses it; critical is the same colour by another name. */
+.pex.bad .pex-dot,
+.pex.critical .pex-dot { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.pex.info .pex-dot { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
 .pex-text { flex: 1 1 auto; }
 .pex-do { flex: 0 0 auto; white-space: nowrap; }
+
+/* Folded away, and five at a time. The panel used to list every flag on the
+   month above the register, so on a bad month the sheet - the thing the page
+   is for - started below the fold. */
+.pex-fold {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: none; border: 0; padding: 0; cursor: pointer; color: inherit;
+}
+.pex-fold h3 { margin: 0; }
+.pex-caret { display: inline-block; transition: transform 0.12s ease; opacity: 0.55; font-size: 1rem; }
+.pex-caret.open { transform: rotate(90deg); }
+.pex-filters { margin: 0.45rem 0 0; gap: 0.4rem; }
+.pex-more { margin-top: 0.45rem; }
+/* Never more than a screenful: the register has to stay in sight. */
+.pex-card .pex-list { max-height: 19rem; overflow-y: auto; }
+
+/* What has happened to this month's approval, read off the trail. */
+.wf-history {
+  margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--line);
+  max-height: 14rem; overflow-y: auto;
+}
 
 /* The grouped band over the sheet's columns: labels, not a second header. */
 table.sheet thead tr.band th {
