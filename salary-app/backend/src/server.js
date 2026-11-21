@@ -13,6 +13,7 @@ import {
   requireAdminForChanges,
   requireArea,
   requireAuth,
+  touchSession,
   requireRead,
   requireWriteForChanges,
 } from './auth.js';
@@ -49,6 +50,14 @@ export function createServer() {
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: false, limit: '2mb' }));
+
+  /*
+   * Keep the signed-in clock running while somebody is working, and take a
+   * dead cookie off the browser. It refuses nothing - an idle session simply
+   * stops resolving to an actor, and each route's own requireAuth answers
+   * 401 exactly as it did before.
+   */
+  app.use(touchSession);
 
   // Unauthenticated: lets a load balancer or Railway health check reach the app.
   /*

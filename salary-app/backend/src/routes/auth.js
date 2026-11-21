@@ -1,6 +1,9 @@
 import { AREAS, allowedAreas } from '../../../shared/rights.js';
 import { Router } from 'express';
-import { actorOf, clearSessionCookie, makeSession, requireAbility, setSessionCookie, wideOpen } from '../auth.js';
+import {
+  actorOf, clearSessionCookie, idleMinutes, makeSession, requireAbility, setIdleMinutes,
+  setSessionCookie, wideOpen,
+} from '../auth.js';
 import {
   ROLES,
   countUsers,
@@ -17,6 +20,7 @@ import {
   staffLogins,
   updateUser,
 } from '../users.js';
+import { audit } from '../db.js';
 import { log } from '../logger.js';
 import { backupDirectory, backupFile, listBackups, pruneBackups, takeBackup } from '../backup.js';
 
@@ -212,6 +216,29 @@ authRouter.delete('/users/:id', requireAbility('admin'), (req, res) => {
 });
 
 /* ---------------- backups (admin only) ---------------- */
+
+/**
+ * How long a login may sit doing nothing before it is signed out.
+ *
+ * An Admin's, and kept here rather than in a month's settings: it belongs to
+ * the installation, not to October. Nought means never, said in words on the
+ * screen so nobody turns it off by accident.
+ */
+authRouter.get('/session-rule', requireAbility('admin'), (_req, res) =>
+  res.json({ idle_minutes: idleMinutes() })
+);
+
+authRouter.put('/session-rule', requireAbility('admin'), (req, res) => {
+  const minutes = setIdleMinutes(req.body?.idle_minutes);
+  audit({
+    who: req.actor?.name || 'office',
+    action: 'changed',
+    entity: 'app_settings',
+    label: 'how long a login may sit idle',
+    to_value: minutes === 0 ? 'never signed out' : `${minutes} minutes`,
+  });
+  res.json({ idle_minutes: minutes });
+});
 
 authRouter.get('/backups', requireAbility('admin'), (_req, res) => {
   res.json({ backups: listBackups(), folder: backupDirectory() });

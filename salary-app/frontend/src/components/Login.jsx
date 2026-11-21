@@ -191,7 +191,14 @@ function BrandPanel() {
   );
 }
 
-export default function Login({ onSignedIn, onError }) {
+/**
+ * `notice` is why the screen is here at all - "you were signed out after a
+ * spell of doing nothing". It is a NOTICE, not an error: nothing went wrong
+ * and nothing was typed incorrectly, so it is said in the calm note style and
+ * not in the red one with the warning triangle. Without it, a login that
+ * times itself out reads as the app having lost its place.
+ */
+export default function Login({ onSignedIn, onError, notice = '' }) {
   const [state, setState] = useState(null);
   const [mode, setMode] = useState('signin');
   const [form, setForm] = useState({ username: '', password: '', name: '', confirm: '' });
@@ -349,6 +356,8 @@ export default function Login({ onSignedIn, onError }) {
 
             <h1>{title}</h1>
             <p className="signin-sub">{subtitle}</p>
+
+            {notice && mode !== 'setup' && <p className="signin-note">{notice}</p>}
 
             {mode === 'setup' && (
               <p className="signin-note">

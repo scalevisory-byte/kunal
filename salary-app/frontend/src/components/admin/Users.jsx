@@ -347,11 +347,83 @@ export default function Users({ me, onError }) {
         </p>
       </div>
 
+      <IdleRule onError={onError} />
+
       <p className="muted small">
         A switched-off login stops working at once, not when its session runs out. The last Admin
         cannot be demoted, switched off or removed — there would be nobody left who could make one.
       </p>
     </section>
+  );
+}
+
+/**
+ * Signed out after doing nothing for a while.
+ *
+ * Dinesh: *"agar ek bar login kiya hua to kabhi logout nahi hota auto"*. One
+ * figure, stated in words, with "never" said out loud rather than hidden
+ * behind a nought — because a setting that cannot admit it is off gets worked
+ * around by nobody ever signing out.
+ *
+ * The rule lives on the server. This box only tells it what the rule is.
+ */
+function IdleRule({ onError }) {
+  const [minutes, setMinutes] = useState(null);
+  const [draft, setDraft] = useState('');
+  const [said, setSaid] = useState('');
+
+  useEffect(() => {
+    api
+      .get('/auth/session-rule')
+      .then(({ idle_minutes: m }) => {
+        setMinutes(m);
+        setDraft(String(m));
+      })
+      .catch(onError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async (value) => {
+    try {
+      const { idle_minutes: m } = await api.put('/auth/session-rule', { idle_minutes: value });
+      setMinutes(m);
+      setDraft(String(m));
+      setSaid(m === 0 ? 'Nobody is signed out for sitting idle.' : `Saved — ${m} minutes.`);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  if (minutes === null) return null;
+
+  return (
+    <div className="card">
+      <h3>Signing out by itself</h3>
+      <p className="muted small">
+        {minutes === 0
+          ? 'A login stays signed in until the browser is closed or the fortnight runs out. Nothing signs it out for sitting idle.'
+          : `A login that does nothing for ${minutes} minutes is signed out. Clicking anything inside that time starts the clock again.`}
+      </p>
+      <div className="toolbar">
+        <label className="inline">
+          Sign out after
+          <select value={draft} onChange={(e) => save(Number(e.target.value))}>
+            <option value="0">never — stay signed in</option>
+            {[5, 15, 30, 60, 120, 240, 480].map((n) => (
+              <option key={n} value={n}>
+                {n} minutes of doing nothing
+              </option>
+            ))}
+          </select>
+        </label>
+        {said && <span className="muted small">{said}</span>}
+      </div>
+      <p className="muted small">
+        Enforced on the server, so closing the laptop lid does not keep a session alive. The front
+        desk is the machine strangers stand in front of — a shorter figure is worth more there than
+        anywhere else in the building.
+      </p>
+    </div>
   );
 }
 

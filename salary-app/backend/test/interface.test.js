@@ -2677,3 +2677,50 @@ test('the front desk registers read like registers', () => {
   // The "saved" note goes away rather than sitting on the page for ever.
   assert.match(fo, /setTimeout\(\(\) => setSaid\(''\), 4000\)/);
 });
+
+/*
+ * BEING SIGNED OUT HAS TO SAY SO.
+ *
+ * `handle` in App.jsx called `setAuthError`, which was never declared and
+ * never rendered - so a 401 dropped somebody onto the sign-in screen with
+ * nothing said, which reads as the app having lost its place. It did not
+ * matter much while the only way out was a fortnight; it matters now that a
+ * login signs itself out after a spell of doing nothing.
+ */
+test('the sign-in screen is told WHY it is back, and the setter is a real one', () => {
+  const app = src('App.jsx');
+  const login = src('components/Login.jsx');
+
+  // Declared, set, cleared on the way back in, and handed over.
+  assert.match(app, /const \[authNotice, setAuthNotice\] = useState\(''\)/);
+  assert.match(app, /setAuthNotice\('You were signed out after a spell of doing nothing/);
+  assert.match(app, /setAuthNotice\(''\)/);
+  assert.match(app, /notice=\{authNotice\}/);
+
+  /* And nothing is left CALLING the setter that never existed. The comment
+     explaining this names it, so comments come out before asking - the same
+     trap the candidate-list test hit. */
+  const code = app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/setAuthError/.test(code), 'the setter that was never declared is back');
+
+  // Login takes it and renders it as a NOTICE, not as the red error line -
+  // nothing went wrong and nothing was typed incorrectly.
+  assert.match(login, /notice = ''/);
+  assert.match(login, /className="signin-note">\{notice\}/);
+});
+
+/*
+ * The idle rule is an Admin's, and it says "never" out loud.
+ */
+test('Signing out by itself is on the Logins screen, with never as a choice', () => {
+  const users = src('components/admin/Users.jsx');
+
+  assert.match(users, /Signing out by itself/);
+  assert.match(users, /\/auth\/session-rule/);
+  // Nought is offered in words. A setting that cannot admit it is off gets
+  // worked around by nobody ever signing out.
+  assert.match(users, /never — stay signed in/);
+  // And the sentence changes with the figure rather than printing a number
+  // nobody has to read.
+  assert.match(users, /A login that does nothing for \$\{minutes\} minutes is signed out/);
+});

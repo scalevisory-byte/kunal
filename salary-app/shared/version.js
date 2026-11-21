@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.59.0';
+export const VERSION = '1.60.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.60.0',
+    date: '21 Nov 2026',
+    title: 'A login signs itself out after an hour of doing nothing',
+    items: [
+      '**It used to never sign out.** Once somebody signed in, the session ran for a fortnight and nothing shortened it — so a browser left open at the front desk stayed signed in all month, and that desk is the one machine in the building strangers stand in front of.',
+      '**Now: an hour of doing nothing and the login is signed out.** Clicking anything inside that hour starts the clock again, so somebody working all afternoon is never thrown out mid-sentence.',
+      '**Enforced on the server, not by a timer in the browser.** A timer that logs you out is a convenience; a session the server stops honouring is the rule. Closing the laptop lid does not keep it alive.',
+      '**You choose the figure** — Admin → Logins → “Signing out by itself”: five minutes to eight hours, or **never**, said out loud rather than hidden behind a nought. A shorter figure is worth more at the front desk than anywhere else.',
+      'The change is on the **audit trail** with the name of whoever made it.',
+      '**Nobody signed in right now is thrown out by the update.** A session from before this existed is read as last seen now, not as a month old.',
+    ],
+  },
   {
     version: '1.59.0',
     date: '21 Nov 2026',

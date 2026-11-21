@@ -282,12 +282,22 @@ function Shell() {
   const [companyId, setCompanyId] = useState(Number(localStorage.getItem(COMPANY_KEY)) || null);
   const [saving, setSaving] = useState(0);
   const [error, setError] = useState('');
+  /*
+   * WHY THE SIGN-IN SCREEN IS BACK.
+   *
+   * `handle` below called `setAuthError`, which did not exist and was never
+   * rendered anywhere - so being signed out mid-afternoon dropped somebody
+   * onto the sign-in screen with nothing said, which reads as the app having
+   * lost its place rather than as a rule doing its job. Now that a login
+   * signs itself out after a spell of doing nothing, that sentence matters.
+   */
+  const [authNotice, setAuthNotice] = useState('');
 
   const handle = useCallback((err) => {
     if (err instanceof AuthError) {
       clearToken();
       setAuthed(false);
-      setAuthError('Session expired - enter the password again.');
+      setAuthNotice('You were signed out after a spell of doing nothing. Sign in again.');
       return;
     }
     setError(err.message);
@@ -521,7 +531,9 @@ function Shell() {
   if (!authed && !STANDALONE) {
     return (
       <Login
+        notice={authNotice}
         onSignedIn={async () => {
+          setAuthNotice('');
           /*
            * Read the actor back off /auth/state rather than trusting what the
            * login call returned. The login response is a user row and carries

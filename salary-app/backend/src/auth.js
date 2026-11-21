@@ -1,7 +1,7 @@
 import { areaLabel, may, withoutPay } from '../../shared/rights.js';
 import crypto from 'node:crypto';
 import { config } from './config.js';
-import { abilitiesOf, countUsers, getUser, sessionSecret } from './users.js';
+import { abilitiesOf, countUsers, getSetting, getUser, sessionSecret, setSetting } from './users.js';
 
 /*
  * Who is asking, and what they may do.
@@ -28,11 +28,51 @@ import { abilitiesOf, countUsers, getUser, sessionSecret } from './users.js';
 const COOKIE = 'salary_session';
 const SESSION_DAYS = 14;
 
+/**
+ * SIGNED OUT AFTER DOING NOTHING FOR A WHILE.
+ *
+ * Dinesh: *"agar ek bar login kiya hua to kabhi logout nahi hota auto"*. The
+ * cookie ran for a fortnight and nothing shortened it, so a browser left
+ * open at the front desk stayed signed in all month - and that desk is the
+ * one machine in the building strangers stand in front of.
+ *
+ * ENFORCED ON THE SERVER, not by a timer in the browser. A timer that logs
+ * you out is a convenience; a session the server stops honouring is the
+ * rule. The clock is kept in the signed cookie itself, so nothing new has
+ * to be stored and no session table has to be swept.
+ *
+ * `0` switches it off deliberately - some offices want the long one, and a
+ * setting that cannot say "off" gets worked around by never signing out.
+ */
+const IDLE_DEFAULT = 60;
+const IDLE_KEY = 'session_idle_minutes';
+
+export function idleMinutes() {
+  const saved = getSetting(IDLE_KEY);
+  const stored = saved === null ? NaN : Number(saved);
+  const fromEnv = Number(process.env.SESSION_IDLE_MINUTES);
+  const picked = Number.isFinite(stored) && stored >= 0
+    ? stored
+    : Number.isFinite(fromEnv) && fromEnv >= 0
+      ? fromEnv
+      : IDLE_DEFAULT;
+  /* Nought is off. Anything else is held between five minutes and a day: a
+     one-minute session is a login screen, not a session. */
+  if (picked === 0) return 0;
+  return Math.min(1440, Math.max(5, Math.round(picked)));
+}
+
+export const setIdleMinutes = (value) => {
+  const n = Math.max(0, Math.round(Number(value) || 0));
+  setSetting(IDLE_KEY, n === 0 ? '0' : String(Math.min(1440, Math.max(5, n))));
+  return idleMinutes();
+};
+
 const sign = (body) => crypto.createHmac('sha256', sessionSecret()).update(body).digest('base64url');
 
-export function makeSession(userId) {
+export function makeSession(userId, seen = Math.floor(Date.now() / 1000)) {
   const exp = Math.floor(Date.now() / 1000) + SESSION_DAYS * 24 * 60 * 60;
-  const body = Buffer.from(JSON.stringify({ u: userId, exp })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ u: userId, exp, s: seen })).toString('base64url');
   return `${body}.${sign(body)}`;
 }
 
@@ -46,10 +86,47 @@ function readSession(token) {
   try {
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
     if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
+    /*
+     * Idle for too long is the same as not signed in. A cookie minted before
+     * this existed carries no `s`; it is read as last seen NOW rather than
+     * as infinitely old, so turning this on does not sign everybody out in
+     * the middle of their afternoon.
+     */
+    const idle = idleMinutes();
+    if (idle > 0 && payload.s && Date.now() - payload.s * 1000 > idle * 60 * 1000) return null;
     return payload;
   } catch {
     return null;
   }
+}
+
+/**
+ * Keep the clock running while somebody is working.
+ *
+ * Re-issues the cookie with a fresh "last seen", but only once the old one
+ * is a couple of minutes stale - a Set-Cookie on every request would put a
+ * header on every poll and every image for no gain.
+ *
+ * It does NOT refuse anything: an expired session simply has no actor, and
+ * the route's own requireAuth answers 401 as it always did.
+ */
+const TOUCH_AFTER = 120;
+
+export function touchSession(req, res, next) {
+  const token = cookieOf(req, COOKIE);
+  if (token) {
+    const session = readSession(token);
+    const now = Math.floor(Date.now() / 1000);
+    if (session?.u && idleMinutes() > 0 && now - (session.s || 0) > TOUCH_AFTER) {
+      setSessionCookie(res, makeSession(session.u, now));
+    } else if (!session) {
+      /* Gone: take the dead cookie off the browser so the next load shows the
+         sign-in screen rather than a page that 401s on everything. Done
+         whatever killed it - idle, the fortnight, or a changed secret. */
+      clearSessionCookie(res);
+    }
+  }
+  next();
 }
 
 /** Cookies without a parser - there is exactly one we care about. */
