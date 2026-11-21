@@ -656,3 +656,63 @@ test('the update insists the NEW version is the one answering', () => {
   assert.match(ps, /too old to say which version/);
   assert.match(ps, /still v" \+ \$live/);
 });
+
+/*
+ * RETIRING THE SHARED OFFICE PASSWORD.
+ *
+ * APP_PASSWORD is full admin with no name on it - the trail records whatever
+ * it does as "the API key". It exists so the app can be reached before the
+ * first real login is made, and after that it is a spare key under the mat.
+ * Removing it is one line in a settings file, and three things make that one
+ * line dangerous enough to want a script: it can lock the office out of its
+ * own payroll, Notepad writes a BOM that breaks every setting in the file,
+ * and nothing tells you afterwards whether the old key is actually dead.
+ */
+test('retiring the office password refuses to lock the office out', () => {
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/RETIRE-KEY.ps1'), 'utf8');
+
+  // It looks before it touches: no logins at all means there would be
+  // nothing to sign in with, and it must stop rather than ask.
+  assert.match(ps, /needs_setup/);
+  assert.match(ps, /REFUSING/);
+
+  // A dated backup, and the word, before anything is written.
+  assert.match(ps, /Copy-Item \$envFile \$backup/);
+  assert.match(ps, /Read-Host 'Type GO/);
+
+  // Written without a BOM - PowerShell's own -Encoding UTF8 writes one, and
+  // it glues onto the first variable's NAME, so the app reads no settings
+  // at all. Same trap INSTALL.ps1 has a comment about.
+  assert.match(ps, /UTF8Encoding\(\$false\)/);
+  assert.ok(!/Set-Content[^\n]*\$envFile/.test(ps), 'Set-Content would write a BOM');
+
+  // It only removes that one line - everything else in the file survives.
+  assert.match(ps, /-notmatch '\^\\s\*APP_PASSWORD/);
+  // ...and hands WriteAllLines an array even when one line is left.
+  assert.match(ps, /\$kept = @\(\$lines/);
+
+  // And it says how it went: the app back up, and the old key dead.
+  assert.match(ps, /healthz/);
+  assert.match(ps, /Authorization = "Bearer \$old"/);
+  assert.match(ps, /STILL WORKS/);
+
+  // Nothing about the tunnel or the database - this is one setting.
+  const code = ps.replace(/^\s*#.*$/gm, '');
+  assert.ok(!/cloudflared|salary\.db|Remove-Item/i.test(code), 'it is touching more than the one line');
+});
+
+test('the one-off scripts ride along in the update zip', () => {
+  // Otherwise the server has UPDATE.ps1 and nothing else, and the next job
+  // gets hunted for in a zip from three months ago.
+  const sh = fs.readFileSync(path.join(kit, '../make-update.sh'), 'utf8');
+  assert.match(sh, /RETIRE-KEY\.ps1/);
+});
+
+test('the retire script is plain ASCII with no BOM, like the rest of the kit', () => {
+  const file = path.join(kit, '../windows-local/RETIRE-KEY.ps1');
+  const bytes = fs.readFileSync(file);
+  assert.notEqual([bytes[0], bytes[1], bytes[2]].join(','), '239,187,191', 'it has a BOM');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.deepEqual([...text].filter((c) => c.charCodeAt(0) > 127), []);
+  assert.deepEqual(psProblems(text, 'RETIRE-KEY.ps1'), []);
+});

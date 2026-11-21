@@ -46,6 +46,10 @@ U="$WORK/BNFHRMS-update"
 mkdir -p "$U"
 cp -r "$HERE/backend/public" "$U/public-new"
 cp "$HERE/deploy/windows-local/UPDATE.ps1" "$U/"
+# The one-off jobs ride along so they are to hand on the server when they are
+# wanted, rather than being hunted for in a zip from three months ago. Neither
+# runs by itself: UPDATE.ps1 is the only thing anybody is told to double-click.
+cp "$HERE/deploy/windows-local/RETIRE-KEY.ps1" "$U/"
 
 if [ "$WITH_SERVER" = true ]; then
   cp -r "$HERE/backend/src" "$U/src-new"
