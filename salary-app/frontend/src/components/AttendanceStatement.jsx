@@ -88,8 +88,25 @@ export default function AttendanceStatement({ row, period, holidays = [], onClos
         'These are the same marks the salary sheet is paid from — this page counts them, it works nothing out of its own. A day left blank counts as worked.',
     });
 
-  const tile = (label, value, title) => (
-    <div title={title}><b>{value}</b><span>{label}</span></div>
+  /*
+   * GROUPED, NOT EIGHT TILES IN A ROW.
+   *
+   * Dinesh, looking at it: *"make clear design"*. Eight figures side by side
+   * at the same weight is a wall of numbers - days and hours and a count of
+   * blanks all shouting equally, and the eye has nowhere to land. They are
+   * two different questions, so they are two blocks, each with ONE headline
+   * figure and the rest beside it at a quieter size.
+   *
+   * `.stm-*` and not `.fo-figures`: that class is on eight other screens,
+   * and restyling it here would silently redraw the front office, the
+   * dashboard and the payment tracker. The same trap as `.alerts`, `.login`
+   * and `.sticky-name`.
+   */
+  const fig = (label, value, tone = '') => (
+    <div className={`stm-fig${tone ? ` ${tone}` : ''}`}>
+      <b>{value}</b>
+      <span>{label}</span>
+    </div>
   );
 
   return (
@@ -108,26 +125,82 @@ export default function AttendanceStatement({ row, period, holidays = [], onClos
             <span>Attendance</span>
             <strong>{monthName}</strong>
           </div>
+          {/* Said in the band itself, because this is the first question
+              anybody asks of a screen full of somebody's days. */}
+          <span className="stm-readonly" title="Attendance is marked on the grid behind this">
+            Read-only
+          </span>
           <button className="icon-x stm-close" onClick={onClose} title="Close">✕</button>
         </header>
 
         <div className="stm-body">
-          <div className="fo-figures">
-            {tile('days at work', summary.at_work, 'Present, half days, work from home, official duty, Sundays and holidays worked')}
-            {tile('paid time off', summary.paid_off, 'CL, SL, PL and paid holidays')}
-            {tile('days of pay lost', summary.days_lost, 'A half day costs 0.5 and a double absence costs 2')}
-            {tile('payable days', summary.payable_days ?? '—', 'The salary sheet’s own figure for this month')}
-            {tile('hours clocked', summary.worked_minutes ? formatDuration(summary.worked_minutes) : '—', `Over ${summary.clocked_days} day(s) with in and out times`)}
-            {tile('overtime', summary.overtime_minutes ? formatDuration(summary.overtime_minutes) : '—')}
-            {tile('short hours', summary.short_minutes ? formatDuration(summary.short_minutes) : '—')}
-            {tile('not marked', summary.unmarked_days || '—', 'Days with no mark at all. A blank day counts as worked.')}
+          <div className="stm-stats">
+            <section className="stm-group">
+              <h3>Days</h3>
+              <div className="stm-figs">
+                {/* The sheet's own figure, and the one somebody is actually
+                    looking for - so it is the big one. */}
+                <div className="stm-fig lead" title="The salary sheet’s own figure for this month">
+                  <b>{summary.payable_days ?? '—'}</b>
+                  <span>payable</span>
+                </div>
+                {fig('at work', summary.at_work)}
+                {fig('paid off', summary.paid_off)}
+                {fig('pay lost', summary.days_lost || '—', summary.days_lost ? 'bad' : '')}
+              </div>
+              <p className="stm-foot">
+                At work counts present, half days, work from home, official duty and any Sunday or
+                holiday worked. <strong>Pay lost is in days of pay</strong> — a half day costs 0.5
+                and a double absence costs 2.
+              </p>
+            </section>
+
+            <section className="stm-group">
+              <h3>Hours</h3>
+              <div className="stm-figs">
+                <div className="stm-fig lead" title={`Over ${summary.clocked_days} day(s) with in and out times`}>
+                  <b>{summary.worked_minutes ? formatDuration(summary.worked_minutes) : '—'}</b>
+                  <span>clocked</span>
+                </div>
+                {fig('overtime', summary.overtime_minutes ? formatDuration(summary.overtime_minutes) : '—',
+                  summary.overtime_minutes ? 'good' : '')}
+                {fig('short', summary.short_minutes ? formatDuration(summary.short_minutes) : '—',
+                  summary.short_minutes ? 'warn' : '')}
+              </div>
+              <p className="stm-foot">
+                Clocked is from the in and out times on {summary.clocked_days} day
+                {summary.clocked_days === 1 ? '' : 's'}. A day with no times is <em>not known</em>,
+                never nought.
+              </p>
+            </section>
           </div>
 
-          <div className="toolbar">
-            <span className="muted small">
-              {Object.entries(summary.counts).map(([code, count]) => `${code} ${count}`).join(' · ') ||
-                'Nothing marked this month.'}
-            </span>
+          {/*
+            * The marks, as the marks - in the grid's own colours rather than
+            * as a run-on line of "P 15 · OD 1 · CL 1" that has to be read
+            * word by word.
+            */}
+          <div className="toolbar stm-bar">
+            {Object.keys(summary.counts).length ? (
+              <span className="stm-chips">
+                {Object.entries(summary.counts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([code, count]) => (
+                    <span key={code} className="stm-chip" title={code}>
+                      <span className={`brush code-${code}`}>{code}</span>
+                      {count}
+                    </span>
+                  ))}
+                {summary.unmarked_days ? (
+                  <span className="stm-chip muted" title="Days with no mark at all. A blank day counts as worked.">
+                    <span className="brush code-none">—</span>
+                    {summary.unmarked_days} not marked
+                  </span>
+                ) : null}
+              </span>
+            ) : (
+              <span className="muted small">Nothing marked this month.</span>
+            )}
             <span className="grow" />
             <button className="ghost" onClick={csv}>Export CSV</button>
             <button className="ghost" onClick={print}>Print</button>

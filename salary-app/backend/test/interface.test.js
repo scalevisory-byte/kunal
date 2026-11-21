@@ -2779,3 +2779,45 @@ test('the attendance statement assembles and cannot be edited from', () => {
   assert.match(stm, /Export CSV/);
   assert.match(stm, /onClick=\{print\}/);
 });
+
+/*
+ * "MAKE CLEAR DESIGN" - the attendance statement's figures.
+ *
+ * Eight figures in one row at one weight: days, hours and a count of blanks
+ * all shouting equally, with nowhere for the eye to land. They are two
+ * questions, so they are two blocks with one headline figure each.
+ */
+test('the attendance statement groups its figures instead of lining up eight', () => {
+  const stm = src('components/AttendanceStatement.jsx');
+
+  assert.match(stm, /className="stm-stats"/);
+  assert.match(stm, /<h3>Days<\/h3>/);
+  assert.match(stm, /<h3>Hours<\/h3>/);
+  // One headline per block - the figure somebody came to read.
+  assert.equal((stm.match(/className="stm-fig lead"/g) || []).length, 2);
+
+  /*
+   * AND IT DOES NOT BORROW `.fo-figures`. That class is on eight other
+   * screens - the front office, the dashboard, payment tracking, the monthly
+   * summary - and restyling it here would silently redraw all of them. The
+   * `.alerts` / `.login` / `.sticky-name` trap, for the fourth time.
+   */
+  /* Comments out first: the one explaining this decision names the class,
+     which is the trap the candidate-list test and the sign-out test both
+     hit. A comment is not a className. */
+  const code = stm.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/fo-figures/.test(code), 'it is back on the shared class');
+  assert.match(css, /\.stm-stats \{/);
+  assert.match(css, /\.stm-fig\.lead b \{/);
+});
+
+test('the statement header puts the name first on a phone', () => {
+  // One row with the month, the badge and the close button all holding
+  // their width squeezed the name to "Emplo…" at 390px, and the company
+  // wrapped onto four lines under it.
+  assert.match(css, /@media \(max-width: 700px\) \{\s*\.stm-head \{ flex-wrap: wrap/);
+  assert.match(css, /\.stm-head > div:first-child \{ flex: 1 0 100%/);
+  // And the name is never cut off: the month is held by flex instead.
+  assert.ok(!/\.stm-head h2 \{[^}]*text-overflow: ellipsis/.test(css));
+  assert.match(css, /\.stm-head \.stm-month \{ flex: 0 0 auto; \}/);
+});

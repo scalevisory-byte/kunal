@@ -4884,7 +4884,112 @@ table.sheet thead tr.band th {
  * the top of the numbers was clipped by it. Only this case, so the tabbed
  * one is untouched.
  */
-.stm-head + .stm-body { margin-top: 0.9rem; }
+.stm-head + .stm-body { margin-top: 1.1rem; }
+
+/* ---- the attendance statement ----------------------------------------
+ *
+ * Dinesh: *"make clear design"*. It was eight figures in one row at one
+ * weight - days, hours and a count of blanks all shouting equally, with
+ * nowhere for the eye to land. They are TWO questions, so they are two
+ * blocks, each with one headline figure and the rest beside it, quieter.
+ *
+ * `.stm-*` throughout and never `.fo-figures`: that class is on eight other
+ * screens and restyling it here would silently redraw the front office, the
+ * dashboard and the payment tracker - the `.alerts` / `.login` /
+ * `.sticky-name` trap, for the fourth time.
+ */
+.stm-readonly {
+  align-self: center;
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em;
+  padding: 0.14rem 0.5rem; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16); color: #fff; white-space: nowrap;
+}
+/* The month must not be squeezed off the edge by a long name. */
+.stm-head .stm-month { flex: 0 0 auto; }
+.stm-head > div:first-child { min-width: 0; }
+/* The name may WRAP if it is long. Cutting it off with an ellipsis would
+   save a line and lose the one thing on the band that matters; the month
+   is held by `flex: 0 0 auto` above, so a long name cannot squeeze it. */
+.stm-head h2 { min-width: 0; overflow-wrap: anywhere; }
+
+/*
+ * ON A PHONE THE NAME COMES FIRST AND WHOLE.
+ *
+ * The band is one row with the month, the badge and the close button all
+ * holding their width, so at 390px the name was squeezed to "Emplo…" and
+ * the company wrapped onto four lines under it - a navy block half the
+ * screen tall, saying almost nothing. The name is the heading; everything
+ * else drops to a second line.
+ */
+@media (max-width: 700px) {
+  .stm-head { flex-wrap: wrap !important; row-gap: 0.4rem; }
+  .stm-head > div:first-child { flex: 1 0 100%; order: 1; padding-right: 2rem; }
+  .stm-head p { white-space: normal; }
+  .stm-head .stm-month { order: 2; margin-left: 0; text-align: left; }
+  .stm-head .stm-month span { display: inline; }
+  .stm-head .stm-month strong { margin-left: 0.3rem; }
+  .stm-readonly { order: 3; margin-left: auto; }
+  /* Out of the flow so it cannot squeeze the name, and always reachable. */
+  .stm-close { position: absolute; top: 0.6rem; right: 0.7rem; order: 0; }
+  .modal.statement { position: relative; }
+}
+
+.stm-stats {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+@media (max-width: 760px) { .stm-stats { grid-template-columns: 1fr; } }
+
+.stm-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem 0.55rem;
+  background: var(--card, var(--surface));
+}
+.stm-group h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.66rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.stm-figs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.3rem; }
+.stm-fig b {
+  display: block;
+  font-size: 1.05rem; font-weight: 600; line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.stm-fig span {
+  display: block;
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted);
+}
+/* One figure per block is the one somebody came to read. */
+.stm-fig.lead {
+  padding-right: 1.3rem;
+  border-right: 1px solid var(--line);
+  margin-right: 0;
+}
+.stm-fig.lead b { font-size: 1.7rem; font-weight: 700; color: var(--brand); }
+.stm-fig.bad b  { color: var(--bad); }
+.stm-fig.good b { color: var(--good, #1f8a5f); }
+.stm-fig.warn b { color: var(--warn, #b8860b); }
+
+.stm-foot {
+  margin: 0.5rem 0 0;
+  font-size: 0.7rem; line-height: 1.45; color: var(--muted);
+}
+
+.stm-bar { margin-bottom: 0.6rem; }
+.stm-chips { display: flex; flex-wrap: wrap; gap: 0.3rem 0.55rem; align-items: center; }
+.stm-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.76rem; font-variant-numeric: tabular-nums;
+}
+.stm-chip .brush { font-size: 0.66rem; }
+.stm-chip.muted { color: var(--muted); }
+.brush.code-none { background: var(--line-soft); color: var(--muted); }
 .stm-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.7rem; }
 .stm-kv th { font-weight: 500; opacity: 0.75; }
 .stm-kv tr.strong th, .stm-kv tr.strong td { font-weight: 700; border-top: 1px solid var(--line); }

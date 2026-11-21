@@ -20,15 +20,18 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.63.0';
+export const VERSION = '1.63.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
   {
-    version: '1.63.0',
+    version: '1.63.1',
     date: '21 Nov 2026',
     title: 'The attendance grid: a code column, dates that stay put, and a month per person',
     items: [
+      '**A clearer statement.** Eight figures in one row at one weight was a wall of numbers with nowhere for the eye to land. They are two questions, so they are now **two blocks** — **Days** (payable, at work, paid off, pay lost) and **Hours** (clocked, overtime, short) — each with one big figure and the rest beside it. Short hours in amber, overtime in green, pay lost in red, and a line under each block saying what it counts.',
+      'The marks are shown as **marks**, in the grid’s own colours, instead of a run-on line of “P 15 · OD 1 · CL 1”.',
+      '**On a phone the name comes first and whole.** It was being squeezed to “Emplo…” with the company wrapped over four lines under it.',
       '**The employee code is on the grid**, frozen beside the name. It is what the machine and the bank file call them, and it was on every row and shown nowhere.',
       '**The date row stays put when you scroll.** Eighty-five names deep the day numbers had gone off the top, and the only way to know which column you were clicking was to count across with a finger — which is how the wrong day gets marked.',
       '**Today’s column is marked**, and only when today is actually in the month you have open.',
