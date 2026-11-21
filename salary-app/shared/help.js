@@ -770,6 +770,24 @@ export const HELP = [
     note: 'Each question has its own seconds and the next comes up by itself — but what is ENFORCED is the whole paper’s clock, which the server times from its own start. A flag catches tab-switching, copy and paste, impossible speed and timeouts — it cannot catch a second phone or another person in the room, so treat it as a reason to ring somebody back, never as proof. Every candidate gets a different draw and a different order of answers, and the right answer never reaches their screen. A score is one more thing to weigh: nothing advances or rejects anybody on its own.',
   },
   {
+    id: 'hiring-reports',
+    title: 'Who applied \u2014 and the other hiring reports',
+    tab: 'hiring',
+    keywords: [
+      'report', 'applications', 'applied', 'applicants', 'who applied', 'form',
+      'apply form', 'new candidates', 'schedule', 'interview schedule', 'funnel',
+      'kisne apply kiya', 'arji', 'form bhara', 'report nikalna',
+    ],
+    lines: [
+      '**Hiring \u2192 Reports** opens on **Applications received**: everybody who applied, newest first \u2014 when, their reference, mobile, the opening, how they applied, what they expect and whether a CV is attached.',
+      'Somebody who fills the apply form in is on it **at once**, with no step in between.',
+      'The other reports read other records: **Interview schedule** reads the interviews, **Offers out** reads the offers, **Selected** reads the selections. A report being empty usually means nothing of THAT kind has happened yet \u2014 each one says so in its own words.',
+      '**To book an interview, go to the Pipeline**, open the person and use Schedule interview. They appear on the schedule once it is booked.',
+      'Every report narrows by the filters above it, and prints and exports as a document \u2014 not as a photograph of the screen.',
+    ],
+    note: 'A CV is shown as yes-or-nothing and NEVER as a file name: it is read through a link tied to that one candidate, so a report that prints or is emailed cannot carry a way into somebody else\u2019s CV.',
+  },
+  {
     id: 'candidate-file',
     title: 'Printing a candidate\u2019s whole file',
     tab: 'hiring',

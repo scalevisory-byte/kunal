@@ -56,10 +56,43 @@ const PHONE = { label: 'Mobile', key: 'phone' };
  * there.
  */
 export const REPORTS = [
+  /*
+   * WHO APPLIED. The one report that was missing, and the first one anybody
+   * wants.
+   *
+   * Dinesh's HR, on the Reports screen: *"details nathi aavti jene form fill
+   * kari ne apply karyu che eni ... next schedule krva mate"*. The screen
+   * opened on the interview schedule, which reads the INTERVIEWS table -
+   * somebody who has just applied has no interview yet, so it was correctly
+   * empty and said "try widening the dates", which sent them hunting a date
+   * filter that was never the problem. There was no report of applications
+   * at all, which is where a recruitment funnel starts.
+   */
+  {
+    key: 'applications',
+    label: 'Applications received',
+    hint: 'Everybody who applied, newest first — including straight off the form',
+    uses: ['from', 'to', 'company_id', 'department', 'vacancy_id', 'status'],
+    empty:
+      'Nobody has applied in this range. Check the dates, or share the opening from Vacancies — ' +
+      'applications also arrive on the Pipeline as soon as somebody fills the form in.',
+    columns: [
+      { label: 'Applied', key: 'applied_at', type: 'datetime' },
+      REF, WHO, PHONE,
+      { label: 'Where they are', key: 'stage' },
+      JOB, DEPT, COMPANY,
+      { label: 'How they applied', key: 'source' },
+      { label: 'Experience', key: 'experience' },
+      { label: 'Expected', key: 'expected_salary' },
+      { label: 'Match', key: 'match_score' },
+      { label: 'CV', key: 'has_cv' },
+    ],
+  },
   {
     key: 'schedule',
     label: 'Interview schedule',
     hint: 'Every interview in the date range',
+    empty: 'No interview is booked in this range. A new applicant has no interview yet — open them on the Pipeline and use Schedule interview; they will appear here once they do.',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id', 'interviewer', 'round', 'status'],
     columns: [WHEN, REF, WHO, PHONE, JOB, DEPT,
       { label: 'Round', key: 'round_label' },
@@ -73,6 +106,7 @@ export const REPORTS = [
     key: 'today',
     label: "Today's interviews",
     hint: 'What is happening today',
+    empty: 'Nothing is booked for today. Scheduling is done from the Pipeline, on the person.',
     uses: ['company_id', 'interviewer'],
     columns: [WHEN, REF, WHO, PHONE, JOB,
       { label: 'Round', key: 'round_label' },
@@ -85,6 +119,7 @@ export const REPORTS = [
     key: 'upcoming',
     label: 'Upcoming interviews',
     hint: 'Scheduled, still to happen',
+    empty: 'Nothing is booked ahead. Somebody who has only applied has no interview yet — schedule them from the Pipeline.',
     uses: ['to', 'company_id', 'department', 'vacancy_id', 'interviewer'],
     columns: [WHEN, REF, WHO, PHONE, JOB,
       { label: 'Round', key: 'round_label' },
@@ -95,6 +130,7 @@ export const REPORTS = [
     key: 'completed',
     label: 'Interviews completed',
     hint: 'Done, with what the form and the evaluation said',
+    empty: 'No interview has been marked done in this range.',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id', 'interviewer', 'round'],
     columns: [WHEN, REF, WHO, JOB,
       { label: 'Round', key: 'round_label' },
@@ -108,6 +144,7 @@ export const REPORTS = [
     key: 'selected',
     label: 'Selected candidates',
     hint: 'Offer accepted or already joined',
+    empty: 'Nobody has been selected in this range. Selection happens on the application, after an evaluation.',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id'],
     columns: [REF, WHO, PHONE, JOB, DEPT, COMPANY,
       { label: 'Offered', key: 'salary', type: 'money', total: true },
@@ -138,6 +175,7 @@ export const REPORTS = [
     key: 'offers',
     label: 'Offers out',
     hint: 'Every offer written, approved, sent or answered — drafts included',
+    empty: 'No offer has been written in this range, drafts included.',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id'],
     columns: [REF, WHO, PHONE, JOB, COMPANY,
       { label: 'Offered', key: 'salary', type: 'money', total: true },
@@ -153,6 +191,7 @@ export const REPORTS = [
     key: 'hold',
     label: 'On hold',
     hint: 'Held at screening or after an evaluation — and why',
+    empty: 'Nobody is on hold. Holding happens at screening, or on an evaluation.',
     uses: ['company_id', 'department', 'vacancy_id'],
     columns: [REF, WHO, PHONE, JOB, COMPANY,
       { label: 'Held at', key: 'held_at' },
@@ -164,6 +203,7 @@ export const REPORTS = [
     key: 'rejected',
     label: 'Rejected',
     hint: 'Turned down, and whether they turned US down',
+    empty: 'Nobody has been turned down in this range.',
     uses: ['from', 'to', 'company_id', 'department', 'vacancy_id'],
     columns: [REF, WHO, PHONE, JOB, COMPANY,
       { label: 'At', key: 'held_at' },
@@ -175,6 +215,7 @@ export const REPORTS = [
     key: 'next_round',
     label: 'Next round pending',
     hint: 'An interview said “next round” and nothing is booked',
+    empty: 'Nothing is waiting for a next round to be booked.',
     uses: ['company_id', 'department', 'vacancy_id', 'interviewer'],
     columns: [REF, WHO, PHONE, JOB,
       { label: 'Last round', key: 'round_label' },
@@ -188,6 +229,7 @@ export const REPORTS = [
     key: 'interviewers',
     label: 'Interviewer-wise',
     hint: 'How many each person has seen, and what they said',
+    empty: 'No interview has been held in this range, so there is nobody to count.',
     uses: ['from', 'to', 'company_id'],
     columns: [
       { label: 'Interviewer', key: 'interviewer' },
@@ -206,6 +248,7 @@ export const REPORTS = [
     key: 'funnel',
     label: 'The funnel',
     hint: 'How many are at each step, and what each step lets through',
+    empty: 'No application in this range, so there is no funnel to draw.',
     uses: ['company_id', 'vacancy_id'],
     columns: [
       { label: 'Step', key: 'stage' },
@@ -218,6 +261,7 @@ export const REPORTS = [
     key: 'time_to_hire',
     label: 'Time to hire',
     hint: 'Applied to joined, for everybody who actually joined',
+    empty: 'Nobody has joined in this range, so there is nothing to measure.',
     uses: ['from', 'to', 'company_id', 'vacancy_id'],
     columns: [REF, WHO, JOB, COMPANY,
       { label: 'Applied', key: 'applied_on', type: 'date' },

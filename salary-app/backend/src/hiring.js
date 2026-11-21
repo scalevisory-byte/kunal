@@ -3485,6 +3485,50 @@ export function hiringReport(key, filters = {}) {
   const today = nowIso().slice(0, 10);
 
   switch (key) {
+    /*
+     * EVERYBODY WHO APPLIED, newest first.
+     *
+     * Driven off `applications`, not off interviews - which is the whole
+     * point of it. Somebody who filled the form in five minutes ago has an
+     * application and nothing else, and until this existed there was no
+     * report they appeared on at all.
+     *
+     * `has_cv`, never the path: the CV is read through a signed link bound
+     * to that candidate, and the server's own filename has no business in a
+     * report that prints and exports.
+     */
+    case 'applications': {
+      const { where, params } = applicationWhere(filters);
+      if (filters.status) {
+        where.push('a.stage = @stage');
+        params.stage = filters.status;
+      }
+      return db
+        .prepare(
+          `SELECT a.created_at AS applied_at, a.stage, a.match_score,
+                  c.ref_no, c.name AS candidate_name, c.phone,
+                  /* In words. "apply" is what the column stores; it is not
+                     what somebody reading a printed report should have to
+                     translate. Anything else - a referral, a job board the
+                     office typed - comes through as it was typed. */
+                  CASE c.source
+                    WHEN 'apply' THEN 'The apply form'
+                    WHEN 'office' THEN 'Added by the office'
+                    ELSE c.source
+                  END AS source,
+                  c.experience, c.expected_salary,
+                  CASE WHEN COALESCE(c.resume_path, '') <> '' THEN 'yes' ELSE '' END AS has_cv,
+                  v.title AS job_title, v.department, co.name AS company_name
+             FROM applications a
+             JOIN candidates c ON c.id = a.candidate_id
+             JOIN vacancies v ON v.id = a.vacancy_id
+             JOIN companies co ON co.id = v.company_id
+            ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+            ORDER BY a.created_at DESC, a.id DESC`
+        )
+        .all(params);
+    }
+
     case 'schedule': {
       const { clause, params } = interviewWhere(filters);
       return withRound(db.prepare(`${INTERVIEW_SELECT} ${clause} ORDER BY i.at DESC`).all(params));

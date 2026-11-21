@@ -17,7 +17,15 @@ import { toCsv } from '../../../../shared/hiringCsv.js';
  * and the CSV cannot disagree about what is in the report.
  */
 export default function HiringReports({ companies, companyId, vacancies = [], onError }) {
-  const [key, setKey] = useState('schedule');
+  /*
+   * It opens on the applications, not on the interview schedule.
+   *
+   * The schedule reads the interviews table, so for an office whose newest
+   * news is "somebody applied" it opens empty - and an empty first screen
+   * reads as a broken report rather than as a true answer about a different
+   * table.
+   */
+  const [key, setKey] = useState('applications');
   const [filters, setFilters] = useState({});
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -98,7 +106,7 @@ export default function HiringReports({ companies, companyId, vacancies = [], on
       })),
       rows,
       totals: Object.keys(totals).length ? { label: `Total (${rows.length})`, ...totals } : undefined,
-      empty: 'Nothing matches. Try widening the dates.',
+      empty: report.empty || 'Nothing matches. Try widening the dates.',
       footer:
         'Every figure here was decided on another screen and stored — a screening verdict, an interview decision, an approved salary. Nothing on this report is worked out a second time.',
     });
@@ -206,7 +214,13 @@ export default function HiringReports({ companies, companyId, vacancies = [], on
             ))}
           </tbody>
         </table>
-        {!busy && !rows.length ? <p className="empty">Nothing matches. Try widening the dates.</p> : null}
+        {/* The report's OWN line. "Try widening the dates" was wrong
+            wherever the real answer is that this report reads a table the
+            person is not in yet - which is how an hour went on a date filter
+            that was never the problem. */}
+        {!busy && !rows.length ? (
+          <p className="empty">{report.empty || 'Nothing matches. Try widening the dates.'}</p>
+        ) : null}
       </div>
     </>
   );

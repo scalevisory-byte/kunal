@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.53.1';
+export const VERSION = '1.54.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.54.0',
+    date: '21 Nov 2026',
+    title: 'Hiring: a report of who applied',
+    items: [
+      '**New report — “Applications received”**, and Hiring → Reports now opens on it. Everybody who applied, newest first: when, their reference, name, mobile, where they are, the opening, the department, the company, **how they applied**, experience, what they expect, the match score and whether a CV is attached.',
+      '**Why it was needed:** the Reports screen opened on **Interview schedule**, which reads the interviews — so somebody who had just filled the form in was correctly nowhere on it, and the screen then said *"Nothing matches. Try widening the dates"*. There was no report of applications at all.',
+      '**Every report now says where its own rows come from when it has none.** The interview reports point at the Pipeline, where an interview is actually booked, instead of blaming the date filter.',
+      'The new report narrows by dates, company, department, opening and stage, and prints and exports like the rest. The CV is shown as yes-or-nothing — the file name never travels into a report.',
+    ],
+  },
   {
     version: '1.53.1',
     date: '21 Nov 2026',
