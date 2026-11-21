@@ -8,6 +8,7 @@ import Claims from './Claims.jsx';
 import Penalties from './Penalties.jsx';
 import Tasks from './Tasks.jsx';
 import Helpdesk from './Helpdesk.jsx';
+import Noticeboard from './Noticeboard.jsx';
 import Leaving from './Leaving.jsx';
 import Reminders from './Reminders.jsx';
 import Trail from './Trail.jsx';
@@ -39,6 +40,7 @@ const PANELS = [
   ['penalties', 'Penalties'],
   ['tasks', 'Tasks'],
   ['helpdesk', 'Helpdesk'],
+  ['noticeboard', 'Noticeboard'],
   ['leaving', 'Leaving'],
   ['reminders', 'Reminders'],
   ['trail', 'Trail'],
@@ -193,6 +195,7 @@ export default function People({
       {panel === 'penalties' && <Penalties {...props} />}
       {panel === 'tasks' && <Tasks {...props} />}
       {panel === 'helpdesk' && <Helpdesk {...props} />}
+      {panel === 'noticeboard' && <Noticeboard companies={companies} onError={onError} />}
       {panel === 'leaving' && <Leaving {...props} />}
       {panel === 'reminders' && <Reminders {...props} />}
       {panel === 'trail' && <Trail {...props} />}

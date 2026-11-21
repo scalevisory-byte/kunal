@@ -4,6 +4,7 @@ import { rupees } from '../../format.js';
 import { formatDuration } from '../../../../shared/timesheet.js';
 import { comingUp, leaveFor, monthFor, todayFor, trendFor } from '../../../../shared/myDashboard.js';
 import { recordSummary } from '../../../../shared/myRecord.js';
+import { kindIcon } from '../../../../shared/announcements.js';
 
 /**
  * WHAT ONE PERSON SEES WHEN THEY SIGN IN.
@@ -37,6 +38,8 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
   const [holidays, setHolidays] = useState([]);
   const [pay, setPay] = useState(null);
   const [record, setRecord] = useState(null);
+  const [notices, setNotices] = useState([]);
+  const [openings, setOpenings] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -54,13 +57,15 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
     (async () => {
       try {
         const want = months.slice(0, 6);
-        const [mine, lv, rq, hol, slip, rec, ...rest] = await Promise.all([
+        const [mine, lv, rq, hol, slip, rec, board, jobs, ...rest] = await Promise.all([
           api.get(`/me/attendance/${latestId}`),
           api.get('/me/leave').catch(() => null),
           api.get('/me/requests').catch(() => ({ requests: [] })),
           api.get('/me/holidays').catch(() => ({ holidays: [] })),
           api.get(`/me/months/${latestId}`).catch(() => null),
           api.get('/me/record').catch(() => null),
+          api.get('/me/announcements').catch(() => ({ announcements: [] })),
+          api.get('/me/openings').catch(() => ({ openings: [] })),
           ...want.slice(1).map((m) => api.get(`/me/attendance/${m.period_id ?? m.id}`).catch(() => null)),
         ]);
         setCurrent(mine);
@@ -69,6 +74,8 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
         setHolidays(hol?.holidays || []);
         setPay(slip);
         setRecord(rec);
+        setNotices(board?.announcements || []);
+        setOpenings((jobs?.openings || []).length);
         setHistory([mine, ...rest.filter(Boolean)]);
       } catch (err) {
         onError?.(err);
@@ -285,15 +292,42 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
           <button className="my-link" onClick={() => onGo('holidays')}>All holidays &rarr;</button>
         </section>
 
-        {/* Announcements: honest about what is not built rather than filled
-            with something made up. There is no noticeboard in the system. */}
+        {/*
+          * ANNOUNCEMENTS. This card used to say, honestly, that there was no
+          * noticeboard in the system to read from. There is one now, so it
+          * reads it - the live notices for this person's company, newest
+          * first with anything pinned on top.
+          */}
         <section className="card">
-          <h3>Announcements</h3>
-          <p className="empty fo-empty">Nothing here yet.</p>
-          <p className="muted small">
-            There is no announcements noticeboard in the system yet, so this shows nothing rather
-            than something invented. It needs a place for the office to write them.
-          </p>
+          <div className="row">
+            <h3>Announcements</h3>
+            <span className="grow" />
+            <button className="ghost small" onClick={() => onGo('notices')}>Open</button>
+          </div>
+          {notices.length ? (
+            <ul className="plain-list my-notices">
+              {notices.slice(0, 3).map((n) => (
+                <li key={n.id} className={`my-notice${n.pinned ? ' pinned' : ''}`}>
+                  <span className="my-notice-ico" aria-hidden="true">{kindIcon(n.kind)}</span>
+                  <div>
+                    <strong>{n.title}</strong>
+                    {n.body ? <p className="muted small">{n.body.slice(0, 120)}{n.body.length > 120 ? '…' : ''}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty fo-empty">
+              Nothing on the board today. Office notices, celebrations and holidays appear here.
+            </p>
+          )}
+          {openings ? (
+            <p className="muted small">
+              <strong>{openings}</strong> {openings === 1 ? 'opening' : 'openings'} at the moment
+              — <button className="link" onClick={() => onGo('notices')}>pass one on</button> if
+              you know somebody who would fit.
+            </p>
+          ) : null}
         </section>
 
         {/* APPRECIATIONS, WARNINGS AND PENALTIES - asked for by name. Only

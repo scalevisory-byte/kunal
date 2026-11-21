@@ -16,6 +16,7 @@ import LeaveRegister from './LeaveRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
 import { rupees } from '../format.js';
+import { printFromCsv } from '../printCsv.js';
 
 import AttendanceSheet from './AttendanceSheet.jsx';
 /**
@@ -122,12 +123,50 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     }
   };
 
+  const [printing, setPrinting] = useState(false);
+
   const grab = async (path, filename) => {
     setError('');
     try {
       await download(path, filename);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  /*
+   * PRINTING ONE.
+   *
+   * The lines under the title say what this document IS - the month and the
+   * filters that were on when it was taken. A printed register with no
+   * month on it is a page somebody has to ask about.
+   */
+  const printOne = async (report) => {
+    setError('');
+    setPrinting(true);
+    try {
+      const narrowed = [
+        period ? period.label : null,
+        filters.company_id
+          ? companies.find((c) => String(c.id) === String(filters.company_id))?.name
+          : null,
+        filters.department || null,
+        filters.employee_id
+          ? employees.find((e) => String(e.id) === String(filters.employee_id))?.name
+          : null,
+      ].filter(Boolean);
+      const [file, , printable] = FILES[report.id];
+      const rows = await printFromCsv(printable || file, {
+        title: report.name,
+        subtitle: CATEGORIES.find((c) => c.key === report.category)?.label || '',
+        meta: narrowed,
+        footer: 'Booknfly HRMS — the same records the salary sheet is paid from.',
+      });
+      if (!rows) setError('There is nothing in this report for the month and filters chosen.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -158,7 +197,16 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
 
   const FILES = period
     ? {
-        'salary-register': [`/periods/${period.id}/export.xlsx`, `Salary-${period.label}.xlsx`],
+        /* The download is the workbook, with its formulas and its sheets.
+           PRINTING one takes the same month as a flat CSV - a spreadsheet
+           is a zip, and there is nothing honest to lay out from it without
+           a parser the standalone file cannot carry. Both come off the same
+           calculated month. */
+        'salary-register': [
+          `/periods/${period.id}/export.xlsx`,
+          `Salary-${period.label}.xlsx`,
+          `/periods/${period.id}/export.csv`,
+        ],
         'sunday-register': [`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`],
         'sunday-holiday-pay': [`/periods/${period.id}/sunday.csv`, `Sunday-${period.label}.csv`],
         'bank-register': [`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`],
@@ -175,6 +223,17 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
    * hiring rows used to send somebody off to another tab, which is not a
    * report, which is why those categories looked empty from here.
    */
+  if (period) {
+    /* The four statutory registers each have a CSV of their own - the panel
+       shows them, and this is the same figures on paper. */
+    Object.assign(FILES, {
+      'pf-register': [`/periods/${period.id}/statutory/pf.csv`, `PF-${period.label}.csv`],
+      'esi-register': [`/periods/${period.id}/statutory/esi.csv`, `ESI-${period.label}.csv`],
+      'pt-register': [`/periods/${period.id}/statutory/pt.csv`, `PT-${period.label}.csv`],
+      'wage-register': [`/periods/${period.id}/statutory/wages.csv`, `Wages-${period.label}.csv`],
+    });
+  }
+
   Object.assign(FILES, {
     'asset-register': ['/people/assets/register.csv', 'Asset-register.csv'],
     'asset-allocation': ['/people/assets/register.csv', 'Asset-register.csv'],
@@ -288,6 +347,30 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
               {FILES[open.id] && (
                 <button className="primary" onClick={() => grab(...FILES[open.id])}>
                   Download
+                </button>
+              )}
+              {/*
+                * PRINT, beside Download.
+                *
+                * Dinesh: *"sare reports me proper printing reports dalo"*.
+                * Half these reports were a download and nothing else, which
+                * is right for a bank file and useless for a register the
+                * office has to sign and file. The file is fetched and laid
+                * out as a document - the same printer the muster roll and
+                * the payslip use - with the month, the filters that were on
+                * and a total under every column that is actually figures.
+                *
+                * Only a CSV: an .xlsx is a zip, and there is nothing honest
+                * to print from it without a parser the standalone build
+                * cannot carry.
+                */}
+              {FILES[open.id] && (FILES[open.id][2] || FILES[open.id][0]).includes('.csv') && (
+                <button
+                  disabled={printing}
+                  onClick={() => printOne(open)}
+                  title="Lays the same file out as a printed report"
+                >
+                  {printing ? 'Preparing…' : 'Print'}
                 </button>
               )}
               {!FILES[open.id] && open.at?.startsWith('tab:') && (

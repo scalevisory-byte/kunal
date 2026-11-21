@@ -5577,3 +5577,20 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
 .so-value { flex: none; font-variant-numeric: tabular-nums; font-weight: 600; }
 .so-value.bad { color: var(--bad); }
 .so-value.good { color: var(--good); }
+
+/* ---- the portal's noticeboard and the openings ---- */
+.my-notice { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.5rem 0; border-top: 1px solid var(--line-soft); }
+.my-notices > .my-notice:first-child { border-top: 0; }
+.my-notice.pinned { border-left: 3px solid var(--gold); padding-left: 0.6rem; }
+.my-notice-ico { font-size: 1.1rem; line-height: 1.4; }
+.my-notice p { margin: 0.15rem 0 0; }
+.my-job { display: flex; gap: 0.8rem; align-items: flex-start; padding: 0.55rem 0; border-top: 1px solid var(--line-soft); }
+.my-jobs > .my-job:first-child { border-top: 0; }
+.my-job > div:first-child { flex: 1 1 auto; min-width: 0; }
+.my-job p { margin: 0.15rem 0 0; }
+.my-job-act { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; max-width: 14rem; }
+.my-job-act a { overflow-wrap: anywhere; text-align: right; }
+@media (max-width: 620px) {
+  .my-job { flex-wrap: wrap; }
+  .my-job-act { align-items: flex-start; max-width: 100%; }
+}

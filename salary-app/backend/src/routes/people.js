@@ -138,6 +138,10 @@ import {
   setAssetPrefix,
   setAssetState,
   acknowledgeHandover,
+  listAnnouncements,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
   listMasters,
   createMaster,
   updateMaster,
@@ -267,6 +271,45 @@ peopleRouter.get('/options', (_req, res) => {
     ticket_categories: TICKET_CATEGORIES,
     warning_levels: WARNING_LEVELS,
   });
+});
+
+/* ---------------- the noticeboard ---------------- */
+
+/*
+ * Dinesh: *"any announcmnet like celbration holiday o bhi"*.
+ *
+ * The staff portal's Announcements card used to say, in so many words, that
+ * there was no noticeboard in the system to read from. This is the board.
+ * Nothing is SENT anywhere: the office pins something, the staff see it when
+ * they sign in, and it comes down when it is over.
+ */
+peopleRouter.get('/announcements', (req, res) =>
+  res.json({
+    announcements: listAnnouncements({
+      company_id: Number(req.query.company_id) || undefined,
+      live: req.query.live === 'true',
+    }),
+  })
+);
+
+peopleRouter.post('/announcements', (req, res) => {
+  try {
+    res.status(201).json(createAnnouncement(req.body || {}, who(req)));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/announcements/:id', (req, res) => {
+  try {
+    res.json(updateAnnouncement(Number(req.params.id), req.body || {}, who(req)));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/announcements/:id', (req, res) => {
+  res.json({ deleted: deleteAnnouncement(Number(req.params.id), who(req)) });
 });
 
 /* ---------------- warnings and appreciations ---------------- */

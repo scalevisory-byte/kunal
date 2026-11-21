@@ -919,3 +919,68 @@ test('my attendance carries the clock times and the hours worked', async () => {
   assert.ok(!text.includes('20:00'), 'somebody else’s clock times');
   assert.ok(!text.includes(riya.name));
 });
+
+/*
+ * THE NOTICEBOARD AND THE OPENINGS, on the staff side.
+ *
+ * Dinesh: *"employee login me current opeing me bhi dikhavo taki o kisi ko
+ * refre kar sake / and any announcmnet like celbration holiday o bhi"*.
+ */
+test('the board shows what is live and theirs, and nothing else', async () => {
+  const other = (await admin('POST', '/api/companies', { name: 'SCALE' })).body;
+  await admin('POST', '/api/people/announcements', {
+    kind: 'holiday', title: 'Diwali — office shut', pinned: 1,
+  });
+  await admin('POST', '/api/people/announcements', {
+    kind: 'celebration', title: 'Written in advance', from_on: '2099-01-01',
+  });
+  await admin('POST', '/api/people/announcements', {
+    kind: 'notice', title: 'For SCALE only', company_id: other.id,
+  });
+
+  const board = await staff('GET', '/api/me/announcements');
+  assert.equal(board.status, 200);
+  const titles = board.body.announcements.map((a) => a.title);
+  assert.deepEqual(titles, ['Diwali — office shut']);
+  /* A notice written in advance is not on the board yet - somebody turning
+     up to a party a week early is what a start date is for. */
+  assert.ok(!titles.includes('Written in advance'));
+  assert.ok(!titles.includes('For SCALE only'));
+  /* And the office's own view of it does not travel. */
+  assert.ok(!JSON.stringify(board.body).includes('company_id'));
+});
+
+test('the openings are the ADVERT, not the vacancy record', async () => {
+  const company = (await admin('GET', '/api/companies')).body.companies[0];
+  const made = await admin('POST', '/api/hiring/vacancies', {
+    company_id: company.id,
+    title: 'Ticketing Executive',
+    location: 'Vadodara',
+    status: 'Published',
+    internal_notes: 'budget is tight, do not say so',
+  });
+  assert.equal(made.status, 201);
+  /* One left as a draft, which nobody outside hiring should see at all. */
+  await admin('POST', '/api/hiring/vacancies', {
+    company_id: company.id, title: 'Secret role not published yet', status: 'Draft',
+  });
+
+  const seen = await staff('GET', '/api/me/openings');
+  assert.equal(seen.status, 200);
+  const titles = seen.body.openings.map((o) => o.title);
+  assert.ok(titles.includes('Ticketing Executive'));
+  assert.ok(!titles.includes('Secret role not published yet'), 'an unpublished opening');
+
+  const text = JSON.stringify(seen.body);
+  assert.ok(!text.includes('budget is tight'), 'the internal note reached the staff');
+  assert.ok(!text.includes('internal_notes'));
+  /* The message to pass on is the same advert the office posts. */
+  assert.match(seen.body.openings[0].share, /Ticketing Executive/);
+});
+
+test('a staff login still cannot reach the office’s own noticeboard', async () => {
+  const shut = await staff('GET', '/api/people/announcements');
+  assert.equal(shut.status, 403);
+  const write = await staff('POST', '/api/people/announcements', { title: 'Mine now' });
+  assert.equal(write.status, 403);
+});

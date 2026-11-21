@@ -19,6 +19,7 @@ import MyDashboard from './my/MyDashboard.jsx';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
 import MyRecord from './my/MyRecord.jsx';
+import MyNotices from './my/MyNotices.jsx';
 
 /*
  * What an employee sees when they sign in.
@@ -58,6 +59,7 @@ const TABS = [
   ['attendance', 'My attendance', '\u2713'],
   ['leave', 'My leave', '\u2708'],
   ['pay', 'My salary', '\u20b9'],
+  ['notices', 'Notices & jobs', '\u2691'],
   ['record', 'My record', '\u2605'],
   ['me', 'My profile', '\u25cf'],
   ['holidays', 'Holidays', '\u2600'],
@@ -211,6 +213,7 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
           {tab === 'leave' && <MyLeave onError={onError} />}
           {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
+          {tab === 'notices' && <MyNotices onError={onError} />}
           {tab === 'record' && <MyRecord onError={onError} />}
           {tab === 'holidays' && <MyHolidays onError={onError} />}
           {tab === 'documents' && <MyDocuments onError={onError} />}

@@ -2923,7 +2923,7 @@ test('the portal is a rail of pages, and the actions are not pretend pages', () 
   assert.match(page, /className="my-rail"/);
   for (const label of [
     'Dashboard', 'My attendance', 'My leave', 'My salary',
-    'My profile', 'Holidays', 'Documents', 'My record',
+    'My profile', 'Holidays', 'Documents', 'My record', 'Notices & jobs',
   ]) {
     assert.ok(page.includes(`'${label}'`), `${label} is missing from the rail`);
   }
@@ -2943,7 +2943,7 @@ test('the portal is a rail of pages, and the actions are not pretend pages', () 
 test('the portal reads ONLY /api/me - there is no id in any URL on it', () => {
   const files = ['components/MyPage.jsx', 'components/my/MyDashboard.jsx',
     'components/my/MyHolidays.jsx', 'components/my/MyDocuments.jsx',
-    'components/my/MyRecord.jsx'];
+    'components/my/MyRecord.jsx', 'components/my/MyNotices.jsx'];
   for (const file of files) {
     const text = src(file);
     const calls = [...text.matchAll(/api\.(get|post|patch|put|del)\(`?'?([^`',)]+)/g)].map((m) => m[2]);
@@ -2971,11 +2971,13 @@ test('the dashboard says NOT KNOWN rather than nought, and admits what is not bu
   assert.match(dash, /Nothing is marked for you yet/);
 
   /*
-   * ANNOUNCEMENTS HAS NO NOTICEBOARD BEHIND IT ANYWHERE IN THE SYSTEM, so
-   * the card says so instead of being filled with something invented. His
-   * brief asks for exactly this rather than demo data.
+   * ANNOUNCEMENTS used to have no noticeboard behind it anywhere in the
+   * system, and the card said so rather than being filled with something
+   * invented. There IS a board now, so the rule is the other half of the
+   * same one: when there is nothing on it, it says the board is empty - it
+   * does not invent a notice to fill the card.
    */
-  assert.match(dash, /no announcements noticeboard in the system/);
+  assert.match(dash, /Nothing on the board today/);
   const code = dash.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.ok(!/const DEMO|placeholder|lorem/i.test(code), 'demo data on the employee dashboard');
 });
@@ -3177,4 +3179,76 @@ test('a draft says so on the list and on the record', () => {
   assert.match(src('components/EmployeeProfile.jsx'), /This record is a draft/);
   /* And it says what being a draft MEANS, which is the part that matters. */
   assert.match(src('components/EmployeeProfile.jsx'), /no payroll month/);
+});
+
+/*
+ * PRINTING, ON EVERY REPORT THAT HAS ANYTHING TO PRINT.
+ *
+ * Dinesh: *"sare reports me proper printing reports dalo"*. Half of them
+ * were a Download button and nothing else - right for a bank file, useless
+ * for a register the office has to sign and file.
+ */
+test('a report that downloads a CSV can also be printed', () => {
+  const reports = src('components/Reports.jsx');
+  assert.match(reports, /import \{ printFromCsv \}/);
+  /* Beside Download, not instead of it: the spreadsheet is still what goes
+     to the bank. */
+  assert.match(reports, /printOne\(open\)/);
+  /* Only a CSV. An .xlsx is a zip and there is nothing honest to lay out
+     from it without a parser the standalone build cannot carry - so the
+     salary register prints from the month's flat CSV instead. */
+  assert.match(reports, /\.includes\('\.csv'\)/);
+  assert.match(reports, /export\.csv/);
+});
+
+test('the printed report says which month and which filters it is', () => {
+  const reports = src('components/Reports.jsx');
+  /* A printed register with no month on it is a page somebody has to ask
+     about. */
+  assert.match(reports, /meta: narrowed/);
+  assert.match(reports, /period \? period\.label : null/);
+});
+
+test('the absent/present report and the muster print what is on screen', () => {
+  const report = src('components/AttendanceReport.jsx');
+  assert.match(report, /printReport\(/);
+  /* The search is already applied to `rows` and `dayRows`: a page that
+     quietly widened to the whole staff would be a different document from
+     the one somebody asked for. */
+  assert.match(report, /rows,\n        landscape: true/);
+  assert.match(report, /rows: dayRows/);
+  /* The muster reads its marks BY POSITION - `marks` is an array in the
+     same order as `days`, and reading it by day number would be off by one
+     for every row. */
+  assert.match(report, /r\.marks\[i\]/);
+});
+
+/*
+ * THE NOTICEBOARD, both sides.
+ */
+test('the portal shows notices and openings, and the dashboard card reads the board', () => {
+  const page = src('components/my/MyNotices.jsx');
+  assert.match(page, /We are hiring/);
+  assert.match(page, /pass the link on/);
+  /* The advert, not the vacancy: the page renders what the server narrowed,
+     and never asks hiring for anything. */
+  const calls = [...page.matchAll(/api\.(get|post|patch|del)\('([^']+)/g)].map((m) => m[2]);
+  assert.deepEqual(calls.sort(), ['/me/announcements', '/me/openings']);
+
+  const dash = src('components/my/MyDashboard.jsx');
+  /* The card used to say there was no noticeboard in the system. There is
+     one now, so the honest empty state is a different sentence. */
+  assert.ok(!/no announcements noticeboard in the system/.test(dash));
+  assert.match(dash, /Nothing on the board today/);
+});
+
+test('the office writes the board, and nothing is sent anywhere', () => {
+  const panel = src('components/people/Noticeboard.jsx');
+  assert.match(panel, /Nothing is sent/);
+  /* A start date and an end date, both optional, both explained - a board
+     with no "comes down" is a board nobody ever clears. */
+  assert.match(panel, /leave empty for straight away/);
+  assert.match(panel, /leave empty to take it down by hand/);
+  /* And it says plainly that it needs the server. */
+  assert.match(panel, /STANDALONE/);
 });

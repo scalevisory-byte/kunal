@@ -7,6 +7,7 @@ import {
 } from '../../../shared/attendanceReport.js';
 import { toCsv } from '../../../shared/statutory.js';
 import ScrollFrame from './ScrollFrame.jsx';
+import { col, num, printReport } from '../printReport.js';
 
 const save = (body, filename, type = 'text/csv;charset=utf-8') => {
   const url = URL.createObjectURL(new Blob([body], { type }));
@@ -43,6 +44,63 @@ export default function AttendanceReport({ payroll }) {
   const rows = summary.rows.filter(match);
   const dayRows = daywise.rows.filter(match);
 
+  /*
+   * The same rows, as a document. It computes nothing: every figure is the
+   * one already on screen, and the summary line is `summary.totals`, which
+   * the table's own footer shows.
+   */
+  const print = () => {
+    if (view === 'summary') {
+      printReport({
+        title: 'Absent and present',
+        subtitle: month,
+        meta: [
+          `${rows.length} ${rows.length === 1 ? 'person' : 'people'}`,
+          query ? `found by "${query}"` : null,
+          summary.totals.unmarked_days
+            ? `${summary.totals.unmarked_days} day(s) across the month still unmarked`
+            : null,
+        ].filter(Boolean),
+        /* `SUMMARY_COLUMNS` is [heading, key] - the same pairs the CSV is
+           written from, so the paper and the file carry the same columns in
+           the same order. The first three are words; the rest are counts. */
+        columns: SUMMARY_COLUMNS.map(([head, key], i) =>
+          i < 3 ? col(head, (r) => r[key] ?? '') : num(head, (r) => r[key] ?? '')
+        ),
+        rows,
+        landscape: true,
+        compact: true,
+        footer:
+          'Counted off the same marks the salary sheet is paid from. Days lost is in days of PAY \u2014 a half day costs 0.5, a double absence 2.',
+      });
+      return;
+    }
+    printReport({
+      title: 'Muster roll',
+      subtitle: month,
+      meta: [
+        `${dayRows.length} ${dayRows.length === 1 ? 'person' : 'people'}`,
+        query ? `found by "${query}"` : null,
+      ].filter(Boolean),
+      columns: [
+        col('Name', (r) => r.name, '16%'),
+        /* `marks` is an array in the same order as `days`, so the column
+           reads it by POSITION - not by day number, which would be off by
+           one for every month that does not start on the 1st of the array. */
+        ...daywise.days.map((d, i) => ({
+          head: String(d.day),
+          get: (r) => r.marks[i] || '',
+          align: 'mid',
+          tint: d.sunday,
+        })),
+      ],
+      rows: dayRows,
+      landscape: true,
+      compact: true,
+      footer: 'One line per person, one column per day. Shaded columns are the weekly off.',
+    });
+  };
+
   return (
     <section className="card">
       <div className="row" style={{ marginBottom: '0.7rem' }}>
@@ -76,6 +134,17 @@ export default function AttendanceReport({ payroll }) {
         >
           Export CSV
         </button>
+        {/*
+          * PRINT, beside the export.
+          *
+          * Dinesh: *"sare reports me proper printing reports dalo"*. This is
+          * the absent/present report he asked for by name, and it could only
+          * be downloaded. It prints what is ON SCREEN - the view chosen and
+          * the search already applied - because a page that quietly widened
+          * to the whole staff would be a different document from the one
+          * somebody asked for.
+          */}
+        <button onClick={print}>Print</button>
       </div>
 
       {summary.totals.unmarked_days > 0 ? (

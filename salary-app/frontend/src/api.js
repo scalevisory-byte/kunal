@@ -184,6 +184,26 @@ export async function download(path, filename) {
 
 
 /**
+ * THE SAME FILE, AS TEXT RATHER THAN A DOWNLOAD.
+ *
+ * So a report that only ever existed as a CSV can be PRINTED - the office
+ * files paper, and a bank file somebody opens in Excel is not a register
+ * anybody signs. It goes through the same door as `download`, including the
+ * standalone build's own store, so the paper and the spreadsheet are the
+ * same bytes.
+ */
+export async function fetchText(path) {
+  if (STANDALONE) return (await (await localStore()).file(path)).text();
+  const headers = {};
+  const token = getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  const res = await fetch(`/api${path}`, { headers, credentials: 'same-origin' });
+  if (res.status === 401) throw new AuthError('Sign in again');
+  if (!res.ok) throw new Error(`Could not read the report (${res.status})`);
+  return res.text();
+}
+
+/**
  * A download whose request carries a BODY.
  *
  * The asset report sends the ids on screen and the columns somebody ticked,

@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.68.0';
+export const VERSION = '1.69.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.69.0',
+    date: '22 Nov 2026',
+    title: 'Printing on every report, a noticeboard, and the openings on the staff portal',
+    items: [
+      '**Every report that downloads a CSV can now be PRINTED** \u2014 a proper document with the report\u2019s name, the month, the filters that were on, the table and a total under every column that is actually figures. Nineteen of them, checked one by one in a browser. The download is still there: the spreadsheet is what goes to the bank, the print is what the office signs and files.',
+      '**The salary register prints from the month\u2019s flat CSV**, because a spreadsheet is a zip and there is nothing honest to lay out from one without a parser this app would have to carry everywhere.',
+      '**A total is only added under a column that is really figures.** An employee code, a UAN, a PIN code and a phone number are all digits and none of them means anything added up, so they are left alone \u2014 a UAN column summing to 1.2 billion is worse than no total at all.',
+      '**The absent/present report and the muster roll print too**, and they print **what is on screen** \u2014 the view chosen and the search already applied, because a page that quietly widened to the whole staff would be a different document from the one somebody asked for.',
+      '**A noticeboard.** People \u2192 Noticeboard: put up a notice, a celebration or a holiday, choose whether it is for one company or everybody, when it goes up and when it comes down, and pin the important one to the top.',
+      '**Staff see it when they sign in** \u2014 on their dashboard and on a new **Notices & jobs** page. Nothing is sent: no message, no email, nobody notified. The portal card that used to admit there was no noticeboard in the system now reads the board.',
+      '**A notice written in advance stays off the board until its day.** Somebody turning up to a picnic a week early is exactly what a start date is for.',
+      '**The current openings are on the staff portal**, so anybody can refer somebody they know \u2014 with **Copy the message**, which hands over the same advert the office posts. What travels is the ADVERT, not the vacancy: the internal notes and who the job reports to stay inside, and an unpublished opening is not shown at all.',
+    ],
+  },
   {
     version: '1.68.0',
     date: '22 Nov 2026',

@@ -27,6 +27,7 @@ import {
   getTicket,
   replyToTicket,
   listAssets,
+  listAnnouncements,
   listNotes,
   getNote,
   updateNote,
@@ -36,6 +37,10 @@ import {
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
+import { forEmployee as announcementsFor } from '../../../shared/announcements.js';
+import { listVacancies } from '../hiring.js';
+import { applyUrl, publicVacancy, vacancyBroadcast } from '../../../shared/hiringMessages.js';
+import { config } from '../config.js';
 import {
   recordSummary,
   visibleNotes,
@@ -584,6 +589,57 @@ meRouter.post('/notes/:id/acknowledge', (req, res) => {
     by: me?.name || 'employee',
   });
   res.json({ note: updated });
+});
+
+/**
+ * THE NOTICEBOARD, as it applies to this person.
+ *
+ * Dinesh: *"any announcmnet like celbration holiday o bhi"*. Only what is
+ * live today and only what covers their company - BOOKNFLY's picnic is not
+ * SCALE's - and a notice written in advance stays off the board until the
+ * day it starts, because somebody turning up to a party a week early is
+ * exactly what a start date is for.
+ */
+meRouter.get('/announcements', (req, res) => {
+  const employee = getEmployee(req.employeeId);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  res.json({
+    announcements: announcementsFor(listAnnouncements({}), {
+      companyId: employee.company_id,
+      today: new Date().toISOString().slice(0, 10),
+    }),
+  });
+});
+
+/**
+ * WHAT WE ARE HIRING FOR, so somebody can refer a friend.
+ *
+ * Dinesh: *"employee login me current opeing me bhi dikhavo taki o kisi ko
+ * refre kar sake"*. The openings already exist and already have a public
+ * apply link; what was missing is that the people most likely to know a good
+ * candidate - the staff - could not see them.
+ *
+ * ONLY WHAT IS ALREADY PUBLIC. `publicVacancy` is the same narrowing the
+ * advert and the apply page use, so the internal notes and who the job
+ * reports to do not travel. A staff login has no `read`, and this does not
+ * widen it: an employee sees the advert, not the vacancy record.
+ */
+meRouter.get('/openings', (req, res) => {
+  const open = listVacancies({ status: 'Published' });
+  const baseUrl = config.publicUrl || '';
+  res.json({
+    openings: open.map((v) => ({
+      ...publicVacancy(v),
+      /* The link to pass on, and the message to pass on with it. Built on
+         the server so the portal does not need the hiring module. */
+      apply_url: baseUrl ? applyUrl(baseUrl, v) : '',
+      share: vacancyBroadcast(v, { baseUrl }),
+    })),
+    /* Said out loud when there is no public address set: the advert is
+       useless without a link, and an empty Apply button is worse than a
+       sentence explaining why. */
+    can_share: Boolean(baseUrl),
+  });
 });
 
 /** Any loan of theirs, and what is left on it. */

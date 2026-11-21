@@ -9,6 +9,7 @@ import {
   todayLocal,
   updateEmployee,
 } from './db.js';
+import { isLive as liveAnnouncement, validate as validateAnnouncement } from '../../shared/announcements.js';
 import { logoDataUri } from './companyLogos.js';
 import { fileNameFor, isLetterKind, letterHtml } from '../../shared/exitLetters.js';
 import { buildPayroll } from './payroll.js';
@@ -81,6 +82,25 @@ db.exec(`
   /* ---------------- warnings and appreciations ---------------- */
   -- One table, because they are the same record with opposite signs, and a
   -- person's file should read in one order whichever kind it is.
+  CREATE TABLE IF NOT EXISTS announcements (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- notice | celebration | holiday. Three because they read differently on
+    -- the staff page, not because anything behaves differently.
+    kind        TEXT NOT NULL DEFAULT 'notice',
+    title       TEXT NOT NULL,
+    body        TEXT,
+    -- NULL is every company. An announcement for one company only is normal:
+    -- BOOKNFLY's picnic is not SCALE's.
+    company_id  INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    -- When it goes up and when it comes down. No end date means it stays
+    -- until somebody takes it down, which is how a noticeboard works.
+    from_on     TEXT,
+    until_on    TEXT,
+    pinned      INTEGER NOT NULL DEFAULT 0,
+    posted_by   TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS employee_notes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id  INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
@@ -635,6 +655,89 @@ export const CLAIM_KINDS = ['Travel', 'Food', 'Petrol', 'Lodging', 'Phone', 'Oth
 export const NOTE_KINDS = ['warning', 'appreciation', 'note'];
 export const WARNING_LEVELS = ['verbal', 'written', 'final'];
 export const CLAIM_STATUSES = ['pending', 'approved', 'rejected', 'paid'];
+
+/* ================================================================= *
+ * the noticeboard
+ * ================================================================= */
+
+export const listAnnouncements = ({ company_id, live } = {}) => {
+  const rows = db
+    .prepare(
+      `SELECT a.*, c.name AS company_name
+       FROM announcements a
+       LEFT JOIN companies c ON c.id = a.company_id
+       ORDER BY a.pinned DESC, COALESCE(a.from_on, a.created_at) DESC, a.id DESC`
+    )
+    .all();
+  const today = new Date().toISOString().slice(0, 10);
+  return rows.filter((a) => {
+    if (company_id && a.company_id && Number(a.company_id) !== Number(company_id)) return false;
+    if (!live) return true;
+    return liveAnnouncement(a, today);
+  });
+};
+
+export const getAnnouncement = (id) =>
+  db.prepare(`SELECT * FROM announcements WHERE id = ?`).get(Number(id)) || null;
+
+export function createAnnouncement(input = {}, by) {
+  const { ok, problems } = validateAnnouncement(input);
+  if (!ok) throw new Error(problems.join('; '));
+  const info = db
+    .prepare(
+      `INSERT INTO announcements (kind, title, body, company_id, from_on, until_on, pinned, posted_by)
+       VALUES (@kind, @title, @body, @company_id, @from_on, @until_on, @pinned, @posted_by)`
+    )
+    .run({
+      kind: input.kind || 'notice',
+      title: String(input.title).trim(),
+      body: input.body || null,
+      /* NULL is every company, which is the common case and so the default. */
+      company_id: Number(input.company_id) || null,
+      from_on: input.from_on || null,
+      until_on: input.until_on || null,
+      pinned: input.pinned ? 1 : 0,
+      posted_by: by || input.posted_by || null,
+    });
+  audit({
+    who: by,
+    action: 'created',
+    entity: 'announcements',
+    entity_id: info.lastInsertRowid,
+    label: String(input.title).trim(),
+  });
+  return getAnnouncement(info.lastInsertRowid);
+}
+
+export function updateAnnouncement(id, patch = {}, by) {
+  const before = getAnnouncement(id);
+  if (!before) throw new Error('not found');
+  const { ok, problems } = validateAnnouncement({ ...before, ...patch });
+  if (!ok) throw new Error(problems.join('; '));
+  const fields = [];
+  const values = [];
+  for (const key of ['kind', 'title', 'body', 'company_id', 'from_on', 'until_on', 'pinned']) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`);
+    values.push(
+      key === 'pinned' ? (patch[key] ? 1 : 0) : patch[key] === '' ? null : patch[key]
+    );
+  }
+  if (!fields.length) return before;
+  db.prepare(`UPDATE announcements SET ${fields.join(', ')} WHERE id = ?`).run(...values, Number(id));
+  audit({ who: by, action: 'changed', entity: 'announcements', entity_id: Number(id), label: before.title });
+  return getAnnouncement(id);
+}
+
+export function deleteAnnouncement(id, by) {
+  const before = getAnnouncement(id);
+  if (!before) return false;
+  const gone = db.prepare(`DELETE FROM announcements WHERE id = ?`).run(Number(id)).changes > 0;
+  if (gone) {
+    audit({ who: by, action: 'deleted', entity: 'announcements', entity_id: Number(id), label: before.title });
+  }
+  return gone;
+}
 
 /* ================================================================= *
  * warnings and appreciations
