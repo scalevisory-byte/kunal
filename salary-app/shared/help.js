@@ -304,6 +304,31 @@ export const HELP = [
     ],
   },
   {
+    id: 'missing-punch',
+    title: 'Days the clock cannot account for',
+    tab: 'reports',
+    keywords: ['missing punch', 'no out time', 'punch', 'hajri time', 'in out missing'],
+    lines: [
+      'Reports → **Missing punch**: days somebody was at work and the times do not add up.',
+      'Four kinds, counted apart — in with no out, out with no in, half a lunch, and nothing at all.',
+      'The people with the most are named at the top.',
+    ],
+    note: 'NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
+  },
+  {
+    id: 'deductions-report',
+    title: 'What came out of people’s pay this month',
+    tab: 'reports',
+    keywords: ['deductions', 'kata', 'kitna kata', 'pf esi pt loan', 'statement', 'katauti'],
+    lines: [
+      'Reports → **Salary deductions**: every head — PF, ESI, PT, loan, penalty, the Deduct box, late — down the staff.',
+      'It says how many people each head touched, not only the money.',
+      'Heads that took nothing this month are left out, and named under the table.',
+      'Reports → **Department-wise salary cost** is the other half: what each department costs, per head and as a share.',
+    ],
+    note: 'EARNED is before anything came out. The sheet’s Gross is already after the Deduct box and the late charge, so those are added back here — otherwise they would be counted twice and the statement would not balance. Absence is never a deduction: a day not worked was never earned. Cost to company is the gross plus the employer’s own PF and ESI, and Sunday pay is in neither figure — it is paid from its own register.',
+  },
+  {
     id: 'leave-cancel',
     staff: true,
     title: 'Cancelling a leave that was already approved',

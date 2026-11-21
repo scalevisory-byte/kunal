@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.75.0';
+export const VERSION = '1.76.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.76.0',
+    date: '22 Nov 2026',
+    title: 'The last three reports that were listed and not built',
+    items: [
+      '**Reports \u2192 Missing punch.** Days somebody was at work and the clock cannot account for \u2014 punched in and never out, an out time with no in, half a lunch break, or no times at all. The flags existed on each day; there was nowhere to see a fortnight of them together.',
+      '**A day half-clocked and a day never clocked are counted apart**, because they are different problems: the first is a record that is wrong, the second may be a job where nobody punches.',
+      '**Nothing there is a deduction.** Every one of those days is already paid, whatever the sheet made of it. It is a list of things to go and ask about, and the people with the most are named \u2014 the same gap over and over is a finger that does not read, not somebody forgetting.',
+      '**Reports \u2192 Salary deductions.** Every deduction under its own head, down the staff, with how many people each one touched \u2014 “PT 14,400” and “PT, 72 people” are different facts, and the second is the one that finds a slab charged to somebody it should not have been.',
+      '**Absence is not a deduction** \u2014 a day not worked was never earned, so it is shown apart and never added in.',
+      '**And it checks its own arithmetic.** That check found a real mistake while it was being built: the sheet’s **Gross is already after** the Deduct box and the late charge, so listing those again took them twice. The statement shows **Earned** \u2014 before anything came out \u2014 and then earned less every deduction **is** the net, to the rupee. Exactly what the statutory wage register already does.',
+      '**Reports \u2192 Department-wise salary cost.** Listed for months as not built, on a note that had stopped being true. **Net paid** is what people take home; **cost to company** is the gross plus the employer’s own PF and ESI \u2014 two different questions, so both are shown, with cost per head and each department’s share.',
+      '**Sunday pay is in neither figure.** It is settled on its own register, which is the whole reason that register exists; folding it in would make this disagree with the salary sheet. It has its own line.',
+      'All three print and download. **Every report in the catalogue that can be built from what the app holds is now built** \u2014 the five still listed as not built need either a portal’s own template (PF ECR, ESI) or a record of what has actually been paid to the authorities, which nothing tracks yet.',
+    ],
+  },
   {
     version: '1.75.0',
     date: '22 Nov 2026',

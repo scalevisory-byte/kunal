@@ -985,6 +985,36 @@ two codes, two salaries, two payslips, two PF records for one person.
 - The scenario only exists if both applications are raised BEFORE the first is hired — hiring
   archives the candidate, so a second application cannot be raised afterwards.
 
+### The last three reports (v1.76)
+
+`shared/missingPunch.js`, `shared/deductionStatement.js`, `shared/salaryByDepartment.js`,
+`MissingPunch.jsx`, `PayReports.jsx`. All three compute in the browser off the already-loaded
+month, like `LeaveRegister` and `AttendanceReport`, so they work in the single-file build too.
+
+- **Missing punch** — four kinds, and the distinction it exists for: **a day half-clocked and a
+  day never clocked are different problems** (a record that is wrong vs. a job where nobody
+  punches), so they are counted and named apart. Only a day somebody was AT WORK can be missing
+  a punch — there is nothing to clock on leave or an absence, and listing those would bury the
+  real ones. **Nothing in it is a deduction**: every day there is already paid.
+- **Salary deductions** — every head, with **how many people each one touched**. Heads that took
+  nothing are left out of the table and NAMED under it.
+- **THE BUG ITS OWN BALANCE CHECK FOUND.** `gross_salary` is already **after** the Deduct box
+  and the late charge (`gross = earned + OT + additions - deduction - late`), while PF/ESI/PT/
+  loan/penalty come off after it to reach the net. Listing all seven against `gross_salary`
+  took two of them twice. `earnedOf()` adds them back — exactly what `statutory.js` already did
+  for the wage register — and then `earned - deductions === net` to the rupee.
+  **The test that missed it was built on a hand-written fixture whose numbers happened to
+  balance.** Rewritten to drive `calculateRow`, which is what the payslip is printed from.
+- **Department-wise salary cost** — the third stale "cannot be built" note in a row
+  (`listPayrollRows` has carried `e.department` all along). **Net paid and cost to company are
+  different questions**, so both are shown; **Sunday pay is in neither**, because it is settled
+  on its own register.
+- Layout: ten columns ran off a 1280px laptop, so the department moved under the name, empty
+  heads are dropped, and the table sits in a `ScrollFrame`.
+- **Every report in the catalogue that can be built from what the app holds is now built.** The
+  five left need a portal's own template (PF ECR, ESI) or a record of what has actually been
+  paid to the authorities, which nothing tracks.
+
 ### Still to settle with Dinesh
 The test system's embed URL and what it posts back; the office WhatsApp number for the digest;
 and where this is hosted, so `PUBLIC_URL` can be set and the apply links actually work.

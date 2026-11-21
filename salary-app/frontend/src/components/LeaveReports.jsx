@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { days, rupees } from '../format.js';
 import { col, num, printReport } from '../printReport.js';
+import { saveCsv } from '../saveCsv.js';
 import { DEPARTMENT_COLUMNS, STATUS_COLUMNS } from '../../../shared/leaveReports.js';
 
 /**
@@ -11,22 +12,6 @@ import { DEPARTMENT_COLUMNS, STATUS_COLUMNS } from '../../../shared/leaveReports
  * same approval queue the office decides in — so neither can disagree with
  * the salary sheet or with the list of things waiting to be decided.
  */
-
-const csv = (name, columns, rows) => {
-  const out = [columns.map(([head]) => head)];
-  for (const r of rows) out.push(columns.map(([, key]) => r[key] ?? ''));
-  const body = `﻿${out
-    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    .join('\r\n')}`;
-  const url = URL.createObjectURL(new Blob([body], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-};
 
 /* ------------------------------------------------------------------ */
 
@@ -102,7 +87,7 @@ export function LeaveByDepartment({ period, companyId }) {
         <button onClick={print}>Print</button>
         <button
           className="ghost"
-          onClick={() => csv(`Leave-by-department-${period.label}.csv`, DEPARTMENT_COLUMNS, data.lines)}
+          onClick={() => saveCsv(`Leave-by-department-${period.label}.csv`, DEPARTMENT_COLUMNS, data.lines)}
         >
           CSV
         </button>
@@ -234,7 +219,7 @@ export function LeaveApplications({ period, companyId, onGo }) {
         <button onClick={print}>Print</button>
         <button
           className="ghost"
-          onClick={() => csv('Leave-applications.csv', STATUS_COLUMNS, shown)}
+          onClick={() => saveCsv('Leave-applications.csv', STATUS_COLUMNS, shown)}
         >
           CSV
         </button>
