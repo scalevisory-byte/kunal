@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.64.0';
+export const VERSION = '1.65.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.65.0',
+    date: '22 Nov 2026',
+    title: 'Everyone can work their own shift — and Fill now writes theirs',
+    items: [
+      '**“Fill the usual timings” was writing the office day onto everybody.** One click put 09:00–18:00 onto somebody who works nights. Their hours came out wrong, and because the fill looks like it worked, nothing on the screen said so.',
+      '**It now writes each person their OWN shift** where they have one, and the office day to everybody else. Shift times were already on the employee record (Employees → open a name → Shift starts / Shift ends) and were already used to judge late and early — the fill was the one place that ignored them.',
+      '**A shift crossing midnight is filled with no lunch break**, because the office’s 13:00 break is in the middle of their night off and writing it there would take half an hour off a day they worked in full. Same for an afternoon shift that starts after the office break.',
+      '**The strip says it before the button is pressed** — “2 people work their own shift and get theirs” — so a button that quietly does two different things says which.',
+      '**“Their own shift” means one that DIFFERS from the office day.** Every record carries a default start time, so “the box is filled in” proved nothing: asked that way, all 86 people read as working their own shift. Now only the ones who actually do.',
+      'No salary calculation changed. The filled times go into the same columns the sheet has always paid from.',
+    ],
+  },
   {
     version: '1.64.0',
     date: '21 Nov 2026',

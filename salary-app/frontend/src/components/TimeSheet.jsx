@@ -14,6 +14,7 @@ import {
 import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
+import { fillTimesFor, hasOwnShift } from '../../../shared/lateEarly.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import PunchImport from './PunchImport.jsx';
 import { STANDALONE } from '../api.js';
@@ -134,7 +135,16 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
     let filled = 0;
     for (const { row, day: d } of targets) {
       if (onlyBlank && hasTimes(entryOf(row, d))) continue;
-      next[`${row.employee_id}:${d}`] = { ...standard };
+      /*
+       * THEIR OWN SHIFT, NOT THE OFFICE'S, when they have one.
+       *
+       * Dinesh: *"timing shift har staff ki alag alag ho sakti he"*. Shifts
+       * were already held per person and already used to judge late and
+       * early - but this wrote the office's one day onto everybody, so one
+       * click put 09:00-18:00 on somebody who works nights. Somebody with no
+       * shift of their own still gets the office day, exactly as before.
+       */
+      next[`${row.employee_id}:${d}`] = fillTimesFor(row, standard);
       filled++;
     }
     if (!filled) {
@@ -213,6 +223,23 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
       )
     : 0;
 
+
+  /*
+   * How many of the people on screen work hours of their own. The Fill
+   * button writes THEIR shift, not the office's, and a button that quietly
+   * does two different things has to say so before it is pressed.
+   *
+   * DECLARED AFTER `lines`, which it reads. Putting it above crashed the
+   * whole tab with "Cannot access 'M' before initialization" - the same
+   * temporal-dead-zone trap `gapCost` hit, and the dashboard before that.
+   */
+  const ownShifts = useMemo(
+    () =>
+      new Set(
+        lines.filter(({ row }) => hasOwnShift(row, standard)).map(({ row }) => row.employee_id)
+      ).size,
+    [lines, standard]
+  );
 
   const shown = lines.reduce(
     (acc, line) => {
@@ -376,7 +403,18 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           >
             Fill the usual timings
           </button>
-          <span className="muted small">onto the days that have nothing on them</span>
+          <span className="muted small">
+            onto the days that have nothing on them
+            {ownShifts > 0 ? (
+              <>
+                {' · '}
+                <strong>
+                  {ownShifts} {ownShifts === 1 ? 'person works' : 'people work'} their own shift
+                </strong>
+                {' and get theirs'}
+              </>
+            ) : null}
+          </span>
         </div>
 
         <div className="ts-block">
@@ -422,6 +460,15 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         * because nothing on screen ever added the timings up.
         */}
       <p className="time-notes muted small">
+        {ownShifts > 0 ? (
+          <>
+            <strong>{ownShifts}</strong> of the {lines.length} on screen have their own shift times
+            on their record, so <strong>Fill the usual timings</strong> writes each of those
+            people <em>their</em> hours and everybody else the office day below. A shift that
+            crosses midnight is filled without a lunch break, because the office&rsquo;s does not
+            fall inside it.{' '}
+          </>
+        ) : null}
         <span className={usual.minutes < 0 ? 'warn-text' : undefined}>
           {usual.minutes === 0
             ? `These timings come to exactly the ${formatDuration(usual.expected)} day. Come when you like \u2014 what counts is finishing it.`

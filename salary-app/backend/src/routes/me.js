@@ -5,6 +5,7 @@ import {
   getEmployee,
   listDocuments,
   listEmployees,
+  listHolidays,
   listLoans,
   listPeriods,
   leaveSummary,
@@ -430,6 +431,51 @@ meRouter.get('/documents', (req, res) =>
 meRouter.get('/assets', (req, res) =>
   res.json({ assets: listAssets({ employee_id: req.employeeId, out: true }) })
 );
+
+/**
+ * THE COMPANY'S HOLIDAYS, as they apply to THIS person.
+ *
+ * Holidays carry the religions they cover - Diwali for the Hindu staff, Eid
+ * for the Muslim staff, everybody else at work - so a list that showed all of
+ * them would tell somebody they have days off they do not have. Only the ones
+ * covering them come back, and a holiday with no religions is the whole
+ * office.
+ *
+ * Read-only, and only the months that exist. Nothing here can write.
+ */
+meRouter.get('/holidays', (req, res) => {
+  const employee = getEmployee(req.employeeId);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  const mine = String(employee.religion || '').trim().toLowerCase();
+  const out = [];
+  for (const period of listPeriods()) {
+    for (const holiday of listHolidays(period.id)) {
+      const covers = holiday.religions || [];
+      if (covers.length && !covers.some((r) => String(r).trim().toLowerCase() === mine)) continue;
+      out.push({
+        period_id: period.id,
+        period: period.label,
+        year: period.year,
+        month: period.month,
+        day: holiday.day,
+        /* An ISO date so the page can sort and say "in 9 days" without
+           re-deriving the month from a label. */
+        date: `${period.year}-${String(period.month).padStart(2, '0')}-${String(holiday.day).padStart(2, '0')}`,
+        name: holiday.name,
+        code: holiday.code,
+        /* Whether the office has actually marked it on the grid yet. A
+           holiday that is only planned is not a day off until it is applied,
+           and saying otherwise is how somebody does not turn up. */
+        applied: !!holiday.applied_at,
+        /* Who it is for, in words - so "Diwali, for the Hindu staff" reads
+           as a fact rather than as something aimed at them personally. */
+        religions: covers,
+      });
+    }
+  }
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  res.json({ holidays: out });
+});
 
 /** Any loan of theirs, and what is left on it. */
 meRouter.get('/loans', (req, res) =>

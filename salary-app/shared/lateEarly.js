@@ -95,6 +95,78 @@ export function shiftFor(employee = {}, rules = DEFAULT_LATE_RULES) {
 }
 
 /**
+ * Does this person work hours of their own, rather than the office's?
+ *
+ * COMPARED AGAINST THE OFFICE DAY, not merely "is the column filled in".
+ * `employees.shift_in` carries a DEFAULT of 09:30 for everybody, so a
+ * non-empty column proves nothing: asking that way reported all eighty-six
+ * people as working their own shift, which is both wrong on screen and the
+ * wrong branch to take when filling a day.
+ *
+ * Somebody whose shift happens to equal the office day is not "on their own
+ * shift" - there is nothing to tell apart.
+ */
+export function hasOwnShift(employee = {}, standard = {}) {
+  const theirIn = parseTime(employee.shift_in);
+  const theirOut = parseTime(employee.shift_out);
+  if (theirIn === null && theirOut === null) return false;
+  const officeIn = parseTime(standard.in_time ?? standard.shift_in);
+  const officeOut = parseTime(standard.out_time ?? standard.shift_out);
+  /* With no office day to compare against, a filled-in shift is all there
+     is to go on. */
+  if (officeIn === null && officeOut === null) return true;
+  return (
+    (theirIn !== null && officeIn !== null && theirIn !== officeIn) ||
+    (theirOut !== null && officeOut !== null && theirOut !== officeOut)
+  );
+}
+
+/**
+ * THE TIMES TO WRITE ONTO ONE PERSON'S DAY.
+ *
+ * Dinesh: *"timing shift har staff ki alag alag ho sakti he"*. Shifts are
+ * already held per person and already used to judge late and early - but
+ * "Fill the usual timings" wrote the OFFICE'S one day onto everybody, so one
+ * click put 09:00-18:00 on somebody who works nights. Their hours came out
+ * wrong, and because the fill looks like it worked, nothing said so.
+ *
+ * Somebody with no shift of their own gets the office day exactly as before,
+ * so nothing already set up can move.
+ *
+ * THE LUNCH IS ONLY CARRIED ACROSS IF IT FALLS INSIDE THEIR SHIFT. The
+ * office's 13:00-13:30 means nothing on a 14:00-23:00 shift, and writing it
+ * there would take half an hour off a day they worked in full.
+ */
+export function fillTimesFor(employee = {}, standard = {}) {
+  if (!hasOwnShift(employee, standard)) return { ...standard };
+
+  const shift = shiftFor(employee, {
+    shift_in: standard.in_time,
+    shift_out: standard.out_time,
+  });
+  const out = { ...standard, in_time: shift.in, out_time: shift.out };
+
+  const start = parseTime(shift.in);
+  const end = parseTime(shift.out);
+  const lunchOut = parseTime(standard.lunch_out);
+  const lunchIn = parseTime(standard.lunch_in);
+  /* An overnight shift wraps past midnight, so "inside" cannot be a simple
+     comparison - and rather than guess at a break nobody stated, it is left
+     off. The office can type it on the day. */
+  const overnight = start !== null && end !== null && end <= start;
+  const inside =
+    !overnight &&
+    start !== null && end !== null &&
+    lunchOut !== null && lunchIn !== null &&
+    lunchOut >= start && lunchIn <= end;
+  if (!inside) {
+    out.lunch_out = '';
+    out.lunch_in = '';
+  }
+  return out;
+}
+
+/**
  * One day's late and early minutes.
  *
  * @returns {{ late: number, early: number, judged: boolean, reason: string }}

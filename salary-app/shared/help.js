@@ -108,6 +108,7 @@ export const HELP = [
       'out − in − lunch is compared with the day’s expected hours, and the difference becomes that day’s short hours or overtime.',
       '**The usual day** is the strip under the filter bar: start, finish, lunch, and what they add up to. If that sum goes **red** the timings are short of the day the month is paid on, and every day filled that way is docked the difference — a wrong default cannot quietly dock everybody any more.',
       '**Fill the usual timings** writes them onto the days that have nothing on them. It never overwrites a day somebody has already typed.',
+      '**Somebody on a different shift gets THEIR hours, not the office’s.** Set them on the employee record — Employees, open the name, *Shift starts* and *Shift ends*. The strip says how many people on screen have their own before you press Fill. A night shift is filled with no lunch break, because the office’s break falls outside it.',
       '**One day, everybody** or **One person, whole month** — the pill at the top left. Day mode has the day stepper and a search; month mode has a person picker.',
       '**Import from Excel** is on the same bar: your own sheet of hours, previewed before anything is written.',
       'Whether the lunch break comes off the day is the tick beside them.',

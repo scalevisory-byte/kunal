@@ -2942,6 +2942,202 @@ table.sheet tr.picked td { background: var(--brand-soft); }
 
 /* ---------- the staff login's own page ---------- */
 
+/* ===================== THE EMPLOYEE PORTAL =====================
+ *
+ * Dinesh's self-service brief: navy rail, orange for the page you are on,
+ * white cards on a light background, and it has to work on a phone.
+ *
+ * Every selector is `.my-*`, which only MyPage and the three components
+ * under `components/my/` carry. The office app is a different tree and
+ * cannot be reached by any of this - which is what "do not change the Admin
+ * HRMS" has to mean inside one stylesheet.
+ */
+.my-shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg, #f6f7f9);
+}
+
+/* ---- the rail ---- */
+.my-rail {
+  flex: 0 0 15rem;
+  width: 15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 1rem 0.7rem 0.8rem;
+  /* The SAME navy and the SAME gold the office rail uses, from the same
+     tokens, so the portal and the admin app read as one product rather
+     than two that happen to share a logo. */
+  background: var(--navy);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.my-brand { padding: 0 0.4rem 1rem; display: flex; flex-direction: column; }
+.my-brand strong { font-size: 1rem; letter-spacing: 0.1em; }
+.my-brand span { font-size: 0.68rem; color: #93a4c4; letter-spacing: 0.06em; text-transform: uppercase; }
+
+.my-rail nav { display: flex; flex-direction: column; gap: 0.1rem; }
+.my-rail button {
+  display: flex; align-items: center; gap: 0.6rem;
+  width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  color: #c7d3e8;
+  font-size: 0.83rem; font-weight: 500; cursor: pointer;
+}
+.my-rail button:hover { background: var(--navy-2); color: #fff; }
+/* Where you are: the gold bar is the only thing on the rail that is not
+   navy or white, so it is the one place the eye lands - the same rule the
+   office rail follows, and the same gold. */
+.my-rail button.on {
+  background: var(--navy-2);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: inset 3px 0 var(--gold);
+}
+.my-rail button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.my-nav-ico {
+  flex: 0 0 1.1rem; text-align: center; font-size: 0.85rem; opacity: 0.85;
+}
+.my-rail-foot {
+  margin-top: auto; padding-top: 0.8rem;
+  border-top: 1px solid var(--navy-line);
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+
+/* ---- the page beside it ---- */
+.my-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.my-top {
+  display: flex; align-items: center; gap: 0.8rem;
+  padding: 0.85rem 1.1rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+}
+.my-hello h1 { margin: 0; font-size: 1.05rem; }
+.my-hello p { margin: 0.1rem 0 0; }
+.my-burger { display: none; font-size: 1.1rem; }
+.my-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+
+/* ---- the avatar menu ---- */
+.my-who { position: relative; }
+.my-avatar-btn {
+  display: flex; align-items: center; gap: 0.3rem;
+  background: none; border: 0; padding: 0.1rem; cursor: pointer; border-radius: 999px;
+}
+.my-avatar-btn:hover { background: var(--line-soft); }
+.my-caret { color: var(--muted); font-size: 0.7rem; }
+/* Click anywhere else and it closes - a menu that only shuts on its own
+   button is a menu that gets left open behind the page. */
+.my-menu-scrim { position: fixed; inset: 0; z-index: 30; }
+.my-menu {
+  position: absolute; right: 0; top: calc(100% + 0.4rem); z-index: 31;
+  min-width: 12rem;
+  background: var(--surface);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  padding: 0.3rem;
+  display: flex; flex-direction: column;
+}
+.my-menu-head {
+  display: flex; flex-direction: column; gap: 0.1rem;
+  padding: 0.4rem 0.55rem 0.5rem; margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--line);
+}
+.my-menu button {
+  text-align: left; background: none; border: 0; border-radius: 6px;
+  padding: 0.42rem 0.55rem; font-size: 0.82rem; cursor: pointer; color: inherit;
+}
+.my-menu button:hover { background: var(--line-soft); }
+.my-menu button.danger { color: var(--bad); }
+
+/* ---- the four cards ---- */
+.my-cards {
+  display: grid; gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+.my-card {
+  background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
+}
+.my-card header { display: flex; align-items: center; gap: 0.45rem; flex-direction: row; }
+.my-card h3 { margin: 0; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.my-ico {
+  width: 1.5rem; height: 1.5rem; border-radius: 7px; flex: none;
+  display: grid; place-items: center; font-size: 0.8rem;
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.my-big { font-size: 1.45rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; margin: 0.25rem 0 0; }
+.my-of { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+/* The tone says what today IS. Colour only where it carries meaning. */
+.my-card.tone-ok .my-big { color: var(--good, #1f8a5f); }
+.my-card.tone-bad .my-big { color: var(--bad); }
+.my-card.tone-muted .my-big { color: var(--muted); font-size: 1.15rem; }
+.my-link {
+  margin-top: auto; padding: 0.35rem 0 0;
+  background: none; border: 0; text-align: left;
+  color: var(--brand); font-size: 0.76rem; font-weight: 600; cursor: pointer;
+}
+.my-link:hover { text-decoration: underline; }
+
+.my-grid { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.my-grid h3 { margin: 0 0 0.4rem; font-size: 0.92rem; }
+
+/* ---- the trend: drawn, not a charting library ---- */
+.my-trend { display: flex; align-items: flex-end; gap: 0.5rem; height: 8rem; padding: 0.3rem 0; }
+.my-bar { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 0.2rem; height: 100%; }
+.my-stack {
+  flex: 1 1 auto; width: 100%; max-width: 2.6rem;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  border-radius: 5px; overflow: hidden; background: var(--line-soft);
+}
+.my-stack > span { display: block; width: 100%; }
+.seg-work { background: var(--brand); }
+.seg-leave { background: var(--gold); }
+.seg-absent { background: var(--bad); }
+.my-bar-label { font-size: 0.65rem; color: var(--muted); }
+.my-bar-pct { font-size: 0.68rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.my-legend { display: flex; gap: 0.9rem; font-size: 0.7rem; color: var(--muted); margin: 0.3rem 0; }
+.my-legend i { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.3rem; }
+
+.my-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.2rem 0 0.5rem; }
+.my-actions button { font-size: 0.8rem; }
+
+.my-upcoming li { display: flex; gap: 0.6rem; align-items: baseline; }
+.my-when {
+  flex: 0 0 5.5rem; font-size: 0.7rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.my-empty { max-width: 34rem; }
+
+/* ---- tablet and phone ---- */
+@media (max-width: 1000px) {
+  .my-rail { flex-basis: 12.5rem; width: 12.5rem; }
+}
+@media (max-width: 760px) {
+  /* The rail becomes a drawer. It is off-screen, not hidden, so it can
+     slide rather than appear. */
+  .my-rail {
+    position: fixed; left: 0; top: 0; z-index: 60;
+    transform: translateX(-100%); transition: transform 0.16s ease;
+    width: 15rem; flex-basis: 15rem;
+  }
+  .my-shell.nav-open .my-rail { transform: none; }
+  .my-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.35); }
+  .my-burger { display: inline-flex; }
+  .my-body { padding: 0.8rem; }
+  .my-top { padding: 0.7rem 0.8rem; }
+  .my-hello h1 { font-size: 0.95rem; }
+  .my-cards { grid-template-columns: 1fr; }
+  .my-grid { grid-template-columns: 1fr; }
+}
+
 .my-page { max-width: 46rem; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
 .my-head { display: flex; align-items: flex-start; gap: 1rem; }
 .my-head h1 { margin: 0 0 0.1rem; font-size: 1.15rem; }

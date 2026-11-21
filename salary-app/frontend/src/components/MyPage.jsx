@@ -14,6 +14,9 @@ import Payslip from './Payslip.jsx';
 import ChangePassword from './ChangePassword.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
 import Help from './Help.jsx';
+import MyDashboard from './my/MyDashboard.jsx';
+import MyHolidays from './my/MyHolidays.jsx';
+import MyDocuments from './my/MyDocuments.jsx';
 
 /*
  * What an employee sees when they sign in.
@@ -30,21 +33,45 @@ import Help from './Help.jsx';
  * tamper with.
  */
 
+/*
+ * THE PORTAL'S OWN NAVIGATION.
+ *
+ * Dinesh's brief names twelve entries. Nine of them are pages; the other
+ * three are not sections at all and are not pretended to be:
+ *
+ *   My Time      is the same days as My attendance, with the clock times on
+ *                them. Two entries showing one set of days would be two
+ *                names for one thing, which is how two things come to
+ *                disagree - so the hours are IN My attendance and the entry
+ *                is not duplicated.
+ *   Announcements has no noticeboard behind it anywhere in the system. It is
+ *                on the dashboard as an honest empty state saying so.
+ *   Help & Support and Logout are actions, so they sit at the foot of the
+ *                rail rather than in the list of pages.
+ *
+ * `icon` is a glyph and nothing more - no icon font, no new dependency.
+ */
 const TABS = [
-  ['pay', 'My pay'],
-  ['attendance', 'My attendance'],
-  ['leave', 'Leave'],
-  ['me', 'My details'],
+  ['dash', 'Dashboard', '\u2756'],
+  ['attendance', 'My attendance', '\u2713'],
+  ['leave', 'My leave', '\u2708'],
+  ['pay', 'My salary', '\u20b9'],
+  ['me', 'My profile', '\u25cf'],
+  ['holidays', 'Holidays', '\u2600'],
+  ['documents', 'Documents', '\u25a4'],
 ];
 
 export default function MyPage({ me, onError, onSignOut }) {
-  const [tab, setTab] = useState('pay');
+  const [tab, setTab] = useState('dash');
+  const [navOpen, setNavOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [employee, setEmployee] = useState(null);
   const [months, setMonths] = useState([]);
   // How many people report to them. A count, not the list - the page only has
   // to decide whether to offer the tab.
   const [manages, setManages] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -61,49 +88,130 @@ export default function MyPage({ me, onError, onSignOut }) {
 
   // The team tab exists only for somebody who actually manages people. An
   // empty "My team" on a hundred and fifteen logins is noise on all of them.
-  const tabs = manages > 0 ? [...TABS, ['team', 'My team']] : TABS;
+  const tabs = manages > 0 ? [...TABS, ['team', 'My team', '\u25c6']] : TABS;
+
+  /* Going somewhere closes the drawer, so a tap on a phone does not leave
+     the rail sitting over the page it just opened. */
+  const go = (key) => {
+    if (key === 'help') return setHelpOpen(true);
+    setTab(key);
+    setNavOpen(false);
+    setMenuOpen(false);
+  };
+
+  const who = [employee?.designation, employee?.company_name].filter(Boolean).join('  |  ');
 
   return (
-    <div className="my-page">
-      <header className="my-head">
-        {/* Their own face, from /api/me/photo - the same picture the office
-            has on their record, never anybody else's. */}
-        <Avatar employee={{ name: employee?.name || me?.name }} size="lg" src="/api/me/photo" />
-        <div>
-          <h1>{employee?.name || me?.name}</h1>
-          <p className="muted small">
-            {[employee?.designation, employee?.department, employee?.company_name]
-              .filter(Boolean)
-              .join(' · ') || 'Your record'}
-          </p>
+    <div className={`my-shell${navOpen ? ' nav-open' : ''}`}>
+      {/* ---------------- the rail ---------------- */}
+      <aside className="my-rail">
+        <div className="my-brand">
+          <strong>BOOKNFLY</strong>
+          <span>My portal</span>
         </div>
-        <div className="row">
-          {/*
-            * Staff get the same help, narrowed to what applies to them: their
-            * page has no salary sheet, no asset register and no imports, and
-            * offering help for those would send somebody looking for a tab
-            * that is not there.
-            */}
-          <button className="ghost" onClick={() => setHelpOpen(true)}>Help</button>
-          <button className="ghost" onClick={onSignOut}>Sign out</button>
-        </div>
-      </header>
-
-      {helpOpen && <Help scope="staff" onClose={() => setHelpOpen(false)} />}
-
-      <nav className="tabs sub-tabs">
-        {tabs.map(([key, label]) => (
-          <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
-            {label}
+        <nav>
+          {tabs.map(([key, label, icon]) => (
+            <button
+              key={key}
+              className={tab === key ? 'on' : undefined}
+              aria-current={tab === key ? 'page' : undefined}
+              onClick={() => go(key)}
+            >
+              <span className="my-nav-ico" aria-hidden="true">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="my-rail-foot">
+          <button onClick={() => go('help')}>
+            <span className="my-nav-ico" aria-hidden="true">?</span>
+            Help &amp; support
           </button>
-        ))}
-      </nav>
+          <button onClick={onSignOut}>
+            <span className="my-nav-ico" aria-hidden="true">&#8594;</span>
+            Sign out
+          </button>
+        </div>
+      </aside>
 
-      {tab === 'pay' && <MyPay months={months} onError={onError} />}
-      {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
-      {tab === 'leave' && <MyLeave onError={onError} />}
-      {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
-      {tab === 'team' && <MyTeam onError={onError} />}
+      {/* The drawer's backdrop on a phone. Tapping it closes the rail. */}
+      {navOpen && <div className="my-scrim" onClick={() => setNavOpen(false)} />}
+
+      <div className="my-main">
+        <header className="my-top">
+          <button
+            className="ghost my-burger"
+            onClick={() => setNavOpen(true)}
+            aria-label="Menu"
+          >
+            &#9776;
+          </button>
+          <div className="my-hello">
+            {/* The name, the job and the company all come off the record of
+                whoever is signed in. Nothing here is typed into the page. */}
+            <h1>
+              Welcome, {(employee?.name || me?.name || '').split(' ')[0] || 'there'}
+              <span aria-hidden="true"> &#128075;</span>
+            </h1>
+            <p className="muted small">{who || 'Your record'}</p>
+          </div>
+          <span className="grow" />
+          <div className="my-who">
+            <button
+              className="my-avatar-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+              aria-label="Your account"
+            >
+              <Avatar employee={{ name: employee?.name || me?.name }} size="sm" src="/api/me/photo" />
+              <span className="my-caret" aria-hidden="true">&#9662;</span>
+            </button>
+            {menuOpen && (
+              <>
+                <div className="my-menu-scrim" onClick={() => setMenuOpen(false)} />
+                <div className="my-menu" role="menu">
+                  <div className="my-menu-head">
+                    <strong>{employee?.name || me?.name}</strong>
+                    <span className="muted small">{employee?.code || me?.username || ''}</span>
+                  </div>
+                  <button role="menuitem" onClick={() => go('me')}>My profile</button>
+                  <button role="menuitem" onClick={() => go('documents')}>My documents</button>
+                  <button
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setPasswordOpen(true); }}
+                  >
+                    Change password
+                  </button>
+                  <button role="menuitem" onClick={() => go('help')}>Help &amp; support</button>
+                  <button role="menuitem" className="danger" onClick={onSignOut}>Sign out</button>
+                </div>
+              </>
+            )}
+          </div>
+        </header>
+
+        {helpOpen && <Help scope="staff" onClose={() => setHelpOpen(false)} />}
+        {passwordOpen && (
+          <ChangePassword
+            me={me}
+            onDone={() => setPasswordOpen(false)}
+            onCancel={() => setPasswordOpen(false)}
+          />
+        )}
+
+        <main className="my-body">
+          {tab === 'dash' && (
+            <MyDashboard employee={employee} months={months} onGo={go} onError={onError} />
+          )}
+          {tab === 'pay' && <MyPay months={months} onError={onError} />}
+          {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
+          {tab === 'leave' && <MyLeave onError={onError} />}
+          {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
+          {tab === 'holidays' && <MyHolidays onError={onError} />}
+          {tab === 'documents' && <MyDocuments onError={onError} />}
+          {tab === 'team' && <MyTeam onError={onError} />}
+        </main>
+      </div>
     </div>
   );
 }
