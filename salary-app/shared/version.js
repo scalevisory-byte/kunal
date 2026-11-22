@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.84.0';
+export const VERSION = '1.85.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.85.0',
+    date: '22 Nov 2026',
+    title: 'The Settings tab adjusts everything \u2014 and the rule box it was showing was wrong',
+    items: [
+      '**A LIVE BUG, worth reading.** Admin \u2192 Settings had the late/early rule as a box with **two** choices. Two releases added two more, so a month running on the new rule showed as \u201cconcession\u201d \u2014 and touching that box would have switched the month\u2019s hours target **off without saying so**. Fixed, and the choices now come from one list so a rule added later cannot go missing off a screen again.',
+      '**The month\u2019s own rules are all on one page now**: hours in a day, whether lunch comes off it, the PT slab, the day\u2019s start and end, the free late minutes, the daily grace, and \u2014 new here \u2014 how far the month\u2019s total may fall short. Each box says what it does and what it is now.',
+      'The page states **which rules are actually biting this month** in one line, and repeats the one thing that matters: the same minutes are never charged twice.',
+      '**\u201cSet elsewhere \u2014 and where\u201d**: leave quotas, the weekly day off, the leave bonus rule, festivals, per-person shift times and PF/ESI mode, asset code prefixes. Each **opens that screen** rather than just naming it. They are not the month\u2019s \u2014 they belong to a company, a person or the whole app \u2014 and one screen owns each, so a figure can never read two ways.',
+      '**\u201cWhat is deliberately not a setting\u201d** stays: 26 working days, the half-day line, Sunday pay. Those are constants, and the page says why rather than offering a box that pretends.',
+    ],
+  },
   {
     version: '1.84.0',
     date: '22 Nov 2026',

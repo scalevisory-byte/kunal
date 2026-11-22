@@ -1849,6 +1849,38 @@ monthly target off. They do not have to be — but only if the overlap is remove
   chahiye"* — which the monthly target serves and the concession does not. Both are on because he
   asked for both; the panel names everybody over the concession before it is switched.
 
+### The Settings tab (v1.85) — and the stale box that could have moved money
+
+Dinesh: *"SETTING TAB MEYE SAB ADJUST AR SAKE ESA BANANA"*. **Inspected first** — the panel
+existed under Admin and covered most of the month's rules. What it did not cover was the two
+releases I had just shipped.
+
+- **A LIVE BUG OF MY OWN MAKING.** The rule select hand-wrote **two** `<option>`s and read
+  `value={onConcession ? concession : hours}`. v1.82 and v1.84 took the policies to four, and
+  `onConcession` is true for `monthly_late` — so a month on the new rule rendered as
+  *"concession"*, and touching that box would have fired `late_policy: 'concession'` and
+  **switched the month's hours target off without a word**. A select that enumerates a constant
+  goes stale the moment the constant grows.
+- **`POLICY_CHOICES` in `shared/lateEarly.js`** is now the one list — key, label and why — and
+  both `LatePolicy.jsx` and `Settings.jsx` map over it. A test asserts every `POLICY` value has
+  an entry, that both screens read the list, and that **neither writes its own `<option>`**
+  (comments stripped first, so an explanation cannot pass for the thing it warns about).
+- The month's rules are now complete on the page: `monthly_hours_grace` was missing, each box
+  says what it does and what it is now, and one line states **which rules are actually biting
+  this month**. The old "two rules are alternatives, never additions" paragraph was wrong after
+  v1.84 and now says the real rule.
+- **"Set elsewhere — and where"**: leave quotas, the weekly day off, the leave bonus, festivals,
+  per-person shift times and PF/ESI mode, asset prefixes — each a button that **opens that
+  screen** (`onGo` threaded through `Admin`). One screen owns each figure, because two screens
+  editing one figure is how two answers come to exist; what was missing was the way IN.
+- **Weekly off and leave quotas were in "what is deliberately not a setting"**, which was simply
+  wrong — they ARE settings, they just are not the month's. Moved, and the test that pinned them
+  as "explained" was **rewritten to state the new rule**: nothing may appear on both lists.
+- **Two help topics shared the id `settings`.** The second shadowed the first — `helpTopic`
+  finds one and "Open it" becomes ambiguous. Merged into one, and there is now a test that **no
+  two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
+  v1.81), which is why it is a test now rather than a note.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

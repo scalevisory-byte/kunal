@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { DEFAULT_LATE_RULES, POLICY } from '../../../shared/lateEarly.js';
+import { DEFAULT_LATE_RULES, POLICY, POLICY_CHOICES } from '../../../shared/lateEarly.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { rupees as money } from '../format.js';
 
@@ -199,7 +199,7 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
             <label>
               Rule
               <select
-                value={on ? POLICY.concession : POLICY.hours}
+                value={policy}
                 disabled={locked}
                 onChange={(e) => {
                   const next = e.target.value;
@@ -242,16 +242,13 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                   set({ late_policy: next });
                 }}
               >
-                <option value={POLICY.hours}>Each day on its own — short hours charged that day</option>
-                <option value={POLICY.concession}>
-                  Pool late and early minutes, charge past the concession
-                </option>
-                <option value={POLICY.monthly}>
-                  The month owes a total — 9 hours × the days due, short and long cancel
-                </option>
-                <option value={POLICY.monthlyLate}>
-                  Both — the month’s total AND a cap on lateness (never charged twice)
-                </option>
+                {/* From the one list, so a rule added later cannot go
+                    missing off this screen. See POLICY_CHOICES. */}
+                {POLICY_CHOICES.map((choice) => (
+                  <option key={choice.key} value={choice.key}>
+                    {choice.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>

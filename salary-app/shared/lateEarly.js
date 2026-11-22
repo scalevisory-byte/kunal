@@ -86,6 +86,47 @@ export const POLICY = {
 export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthlyLate;
 
 /**
+ * THE POLICIES AS A LIST, so no screen can enumerate them and go stale.
+ *
+ * The Settings panel hand-wrote two `<option>`s. Two releases later there
+ * were four policies and that select still offered two - so a month running
+ * on `monthly_late` rendered as "concession", and touching the box would
+ * have switched the monthly target OFF without saying so. A live money bug
+ * out of a list typed twice.
+ *
+ * Every screen that offers the choice maps over THIS, so adding a fifth
+ * reaches all of them or none.
+ */
+export const POLICY_CHOICES = [
+  {
+    key: POLICY.hours,
+    label: 'Each day on its own \u2014 short hours charged that day',
+    why: 'What the app has always done. A day under its hours is charged that day, a day over it is paid, with a quarter of an hour either way ignored.',
+  },
+  {
+    key: POLICY.concession,
+    label: 'Pool late and early minutes, charge past the concession',
+    why: 'Every minute late in or left early is pooled for the month, the first few hundred free, the rest off the pay. The hours-shortfall is NOT charged as well.',
+  },
+  {
+    key: POLICY.monthly,
+    label: 'The month owes a total \u2014 9 hours \u00d7 the days due, short and long cancel',
+    why: 'The month is one account of hours. A day short and a day long cancel; only what is missing from the total comes off. Lateness as such is not charged.',
+  },
+  {
+    key: POLICY.monthlyLate,
+    label: 'Both \u2014 the month\u2019s total AND a cap on lateness',
+    why: 'The two above together. They ask different questions, so they both apply \u2014 but the month is charged the GREATER of the two, never the sum, because a late minute nobody made up is already inside the shortfall.',
+  },
+];
+
+export const policyLabel = (key) =>
+  POLICY_CHOICES.find((c) => c.key === String(key || POLICY.hours))?.label || String(key);
+
+export const policyWhy = (key) =>
+  POLICY_CHOICES.find((c) => c.key === String(key || POLICY.hours))?.why || '';
+
+/**
  * The office's usual day and how much lateness a month absorbs.
  *
  * The 300 is Dinesh's figure. The daily grace is **zero** on purpose: with a

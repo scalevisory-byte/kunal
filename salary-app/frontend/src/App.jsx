@@ -1345,6 +1345,7 @@ function Shell() {
             onPatchPeriod={patchPeriod}
             onError={handle}
             onReload={loadAll}
+            onGo={setTab}
           />
         )}
       </main>

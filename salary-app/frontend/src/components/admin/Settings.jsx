@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { DEFAULT_LATE_RULES, POLICY } from '../../../../shared/lateEarly.js';
+import {
+  DEFAULT_LATE_RULES,
+  POLICY,
+  POLICY_CHOICES,
+  policyWhy,
+} from '../../../../shared/lateEarly.js';
+import { onMonthlyHours } from '../../../../shared/monthlyHours.js';
 import { STANDARD_WORKING_DAYS } from '../../../../shared/calc.js';
 import { rupees } from '../../format.js';
 
@@ -16,7 +22,7 @@ import { formatDuration, timesToDay } from '../../../../shared/timesheet.js';
  * October, and it is why this screen opens on the open month rather than on
  * "settings" in the abstract.
  */
-export default function Settings({ period, locked, onPatch }) {
+export default function Settings({ period, locked, onPatch, onGo }) {
   const [said, setSaid] = useState('');
 
   if (!period) {
@@ -52,7 +58,18 @@ export default function Settings({ period, locked, onPatch }) {
     { hoursPerDay: period.hours_per_day, deductLunch: !period.lunch_paid },
   );
 
-  const onConcession = String(period.late_policy || POLICY.hours) === POLICY.concession;
+  /*
+   * THE REAL POLICY, not a two-way guess.
+   *
+   * This read `=== POLICY.concession` and the select below offered exactly
+   * two options. Two releases later there were four, so a month running on
+   * `monthly_late` rendered as "concession" and touching the box would have
+   * switched the month's hours target OFF without a word. Both the value and
+   * the options now come from the one list.
+   */
+  const policy = String(period.late_policy || POLICY.hours);
+  const concessionCharged = policy === POLICY.concession || policy === POLICY.monthlyLate;
+  const monthlyCharged = onMonthlyHours(period);
   const box = (field, label, type = 'number', hint = '') => (
     <label key={field}>
       {label}
@@ -173,30 +190,87 @@ export default function Settings({ period, locked, onPatch }) {
       <div className="card">
         <h4>Late in and early out</h4>
         <div className="form-grid">
-          <label>
+          <label className="block">
             Rule
             <select
-              value={onConcession ? POLICY.concession : POLICY.hours}
+              value={policy}
               disabled={locked}
               onChange={(e) => set({ late_policy: e.target.value })}
             >
-              <option value={POLICY.hours}>Hours only — lateness is not charged as such</option>
-              <option value={POLICY.concession}>Pool the minutes, charge past the concession</option>
+              {/* From the one list, so a rule added later cannot go missing
+                  off this screen - which is exactly what happened here. */}
+              {POLICY_CHOICES.map((choice) => (
+                <option key={choice.key} value={choice.key}>
+                  {choice.label}
+                </option>
+              ))}
             </select>
+            <span className="muted small">{policyWhy(policy)}</span>
           </label>
-          {box('shift_in', 'Day starts', 'text')}
+        </div>
+        <div className="form-grid">
+          {box('shift_in', 'Day starts', 'text', 'Blank on a person\u2019s record means this.')}
           {box('shift_out', 'Day ends', 'text')}
-          {box('late_concession_minutes', 'Free minutes a month', 'number')}
-          {box('late_grace_minutes', 'Grace a day, minutes', 'number')}
+          {box('late_concession_minutes', 'Free late minutes a month', 'number',
+            `${period.late_concession_minutes ?? DEFAULT_LATE_RULES.concession_minutes} now. Only counts while lateness is charged.`)}
+          {box('late_grace_minutes', 'Grace a day, minutes', 'number',
+            'Zero on purpose: a monthly pool plus a daily allowance gives the same minutes away twice.')}
+          {box('monthly_hours_grace', 'The month may fall short by, minutes', 'number',
+            'Zero on purpose, for the same reason. Only counts while the month\u2019s total is charged.')}
         </div>
         <p className="muted small">
-          The two rules are <strong>alternatives, never additions</strong>: somebody half an hour
-          late is already half an hour short on the hours rule, so charging the lateness as well
-          would take the same half hour twice. The concession is{' '}
-          {period.late_concession_minutes ?? DEFAULT_LATE_RULES.concession_minutes} minutes and is{' '}
-          {onConcession ? 'being charged' : 'not being charged'} this month. The Time tab prices a
-          switch before you make it.
+          <strong>Right now: </strong>
+          {monthlyCharged
+            ? 'the month owes nine hours for every day each person was due'
+            : 'the month\u2019s total is not charged'}
+          {' \u00b7 '}
+          {concessionCharged ? 'lateness is charged past the concession' : 'lateness is counted only'}.
         </p>
+        <p className="muted small">
+          <strong>THE SAME MINUTES ARE NEVER CHARGED TWICE.</strong> &ldquo;Each day on its own&rdquo;
+          and &ldquo;the month owes a total&rdquo; are alternatives &mdash; somebody an hour short on
+          Tuesday is already an hour short in the month&rsquo;s total. The month&rsquo;s total and the
+          lateness cap DO run together, and when they do the month is charged the{' '}
+          <strong>greater of the two, never the sum</strong>. The Time tab prices any switch before
+          you make it.
+        </p>
+      </div>
+
+      {/*
+        * "SETTING TAB ME SAB ADJUST KAR SAKE" - Dinesh.
+        *
+        * The rules above belong to the MONTH and are changed here. Everything
+        * else belongs to a company, a person or the whole app, and is changed
+        * where it is used - one screen owns each one, because two screens
+        * editing one figure is how two answers come to exist. What was
+        * missing was the way IN: this list now opens each of them rather
+        * than naming them and leaving somebody to hunt.
+        */}
+      <div className="card">
+        <h4>Set elsewhere &mdash; and where</h4>
+        <p className="muted small">
+          These are not the month&rsquo;s; they belong to a company, a person or the whole app.
+          One screen owns each, so a figure can never read two ways. Open it from here.
+        </p>
+        <div className="toolbar wrap">
+          {[
+            ['leave', 'Leave quotas \u2014 CL / SL / PL a year', 'Per person, with one button for everybody on screen.'],
+            ['leave', 'The day off, and alternate Saturdays', 'Per company, with people who differ listed under it.'],
+            ['leave', 'Leave bonus \u2014 the rule and what breaks it', 'App-wide, held on the server and not in one browser.'],
+            ['attendance', 'Festivals and paid holidays', 'Per month, per religion, applied onto the grid.'],
+            ['employees', 'Shift times, PF / ESI mode, salary breakup', 'Per person: one can be on a fixed figure while another is computed.'],
+            ['assets', 'Asset code prefixes', 'Per company, in the asset settings.'],
+          ].map(([tab, label, why]) => (
+            <button key={label} className="ghost" onClick={() => onGo?.(tab)} title={why}>
+              {label} &rarr;
+            </button>
+          ))}
+        </div>
+        {!onGo && (
+          <p className="muted small">
+            (Open the tab named above &mdash; this build cannot jump there for you.)
+          </p>
+        )}
       </div>
 
       <div className="card">
@@ -215,15 +289,12 @@ export default function Settings({ period, locked, onPatch }) {
             <strong>Sunday pay.</strong> Settled on its own register at a day rate, never added
             into the salary, so there is nothing to configure.
           </li>
-          <li>
-            <strong>PF, ESI and PT rules.</strong> Per employee, on the Salary structure and
-            Contributions panels, because one person can be on a fixed figure while another is on
-            the computed rule.
-          </li>
-          <li>
-            <strong>Weekly off, leave quotas and festivals.</strong> Under Leave and on the
-            attendance grid — they are per company or per person, not per month.
-          </li>
+          {/*
+            * PF/ESI mode, weekly off, leave quotas and festivals used to be
+            * listed here too - and they ARE settings, just not the month's.
+            * They are in "Set elsewhere" above, with a button each. Saying
+            * one thing in two places is how the two come to disagree.
+            */}
         </ul>
       </div>
 

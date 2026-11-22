@@ -1278,15 +1278,22 @@ export const HELP = [
   },
   {
     id: 'settings',
-    title: 'Settings — the month\u2019s rules and the usual day',
+    title: 'Settings \u2014 the month\u2019s rules, and where everything else is set',
     tab: 'admin',
-    keywords: ['settings', 'configuration', 'hours per day', 'pt slab', 'lunch', 'lock', 'setup'],
-    lines: [
-      'The month’s own settings — hours a day, the PT slab and amount, whether the lunch break is deducted, the late/early policy, and locking the month.',
-      '**The usual day** sets the office timings once, and shows what they add up to.',
-      'Working days are fixed at 26 and shown as fixed text, not a box.',
+    keywords: [
+      'settings', 'setting', 'configuration', 'configure', 'adjust', 'change', 'rule', 'rules',
+      'hours per day', 'pt slab', 'lunch', 'lock', 'setup', 'badlo', 'set karo',
     ],
-    note: 'Month settings are held per month on purpose, so a slab changed now never rewrites a month that has already been paid.',
+    lines: [
+      '**Admin \u2192 Settings** holds everything the open month is paid on: hours in a day, whether lunch comes off it, the PT slab and amount, the day\u2019s start and end, the late/early rule, the free late minutes, and how far the month\u2019s total may fall short.',
+      '**The usual day** sets the office timings once and shows what they add up to. Working days are fixed at 26 and shown as fixed text, not a box.',
+      'One line says **which rules are actually biting this month** \u2014 whether the month\u2019s total is charged, and whether lateness is.',
+      '**\u201cSet elsewhere\u201d** opens the screen that owns each of the others: leave quotas, the weekly day off, the leave bonus, festivals, per-person shift times and PF/ESI mode, asset code prefixes.',
+      '**\u201cWhat is deliberately not a setting\u201d** says what cannot be changed and why \u2014 26 working days, the half-day line, Sunday pay.',
+      'A closed month cannot be changed here. Reopen it first.',
+    ],
+    note:
+      'HELD PER MONTH ON PURPOSE, so a slab or a rule changed now never rewrites a month already paid.\n\nONE SCREEN OWNS EACH FIGURE. Leave quotas live on the Leave tab and shift times on the person\u2019s record, and they are NOT repeated here \u2014 two screens editing one figure is how two answers come to exist. This page gives you the way in, not a second copy of the box.',
   },
   {
     id: 'companies',

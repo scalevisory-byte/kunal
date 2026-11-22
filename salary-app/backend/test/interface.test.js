@@ -1133,10 +1133,43 @@ test('every setting is settable in Settings, and the rest says why not', () => {
   assert.match(settings, /deductLunch: !period\.lunch_paid/);
   assert.match(settings, /SHORT of the/);
 
-  // And what is deliberately NOT a setting is listed, so nobody hunts for it.
+  // Added when a second hours rule and then a third arrived: the month may
+  // now fall short of its total by this much.
+  assert.match(settings, /monthly_hours_grace/);
+
+  /*
+   * TWO LISTS, AND NOTHING ON BOTH.
+   *
+   * "What is deliberately not a setting" is for things that genuinely cannot
+   * be changed - 26 working days, the half-day line, Sunday pay. The weekly
+   * off and the leave quotas were on it too, which was simply wrong: they
+   * ARE settings, they just belong to a company or a person. They are in
+   * "Set elsewhere" now, with a button each, because naming something
+   * somebody cannot reach is how a feature comes to read as missing.
+   */
   assert.match(settings, /What is deliberately not a setting/);
-  for (const why of ['26 working days', 'half-day line', 'Sunday pay', 'Weekly off']) {
+  for (const why of ['26 working days', 'half-day line', 'Sunday pay']) {
     assert.ok(settings.includes(why), `${why} is not explained`);
+  }
+  assert.match(settings, /Set elsewhere/);
+  assert.match(settings, /onGo\?\.\(tab\)/, 'the list names tabs but cannot open them');
+  for (const elsewhere of ['Leave quotas', 'The day off', 'Leave bonus', 'Festivals']) {
+    assert.ok(settings.includes(elsewhere), `${elsewhere} has no way in from Settings`);
+  }
+  /*
+   * COMMENTS STRIPPED FIRST. The comment left in place of the removed
+   * bullets explains that weekly off and leave quotas are NOT on this list -
+   * and matched the assertion that they are not. Third time for that shape
+   * (`readable()`, the candidate list, this): an explanation must never pass
+   * for the thing it warns about.
+   */
+  const noComments = settings.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const notASetting = noComments.slice(noComments.indexOf('What is deliberately not a setting'));
+  for (const movable of ['Weekly off', 'leave quotas and festivals']) {
+    assert.ok(
+      !notASetting.includes(movable),
+      `${movable} is a setting - it must not be listed as one that is not`
+    );
   }
 
   // The month wins over the browser for the lunch too, not just the shift.

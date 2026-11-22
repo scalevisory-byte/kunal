@@ -131,6 +131,7 @@ test('the traps are written down, because they are the valuable half', () => {
   assert.match(noteOf('monthly-hours'), /THE SAME MINUTES ARE NEVER CHARGED TWICE/i);
   assert.match(noteOf('monthly-hours'), /GREATER of the two and never the sum/i);
   assert.match(noteOf('shifts'), /SAME LENGTH CHANGES NO FIGURE/i);
+  assert.match(noteOf('settings'), /ONE SCREEN OWNS EACH FIGURE/i);
   assert.match(noteOf('my-record-fill'), /Nothing on this form can change your salary/i);
 });
 
@@ -191,4 +192,23 @@ test('the help header is a row, because a global rule says <header> is a column'
   assert.ok(rule, 'the help header has no rule of its own');
   assert.match(rule[0], /flex-direction: row/);
   assert.match(css, /\.help-head-row > button \{[^}]*flex: 0 0 auto/);
+});
+
+test('no two help topics share an id', () => {
+  /*
+   * A second topic with the same id shadows the first: `helpTopic` finds
+   * only one and "Open it" becomes ambiguous. It happened while writing a
+   * Settings topic beside one that already existed - the same drift the
+   * onboarding topic caused a release earlier, caught here rather than by
+   * somebody reading two answers to one question.
+   */
+  const ids = HELP.map((t) => t.id);
+  const seen = new Set();
+  const dupes = ids.filter((id) => (seen.has(id) ? true : (seen.add(id), false)));
+  assert.deepEqual(dupes, [], `duplicate help ids: ${dupes.join(', ')}`);
+
+  // And no two say the same thing under different ids.
+  const titles = HELP.map((t) => t.title.toLowerCase());
+  const sameTitle = titles.filter((t, i) => titles.indexOf(t) !== i);
+  assert.deepEqual(sameTitle, []);
 });

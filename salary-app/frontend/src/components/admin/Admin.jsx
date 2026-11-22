@@ -13,7 +13,7 @@ const PANELS = [
   ['staff', 'Staff logins'],
   ['branches', 'Branches'],
   ['logos', 'Company logos'],
-  ['settings', 'Month settings'],
+  ['settings', 'Settings'],
   ['backups', 'Backups'],
   ['logins', 'Sign-ins'],
 ];
@@ -25,7 +25,7 @@ const PANELS = [
  * the server refuses these calls by role whoever asks, so hiding the tab is the
  * second line of defence and not the first.
  */
-export default function Admin({ me, companies, period, locked, onPatchPeriod, onError, onReload }) {
+export default function Admin({ me, companies, period, locked, onPatchPeriod, onError, onReload, onGo }) {
   const [panel, setPanel] = useState('users');
 
   if (STANDALONE) {
@@ -69,7 +69,9 @@ export default function Admin({ me, companies, period, locked, onPatchPeriod, on
       {panel === 'staff' && <StaffLogins onError={onError} />}
       {panel === 'branches' && <Branches companies={companies} onError={onError} onReload={onReload} />}
       {panel === 'logos' && <CompanyLogos companies={companies} onError={onError} onReload={onReload} />}
-      {panel === 'settings' && <Settings period={period} locked={locked} onPatch={onPatchPeriod} />}
+      {panel === 'settings' && (
+        <Settings period={period} locked={locked} onPatch={onPatchPeriod} onGo={onGo} />
+      )}
       {panel === 'backups' && <Backups onError={onError} />}
       {panel === 'logins' && <Logins onError={onError} />}
     </section>
