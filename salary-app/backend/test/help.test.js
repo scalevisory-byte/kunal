@@ -119,6 +119,10 @@ test('the traps are written down, because they are the valuable half', () => {
   assert.match(noteOf('late-early'), /twice/i);
   assert.match(noteOf('payslips'), /ONE FILE HOLDS ONE PERSON|one person/i);
   assert.match(noteOf('salary-structure'), /never changes what anybody is paid/i);
+  /* Filled in but never changed: the one rule that decides whether a wrong
+     UAN can be swapped for another by the person it belongs to. */
+  assert.match(noteOf('my-record-fill'), /FILLED IN BUT NOT CHANGED/i);
+  assert.match(noteOf('my-record-fill'), /Nothing on this form can change your salary/i);
 });
 
 /* ---------------- the version and its history ---------------- */

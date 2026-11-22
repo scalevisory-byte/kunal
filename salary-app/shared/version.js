@@ -20,10 +20,26 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.80.0';
+export const VERSION = '1.81.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.81.0',
+    date: '22 Nov 2026',
+    title: 'The employee fills in their own record, and uploads their own papers',
+    items: [
+      '**My profile is the whole joining form now.** It used to be four boxes \u2014 bank, phone, email, address \u2014 and a read-only list of everything else. It asks the same thirty-six things the office\u2019s own joining form asks, in five parts: about you, where you live, who to call in an emergency, your government numbers, and where your salary goes. Saved as each box is left.',
+      '**This is why eighty records had no UAN and no ESIC number.** Only the office could ever type one, and the office had eighty people to chase. Now the person who actually has the card can put it in from their phone.',
+      '**It says how far through you are and what is still wanted** \u2014 the same list the office\u2019s joining checklist chases, so the two cannot disagree. It does not nag about a spouse\u2019s name or a second mobile.',
+      '**Send in your own documents** \u2014 Aadhaar, PAN, photograph, cancelled cheque, certificates. Into the same file the office uploads to, so there is one set of papers and one KYC count. Whatever arrives reads **Not checked** until somebody in the office opens it and says it is the right one \u2014 not checked is not refused.',
+      'You can **download your own** and **take back one nobody has looked at yet**. An offer letter and an appointment letter are not on the list: those are issued by the office.',
+      '**A government number can be filled in but not changed.** PAN, Aadhaar, UAN, PF member ID and ESIC: supplying a missing one is all gain, and overwriting one that is already there is a correction the office should make with the card in front of them. The box asks you to check the number before it saves, because afterwards it is theirs to change.',
+      '**Nothing on that form can move a rupee.** No salary, no joining date, no leave quota, no company \u2014 a figure sent on it is refused **by name** rather than quietly dropped. There is a test that a month\u2019s gross, net and total come out identical before and after somebody fills their record in.',
+      'Every change is written to that person\u2019s history with their name and the date, the government numbers included \u2014 so when a PF return bounces there is an answer to \u201cwho put this UAN on the record\u201d.',
+      '**Employees \u2192 \u201cLet them fill it in\u201d.** Inviting somebody who has not joined yet to fill in their own form has worked since v1.72 and was hidden in a collapsed fold under the Add employee card \u2014 so it read as missing. It is a button beside Add employee now.',
+    ],
+  },
   {
     version: '1.80.0',
     date: '22 Nov 2026',

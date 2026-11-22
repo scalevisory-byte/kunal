@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { requireSelf } from '../auth.js';
 import { logoDataUri } from '../companyLogos.js';
+import fs from 'node:fs';
 import {
+  addDocument,
+  deleteDocument,
+  getDocument,
   getEmployee,
   listDocuments,
   listEmployees,
@@ -13,7 +17,7 @@ import {
   updateEmployee,
 } from '../db.js';
 import { buildPayroll } from '../payroll.js';
-import { documentFile } from '../documents.js';
+import { deleteDocumentFile, documentFile, uploadDocument } from '../documents.js';
 import {
   createRequest,
   decideRequest,
@@ -47,6 +51,14 @@ import {
   visibleNotes,
   visiblePenalties,
 } from '../../../shared/myRecord.js';
+import {
+  FILLABLE_NAMES,
+  OFFICE_SET,
+  applySelf,
+  mayUpload,
+  selfForm,
+  selfProgress,
+} from '../../../shared/selfRecord.js';
 
 /**
  * The staff side: one person, their own records, and nothing else.
@@ -502,6 +514,171 @@ meRouter.get('/documents', (req, res) =>
     documents: listDocuments(req.employeeId).map(({ file_path, ...rest }) => rest),
   })
 );
+
+/* ============================================================= *
+ * FILLING IN THEIR OWN RECORD
+ *
+ * Dinesh: the details it takes to make an employee should be typed by the
+ * employee, and their papers uploaded by them. The joining form already
+ * worked that way for somebody who had not joined yet
+ * (`shared/onboardingFlow.js` and the /join link); this is the same thing
+ * for the eighty-odd people already on the payroll, whose UAN and ESIC
+ * columns are blank because only the office could ever fill them.
+ *
+ * `shared/selfRecord.js` holds the rule and the field list. The employee id
+ * comes off the LOGIN here as everywhere else in this router, so none of
+ * this can be pointed at somebody else however the request is written.
+ * ============================================================= */
+
+/**
+ * A crude per-login rate limit, with ITS OWN BUCKET.
+ *
+ * The punch link learned this the hard way: one counter shared across routes
+ * with different limits meant the busy route starved the strict one. A form
+ * saved on blur is chatty; an upload is not.
+ */
+const selfHits = new Map();
+const selfLimit = (max, bucket) => (req, res, next) => {
+  const key = `${req.employeeId}:${bucket}:${Math.floor(Date.now() / 60000)}`;
+  const n = (selfHits.get(key) || 0) + 1;
+  selfHits.set(key, n);
+  if (selfHits.size > 5000) selfHits.clear();
+  if (n > max) return res.status(429).json({ error: 'Too many at once. Wait a minute.' });
+  next();
+};
+
+/** Only the fields this page is about — theirs, and the office's to read. */
+const profileOf = (employee) => {
+  const out = {};
+  for (const field of FILLABLE_NAMES) out[field] = employee[field] ?? '';
+  for (const [field] of OFFICE_SET) out[field] = employee[field] ?? '';
+  out.id = employee.id;
+  return out;
+};
+
+meRouter.get('/profile', (req, res) => {
+  const employee = getEmployee(req.employeeId);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+  res.json({
+    employee: profileOf(employee),
+    /* The form's shape travels, so the page renders a list rather than
+       carrying its own copy of what an employee is. */
+    sections: selfForm(),
+    office_set: OFFICE_SET,
+    progress: selfProgress(employee),
+  });
+});
+
+/**
+ * What they typed about themselves.
+ *
+ * `applySelf` decides what may land: their own facts write through, a
+ * statutory number may be FILLED IN but not changed, and anything else is
+ * refused BY NAME. Refusing by name rather than dropping it quietly is the
+ * point — a form that answers "Saved" to a salary it threw away is worse
+ * than one that refuses.
+ *
+ * Every change goes through `updateEmployee`, so it lands in
+ * `employee_history` with who and when, exactly as a bank account already
+ * did. Nothing here reaches `calculateRow`: not one field on the list is an
+ * input to it, so no month can move.
+ */
+meRouter.patch('/profile', selfLimit(60, 'profile'), (req, res) => {
+  const employee = getEmployee(req.employeeId);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+
+  const { patch, refused } = applySelf(employee, req.body || {});
+  if (!Object.keys(patch).length) {
+    return res.status(400).json({
+      error: refused[0]?.why || 'there was nothing on that form that is yours to change',
+      refused,
+    });
+  }
+  try {
+    const updated = updateEmployee(req.employeeId, {
+      ...patch,
+      by: employee.name,
+      history_note: 'Filled in by the employee from their own login',
+    });
+    res.json({
+      employee: profileOf(updated),
+      progress: selfProgress(updated),
+      refused,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * THEIR OWN PAPERS, SENT IN BY THEM.
+ *
+ * Into the SAME store the office uploads to — one set of documents, one
+ * register, one KYC count. What arrives is UNCHECKED: `verified` stays null,
+ * which is a third state and not "rejected". Somebody in the office still
+ * has to look at the Aadhaar card, and that was always true of a document
+ * the office typed in itself.
+ *
+ * An offer letter and an appointment letter are refused: those are issued BY
+ * the office, and a file somebody put on their own record claiming to be one
+ * is the one kind of document that would be worth forging.
+ */
+meRouter.post('/documents', selfLimit(10, 'documents'), uploadDocument, (req, res) => {
+  const kind = String(req.body?.kind || 'other');
+  const drop = () => {
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch {
+        /* nothing to clean up */
+      }
+    }
+  };
+  if (!req.file) return res.status(400).json({ error: 'no file was uploaded' });
+  if (!mayUpload(kind)) {
+    drop();
+    return res.status(400).json({ error: `${kind} is issued by the office — it is not yours to upload` });
+  }
+  const doc = addDocument(req.employeeId, {
+    kind,
+    file_path: req.file.filename,
+    file_name: req.file.originalname,
+    number: req.body?.number,
+    expires_on: req.body?.expires_on,
+    notes: 'Uploaded by the employee from their own login',
+  });
+  const { file_path, ...rest } = doc;
+  res.status(201).json({ document: rest });
+});
+
+/**
+ * Reading back one of their own.
+ *
+ * Deliberately not a signed link like the office's: this is served straight,
+ * behind the session, to the one person it belongs to. The id is checked
+ * against the LOGIN — a document that is not theirs is a 404 here, not a
+ * refusal, because this route has no business confirming it exists.
+ */
+meRouter.get('/documents/:id/file', (req, res) => {
+  const doc = getDocument(Number(req.params.id));
+  if (!doc || doc.employee_id !== req.employeeId) return res.status(404).json({ error: 'not found' });
+  const file = documentFile(doc);
+  if (!file) return res.status(404).json({ error: 'the file is missing' });
+  res.setHeader('cache-control', 'private, max-age=60');
+  res.download(file, doc.file_name || 'document');
+});
+
+/** They may take back one THEY sent in — not one the office filed. */
+meRouter.delete('/documents/:id', (req, res) => {
+  const doc = getDocument(Number(req.params.id));
+  if (!doc || doc.employee_id !== req.employeeId) return res.status(404).json({ error: 'not found' });
+  if (doc.verified === 1 || doc.verified === 0) {
+    return res.status(400).json({ error: 'the office has already checked this one — ask them to change it' });
+  }
+  deleteDocumentFile(doc);
+  deleteDocument(doc.id);
+  res.status(204).end();
+});
 
 /** What they are holding, so a handover slip is not a surprise. */
 meRouter.get('/assets', (req, res) =>

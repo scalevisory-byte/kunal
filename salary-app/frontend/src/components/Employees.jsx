@@ -145,6 +145,7 @@ export default function Employees({
   const [busy, setBusy] = useState(false);
   const [profileFor, setProfileFor] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [inviting, setInviting] = useState(false);
   /*
    * Opened from elsewhere - the dashboard's register has a "view" beside each
    * name. Cleared straight away so returning to this tab later does not
@@ -1172,6 +1173,18 @@ export default function Employees({
         <div className="row">
           <h2>Add employee</h2>
           <span className="grow" />
+          {/*
+            * TWO WAYS IN, BOTH WHERE SOMEBODY IS ALREADY LOOKING.
+            *
+            * Inviting them to fill it in themselves has existed since v1.72
+            * and was a collapsed fold below this card, which is the same as
+            * not existing — Dinesh asked for it as if it had never been
+            * built. The lesson is written down five times already: a way in
+            * that does not look like one is not a way in.
+            */}
+          <button onClick={() => setInviting((v) => !v)}>
+            {inviting ? 'Hide the invitation' : 'Let them fill it in'}
+          </button>{' '}
           <button className="primary" onClick={() => setAdding(true)}>Add employee</button>
         </div>
         <p className="muted small">
@@ -1191,13 +1204,22 @@ export default function Employees({
         * THE OTHER WAY SOMEBODY JOINS: invite them to fill it in themselves.
         * Nothing reaches the payroll until the office approves it.
         */}
-      <details className="card fold">
-        <summary>
-          <strong>Invite somebody to fill in their own form</strong>
-          <span className="muted small"> — they type their details, you check and approve</span>
-        </summary>
-        <Onboarding companies={companies} employees={employees} onReload={onReload} />
-      </details>
+      {inviting && (
+        <div className="card">
+          <div className="row">
+            <h2>Let them fill it in themselves</h2>
+            <span className="grow" />
+            <button className="ghost" onClick={() => setInviting(false)}>Close</button>
+          </div>
+          <p className="muted small">
+            Make a link and send it to them. They type their own details and upload their own
+            papers; you check it and approve. <strong>Nothing reaches the payroll until you
+            do.</strong> Somebody already on the staff list does not need this — they fill the
+            same form in from their own login, under My profile.
+          </p>
+          <Onboarding companies={companies} employees={employees} onReload={onReload} />
+        </div>
+      )}
 
       {adding && (
         <div className="picker-backdrop" onClick={() => setAdding(false)}>

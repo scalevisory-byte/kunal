@@ -59,6 +59,26 @@ export const HELP = [
     note: 'Click a day and pick the mark by NAME — each option says what it costs. Typing the code still works.\n\nWO, H, LWP and HD are the office’s names for S, PH, UL and HF — the SAME marks, not extra ones. Two names for one thing is how two things come to disagree.',
   },
   {
+    id: 'my-record-fill',
+    staff: true,
+    title: 'Filling in your own record, and sending in your papers',
+    tab: 'me',
+    keywords: [
+      'profile', 'my profile', 'my record', 'details', 'fill', 'form', 'joining form',
+      'aadhaar', 'pan', 'uan', 'esic', 'bank', 'ifsc', 'document', 'documents', 'upload',
+      'kagaz', 'kagzat', 'bharo', 'bharna', 'apni detail', 'khud bharo', 'photo',
+    ],
+    lines: [
+      '**My profile** asks the same things the office\u2019s joining form asks: about you, where you live, who to call in an emergency, your government numbers, and where your salary goes. Each box saves as you leave it.',
+      'The line at the top says how far through you are and **what the office still needs** \u2014 the same list they are chasing, so the two cannot disagree.',
+      '**Documents** \u2192 send in your own Aadhaar, PAN, photograph or cancelled cheque. You can download your own back, and remove one nobody has looked at yet.',
+      'A document reads **Not checked** until somebody in the office opens it. That is not a refusal \u2014 it means nobody has looked yet.',
+      'An offer letter and an appointment letter are not on the list: the office issues those.',
+    ],
+    note:
+      'A GOVERNMENT NUMBER CAN BE FILLED IN BUT NOT CHANGED. PAN, Aadhaar, UAN, PF member ID and ESIC: if yours is blank you can put it in, and the box asks you to check it first. Once it is on your record only the office can correct it, with the card in front of them \u2014 a wrong one is found months later by a return that will not file.\n\nNothing on this form can change your salary, your joining date or your leave. Those are the office\u2019s, and a figure sent on this form is refused rather than quietly dropped.',
+  },
+  {
     id: 'my-portal',
     staff: true,
     title: 'Your own portal — what is on each page',
@@ -660,14 +680,14 @@ export const HELP = [
     tab: 'employees',
     keywords: ['invite', 'onboarding', 'joining form', 'new joiner', 'link', 'bulana', 'form bharna', 'approve'],
     lines: [
-      '**Employees \u2192 “Invite somebody to fill in their own form”.** Type the company, the job and the joining date, and you get a **link**. Hand it over on WhatsApp or on paper \u2014 **nothing is sent by the app**.',
+      '**Employees \u2192 “Let them fill it in”**, the button beside Add employee. Type the company, the job and the joining date, and you get a **link**. Hand it over on WhatsApp or on paper \u2014 **nothing is sent by the app**.',
       '**They fill in the rest from their phone** and it saves as they type, so they can come back to the same link.',
       '**They cannot change what you set**, and they are never asked their salary \u2014 you type that when you approve.',
       '**Approve is the only thing that creates an employee.** Until then nothing is on the payroll, the attendance grid or any register.',
       '**Send back for correction** needs remarks saying what to fix; they see those remarks on their form and can send it in again.',
       '**One mobile number, one person** \u2014 an invitation is refused if that number is already on the staff list or on another open invitation.',
     ],
-    note: 'ANYBODY WHO HAS THE LINK CAN OPEN THE FORM. It carries a signed token and expires on the date you set, and it can be withdrawn — but it is not a password. Send it to the person and nobody else.',
+    note: 'ANYBODY WHO HAS THE LINK CAN OPEN THE FORM. It carries a signed token and expires on the date you set, and it can be withdrawn — but it is not a password. Send it to the person and nobody else.\n\nThis is for somebody who has NOT joined yet. Anybody already on the staff list fills the same form in from their own login — My profile and Documents on their portal — and what they type lands straight on their record, so there is nothing to approve.',
   },
   {
     id: 'add-employee',

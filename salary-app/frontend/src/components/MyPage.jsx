@@ -18,6 +18,7 @@ import Help from './Help.jsx';
 import MyDashboard from './my/MyDashboard.jsx';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
+import MyProfileForm from './my/MyProfileForm.jsx';
 import MyRecord from './my/MyRecord.jsx';
 import MyNotices from './my/MyNotices.jsx';
 
@@ -212,7 +213,7 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'pay' && <MyPay months={months} onError={onError} />}
           {tab === 'attendance' && <MyAttendance months={months} onError={onError} />}
           {tab === 'leave' && <MyLeave onError={onError} />}
-          {tab === 'me' && <MyDetails employee={employee} onSaved={setEmployee} onError={onError} />}
+          {tab === 'me' && <MyDetails employee={employee} onError={onError} />}
           {tab === 'notices' && <MyNotices onError={onError} />}
           {tab === 'record' && <MyRecord onError={onError} />}
           {tab === 'holidays' && <MyHolidays onError={onError} />}
@@ -968,84 +969,25 @@ useEffect(() => {
  * is shown so it can be CHECKED - a wrong UAN is found by the person it
  * belongs to, not by the office - with a line saying who to tell.
  */
-const MINE_TO_CHANGE = [
-  ['bank_name', 'Bank'],
-  ['bank_account', 'Account number'],
-  ['ifsc', 'IFSC'],
-  ['phone', 'Phone'],
-  ['email', 'Email'],
-  ['address', 'Address'],
-];
 
-const THEIRS = [
-  ['code', 'Employee ID'],
-  ['designation', 'Designation'],
-  ['department', 'Department'],
-  ['joined_on', 'Joined on'],
-  ['monthly_salary', 'Monthly salary'],
-  ['pan', 'PAN'],
-  ['uan', 'UAN'],
-  ['esic_no', 'ESIC number'],
-];
 
-function MyDetails({ employee, onSaved, onError }) {
+function MyDetails({ employee, onError }) {
   const [said, setSaid] = useState('');
   const [changing, setChanging] = useState(false);
 
   if (!employee) return <p className="loading">…</p>;
 
-  const save = async (key, value) => {
-    if ((employee[key] ?? '') === value) return;
-    try {
-      const { employee: updated } = await api.patch('/me', { [key]: value });
-      onSaved(updated);
-      setSaid('Saved.');
-      window.setTimeout(() => setSaid(''), 2000);
-    } catch (err) {
-      onError(err);
-    }
-  };
-
   return (
     <div className="stack">
-      <div className="card">
-        <h3>Yours to keep right</h3>
-        <div className="vf-grid">
-          {MINE_TO_CHANGE.map(([key, label]) => (
-            <label className="vf-field" key={key}>
-              <span className="vf-label">{label}</span>
-              <input
-                key={`${key}-${employee[key] ?? ''}`}
-                defaultValue={employee[key] ?? ''}
-                onBlur={(e) => save(key, e.target.value)}
-              />
-            </label>
-          ))}
-        </div>
-        <p className="muted small">
-          {said || 'Saved as you leave each box. Your bank details decide where the money goes, so a change here is recorded with the date.'}
-        </p>
-      </div>
-
-      <div className="card">
-        <h3>Held by the office</h3>
-        <dl className="pf-facts">
-          {THEIRS.map(([key, label]) => (
-            <div className="pf-fact" key={key}>
-              <dt>{label}</dt>
-              <dd>
-                {key === 'monthly_salary'
-                  ? rupees(employee[key])
-                  : employee[key] || <span className="muted">—</span>}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <p className="muted small">
-          These are the office's to change. If one is wrong — a PAN, a UAN, your joining date —
-          tell them and it is corrected on your record, not here.
-        </p>
-      </div>
+      {/*
+        * THE WHOLE JOINING FORM, asked of the person it is about.
+        *
+        * This used to be six boxes - bank, phone, email, address - and a
+        * read-only list of everything else. Which is why eighty people had
+        * no UAN and no ESIC number on their record: only the office could
+        * ever type one, and the office had eighty of them to chase.
+        */}
+      <MyProfileForm onError={onError} />
 
       {/* Changing it whenever they like, not only when forced to. */}
       {changing ? (
@@ -1061,8 +1003,7 @@ function MyDetails({ employee, onSaved, onError }) {
         <div className="card">
           <h3>Your password</h3>
           <p className="muted small">
-            Only you know it. Change it whenever you like — if it is forgotten the office makes a
-            new one and you are asked to pick your own again.
+            {said || 'Only you know it. Change it whenever you like — if it is forgotten the office makes a new one and you are asked to pick your own again.'}
           </p>
           <button onClick={() => setChanging(true)}>Change my password</button>
         </div>

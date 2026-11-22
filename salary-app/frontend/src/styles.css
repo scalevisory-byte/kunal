@@ -237,6 +237,27 @@ button.primary:hover:not(:disabled) { filter: brightness(1.1); }
 button.danger { color: var(--bad); }
 button.danger:hover:not(:disabled) { border-color: var(--bad); }
 button.ghost { border-color: transparent; background: none; color: var(--muted); }
+/*
+ * A DOWNLOAD HAS TO BE AN ANCHOR, so it has to be styled like one of the
+ * buttons beside it. `/me/documents/:id/file` is served with res.download,
+ * so there is nothing to show in a tab - and opening a window after an
+ * await is blocked as a pop-up, silently, which is how a button comes to
+ * look dead. The anchor carries `download` and an absolute href; this rule
+ * is the only reason it does not read as a stray blue link in a row of
+ * controls.
+ */
+a.linkish {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  background: none;
+  color: var(--muted);
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+a.linkish:hover { color: var(--text); background: var(--line-soft); }
 button.ghost:hover:not(:disabled) { color: var(--text); background: var(--line-soft); border-color: transparent; }
 button.tiny { padding: 0.15rem 0.45rem; font-size: 0.74rem; font-weight: 500; }
 button.link {

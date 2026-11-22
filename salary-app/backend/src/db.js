@@ -1272,6 +1272,22 @@ export const TRACKED_FIELDS = {
    */
   bank_account: 'Bank account',
   ifsc: 'IFSC',
+  /*
+   * THE NUMBERS A RETURN IS FILED WITH.
+   *
+   * Tracked from the release that let employees fill in their own record.
+   * The office usually took these off the card itself; now somebody can
+   * supply a missing one from their phone, and when a PF return bounces the
+   * first question is who put this UAN on the record and when. Changing one
+   * that is already set is refused on that side (`shared/selfRecord.js`), so
+   * what lands here from an employee is always a blank being filled.
+   */
+  pan: 'PAN',
+  aadhaar: 'Aadhaar',
+  uan: 'UAN',
+  pf_no: 'PF member ID',
+  esic_no: 'ESIC number',
+  dob: 'Date of birth',
 };
 
 /** Readable in the timeline rather than an id nobody can place. */

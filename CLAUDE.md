@@ -1652,6 +1652,67 @@ report, *"chekc all report also"*, then *"profile pe clcik larne se kuch nahi aa
 - The leave register's **"Company" column renders `department || company_name`**, so it was
   wrong on nearly every row. Headed Company / department.
 
+## The employee fills in their own record (v1.81) — `shared/selfRecord.js`
+
+Dinesh, looking at HARISH GUPTA's own portal page with `UAN —` and `ESIC NUMBER —` on it:
+*"employee banane k liye jo details chiaye / o khud employee bhar k de / and uske documnet bhi
+khud upload karde wesa banavo"*.
+
+**Inspected first, and half of it already existed.** `shared/onboardingFlow.js` + `JoinPage.jsx`
+have invited somebody who has NOT joined yet to fill in the joining form and send their papers
+since v1.72. What did not exist is the same thing for the eighty-odd people **already on the
+payroll**: their portal let them change a bank account, a phone, an email and one address line,
+and `/api/me/documents` was **GET only** — they could not upload a single file. That is exactly
+why their UAN and ESIC columns are blank. Only the office could ever type one, and the office
+has eighty of them to chase.
+
+- **`FILLABLE` is `onboardingFlow.THEIRS_TO_FILL` narrowed to what the master has, laid out by
+  `employeeMaster.SECTIONS`.** There is no list of fields in the new module and none in the JSX —
+  a joining form and a "complete your record" form asking for different things would be two
+  definitions of one person, and the second added would be the one that drifted. A test walks
+  every field and asserts it is on both.
+- **THE RULE: their own facts are theirs; a statutory number may be FILLED IN but not CHANGED.**
+  Nobody in the office knows somebody's father's name or emergency contact better than they do,
+  and a bank account already wrote through from the portal. But PAN/Aadhaar/UAN/PF/ESIC are what
+  a return is filed with, the office usually took them off the card, and a wrong one is found
+  months later by a return that will not file. Supplying a blank one is all gain; overwriting a
+  set one is a correction the office should make with the card in front of them.
+- **Nothing on the form can move a rupee.** Not one field is an input to `calculateRow`. A patch
+  naming `monthly_salary`, `joined_on`, `active`, `company_id` or a leave quota is **refused BY
+  NAME**, not dropped — silently dropping is how somebody types a salary, is told "Saved", and
+  believes it. There is an API test that a month's gross, net and total are identical before and
+  after somebody fills their record in.
+- Every change goes through `updateEmployee`, so it lands in `employee_history` with
+  *"Filled in by the employee from their own login"*. **`pan`, `aadhaar`, `uan`, `pf_no`,
+  `esic_no` and `dob` were added to `TRACKED_FIELDS`** — when a PF return bounces, "who put this
+  UAN on the record" has to have an answer.
+- **Uploads go into the SAME store the office uses** — one set of papers, one register, one KYC
+  count — and land `verified: null`, which is **not checked and NOT rejected**. Somebody still
+  has to open the Aadhaar card. **An offer letter and an appointment letter are refused**: those
+  are issued BY the office and are the one kind worth forging.
+- `GET /me/documents/:id/file` serves their own back, bound to the LOGIN; somebody else's
+  document is a **404, not a 403** — this route has no business confirming it exists. They may
+  remove one nobody has looked at, never one already checked.
+- The rate limiter has **its own bucket per route**, the punch-link lesson: a form saved on blur
+  is chatty and would otherwise starve the upload limit.
+- **Found by driving it, twice.** (1) The "still needs" line warned about the bank transfer
+  whether or not the bank lines were among the missing — it now only says what is true of that
+  record. (2) Saved on blur, a mistyped UAN committed the instant the box was left and was then
+  the office's to correct; the once-only boxes now **ask, with the value read back**, before they
+  commit.
+- **`<a className="ghost">` gets no styling** — `.ghost` is `button.ghost` only, so the Download
+  link rendered as a stray blue browser link in a row of controls. `a.linkish` added. (And the
+  download must stay an anchor: `res.download` has nothing to show in a tab, and `window.open`
+  after an `await` is blocked as a pop-up **silently**.)
+- **Employees → "Let them fill it in"**, beside Add employee. The invitation has worked since
+  v1.72 and was a **collapsed `<details>` fold** under the Add employee card — which is why
+  Dinesh asked for it as though it had never been built. **Sixth time for that exact pattern**
+  (hiring's "add vacancy", People, assets, the asset invoice, the candidate row, this).
+- **Two help topics would have been two answers to one question.** A new office-side topic was
+  written and then deleted: `onboarding` already covered the invitation better. It was amended
+  instead — the new button name, plus a line saying somebody already on the staff list uses their
+  own login. The staff topic `my-record-fill` is new and carries the trap note, pinned by a test.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
