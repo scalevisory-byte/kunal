@@ -221,3 +221,44 @@ export function fileCouldMatter(name, { month } = {}) {
   if (at.month === after && at.day <= 2) return true;
   return false;
 }
+
+/**
+ * Marks a punch has no business overruling.
+ *
+ * A punch says somebody touched the reader. It does NOT say the day was not
+ * casual leave, a paid holiday, a weekly off worked, or a day at home - those
+ * are decisions somebody in the office made, often with a form behind them.
+ * Somebody on leave who comes in for ten minutes to collect something would,
+ * unguarded, have their CL quietly turned into a present day and taken off the
+ * leave register with it.
+ *
+ * Blank, P, A and HF are the marks the punch data is actually better evidence
+ * for, so those it may set.
+ */
+export const PUNCH_MAY_SET = new Set(['', 'P', 'A', 'HF']);
+
+/**
+ * The same entries, with the mark removed where the day already carries a
+ * decision - so the clock times still land and the mark is left alone.
+ *
+ * `minutes` goes with it: it was worked out as if the day were Present, and a
+ * leave day is not short of hours it was never due. `setAttendance` works the
+ * minutes out itself from the times and the mark it keeps.
+ *
+ * @param stored  (employeeId, day) => the code already on that day, or ''
+ */
+export function protectDecided(entries = [], stored = () => '') {
+  const kept = [];
+  const protectedDays = [];
+  for (const entry of entries) {
+    const was = String(stored(entry.employee_id, entry.day) || '').trim().toUpperCase();
+    if (PUNCH_MAY_SET.has(was)) {
+      kept.push(entry);
+      continue;
+    }
+    const { code, minutes, ...times } = entry;
+    kept.push(times);
+    protectedDays.push({ employee_id: entry.employee_id, day: entry.day, code: was });
+  }
+  return { entries: kept, protected: protectedDays };
+}

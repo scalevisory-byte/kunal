@@ -19,6 +19,7 @@ import {
   readLogFiles,
   logFileDate,
   fileCouldMatter,
+  protectDecided,
 } from '../../shared/bizcompassLogs.js';
 import { punchesToMarks } from '../../shared/punches.js';
 
@@ -237,4 +238,46 @@ test('a month takes its own files plus the edges of the months beside it', () =>
 test('December and January wrap round rather than falling off the end', () => {
   assert.equal(fileCouldMatter('LogFile_12_31_23_50_00_000.dat', { month: 1 }), true);
   assert.equal(fileCouldMatter('LogFile_01_01_00_01_00_000.dat', { month: 12 }), true);
+});
+
+/* ---------------- what a punch may and may not overrule ---------------- */
+
+const entry = (over = {}) => ({
+  employee_id: 1, day: 20, code: 'P', minutes: -30, in_time: '09:14', out_time: '18:12', ...over,
+});
+
+test('a punch may set a day that is blank or plainly P, A or HF', () => {
+  for (const was of ['', 'P', 'A', 'HF']) {
+    const got = protectDecided([entry()], () => was);
+    assert.equal(got.entries[0].code, 'P', `${was || 'blank'} should be settable`);
+    assert.deepEqual(got.protected, []);
+  }
+});
+
+test('a punch NEVER overrules a decision somebody made', () => {
+  // Somebody on casual leave who comes in for ten minutes must not have their
+  // CL turned into a present day and taken off the leave register with it.
+  for (const was of ['CL', 'SL', 'PL', 'UL', 'H', 'PH', 'HP', 'S', 'SP', 'WH', 'AD']) {
+    const got = protectDecided([entry()], () => was);
+    assert.ok(!('code' in got.entries[0]), `${was} was overwritten`);
+    assert.ok(!('minutes' in got.entries[0]), `${was} kept minutes worked out as if Present`);
+    assert.equal(got.protected[0].code, was);
+  }
+});
+
+test('the clock times still land on a protected day', () => {
+  // The hours are a fact whatever the mark; it is the MARK that is a decision.
+  const got = protectDecided([entry()], () => 'CL');
+  assert.equal(got.entries[0].in_time, '09:14');
+  assert.equal(got.entries[0].out_time, '18:12');
+  assert.equal(got.entries[0].employee_id, 1);
+  assert.equal(got.entries[0].day, 20);
+});
+
+test('it looks the day up per person, not once for the lot', () => {
+  const stored = (id, day) => (id === 2 && day === 20 ? 'CL' : '');
+  const got = protectDecided([entry(), entry({ employee_id: 2 })], stored);
+  assert.equal(got.entries[0].code, 'P');
+  assert.ok(!('code' in got.entries[1]));
+  assert.equal(got.protected.length, 1);
 });
