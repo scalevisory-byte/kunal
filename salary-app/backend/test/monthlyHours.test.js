@@ -214,3 +214,100 @@ test('a part-timer’s month owes their own hours, not nine a day', () => {
   assert.equal(line.expected, 26 * 6 * 60);
   assert.equal(line.diff, 0, 'a six-hour day judged against nine');
 });
+
+/* ================================================================= *
+ * turning it on, from now
+ * ================================================================= */
+
+import { DEFAULT_POLICY_FOR_NEW_MONTHS } from '../../shared/lateEarly.js';
+
+process.env.DATA_DIR = (await import('node:fs')).mkdtempSync(
+  (await import('node:path')).join((await import('node:os')).tmpdir(), 'monthlyon-')
+);
+process.env.LINK_SECRET = 'test-secret';
+process.env.SERVE_FRONTEND = 'false';
+process.env.APP_PASSWORD = 'open-sesame';
+
+const { createServer } = await import('../src/server.js');
+const server = createServer().listen(0);
+const base = `http://127.0.0.1:${server.address().port}`;
+test.after(() => server.close());
+
+const call = async (m, url, body) => {
+  const res = await fetch(`${base}${url}`, {
+    method: m,
+    headers: { authorization: 'Bearer open-sesame', ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  return { status: res.status, body: text ? JSON.parse(text) : null };
+};
+
+test('a month opened from now starts on the monthly rule', async () => {
+  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'monthly');
+  const made = (await call('POST', '/api/periods', { year: 2027, month: 1 })).body;
+  assert.equal(made.late_policy, 'monthly');
+});
+
+test('AND A MONTH ALREADY OPEN IS NOT TOUCHED', async () => {
+  /*
+   * The whole reason the policy is per month: a rule chosen in December must
+   * not rewrite a payslip paid in November. Nothing in this release rewrites
+   * a stored value - the month open when it is installed has to be switched
+   * by hand, with the cost on screen first.
+   */
+  const old = (await call('POST', '/api/periods', { year: 2027, month: 2, late_policy: 'hours' })).body;
+  assert.equal(old.late_policy, 'hours');
+
+  // Reading it, and reading its payroll, leaves it alone.
+  await call('GET', `/api/periods/${old.id}/payroll`);
+  const again = (await call('GET', '/api/periods')).body;
+  const same = (again.periods || again).find((p) => p.id === old.id);
+  assert.equal(same.late_policy, 'hours');
+});
+
+test('switching one month on does not switch any other', async () => {
+  const a = (await call('POST', '/api/periods', { year: 2027, month: 3, late_policy: 'hours' })).body;
+  const b = (await call('POST', '/api/periods', { year: 2027, month: 4, late_policy: 'hours' })).body;
+  await call('PATCH', `/api/periods/${a.id}`, { late_policy: 'monthly' });
+  const all = (await call('GET', '/api/periods')).body;
+  const rows = all.periods || all;
+  assert.equal(rows.find((p) => p.id === a.id).late_policy, 'monthly');
+  assert.equal(rows.find((p) => p.id === b.id).late_policy, 'hours');
+});
+
+test('the write route cannot change what the monthly rule charges', async () => {
+  /*
+   * Typed on the Time tab with a minutes figure, straight through the API
+   * with none, and through an approved missing-punch request. On this rule
+   * the clock times are the record, so all three must come out the same -
+   * the typed `minutes: 0` does not forgive the day.
+   */
+  const company = (await call('POST', '/api/companies', { name: 'ROUTES' })).body;
+  const mk = async (name) =>
+    (await call('POST', '/api/employees', {
+      company_id: company.id, name, monthly_salary: 26000, joined_on: '2024-01-01',
+    })).body;
+  const typed = await mk('Typed Tarun');
+  const punched = await mk('Punched Pooja');
+
+  const p = (await call('POST', '/api/periods', { year: 2027, month: 6 })).body;
+  assert.equal(p.late_policy, 'monthly');
+  await call('GET', `/api/periods/${p.id}/payroll`);
+
+  const hours = { in_time: '09:52', out_time: '18:20' }; // 32 minutes short
+  const entries = [];
+  for (const day of [10, 11, 12]) {
+    entries.push({ employee_id: typed.id, day, code: 'P', ...hours, minutes: 0 });
+    entries.push({ employee_id: punched.id, day, ...hours });
+  }
+  await call('POST', `/api/periods/${p.id}/attendance`, { entries });
+
+  const rows = (await call('GET', `/api/periods/${p.id}/payroll`)).body.rows;
+  const a = rows.find((r) => r.employee_id === typed.id);
+  const b = rows.find((r) => r.employee_id === punched.id);
+  assert.equal(a.monthly_hours_diff, -96, 'three days, 32 minutes each');
+  assert.equal(a.monthly_hours_diff, b.monthly_hours_diff, 'the route changed the figure');
+  assert.equal(a.ot_minutes, b.ot_minutes);
+  assert.equal(a.net_salary, b.net_salary);
+});

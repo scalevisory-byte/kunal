@@ -1782,6 +1782,39 @@ A third `late_policy`, `'monthly'`, beside `hours` (the default) and `concession
   finite number unless it is in `DESCRIBES`. `monthly_hours_judged` is false when there was
   nothing to judge, which is not “they did no hours” — a number could not say that.
 
+### Turned on, from now (v1.83)
+
+Dinesh, having seen the figure: *"monthly wala on kar do abhi se"*. His live database is on
+the BNF server behind the tunnel and cannot be reached from here, and `late_policy` is a
+column on `periods` — so "on" had to mean two things, not one.
+
+- **`DEFAULT_POLICY_FOR_NEW_MONTHS` in `shared/lateEarly.js` is now `POLICY.monthly`**, named
+  explicitly by `createPeriod` and by `localStore` rather than left to the column default, so
+  one constant decides it and the server and the offline build cannot open a month on
+  different rules.
+- **NOTHING REWRITES A STORED VALUE.** Every month already in the database keeps the rule it
+  was run on, including the one open when the update lands. There is an API test that opening
+  a new month gives `monthly`, that an existing month is untouched by reading it or its
+  payroll, and that switching one month does not switch another. Verified in a browser on two
+  months with identical attendance: October (opened on `hours`) nets ₹25,800 and November
+  (opened now) nets ₹25,319 for the same person.
+- **"Charge this month on it"** sits on the panel itself, priced, because the select that
+  switches the rule is on the panel ABOVE and the figure it costs is on this one. The way in
+  goes where the person is already looking — seventh time.
+- **A real difference found by a failing test, not by guessing.** On the monthly rule a
+  `minutes` figure typed over a day that HAS clock times does not win: the month is an account
+  of hours and the hours are on the day. That is what makes a day typed on the Time tab, a
+  phone punch and an approved missing punch come out identical — none of them gets to name
+  the figure — and it is now stated in the module, in help, and pinned by a test. The
+  office's way to forgive a month is still the sheet's own OT/LT override, which beats every
+  policy.
+- **Four tests pinned the old default and were REWRITTEN to state the new rule, not patched.**
+  `attendanceWrites` is about the three write routes agreeing per day, so its period is pinned
+  to `hours` with the reason written down (its people carry other days from earlier tests in
+  the file, which the month-wide account counts and the day-by-day rule did not). `lateEarlyApi`
+  asserts the new default and then patches itself back, which is itself the proof that nothing
+  switches a month by itself. `auth` and the audit trail now state what a month opens on.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
@@ -1792,8 +1825,10 @@ A third `late_policy`, `'monthly'`, beside `hours` (the default) and `concession
 3. **The biometric file's 34 always-absent people** — absent on every day the October machine
    file has a record for. Almost certainly never enrolled, or already left. Named in the dry
    run rather than written through.
-4. **Whether to turn the late/early concession on, and from which month.** It is off on every
-   month; the panel prices it first. His own figure is 300 minutes.
+4. **Whether to turn the late/early CONCESSION on** (the 300-minute pool) — still unanswered
+   and still off on every month; the panel prices it first. Note he chose the OTHER rule in
+   v1.83: new months open on monthly hours, and the three are alternatives, so switching a
+   month to the concession turns the monthly target off for it.
 5. **Whether paid leave should close a sandwich.** Default is absence only (A/UL); CL/SL/PL
    is available as the harsher reading.
 6. **Whether to pull eSSL punches directly** from the eTimeTrackLite database rather than

@@ -316,7 +316,9 @@ test('HR cannot change the rules payroll runs on', async () => {
   // The month is untouched.
   const { body } = await admin('GET', `/api/periods/${periodId}`);
   assert.equal(body.pt_threshold, 12000);
-  assert.equal(body.late_policy, 'hours');
+  // Whatever the month was OPENED on - a new month now opens on the
+  // monthly-hours rule - and HR's attempt to move it changed nothing.
+  assert.equal(body.late_policy, 'monthly');
   assert.equal(body.locked, 0);
 });
 

@@ -33,7 +33,7 @@ let periodId;
 let employeeId;
 let nightId;
 
-test('a month opens on the hours policy, with the concession stored but unused', async () => {
+test('a month opens on the monthly rule; this file pins it back to hours', async () => {
   const company = await api('POST', '/api/companies', { name: 'BOOKNFLY' });
   const employee = await api('POST', '/api/employees', {
     company_id: company.body.id,
@@ -55,7 +55,15 @@ test('a month opens on the hours policy, with the concession stored but unused',
   const period = await api('POST', '/api/periods', { year: 2026, month: 10 });
   assert.equal(period.status, 201);
   periodId = period.body.id;
-  assert.equal(period.body.late_policy, 'hours', 'nothing switches itself on');
+  /*
+   * A month now OPENS on the monthly-hours rule, which Dinesh asked for from
+   * November onwards. This file is about the other two rules, so it is put
+   * back onto `hours` deliberately - and that it has to be says the switch
+   * is per month and nothing switches a month by itself.
+   */
+  assert.equal(period.body.late_policy, 'monthly', 'a new month opens on the monthly rule');
+  const back = await api('PATCH', `/api/periods/${periodId}`, { late_policy: 'hours' });
+  assert.equal(back.body.late_policy, 'hours');
   assert.equal(period.body.late_concession_minutes, 300);
   assert.equal(period.body.shift_in, '09:30');
 });

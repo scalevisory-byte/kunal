@@ -50,6 +50,23 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
   /* Nobody clocked them at all - "not known", which is not "did no hours". */
   const unknown = rows.length - lines.length;
 
+  /*
+   * Priced before it is switched, like the concession beside it. This really
+   * does move money, so the figure goes in front of the decision rather than
+   * being discovered on a payslip.
+   */
+  const turnOn = () => {
+    if (locked) return;
+    const ok = window.confirm(
+      short.length
+        ? `${short.length} ${short.length === 1 ? 'person is' : 'people are'} short of their total ` +
+          `this month, which comes to ${money(charge)}.\n\nCharge this month on the monthly-hours rule?`
+        : 'Nobody is short of their total this month, so nothing comes off.\n\n' +
+          'Charge this month on the monthly-hours rule?'
+    );
+    if (ok) onPatch?.({ late_policy: POLICY.monthly });
+  };
+
   return (
     <section className="card late-card">
       <div className="late-head">
@@ -68,9 +85,24 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
               : 'This month is not charged on it; the figures below are what it would come to.'}
           </p>
         </div>
-        <button className="ghost" onClick={() => setOpen((v) => !v)}>
-          {open ? 'Hide' : 'Show'}
-        </button>
+        <div className="row">
+          {/*
+            * THE WAY IN WHERE SOMEBODY IS ALREADY LOOKING.
+            *
+            * Switching the rule lives in a select on the panel above, which
+            * is right for choosing between three - and wrong for the one
+            * thing the office actually comes here to do. The figure it costs
+            * is on THIS screen, so the button that acts on it is too.
+            */}
+          {!on && !locked && (
+            <button className="primary" onClick={turnOn}>
+              Charge this month on it
+            </button>
+          )}
+          <button className="ghost" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Hide' : 'Show'}
+          </button>
+        </div>
       </div>
 
       {/* The same figure row the panel above uses - value first, then what it
@@ -109,8 +141,9 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
         <>
           {!on && !locked && (
             <p className="muted small">
-              To charge on this rule, set <strong>Rule</strong> above to &ldquo;The month owes a
-              total&rdquo;. It is priced before it is switched.
+              <strong>Charge this month on it</strong> above switches this month onto the rule.
+              Every month opened from now starts on it already; a month already run keeps the
+              rule it was run on, so no payslip already paid can move.
             </p>
           )}
           <div className="table-wrap unboxed">

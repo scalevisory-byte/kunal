@@ -50,6 +50,29 @@ export const POLICY = {
 };
 
 /**
+ * WHAT A NEWLY OPENED MONTH STARTS ON.
+ *
+ * Dinesh, having seen what it costs: *"monthly wala on kar do abhi se"*. So a
+ * month opened from here on comes up on the monthly-hours rule rather than
+ * on `hours`.
+ *
+ * ---------------------------------------------------------------------------
+ * THIS CHANGES NO MONTH THAT ALREADY EXISTS.
+ *
+ * `late_policy` is a column on `periods`, written once when the month is
+ * created, and nothing here rewrites a stored value. Every month already in
+ * the database keeps exactly the rule it was run on - including the one open
+ * when this release is installed, which has to be switched by hand on the
+ * Time tab, priced first. That is the whole reason the policy is per month:
+ * a rule changed in December must not rewrite a payslip paid in November.
+ * ---------------------------------------------------------------------------
+ *
+ * One constant, read by `createPeriod` on the server and by `localStore` in
+ * the single-file build, so the two cannot open a month on different rules.
+ */
+export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthly;
+
+/**
  * The office's usual day and how much lateness a month absorbs.
  *
  * The 300 is Dinesh's figure. The daily grace is **zero** on purpose: with a

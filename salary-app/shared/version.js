@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.82.0';
+export const VERSION = '1.83.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.83.0',
+    date: '22 Nov 2026',
+    title: 'The monthly hours rule is on from now, and one button switches the open month',
+    items: [
+      '**Every month opened from now starts on the monthly-hours rule** \u2014 nine hours a day for the days each person was due, a day short and a day long cancelling, and only what is missing from the total coming off. Asked for by name.',
+      '**No month that already exists is touched.** The rule is stored on each month when it is opened, and nothing in this update rewrites a stored one \u2014 so every payslip already paid stays exactly as it was paid. That is why it is held per month.',
+      '**The month you have open now is switched with one button:** Time \u2192 The month\u2019s hours \u2192 **Charge this month on it**. It says how many people are short and what it comes to before it acts. The Rule box on the panel above still works and still does the same thing.',
+      '**On this rule the clock times are the record.** A short-hours figure typed onto a day that already carries an in and an out no longer overrides those times \u2014 which is what makes a day typed on the Time tab, a phone punch and an approved missing punch all come out identical. To forgive a whole month, type over the OT/LT box on the salary sheet; that still beats every rule.',
+      'Worth knowing before the first payday on it: somebody with **no clock times at all** is not judged and nothing comes off them. The change only reaches people whose in and out times are on the system.',
+    ],
+  },
   {
     version: '1.82.0',
     date: '22 Nov 2026',

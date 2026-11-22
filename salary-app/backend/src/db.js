@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
-import { hoursForEmployee } from '../../shared/lateEarly.js';
+import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee } from '../../shared/lateEarly.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -1603,14 +1603,21 @@ export function createPeriod(input) {
     hours_per_day: Number(input.hours_per_day) || config.hoursPerDay,
     pt_threshold: input.pt_threshold === undefined ? config.ptThreshold : Number(input.pt_threshold),
     pt_amount: input.pt_amount === undefined ? config.ptAmount : Number(input.pt_amount),
+    /*
+     * The rule a new month starts on. Named explicitly rather than left to
+     * the column's own default, so there is one place that decides it and
+     * the offline build reads the same constant. A month already in the
+     * table is never rewritten - see the note on the constant.
+     */
+    late_policy: input.late_policy || DEFAULT_POLICY_FOR_NEW_MONTHS,
   };
   if (!row.year || !row.month) throw new Error('year and month are required');
   if (row.month < 1 || row.month > 12) throw new Error('month must be 1-12');
   if (!row.label) row.label = `${MONTH_NAMES[row.month - 1]} ${row.year}`;
   const info = db
     .prepare(
-      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount)
-       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount)`
+      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount, late_policy)
+       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount, @late_policy)`
     )
     .run(row);
   return getPeriod(info.lastInsertRowid);

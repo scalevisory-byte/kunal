@@ -70,7 +70,16 @@ test('set the scene: one company, four people on the same salary, one open month
     assert.equal(made.status, 201);
     staff[name] = made.body.id;
   }
-  const period = await api('POST', '/api/periods', { year: 2026, month: 11 });
+  /*
+   * PINNED TO THE DAY-BY-DAY RULE, which is what this file is about.
+   *
+   * A month now opens on `monthly`, where the whole month is one account of
+   * hours worked out from the clock times - so a `minutes` figure a caller
+   * typed over a day that HAS times is not what the month is charged on, and
+   * the people here carry other days from the tests above. That rule has its
+   * own file; this one is about the three write routes agreeing per day.
+   */
+  const period = await api('POST', '/api/periods', { year: 2026, month: 11, late_policy: 'hours' });
   periodId = period.body.id;
   await api('GET', `/api/periods/${periodId}/payroll`);
 });

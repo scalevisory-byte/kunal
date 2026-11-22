@@ -30,7 +30,7 @@ import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, minutesForMark, parseTime, timesToDay } from '../../shared/timesheet.js';
-import { hoursForEmployee } from '../../shared/lateEarly.js';
+import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee } from '../../shared/lateEarly.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
   PENALTY_KINDS,
@@ -1484,7 +1484,7 @@ export async function handle(method, path, body) {
         // Deducted, as the server has it, so the file and the server agree
         // and nothing already paid moves.
         lunch_paid: 0,
-        late_policy: 'hours',
+        late_policy: DEFAULT_POLICY_FOR_NEW_MONTHS,
         monthly_hours_grace: 0,
         late_concession_minutes: 300,
         late_grace_minutes: 0,

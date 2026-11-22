@@ -37,6 +37,18 @@
  * `HOURS_EXPECTED` - a blank day, P, and WH.
  * ---------------------------------------------------------------------------
  *
+ * ON THIS RULE THE CLOCK TIMES ARE THE RECORD.
+ *
+ * A `minutes` figure typed over a day that HAS clock times does not win here,
+ * because the month is an account of hours worked and those hours are on the
+ * day. On the day-by-day rule a caller could hand a short day `minutes: 0`
+ * and forgive it; here the times say what happened. The office's way to
+ * forgive a month is the sheet's own OT/LT box, which beats every policy.
+ *
+ * It cuts the other way too, and that is the point: three routes writing the
+ * same hours - typed on the Time tab, a phone punch, an approved missing
+ * punch - come out identical, because none of them gets to name the figure.
+ *
  * A DAY NOBODY CLOCKED IS NOT A DAY OF MISSING HOURS. No in time means "not
  * known", which is not zero. Such a day counts on NEITHER side - it adds
  * nothing to the target and nothing to what was worked - because booking nine
