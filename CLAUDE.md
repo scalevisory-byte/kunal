@@ -1111,9 +1111,23 @@ renamed. But the eSSL material IS on the BNF server: `D:\essl`, `E:\Essl`, `E:\E
 `E:\Essl\OLD Bakcup\backup ESSL 30-12-2024`, with an eTimeTrackLite shortcut **and a
 "Bizcompass Sync" icon** on its desktop — and Bizcompass is the very thing that used to pull
 the punches, so its own settings hold the connection string this needs. **No MSSQL or Oracle
-service is running on that machine**, which points at MS Access, though the database could
-still live on another PC with only a backup kept here. Still being established: the database
-file itself and the punch table's name.
+service is running on that machine**, and there is no `.bak` or `.mdf` anywhere — so the
+engine is settled: **MS ACCESS**.
+
+The live install is **`E:\Essl`** (the desktop shortcut points at `E:\Essl\eTimeTrackLite.exe`)
+and the live database is **`E:\Essl\eTimeTrackLite1.mdb`**. Everything else matching is a dated
+backup (`eTimeTrackLite_2024_10_19_1.mdb` … `_2026_06_29_1.mdb`, plus `E:\Essl\OLD Bakcup\`).
+`D:\essl` holds its own copy and a `.ldb` lock file — an older install or a second copy, worth
+telling apart before anything is read on a schedule. `E:\Essl\HR pc database\eTimeTrackLite1
+in out device.mdb` is likely the HR PC's own copy, which is probably what DESKTOP-6OKJT47 was.
+**No connection string exists to find, and none is needed** — an Access database is a file, so
+the path is the whole of it.
+
+**Access's OLEDB provider (`Microsoft.Jet.OLEDB.4.0`) is 32-bit only**, so anything reading it
+from that machine runs under `C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe`, not
+the 64-bit shell. And it must be opened with **`Mode=Read`** — eTimeTrackLite is live on the
+same file, and locking it would stop the punches being collected at all. Still to establish:
+which table holds the punches.
 
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
