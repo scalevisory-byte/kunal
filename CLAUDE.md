@@ -1126,8 +1126,26 @@ the path is the whole of it.
 **Access's OLEDB provider (`Microsoft.Jet.OLEDB.4.0`) is 32-bit only**, so anything reading it
 from that machine runs under `C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe`, not
 the 64-bit shell. And it must be opened with **`Mode=Read`** — eTimeTrackLite is live on the
-same file, and locking it would stop the punches being collected at all. Still to establish:
-which table holds the punches.
+same file, and locking it would stop the punches being collected at all.
+
+**The table is `AttendanceLogs`, not `DeviceLogs`.** It holds one row per person per day with
+`AttendanceDate`, `EmployeeId`, `InTime`, `OutTime`, `Duration`, `LateBy`, `EarlyBy`, `Status`,
+`StatusCode`, `PunchRecords` and `OverTime` — which is exactly what the Basic Work Duration
+report prints, so it feeds the existing importer with no new rules. `DeviceLogs` is empty; the
+raw punches are archived into `DeviceLogs_<month>_<year>` tables, and those stop at January
+2025.
+
+**`E:\Essl\eTimeTrackLite1.mdb` IS NOT THE LIVE DATABASE.** Its newest `AttendanceLogs` row is
+**30/04/2025**, and those rows are empty `A` marks with `1900-01-01` times. So the install on
+the BNF server was abandoned around April 2025 and the real one is elsewhere — `D:\essl`, the
+`HR pc database` copy, or the HR PC itself (the actual DESKTOP-6OKJT47). **Find the live file
+by LastWriteTime, not by opening it**: a live Access database is written to constantly, and a
+recent `.ldb` beside it means it is open right now.
+
+**eTimeTrackLite's own parallel-database export is OFF** (`ParallelAttLogExportDetails`,
+`IsParallelDatabaseDowload = 0`; the Oracle/XE/1521/Localhost values are an unconfigured
+template with no database, table or path set). So that is not how Bizcompass was fed, and
+polling remains the route. Still to establish: which machine holds the live file.
 
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
