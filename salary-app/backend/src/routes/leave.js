@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import {
   addLeaveCredit,
+  getSetting,
+  listBonusPayments,
+  payBonus,
+  setSetting,
+  unpayBonus,
   deleteLeaveCredit,
   getEmployee,
   leaveSummary,
@@ -11,6 +16,7 @@ import {
 import { balanceRow, entitlementOf, ledgersFor, TAKES_AWAY } from '../../../shared/leaveLedger.js';
 import { leaveCalendar } from '../../../shared/leaveCalendar.js';
 import { applicationStatus, leaveByDepartment } from '../../../shared/leaveReports.js';
+import { bonusRun, normaliseRule } from '../../../shared/leaveBonus.js';
 import { calculateRow } from '../../../shared/calc.js';
 import { DEFAULT_RULES, entriesFor, yearEndPlan } from '../../../shared/leaveYearEnd.js';
 import { buildPayroll } from '../payroll.js';
@@ -416,6 +422,107 @@ leaveRouter.post('/encash', (req, res) => {
          salary sheet, where every other one-off payment is. */
       note: 'The days are off the ledger. Nothing has been paid — add the amount to the month on the salary sheet.',
     });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ---------------- the leave bonus ---------------- */
+
+const BONUS_KEY = 'leave_bonus_rule';
+
+/**
+ * THE RULE LIVES ON THE SERVER, not in a browser.
+ *
+ * It decides what a bonus pays, so one person's localStorage must not own
+ * it - the next person running the month would get a different answer and
+ * neither could say which was right.
+ */
+leaveRouter.get('/bonus/rule', (_req, res) =>
+  res.json({ rule: normaliseRule(getSetting(BONUS_KEY) || {}) })
+);
+
+leaveRouter.put('/bonus/rule', (req, res) => {
+  try {
+    const rule = normaliseRule(req.body || {});
+    setSetting(BONUS_KEY, rule, req.actor?.name || 'office');
+    res.json({ rule });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/**
+ * What the month WOULD pay. Nothing is paid by looking.
+ *
+ * `sync: false`: reading a month to price a bonus must not backdate a new
+ * hire into it or post a loan instalment - the same trap the trend hit.
+ */
+leaveRouter.get('/bonus/:periodId', (req, res) => {
+  const period = getPeriod(Number(req.params.periodId));
+  if (!period) return res.status(404).json({ error: 'not found' });
+  const payroll = buildPayroll(period.id, {
+    sync: false,
+    company_id: Number(req.query.company_id) || undefined,
+  });
+  if (!payroll) return res.status(404).json({ error: 'nothing in that month' });
+
+  const stored = normaliseRule(getSetting(BONUS_KEY) || {});
+  /* A rule can be tried on without being saved, so the panel can price a
+     change before anybody commits to it. */
+  let rule = stored;
+  if (req.query.rule) {
+    try {
+      rule = normaliseRule(JSON.parse(req.query.rule));
+    } catch {
+      return res.status(400).json({ error: 'the rule is not readable' });
+    }
+  }
+
+  const already = listBonusPayments(period.id);
+  const run = bonusRun(payroll.rows, rule, {
+    paid: new Set(already.map((p) => Number(p.employee_id))),
+  });
+  res.json({
+    period: payroll.period,
+    locked: !!period.locked,
+    saved_rule: stored,
+    payments: already,
+    ...run,
+  });
+});
+
+/**
+ * PAY IT. The one call that moves money.
+ *
+ * It pays the LINES IT IS GIVEN, which are the ones the office read on the
+ * screen - not a second run of the rule that might have moved under them.
+ * Anything already paid this month is skipped and named, so a double click
+ * cannot pay a bonus twice.
+ */
+leaveRouter.post('/bonus/:periodId/pay', (req, res) => {
+  try {
+    const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+    if (!lines.length) return res.status(400).json({ error: 'nobody to pay' });
+    const out = payBonus(Number(req.params.periodId), lines, {
+      by: req.actor?.name || 'office',
+      note: req.body?.note || 'leave bonus',
+    });
+    res.json({
+      ...out,
+      note:
+        `${out.paid.length} added to the month's salary sheet as an addition. ` +
+        'It shows on the payslip under the remark.',
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+leaveRouter.delete('/bonus/payment/:id', (req, res) => {
+  try {
+    unpayBonus(Number(req.params.id), req.actor?.name || 'office');
+    res.json({ taken_back: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

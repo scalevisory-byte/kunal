@@ -341,6 +341,19 @@ export const HELP = [
     note: 'EARNED is before anything came out. The sheet’s Gross is already after the Deduct box and the late charge, so those are added back here — otherwise they would be counted twice and the statement would not balance. Absence is never a deduction: a day not worked was never earned. Cost to company is the gross plus the employer’s own PF and ESI, and Sunday pay is in neither figure — it is paid from its own register.',
   },
   {
+    id: 'leave-bonus',
+    title: 'The leave bonus — for a month nobody took off',
+    tab: 'leave',
+    keywords: ['bonus', 'incentive', 'attendance bonus', 'chutti nahi li', 'inaam', 'full attendance'],
+    lines: [
+      'Leave → **Bonus**. Two shapes: all or nothing, or the amount less a cut for each day off.',
+      'Tick which marks cost it — paid leave counts by default, because it is still a day away.',
+      'The rule is saved on the server, so everybody in the office runs the same one.',
+      'Unused leave is a different thing: pay that from **Balances → Encash days**.',
+    ],
+    note: 'NOTHING MARKED IS NOT A CLEAN MONTH. Somebody with no marks at all is never eligible — without that, one unfilled grid pays the whole staff. And working it out pays nobody: the money goes on only through the button that names the month, as an addition with a note. The same month cannot be paid twice.',
+  },
+  {
     id: 'leave-cancel',
     staff: true,
     title: 'Cancelling a leave that was already approved',

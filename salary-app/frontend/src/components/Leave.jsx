@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import LeaveLedger from './LeaveLedger.jsx';
 import LeaveCalendar from './LeaveCalendar.jsx';
 import LeaveYearEnd from './LeaveYearEnd.jsx';
+import LeaveBonus from './LeaveBonus.jsx';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
 import SandwichLeave from './SandwichLeave.jsx';
@@ -30,6 +31,7 @@ export default function Leave({
   onPatch,
   onPatchCompany,
   onSaveAttendance,
+  onReload,
   locked,
 }) {
   const [view, setView] = useState('balances');
@@ -176,6 +178,19 @@ export default function Leave({
           companyId={companyId}
           onGo={onGo}
           onError={(m) => setError(m)}
+        />
+      </section>
+    );
+  }
+
+  if (view === 'bonus') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        <LeaveBonus
+          period={period}
+          companyId={companyId}
+          onReload={onReload}
         />
       </section>
     );
@@ -366,6 +381,7 @@ function LeaveTabs({ view, setView }) {
         ['balances', 'Balances'],
         ['calendar', 'Calendar'],
         ['yearend', 'Year end'],
+        ['bonus', 'Bonus'],
         ['weekly', 'The day off'],
         ['sandwich', 'Sandwich leave'],
       ].map(([key, label]) => (

@@ -1080,6 +1080,7 @@ function Shell() {
             onPatch={masterAction((id, patch) => api.patch(`/employees/${id}`, patch))}
             onPatchCompany={masterAction((id, patch) => api.patch(`/companies/${id}`, patch))}
             onSaveAttendance={saveAttendance}
+            onReload={() => periodId && loadPayroll(periodId).catch(handle)}
           />
         )}
 

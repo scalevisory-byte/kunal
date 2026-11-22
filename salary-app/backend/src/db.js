@@ -2163,6 +2163,177 @@ export function allRepayments() {
     .all();
 }
 
+/* ------------------------------------------------------------------
+ * Settings, and the leave bonus.
+ * ------------------------------------------------------------------ */
+
+db.exec(`
+  -- Office-wide settings that decide money. Deliberately NOT localStorage:
+  -- a rule that says what a bonus pays must not live in one person's
+  -- browser, where the next person running it would get another answer.
+  CREATE TABLE IF NOT EXISTS settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    by_whom    TEXT
+  );
+
+  -- One row per person per month the bonus was actually paid in. This is
+  -- the ledger; the addition on the payroll row is the money. The same
+  -- split as a penalty and its recovery, so the two cannot drift, and the
+  -- unique index is what stops a second click paying twice.
+  CREATE TABLE IF NOT EXISTS bonus_payments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_id   INTEGER NOT NULL REFERENCES periods(id) ON DELETE CASCADE,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'leave',
+    amount      REAL NOT NULL,
+    days_off    REAL NOT NULL DEFAULT 0,
+    note        TEXT,
+    by_whom     TEXT,
+    paid_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_bonus_once
+    ON bonus_payments(period_id, employee_id, kind);
+`);
+
+export const getSetting = (key, fallback = null) => {
+  const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key);
+  if (!row) return fallback;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return fallback;
+  }
+};
+
+export function setSetting(key, value, by) {
+  db.prepare(
+    `INSERT INTO settings (key, value, by_whom) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+       updated_at = datetime('now'), by_whom = excluded.by_whom`
+  ).run(key, JSON.stringify(value), by || null);
+  audit({
+    who: by,
+    action: 'changed',
+    entity: 'settings',
+    label: key,
+    to_value: JSON.stringify(value),
+  });
+  return getSetting(key);
+}
+
+export const listBonusPayments = (periodId, kind = 'leave') =>
+  db
+    .prepare(
+      `SELECT b.*, e.name AS employee_name, e.code AS employee_code
+         FROM bonus_payments b
+         JOIN employees e ON e.id = b.employee_id
+        WHERE b.period_id = ? AND b.kind = ?
+        ORDER BY e.name`
+    )
+    .all(periodId, kind);
+
+/**
+ * PAY THE BONUS INTO A NAMED MONTH.
+ *
+ * The one call that moves money, exactly like `payClaim` and a penalty
+ * recovery beside it: the amount is ADDED to whatever the row already
+ * carries, never replacing it, and the ledger row is what stops the same
+ * month being paid twice.
+ *
+ * It takes the lines it was SHOWN, so what the office read on the screen is
+ * what goes out - not a second run of the rule that might have moved under
+ * them while they were looking at it.
+ */
+export function payBonus(periodId, lines = [], { by, kind = 'leave', note } = {}) {
+  const period = db.prepare(`SELECT * FROM periods WHERE id = ?`).get(Number(periodId));
+  if (!period) throw new Error('pick a month to pay it in');
+  if (period.locked) throw new Error(`${period.label} is closed`);
+
+  const paid = [];
+  const skipped = [];
+  const run = db.transaction(() => {
+    for (const line of lines) {
+      const employeeId = Number(line.employee_id);
+      const amount = Math.round(Number(line.amount) || 0);
+      if (!employeeId || amount <= 0) continue;
+
+      const already = db
+        .prepare(
+          `SELECT id FROM bonus_payments WHERE period_id = ? AND employee_id = ? AND kind = ?`
+        )
+        .get(period.id, employeeId, kind);
+      if (already) {
+        skipped.push({ employee_id: employeeId, why: 'already paid this month' });
+        continue;
+      }
+
+      const row = db
+        .prepare(`SELECT * FROM payroll_rows WHERE period_id = ? AND employee_id = ?`)
+        .get(period.id, employeeId);
+      if (!row) {
+        skipped.push({ employee_id: employeeId, why: `no row in ${period.label}` });
+        continue;
+      }
+
+      const remark = [row.adjustment_note, note || 'leave bonus'].filter(Boolean).join('; ');
+      db.prepare(`UPDATE payroll_rows SET addition = ?, adjustment_note = ? WHERE id = ?`).run(
+        (Number(row.addition) || 0) + amount,
+        remark,
+        row.id
+      );
+      db.prepare(
+        `INSERT INTO bonus_payments (period_id, employee_id, kind, amount, days_off, note, by_whom)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(period.id, employeeId, kind, amount, Number(line.days_off) || 0, note || null, by || null);
+      paid.push({ employee_id: employeeId, amount });
+    }
+  });
+  run();
+
+  if (paid.length) {
+    audit({
+      who: by,
+      action: 'paid',
+      entity: 'bonus_payments',
+      label: `${period.label} — ${paid.length} people`,
+      to_value: String(paid.reduce((t, p) => t + p.amount, 0)),
+      note: note || 'leave bonus',
+    });
+  }
+  return { paid, skipped, period };
+}
+
+/** Taking one back, when it was paid by mistake. */
+export function unpayBonus(id, by) {
+  const row = db.prepare(`SELECT * FROM bonus_payments WHERE id = ?`).get(Number(id));
+  if (!row) throw new Error('not found');
+  const period = db.prepare(`SELECT * FROM periods WHERE id = ?`).get(row.period_id);
+  if (period?.locked) throw new Error(`${period.label} is closed`);
+  const payroll = db
+    .prepare(`SELECT * FROM payroll_rows WHERE period_id = ? AND employee_id = ?`)
+    .get(row.period_id, row.employee_id);
+  if (payroll) {
+    /* Take back exactly what was added, never below zero - the row may
+       carry other additions and they are not this module's to remove. */
+    db.prepare(`UPDATE payroll_rows SET addition = ? WHERE id = ?`).run(
+      Math.max(0, (Number(payroll.addition) || 0) - Number(row.amount)),
+      payroll.id
+    );
+  }
+  db.prepare(`DELETE FROM bonus_payments WHERE id = ?`).run(row.id);
+  audit({
+    who: by,
+    action: 'deleted',
+    entity: 'bonus_payments',
+    entity_id: row.id,
+    label: `${period?.label || ''} bonus taken back`,
+    from_value: String(row.amount),
+  });
+  return true;
+}
+
 export function setRepayment(loanId, periodId, amount) {
   db.prepare(
     `INSERT INTO loan_repayments (loan_id, period_id, amount) VALUES (?, ?, ?)

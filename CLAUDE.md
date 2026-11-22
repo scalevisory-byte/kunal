@@ -1561,6 +1561,38 @@ His brief: *"Never permanently delete approved leave transactions."* `canCancel`
   configurable approval **hierarchy** — it is `reports_to_id`, one step, plus HR, and a chain
   four deep quietly makes the top manager everybody's approver.
 
+## The leave bonus (v1.78) — `shared/leaveBonus.js`, `LeaveBonus.jsx`, Leave → Bonus
+
+Dinesh: *"Leave bonus add karo"*, then, asked which of three readings he meant, *"Leave me ek
+alag tab rakho"* — so: its own sub-tab under Leave, for the leave-linked reading (a bonus for
+a month somebody took no time off in). Unused-leave money is encashment, which already exists,
+and the panel points at it rather than growing a half-duplicate.
+
+- Two shapes: **all or nothing**, and **less a cut per day** (never below zero — nobody is
+  billed for taking leave, the bonus simply stops).
+- **Which marks cost it is ticked by the office.** A/UL/HF/AD/CL/SL/PL by default, because
+  paid leave is still a day away; S, H and WH never cost it. A half day costs half a day and
+  AD costs two — **the same way the sheet docks them**, so the bonus forms no second opinion
+  about a mark.
+- **NOTHING MARKED IS NOT A CLEAN MONTH.** Somebody with no marks at all is never eligible,
+  is named apart and has its own count. Without it, one unfilled grid pays the whole staff —
+  the same rule the biometric import follows for a day the machine has no record of.
+- **Working it out pays nobody.** `payBonus` is the one call that moves money and it names the
+  month: the amount is **added** to the row's existing `addition` (never replacing it) with a
+  note that prints on the payslip. `bonus_payments` is the ledger with a **unique index on
+  (period, employee, kind)** — that is what stops a second click paying twice, and it is
+  checked per person so the API cannot be used to go round the screen.
+- It pays **the lines it was shown**, not a second run of the rule that could have moved under
+  the office while they were reading it.
+- **Taking one back removes only that amount**, so another addition on the same row survives.
+  A locked month is refused.
+- **The rule is on the server** (`settings` table, new), deliberately not localStorage: a rule
+  that decides money must not live in one person's browser. Editing on screen only re-prices
+  until Save.
+- **A test caught a real hole:** unticking every mark left an empty break list, which meant
+  nothing disqualified anybody and the whole staff qualified every month. `normaliseRule` now
+  falls back to the default list, and the panel refuses to untick the last one.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

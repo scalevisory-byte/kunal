@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.77.0';
+export const VERSION = '1.78.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.78.0',
+    date: '22 Nov 2026',
+    title: 'Leave bonus \u2014 paid for a month somebody took no time off in',
+    items: [
+      '**Leave \u2192 Bonus**, its own tab. Two shapes: **all or nothing** (one day off and the bonus is lost) or **less a cut per day** (the amount, reduced for each day off, never below zero \u2014 so one absence does not cost the whole thing).',
+      '**Which days cost it is yours to tick.** Absence, unpaid leave, a half day and the three paid leaves count by default, because paid leave is still a day away \u2014 untick any your office pays the bonus through anyway. A Sunday, a holiday and a day worked from home never cost it.',
+      '**A half day costs half a day**, and the double absence (AD) costs two \u2014 the same way the salary sheet docks them, so the bonus does not form a second opinion about one mark.',
+      '**NOTHING MARKED IS NOT A CLEAN MONTH.** Somebody with no marks at all is never eligible; they are listed apart with the reason and counted on their own line. Without that rule one unfilled grid pays the whole staff a bonus, because every person reads as having taken no leave.',
+      '**Working it out pays nobody.** The figures are what the month WOULD pay; the money reaches a payslip only through the button, which names the month and puts it on the salary sheet as an **addition with a note**, so it prints on the payslip. The same split as an expense claim and a penalty recovery.',
+      '**The same month cannot be paid twice** \u2014 a second press, or a second call at the API, is refused per person and says so.',
+      '**Paid by mistake? Take it back**, and only that amount comes off: anything else added to the same row stays.',
+      '**A closed month is refused**, because that salary has been paid.',
+      '**The rule lives on the server, not in a browser** \u2014 it decides money, so the next person running the month must not get a different answer. Changing it on screen only re-prices the month until Save is pressed.',
+      '**Unused leave is a different thing** and the panel says so: pay that from Balances \u2192 Encash days.',
+    ],
+  },
   {
     version: '1.77.0',
     date: '22 Nov 2026',
