@@ -14,6 +14,13 @@ import {
   sheetsFromSheetJS,
 } from '../../../shared/monthlyStatus.js';
 import { asEsslPull, esslSheets, esslSummary } from '../../../shared/esslDb.js';
+import {
+  PUNCH_MAPPING,
+  coverage,
+  punchRows,
+  readLogFiles,
+} from '../../../shared/bizcompassLogs.js';
+import { readSpool, spoolDir, spoolStatus } from '../bizcompass.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
 import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance } from '../db.js';
@@ -373,6 +380,88 @@ reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (
       entries: undefined,
       months: sheets.filter((s) => !s.error).map((s) => ({ sheet: s.name, month: s.month, year: s.year })),
       pull: pull ? esslSummary(pull) : null,
+      period: { month: payroll.period.month, year: payroll.period.year },
+      dryRun,
+      written: dryRun ? 0 : result.entries.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------- the Bizcompass punch spool ---------------- */
+
+/**
+ * The other connector in this office, and the better one.
+ *
+ * Bizcompass's Sync Tool pulls the punches off the readers every ten minutes
+ * and spools them as small tab-separated files on THIS machine before
+ * uploading them to its own cloud. Reading those files needs no Access, no
+ * 32-bit driver and no lock on anybody's database, and it is current to the
+ * last ten minutes.
+ *
+ * Two steps as always: look, then write. And the look matters more here than
+ * usual, because the file carries a reader's user number and no name at all -
+ * a number nobody carries has to be named, never guessed at.
+ */
+reportsRouter.get('/bizcompass/status', (req, res) => {
+  res.json(spoolStatus());
+});
+
+/* `upload.none()` because the screen sends a form and nothing else parses one
+   here: without it `dry_run` never arrives and a look would write. */
+reportsRouter.post('/periods/:id/bizcompass', upload.none(), (req, res, next) => {
+  const payroll = buildPayroll(Number(req.params.id), { sync: false });
+  if (!payroll) return res.status(404).json({ error: 'period not found' });
+  if (payroll.period.locked) return res.status(409).json({ error: 'period is locked' });
+
+  const dir = spoolDir();
+  if (!dir) {
+    return res.status(400).json({
+      error: 'BIZCOMPASS_DIR is not set, so there is no folder to read',
+    });
+  }
+
+  try {
+    const { files, unreadable } = readSpool(dir, { month: payroll.period.month });
+    if (!files.length) {
+      return res.status(400).json({ error: 'no punch files for that month were found in the folder' });
+    }
+
+    const spool = readLogFiles(files);
+    const employees = listEmployees();
+    const mapped = punchRows(spool.punches, employees);
+    const result = punchesToMarks({
+      rows: mapped.rows,
+      mapping: PUNCH_MAPPING,
+      employees,
+      period: payroll.period,
+      deductLunch: payroll.period.lunch_paid !== 1,
+    });
+
+    const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
+    if (!dryRun && result.entries.length) setAttendance(payroll.period.id, result.entries);
+
+    res.json({
+      ...result,
+      // A month is a couple of thousand entries; the screen needs the shape,
+      // not the list.
+      entries: undefined,
+      spool: {
+        dir,
+        files: spool.files,
+        unreadable,
+        punches: spool.punches.length,
+        skippedLines: spool.skipped,
+        readers: spool.devices.length,
+      },
+      coverage: coverage(spool.punches, {
+        month: payroll.period.month,
+        year: payroll.period.year,
+      }),
+      // The whole point of the look: numbers nobody on the staff list carries.
+      unknownIds: mapped.unknown,
+      matchedPeople: mapped.matched.length,
       period: { month: payroll.period.month, year: payroll.period.year },
       dryRun,
       written: dryRun ? 0 : result.entries.length,

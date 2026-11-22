@@ -214,6 +214,23 @@ export const HELP = [
     note: 'A shift crossing midnight is handled. Somebody on a night shift should have their own shift times on their record, or they read as hours late every day.',
   },
   {
+    id: 'bizcompass-spool',
+    title: 'Punches from the Bizcompass spool',
+    tab: 'reports',
+    keywords: [
+      'bizcompass', 'spool', 'punch', 'punching', 'biometric', 'machine', 'automatic',
+      'har das minute', 'hajri', 'logdata', 'punch id', 'reader',
+    ],
+    lines: [
+      '**Reports \u2192 Tools \u2192 Punches from the Bizcompass spool.** The Bizcompass Sync Tool already pulls the punches off the readers every ten minutes and leaves them as small files on this server. This reads those files \u2014 no export, and **nothing in that folder is changed**.',
+      'Press **See what it would do** first. It says how many punches it found, which days of this month the spool actually holds, and how many people each day carries.',
+      '**Punch ID** on the Employees list is the number somebody is enrolled as on the machine. The spool has **no names in it at all**, so without that number their attendance cannot be given to anybody. Blank falls back to their Code.',
+      'A number nobody carries is listed with how many punches it has \u2014 that is somebody whose attendance is not coming through, and the only fix is to put the number on their record.',
+      'The earliest punch of a day is the arrival and the latest is the departure; the file carries no in/out flag, so this is the same rule every other import uses.',
+    ],
+    note: 'A DAY THE TOOL WAS NOT RUNNING ON WRITES NOTHING. It is simply missing from the list and the grid keeps whatever it had \u2014 unlike a printed report, which prints A for a stopped machine and for a real absence alike. And the folder belongs to Bizcompass: if that tool is ever removed, this feed stops.',
+  },
+  {
     id: 'essl-pull',
     title: 'eTimeTrackLite \u2014 attendance without exporting a file',
     tab: 'reports',

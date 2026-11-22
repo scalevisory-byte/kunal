@@ -1437,7 +1437,7 @@ const ROW_FIELDS = [
  * what was typed.
  */
 const EMPLOYEE_FIELDS = [
-  'company_id', 'code', 'name', 'designation', 'religion', 'department',
+  'company_id', 'code', 'device_code', 'name', 'designation', 'religion', 'department',
   'dob', 'gender', 'marital_status', 'blood_group',
   'father_name', 'mother_name', 'spouse_name',
   'phone', 'phone_alt', 'email', 'address',

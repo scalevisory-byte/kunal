@@ -202,6 +202,7 @@ export default function Employees({
         col('Code', (e) => e.employee_code || ''),
         col('Company', (e) => e.company_name || ''),
         col('Designation', (e) => e.designation || ''),
+        col('Punch ID', (e) => e.device_code || ''),
         col('Department', (e) => e.department || ''),
         col('Joined', (e) => e.joined_on || ''),
         col('Left', (e) => e.left_on || ''),
@@ -795,6 +796,17 @@ export default function Employees({
                 <th className="sticky-name">Name</th>
                 <th>Company</th>
                 <th>Designation</th>
+                {/*
+                  * THE NUMBER THE PUNCH READER KNOWS THEM BY.
+                  *
+                  * The Bizcompass spool carries no names at all - only this
+                  * number - so a punch cannot be given to anybody without it.
+                  * Blank falls back to the Code, which is right for an office
+                  * that uses one number for both.
+                  */}
+                <th title="The number this person is enrolled as on the punch machine. Blank falls back to their Code.">
+                  Punch ID
+                </th>
                 <th title="When this person's day starts. Blank follows the office's usual timing, set on the Time tab.">Shift in</th>
                 <th title="When this person's day ends. Blank follows the office's usual timing.">Shift out</th>
                 <th title="Groups people for the reporting line and the department-wise manager">Department</th>
@@ -914,6 +926,19 @@ export default function Employees({
                       onBlur={(e) =>
                         e.target.value !== (emp.designation || '') &&
                         onPatch(emp.id, { designation: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      key={`device-${emp.id}-${emp.device_code || ''}`}
+                      className="cell-input"
+                      defaultValue={emp.device_code || ''}
+                      placeholder={emp.code || '-'}
+                      title="Blank uses their Code"
+                      onBlur={(e) =>
+                        e.target.value !== (emp.device_code || '') &&
+                        onPatch(emp.id, { device_code: e.target.value })
                       }
                     />
                   </td>

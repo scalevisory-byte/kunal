@@ -1,0 +1,78 @@
+/**
+ * Reading the Bizcompass Sync Tool's punch spool off this machine's disk.
+ *
+ * The HRMS and that tool run on the SAME server, which is what makes this
+ * simple: there is no network hop and nothing to transfer. The folder is
+ * named by BIZCOMPASS_DIR and is read-only to us in every sense that matters.
+ *
+ * NOTHING HERE WRITES, RENAMES, MOVES OR DELETES ANYTHING IN THAT FOLDER.
+ * It belongs to another company's product, which is actively writing to it
+ * while we read; its archive is also the only copy of punches already
+ * uploaded. We read, and that is all.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { fileCouldMatter } from '../../shared/bizcompassLogs.js';
+
+/** Where the spool is, if the office has said. */
+export const spoolDir = () => (process.env.BIZCOMPASS_DIR || '').trim();
+
+/**
+ * Every .dat under the folder, newest last.
+ *
+ * `month` narrows by the file's own name before anything is opened - his
+ * folder holds sixteen thousand files and a month wants about two hundred of
+ * them. A file that cannot be read is COUNTED, not thrown: the tool may be
+ * part-way through writing it.
+ */
+export function readSpool(dir, { month, limit = 20000 } = {}) {
+  const files = [];
+  const walk = (at, depth = 0) => {
+    if (depth > 4 || files.length >= limit) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(at, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (files.length >= limit) return;
+      const full = path.join(at, entry.name);
+      if (entry.isDirectory()) walk(full, depth + 1);
+      else if (entry.name.toLowerCase().endsWith('.dat') && fileCouldMatter(entry.name, { month })) {
+        files.push(full);
+      }
+    }
+  };
+  walk(dir);
+  files.sort();
+
+  const out = [];
+  let unreadable = 0;
+  for (const file of files) {
+    try {
+      out.push({ name: path.basename(file), text: fs.readFileSync(file, 'utf8') });
+    } catch {
+      unreadable += 1;
+    }
+  }
+  return { files: out, unreadable, found: files.length };
+}
+
+/** What the office needs to know before pointing this at a month. */
+export function spoolStatus() {
+  const dir = spoolDir();
+  if (!dir) return { configured: false, reason: 'BIZCOMPASS_DIR is not set' };
+  let stat;
+  try {
+    stat = fs.statSync(dir);
+  } catch {
+    return { configured: true, dir, readable: false, reason: 'that folder cannot be opened' };
+  }
+  if (!stat.isDirectory()) {
+    return { configured: true, dir, readable: false, reason: 'that path is not a folder' };
+  }
+  const { found } = readSpool(dir, { limit: 1 });
+  return { configured: true, dir, readable: true, hasFiles: found > 0 };
+}

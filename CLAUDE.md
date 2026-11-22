@@ -1168,11 +1168,62 @@ script carries no INSERT/UPDATE/DELETE and writes only its own file.
 every identifier. And in Windows PowerShell 5.1, `Get-ChildItem -Depth` together with
 `-Include` returns **nothing at all**, silently; use `-Filter`, or `-Recurse` without `-Depth`.
 
-**Still to establish: which machine holds the live file.** No `.mdb` on the BNF server's D: or
-E: is newer than 05/08/2026, and the November export exists — so the live install is almost
-certainly the **HR PC**. Ask the office which computer runs eTimeTrackLite and which one the
-report is exported from; then either share that folder read-only, or run `ESSL-PULL.ps1` there
-on a schedule. The file import works today either way, so nothing is blocked.
+**Answered: eTimeTrackLite runs on the HR PC**, not the server (*"software hr ke pc me he"*).
+So `ESSL-PULL.ps1` would run there, and the JSON it writes is uploaded from HR's own browser —
+no share and no network plumbing needed. But see below: there is a better source on the server
+itself, and the Access route is now the fallback rather than the plan.
+
+## The Bizcompass punch spool — the connector that was already there (v1.87.0)
+
+Dinesh: *"bizcompass ka connector he o kese kam kar raha he o chekc kiya?"* — **no, and the
+earlier note was wrong twice over.** `ParallelAttLogExportDetails = 0` was read off the *stale*
+April-2025 database, and it was the wrong question anyway: **Bizcompass does not read
+eTimeTrackLite's database at all.**
+
+He sent the tool's own folder. What it actually does: every ~10 minutes it pulls the punches
+off the readers, writes the batch to a small tab-separated file under `logdata\`, uploads it to
+Bizcompass's cloud (`configs/config.xml`: SubDomainName `booknfly`, Organization BOOKNFLY
+PRIVATE LIMITED, AuthKey/HashKey — and `LastOrgStatusCheckedOn` was **that same day**, so it is
+still running), then moves the file into `logdata\archive\`. A line is five fields:
+`37 ⇥ 22-11-2026 15:24:39 ⇥ 255 ⇥ <device guid> ⇥ 0`.
+
+**His folder: 16,263 files, 63,081 punches, 27 Jun → 22 Nov 2026 with no gap, two readers,
+~66 people a day, and not one unreadable line.** It is on the **BNF server** — the same machine
+the HRMS runs on — so there is no network hop at all.
+
+**Why this beats reading Access**: no 32-bit Jet provider, no Windows-only dependency, **no lock
+risk** (separate files; eTimeTrackLite's database is never touched), current to the last ten
+minutes, and plain text. `shared/bizcompassLogs.js` + `backend/src/bizcompass.js` +
+`BizcompassImport.jsx`, behind `BIZCOMPASS_DIR`.
+
+- **It produces rows for the EXISTING `punchesToMarks`**, so a day off the spool, a day typed on
+  the Time tab and a day from an Excel import are judged by one rule.
+- **A day the tool was stopped on writes NOTHING.** `punchesToMarks` only emits entries for
+  person-days it actually saw, so there is no way for this source to book the 912 absences a
+  printed report can — the trap simply does not exist here. Said on the screen and in help.
+- **`employees.device_code` ("Punch ID") is its own column, not a reuse of `code`** — Dinesh:
+  *"essl ka employee code bhi hrms me dalna hota tha jisse name match kar sake"*. The spool has
+  **no names in it at all**. `code` is what the office calls somebody on a payslip; this is what
+  a machine in the corridor calls them. Blank falls back to `code`, so an office using one
+  number for both types nothing; folding them into one column would mean renumbering a reader
+  changed somebody's payslip. A number nobody carries is **named with its punch count** — that
+  is somebody whose attendance is not arriving.
+- **The folder belongs to another company's product** and is read, never written: a test asserts
+  the files are byte-identical after an import. Its archive is also the only copy of punches
+  already uploaded. **If Bizcompass is ever uninstalled this feed stops** — then the eSSL pull
+  above is the fallback.
+- **The filename carries the sync day** (`LogFile_11_22_...`), so a month reads ~2,900 files
+  instead of 16,263. It is the SYNC time, not the punch time, so a day either side is kept and
+  the real date still comes off every line.
+- Direction is `0` and verify is `255` on every line in the whole folder, so there is nothing to
+  read: earliest punch in, latest out — the rule every other import already uses.
+- A part-written last line is **counted and dropped**, because the tool is writing to that
+  folder while we read it.
+- **Bug worth remembering:** the route took a form and nothing parsed one, so `dry_run` never
+  arrived and a look would have written. `upload.none()` fixes it; the API test catches it.
+- **Bug worth remembering:** adding `device_code` to `EMPLOYEE_FIELDS` without a default in
+  `createEmployee` took 328 tests down with *"Missing named parameter"* — every field in that
+  list must be given a value, even a null one.
 
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and

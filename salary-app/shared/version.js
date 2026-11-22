@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.86.0';
+export const VERSION = '1.87.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.87.0',
+    date: '22 Nov 2026',
+    title: 'Attendance from the Bizcompass punch spool \u2014 the connector that was already there',
+    items: [
+      '**It turned out the office already had a working punch feed and nobody was using it.** The Bizcompass Sync Tool pulls the punches off the readers **every ten minutes** and leaves them as small files on the same server the HRMS runs on. Reports \u2192 Tools now reads those files. No export, nothing opened in eTimeTrackLite, and **nothing in that folder is changed**.',
+      '**It is current to the last ten minutes**, not to whenever somebody last exported a report. Checked against the real folder: 16,263 files, 63,081 punches, 27 June to today without a gap, two readers, about 66 people a day \u2014 and not one unreadable line.',
+      '**A day the tool was not running on writes NOTHING** \u2014 it is simply absent from the list, and the grid keeps whatever it had. A printed report prints `A` for that day and for a real absence alike; this cannot, which is why it is the safer source.',
+      '**New column on Employees: Punch ID.** The spool carries no names at all, only the number somebody is enrolled as on the machine \u2014 so that number has to be on their record. Blank falls back to their Code, so an office using one number for both types nothing. A number nobody carries is **named on screen with its punch count**, because their attendance is not arriving at all.',
+      'Nothing new decides a mark: the punches go through the same importer a typed day and an Excel import already use, so one rule decides the hours however they arrived.',
+      'Needs `BIZCOMPASS_DIR` pointed at the Sync Tool\u2019s `logdata` folder. The panel says so when it is not set.',
+    ],
+  },
   {
     version: '1.86.0',
     date: '22 Nov 2026',

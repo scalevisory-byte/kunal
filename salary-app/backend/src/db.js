@@ -33,6 +33,7 @@ db.exec(`
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     company_id     INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     code           TEXT,
+    device_code    TEXT,
     name           TEXT NOT NULL,
     designation    TEXT,
     -- Drives which festivals are a paid holiday for this person. Free text with
@@ -751,6 +752,22 @@ for (const column of [
   'address_line1', 'address_line2', 'city', 'state', 'pincode',
   'perm_line1', 'perm_line2', 'perm_city', 'perm_state', 'perm_pincode',
   'emergency_phone_alt', 'emergency_address',
+  /*
+   * The number the punch reader knows somebody by.
+   *
+   * Dinesh: "essl ka employee code bhi hrms me dalna hota tha jisse name
+   * match kar sake". The Bizcompass spool carries no names at all - only this
+   * number - so without it a punch cannot be given to anybody.
+   *
+   * It is its OWN column and not a reuse of `code`, because they are two
+   * different facts: `code` is what the office calls somebody on a payslip,
+   * this is what a machine in the corridor calls them. They often match, and
+   * the import falls back to `code` when this is blank, so an office that
+   * uses one number for both types nothing. Folding them into one column
+   * would mean a person could not be renumbered on the reader without their
+   * payslip changing too.
+   */
+  'device_code',
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
@@ -945,6 +962,8 @@ export function deleteCompany(id) {
 
 const EMPLOYEE_FIELDS = [
   'reports_to_id',
+  /* What the punch reader knows them by. Not `code`: see the migration. */
+  'device_code',
   /* The employee master's own fields. None of them reaches calculateRow:
      a joining form cannot move a rupee. */
   'hod_id',
@@ -1213,6 +1232,10 @@ export function createEmployee(input) {
     // default, so an existing row and a new one behave exactly as before.
     pf_mode: ['auto', 'none'].includes(input.pf_mode) ? input.pf_mode : 'fixed',
     esi_mode: ['auto', 'none'].includes(input.esi_mode) ? input.esi_mode : 'fixed',
+    /* The number the punch reader knows them by. Null means "ask `code`" -
+       the import falls back to it, so an office using one number for both
+       types nothing here. */
+    device_code: input.device_code ? String(input.device_code).trim() : null,
     // Null means "the office's usual day", which is what almost everybody works.
     shift_in: input.shift_in || null,
     shift_out: input.shift_out || null,
