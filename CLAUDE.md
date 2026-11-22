@@ -1815,6 +1815,40 @@ column on `periods` — so "on" had to mean two things, not one.
   asserts the new default and then patches itself back, which is itself the proof that nothing
   switches a month by itself. `auth` and the audit trail now state what a month opens on.
 
+### Both rules at once (v1.84) — `POLICY.monthlyLate`
+
+Dinesh, straight after turning the monthly target on: *"late early concession bhi on kar do"*.
+Until then the three were **alternatives** and turning the concession on would have turned the
+monthly target off. They do not have to be — but only if the overlap is removed.
+
+- **They answer DIFFERENT questions.** The total asks whether the hours went in; the concession
+  asks whether somebody turned up on time. Forty minutes late every day and forty minutes later
+  every evening is nine hours done and still late every morning — the monthly rule alone cannot
+  see it, which is the whole reason for running both.
+- **What they share is the person who is late and never makes it up**: those minutes are in the
+  monthly shortfall AND in the late pool. So `calculateRow` charges the **GREATER of the two,
+  never the sum** — written as "the shortfall, plus only the lateness beyond it", which is the
+  same arithmetic and reads as what it is. By construction a minute cannot be taken twice, and
+  it is never less than either rule alone. There is a test for both halves.
+- Measured on three shapes of month: on time → nothing; late but hours complete → ₹1,370 (the
+  monthly rule alone charges nothing); late AND short → **₹1,926, not ₹3,296**.
+- **Two preview bugs, both found by reading the two panels on one screen rather than by
+  guessing.** (1) *Late and early* summed `late_computed` (what the rule WOULD take) and read
+  "2,741 charged" against payslips taking 1,370 — it sums `late_salary` on this policy now, and
+  says how much lateness was absorbed by the shortfall below. (2) The confirm took the greater
+  of the two **totals** and said "at most 2,741" for a month that takes 3,296 — the greater has
+  to be taken **per person and then added**, because the person the monthly rule bites and the
+  person the concession bites are not the same person.
+- `DEFAULT_POLICY_FOR_NEW_MONTHS` is now `monthly_late`; existing months still keep whatever
+  they were opened on, with the same tests as v1.83. Five tests pinned the previous default and
+  were rewritten to state the new one.
+- **Worth knowing before the first payday on it:** lateness is judged against 09:30–18:30 unless
+  somebody carries their own `shift_in`/`shift_out`, so anybody genuinely on flexible hours needs
+  their shift set or an afternoon start reads as hours of lateness. Note the tension with his own
+  earlier rule recorded in `standardTimes.js` — *"time sabka flexible, 9 hrs complete hone
+  chahiye"* — which the monthly target serves and the concession does not. Both are on because he
+  asked for both; the panel names everybody over the concession before it is switched.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
@@ -1825,10 +1859,12 @@ column on `periods` — so "on" had to mean two things, not one.
 3. **The biometric file's 34 always-absent people** — absent on every day the October machine
    file has a record for. Almost certainly never enrolled, or already left. Named in the dry
    run rather than written through.
-4. **Whether to turn the late/early CONCESSION on** (the 300-minute pool) — still unanswered
-   and still off on every month; the panel prices it first. Note he chose the OTHER rule in
-   v1.83: new months open on monthly hours, and the three are alternatives, so switching a
-   month to the concession turns the monthly target off for it.
+4. **Answered in v1.84: both are on.** New months open on `monthly_late` — the monthly hours
+   target and the 300-minute concession together, charged as the greater of the two. What is
+   still worth settling is the tension with *"time sabka flexible, 9 hrs complete hone chahiye"*:
+   with the concession on, arriving late costs money even when the nine hours are completed.
+   Anybody genuinely on flexible hours should carry their own shift times, or the office day
+   decides when they are late.
 5. **Whether paid leave should close a sandwich.** Default is absence only (A/UL); CL/SL/PL
    is available as the harsher reading.
 6. **Whether to pull eSSL punches directly** from the eTimeTrackLite database rather than

@@ -67,8 +67,10 @@ const num = (v, fallback = 0) => {
 };
 
 /** True when this period settles hours once a month rather than day by day. */
-export const onMonthlyHours = (period = {}) =>
-  String(period.late_policy || POLICY.hours).toLowerCase() === POLICY.monthly;
+export const onMonthlyHours = (period = {}) => {
+  const p = String(period.late_policy || POLICY.hours).toLowerCase();
+  return p === POLICY.monthly || p === POLICY.monthlyLate;
+};
 
 /** How many minutes a month may fall short before anything is charged. */
 export const DEFAULT_MONTHLY_GRACE = 0;

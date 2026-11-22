@@ -1814,7 +1814,9 @@ export async function handle(method, path, body) {
       // nothing for lateness as such - exactly as the server has it.
       /* One of three. Anything unrecognised falls back to 'hours', the
          behaviour every existing month runs on, so a typo cannot move money. */
-      late_policy: ['concession', 'monthly'].includes(body.late_policy) ? body.late_policy : 'hours',
+      late_policy: ['concession', 'monthly', 'monthly_late'].includes(body.late_policy)
+        ? body.late_policy
+        : 'hours',
       late_concession_minutes:
         body.late_concession_minutes === undefined ? 300 : Number(body.late_concession_minutes),
       late_grace_minutes: Number(body.late_grace_minutes) || 0,

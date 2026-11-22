@@ -244,9 +244,15 @@ const call = async (m, url, body) => {
 };
 
 test('a month opened from now starts on the monthly rule', async () => {
-  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'monthly');
+  /*
+   * On the monthly target AND the late/early concession, which Dinesh asked
+   * for one after the other. `onMonthlyHours` is true for both values, so
+   * everything in this file holds either way; `bothRules.test.js` is where
+   * the combination itself is pinned.
+   */
+  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'monthly_late');
   const made = (await call('POST', '/api/periods', { year: 2027, month: 1 })).body;
-  assert.equal(made.late_policy, 'monthly');
+  assert.equal(made.late_policy, 'monthly_late');
 });
 
 test('AND A MONTH ALREADY OPEN IS NOT TOUCHED', async () => {
@@ -292,7 +298,7 @@ test('the write route cannot change what the monthly rule charges', async () => 
   const punched = await mk('Punched Pooja');
 
   const p = (await call('POST', '/api/periods', { year: 2027, month: 6 })).body;
-  assert.equal(p.late_policy, 'monthly');
+  assert.equal(p.late_policy, 'monthly_late');
   await call('GET', `/api/periods/${p.id}/payroll`);
 
   const hours = { in_time: '09:52', out_time: '18:20' }; // 32 minutes short

@@ -20,11 +20,12 @@ import { rupees as money } from '../format.js';
 export default function LatePolicy({ period, rows, onPatch, locked }) {
   const [open, setOpen] = useState(false);
   const policy = String(period.late_policy || POLICY.hours);
-  const on = policy === POLICY.concession;
+  /* Lateness is charged on BOTH the concession policy and the combined one. */
+  const on = policy === POLICY.concession || policy === POLICY.monthlyLate;
 
   const preview = useMemo(() => {
-    const out = { people: [], charge: 0, minutes: 0, judged: 0, unknown: 0, each: [],
-      monthlyPeople: [], monthlyCharge: 0, monthlyMinutes: 0 };
+    const out = { people: [], charge: 0, absorbed: 0, bothCharge: 0, minutes: 0, judged: 0,
+      unknown: 0, each: [], monthlyPeople: [], monthlyCharge: 0, monthlyMinutes: 0 };
     for (const row of rows) {
       if (row.late_total_minutes > 0 || row.late_days || row.early_days) {
         out.minutes += row.late_total_minutes || 0;
@@ -42,16 +43,39 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
         out.monthlyCharge += Math.abs(Number(row.monthly_hours_amount) || 0);
         out.monthlyPeople.push(row);
       }
-      const amount = Number(row.late_computed) || 0;
-      if (amount > 0) {
+      /*
+       * `late_computed` is what the rule WOULD charge; `late_salary` is what
+       * the month actually takes. The same figure on every policy except the
+       * combined one, where lateness nobody made up is already inside the
+       * month's shortfall and only the part beyond it is charged on top.
+       *
+       * Summing the first there overstated the month: this panel read
+       * "2,741 charged" against payslips that took 1,370, so anybody adding
+       * it to the hours panel below got a total the salary sheet disagreed
+       * with. Found by reading both panels on one screen.
+       */
+      const would = Number(row.late_computed) || 0;
+      const taken = Number(row.late_salary) || 0;
+      if (would > 0) {
         out.people.push(row);
-        out.charge += amount;
+        out.charge += on ? taken : would;
+        out.absorbed += Math.max(0, would - taken);
       }
+      /*
+       * What BOTH rules together would take off this one person: the greater
+       * of the two, never the sum.
+       *
+       * PER PERSON, then added up. Taking the greater of the two TOTALS is a
+       * different and wrong number - it read "at most 2,741" for a month that
+       * actually takes 3,296, because the person the monthly rule bites and
+       * the person the concession bites are not the same person.
+       */
+      out.bothCharge += Math.max(Math.abs(Number(row.monthly_hours_amount) || 0), would);
     }
     out.people.sort((a, b) => (b.late_computed || 0) - (a.late_computed || 0));
     out.each.sort((a, b) => (b.late_total_minutes || 0) - (a.late_total_minutes || 0));
     return out;
-  }, [rows]);
+  }, [rows, on]);
 
   const set = (patch) => {
     if (locked) return;
@@ -113,6 +137,13 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
           <em>{on ? 'charged' : 'would be charged'}</em>
         </span>
       </div>
+      {on && preview.absorbed > 0 && (
+        <p className="muted small">
+          A further <strong>{money(preview.absorbed)}</strong> of lateness is <strong>not</strong>{' '}
+          charged on top: those minutes are already missing from the month&rsquo;s hours below, and
+          the same minutes are never taken twice.
+        </p>
+      )}
 
       {preview.each.length > 0 ? (
         /* The per-person breakdown is DETAIL, so it folds. The three
@@ -184,6 +215,21 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                     );
                     if (!ok) return;
                   }
+                  if (next === POLICY.monthlyLate) {
+                    /*
+                     * The one thing somebody must understand before pressing
+                     * it: the two are NOT added. A late minute nobody made up
+                     * is already inside the month's shortfall.
+                     */
+                    const ok = window.confirm(
+                      'BOTH rules together.\n\n' +
+                        'The month’s total is charged, and only the lateness that goes BEYOND ' +
+                        'it is charged on top — never the two added, because a late minute ' +
+                        'nobody made up is already in the shortfall.\n\n' +
+                        `On this month that comes to ${money(preview.bothCharge)}. Turn both on?`
+                    );
+                    if (!ok) return;
+                  }
                   if (next === POLICY.monthly && preview.monthlyCharge > 0) {
                     const ok = window.confirm(
                       `The month owes each person nine hours a day for the days they were due.\n\n` +
@@ -202,6 +248,9 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                 </option>
                 <option value={POLICY.monthly}>
                   The month owes a total — 9 hours × the days due, short and long cancel
+                </option>
+                <option value={POLICY.monthlyLate}>
+                  Both — the month’s total AND a cap on lateness (never charged twice)
                 </option>
               </select>
             </label>

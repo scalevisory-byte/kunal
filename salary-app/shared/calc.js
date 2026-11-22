@@ -264,7 +264,10 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     rules: period,
     per_minute: perMinute,
   });
-  const lateSalary = concessionMode ? lateEarly.amount : 0;
+  /*
+   * The late/early charge is settled below, once the month's own account of
+   * hours is known - because on `monthly_late` the two must not be added.
+   */
   /*
    * Under the concession policy the hours-shortfall is NOT charged as well -
    * a person half an hour late is already half an hour short, and taking both
@@ -306,6 +309,35 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   const otSalary = isSet(row.ot_amount_override) // AT
     ? num(row.ot_amount_override)
     : perMinute * otMinutes;
+
+  /*
+   * ============================================================
+   * RUNNING BOTH RULES WITHOUT CHARGING A MINUTE TWICE
+   * ============================================================
+   *
+   * Dinesh: *"late early concession bhi on kar do"*, having just turned the
+   * monthly target on. They answer different questions - the total asks
+   * whether the hours went in, the concession asks whether somebody turned
+   * up on time - so somebody half an hour late who stays half an hour later
+   * has passed the first and failed the second, and charging them for it is
+   * not a double charge.
+   *
+   * What the two DO share is the person who is late and never makes it up:
+   * those minutes sit in the monthly shortfall AND in the late pool. Adding
+   * the two would take them twice, which is the one thing every hours rule
+   * in this app refuses to do.
+   *
+   * So on `monthly_late` the month is charged the GREATER of the two, never
+   * the sum. By construction that can never take a minute twice, and it is
+   * never less than either rule would have charged on its own. Written as
+   * "the shortfall, plus only the lateness that goes beyond it", which is
+   * the same arithmetic and reads as what it is.
+   */
+  const monthlyCharge = monthlyMode && otMinutes < 0 ? Math.abs(otSalary) : 0;
+  const lateCharge = concessionMode ? lateEarly.amount : 0;
+  const lateSalary = round2(
+    monthlyMode && concessionMode ? Math.max(0, lateCharge - monthlyCharge) : lateCharge
+  );
 
   // AU: anything else, entered by hand. Two boxes rather than one signed number,
   // because a month can carry both - an incentive and a breakage, say - and
@@ -424,7 +456,13 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ot_salary: round2(otSalary),
     // The late/early line. Always reported, only charged on the concession
     // policy - `late_salary` is 0 on the default one, by design.
-    late_policy: monthlyMode ? 'monthly' : concessionMode ? 'concession' : 'hours',
+    late_policy: monthlyMode && concessionMode
+      ? 'monthly_late'
+      : monthlyMode
+        ? 'monthly'
+        : concessionMode
+          ? 'concession'
+          : 'hours',
     /* The month's hours account, so the sheet and the panel can show what is
        owed against what was worked without working it out a second time. */
     monthly_hours_expected: monthlyHours.expected,

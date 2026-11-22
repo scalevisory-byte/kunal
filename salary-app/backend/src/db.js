@@ -1646,13 +1646,15 @@ export function updatePeriod(id, patch) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     /*
-     * The policy is one of three and nothing else. An unrecognised value
+     * The policy is one of four and nothing else. An unrecognised value
      * falls back to 'hours' - what every existing month runs on - so a typo
      * or a stale form cannot land a month on a rule nobody chose.
      */
     if (key === 'late_policy') {
       const asked = String(patch[key] || '').toLowerCase();
-      values.push(['concession', 'monthly'].includes(asked) ? asked : 'hours');
+      values.push(
+        ['concession', 'monthly', 'monthly_late'].includes(asked) ? asked : 'hours'
+      );
       continue;
     }
     values.push(key === 'locked' || key === 'lunch_paid' ? (patch[key] ? 1 : 0) : patch[key]);

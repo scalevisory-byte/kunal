@@ -240,6 +240,7 @@ export const HELP = [
     ],
     lines: [
       '**Time \u2192 The month\u2019s hours.** Nine hours a day for the days each person was due \u2014 26 days is **234 hours**. A day short and a day long cancel; only what is missing from the **total** comes off the pay.',
+      '**A month now opens on BOTH this and the late/early concession.** They are different questions \u2014 did the hours go in, and did somebody turn up on time \u2014 and they are charged as the **greater of the two, never added**, because a late minute nobody made up is already inside the month\u2019s shortfall.',
       '**Every month opened from now starts on this rule.** A month already run keeps the rule it was run on, so no payslip already paid can move \u2014 switch the open month with **Charge this month on it** on the same panel, which says what it costs before it acts.',
       '**The total is not a flat 234.** Somebody absent two days owes 24 \u00d7 9 \u2014 those two days already came off as absences. Leave, a holiday, a weekly off and a half day add nothing to the total either.',
       '**A day nobody clocked counts on neither side.** No in time means not known, so it adds no hours to what is owed and none to what was worked.',
@@ -247,7 +248,7 @@ export const HELP = [
       '**On this rule the clock times are the record.** A short-hours figure typed onto a day that already has an in and an out does not override those times. To forgive a whole month, type over the OT/LT box on the salary sheet \u2014 that beats every rule.',
     ],
     note:
-      'THE THREE RULES ARE ALTERNATIVES, NEVER TWO AT ONCE \u2014 each day on its own, the late/early concession, or the month\u2019s total. Somebody an hour short on Tuesday is ALREADY an hour short in the month\u2019s total; charging both would take the same hour twice.\n\nWhat the monthly rule changes against the old one: each day used to forgive up to a quarter of an hour, which over 26 days is six and a half hours a month given away. Ten minutes short every day used to cost nothing; on this rule it is 4h 20m off the total.',
+      'THE SAME MINUTES ARE NEVER CHARGED TWICE. Somebody an hour short on Tuesday is ALREADY an hour short in the month\u2019s total, so \u201ceach day on its own\u201d and \u201cthe month owes a total\u201d are alternatives \u2014 pick one.\n\nThe month\u2019s total and the late/early concession DO run together, because they ask different questions. When they do, the month is charged the GREATER of the two and never the sum \u2014 a late minute nobody made up is already inside the shortfall.\n\nWhat the monthly rule changes against the old one: each day used to forgive up to a quarter of an hour, which over 26 days is six and a half hours a month given away. Ten minutes short every day used to cost nothing; on this rule it is 4h 20m off the total.',
   },
   {
     id: 'shifts',

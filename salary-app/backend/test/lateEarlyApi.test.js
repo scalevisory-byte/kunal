@@ -33,7 +33,7 @@ let periodId;
 let employeeId;
 let nightId;
 
-test('a month opens on the monthly rule; this file pins it back to hours', async () => {
+test('a month opens on both rules; this file pins it back to hours', async () => {
   const company = await api('POST', '/api/companies', { name: 'BOOKNFLY' });
   const employee = await api('POST', '/api/employees', {
     company_id: company.body.id,
@@ -61,7 +61,11 @@ test('a month opens on the monthly rule; this file pins it back to hours', async
    * back onto `hours` deliberately - and that it has to be says the switch
    * is per month and nothing switches a month by itself.
    */
-  assert.equal(period.body.late_policy, 'monthly', 'a new month opens on the monthly rule');
+  assert.equal(
+    period.body.late_policy,
+    'monthly_late',
+    'a new month opens on the monthly target AND the concession'
+  );
   const back = await api('PATCH', `/api/periods/${periodId}`, { late_policy: 'hours' });
   assert.equal(back.body.late_policy, 'hours');
   assert.equal(period.body.late_concession_minutes, 300);

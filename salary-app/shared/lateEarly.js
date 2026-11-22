@@ -36,17 +36,30 @@ import { MAX_DAY_MINUTES, parseTime, readTimes } from './timesheet.js';
  * reason in the note above: the same missing half hour must not be taken as
  * a short day, as a late arrival and as a monthly shortfall.
  *
- *   hours       each day on its own - short hours charged, overtime paid.
- *   concession  late and early minutes pooled, the first 300 free, and the
- *               hours-shortfall no longer charged.
- *   monthly     Dinesh's rule: the month owes a TOTAL - nine hours times
- *               twenty-six days - and a day short cancels a day long. See
- *               `shared/monthlyHours.js`.
+ *   hours         each day on its own - short hours charged, overtime paid.
+ *   concession    late and early minutes pooled, the first 300 free, and the
+ *                 hours-shortfall no longer charged.
+ *   monthly       Dinesh's rule: the month owes a TOTAL - nine hours times
+ *                 twenty-six days - and a day short cancels a day long. See
+ *                 `shared/monthlyHours.js`.
+ *   monthly_late  both of those, charged as the GREATER of the two and never
+ *                 as the sum. See the note on POLICY.monthlyLate.
  */
 export const POLICY = {
   hours: 'hours',
   concession: 'concession',
   monthly: 'monthly',
+  /*
+   * BOTH of the last two, which are different questions:
+   *   the month's total asks DID THEY PUT THE HOURS IN;
+   *   the concession asks DID THEY TURN UP ON TIME.
+   * Somebody half an hour late who stays half an hour later has answered the
+   * first and failed the second, so the two are not the same offence. What
+   * they share is the person who is late and does NOT make it up: those
+   * minutes are in both counts, and `calculateRow` charges the GREATER of
+   * the two rather than the sum, so no minute is ever taken twice.
+   */
+  monthlyLate: 'monthly_late',
 };
 
 /**
@@ -70,7 +83,7 @@ export const POLICY = {
  * One constant, read by `createPeriod` on the server and by `localStore` in
  * the single-file build, so the two cannot open a month on different rules.
  */
-export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthly;
+export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthlyLate;
 
 /**
  * The office's usual day and how much lateness a month absorbs.
@@ -116,8 +129,10 @@ export function readLateRules(source = {}) {
 }
 
 /** True when this period prices late and early minutes rather than hours. */
-export const onConcession = (period = {}) =>
-  String(period.late_policy || POLICY.hours).toLowerCase() === POLICY.concession;
+export const onConcession = (period = {}) => {
+  const p = String(period.late_policy || POLICY.hours).toLowerCase();
+  return p === POLICY.concession || p === POLICY.monthlyLate;
+};
 
 /**
  * The shift one person works - their own if they have one, else the office's.

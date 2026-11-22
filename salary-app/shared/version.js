@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.83.0';
+export const VERSION = '1.84.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.84.0',
+    date: '22 Nov 2026',
+    title: 'Both rules at once \u2014 the month\u2019s hours and the lateness cap, never charged twice',
+    items: [
+      '**A month now opens on BOTH** the monthly-hours target and the 300-minute late/early concession. Asked for one after the other.',
+      '**They are different questions.** The total asks whether the hours went in; the concession asks whether somebody turned up on time. Somebody forty minutes late who stays forty minutes later has done their nine hours and is still late every morning \u2014 the monthly rule alone could never see that, which is the whole reason for running both.',
+      '**THE SAME MINUTES ARE NEVER CHARGED TWICE.** Somebody late who does NOT make it up is already short in the month\u2019s total, so the two are charged as the **greater of the two, never added**. On a real test month that is \u20b91,926 rather than \u20b93,296 for the same person.',
+      '**And never less than either rule alone would have charged**, so nothing is quietly forgiven by combining them. There is a test over three different shapes of month.',
+      '**Time \u2192 Rule** now offers four: each day on its own, the concession, the month\u2019s total, or both. Switching to both says what it costs first. Still held per month, so every month already run keeps the rule it was run on and no payslip already paid can move.',
+      'Worth knowing before the first payday: lateness is judged against **09:30\u201318:30** unless a person carries their own shift times, so anybody genuinely on flexible hours should have their shift set on their record \u2014 otherwise an afternoon start reads as hours of lateness. The panel names everybody over the concession before it is switched on.',
+    ],
+  },
   {
     version: '1.83.0',
     date: '22 Nov 2026',
