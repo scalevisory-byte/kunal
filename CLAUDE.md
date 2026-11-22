@@ -1358,6 +1358,32 @@ to come off before this is relied on.
   `log(...)` was a 500 on every pull; and `monthForAuto` returns `{ period, why }`, not a
   period, which read as *"period not found"* on a month that simply was not open.
 
+### Pointed at his real reader (v1.90.1)
+
+The very first Test against **192.168.1.7:4370 on the BNF server** came back
+*"the device wants its communication key and none is set for it"* — which is the best
+possible first answer: the server reached the reader, the reader understood our CONNECT
+packet and replied `ACK_UNAUTH`. **Real-device confirmation that the framing is right**, which
+the fake loopback could never give.
+
+- **A key that was saved never reached the device.** `Reader`'s constructor read `commKey`;
+  what every caller holds is the row out of `punch_devices`, whose column is **`comm_key`**. So
+  the reader went on asking for a key however many times it was typed — which reads as "you
+  typed it wrong", not as a bug here. Both names accepted, with a test.
+- **There was no Edit button at all**, so a key could not be set on a reader already added.
+  Found by driving the exact sequence he was in.
+- **A successful Test now clears `last_error`** — a row still reporting a fault after somebody
+  fixed it is the stale "4 still missing" bug again.
+- **Placeholder text reads as a filled-in value.** He pressed Save on an untouched form and was
+  told the reader needed a name while "IN gate" was apparently sitting in the box. Now `e.g.`,
+  required boxes marked, and **the error moved inside the form** — it had been six inches above
+  the box it was about, with a paragraph in between.
+- **Bizcompass's own folder does NOT hold the device list or the comm key.** Checked:
+  `configs/config.xml` carries only cloud credentials (SubDomainName, Organization, AuthKey,
+  HashKey) plus `IsOrgSuspended=false`, last checked 22 Nov 16:05. So the Sync Tool **fetches
+  its device configuration from the Bizcompass cloud at runtime** — which is another reason not
+  to depend on it, and means the key must come from eTimeTrackLite or the device keypad.
+
 ## Where the HRMS actually runs — corrected
 
 **It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,

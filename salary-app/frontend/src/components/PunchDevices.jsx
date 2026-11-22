@@ -23,7 +23,8 @@ import { STANDALONE, api } from '../api.js';
  */
 export default function PunchDevices({ period, onReload, onGo }) {
   const [data, setData] = useState(null);
-  const [adding, setAdding] = useState(false);
+  // null = closed, 'new' = adding, a number = editing that reader.
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: '', host: '', port: 4370, comm_key: '' });
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -49,16 +50,35 @@ export default function PunchDevices({ period, onReload, onGo }) {
     }
   };
 
-  const add = async () => {
-    const out = await act('Saving…', () => api.post('/devices', {
+  const openForm = (device) => {
+    setError('');
+    setSaid('');
+    setForm(device
+      ? {
+          name: device.name || '',
+          host: device.host || '',
+          port: device.port || 4370,
+          comm_key: device.comm_key || '',
+        }
+      : { name: '', host: '', port: 4370, comm_key: '' });
+    setEditing(device ? device.id : 'new');
+  };
+
+  const save = async () => {
+    const body = {
       ...form,
       port: Number(form.port) || 4370,
       comm_key: Number(form.comm_key) || 0,
-    }));
+    };
+    const making = editing === 'new';
+    const out = await act('Saving…', () => (making
+      ? api.post('/devices', body)
+      : api.patch(`/devices/${editing}`, body)));
     if (out) {
-      setForm({ name: '', host: '', port: 4370, comm_key: '' });
-      setAdding(false);
-      setSaid(`${out.name} added. Try "Test" to see whether it answers.`);
+      setEditing(null);
+      setSaid(making
+        ? `${out.name} added. Try "Test" to see whether it answers.`
+        : `${out.name} saved. Try "Test" again.`);
     }
   };
 
@@ -142,7 +162,7 @@ export default function PunchDevices({ period, onReload, onGo }) {
         erases a reader.
       </p>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error && !editing ? <p className="error">{error}</p> : null}
       {said ? <p className="ok small">{said}</p> : null}
 
       {/* ---------------- the readers ---------------- */}
@@ -186,6 +206,9 @@ export default function PunchDevices({ period, onReload, onGo }) {
                   <button type="button" onClick={() => pull(d)} disabled={!!busy}>
                     Collect
                   </button>{' '}
+                  <button type="button" className="ghost" onClick={() => openForm(d)} disabled={!!busy}>
+                    Edit
+                  </button>{' '}
                   <button type="button" className="ghost danger" onClick={() => remove(d)} disabled={!!busy}>
                     Remove
                   </button>
@@ -202,8 +225,8 @@ export default function PunchDevices({ period, onReload, onGo }) {
       )}
 
       <div className="row gap wrap">
-        {adding ? null : (
-          <button type="button" onClick={() => setAdding(true)} disabled={!!busy}>
+        {editing ? null : (
+          <button type="button" onClick={() => openForm(null)} disabled={!!busy}>
             Add a reader
           </button>
         )}
@@ -214,22 +237,33 @@ export default function PunchDevices({ period, onReload, onGo }) {
         ) : null}
       </div>
 
-      {adding ? (
+      {editing ? (
         <div className="card narrow inset">
-          <h3>Add a reader</h3>
+          <h3>{editing === 'new' ? 'Add a reader' : 'Edit this reader'}</h3>
+
+          {/*
+            * The error belongs HERE, beside the boxes, not at the top of the
+            * card. "the reader needs a name" appeared six inches above the
+            * empty box it was about, with a wall of text in between.
+            */}
+          {error ? <p className="error">{error}</p> : null}
+
           <label>
-            What it is called
+            What it is called <span className="muted">(required)</span>
             <input
               value={form.name}
-              placeholder="IN gate"
+              /* "e.g." because grey example text reads as a filled-in value.
+                 Somebody pressed Save on an untouched form and was told the
+                 reader needed a name, with "IN gate" apparently already in it. */
+              placeholder="e.g. IN gate"
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </label>
           <label>
-            Its address
+            Its address on the office network <span className="muted">(required)</span>
             <input
               value={form.host}
-              placeholder="192.168.1.7"
+              placeholder="e.g. 192.168.1.7"
               onChange={(e) => setForm({ ...form, host: e.target.value })}
             />
           </label>
@@ -253,12 +287,14 @@ export default function PunchDevices({ period, onReload, onGo }) {
             </label>
           </div>
           <p className="muted small">
-            Port 4370 and key 0 are how these readers leave the factory, and how most are left.
-            Set the key only if somebody set one on the device.
+            Port 4370 and key 0 are how these readers leave the factory. If Test says the
+            device <strong>wants its communication key</strong>, the number is in
+            eTimeTrackLite under the device&rsquo;s own settings (&ldquo;Comm Key&rdquo;), or on
+            the machine itself under Menu &rarr; Comm &rarr; Security.
           </p>
           <div className="row gap">
-            <button type="button" onClick={add} disabled={!!busy}>Save</button>
-            <button type="button" className="ghost" onClick={() => setAdding(false)}>Cancel</button>
+            <button type="button" onClick={save} disabled={!!busy}>Save</button>
+            <button type="button" className="ghost" onClick={() => setEditing(null)}>Cancel</button>
           </div>
         </div>
       ) : null}

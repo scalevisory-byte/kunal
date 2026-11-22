@@ -113,6 +113,21 @@ test('a device that wants its key is given it', async () => {
   assert.ok(device.seen.includes(CMD.AUTH));
 });
 
+test('THE KEY IS READ OFF THE DEVICE ROW, comm_key AND ALL', async () => {
+  /*
+   * What callers hold is a row out of `punch_devices`, whose column is
+   * `comm_key`. Reading only `commKey` meant a key that was saved never
+   * reached the reader, and the reader kept saying it wanted one - which
+   * reads as a typo rather than as a bug in here.
+   */
+  const device = fakeDevice({ wantsKey: true, log: record('5', nov20) });
+  const port = await device.listen();
+  const got = await pullAttendance({ host: '127.0.0.1', port, comm_key: 1234, timeoutMs: 2000 });
+  await device.stop();
+  assert.equal(got.error, '', 'a snake_case key must work exactly like a camelCase one');
+  assert.equal(got.punches.length, 1);
+});
+
 test('a device that wants a key we do not have SAYS SO, in words', async () => {
   // "did not answer" would send somebody to check the cable for an hour.
   const device = fakeDevice({ wantsKey: true });

@@ -35,10 +35,17 @@ export const ATTLOG_REQUEST = Buffer.from([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 const ackName = (command) => ACK_NAMES[command] || `reply ${command}`;
 
 class Reader {
-  constructor({ host, port = DEFAULT_PORT, commKey = 0, timeoutMs = DEFAULT_TIMEOUT_MS }) {
+  /*
+   * `comm_key` as well as `commKey`, because what callers actually hold is the
+   * row out of `punch_devices`. Reading only the camelCase name meant a key
+   * that WAS saved never reached the device, and the reader went on saying it
+   * wanted one - which reads as "you typed it wrong" rather than as a bug
+   * here. Found by driving it against a reader that demands a key.
+   */
+  constructor({ host, port = DEFAULT_PORT, commKey, comm_key: commKeySnake, timeoutMs = DEFAULT_TIMEOUT_MS }) {
     this.host = host;
     this.port = Number(port) || DEFAULT_PORT;
-    this.commKey = Number(commKey) || 0;
+    this.commKey = Number(commKey ?? commKeySnake) || 0;
     this.timeoutMs = Number(timeoutMs) || DEFAULT_TIMEOUT_MS;
     this.sessionId = 0;
     this.replyId = 0;

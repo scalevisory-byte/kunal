@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.90.0';
+export const VERSION = '1.90.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.90.1',
+    date: '22 Nov 2026',
+    title: 'The reader form, fixed where it was used',
+    items: [
+      '**A key that was saved never reached the reader.** The device went on asking for its communication key however many times it was typed in \u2014 which reads as "you typed it wrong" rather than as our fault. Fixed, and pinned by a test.',
+      '**Each reader has an Edit button now.** There was no way to set a key on a reader already added, short of removing it and starting again.',
+      '**A reader that answers no longer shows the old error.** A row that keeps reporting a fault after somebody has fixed it is how the same thing gets done twice.',
+      'The grey example text in the form read as a value already filled in, so pressing Save gave "the reader needs a name" on a form that looked complete. It now says \u201ce.g.\u201d, the required boxes are marked, and **the error appears beside the boxes** instead of at the top of the card.',
+      'The form says where to find the communication key \u2014 eTimeTrackLite\u2019s device settings, or the machine\u2019s own Menu \u2192 Comm \u2192 Security.',
+    ],
+  },
   {
     version: '1.90.0',
     date: '22 Nov 2026',

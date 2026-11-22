@@ -310,6 +310,19 @@ export async function checkDevice(input) {
   const device = input?.id ? getDevice(input.id) : input;
   if (!device) return { error: 'reader not found', status: 404 };
   const got = await testDevice(device);
+  /*
+   * A successful test CLEARS the last error, and a failed one replaces it.
+   * Otherwise the row goes on showing "the device wants its communication
+   * key" after somebody has just supplied the key and been told the reader
+   * answered - the same stale "still missing" that had people uploading a
+   * document twice.
+   */
+  if (device.id) {
+    noteTry(device.id, got.ok
+      ? { last_ok_at: new Date().toISOString().slice(0, 19).replace('T', ' '), last_error: null,
+          last_read: device.last_read, last_added: device.last_added }
+      : { last_error: got.error, last_read: device.last_read, last_added: device.last_added });
+  }
   return { status: 200, body: got };
 }
 

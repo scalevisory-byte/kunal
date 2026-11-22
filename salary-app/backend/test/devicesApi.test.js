@@ -140,6 +140,21 @@ test('testing a reader does not download its log', async () => {
   assert.equal(store.body.store.punches, 0, 'a test must collect nothing');
 });
 
+test('A SUCCESSFUL TEST CLEARS A STALE ERROR', async () => {
+  // Otherwise the row goes on reporting a fault after somebody has fixed it.
+  const dud = await api('POST', '/api/devices', { name: 'Flaky', host: '127.0.0.1', port: 1 });
+  await api('POST', `/api/devices/${dud.body.id}/test`);
+  let row = (await api('GET', '/api/devices')).body.devices.find((d) => d.id === dud.body.id);
+  assert.ok(row.last_error, 'a failed test must be recorded');
+
+  await api('PATCH', `/api/devices/${dud.body.id}`, { port: readerPort });
+  const ok = await api('POST', `/api/devices/${dud.body.id}/test`);
+  assert.equal(ok.body.ok, true);
+  row = (await api('GET', '/api/devices')).body.devices.find((d) => d.id === dud.body.id);
+  assert.equal(row.last_error, null, 'the old error must not survive a reader that answers');
+  await api('DELETE', `/api/devices/${dud.body.id}`);
+});
+
 test('A PULL COLLECTS PUNCHES AND CHANGES NO ATTENDANCE', async () => {
   const before = await api('GET', `/api/periods/${period.id}/payroll`);
   const netBefore = before.body.rows.find((r) => r.employee_id === amit.id).net_salary;
