@@ -19,7 +19,14 @@ export default function PunchIdImport({ onReload }) {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
-  const [open, setOpen] = useState(false);
+  /*
+   * OPEN BY DEFAULT.
+   *
+   * Eighth time for this exact shape: a panel folded shut is a panel nobody
+   * finds. Until the punch IDs are filled in, NOBODY'S attendance arrives at
+   * all - so this is the most important thing on the page, not a fold.
+   */
+  const [open, setOpen] = useState(true);
 
   const read = async (file) => {
     if (!file) return;

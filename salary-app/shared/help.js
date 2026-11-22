@@ -241,6 +241,7 @@ export const HELP = [
     lines: [
       '**Reports \u2192 Tools \u2192 Punches from the Bizcompass spool.** The Bizcompass Sync Tool already pulls the punches off the readers every ten minutes and leaves them as small files on this server. This reads those files \u2014 no export, and **nothing in that folder is changed**.',
       'Press **See what it would do** first. It says how many punches it found, which days of this month the spool actually holds, and how many people each day carries.',
+      '**To have it read by itself**, set `BIZCOMPASS_AUTO_MINUTES=30` beside `BIZCOMPASS_DIR` and restart. The panel then says when it last ran and what it did. Even then it never opens a month, never writes into a locked one, and never overrules a mark you set.',
       '**Punch ID** on the Employees list is the number somebody is enrolled as on the machine. The spool has **no names in it at all**, so without that number their attendance cannot be given to anybody. Blank falls back to their Code.',
       'A number nobody carries is listed with how many punches it has \u2014 that is somebody whose attendance is not coming through, and the only fix is to put the number on their record.',
       'The earliest punch of a day is the arrival and the latest is the departure; the file carries no in/out flag, so this is the same rule every other import uses.',

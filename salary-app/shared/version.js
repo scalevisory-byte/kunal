@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.88.0';
+export const VERSION = '1.89.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.89.0',
+    date: '22 Nov 2026',
+    title: 'The punch spool reads itself, on a timer',
+    items: [
+      '**It can now read the spool by itself** instead of waiting for somebody to press the button. Set `BIZCOMPASS_AUTO_MINUTES=30` beside `BIZCOMPASS_DIR` and restart; the panel says whether it is on, when it last ran and what it did.',
+      '**What it will NOT do, with nobody watching:** it never opens a month \u2014 a month that is not open is a decision somebody has not made yet; it never writes into a locked one; and it never overrules a mark you set. Leave, a holiday, a weekly off worked, a day at home: the hours still land, **the mark stays**.',
+      'Five minutes is the floor, because the Sync Tool itself only writes every ten \u2014 anything faster is work for nothing.',
+      'The button and the timer now go through **one piece of code**, so they cannot come to disagree about what a day was.',
+      '**Punch IDs from the machine\u2019s report now opens straight away** on the Employees tab. It was folded shut, and until those numbers are filled in NOBODY\u2019s attendance arrives \u2014 which makes it the most important thing on that page, not a fold.',
+    ],
+  },
   {
     version: '1.88.0',
     date: '22 Nov 2026',

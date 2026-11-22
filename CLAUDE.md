@@ -1259,6 +1259,31 @@ the attendance import uses** (no second idea of what the file is) and propose th
   those people's attendance simply will not arrive.
 - Somebody who left, or a half-finished draft, is never offered a number.
 
+### Reading it on a timer (v1.89.0)
+
+Dinesh: *"daily auto log catch karenga na live?"*, then *"automatic wala bhi bana do"*.
+`autoSyncOnce` / `startAutoSync` in `backend/src/bizcompass.js`, behind
+**`BIZCOMPASS_AUTO_MINUTES`** (unset = off, floor 5 minutes because the Sync Tool itself only
+writes every ten).
+
+The button and the timer now share **one `runImport`**, because two code paths writing
+attendance is how two sets of rules come to disagree. What the scheduled run must NOT do is
+what the tests are about, since nobody is watching it:
+
+- **It never opens a month.** A month that is not open is a decision somebody has not made;
+  a timer has no business making it.
+- **It never writes into a locked one.**
+- **It never overrules a mark somebody set** (`protectDecided`, below).
+- **It never throws** — every pass is wrapped and the failure is recorded as the last run.
+
+`lastAutoRun()` rides on `/bizcompass/status` and the panel prints it with its figures,
+including the punch IDs nobody carries: *"automatic" that silently stopped is worse than no
+automatic at all.*
+
+**And the Punch ID panel opened folded shut — eighth time for that exact shape.** Until those
+numbers are filled in NOBODY'S attendance arrives, which makes it the most important thing on
+the Employees page, not a fold. Open by default now.
+
 **And a punch may not overrule a decision** (`protectDecided`). Leave, a holiday, a weekly off
 worked, a day at home, a double absence: the clock times still land, the **mark stays**, and
 the minutes go with the code because they were worked out as if the day were Present — a leave

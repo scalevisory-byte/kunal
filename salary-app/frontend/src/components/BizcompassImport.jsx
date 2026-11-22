@@ -86,6 +86,52 @@ export default function BizcompassImport({ period, onReload, onGo }) {
         </p>
       ) : null}
 
+      {/*
+        * WHETHER IT RUNS BY ITSELF, and what it last did.
+        *
+        * "Automatic" that silently stopped is worse than no automatic at all,
+        * so the last run is on the screen with its figures — including the
+        * punch IDs nobody carries, because those people's attendance is not
+        * arriving however often this runs.
+        */}
+      {status && status.readable ? (
+        status.autoMinutes ? (
+          <p className="muted small">
+            Reading it by itself <strong>every {status.autoMinutes} minutes</strong>.{' '}
+            {status.lastRun ? (
+              status.lastRun.ok ? (
+                <>
+                  Last run {new Date(status.lastRun.at).toLocaleString('en-IN')}:{' '}
+                  {status.lastRun.written} marks over {status.lastRun.days} days for{' '}
+                  {status.lastRun.people} people
+                  {status.lastRun.keptMarks
+                    ? `, ${status.lastRun.keptMarks} days left as they were marked`
+                    : ''}
+                  {status.lastRun.unknownIds
+                    ? `, ${status.lastRun.unknownIds} punch IDs nobody carries`
+                    : ''}
+                  .
+                </>
+              ) : (
+                <span className="bad">
+                  Last run {new Date(status.lastRun.at).toLocaleString('en-IN')} did nothing:{' '}
+                  {status.lastRun.why}.
+                </span>
+              )
+            ) : (
+              'It has not run yet since the service started.'
+            )}
+          </p>
+        ) : (
+          <p className="muted small">
+            It runs only when you press the button. To have it read by itself, set{' '}
+            <code>BIZCOMPASS_AUTO_MINUTES=30</code> beside <code>BIZCOMPASS_DIR</code> and restart.
+            It will still never open a month, never write into a locked one, and never overrule a
+            mark you set.
+          </p>
+        )
+      ) : null}
+
       <div className="row">
         <button className="primary" disabled={!!busy} onClick={() => run(true)}>
           {busy || 'See what it would do'}
@@ -154,6 +200,13 @@ export default function BizcompassImport({ period, onReload, onGo }) {
             {preview.coverage.days.map((d) => `${d.day} (${d.people})`).join(', ') || 'none'}.
             A day the tool was not running on is simply absent from the list &mdash; it writes
             nothing for that day rather than marking anybody absent.
+            {preview.keptMarks ? (
+              <>
+                {' '}
+                <strong>{preview.keptMarks} days keep the mark you set</strong> (leave, a holiday,
+                a day at home) &mdash; only their hours are updated.
+              </>
+            ) : null}
           </p>
 
           <div className="row">

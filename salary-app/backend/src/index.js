@@ -3,6 +3,7 @@ import { log } from './logger.js';
 import { createServer } from './server.js';
 import { countUsers } from './users.js';
 import { startBackups } from './backup.js';
+import { startAutoSync } from './bizcompass.js';
 
 /*
  * Refuse to run wide open unless somebody asked for it.
@@ -35,6 +36,9 @@ const app = createServer();
 app.listen(config.port, () => {
   log.info(`Salary app listening on http://localhost:${config.port}`);
   startBackups();
+  /* Off unless BIZCOMPASS_AUTO_MINUTES says otherwise. It never opens a month
+     and never writes into a locked one. */
+  startAutoSync();
   if (!guarded) {
     log.warn('Running OPEN - no logins and no API key (ALLOW_OPEN=true).');
     log.warn('Create the first admin on the sign-in screen to close it.');
