@@ -76,7 +76,7 @@ export const SECTIONS = [
     fields: [
       ['company_id', 'Company', 'company', { required: true }],
       ['branch_id', 'Branch', 'branch', { hint: 'leave empty if the company has one place' }],
-      ['code', 'Employee code', 'code', { hint: 'generated — change it only to match the machine' }],
+      ['code', 'Employee code', 'code', { hint: 'what the payslip calls them' }],
       ['designation', 'Designation', 'master', { master: 'designation' }],
       ['department', 'Department', 'master', { master: 'department' }],
       ['employment_type', 'Employment type', 'select', { options: ['', ...EMPLOYMENT_TYPES] }],
@@ -162,8 +162,21 @@ export const SECTIONS = [
   {
     key: 'access',
     title: 'System access & attendance',
-    why: 'Their leave entitlement, their weekly off, and whether they get a login.',
+    why: 'Their number on the punch machine, their leave entitlement, their weekly off, and whether they get a login.',
     fields: [
+      /*
+       * THE MOST IMPORTANT FIELD IN THE APP FOR ATTENDANCE, and it was on no
+       * form at all - it could only be set from the Punch ID import or by
+       * editing the row. The readers hold a NUMBER and no names whatever, so
+       * somebody without this never appears in any punch, however well the
+       * machines run. It is its own column and not a reuse of `code`: a
+       * payslip number and a corridor number are different things, and
+       * folding them into one would mean renumbering a reader changed
+       * somebody's payslip.
+       */
+      ['device_code', 'Punch ID', 'text', {
+        hint: "the machine's own number for them — without it their punches reach nobody",
+      }],
       ['cl_quota', 'Casual leave a year', 'number'],
       ['sl_quota', 'Sick leave a year', 'number'],
       ['pl_quota', 'Privilege leave a year', 'number'],

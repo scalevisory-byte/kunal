@@ -342,11 +342,25 @@ export default function EmployeeForm({
 
 function Field({ f, value, starred, problem, companies, branches, employees, onChange }) {
   const v = value === undefined || value === null ? '' : value;
+  /*
+   * THE TEXT AND THE STAR MUST BE ONE ELEMENT.
+   *
+   * `.form-grid label` is `display: flex; flex-direction: column`, so a bare
+   * text node and a sibling <span> become TWO flex items and stack: the star
+   * landed on its own line and pushed the input 38px below every other box in
+   * the row. Measured, not guessed - labels all at 447, starred inputs at 508
+   * against 470 for the rest.
+   *
+   * On screen that reads as the field being MISSING, because the box sits
+   * under the next column's label. Dinesh reported exactly that twice in one
+   * message: "date of joining me entry ka option nahi he" and "mobile num
+   * kese add karenge" - both fields were there, 38px down.
+   */
   const label = (
-    <>
+    <span className="ef-text">
       {f.label}
       {starred ? <span className="ef-star" title="wanted for a complete record"> *</span> : null}
-    </>
+    </span>
   );
 
   if (f.kind === 'checkbox') {

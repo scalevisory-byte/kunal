@@ -5681,6 +5681,9 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
 .ef-why { margin: 0 0 0.5rem; }
 .ef-grid label { font-size: 0.78rem; }
 .ef-star { color: var(--bad); }
+/* One flex item, so a required marker can never push the box onto its own
+   line - which reads as the field being missing. See EmployeeForm's Field. */
+.ef-grid label > .ef-text { display: block; }
 .ef-problem { color: var(--warn); font-size: 0.7rem; }
 .ef-check { display: flex; align-items: center; gap: 0.4rem; grid-column: 1 / -1; }
 /* The global `input, select` rule gives a checkbox a border, a background and

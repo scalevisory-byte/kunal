@@ -3597,3 +3597,39 @@ test('FILLING BLANK DAYS AS PRESENT STOPS AT TODAY', () => {
   assert.match(body, /for \(const day of fillableDays\)/);
   assert.match(body, /have not happened yet/, 'the confirmation must say what it is leaving alone');
 });
+
+test('A REQUIRED MARKER MUST NOT PUSH THE BOX ONTO ITS OWN LINE', () => {
+  /*
+   * `.form-grid label` is `display: flex; flex-direction: column`, so a bare
+   * text node and a sibling <span> are TWO flex items and stack. The star
+   * landed on its own line and the input dropped 38px below every other box
+   * in the row - measured at 508 against 470, and 610 against 574.
+   *
+   * On screen that reads as THE FIELD BEING MISSING, because the box sits
+   * under the next column's label. Dinesh reported it twice in one message:
+   * "date of joining me entry ka option nahi he" and "mobile num kese add
+   * karenge". Both were there, 38px down.
+   */
+  const jsx = src('components/EmployeeForm.jsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  const star = jsx.slice(jsx.indexOf('const label = ('), jsx.indexOf('const label = (') + 400);
+  assert.match(star, /<span className="ef-text">/, 'the label text and its star must be one element');
+  assert.ok(
+    !/const label = \(\s*<>/.test(star),
+    'a fragment makes the text and the star two flex items, which stacks them',
+  );
+});
+
+test('the punch ID is on the joining form', async () => {
+  /*
+   * The readers hold a number and no names at all, so somebody with no punch
+   * ID never appears in any punch however well the machines run. It could
+   * only be set from the import or by editing the row - never while adding
+   * the person, which is when somebody actually has the number in hand.
+   */
+  const { SECTIONS } = await import('../../shared/employeeMaster.js');
+  const access = SECTIONS.find((s) => s.key === 'access');
+  const field = access.fields.find(([f]) => f === 'device_code');
+  assert.ok(field, 'device_code must be on the form');
+  assert.equal(field[1], 'Punch ID');
+  assert.match(field[3].hint, /punches reach nobody/);
+});

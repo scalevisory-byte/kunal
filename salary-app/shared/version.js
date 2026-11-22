@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.91.0';
+export const VERSION = '1.92.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.92.0',
+    date: '22 Nov 2026',
+    title: 'It says when the attendance stops arriving',
+    items: [
+      '**The dashboard now warns, at the top of Pending actions, when the punch feed has gone quiet.** The salary is counted off marks that come off punches that come off a machine in a corridor, and until now every link of that chain was silent when it broke \u2014 found at month end, when nobody remembers which days were real.',
+      '**It also names the link that breaks most quietly:** somebody with no Punch ID. The readers hold a NUMBER and no names at all, so that person never appears in any punch however well the machines run, and every screen looks perfectly normal.',
+      'A feed that was **never set up** is said quietly and is not a fault \u2014 an office marking the grid by hand is not broken, and an alert that cries wolf is one nobody reads. A weekend of quiet is not a stopped feed either. One feed quiet while another still runs says so, instead of reading as a stop.',
+      '**Punch ID is now on the Add employee form**, under System access &amp; attendance. It could only be set from the import or by editing the row \u2014 never while adding somebody, which is exactly when you have the number in hand.',
+      '**A required field\u2019s box no longer drops onto its own line.** The red star was pushing the box 38px down, under the next column\u2019s label \u2014 so Date of joining and Mobile read as missing when they were simply below where you were looking.',
+    ],
+  },
   {
     version: '1.91.0',
     date: '22 Nov 2026',

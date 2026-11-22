@@ -1411,6 +1411,54 @@ Present on Sunday 22 Nov, and the trend at 100% **through the 28th**, days that 
   only `SP` reaches the Sunday register, and under `monthly_late` a P Sunday adds nine hours to
   the target.
 
+## Saying when the attendance stops arriving (v1.92.0)
+
+Dinesh: *"abhi pura kam live log k upar depend he kyu ki usi se staff ki attendance aayegi and
+usi attendance k hisab se salary gini jayegi"* — the whole payroll now hangs off
+reader → punch → mark → salary, and **every link of that was silent when it broke**.
+`shared/feedHealth.js`, `backend/src/feedStatus.js`, `GET /api/attendance-feed`, and the lines
+at the TOP of the dashboard's Pending actions.
+
+- **THE RULE IT IS BUILT ON: a feed that was never set up is not a feed that has broken.** One
+  is a job nobody has done, the other was working this morning. Reporting both as a fault is how
+  an alert gets ignored, and an ignored alert is worse than none because it is believed to be
+  watching. No feed configured reads `info`, once, quietly.
+- **A weekend of quiet is not a stopped feed** (`QUIET_DAYS_BEFORE_WORRY = 2`). One feed quiet
+  while another still runs is a `warn` that says so; the last feed going quiet is `bad` and says
+  nothing is reaching the grid.
+- **The link that breaks most quietly is a missing Punch ID**, and that is the one his live
+  system is on: the feed is perfectly healthy and reaches nobody. `reachable()` is the honest
+  test — a blank `device_code` AND a `code` that is not purely numeric, because a reader sends a
+  number and `BNF-EMP-0043` will never meet one. Reproduced exactly here: *"Nobody on the staff
+  list has a punch ID, so no punch can reach anybody"*, plus the count of IDs belonging to nobody.
+- `spoolLastWrite` reads the **newest file's mtime**, not the punches inside it: sixteen thousand
+  files, and the question is only whether that tool is still running. Our own readers report the
+  **newest punch held**, not when we last asked — a reader answering with nothing new is not
+  attendance arriving.
+- A clock running ahead of ours is **today, not the future**; an unknown last-seen is **null,
+  never 0 days**.
+- The dashboard load is **not gated on a tab**: a stopped feed is not a Reports problem, it is
+  everybody's, and it belongs on the page the office opens.
+
+### Three things found while he used the Add employee form
+
+- **A REQUIRED STAR WAS PUSHING THE BOX ONTO ITS OWN LINE.** `.form-grid label` is
+  `display: flex; flex-direction: column`, so `{f.label}` and the `<span class="ef-star">` were
+  TWO flex items and stacked — the input landed 38px below every other box in the row, under the
+  next column's label. Measured: labels all at 447, starred inputs at 508 against 470. On screen
+  that reads as **the field being missing**, which is exactly what he reported twice in one
+  message — *"date of joining me entry ka option nahi he"* and *"mobile num kese add karenge"*.
+  Both were there, 38px down. One `<span className="ef-text">` around both, pinned by a test.
+- **Punch ID was on no form at all.** It could only be set from the Punch ID import or by editing
+  the row — never while adding somebody, which is when the office actually has the number in
+  hand. Now first in *System access & attendance*, whose title already promised it.
+- The Employee code hint still read *"change it only to match the machine"*, written before
+  `device_code` existed. It now says *"what the payslip calls them"*.
+- **Date of exit is deliberately NOT on this form.** `employees.left_on` exists, but an exit is a
+  process — final settlement, leave encashment, gratuity, assets back — and it lives in
+  **People → Exits** (`employee_exits` + `shared/settlement.js`). A date box on the joining form
+  would let somebody mark a leaver with no settlement behind it.
+
 ## Where the HRMS actually runs — corrected
 
 **It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,

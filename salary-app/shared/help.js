@@ -231,6 +231,23 @@ export const HELP = [
     note: 'A WRONG NUMBER PUTS ONE PERSON\u2019S ATTENDANCE ON ANOTHER PERSON\u2019S PAYSLIP, so nothing is saved until it is ticked. Two numbers pointing at one person tick neither \u2014 somebody enrolled twice, and one of those numbers belongs to somebody else.',
   },
   {
+    id: 'feed-stopped',
+    title: 'When attendance stops arriving \u2014 how you find out',
+    tab: 'dashboard',
+    keywords: [
+      'feed', 'stopped', 'punch', 'punching', 'hajri', 'attendance', 'band', 'ruk gaya',
+      'nahi aa raha', 'live', 'alert', 'warning', 'punch id', 'reader', 'machine',
+    ],
+    lines: [
+      'The salary is counted off marks, the marks come off punches, and the punches come off a machine in a corridor. **Every link of that is silent when it breaks**, so the dashboard watches it: the warnings sit at the top of **Pending actions**.',
+      'It says when a feed has brought nothing for more than two days, when a feed is set up but has never brought anything, and when a reader last reported a failure.',
+      '**A weekend of quiet is not a broken feed**, and an office that marks the grid by hand is not broken either \u2014 that one is said once, quietly, and never as a fault.',
+      '**The link that breaks most quietly is a missing Punch ID.** The readers hold a number and no names at all. Somebody without one never appears in any punch, the feed looks perfectly healthy, and their attendance simply never arrives. Fill them in from Employees \u2192 Punch IDs from the machine\u2019s report, or on the person\u2019s own form under System access.',
+      'Two feeds can run together \u2014 the Bizcompass spool and our own readers. Both go through the same rules and the same punch is never filed twice, so one stopping does not lose the days the other collected.',
+    ],
+    note: 'NOTHING HERE COLLECTS OR WRITES. It reads what the feeds have already recorded and says whether attendance is arriving. A warning that a feed is quiet does NOT mean days were marked absent \u2014 a day no machine saw writes nothing at all.',
+  },
+  {
     id: 'own-readers',
     title: 'Our own punch readers \u2014 reading the machines directly',
     tab: 'reports',

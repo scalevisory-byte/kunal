@@ -86,6 +86,13 @@ export default function Dashboard({
   const [assets, setAssets] = useState(null);
   const [day, setDay] = useState(null); // which day the roll call is showing
   const [frontOffice, setFrontOffice] = useState(null); // the desk's book for that day
+  /*
+   * Is the attendance still arriving? The salary is counted off marks that
+   * come off punches that come off a machine in a corridor, and every link of
+   * that chain is silent when it breaks. Judged by `shared/feedHealth.js`, so
+   * this only shows what it decided.
+   */
+  const [feed, setFeed] = useState(null);
   const [showUniform, setShowUniform] = useState(false);
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
   // asked for by name; 'all' is the morning's whole list.
@@ -130,6 +137,15 @@ export default function Dashboard({
     } else {
       setWaiting(null);
     }
+    /*
+     * Not gated on a tab: a feed that has stopped is not a reports problem,
+     * it is everybody's problem, and it belongs on the page the office opens.
+     * An offline build has no feeds at all, so it simply gets nothing.
+     */
+    api
+      .get('/attendance-feed')
+      .then((body) => !cancelled && setFeed(body))
+      .catch(() => !cancelled && setFeed(null));
     if (mayUse('assets')) {
       api
         .get('/people/maintenance')
@@ -1124,6 +1140,19 @@ export default function Dashboard({
     });
 
     const alerts = [
+      /*
+       * FIRST, because everything under it is counted from attendance that
+       * this chain delivers. Dinesh: "abhi pura kam live log k upar depend he
+       * ... usi attendance k hisab se salary gini jayegi". A feed that has
+       * quietly stopped is found at month end otherwise, by which time nobody
+       * remembers which days were real.
+       */
+      ...(feed?.concerns || []).map((c) => ({
+        key: `feed:${c.key}`,
+        tone: c.tone,
+        text: c.text,
+        go: c.go,
+      })),
       money.pendingCount > 0 && {
         key: 'pending',
         tone: 'warn',

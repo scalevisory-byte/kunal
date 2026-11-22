@@ -21,6 +21,7 @@ import {
   readLogFiles,
 } from '../../../shared/bizcompassLogs.js';
 import { lastAutoRun, autoMinutes, runImport, spoolStatus } from '../bizcompass.js';
+import { attendanceFeedHealth } from '../feedStatus.js';
 import {
   checkDevice,
   createDevice,
@@ -530,6 +531,19 @@ reportsRouter.post('/periods/:id/bizcompass', upload.none(), (req, res, next) =>
  * attendance, no money, and never erases the reader. Turning them into
  * attendance is the second call, with the usual dry run first.
  */
+/*
+ * Is the attendance still arriving?
+ *
+ * The salary is counted off marks that come off punches that come off a
+ * machine in a corridor, and every link of that is silent when it breaks.
+ * This says so. It reads and judges; it collects nothing.
+ */
+reportsRouter.get('/attendance-feed', (req, res, next) => {
+  try {
+    res.json(attendanceFeedHealth());
+  } catch (err) { next(err); }
+});
+
 reportsRouter.get('/devices', (req, res) => {
   res.json({
     devices: listDevices(),
