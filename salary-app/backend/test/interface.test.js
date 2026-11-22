@@ -3633,3 +3633,26 @@ test('the punch ID is on the joining form', async () => {
   assert.equal(field[1], 'Punch ID');
   assert.match(field[3].hint, /punches reach nobody/);
 });
+
+test('A PANEL MAY NOT INVENT A FIGURE-STRIP CLASS', () => {
+  /*
+   * Third time for this exact shape. `.late-figures` in v1.82 had no CSS
+   * behind it and the panel read "Short of their total1"; `.figs` in the
+   * Punch ID report did the same and ran four figures into one sentence.
+   * The established class is `.late-figs`, with the value in <b> and what it
+   * is in <em>.
+   */
+  const css = fs.readFileSync(
+    path.join(here, '../../frontend/src/styles.css'),
+    'utf8',
+  );
+  for (const file of ['components/PunchIdReport.jsx', 'components/LatePolicy.jsx']) {
+    const jsx = src(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+    for (const cls of [...jsx.matchAll(/className="([a-z-]*fig[a-z-]*)"/g)].map((m) => m[1])) {
+      assert.ok(
+        css.includes(`.${cls}`),
+        `${file} uses .${cls}, which has no rule in styles.css`,
+      );
+    }
+  }
+});

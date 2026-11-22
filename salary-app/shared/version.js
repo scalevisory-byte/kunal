@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.92.0';
+export const VERSION = '1.93.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.93.0',
+    date: '22 Nov 2026',
+    title: 'Punch IDs \u2014 a report of whose attendance can arrive',
+    items: [
+      '**Reports \u2192 Punch IDs.** The number was a column on the Employees table and a list inside the import panel that vanished with the file. There was nowhere to open on an ordinary day and ask **whose attendance is not going to arrive**.',
+      '**Having an employee code is NOT the same as being reachable.** The machines send a number and hold no names at all, so somebody whose record says `BNF-EMP-0043` and nothing else looks complete on every screen and no punch will ever find them. Each person reads as one of three things: a Punch ID is set, their employee code is a number so the fallback still matches, or they cannot be reached at all.',
+      'The people who **cannot be reached are at the top**, because they are the point of the report.',
+      '**Two people on one number is named.** Every punch on it lands on whichever of them is met first, so somebody is paid for somebody else\u2019s attendance \u2014 one of each pair is wrong. A leading zero makes no difference: `060` and `60` are one enrolment.',
+      'It also lists the reader numbers that belong to nobody, with how many punches each has \u2014 somebody who has left, was never added, or whose number is typed differently here.',
+      'Downloads and prints like every other report, and works in the single file too.',
+    ],
+  },
   {
     version: '1.92.0',
     date: '22 Nov 2026',

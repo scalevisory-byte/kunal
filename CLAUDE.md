@@ -1459,6 +1459,38 @@ at the TOP of the dashboard's Pending actions.
   **People → Exits** (`employee_exits` + `shared/settlement.js`). A date box on the joining form
   would let somebody mark a leaver with no settlement behind it.
 
+### The Punch ID report (v1.93.0)
+
+Dinesh, after filling 58 of them in off the machine's report: *"punch id report kahi dikhta
+he?"* — and no. The number was a column on the Employees table and a list inside the import
+panel that vanished with the file. There was nowhere to open on an ordinary Tuesday and ask
+**whose attendance is not going to arrive**. `shared/punchIdReport.js`, `PunchIdReport.jsx`,
+Reports → Punch IDs.
+
+- **THE DISTINCTION IT EXISTS FOR: having a code is not being reachable.** `reachOf` returns
+  one of three, never two — `own` (a Punch ID is typed), `fallback` (no Punch ID but the
+  employee code IS a number, so the importer's fallback still matches), `none`. Somebody whose
+  record says `BNF-EMP-0043` and nothing else looks complete on every screen and no punch will
+  ever find them.
+- A **typed** Punch ID is taken at its word, numeric or not — it is what the office says the
+  machine calls them, and some readers do send a non-numeric id. The **fallback** is stricter,
+  because nobody chose it.
+- **The unreachable sort first**, because they are the point of the report.
+- **Two people on one number is named**, and `normalId` means `060` and `60` are one
+  enrolment. Every punch on it lands on whichever of them the importer meets first, so somebody
+  is paid for somebody else's attendance — exactly the ALPESH SHUKLA 60/82 case from his own
+  data.
+- `unknownPunches` is **null when nothing has been collected**, never 0: "no punches have come
+  in" and "every number is accounted for" are different answers.
+- Computes in the browser off the staff list, like the leave register, so the single-file build
+  gets it; only "which numbers belong to nobody" needs the server, and it says so.
+- The catalogue test pins counts per category, so `punch-ids` was **declared in `beyondSpec`**
+  rather than the count being bumped — the spec is still pinned, and anything past it is named.
+- **The invented-class mistake, third time.** `.figs`/`.fig` had no rule in `styles.css`, so
+  four figures ran into one sentence — exactly what `.late-figures` did in v1.82. It uses the
+  established `.late-figs` (value in `<b>`, what it is in `<em>`), and there is now a test that
+  reads every `className` matching `fig` out of those panels and requires a rule to exist.
+
 ## Where the HRMS actually runs — corrected
 
 **It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,

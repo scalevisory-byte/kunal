@@ -231,6 +231,23 @@ export const HELP = [
     note: 'A WRONG NUMBER PUTS ONE PERSON\u2019S ATTENDANCE ON ANOTHER PERSON\u2019S PAYSLIP, so nothing is saved until it is ticked. Two numbers pointing at one person tick neither \u2014 somebody enrolled twice, and one of those numbers belongs to somebody else.',
   },
   {
+    id: 'punch-id-report',
+    title: 'Punch IDs \u2014 whose attendance can arrive',
+    tab: 'reports',
+    keywords: [
+      'punch id', 'punch', 'reader', 'machine', 'number', 'report', 'hajri',
+      'attendance', 'nahi aa rahi', 'match', 'device code', 'kaun',
+    ],
+    lines: [
+      '**Reports \u2192 Punch IDs.** One line per person: their Punch ID, what a punch would be matched on, and whether their attendance can arrive at all.',
+      '**An employee code is not a Punch ID.** The readers send a number and hold no names; somebody whose record says `BNF-EMP-0043` and nothing else can never be found by a punch, and every other screen shows them as complete.',
+      'Three states, never two: **Punch ID set**; **matches on their code** (no Punch ID, but their employee code happens to be a number, so the fallback works); **cannot be reached**. The last group is listed first.',
+      'Fill the numbers in from **Employees \u2192 Punch IDs from the machine\u2019s report**, or on one person\u2019s own record under System access.',
+      'It also lists reader numbers nobody carries \u2014 somebody who left, was never added, or whose number is typed differently here.',
+    ],
+    note: 'TWO PEOPLE ON ONE NUMBER IS NOT A TIDINESS PROBLEM. Every punch on that number lands on whichever of them is met first, so one person is paid for the other\u2019s attendance. One of each pair is wrong, and the report names them.',
+  },
+  {
     id: 'feed-stopped',
     title: 'When attendance stops arriving \u2014 how you find out',
     tab: 'dashboard',

@@ -72,6 +72,12 @@ test('every category in the specification carries exactly what it asked for', ()
    * brief and are reports in their own right.
    */
   const beyondSpec = {
+    /* Asked for by name once the readers were live: "punch id report kahi
+       dikhta he?". The number was a column on the Employees table and a list
+       inside the import panel that vanished with the file - there was nowhere
+       to open on an ordinary day and ask whose attendance will not arrive.
+       It is not a month's report: it reads the staff list as it is today. */
+    attendance: ['punch-ids'],
     leave: ['leave-ledger', 'leave-year-end'],
     /* Asked for by name: "staff wise email & mobile number ka list bhi
        chiaye with deopartmmet role". The employee export carries forty
