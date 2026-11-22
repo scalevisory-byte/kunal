@@ -1301,6 +1301,63 @@ the engine from `.mdb`/`.accdb` files, connection strings in `*.config`/`*.ini`/
 local MSSQL/Oracle service. **Every password is replaced with `***` before printing** — the
 output is screenshotted and sent over WhatsApp, and a connection string carries one. Tested.
 
+## Our own punch collector — not depending on Bizcompass (v1.90.0)
+
+Dinesh, after `booknfly.bizcompass.app` showed **"License Not Found"**: *"aap naya tool banavo /
+bizcompass ke bharose mat raho"*. So the app now talks to the attendance readers itself.
+`shared/zkProtocol.js`, `backend/src/zk/client.js`, `backend/src/devices.js`,
+`backend/src/punchApply.js`, `frontend/src/components/PunchDevices.jsx`.
+
+**THE WARNING THAT MATTERS ON HIS MACHINES, and it is on the panel, not just here:**
+eTimeTrackLite has **"Auto Clear After Download" ticked**, so whichever software downloads
+first **wipes the reader**. Two collectors with that tick on each get half the punches. It has
+to come off before this is relied on.
+
+- **`node-zklib` was rejected**, not overlooked: its own manifest depends on itself
+  (`{ 'node-zklib': '^1.0.0' }`) and it was last published in 2022. Not acceptable as a
+  dependency for a payroll app talking a binary protocol.
+- **THE DESIGN IN TWO HALVES, because they are not equally safe.** A **pull** only ever ADDS
+  punches to a store of our own: no attendance, no money, and **it never erases a reader**.
+  Turning them into attendance is a second, separate call. That split is why the pull is safe
+  to run on a timer — the automatic half cannot be wrong in a way that costs a day's pay.
+- **No clear and no delete exists to be called.** There is no CLEAR_ATTLOG, no DELETE_USER and
+  no 1004 anywhere in `zkProtocol.js`, and a test asserts it. A second test pins the whole
+  command list the client may send (CONNECT/AUTH/DATA_WRRQ/EXIT and the four replies) rather
+  than hunting forbidden words — `clearTimeout` contains one, which is how the first attempt
+  failed. **It also never disables the reader**: some tools switch it off while they read, and
+  a reader left dark by a half-failed pull is a morning of attendance typed from memory.
+- **`device_punches` has a unique index on (code, time, device), and that IS the design.**
+  Nothing erases a reader, so every pull brings back its entire log — the same punches, again,
+  every ten minutes. The index is not an optimisation; it is the reason a pull can be repeated
+  as often as we like. Proved end to end: second collect reads 17, adds 0.
+- **`backend/src/punchApply.js` is the ONE path from punches to attendance**, now shared by the
+  spool import, our own readers and the spreadsheet import. `runImport` was refactored onto it
+  rather than copied. Two code paths writing attendance is how two sets of rules come to
+  disagree — `protectDecided` and the no-sync period read live there now, once.
+- **A date that cannot be right is not filed, and is counted.** Bytes read at a wrong offset
+  still produce a date; three firmwares share these record sizes. Anything outside 2015–2100 is
+  dropped, and when most of them are odd the reply says *"probably not 40-byte records"* rather
+  than returning a short list in silence. `readAttendance` also hands back a 64-byte hex
+  **sample**, so a strange reader can be read against its real output instead of guessed at.
+- **An empty payload is NOT an error.** A reader with nothing new answers with no bytes, and
+  calling that a fault puts a working device on a list of broken ones every quiet evening.
+- **The scheduled pull (`DEVICE_PULL_MINUTES`, unset = off) collects even with no month open**,
+  and says which month it was waiting for — "nothing happened" on a working reader reads as a
+  fault. It reuses `monthForAuto` from `bizcompass.js`, so the guards are one implementation:
+  never opens a month, never writes into a locked one, never overrules a mark, never throws.
+- **Removing a reader keeps its punches** (`device_id` goes null). They are attendance already
+  collected and some may already have been paid.
+- **There is no real device here.** The fake loopback reader proves the *conversation* —
+  handshake, comm key, both reply shapes, a device that stops mid-sentence, a port with nothing
+  on it — but it speaks through the same module, so a byte-layout mistake would cancel out. The
+  checksum and framing are pinned independently; the layout must be checked against HIS reader
+  using the hex sample. **Said plainly on the screen and here.**
+- Driven in a browser against a fake reader: added, tested, collected 17 punches from 3 IDs,
+  dry run, wrote 8 marks, grid reads P on 17–20 with 36h 23m. Second collect added 0.
+- Bugs worth remembering: `logger.js` exports an OBJECT (`log.info`), not a function —
+  `log(...)` was a 500 on every pull; and `monthForAuto` returns `{ period, why }`, not a
+  period, which read as *"period not found"* on a month that simply was not open.
+
 ## Where the HRMS actually runs — corrected
 
 **It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,

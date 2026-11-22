@@ -231,6 +231,26 @@ export const HELP = [
     note: 'A WRONG NUMBER PUTS ONE PERSON\u2019S ATTENDANCE ON ANOTHER PERSON\u2019S PAYSLIP, so nothing is saved until it is ticked. Two numbers pointing at one person tick neither \u2014 somebody enrolled twice, and one of those numbers belongs to somebody else.',
   },
   {
+    id: 'own-readers',
+    title: 'Our own punch readers \u2014 reading the machines directly',
+    tab: 'reports',
+    keywords: [
+      'reader', 'readers', 'device', 'devices', 'punch machine', 'biometric', 'machine',
+      'essl', 'zkteco', 'ip', 'network', 'collect', 'apna tool', 'hajri', 'punching',
+      'khud', 'direct', 'licence', 'license',
+    ],
+    lines: [
+      '**Reports \u2192 Tools \u2192 Our own punch readers.** This app talks to the attendance readers itself, over the office network. No other software has to be running and nobody else\u2019s licence has to be valid.',
+      'Add each reader by the address it has on the network \u2014 the same IP eTimeTrackLite uses for it. Port **4370** and communication key **0** are how these machines leave the factory; set a key only if somebody set one on the device. **Test** asks the reader who it is and downloads nothing.',
+      '**Collect** copies the punches into this app\u2019s own store. That is all it does: no attendance is marked, no pay changes, and **nothing ever erases a reader**. You can press it as often as you like \u2014 the same punches are never filed twice.',
+      '**Put them on the grid** is the separate step that reaches a payslip, so look first. Leave, a holiday, a weekly off worked and a day at home are never overruled: the clock times land, the mark stays.',
+      'To collect by itself, put `DEVICE_PULL_MINUTES=10` in the server\u2019s settings file and restart. It never opens a month, never writes into a locked one, and the punches are kept even while no month is open \u2014 so a month opened next week still has everything.',
+      'A reader that does not answer is named with the reason and the others are still read. A punch ID nobody on the staff list carries is named with its count \u2014 that is somebody whose attendance is not arriving, and the number has to go on their record.',
+      '**Removing a reader keeps its punches.** They are attendance already collected, and some may already have been paid.',
+    ],
+    note: 'TURN OFF \u201cAUTO CLEAR AFTER DOWNLOAD\u201d in eTimeTrackLite before relying on this. With it on, whichever software downloads first empties the reader and the other one gets nothing \u2014 so two collectors would each get half the punches. Nothing here ever erases a reader.',
+  },
+  {
     id: 'bizcompass-spool',
     title: 'Punches from the Bizcompass spool',
     tab: 'reports',

@@ -21,6 +21,20 @@ import {
   readLogFiles,
 } from '../../../shared/bizcompassLogs.js';
 import { lastAutoRun, autoMinutes, runImport, spoolStatus } from '../bizcompass.js';
+import {
+  checkDevice,
+  createDevice,
+  deleteDevice,
+  importStored,
+  lastDevicePull,
+  listDevices,
+  pullAll,
+  pullDevice,
+  pullMinutes,
+  storeSummary,
+  unknownIds,
+  updateDevice,
+} from '../devices.js';
 import { matchPunchIds } from '../../../shared/punchIdMatch.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
@@ -493,8 +507,6 @@ reportsRouter.get('/bizcompass/status', (req, res) => {
 
 /* `upload.none()` because the screen sends a form and nothing else parses one
    here: without it `dry_run` never arrives and a look would write. */
-/* `upload.none()` because the screen sends a form and nothing else parses one
-   here: without it `dry_run` never arrives and a look would write. */
 reportsRouter.post('/periods/:id/bizcompass', upload.none(), (req, res, next) => {
   try {
     const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
@@ -504,6 +516,85 @@ reportsRouter.post('/periods/:id/bizcompass', upload.none(), (req, res, next) =>
   } catch (err) {
     next(err);
   }
+});
+
+/* ---------------- our own readers ---------------- */
+
+/*
+ * These sit beside the Bizcompass routes on purpose: both end in the same
+ * `applyPunches`, and a reader's punches must not be judged differently
+ * depending on which tool carried them here.
+ *
+ * A PULL IS SAFE AND AN IMPORT IS NOT, which is why they are separate routes.
+ * Pulling only copies punches into a store of our own - it touches no
+ * attendance, no money, and never erases the reader. Turning them into
+ * attendance is the second call, with the usual dry run first.
+ */
+reportsRouter.get('/devices', (req, res) => {
+  res.json({
+    devices: listDevices(),
+    store: storeSummary(),
+    unknownIds: unknownIds(),
+    pullMinutes: pullMinutes(),
+    lastRun: lastDevicePull(),
+  });
+});
+
+reportsRouter.post('/devices', (req, res, next) => {
+  try {
+    const got = createDevice(req.body || {});
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.status(201).json(got.device);
+  } catch (err) { next(err); }
+});
+
+reportsRouter.patch('/devices/:id', (req, res, next) => {
+  try {
+    const got = updateDevice(Number(req.params.id), req.body || {});
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.json(got.device);
+  } catch (err) { next(err); }
+});
+
+reportsRouter.delete('/devices/:id', (req, res, next) => {
+  try {
+    const got = deleteDevice(Number(req.params.id));
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.json(got);
+  } catch (err) { next(err); }
+});
+
+/* Asks the reader who it is and nothing else - it does not download the log. */
+reportsRouter.post('/devices/:id/test', async (req, res, next) => {
+  try {
+    const got = await checkDevice({ id: Number(req.params.id) });
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.json(got.body);
+  } catch (err) { next(err); }
+});
+
+reportsRouter.post('/devices/:id/pull', async (req, res, next) => {
+  try {
+    const got = await pullDevice(Number(req.params.id));
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.json(got.body);
+  } catch (err) { next(err); }
+});
+
+reportsRouter.post('/devices/pull', async (req, res, next) => {
+  try {
+    res.json(await pullAll());
+  } catch (err) { next(err); }
+});
+
+/* The punches we have already collected, into one month's attendance. */
+reportsRouter.post('/periods/:id/device-punches', upload.none(), (req, res, next) => {
+  try {
+    const dryRun = req.body.dry_run === 'true' || req.body.dry_run === true;
+    const got = importStored(Number(req.params.id), { dryRun });
+    if (got.error) return res.status(got.status).json({ error: got.error });
+    res.json(got.body);
+  } catch (err) { next(err); }
 });
 
 reportsRouter.post('/import/sheets', upload.single('file'), async (req, res, next) => {

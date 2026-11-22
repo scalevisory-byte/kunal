@@ -4,6 +4,7 @@ import { createServer } from './server.js';
 import { countUsers } from './users.js';
 import { startBackups } from './backup.js';
 import { startAutoSync } from './bizcompass.js';
+import { startDevicePulls } from './devices.js';
 
 /*
  * Refuse to run wide open unless somebody asked for it.
@@ -39,6 +40,7 @@ app.listen(config.port, () => {
   /* Off unless BIZCOMPASS_AUTO_MINUTES says otherwise. It never opens a month
      and never writes into a locked one. */
   startAutoSync();
+  startDevicePulls();
   if (!guarded) {
     log.warn('Running OPEN - no logins and no API key (ALLOW_OPEN=true).');
     log.warn('Create the first admin on the sign-in screen to close it.');

@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.89.0';
+export const VERSION = '1.90.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.90.0',
+    date: '22 Nov 2026',
+    title: 'The app reads the punch machines itself',
+    items: [
+      '**The attendance readers can now be read by this app directly**, over the office network. No other software has to be running and nobody else\u2019s licence has to be valid. Reports \u2192 Tools \u2192 **Our own punch readers**: add each reader by its address, press **Test**, then **Collect**.',
+      'Every punch collected is kept **in this app\u2019s own database**, so it survives whatever happens to the machine or to any other tool. The Bizcompass panel still works exactly as before \u2014 this is a second road to the same place, not a replacement.',
+      '**Collecting cannot move money.** It only copies punches into our store: no attendance is marked, no pay changes, and **nothing ever erases a reader**. Putting them on the grid is a separate button, with the usual look-first, and it goes through the same rules as every other punch import \u2014 leave, a holiday, a weekly off worked and a day at home are never overruled.',
+      '**Collecting the same reader again files nothing twice.** We never clear a machine, so every read brings back its whole log; the second read of the same punches adds none.',
+      '**Before relying on it:** in eTimeTrackLite, turn OFF \u201cAuto Clear After Download\u201d on each device. With it on, whichever software downloads first empties the reader and the other gets nothing. The panel says this where you are standing.',
+      'It can collect by itself too \u2014 `DEVICE_PULL_MINUTES=10` in the server\u2019s settings. Same rules as the spool timer: it never opens a month, never writes into a locked one, never overrules a mark you set, and the punches are kept even when no month is open yet.',
+      'A reader that does not answer is **named with the reason** and the others are still read; a number nobody on the staff list carries is named with its punch count, never guessed at.',
+    ],
+  },
   {
     version: '1.89.0',
     date: '22 Nov 2026',

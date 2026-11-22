@@ -12,6 +12,7 @@ import AttendanceRequests from './AttendanceRequests.jsx';
 import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
 import BizcompassImport from './BizcompassImport.jsx';
+import PunchDevices from './PunchDevices.jsx';
 import Statutory from './Statutory.jsx';
 import LeaveRegister from './LeaveRegister.jsx';
 import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
@@ -497,6 +498,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
                 onReload={onReload}
                 onError={setError}
               />
+              <PunchDevices period={period} onReload={onReload} onGo={onGo} />
               <BizcompassImport period={period} onReload={onReload} onGo={onGo} />
               <MonthlyStatusImport period={period} onReload={onReload} />
               <PunchImport period={period} onReload={onReload} />

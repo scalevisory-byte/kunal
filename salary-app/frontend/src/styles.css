@@ -5791,3 +5791,7 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
   .lc-cell { min-height: 3.4rem; }
   .lc-count { font-size: 0.58rem; }
 }
+
+/* A heading that follows a row of controls needs air above it, or it reads as
+   a label for the button rather than the start of the next thing. */
+h3.spaced { margin-top: 1.5rem; }

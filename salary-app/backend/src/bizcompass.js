@@ -13,17 +13,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import {
-  PUNCH_MAPPING,
-  coverage,
-  fileCouldMatter,
-  protectDecided,
-  punchRows,
-  readLogFiles,
-} from '../../shared/bizcompassLogs.js';
-import { punchesToMarks } from '../../shared/punches.js';
-import { listAttendance, listEmployees, listPeriods, setAttendance } from './db.js';
-import { buildPayroll } from './payroll.js';
+import { coverage, fileCouldMatter, readLogFiles } from '../../shared/bizcompassLogs.js';
+import { listPeriods } from './db.js';
+import { applyPunches, periodFor } from './punchApply.js';
 import { log } from './logger.js';
 
 /** Where the spool is, if the office has said. */
@@ -96,51 +88,25 @@ export function spoolStatus() {
  * attendance is how two sets of rules come to disagree.
  */
 export function runImport(periodId, { dryRun = true } = {}) {
-  const payroll = buildPayroll(Number(periodId), { sync: false });
-  if (!payroll) return { error: 'period not found', status: 404 };
-  if (payroll.period.locked) return { error: 'period is locked', status: 409 };
+  const found = periodFor(periodId);
+  if (found.error) return found;
+  const { period } = found;
 
   const dir = spoolDir();
   if (!dir) return { error: 'BIZCOMPASS_DIR is not set, so there is no folder to read', status: 400 };
 
-  const { files, unreadable } = readSpool(dir, { month: payroll.period.month });
+  const { files, unreadable } = readSpool(dir, { month: period.month });
   if (!files.length) {
     return { error: 'no punch files for that month were found in the folder', status: 400 };
   }
 
   const spool = readLogFiles(files);
-  const employees = listEmployees();
-  const mapped = punchRows(spool.punches, employees);
-  const result = punchesToMarks({
-    rows: mapped.rows,
-    mapping: PUNCH_MAPPING,
-    employees,
-    period: payroll.period,
-    deductLunch: payroll.period.lunch_paid !== 1,
-  });
-
-  /*
-   * A PUNCH MAY NOT OVERRULE A DECISION.
-   *
-   * Leave, a holiday, a weekly off worked, a day at home: the clock times
-   * still land, the mark stays. Somebody on casual leave who came in for ten
-   * minutes would otherwise have their CL turned into a present day and taken
-   * off the leave register with it.
-   */
-  const had = new Map();
-  for (const row of listAttendance(payroll.period.id)) {
-    if (row.code) had.set(`${row.employee_id}:${row.day}`, row.code);
-  }
-  const guarded = protectDecided(result.entries, (id, day) => had.get(`${id}:${day}`) || '');
-
-  if (!dryRun && guarded.entries.length) setAttendance(payroll.period.id, guarded.entries);
+  const applied = applyPunches(period, spool.punches, { dryRun });
 
   return {
     status: 200,
     body: {
-      ...result,
-      // A month is a couple of thousand entries; the screen needs the shape.
-      entries: undefined,
+      ...applied,
       spool: {
         dir,
         files: spool.files,
@@ -149,16 +115,7 @@ export function runImport(periodId, { dryRun = true } = {}) {
         skippedLines: spool.skipped,
         readers: spool.devices.length,
       },
-      coverage: coverage(spool.punches, {
-        month: payroll.period.month,
-        year: payroll.period.year,
-      }),
-      unknownIds: mapped.unknown,
-      matchedPeople: mapped.matched.length,
-      keptMarks: guarded.protected.length,
-      period: { month: payroll.period.month, year: payroll.period.year },
-      dryRun,
-      written: dryRun ? 0 : guarded.entries.length,
+      coverage: coverage(spool.punches, { month: period.month, year: period.year }),
     },
   };
 }
