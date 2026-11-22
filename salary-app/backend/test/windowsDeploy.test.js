@@ -706,6 +706,10 @@ test('the one-off scripts ride along in the update zip', () => {
   // gets hunted for in a zip from three months ago.
   const sh = fs.readFileSync(path.join(kit, '../make-update.sh'), 'utf8');
   assert.match(sh, /RETIRE-KEY\.ps1/);
+  // ESSL-CHECK.ps1 was in the install bundle and NOT in the update zip, so
+  // a server installed before it was written never got it - which is a large
+  // part of why the direct-eSSL question sat unanswered for a week.
+  assert.match(sh, /ESSL-CHECK\.ps1/);
 });
 
 test('the retire script is plain ASCII with no BOM, like the rest of the kit', () => {
