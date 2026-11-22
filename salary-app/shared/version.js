@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.85.0';
+export const VERSION = '1.86.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.86.0',
+    date: '22 Nov 2026',
+    title: 'Attendance straight off the eSSL machine, without exporting a file',
+    items: [
+      '**The fortnightly export can stop being a job.** A script on the machine that holds eTimeTrackLite reads its attendance and writes a small file; the HRMS imports that file on the **same screen as the .xls**, with the same look-before-you-write and the same rules. Nothing about how a day becomes pay has changed.',
+      '**It opens the machine\u2019s database READ-ONLY, and that is not politeness.** eTimeTrackLite is live on the same file, and the devices are wiped after every download \u2014 so a database that gets locked is one that stops collecting punches, and those punches are gone for good.',
+      '**A day the machine has no record of is still not a day everybody was absent.** The pull comes in through the same door as the file, so the rule learnt the hard way in October \u2014 912 absences nobody earned \u2014 holds here without being written a second time. Days where attendance collapses are still named with their figures and still not skipped for you.',
+      '**Nothing invents a departure.** Where somebody never punched out, the machine stores a date in 1900; that arrives as a blank out time, never a guess, and never leaves yesterday\u2019s time standing.',
+      '**What is still needed from the office:** which computer actually runs eTimeTrackLite. The copy on the BNF server was last written to in April 2025, so the live one is elsewhere \u2014 almost certainly the HR machine.',
+    ],
+  },
   {
     version: '1.85.0',
     date: '22 Nov 2026',

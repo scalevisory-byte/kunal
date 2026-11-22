@@ -710,6 +710,26 @@ test('the one-off scripts ride along in the update zip', () => {
   // a server installed before it was written never got it - which is a large
   // part of why the direct-eSSL question sat unanswered for a week.
   assert.match(sh, /ESSL-CHECK\.ps1/);
+  assert.match(sh, /ESSL-PULL\.ps1/);
+});
+
+test('the eSSL pull opens the database read-only and writes only its own file', () => {
+  /*
+   * eTimeTrackLite is live on the same file, and with "Auto Clear After
+   * Download" ticked on the devices, a database it cannot write to is a
+   * database that stops collecting punches - they are wiped from the readers
+   * either way. So Mode=Read is not politeness, and this script must not be
+   * where somebody later adds an UPDATE.
+   */
+  const ps = fs.readFileSync(path.join(kit, '../windows-local/ESSL-PULL.ps1'), 'utf8');
+  assert.deepEqual(psProblems(ps, 'ESSL-PULL.ps1'), []);
+  assert.match(ps, /Mode=Read/);
+  const code = ps.replace(/^\s*#.*$/gm, '');
+  assert.ok(!/\b(INSERT|UPDATE|DELETE|DROP|ALTER)\b/i.test(code), 'it writes to the database');
+  // One file out, the one asked for. Nothing else is created or removed.
+  assert.ok(!/Remove-Item|Stop-Service|Register-ScheduledTask/i.test(code), 'it changes the machine');
+  const writes = code.match(/Set-Content|Out-File|New-Item/g) || [];
+  assert.ok(writes.length <= 2, `it writes more than its own file: ${writes.join(', ')}`);
 });
 
 test('the retire script is plain ASCII with no BOM, like the rest of the kit', () => {

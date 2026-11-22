@@ -93,10 +93,16 @@ export default function MonthlyStatusImport({ period, onReload }) {
         Nothing is written until you say so.
       </p>
 
+      <p className="muted small">
+        It also takes the <code>.json</code> file <code>ESSL-PULL.ps1</code> writes straight off
+        eTimeTrackLite&rsquo;s own database, so the fortnightly export stops being a job. Same
+        screen, same checks &mdash; it is the same material either way.
+      </p>
+
       <div className="row">
         <input
           type="file"
-          accept=".xls,.xlsx,.xlsm"
+          accept=".xls,.xlsx,.xlsm,.json"
           onChange={(e) => pick(e.target.files?.[0] || null)}
         />
         {busy ? <span className="muted small">{busy}</span> : null}
@@ -107,6 +113,15 @@ export default function MonthlyStatusImport({ period, onReload }) {
 
       {preview ? (
         <>
+          {preview.pull ? (
+            <p className="muted small">
+              Read straight off {preview.pull.source || 'the machine'}
+              {preview.pull.machine ? ` on ${preview.pull.machine}` : ''}
+              {preview.pull.pulled_at ? `, ${preview.pull.pulled_at}` : ''} &mdash;{' '}
+              {preview.pull.rows} day{preview.pull.rows === 1 ? '' : 's'} for {preview.pull.people}{' '}
+              {preview.pull.people === 1 ? 'person' : 'people'}.
+            </p>
+          ) : null}
           {preview.skippedDays?.length ? (
             <div className="banner bad">
               <strong>

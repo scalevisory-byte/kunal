@@ -52,6 +52,7 @@ cp "$HERE/deploy/windows-local/UPDATE.ps1" "$U/"
 # double-click.
 cp "$HERE/deploy/windows-local/RETIRE-KEY.ps1" "$U/"
 cp "$HERE/deploy/windows-local/ESSL-CHECK.ps1" "$U/"
+cp "$HERE/deploy/windows-local/ESSL-PULL.ps1" "$U/"
 
 if [ "$WITH_SERVER" = true ]; then
   cp -r "$HERE/backend/src" "$U/src-new"

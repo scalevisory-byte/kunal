@@ -13,6 +13,7 @@ import {
   isLegacyXls,
   sheetsFromSheetJS,
 } from '../../../shared/monthlyStatus.js';
+import { asEsslPull, esslSheets, esslSummary } from '../../../shared/esslDb.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
 import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance } from '../db.js';
@@ -322,8 +323,24 @@ reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (
   if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
 
   try {
-    const sheets = readMonthlyStatus(sheetsFromSheetJS(XLSX, req.file.buffer));
-    if (sheets.every((s) => s.error)) {
+    /*
+     * Two ways in, one door.
+     *
+     * The .xls is what somebody exports by hand from eTimeTrackLite. The JSON
+     * is what ESSL-PULL.ps1 writes straight off its Access database, so the
+     * fortnightly export stops being a job. They are different files and the
+     * same material, so they become sheets and then share every rule below -
+     * the dry run, the no-data days, the mark map, the matching. A second
+     * path here would be a second set of answers about whose day was which.
+     */
+    const pull = asEsslPull(req.file.buffer);
+    const sheets = pull
+      ? esslSheets(pull)
+      : readMonthlyStatus(sheetsFromSheetJS(XLSX, req.file.buffer));
+    if (pull && !sheets.length) {
+      return res.status(400).json({ error: 'that pull holds no attendance rows' });
+    }
+    if (!pull && sheets.every((s) => s.error)) {
       return res.status(400).json({
         error: 'no day-by-day grid was found in that file',
         sheetErrors: sheets.map((s) => ({ sheet: s.name, error: s.error })),
@@ -355,6 +372,7 @@ reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (
       // to know what it adds up to.
       entries: undefined,
       months: sheets.filter((s) => !s.error).map((s) => ({ sheet: s.name, month: s.month, year: s.year })),
+      pull: pull ? esslSummary(pull) : null,
       period: { month: payroll.period.month, year: payroll.period.year },
       dryRun,
       written: dryRun ? 0 : result.entries.length,

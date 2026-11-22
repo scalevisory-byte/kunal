@@ -214,6 +214,23 @@ export const HELP = [
     note: 'A shift crossing midnight is handled. Somebody on a night shift should have their own shift times on their record, or they read as hours late every day.',
   },
   {
+    id: 'essl-pull',
+    title: 'eTimeTrackLite \u2014 attendance without exporting a file',
+    tab: 'reports',
+    keywords: [
+      'etimetracklite', 'direct', 'pull', 'automatic', 'database', 'access', 'mdb',
+      'bizcompass', 'scheduled', 'roz', 'apne aap',
+    ],
+    lines: [
+      'Instead of exporting a report from eTimeTrackLite every fortnight, a small script on the machine that holds it writes a **.json** file, and you import that file in **Reports \u2192 the machine\u2019s attendance** \u2014 the **same screen** as the .xls, the same look-before-you-write, the same rules.',
+      'The script is **ESSL-PULL.ps1**, and it comes with the update. It opens the machine\u2019s database **read-only** and writes only its own file.',
+      'Run it with the database it should read and the file it should write:\n`.\\ESSL-PULL.ps1 -Db "E:\\Essl\\eTimeTrackLite1.mdb" -Out "E:\\BNFHR\\essl.json" -Days 40`',
+      'Once it is right, Windows Task Scheduler can run it every night and the office just imports the file \u2014 or, if the folder is shared, it is already there.',
+      'Where somebody never punched out, the out time arrives **blank**. The machine stores a date in 1900 for that, and a blank is the truth; a guessed leaving time would pay hours nobody worked.',
+    ],
+    note: 'READ-ONLY IS THE WHOLE POINT. eTimeTrackLite is live on that same file and the devices are wiped after every download \u2014 so a database that gets locked stops collecting punches, and those punches are gone for good. And a day the machine has no record of is still NOT a day everybody was absent: it comes in through the same door as the file import, so that rule holds here too.',
+  },
+  {
     id: 'time-import',
     title: 'Importing in and out times from Excel',
     tab: 'time',
@@ -843,6 +860,7 @@ export const HELP = [
       '**Reports → Tools** reads the eSSL exports: the Monthly Status report and the Basic Work Duration report, including the older `.xls` files.',
       'Clock times come across onto the Time tab, so the hours become money the same way typed hours do.',
       'A dry run first, which says what it would cost in short hours and overtime before anything is written.',
+      'The same screen also takes the **.json** that `ESSL-PULL.ps1` writes straight off eTimeTrackLite\u2019s own database, so the export stops being a job \u2014 see *eTimeTrackLite \u2014 attendance without exporting a file*.',
     ],
     note: 'A day the machine has no record of looks exactly like a day everybody was absent. Those days are NAMED and left alone rather than written through — in one real file that would have booked 912 absences nobody earned. The machine’s own total is ignored: the app works the day out itself, so there is never a second figure nobody can account for.',
   },

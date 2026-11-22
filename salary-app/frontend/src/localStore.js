@@ -25,6 +25,7 @@ import {
   readMonthlyStatus,
   sheetsFromExcelJS,
 } from '../../shared/monthlyStatus.js';
+import { asEsslPull, esslSheets, esslSummary } from '../../shared/esslDb.js';
 import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
@@ -4430,20 +4431,32 @@ export async function upload(path, formData) {
     if (!period) throw new HttpError(404, 'period not found');
     if (period.locked) throw new HttpError(409, 'period is locked');
 
-    // ExcelJS cannot open the legacy .xls these machines still export. Saying
-    // so beats failing with something about a corrupt zip.
-    if (isLegacyXls(new Uint8Array(buffer))) {
-      throw new Error(
-        'This is an old .xls file, which this single-file version cannot open. ' +
-          'Open it in Excel and save it as .xlsx, then try again.'
-      );
-    }
+    /*
+     * A pull from ESSL-PULL.ps1 is plain JSON, so this single file can read it
+     * even though it cannot open the legacy .xls beside it - no ExcelJS, no
+     * SheetJS, nothing to load. Same sheets, same rules below.
+     */
+    const pull = asEsslPull(new Uint8Array(buffer));
+    let sheets;
+    if (pull) {
+      sheets = esslSheets(pull);
+      if (!sheets.length) throw new Error('that pull holds no attendance rows');
+    } else {
+      // ExcelJS cannot open the legacy .xls these machines still export. Saying
+      // so beats failing with something about a corrupt zip.
+      if (isLegacyXls(new Uint8Array(buffer))) {
+        throw new Error(
+          'This is an old .xls file, which this single-file version cannot open. ' +
+            'Open it in Excel and save it as .xlsx, then try again.'
+        );
+      }
 
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
-    const sheets = readMonthlyStatus(sheetsFromExcelJS(wb));
-    if (sheets.every((sheet) => sheet.error)) {
-      throw new Error('no day-by-day grid was found in that file');
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buffer);
+      sheets = readMonthlyStatus(sheetsFromExcelJS(wb));
+      if (sheets.every((sheet) => sheet.error)) {
+        throw new Error('no day-by-day grid was found in that file');
+      }
     }
 
     const existing = {};
@@ -4485,6 +4498,7 @@ export async function upload(path, formData) {
         month: sheet.month,
         year: sheet.year,
       })),
+      pull: pull ? esslSummary(pull) : null,
       period: { month: period.month, year: period.year },
       dryRun,
       written: dryRun ? 0 : result.entries.length,

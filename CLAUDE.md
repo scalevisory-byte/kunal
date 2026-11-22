@@ -1145,7 +1145,34 @@ recent `.ldb` beside it means it is open right now.
 **eTimeTrackLite's own parallel-database export is OFF** (`ParallelAttLogExportDetails`,
 `IsParallelDatabaseDowload = 0`; the Oracle/XE/1521/Localhost values are an unconfigured
 template with no database, table or path set). So that is not how Bizcompass was fed, and
-polling remains the route. Still to establish: which machine holds the live file.
+polling remains the route.
+
+**Built in v1.86.0** (`shared/esslDb.js`, `deploy/windows-local/ESSL-PULL.ps1`). The pull is a
+PowerShell script on the machine that holds the database; it opens the `.mdb` **`Mode=Read`**
+and writes a small JSON file, which the office imports on the **same route as the `.xls`**
+(`POST /periods/:id/monthly-status`, branched by `asEsslPull`). `esslSheets` turns the rows
+into the shape `readMonthlyStatus` already produces, so `daysWithoutData`, `thinDays` and
+`monthlyStatusToMarks` run over it **unchanged** — the October lesson (912 absences nobody
+earned) cannot be learnt twice and forgotten once. **Nothing reads Access from Node**: Jet's
+provider is 32-bit, Windows-only, and has no business being a payroll dependency, so the
+script re-launches itself under `SysWOW64` PowerShell. The JSON works in the **standalone
+build too**, which cannot open the legacy `.xls` at all. Traps pinned by tests: Access writes
+**1900-01-01 for "no punch"**, which must become a blank out time and never a guess; a time of
+exactly **midnight is read as nothing**; a pull crossing the 1st comes out as **two sheets**,
+because a sheet whose month is not the period's is dropped whole; `WOP` survives as `WOP` so
+the mark map turns it into `SP` and the Sunday register pays it. A deploy test asserts the
+script carries no INSERT/UPDATE/DELETE and writes only its own file.
+
+**Jet SQL traps met while inspecting, worth remembering:** `last` is a reserved word, so
+`MAX(x) AS last` fails with only *"reserved word or punctuation"* and names nothing — bracket
+every identifier. And in Windows PowerShell 5.1, `Get-ChildItem -Depth` together with
+`-Include` returns **nothing at all**, silently; use `-Filter`, or `-Recurse` without `-Depth`.
+
+**Still to establish: which machine holds the live file.** No `.mdb` on the BNF server's D: or
+E: is newer than 05/08/2026, and the November export exists — so the live install is almost
+certainly the **HR PC**. Ask the office which computer runs eTimeTrackLite and which one the
+report is exported from; then either share that folder read-only, or run `ESSL-PULL.ps1` there
+on a schedule. The file import works today either way, so nothing is blocked.
 
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
