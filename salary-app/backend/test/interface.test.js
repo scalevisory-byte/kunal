@@ -3562,3 +3562,38 @@ test('the staff contact list is in the catalogue and reachable', () => {
     'the contact list is not in the catalogue'
   );
 });
+
+test('FILLING BLANK DAYS AS PRESENT STOPS AT TODAY', () => {
+  /*
+   * Dinesh, looking at a Sunday: "ye aaj sunday sab ka present kese dikha
+   * raha he" - 86 of 86 Present, and the trend at 100% through the 28th,
+   * days that had not happened yet.
+   *
+   * Filling the rest of the month ahead of time makes the month read fully
+   * attended, and a real absence next Tuesday lands on a day already marked
+   * Present, where nobody looks again. On the monthly-hours rule it is worse
+   * than cosmetic: a day marked P is a day that owes its nine hours.
+   *
+   * In a past month `todayDay` is 0 and the whole month fills, which is
+   * right - a closed month is written up after the fact.
+   */
+  const code = src('components/Attendance.jsx')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
+  assert.match(
+    code,
+    /const fillableDays = useMemo\(\s*\(\) => \(todayDay \? dayList\.filter\(\(d\) => d <= todayDay\) : dayList\)/,
+    'the blank-fill must be bounded by today, and unbounded in a month that is not this one',
+  );
+
+  // Both blank-fills must walk that list, not the whole month.
+  const fillRow = code.slice(code.indexOf('const fillRow ='), code.indexOf('const fillRow =') + 500);
+  assert.match(fillRow, /for \(const day of fillableDays\)/, 'the per-row fill still walks the whole month');
+
+  const bulk = code.slice(code.indexOf('const markEveryonePresent ='));
+  const body = bulk.slice(0, bulk.indexOf('queueSave'));
+  assert.ok(!/for \(const day of dayList\)/.test(body), '"Mark everyone Present" still walks the whole month');
+  assert.match(body, /for \(const day of fillableDays\)/);
+  assert.match(body, /have not happened yet/, 'the confirmation must say what it is leaving alone');
+});

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.90.1';
+export const VERSION = '1.91.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.91.0',
+    date: '22 Nov 2026',
+    title: 'Filling blank days stops at today',
+    items: [
+      '**\u201cMark everyone Present\u201d no longer marks days that have not happened.** It filled to the end of the month, so the month read fully attended and a real absence next Tuesday landed on a day already marked Present, where nobody looks again.',
+      'On the monthly-hours rule this was more than cosmetic: **a day marked P is a day that owes its nine hours.** A week of days marked ahead of time quietly added their hours to everybody\u2019s target.',
+      'The confirmation now says what it is leaving alone \u2014 \u201cthe 8 days after today are left blank\u201d \u2014 and pressing it again says \u201cevery day up to today already has a mark (8 still to come)\u201d rather than claiming the month is finished.',
+      '\u201cFill blanks\u2026\u201d on one person\u2019s row follows the same line.',
+      '**A past month still fills completely**, because a closed month is written up after the fact.',
+    ],
+  },
   {
     version: '1.90.1',
     date: '22 Nov 2026',

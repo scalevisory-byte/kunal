@@ -1384,6 +1384,33 @@ the fake loopback could never give.
   its device configuration from the Bizcompass cloud at runtime** — which is another reason not
   to depend on it, and means the key must come from eTimeTrackLite or the device keypad.
 
+### A Sunday that read 100% present (v1.91.0)
+
+Dinesh, off the live dashboard: *"ye aaj sunday sab ka present kese dikha raha he"* — 86 of 86
+Present on Sunday 22 Nov, and the trend at 100% **through the 28th**, days that had not happened.
+
+- **Not a display fault: `P` was really stored.** The roll call only lists somebody as Present
+  when the mark is P/WH/SP/HP; a blank day goes to *Not marked* and `S` to its own line. And
+  `774h 00m` is exactly 86 × 9h, so clock times were written too.
+- **The real defect was that a blank-fill ran to the end of the month.** A month then reads
+  fully attended, and a genuine absence next Tuesday lands on a day already marked Present,
+  where nobody looks again. **On the monthly-hours rule this is not cosmetic** — `HOURS_EXPECTED`
+  is blank/P/WH, so a day marked P is a day that owes its nine hours, and a week marked ahead
+  quietly raised everybody's target.
+- `fillableDays` is now the one bound, derived from the existing `todayDay`; both
+  `markEveryonePresent` and the per-row `fillRow` walk it. **A past month still fills whole**
+  (`todayDay` is 0 there), because a closed month is written up after the fact. The confirm says
+  what it is leaving alone, and a second press says "every day up to today already has a mark
+  (8 still to come)" instead of claiming the month is finished. Pinned in `interface.test.js`.
+- **What this does NOT explain, and was left alone:** his Sunday came out `P`, where the button
+  writes `S`. Driven here, 1/8/15/22 all came out `S`. So on his data either the company's
+  weekly-off policy does not carry Sunday (Leave → The day off), or those marks came from
+  somewhere else. Not guessed at — put to him to check, since changing marks on a live month is
+  his call.
+- Worth knowing for the same reason: **S and P both pay a Sunday**, so nothing was overpaid; but
+  only `SP` reaches the Sunday register, and under `monthly_late` a P Sunday adds nine hours to
+  the target.
+
 ## Where the HRMS actually runs — corrected
 
 **It is on the BNF server**, the machine reached over AnyDesk, at `E:\BNFHR\BNFHRMS`,

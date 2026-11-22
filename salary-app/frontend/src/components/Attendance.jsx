@@ -69,6 +69,24 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
   const dayList = useMemo(() => Array.from({ length: total }, (_, i) => i + 1), [total]);
 
   /*
+   * HOW FAR A BLANK-FILL MAY REACH.
+   *
+   * Filling blank days as Present used to run to the end of the month, which
+   * marks days that have not happened. The month then reads 100% attended, a
+   * real absence next Tuesday arrives into a day already marked Present, and
+   * nobody notices. On the monthly-hours rule it is worse than cosmetic: a
+   * day marked P is a day that owes its hours.
+   *
+   * In a past or future month `todayDay` is 0 and the whole month fills, which
+   * is right - a closed month is being written up after the fact.
+   */
+  const fillableDays = useMemo(
+    () => (todayDay ? dayList.filter((d) => d <= todayDay) : dayList),
+    [dayList, todayDay]
+  );
+  const daysAhead = dayList.length - fillableDays.length;
+
+  /*
    * The branches and departments actually on THIS month's rows - not every
    * one the company has ever had. A filter offering a branch nobody on
    * screen belongs to only ever empties the grid.
@@ -240,7 +258,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
   const fillRow = (row, code) => {
     if (locked) return;
     const next = { ...draft };
-    for (const day of dayList) {
+    for (const day of fillableDays) {
       const entry = entryOf(row, day);
       if (entry.code) continue;
       if (code === 'S' && !offFor(row, day)) continue;
@@ -322,25 +340,31 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
   const markEveryonePresent = () => {
     if (locked) return;
     const blanks = filtered.reduce(
-      (count, row) => count + dayList.filter((day) => !entryOf(row, day).code).length,
+      (count, row) => count + fillableDays.filter((day) => !entryOf(row, day).code).length,
       0
     );
     if (!blanks) {
-      setStatus('Every day already has a mark');
-      setTimeout(() => setStatus(''), 2500);
+      setStatus(daysAhead
+        ? `Every day up to today already has a mark (${daysAhead} still to come)`
+        : 'Every day already has a mark');
+      setTimeout(() => setStatus(''), 3500);
       return;
     }
     const scope = filtered.length === rows.length ? 'all' : 'the';
     const ok = window.confirm(
       `Mark ${blanks} blank day${blanks === 1 ? '' : 's'} across ${scope} ${filtered.length} ` +
         `employee${filtered.length === 1 ? '' : 's'} as Present?\n\n` +
-        'Sundays are marked S (off). Days that already have a mark are left as they are.'
+        'Sundays are marked S (off). Days that already have a mark are left as they are.' +
+        (daysAhead
+          ? `\n\nThe ${daysAhead} day${daysAhead === 1 ? '' : 's'} after today ` +
+            `${daysAhead === 1 ? 'is' : 'are'} left blank — they have not happened yet.`
+          : '')
     );
     if (!ok) return;
 
     const next = { ...draft };
     for (const row of filtered) {
-      for (const day of dayList) {
+      for (const day of fillableDays) {
         const entry = entryOf(row, day);
         if (entry.code) continue;
         next[`${row.employee_id}:${day}`] = {
