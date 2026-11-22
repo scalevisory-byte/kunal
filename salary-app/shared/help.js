@@ -214,6 +214,23 @@ export const HELP = [
     note: 'A shift crossing midnight is handled. Somebody on a night shift should have their own shift times on their record, or they read as hours late every day.',
   },
   {
+    id: 'punch-ids',
+    title: 'Punch IDs \u2014 matching people to the machine',
+    tab: 'employees',
+    keywords: [
+      'punch id', 'device code', 'machine number', 'enroll', 'match', 'mapping',
+      'number', 'essl code', 'emp code', 'nambar', 'milana',
+    ],
+    lines: [
+      '**Employees \u2192 Punch IDs from the machine\u2019s report.** The punch spool carries a reader number and **no name at all**, so until everybody has their number here, their attendance reaches nobody.',
+      'Upload eTimeTrackLite\u2019s `BasicWorkDurationReport` \u2014 the same file the attendance import takes. Its **Emp. Code** is the reader\u2019s number, with the name beside it.',
+      'An **exact** name arrives ticked. Anything less arrives **unticked**, with how close it is and what differs \u2014 because the two lists are typed by different people and the spellings do not agree.',
+      'It also names who is on the machine but not on your staff list, and who is on your staff list with no number \u2014 those people\u2019s attendance will not arrive at all.',
+      'One number can be typed by hand too: the **Punch ID** column on the Employees table. Blank falls back to their Code.',
+    ],
+    note: 'A WRONG NUMBER PUTS ONE PERSON\u2019S ATTENDANCE ON ANOTHER PERSON\u2019S PAYSLIP, so nothing is saved until it is ticked. Two numbers pointing at one person tick neither \u2014 somebody enrolled twice, and one of those numbers belongs to somebody else.',
+  },
+  {
     id: 'bizcompass-spool',
     title: 'Punches from the Bizcompass spool',
     tab: 'reports',

@@ -1225,6 +1225,47 @@ minutes, and plain text. `shared/bizcompassLogs.js` + `backend/src/bizcompass.js
   `createEmployee` took 328 tests down with *"Missing named parameter"* — every field in that
   list must be given a value, even a null one.
 
+### Why nothing matched, and the Punch ID import (v1.88.0)
+
+Pointed at the real folder the panel read **10,614 punches, 2,916 files, 2 readers, 22 days**
+— and **0 people matched, 81 numbers nobody carried.** Not a bug: the mapping did not exist.
+His employee codes are **`BNF-EMP-0043`**; the reader says **`128`**. They were never going to
+meet.
+
+The mapping was already on paper: **eTimeTrackLite's own Basic Work Duration report carries
+both** — its `Emp. Code` IS the reader number (1–192 in his file) with the name beside it. So
+`shared/punchIdMatch.js` + `PunchIdImport.jsx` read that file with the **same `readMonthlyStatus`
+the attendance import uses** (no second idea of what the file is) and propose the pairs.
+
+- **THE TWO LISTS DO NOT AGREE, and that is the whole design.** On his real data: `3` is
+  *AJEET UPADHYAY* on the machine and *AJEETKUMAR UPDHYAY* on the payroll; `47` is
+  *ALIFIYA CHIKHALIWAL* against *ALIFAYA CHIKHALIWALA*; `65` is *Ajay Patnayk* against
+  *AJAY PATNAYAK*. A fuzzy match that wrote itself through would put one person's attendance on
+  another person's payslip, found months later by somebody querying their own pay. **So every
+  pair is ticked by a person.** Exact arrives ticked; anything less arrives **unticked** with
+  the percentage and what differs.
+- `nameScore` works on WORDS, not characters, because that is how these differ: a middle name
+  on one side, a surname a letter out, the order swapped. Scored over the shorter name's words
+  × how close the lengths are, so a shared first name with a different surname lands at 0.50 —
+  **below `MAYBE` (0.6), so it is not even proposed**, and the person is listed as "on the
+  machine only" with the nearest name named.
+- **Two numbers pointing at one person tick NEITHER.** Found on his real data immediately:
+  *ALPESH SHUKLA* is enrolled twice (60 and 82), and one of those is somebody else. A number
+  already on somebody else is refused **by name**, a different number already on the record is
+  never silently replaced, and the apply route re-checks both — the screen may have been open
+  while the list moved.
+- It names **who is on the machine and not on the staff list** (103 of 114 in the sample) and
+  **who is on the staff list with no number** — the second list is the one that matters, because
+  those people's attendance simply will not arrive.
+- Somebody who left, or a half-finished draft, is never offered a number.
+
+**And a punch may not overrule a decision** (`protectDecided`). Leave, a holiday, a weekly off
+worked, a day at home, a double absence: the clock times still land, the **mark stays**, and
+the minutes go with the code because they were worked out as if the day were Present — a leave
+day is not short of hours it was never due. Blank/P/A/HF stay settable, because the punch data
+really is better evidence for those. Without it, somebody on CL who came in for ten minutes
+would have had their leave turned into a present day and taken off the register with it.
+
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
 redirects nothing to a file, because it gets run on a server also carrying ZynTask, Arrohan, TAJ

@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.87.0';
+export const VERSION = '1.88.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.88.0',
+    date: '22 Nov 2026',
+    title: 'Punch IDs filled from the machine\u2019s own report',
+    items: [
+      '**Why nothing was matching.** The punch spool carries a reader number and **no name at all**, and nobody on the staff list had that number \u2014 the office codes are `BNF-EMP-0043` and the reader says `128`. So every punch belonged to nobody.',
+      '**Employees \u2192 Punch IDs from the machine\u2019s report.** Upload the same `BasicWorkDurationReport` the attendance import takes: its **Emp. Code** is that number, with the name beside it. The app works out who is who.',
+      '**NOTHING IS SAVED UNTIL IT IS TICKED, and that matters.** The two lists are typed by different people and do not agree \u2014 *AJEET UPADHYAY* on the machine is *AJEETKUMAR UPDHYAY* on the payroll, *ALIFIYA CHIKHALIWAL* is *ALIFAYA CHIKHALIWALA*. An exact name arrives ticked; anything less arrives **unticked** with the match percentage and what differs. A wrong tick puts one person\u2019s attendance on another person\u2019s payslip.',
+      '**Two numbers pointing at one person tick neither** \u2014 somebody enrolled twice on the machine, and one of those numbers is somebody else. A number already on somebody else is refused **by name**, and a number already on the record is never silently replaced.',
+      'It also names **who is on the machine but not on the staff list** (left, or never added) and **who is on the staff list with no number at all** \u2014 those are the people whose attendance will not arrive.',
+      '**A punch can no longer overrule a mark somebody decided.** Leave, a holiday, a weekly off worked, a day at home: the clock times still land, but the mark stays. Somebody on casual leave who came in for ten minutes would otherwise have had their CL turned into a present day and taken off the leave register with it.',
+    ],
+  },
   {
     version: '1.87.0',
     date: '22 Nov 2026',

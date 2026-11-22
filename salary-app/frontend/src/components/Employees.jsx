@@ -17,6 +17,7 @@ import ExitEmployee from './ExitEmployee.jsx';
 import PastEmployees from './PastEmployees.jsx';
 
 import BulkEmployees from './BulkEmployees.jsx';
+import PunchIdImport from './PunchIdImport.jsx';
 /* The people with nothing in that field - a group, not a gap. */
 const NOT_SET = '\u0000none';
 
@@ -1183,6 +1184,8 @@ export default function Employees({
       />
 
       <BulkEmployees onReload={onReload} onError={(m) => (onError ? onError(m) : setError(m))} />
+
+      <PunchIdImport onReload={onReload} />
 
       {/*
         * THE JOINING FORM, behind a button.

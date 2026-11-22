@@ -21,9 +21,10 @@ import {
   readLogFiles,
 } from '../../../shared/bizcompassLogs.js';
 import { readSpool, spoolDir, spoolStatus } from '../bizcompass.js';
+import { matchPunchIds } from '../../../shared/punchIdMatch.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance } from '../db.js';
+import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance, updateEmployee } from '../db.js';
 import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
@@ -384,6 +385,88 @@ reportsRouter.post('/periods/:id/monthly-status', upload.single('file'), async (
       dryRun,
       written: dryRun ? 0 : result.entries.length,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ---------------- giving everybody their reader number ---------------- */
+
+/**
+ * The spool carries no names, so until every person has the number their
+ * reader knows them by, nobody's punches reach anybody. The machine's own
+ * Basic Work Duration report carries BOTH - its "Emp. Code" is that number,
+ * with the name beside it - so the mapping already exists on paper.
+ *
+ * It is read with the SAME reader the attendance import uses, so there is no
+ * second idea of what that file is.
+ *
+ * THIS ONLY PROPOSES. The two lists are typed by different people and do not
+ * agree ("AJEET UPADHYAY" against "AJEETKUMAR UPDHYAY"), and a wrong number
+ * puts one person's attendance on another person's payslip.
+ */
+reportsRouter.post('/employees/punch-ids/match', upload.single('file'), (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  try {
+    const sheets = readMonthlyStatus(sheetsFromSheetJS(XLSX, req.file.buffer));
+    const people = [];
+    for (const sheet of sheets) {
+      if (sheet.error) continue;
+      for (const person of sheet.people || []) {
+        if (person.code && person.name) {
+          people.push({ code: person.code, name: person.name, company: sheet.company || '' });
+        }
+      }
+    }
+    if (!people.length) {
+      return res.status(400).json({
+        error: 'no employee codes and names were found in that file',
+        sheetErrors: sheets.map((s) => ({ sheet: s.name, error: s.error })).filter((s) => s.error),
+      });
+    }
+    res.json(matchPunchIds({ people, employees: listEmployees() }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Applying exactly what was ticked, and nothing it was not told.
+ *
+ * Each pair is checked again on the way in: the number must not already be on
+ * somebody else, because the screen may have been open while the list moved.
+ */
+reportsRouter.post('/employees/punch-ids', (req, res, next) => {
+  const pairs = Array.isArray(req.body?.pairs) ? req.body.pairs : [];
+  if (!pairs.length) return res.status(400).json({ error: 'nothing was ticked' });
+  try {
+    const employees = listEmployees();
+    const byId = new Map(employees.map((e) => [e.id, e]));
+    const held = new Map();
+    for (const e of employees) {
+      if (e.device_code) held.set(String(e.device_code).trim(), e);
+    }
+
+    const done = [];
+    const refused = [];
+    for (const pair of pairs) {
+      const id = Number(pair.employee_id);
+      const code = String(pair.device_code ?? pair.code ?? '').trim();
+      const employee = byId.get(id);
+      if (!employee || !code) {
+        refused.push({ employee_id: id, code, why: 'not a person and a number' });
+        continue;
+      }
+      const owner = held.get(code);
+      if (owner && owner.id !== id) {
+        refused.push({ employee_id: id, code, why: `${code} is already on ${owner.name}` });
+        continue;
+      }
+      updateEmployee(id, { device_code: code });
+      held.set(code, employee);
+      done.push({ employee_id: id, name: employee.name, device_code: code });
+    }
+    res.json({ done, refused, written: done.length });
   } catch (err) {
     next(err);
   }
