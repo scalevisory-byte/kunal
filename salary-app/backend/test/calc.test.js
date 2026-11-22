@@ -295,6 +295,9 @@ const DESCRIBES = new Set([
   'late_policy',
   'shift_in',
   'shift_out',
+  /* Three-state in spirit: false means "there was nothing to judge", which is
+     not "they did no hours". A number could not say that. */
+  'monthly_hours_judged',
 ]);
 
 const assertNoNaN = (row) => {

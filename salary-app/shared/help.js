@@ -231,6 +231,41 @@ export const HELP = [
     note: 'The hours are judged against the month’s own working day, so an eight-hour month breaks at four, not at four and a half. And a day under the half-day line is marked HF and its missing hours are NOT also deducted — it is already paid at half.',
   },
   {
+    id: 'monthly-hours',
+    title: 'The month\u2019s hours \u2014 9 \u00d7 26 = 234, settled once a month',
+    tab: 'time',
+    keywords: [
+      'monthly hours', '234', '9 hours', 'nine hours', 'total hours', 'hours target',
+      'short hours', 'overtime', 'ghante', 'mahina', 'monthly', 'kam hours', 'rule',
+    ],
+    lines: [
+      '**Time \u2192 The month\u2019s hours.** Nine hours a day for the days each person was due \u2014 26 days is **234 hours**. A day short and a day long cancel; only what is missing from the **total** comes off the pay.',
+      '**It is off until you turn it on.** Set **Rule** on the Time tab to \u201cThe month owes a total\u201d. The screen says what it would charge this month BEFORE you switch, and the rule is held per month, so turning it on in December never rewrites November.',
+      '**The total is not a flat 234.** Somebody absent two days owes 24 \u00d7 9 \u2014 those two days already came off as absences. Leave, a holiday, a weekly off and a half day add nothing to the total either.',
+      '**A day nobody clocked counts on neither side.** No in time means not known, so it adds no hours to what is owed and none to what was worked.',
+      '**A shorter or longer shift owes its own hours.** Somebody on 10:00\u201316:00 owes 6 \u00d7 26, not 234.',
+    ],
+    note:
+      'THE THREE RULES ARE ALTERNATIVES, NEVER TWO AT ONCE \u2014 each day on its own, the late/early concession, or the month\u2019s total. Somebody an hour short on Tuesday is ALREADY an hour short in the month\u2019s total; charging both would take the same hour twice.\n\nWhat the monthly rule changes against the old one: each day used to forgive up to a quarter of an hour, which over 26 days is six and a half hours a month given away. Ten minutes short every day used to cost nothing; on this rule it is 4h 20m off the total.',
+  },
+  {
+    id: 'shifts',
+    title: 'Different shifts \u2014 and how long each person\u2019s day is',
+    tab: 'employees',
+    keywords: [
+      'shift', 'shifts', 'night shift', 'part time', 'timing', 'shift timing',
+      'alag timing', 'raat', 'duty hours', 'shift in', 'shift out',
+    ],
+    lines: [
+      '**Shift starts / Shift ends** are columns on the Employees table, and on each person\u2019s record. Blank means the office\u2019s usual day, set on the Time tab.',
+      'Their shift decides **when** they are late or early, **what \u201cFill the usual timings\u201d writes** on their days, and **how long their day is** \u2014 so short hours and overtime are judged against their own hours, not the office\u2019s nine.',
+      'Their hourly rate follows it too: an hour missing from a six-hour day is worth a sixth of that day.',
+      'A night shift that crosses midnight is read correctly \u2014 22:00 to 06:00 is eight hours.',
+    ],
+    note:
+      'A SHIFT AT ANOTHER TIME OF DAY BUT THE SAME LENGTH CHANGES NO FIGURE. 14:00\u201323:00 is still nine hours. Only a different LENGTH moves money.\n\nA shift under two hours or over sixteen is treated as a typo: the month\u2019s hours are used instead and the Time tab says so. 09:00\u201309:30 taken literally would make a half-hour day the standard and pay eight and a half hours of overtime every single day.',
+  },
+  {
     id: 'late-early',
     title: 'Late in, early out, and the 300-minute concession',
     tab: 'time',

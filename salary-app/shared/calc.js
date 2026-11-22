@@ -51,7 +51,8 @@ import { monthTotals } from './timesheet.js';
  */
 import { earnedStructure } from './structure.js';
 import { esiFor, isAuto, isNone, pfFor } from './contributions.js';
-import { lateEarlyLine, onConcession } from './lateEarly.js';
+import { hoursForEmployee, lateEarlyLine, onConcession } from './lateEarly.js';
+import { monthlyHoursLine, onMonthlyHours } from './monthlyHours.js';
 
 /**
  * WHAT THE OFFICE CALLS EACH MARK.
@@ -212,7 +213,21 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // Fixed at 26 on purpose - see STANDARD_WORKING_DAYS. Nothing a period or a
   // caller carries can change the divisor behind the day rate.
   const workingDays = STANDARD_WORKING_DAYS;
-  const hoursPerDay = num(period.hours_per_day, DEFAULTS.hoursPerDay) || DEFAULTS.hoursPerDay;
+  /*
+   * HOW LONG THIS PERSON'S DAY IS, not the office's.
+   *
+   * The month's `hours_per_day` is the office day and stays the fallback.
+   * Somebody with a shift of their own - a six-hour part-timer, a ten-hour
+   * shift - is judged and PAID against their own, because the two halves have
+   * to agree: an hour missing from a six-hour day is worth a sixth of that
+   * day, and charging it at a ninth while expecting six hours is incoherent.
+   *
+   * `hoursForEmployee` returns the month's figure for everybody on the office
+   * day, and for anybody whose shift is merely at another time of day but the
+   * same length - which is most of them. Only a different LENGTH moves a
+   * figure. See its own note.
+   */
+  const hoursPerDay = hoursForEmployee(row, { period }) || DEFAULTS.hoursPerDay;
   const ptThreshold = num(period.pt_threshold, DEFAULTS.ptThreshold);
   const ptAmount = num(period.pt_amount, DEFAULTS.ptAmount);
 
@@ -256,11 +271,36 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
    * would charge the same half hour twice. Overtime still pays. A number typed
    * over the column wins either way, as it does everywhere else.
    */
-  const chargedMinutes =
-    concessionMode && !isSet(row.ot_minutes_override)
-      ? Math.max(0, minutesFromDays)
-      : isSet(row.ot_minutes_override)
-        ? num(row.ot_minutes_override)
+  /*
+   * THE MONTH AS ONE ACCOUNT OF HOURS - Dinesh's rule, when the period is set
+   * to it. Nine hours times the days actually owed; a day short cancels a day
+   * long; only the total is charged. Worked out on EVERY policy so the panel
+   * can price a switch before it is made, and worth nothing unless the period
+   * is on it - exactly as the concession line beside it.
+   */
+  const monthlyMode = onMonthlyHours(period);
+  const monthlyHours = monthlyHoursLine(attendance, {
+    employee: row,
+    period,
+    per_minute: perMinute,
+  });
+
+  /*
+   * ONE OF THREE, NEVER TWO.
+   *
+   * A typed figure wins over all of them, as it does everywhere else.
+   * Otherwise: on `monthly` the month's own total is what is charged and the
+   * daily minutes are not; on `concession` the shortfall is dropped and only
+   * overtime pays, because the lateness is charged instead; on `hours` - the
+   * default, and what every existing month runs on - each day stands as it
+   * always has.
+   */
+  const chargedMinutes = isSet(row.ot_minutes_override)
+    ? num(row.ot_minutes_override)
+    : monthlyMode
+      ? monthlyHours.minutes
+      : concessionMode
+        ? Math.max(0, minutesFromDays)
         : minutesFromDays;
   const otMinutes = chargedMinutes;
   const otSalary = isSet(row.ot_amount_override) // AT
@@ -384,7 +424,16 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
     ot_salary: round2(otSalary),
     // The late/early line. Always reported, only charged on the concession
     // policy - `late_salary` is 0 on the default one, by design.
-    late_policy: concessionMode ? 'concession' : 'hours',
+    late_policy: monthlyMode ? 'monthly' : concessionMode ? 'concession' : 'hours',
+    /* The month's hours account, so the sheet and the panel can show what is
+       owed against what was worked without working it out a second time. */
+    monthly_hours_expected: monthlyHours.expected,
+    monthly_hours_worked: monthlyHours.worked + monthlyHours.typed,
+    monthly_hours_days: monthlyHours.days,
+    monthly_hours_diff: monthlyHours.diff,
+    monthly_hours_chargeable: monthlyHours.chargeable,
+    monthly_hours_amount: monthlyHours.amount,
+    monthly_hours_judged: monthlyHours.judged,
     late_minutes: lateEarly.late_minutes,
     early_minutes: lateEarly.early_minutes,
     late_total_minutes: lateEarly.total_minutes,

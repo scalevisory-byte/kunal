@@ -14,6 +14,7 @@ import ScrollFrame from './ScrollFrame.jsx';
 import AttendanceStatement from './AttendanceStatement.jsx';
 import { api } from '../api.js';
 import { col, num, printReport } from '../printReport.js';
+import { hoursForEmployee } from '../../../shared/lateEarly.js';
 
 /**
  * The day-by-day grid from the left of the sheet.
@@ -467,7 +468,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                  and is a different question. */
               const worked = Math.round(
                 monthTotals(Object.values(merged), {
-                  hoursPerDay: Number(period.hours_per_day) || 9,
+                  hoursPerDay: hoursForEmployee(row, { period }),
                   deductLunch: !period.lunch_paid,
                 }).worked
               );

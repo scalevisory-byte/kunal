@@ -30,6 +30,7 @@ import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, minutesForMark, parseTime, timesToDay } from '../../shared/timesheet.js';
+import { hoursForEmployee } from '../../shared/lateEarly.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
   PENALTY_KINDS,
@@ -1484,6 +1485,7 @@ export async function handle(method, path, body) {
         // and nothing already paid moves.
         lunch_paid: 0,
         late_policy: 'hours',
+        monthly_hours_grace: 0,
         late_concession_minutes: 300,
         late_grace_minutes: 0,
         shift_in: '09:30',
@@ -1810,7 +1812,9 @@ export async function handle(method, path, body) {
       lunch_paid: body.lunch_paid ? 1 : 0,
       // The late/early rule, per month. 'hours' is the default and charges
       // nothing for lateness as such - exactly as the server has it.
-      late_policy: body.late_policy === 'concession' ? 'concession' : 'hours',
+      /* One of three. Anything unrecognised falls back to 'hours', the
+         behaviour every existing month runs on, so a typo cannot move money. */
+      late_policy: ['concession', 'monthly'].includes(body.late_policy) ? body.late_policy : 'hours',
       late_concession_minutes:
         body.late_concession_minutes === undefined ? 300 : Number(body.late_concession_minutes),
       late_grace_minutes: Number(body.late_grace_minutes) || 0,
@@ -1913,6 +1917,7 @@ export async function handle(method, path, body) {
           'pt_amount',
           'lunch_paid',
           'late_policy',
+          'monthly_hours_grace',
           'late_concession_minutes',
           'late_grace_minutes',
           'shift_in',
@@ -1998,6 +2003,19 @@ export async function handle(method, path, body) {
           }
         }
         const hoursPerDay = Number(period.hours_per_day) || 9;
+        /*
+         * How long each person's own day is - the same rule the server
+         * follows, looked up once per person. Somebody on the office day
+         * gets the month's figure exactly as before.
+         */
+        const shiftHours = new Map();
+        const hoursFor = (id) => {
+          if (!shiftHours.has(id)) {
+            const employee = db.employees.find((e) => e.id === Number(id)) || {};
+            shiftHours.set(id, hoursForEmployee(employee, { period }));
+          }
+          return shiftHours.get(id);
+        };
         for (const entry of entries) {
           const employeeId = Number(entry.employee_id);
           const day = Number(entry.day);
@@ -2031,7 +2049,7 @@ export async function handle(method, path, body) {
           // Clock times become money here too, so hours are worth the same in
           // the file as they are on the server.
           if (anyTime && !('minutes' in entry)) {
-            const judged = timesToDay(times, { hoursPerDay });
+            const judged = timesToDay(times, { hoursPerDay: hoursFor(entry.employee_id) });
             minutes = judged.minutes;
             if (!('code' in entry) && AUTO_TIME_MARKS.has(code)) {
               if (judged.code) code = judged.code;
@@ -2040,7 +2058,11 @@ export async function handle(method, path, body) {
             // "A half day is already paid at half" only holds if the day IS
             // a half day - minutesForMark is the one place that decides, so
             // the file and the server cannot pay differently.
-            minutes = minutesForMark(times, { hoursPerDay, code, deductLunch: !period?.lunch_paid });
+            minutes = minutesForMark(times, {
+              hoursPerDay: hoursFor(entry.employee_id),
+              code,
+              deductLunch: !period?.lunch_paid,
+            });
           }
 
           /*

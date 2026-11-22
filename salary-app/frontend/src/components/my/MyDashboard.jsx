@@ -5,6 +5,7 @@ import { formatDuration } from '../../../../shared/timesheet.js';
 import { comingUp, leaveFor, monthFor, todayFor, trendFor } from '../../../../shared/myDashboard.js';
 import { recordSummary } from '../../../../shared/myRecord.js';
 import { kindIcon } from '../../../../shared/announcements.js';
+import { hoursForEmployee } from '../../../../shared/lateEarly.js';
 
 /**
  * WHAT ONE PERSON SEES WHEN THEY SIGN IN.
@@ -92,11 +93,13 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
           attendance: current.attendance,
           period: current.period,
           today,
-          hoursPerDay: current.period?.hours_per_day,
+          /* Their own shift's length where they have one, so the hours on
+             their page match the hours the sheet pays them on. */
+          hoursPerDay: hoursForEmployee(employee || {}, { period: current.period || {} }),
           lunchPaid: current.period?.lunch_paid,
         })
       : null),
-    [current, today]
+    [current, today, employee]
   );
   const month = useMemo(() => (current ? monthFor(current) : null), [current]);
   const balance = useMemo(

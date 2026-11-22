@@ -18,6 +18,7 @@
 import { ATTENDANCE_CODES, codeOf } from './calc.js';
 import { isWeeklyOff, policyFor } from './weeklyOff.js';
 import { hasTimes, timesToDay } from './timesheet.js';
+import { hoursForEmployee } from './lateEarly.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const n = (v) => Number(v) || 0;
@@ -43,7 +44,10 @@ export function attendanceStatement(row = {}, period = {}, { holidays = [] } = {
   const year = Number(period.year);
   const month = Number(period.month);
   const total = year && month ? daysIn(year, month) : 0;
-  const hoursPerDay = n(period.hours_per_day) || 9;
+  /* Their own day, not the office's - the same rule the salary sheet is paid
+     from, so the statement and the payslip cannot disagree about what a short
+     day was short of. */
+  const hoursPerDay = hoursForEmployee(row, { period }) || n(period.hours_per_day) || 9;
   const deductLunch = !period.lunch_paid;
   const policy = policyFor(row, { weekly_off: row.company_weekly_off });
 

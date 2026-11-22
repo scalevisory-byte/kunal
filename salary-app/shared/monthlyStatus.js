@@ -29,6 +29,7 @@
 
 import { ATTENDANCE_CODES } from './calc.js';
 import { parseTime, formatTime, minutesForMark } from './timesheet.js';
+import { hoursForEmployee } from './lateEarly.js';
 
 /* ---------------- what the machine's codes mean here ---------------- */
 
@@ -504,6 +505,9 @@ export function monthlyStatusToMarks({
         continue;
       }
       matched.push({ id: employee.id, name: employee.name, as: person.name });
+      /* Their own day, so the dry run's cost and the write that follows it
+         cannot give two answers about the same hours. */
+      const theirHours = hoursForEmployee(employee, { period }) || hoursPerDay;
 
       for (const [rawDay, rawMark] of Object.entries(person.marks)) {
         const day = Number(rawDay);
@@ -557,7 +561,7 @@ export function monthlyStatusToMarks({
            */
           const m = minutesForMark(
             { in_time: entry.in_time, out_time: entry.out_time },
-            { hoursPerDay, code },
+            { hoursPerDay: theirHours, code },
           );
           if (m < 0) { shortMinutes -= m; shortDays += 1; }
           else if (m > 0) { overtimeMinutes += m; overtimeDays += 1; }

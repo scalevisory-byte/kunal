@@ -27,12 +27,26 @@
  * browser build cannot drift apart.
  */
 
-import { parseTime, readTimes } from './timesheet.js';
+import { MAX_DAY_MINUTES, parseTime, readTimes } from './timesheet.js';
 
-/** Which rule prices the month. `hours` is what the app has always done. */
+/**
+ * Which rule prices the month. `hours` is what the app has always done.
+ *
+ * All three are ALTERNATIVES and `calculateRow` picks exactly one, for the
+ * reason in the note above: the same missing half hour must not be taken as
+ * a short day, as a late arrival and as a monthly shortfall.
+ *
+ *   hours       each day on its own - short hours charged, overtime paid.
+ *   concession  late and early minutes pooled, the first 300 free, and the
+ *               hours-shortfall no longer charged.
+ *   monthly     Dinesh's rule: the month owes a TOTAL - nine hours times
+ *               twenty-six days - and a day short cancels a day long. See
+ *               `shared/monthlyHours.js`.
+ */
 export const POLICY = {
   hours: 'hours',
   concession: 'concession',
+  monthly: 'monthly',
 };
 
 /**
@@ -119,6 +133,92 @@ export function hasOwnShift(employee = {}, standard = {}) {
     (theirIn !== null && officeIn !== null && theirIn !== officeIn) ||
     (theirOut !== null && officeOut !== null && theirOut !== officeOut)
   );
+}
+
+/* ================================================================= *
+ * HOW LONG THEIR DAY IS
+ * ================================================================= */
+
+/**
+ * The length of a shift, in minutes, wrapping past midnight.
+ *
+ * `22:00 → 06:00` is eight hours, not minus sixteen. Equal times are
+ * unreadable rather than zero or twenty-four: nobody means either, and
+ * guessing which would be a guess about money.
+ */
+export function shiftMinutes(inTime, outTime) {
+  const start = parseTime(inTime);
+  const end = parseTime(outTime);
+  if (start === null || end === null || start === end) return null;
+  return end > start ? end - start : 1440 - start + end;
+}
+
+/** Below this, it is a typo rather than a shift. Above it, see MAX_DAY_MINUTES. */
+export const MIN_SHIFT_MINUTES = 2 * 60;
+
+/**
+ * THE HOURS THIS PERSON'S DAY IS JUDGED AGAINST.
+ *
+ * Dinesh asked for per-employee shifts and got them for late, early and the
+ * fill button - but the SHORT HOURS were still worked out against the
+ * month's `hours_per_day` for everybody. Only WHEN their shift started was
+ * personal; HOW LONG IT WAS was not read anywhere. So a ten-hour shift
+ * collected an hour of overtime every day for simply being worked, and a
+ * six-hour part-timer was docked three hours a day for finishing on time.
+ *
+ * ---------------------------------------------------------------------------
+ * IT CAN ONLY MOVE SOMEBODY WHOSE SHIFT IS A DIFFERENT **LENGTH**.
+ *
+ * Most people with their own shift work the same nine hours at another time
+ * of day - 14:00-23:00 is still nine - and for them this returns exactly
+ * what it always returned. `hasOwnShift` is asked first and compares against
+ * the office day rather than "is the column filled in", because the column
+ * carries a 09:30 default for all eighty-six people.
+ * ---------------------------------------------------------------------------
+ *
+ * A length that cannot be read, or that is under two hours or over sixteen,
+ * falls back to the month. A mistyped `09:00-09:30` would otherwise make a
+ * half-hour day the standard and pay eight and a half hours of overtime
+ * every single day; `shiftLengthProblem` names anybody in that state rather
+ * than leaving it silent.
+ */
+export function hoursForEmployee(employee = {}, { period = {}, standard = null } = {}) {
+  const monthHours = Number(period?.hours_per_day) > 0 ? Number(period.hours_per_day) : 9;
+  const rules = readLateRules(period || {});
+  const office = standard || { in_time: rules.shift_in, out_time: rules.shift_out };
+  if (!hasOwnShift(employee, office)) return monthHours;
+
+  const shift = shiftFor(employee, { shift_in: office.in_time, shift_out: office.out_time });
+  const minutes = shiftMinutes(shift.in, shift.out);
+  if (minutes === null || minutes < MIN_SHIFT_MINUTES || minutes > MAX_DAY_MINUTES) {
+    return monthHours;
+  }
+  return minutes / 60;
+}
+
+/**
+ * Why somebody's shift is not being used, in a sentence, or null.
+ *
+ * Only ever about a shift that IS their own and cannot be read as a length.
+ * Somebody on the office day has nothing to report.
+ */
+export function shiftLengthProblem(employee = {}, { period = {}, standard = null } = {}) {
+  const rules = readLateRules(period || {});
+  const office = standard || { in_time: rules.shift_in, out_time: rules.shift_out };
+  if (!hasOwnShift(employee, office)) return null;
+
+  const shift = shiftFor(employee, { shift_in: office.in_time, shift_out: office.out_time });
+  const minutes = shiftMinutes(shift.in, shift.out);
+  if (minutes === null) {
+    return `${shift.in} to ${shift.out} cannot be read as a length, so the month’s hours are used`;
+  }
+  if (minutes < MIN_SHIFT_MINUTES) {
+    return `${shift.in} to ${shift.out} is under two hours — almost certainly a typo, so the month’s hours are used`;
+  }
+  if (minutes > MAX_DAY_MINUTES) {
+    return `${shift.in} to ${shift.out} is over sixteen hours, so the month’s hours are used`;
+  }
+  return null;
 }
 
 /**

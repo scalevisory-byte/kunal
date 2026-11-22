@@ -44,8 +44,14 @@ export const TIME_RULES = {
  */
 const { halfDayHours: _fixedHalfDay, ...TIME_RULES_WITHOUT_HALF } = TIME_RULES;
 
-/** A day longer than this is almost certainly a typo, not a night shift. */
-const MAX_DAY_MINUTES = 16 * 60;
+/**
+ * A day longer than this is almost certainly a typo, not a night shift.
+ *
+ * Exported because `shared/lateEarly.js` judges a person's own SHIFT LENGTH
+ * against the same bound. Two numbers for "too long to be a real day" is how
+ * a 20-hour shift comes to be refused in one place and paid in the other.
+ */
+export const MAX_DAY_MINUTES = 16 * 60;
 const DAY = 24 * 60;
 
 /**

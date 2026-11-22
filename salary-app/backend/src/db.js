@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
+import { hoursForEmployee } from '../../shared/lateEarly.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -494,6 +495,14 @@ const periodLateColumns = [
   ["late_policy", "TEXT NOT NULL DEFAULT 'hours'"],
   ['late_concession_minutes', 'INTEGER NOT NULL DEFAULT 300'],
   ['late_grace_minutes', 'INTEGER NOT NULL DEFAULT 0'],
+  /*
+   * The third policy: the month owes nine hours times the days it was owed,
+   * and only the total is charged. This is how much of that total a month may
+   * fall short before anything comes off - ZERO by default, because a monthly
+   * pool plus a daily allowance gives away a second concession nobody decided
+   * on, the same reasoning as late_grace_minutes above.
+   */
+  ['monthly_hours_grace', 'INTEGER NOT NULL DEFAULT 0'],
   ['shift_in', "TEXT NOT NULL DEFAULT '09:30'"],
   ['shift_out', "TEXT NOT NULL DEFAULT '18:30'"],
   /*
@@ -1620,6 +1629,7 @@ export function updatePeriod(id, patch) {
     'late_policy',
     'late_concession_minutes',
     'late_grace_minutes',
+    'monthly_hours_grace',
     'shift_in',
     'shift_out',
     'shift_lunch_out',
@@ -1628,6 +1638,16 @@ export function updatePeriod(id, patch) {
   ]) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
+    /*
+     * The policy is one of three and nothing else. An unrecognised value
+     * falls back to 'hours' - what every existing month runs on - so a typo
+     * or a stale form cannot land a month on a rule nobody chose.
+     */
+    if (key === 'late_policy') {
+      const asked = String(patch[key] || '').toLowerCase();
+      values.push(['concession', 'monthly'].includes(asked) ? asked : 'hours');
+      continue;
+    }
     values.push(key === 'locked' || key === 'lunch_paid' ? (patch[key] ? 1 : 0) : patch[key]);
   }
   if (!fields.length) return getPeriod(id);
@@ -2682,8 +2702,34 @@ export const setAttendance = db.transaction((periodId, entries) => {
   );
   // The month's own hours, so the half-day line and the shortfall are judged
   // against the day this month is actually paid on.
-  const month = db.prepare(`SELECT hours_per_day, lunch_paid FROM periods WHERE id = ?`).get(periodId);
+  const month = db
+    .prepare(`SELECT hours_per_day, lunch_paid, shift_in, shift_out FROM periods WHERE id = ?`)
+    .get(periodId);
   const hoursPerDay = Number(month?.hours_per_day) || 9;
+  /*
+   * ...and HOW LONG THIS PERSON'S OWN DAY IS.
+   *
+   * Shifts were already held per person and already judged late and early
+   * against - but the short hours were worked out against the month's figure
+   * for everybody, so only WHEN a shift started was personal and never how
+   * long it ran. A ten-hour shift collected an hour of overtime for simply
+   * being worked; a six-hour part-timer was docked three hours a day for
+   * finishing on time.
+   *
+   * Looked up once per person, not per mark: a bulk change is two thousand
+   * rows. Somebody on the office day gets the month's figure exactly as
+   * before, so no existing month can move.
+   */
+  const shiftHours = new Map();
+  const hoursFor = (id) => {
+    if (!shiftHours.has(id)) {
+      const employee = db
+        .prepare(`SELECT shift_in, shift_out FROM employees WHERE id = ?`)
+        .get(id);
+      shiftHours.set(id, hoursForEmployee(employee || {}, { period: month || {} }));
+    }
+    return shiftHours.get(id);
+  };
   // ...and whether the lunch break comes off it. Off by default, so no month
   // already paid moves; see the column's note above.
   const deductLunch = !month?.lunch_paid;
@@ -2787,7 +2833,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
      * left alone: it has already applied the rule and may have its own.
      */
     if (anyTime && !('minutes' in entry)) {
-      const judged = timesToDay(times, { hoursPerDay });
+      const judged = timesToDay(times, { hoursPerDay: hoursFor(employeeId) });
       minutes = judged.minutes;
       /*
        * The mark is only set from the hours when the day is blank or carries a
@@ -2824,7 +2870,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
        * the day on the Sunday register, outside the salary this would come
        * out of.
        */
-      minutes = minutesForMark(times, { hoursPerDay, code, deductLunch });
+      minutes = minutesForMark(times, { hoursPerDay: hoursFor(employeeId), code, deductLunch });
     }
 
     // A day with no mark, no minutes and no times has nothing left to record.

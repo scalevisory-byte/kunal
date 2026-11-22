@@ -18,6 +18,7 @@ import Glyph from '../icons.jsx';
 import { shiftOfMonth } from '../standardTimes.js';
 import DailyReport from './DailyReport.jsx';
 import { dayStats } from '../../../shared/frontOffice.js';
+import { hoursForEmployee } from '../../../shared/lateEarly.js';
 
 /**
  * The month at a glance, on one screen.
@@ -705,7 +706,11 @@ export default function Dashboard({
           else if (code === 'S') acc.sunday++;
           else acc.present++;
         }
-        const month = monthTotals(Object.values(marks), { hoursPerDay: period.hours_per_day });
+        /* Each person against their own day's length, so the month's
+           short/overtime totals add up to what the sheet actually charges. */
+        const month = monthTotals(Object.values(marks), {
+          hoursPerDay: hoursForEmployee(row, { period }),
+        });
         hours.days += month.days;
         hours.worked += month.worked;
         hours.expected += month.expected;

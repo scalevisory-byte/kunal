@@ -207,6 +207,7 @@ const ADMIN_PERIOD_FIELDS = [
   'late_policy',
   'late_concession_minutes',
   'late_grace_minutes',
+  'monthly_hours_grace',
   'shift_in',
   'shift_out',
   'locked',

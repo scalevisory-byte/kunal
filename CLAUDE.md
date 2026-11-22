@@ -1713,6 +1713,75 @@ has eighty of them to chase.
   instead — the new button name, plus a line saying somebody already on the staff list uses their
   own login. The staff topic `my-record-fill` is new and carries the trap note, pinned by a test.
 
+## How long a day is, and what the month owes (v1.82)
+
+Dinesh: *"employee wise shift wala ho gya ?"* — **inspected rather than answered from memory,
+and the honest answer was half.** Then, mid-build: *"26 days fix / monthy;y hour fullsalary k
+liye 9*26 hone chiaye / kabhi working hours kam hue kabhi jyada hue to uska working hours
+monthly ke hisab me aana hciaye / agar monyth;y 234 hour nhi ho rah he to salry dedct hoga"*.
+
+### Part one: only WHEN a shift started was personal, never HOW LONG it ran
+
+`employees.shift_in/shift_out` were already held per person, already editable in three places,
+and already used by `lateEarly.js` for late/early and by `fillTimesFor` for the fill button.
+But **short hours and overtime were judged against the month's `hours_per_day` for everybody**.
+So a ten-hour shift collected an hour of overtime every day for simply being worked, and a
+six-hour part-timer was docked three hours a day for finishing exactly on time.
+
+- **`hoursForEmployee(employee, { period })` in `shared/lateEarly.js`** is the one answer, called
+  by `db.js` (the money path), `localStore.js`, `calc.js`, `attendanceStatement.js`,
+  `monthlyStatus.js`, `myDashboard.js` and the three screens. One rule, so the sheet, the Time
+  tab, the dashboard, the portal and the import preview cannot give five answers.
+- **Only a different LENGTH can move a figure.** `hasOwnShift` is asked first and compares
+  against the office day rather than "is the column filled in" (it carries a 09:30 default for
+  all eighty-six people). 14:00–23:00 is still nine hours and comes out byte-identical.
+- **The RATE follows the day too** (`perHour = perDay / hoursPerDay` in `calc.js`). Expecting six
+  hours and charging the shortfall at a ninth would be incoherent — both halves or neither.
+- **A typo falls back and is NAMED.** Under two hours or over sixteen (`MAX_DAY_MINUTES`, now
+  exported from `timesheet.js` so there is one bound): 09:00–09:30 read literally makes a
+  half-hour day the standard and pays 8½ hours of overtime every single day.
+- **Test trap worth remembering:** `calculateRow` does NOT read clock times — it sums the
+  `minutes` already stored on each day, which `setAttendance` worked out on the way in. The first
+  draft of the tests asserted against fixtures carrying times and no minutes, so OT was zero
+  whatever the shift was and the tests proved nothing. They now model the pipeline, and there is
+  an end-to-end API test as well.
+
+### Part two: the month owes a total — `shared/monthlyHours.js`, `MonthlyHours.jsx`
+
+A third `late_policy`, `'monthly'`, beside `hours` (the default) and `concession`.
+
+- **Nine hours times the days each person was DUE.** 26 days is 234 hours; a day short and a day
+  long cancel; only what is missing from the total comes off.
+- **THE TARGET IS NOT A FLAT 234.** Somebody absent two days owes 24 × 9 — those days have
+  already come off as absences, and a flat target would dock them twice for one absence. Only
+  `HOURS_EXPECTED` marks (blank, P, WH) count; leave, a holiday, a weekly off and a half day add
+  nothing to either side.
+- **A day nobody clocked counts on NEITHER side.** Booking nine hours and crediting none would
+  deduct a whole day from somebody who was there and did not punch. Minutes typed straight onto
+  an unclocked day still stand — somebody put them there on purpose.
+- **One of three, never two**, the same trap as the concession: somebody an hour short on Tuesday
+  is already an hour short in the month's total. `calculateRow` picks one; a typed figure still
+  beats all three.
+- **Off until switched on, priced first**, held per month. The line is computed on every policy
+  so the panel can say what a switch costs, exactly as the concession line does.
+- **What it actually changes**, measured on a real month: the old rule forgives up to 15 minutes
+  on EACH day, which over 26 days is 6½ hours a month given away. Ten minutes short every day
+  cost nothing before; on this rule it is 4h 20m off the total and ₹481 off the pay. Most of
+  what he described — a short day and a long day cancelling — **already happened**, because the
+  month is the sum of signed daily minutes. The grace is the real difference, and naming the
+  target is the real gain.
+- `monthly_hours_grace` defaults to **0**: a monthly pool plus a daily allowance gives away a
+  second concession nobody decided on, the same reasoning as `late_grace_minutes`.
+- `updatePeriod` forces an unrecognised policy back to `'hours'`, so a stale form cannot land a
+  month on a rule nobody chose.
+- **Two UI slips the browser caught:** `.late-figures` was a class I invented with no CSS behind
+  it, so the panel read “Short of their total1” — it uses the established `.late-figs`
+  (value first, then what it is); and putting “monthly hours” in the *Late and early*
+  badge made that panel look as though it were about this rule.
+- **A test caught a deliberate boolean:** `calc.test.js` sweeps every returned key and requires a
+  finite number unless it is in `DESCRIBES`. `monthly_hours_judged` is false when there was
+  nothing to judge, which is not “they did no hours” — a number could not say that.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

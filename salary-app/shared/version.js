@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.81.0';
+export const VERSION = '1.82.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.82.0',
+    date: '22 Nov 2026',
+    title: 'Hours are judged against the shift somebody actually works, and the month can owe a total',
+    items: [
+      '**Short hours were worked out against nine hours for everybody.** Shifts have been held per person for a while and were already used to judge late and early \u2014 but only WHEN a shift started was personal, never how long it ran. So a ten-hour shift collected an hour of overtime every day for simply being worked, and a six-hour part-timer was docked three hours a day for finishing exactly on time.',
+      '**Now everybody is judged against their own shift\u2019s length**, on the sheet, on the Time tab, on the dashboard, on their own portal and in the punch-import preview \u2014 one rule, so no two screens can disagree. Their hourly rate follows it too: an hour missing from a six-hour day is worth a sixth of that day, not a ninth.',
+      '**Nothing moves for anybody on the office day**, and nothing moves for somebody whose shift is merely at another time of day but the same nine hours \u2014 which is most people who have one. Only a different LENGTH can change a figure.',
+      '**A mistyped shift falls back to the month\u2019s hours and says so.** 09:00 to 09:30 read literally would make a half-hour day the standard and pay eight and a half hours of overtime every single day. Under two hours or over sixteen is treated as a typo.',
+      '**New rule: the month owes a total.** Time \u2192 **The month\u2019s hours**. Nine hours a day for the days each person was due \u2014 26 days is 234 hours \u2014 a day short and a day long cancel, and only what is missing from the **total** comes off the pay.',
+      '**It is off until somebody turns it on, and it is priced first.** Set the Rule on the Time tab; the screen says what it would charge this month before the switch is made. Held per month, so turning it on in December never rewrites November.',
+      '**The total is NOT a flat 234.** Somebody absent two days owes 24 \u00d7 9, because those two days have already come off as absences. Leave, a holiday, a weekly off and a half day add nothing to the total either \u2014 counting them would take the same day twice.',
+      '**A day nobody clocked counts on neither side.** It adds no hours to what is owed and none to what was worked, because booking nine hours against somebody who was there and simply did not punch would deduct a whole day.',
+      '**What this actually changes against the old rule:** the old one forgave up to a quarter of an hour on each day, which over 26 days is six and a half hours a month given away. Ten minutes short every day used to cost nothing; under this rule it is 4h 20m off the total and comes off the pay.',
+      'The three rules are **alternatives and the app picks one**, never two \u2014 each day on its own, the late/early concession, or the month\u2019s total. Somebody an hour short on Tuesday is already an hour short in the month\u2019s total; charging both would take the hour twice.',
+    ],
+  },
   {
     version: '1.81.0',
     date: '22 Nov 2026',

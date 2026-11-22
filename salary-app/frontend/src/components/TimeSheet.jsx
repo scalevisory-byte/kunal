@@ -14,7 +14,8 @@ import {
 import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
-import { fillTimesFor, hasOwnShift } from '../../../shared/lateEarly.js';
+import MonthlyHours from './MonthlyHours.jsx';
+import { fillTimesFor, hasOwnShift, hoursForEmployee, shiftLengthProblem } from '../../../shared/lateEarly.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import PunchImport from './PunchImport.jsx';
 import { STANDALONE } from '../api.js';
@@ -83,7 +84,12 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
     return key in draft ? { ...base, ...draft[key] } : base;
   };
 
-  const readDay = (row, d) => timesToDay(entryOf(row, d), { hoursPerDay: period.hours_per_day });
+  /* Judged against THEIR day, not the office's: the length of their own
+     shift where they have one. The same rule the server writes the minutes
+     with, so this screen and the payslip cannot disagree. */
+  const hoursOf = (row) => hoursForEmployee(row, { period });
+
+  const readDay = (row, d) => timesToDay(entryOf(row, d), { hoursPerDay: hoursOf(row) });
 
   /**
    * Saves in a batch a moment after typing stops, the way the grid does, so
@@ -96,7 +102,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         const [employeeId, d] = key.split(':').map(Number);
         const row = rows.find((r) => r.employee_id === employeeId);
         const merged = { ...(row?.attendance?.[d] || {}), ...times };
-        const worked = timesToDay(merged, { hoursPerDay: period.hours_per_day });
+        const worked = timesToDay(merged, { hoursPerDay: hoursOf(row || {}) });
         const current = String(row?.attendance?.[d]?.code || '').toUpperCase();
         return {
           employee_id: employeeId,
@@ -258,7 +264,10 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   return (
     <section className="stack">
       {onPatchPeriod && (
-        <LatePolicy period={period} rows={rows} onPatch={onPatchPeriod} locked={locked} />
+        <>
+          <LatePolicy period={period} rows={rows} onPatch={onPatchPeriod} locked={locked} />
+          <MonthlyHours period={period} rows={rows} onPatch={onPatchPeriod} locked={locked} />
+        </>
       )}
       {/*
         * ONE BAR, NOT FOUR.
@@ -643,8 +652,8 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
   const monthly = useMemo(() => {
     if (view !== 'day') return null;
     const stored = line.row.attendance || {};
-    return monthTotals(Object.values(stored), { hoursPerDay: period.hours_per_day });
-  }, [line.row.attendance, period.hours_per_day, view]);
+    return monthTotals(Object.values(stored), { hoursPerDay: hoursForEmployee(line.row, { period }) });
+  }, [line.row, period, view]);
 
   /*
    * A DAY SOMEBODY STARTED AND DID NOT FINISH.

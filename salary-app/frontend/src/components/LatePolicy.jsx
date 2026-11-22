@@ -19,10 +19,12 @@ import { rupees as money } from '../format.js';
  */
 export default function LatePolicy({ period, rows, onPatch, locked }) {
   const [open, setOpen] = useState(false);
-  const on = String(period.late_policy || POLICY.hours) === POLICY.concession;
+  const policy = String(period.late_policy || POLICY.hours);
+  const on = policy === POLICY.concession;
 
   const preview = useMemo(() => {
-    const out = { people: [], charge: 0, minutes: 0, judged: 0, unknown: 0, each: [] };
+    const out = { people: [], charge: 0, minutes: 0, judged: 0, unknown: 0, each: [],
+      monthlyPeople: [], monthlyCharge: 0, monthlyMinutes: 0 };
     for (const row of rows) {
       if (row.late_total_minutes > 0 || row.late_days || row.early_days) {
         out.minutes += row.late_total_minutes || 0;
@@ -32,6 +34,14 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
         out.each.push(row);
       }
       if (row.judged_days === 0) out.unknown++;
+      /* What the monthly-hours rule would take off this person, worked out on
+         every policy so a switch can be priced before it is made. */
+      const monthlyCut = Number(row.monthly_hours_chargeable) || 0;
+      if (monthlyCut < 0) {
+        out.monthlyMinutes += monthlyCut;
+        out.monthlyCharge += Math.abs(Number(row.monthly_hours_amount) || 0);
+        out.monthlyPeople.push(row);
+      }
       const amount = Number(row.late_computed) || 0;
       if (amount > 0) {
         out.people.push(row);
@@ -55,6 +65,9 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
           <h3>
             Late and early
             <span className={`late-state ${on ? 'on' : 'off'}`}>
+              {/* What LATENESS is doing. The monthly-hours rule has its own
+                  panel and its own badge; saying "monthly hours" here read as
+                  if this panel were about that. */}
               {on ? 'charged' : 'counted only'}
             </span>
           </h3>
@@ -159,6 +172,11 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                 disabled={locked}
                 onChange={(e) => {
                   const next = e.target.value;
+                  /*
+                   * Priced before it is switched, both ways. These rules
+                   * really do move money - unlike the salary split, which
+                   * cannot - so the figure goes in front of the decision.
+                   */
                   if (next === POLICY.concession && preview.charge > 0) {
                     const ok = window.confirm(
                       `This charges ${money(preview.charge)} across ${preview.people.length} ` +
@@ -166,12 +184,24 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                     );
                     if (!ok) return;
                   }
+                  if (next === POLICY.monthly && preview.monthlyCharge > 0) {
+                    const ok = window.confirm(
+                      `The month owes each person nine hours a day for the days they were due.\n\n` +
+                        `${preview.monthlyPeople.length} ` +
+                        `${preview.monthlyPeople.length === 1 ? 'person is' : 'people are'} short of their total, ` +
+                        `which comes to ${money(preview.monthlyCharge)} this month. Turn it on?`
+                    );
+                    if (!ok) return;
+                  }
                   set({ late_policy: next });
                 }}
               >
-                <option value={POLICY.hours}>Hours only — lateness is not charged as such</option>
+                <option value={POLICY.hours}>Each day on its own — short hours charged that day</option>
                 <option value={POLICY.concession}>
                   Pool late and early minutes, charge past the concession
+                </option>
+                <option value={POLICY.monthly}>
+                  The month owes a total — 9 hours × the days due, short and long cancel
                 </option>
               </select>
             </label>

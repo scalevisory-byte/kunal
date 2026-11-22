@@ -122,6 +122,10 @@ test('the traps are written down, because they are the valuable half', () => {
   /* Filled in but never changed: the one rule that decides whether a wrong
      UAN can be swapped for another by the person it belongs to. */
   assert.match(noteOf('my-record-fill'), /FILLED IN BUT NOT CHANGED/i);
+  /* One of three, never two - the trap every hours rule in this app shares. */
+  assert.match(noteOf('monthly-hours'), /ALTERNATIVES, NEVER TWO AT ONCE/i);
+  assert.match(noteOf('monthly-hours'), /take the same hour twice/i);
+  assert.match(noteOf('shifts'), /SAME LENGTH CHANGES NO FIGURE/i);
   assert.match(noteOf('my-record-fill'), /Nothing on this form can change your salary/i);
 });
 
