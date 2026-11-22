@@ -54,6 +54,13 @@ try {
   if ($env:COMPUTERNAME -ieq 'DESKTOP-6OKJT47') {
     Good 'This IS the machine from the eSSL screenshot.'
     Good 'So eTimeTrackLite and the HRMS are on one machine - no network hop.'
+  } elseif ($env:COMPUTERNAME -ieq 'SERVER') {
+    # Checked on 22 Nov 2026: the BNF server answers to SERVER, and the eSSL
+    # folders (D:\essl, E:\Essl) are on it even though the name differs from
+    # the screenshot. So a different name here is NOT evidence of another PC.
+    Good 'This is the BNF server. The eSSL folders live on this machine.'
+    Warn 'It is not called DESKTOP-6OKJT47 - that screenshot was taken elsewhere,'
+    Warn 'so check below whether the database is really here or only a backup.'
   } else {
     Warn "The eSSL screenshot showed DESKTOP-6OKJT47. This is $env:COMPUTERNAME."
     Warn 'Either eTimeTrackLite is on another PC, or that PC has been renamed.'

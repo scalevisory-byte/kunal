@@ -1105,11 +1105,15 @@ ADMS endpoint would break eTimeTrackLite's own pull and is the wrong trade.
 Still needed from him: which database engine it is, where the data file or connection string
 is, and a read-only login.
 
-**The reachability question may not exist at all.** The notes above said "whether TSRV can
-reach DESKTOP-6OKJT47" — but the HRMS does not run on TSRV, it runs on the **BNF server**, and
-that server's own `E:\` carries an **`Essl`** folder. DESKTOP-6OKJT47 may simply be the BNF
-server's Windows computer name. If it is, eTimeTrackLite and the HRMS are on one machine, there
-is no network hop to arrange, and this becomes reading a local file on a schedule.
+**Answered on 22 Nov, by looking:** the BNF server's Windows computer name is **`SERVER`**,
+NOT `DESKTOP-6OKJT47` — so that screenshot was taken on another machine, or it has been
+renamed. But the eSSL material IS on the BNF server: `D:\essl`, `E:\Essl`, `E:\Essl\ESSL` and
+`E:\Essl\OLD Bakcup\backup ESSL 30-12-2024`, with an eTimeTrackLite shortcut **and a
+"Bizcompass Sync" icon** on its desktop — and Bizcompass is the very thing that used to pull
+the punches, so its own settings hold the connection string this needs. **No MSSQL or Oracle
+service is running on that machine**, which points at MS Access, though the database could
+still live on another PC with only a backup kept here. Still being established: the database
+file itself and the punch table's name.
 
 `deploy/windows-local/ESSL-CHECK.ps1` answers all of it in one run and **writes nothing** —
 there is a test asserting it calls no Set-Content/New-Item/*-Service/Register-ScheduledTask and
