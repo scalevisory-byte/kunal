@@ -244,6 +244,10 @@ function Shell() {
   const [focusOn, setFocusOn] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
+  const [whoOpen, setWhoOpen] = useState(false);
+  /* Changing a password because you WANT to. Until now the screen only ever
+     appeared when the server forced it after an admin reset. */
+  const [changingPassword, setChangingPassword] = useState(false);
   /*
    * The last version whose history was read, so the rail can carry a dot for
    * anything newer. It is per browser and purely a convenience - wrapped,
@@ -784,6 +788,13 @@ function Shell() {
           }}
         />
       )}
+      {changingPassword && me ? (
+        <ChangePassword
+          me={me}
+          onDone={() => setChangingPassword(false)}
+          onCancel={() => setChangingPassword(false)}
+        />
+      ) : null}
       {newsOpen && <WhatsNew onClose={() => setNewsOpen(false)} seen={seenVersion} />}
 
       {/* Tapping the page behind the menu closes it, as it should. */}
@@ -820,8 +831,85 @@ function Shell() {
             <Glyph name="bell" size={17} />
             {hasNews(seenVersion) ? <span className="pip" /> : null}
           </button>
-          <span className="who-face" title={me?.name || 'Signed in'}>
-            {initialsOf(me?.name)}
+          {/*
+            * IT LOOKED LIKE A WAY IN AND WAS NOT.
+            *
+            * Dinesh: *"profile pe clcik larne se kuch nahi aata"*. It was a
+            * `<span>` - round, in the corner where every app puts an account
+            * menu, and inert. The same lesson as the asset invoice and the
+            * candidate row, the other way round: something that reads as a
+            * control has to be one.
+            *
+            * It also gave the office its first voluntary way to change a
+            * password. Until now ChangePassword only ever appeared when the
+            * server forced it.
+            */}
+          <span className="who-menu">
+            <button
+              className="who-face"
+              title={me ? `${me.name} — ${me.role}` : 'Signed in'}
+              aria-haspopup="menu"
+              aria-expanded={whoOpen}
+              onClick={() => setWhoOpen((o) => !o)}
+            >
+              {initialsOf(me?.name)}
+            </button>
+            {whoOpen ? (
+              <>
+                <button className="who-scrim" aria-label="Close" onClick={() => setWhoOpen(false)} />
+                <div className="who-pop" role="menu">
+                  <div className="who-head">
+                    <strong>{me?.name || 'Signed in'}</strong>
+                    <span className="muted small">{me?.role || ''}</span>
+                  </div>
+                  {!STANDALONE && me ? (
+                    <button
+                      onClick={() => {
+                        setWhoOpen(false);
+                        setChangingPassword(true);
+                      }}
+                    >
+                      Change my password
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={() => {
+                      setWhoOpen(false);
+                      setNewsOpen(true);
+                      markNewsRead();
+                    }}
+                  >
+                    What&rsquo;s new
+                  </button>
+                  <button
+                    onClick={() => {
+                      setWhoOpen(false);
+                      setHelpOpen(true);
+                    }}
+                  >
+                    Help
+                  </button>
+                  {!STANDALONE ? (
+                    <button
+                      className="danger"
+                      onClick={async () => {
+                        setWhoOpen(false);
+                        try {
+                          await api.post('/auth/logout', {});
+                        } catch {
+                          // Signing out locally still matters if that call failed.
+                        }
+                        clearToken();
+                        setMe(null);
+                        setAuthed(false);
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </span>
         </span>
         </header>

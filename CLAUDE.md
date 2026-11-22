@@ -1619,6 +1619,39 @@ found rather than guessed at.
   alone handed the whole 688px to Casual leave's Taken column, five times the width of Sick
   leave beside it. Every figure column needs its own width or the slack pools in one.
 
+### Every screen fills the screen, and the filters that did not (v1.80)
+
+Dinesh sent five screenshots of the Leave tabs — *"make all screen proper"* — then two of a
+report, *"chekc all report also"*, then *"profile pe clcik larne se kuch nahi aata"* and
+*"staff wise email & mobile number ka list bhi chiaye with deopartmmet role"*.
+
+- **THE FILTER BAR WAS NOT FILTERING.** His screenshot: Salary deductions, Company set to
+  BOOKNFLY PRIVATE LIMITED, all 86 people still in it — on screen and in the print. **Ten
+  panels** took `payroll` whole and never read `filters`; the bar was drawn because the
+  catalogue says those reports accept a company and a department. Narrowed **once** in
+  `Reports.jsx` (`shown`) and handed to every panel, rather than ten panels each growing their
+  own idea of what a filter means. **A test counts `payroll={payroll}` in the panel map and
+  requires zero** — it caught two I had missed (`Totals`, twice).
+- **Thirteen reports were a narrow table in a wide panel**, swept and measured at 1900px.
+  One rule — `.report-body table.sheet { width: 100% }` — scoped to the report body so every
+  report present and future gets it and `table.sheet` stays `width: auto` everywhere else.
+- **The Leave tabs: two shapes that want opposite things.** A list of people (`table.sheet
+  wide`) fills the width; a settings panel (`.card.narrow`) narrows to its content, because
+  stretching four rows of tick boxes across a monitor is worse, not better. `.card-grid` puts
+  the companies on The day off side by side.
+- **Reports → Staff contact list** (`shared/contactList.js`) — **`CONTACT_FIELDS` is the whole
+  of what it can ever carry**, with `NEVER_ON_A_CONTACT_LIST` and a test asserting no salary,
+  PAN, Aadhaar, bank account or date of birth travels. A contact list gets printed and left on
+  a desk; the employee export has forty columns and is a different thing. Somebody with no
+  number is **listed with the gap showing** — they are the ones the list exists to chase.
+- **The profile in the corner was a `<span>`** — round, in the corner where every app puts an
+  account menu, and inert. The same lesson as the asset invoice and the candidate row, the
+  other way round: **a thing that reads as a control has to be one.** It is a menu now, and
+  gave the office its first voluntary way to change a password (`ChangePassword` had only ever
+  appeared when `must_change` forced it).
+- The leave register's **"Company" column renders `department || company_name`**, so it was
+  wrong on nearly every row. Headed Company / department.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

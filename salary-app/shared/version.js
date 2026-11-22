@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.79.0';
+export const VERSION = '1.80.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.80.0',
+    date: '22 Nov 2026',
+    title: 'Every screen fills the screen, the report filters actually filter, and a staff contact list',
+    items: [
+      '**THE FILTER BAR WAS NOT FILTERING.** Salary deductions with Company set to one company still showed all 86 people, on screen and in the print \u2014 **ten report panels** took the month whole and never looked at the bar. The month is narrowed once now and handed to every one of them, so Company, Department and Employee work on every report that offers them.',
+      '**Thirteen reports were a narrow table in a wide panel.** Measured at 1900px: Salary deductions 552px inside 1,364; the four statutory registers 571; the leave registers 682; the loan settlement 606. All of them fill the reading area now \u2014 one rule scoped to the report body, so every report added later gets it and no other tab is touched.',
+      '**The Leave tabs, the same thing.** Year end was a 511px table in a 1,636px box and the Bonus list 658. A **list of people** now fills the width; a **settings panel narrows to its content** instead, because stretching four rows of tick boxes across a monitor is worse, not better. The five companies on The day off sit side by side rather than stacked down the page.',
+      '**Reports \u2192 Staff contact list** \u2014 name, code, company, department, role, mobile and email, down the staff, with Print and CSV. Search finds a name, a department, a role or a number.',
+      '**It carries no salary, no PAN and no bank details.** A contact list gets printed and left on a desk; the employee export has forty columns including salaries and is a different thing. Somebody with no number is **listed with the gap showing** rather than left out \u2014 they are the ones the list exists to chase, and it says how many.',
+      '**The profile in the corner does something now.** It was a circle with your initials that nothing happened when you pressed. It opens your name and role, **Change my password**, What’s new, Help and Sign out \u2014 and that is the office’s first way to change a password voluntarily, rather than only when the server forces it.',
+      '**The leave register’s “Company” column said the wrong thing** \u2014 it shows the department where somebody has one, which on the live list is nearly everybody. It is headed Company / department now.',
+    ],
+  },
   {
     version: '1.79.0',
     date: '22 Nov 2026',

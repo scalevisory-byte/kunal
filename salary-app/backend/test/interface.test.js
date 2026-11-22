@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { REPORTS } from '../../shared/reportCatalog.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -3445,4 +3446,86 @@ test('the leave register fills its width without a scrollbar inside a scrollbar'
   const leave = src('components/Leave.jsx');
   assert.match(leave, /table-wrap unboxed/);
   assert.match(leave, /sheet leave-register/);
+});
+
+/*
+ * "MAKE ALL SCREEN PROPER" / "chekc all report also" — five screenshots of
+ * the Leave tabs and two of a report, all with the content in a narrow
+ * column and most of the screen empty. Measured at 1900px: thirteen reports
+ * had a table between 552 and 937px inside a 1,364px panel.
+ */
+test('every report fills the reading area, and no other tab is touched', () => {
+  const css = src('styles.css');
+  /* Scoped to the report body so it reaches every report there is and every
+     one added later. `table.sheet` stays width:auto everywhere else, or the
+     Time tab's six columns stretch across a monitor. */
+  assert.match(css, /\.report-body table\.sheet \{ width: 100%; \}/);
+  assert.ok(
+    /table\.sheet \{[^}]*width: auto;/.test(css),
+    'the global sheet rule must still be width:auto'
+  );
+});
+
+test('a settings panel narrows instead of stretching; a list of people widens', () => {
+  const css = src('styles.css');
+  /* Four rows of tick boxes stretched across a monitor is worse, not
+     better. The card narrows to its content; a data table opts in. */
+  assert.match(css, /\.card\.narrow \{ max-width: [\d.]+rem; \}/);
+  assert.match(css, /table\.sheet\.wide \{ width: 100%; \}/);
+  assert.match(css, /\.card-grid \{/);
+
+  assert.match(src('components/LeaveYearEnd.jsx'), /className="card narrow"/);
+  assert.match(src('components/WeeklyOff.jsx'), /className="card-grid"/);
+  for (const file of ['LeaveBonus.jsx', 'SandwichLeave.jsx', 'LeaveYearEnd.jsx']) {
+    assert.match(src(`components/${file}`), /className="sheet wide"/, file);
+  }
+});
+
+test('THE FILTER BAR ACTUALLY FILTERS', () => {
+  const reports = src('components/Reports.jsx');
+  /* Salary deductions was shown with Company set to one company and all 86
+     people still in it, on screen and in the print: nine panels took
+     `payroll` whole and never looked at `filters`. Narrowed ONCE, rather
+     than nine panels each growing their own idea of what a filter means. */
+  assert.match(reports, /const shown = useMemo\(/);
+  assert.match(reports, /String\(r\.company_id\) === String\(filters\.company_id\)/);
+  assert.match(reports, /String\(r\.department \|\| ''\) === String\(filters\.department\)/);
+
+  /* And every panel that takes a month takes the narrowed one. A panel
+     still reading `payroll` would quietly ignore the bar again. */
+  const body = reports.slice(reports.indexOf('const PANELS'), reports.indexOf('const FILES'));
+  const stale = [...body.matchAll(/payroll=\{payroll\}/g)].length;
+  assert.equal(stale, 0, 'a report panel is still handed the unfiltered month');
+  assert.ok([...body.matchAll(/payroll=\{shown\}/g)].length >= 8);
+});
+
+test('the leave register column says what it actually shows', () => {
+  /* It renders `department || company_name`, so "Company" was wrong on
+     every row that has a department — nearly all of them on the live
+     server. */
+  assert.match(src('components/Leave.jsx'), /Company \/ department/);
+});
+
+test('the profile in the corner is a BUTTON, not something that looks like one', () => {
+  const app = src('App.jsx');
+  /* Dinesh: "profile pe clcik larne se kuch nahi aata". It was a <span> -
+     round, in the corner where every app puts an account menu, and inert.
+     The same lesson as the asset invoice and the candidate row, the other
+     way round: a thing that reads as a control has to be one. */
+  assert.match(app, /<button\s+className="who-face"/);
+  assert.ok(!/<span className="who-face"/.test(app), 'the avatar is a span again');
+  assert.match(app, /Change my password/);
+  /* It also gave the office its first VOLUNTARY way to change a password -
+     until now that screen only appeared when the server forced it. */
+  assert.match(app, /changingPassword/);
+});
+
+test('the staff contact list is in the catalogue and reachable', () => {
+  const reports = src('components/Reports.jsx');
+  assert.match(reports, /'employee-contacts': \(\) => \(/);
+  assert.match(reports, /<ContactList/);
+  assert.ok(
+    REPORTS.some((r) => r.id === 'employee-contacts' && r.status === 'ready'),
+    'the contact list is not in the catalogue'
+  );
 });

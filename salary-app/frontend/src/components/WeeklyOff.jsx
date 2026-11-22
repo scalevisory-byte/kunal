@@ -113,6 +113,9 @@ export default function WeeklyOff({ companies, employees, onPatchCompany, onPatc
           from — so nothing already marked changes value, and the salary engine never asks what day
           of the week it is.
         </p>
+        {/* Side by side: a row of seven small pills does not need 1,600px,
+            and five of them stacked turns a settings page into a scroll. */}
+        <div className="card-grid">
         {companies.map((company) => (
           <div key={company.id} className="card">
             <strong>{company.name}</strong>
@@ -123,9 +126,10 @@ export default function WeeklyOff({ companies, employees, onPatchCompany, onPatc
             />
           </div>
         ))}
+        </div>
       </div>
 
-      <div className="card">
+      <div className="card narrow">
         <h3>Anybody on different days</h3>
         <p className="muted small">
           A driver off on Thursday, somebody on a six-day week in a five-day office. Leave this

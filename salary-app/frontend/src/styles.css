@@ -531,6 +531,56 @@ table.sheet.leave-register th.sticky-name,
 table.sheet.leave-register td.sticky-name { width: 24%; }
 table.sheet.leave-register thead tr:first-child th:nth-child(2) { width: 20%; }
 /*
+ * TWO SHAPES OF PANEL, AND THEY WANT OPPOSITE THINGS.
+ *
+ * Dinesh sent five screenshots of the Leave tabs: *"make all screen proper"*.
+ * Measured at 1900px, the Year end rules table was 511px and the Bonus
+ * result table 658px, both sitting inside 1,636px cards - a thousand pixels
+ * of empty white beside each.
+ *
+ *   A LIST OF PEOPLE fills the width. `table.wide` opts a data table in,
+ *   with the slack going to its first column rather than pooling in one of
+ *   the figures - the trap the leave register hit.
+ *
+ *   A SETTINGS PANEL does NOT. Stretching four rows of tick boxes across a
+ *   monitor is worse than leaving them narrow, not better; what it needs is
+ *   to stop being a full-width box with a small thing in the corner. So the
+ *   CARD narrows to its content instead.
+ */
+table.sheet.wide { width: 100%; }
+table.sheet.wide th:first-child,
+table.sheet.wide td:first-child { width: 28%; }
+
+.card.narrow { max-width: 54rem; }
+
+/*
+ * EVERY REPORT FILLS THE READING AREA.
+ *
+ * Dinesh: *"chekc all report also"*, with Salary deductions sitting 552px
+ * wide inside a 1,364px panel. Swept all of them at 1900px and THIRTEEN
+ * were like that - the statutory registers at 571, the leave registers at
+ * 682, the loan settlement at 606.
+ *
+ * Scoped to the report body, so it reaches every report there is and every
+ * one added later, and touches no other tab - `table.sheet` stays
+ * `width: auto` everywhere else, or the Time tab's six columns stretch
+ * across a monitor.
+ */
+.report-body table.sheet { width: 100%; }
+
+
+/*
+ * And a row of small blocks goes side by side rather than stacking down a
+ * screen that is three times wider than any of them. One per line until
+ * there is room for two.
+ */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+  gap: 0.75rem;
+}
+
+/*
  * EVERY FIGURE COLUMN NEEDS ITS OWN WIDTH, or the slack pools in one of
  * them. Widening the table alone gave the whole 688px to Casual leave's
  * Taken column, which came out five times the width of Sick leave's beside
@@ -4856,6 +4906,57 @@ table.hiring-table td input.who { width: 9rem; min-width: 0; }
 /* Initials, not a photograph: an office login is not an employee and has none
  * to show, and fetching one from somewhere else would be a request this app
  * makes to the internet on every page load. */
+/*
+ * The account menu behind the initials in the corner.
+ *
+ * A scrim button rather than a document listener: one element, no cleanup
+ * to forget, and it closes on Escape because a button has focus.
+ */
+.who-menu { position: relative; display: inline-flex; }
+.who-scrim {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  z-index: 60;
+  cursor: default;
+}
+.who-pop {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 61;
+  min-width: 13rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.who-pop .who-head {
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.2rem;
+}
+.who-pop button {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: calc(var(--radius) - 2px);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.who-pop button:hover { background: color-mix(in srgb, var(--brand) 9%, transparent); }
+.who-pop button.danger { color: var(--bad); }
+
 .who-face {
   width: 30px;
   height: 30px;

@@ -95,7 +95,7 @@ export default function LeaveYearEnd({ year, companyId, onDone, onError }) {
 
   return (
     <div className="stack">
-      <div className="card">
+      <div className="card narrow">
         <h3>End of {year}</h3>
         <p className="muted small">
           What is left at the end of the year either <strong>carries</strong> into next year, up
@@ -169,7 +169,7 @@ export default function LeaveYearEnd({ year, companyId, onDone, onError }) {
           </div>
 
           <div className="table-wrap">
-            <table className="sheet">
+            <table className="sheet wide">
               <thead>
                 <tr>
                   <th className="sticky-name">Name</th>

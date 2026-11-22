@@ -379,7 +379,10 @@ export default function Leave({
             <thead>
               <tr>
                 <th className="sticky-name" rowSpan={2}>Employee</th>
-                <th rowSpan={2}>Company</th>
+                {/* It renders `department || company_name`, so calling it
+                    Company was wrong on every row that has a department -
+                    which on the live server is nearly all of them. */}
+                <th rowSpan={2}>Company / department</th>
                 {LEAVE_TYPES.map((t) => (
                   <th key={t.code} colSpan={3} className="leave-group">
                     {t.label} ({t.code})

@@ -102,7 +102,7 @@ export default function SandwichLeave({ period, rows, onSave, locked }) {
         <p className="muted small">Nothing sandwiched this month.</p>
       ) : (
         <>
-          <table className="sheet">
+          <table className="sheet wide">
             <thead>
               <tr>
                 <th>Who</th>

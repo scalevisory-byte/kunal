@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   STANDALONE,
   api,
@@ -17,6 +17,7 @@ import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
 import { DeductionStatement, SalaryByDepartment } from './PayReports.jsx';
 import MissingPunch from './MissingPunch.jsx';
 import LoanSettlement from './LoanSettlement.jsx';
+import ContactList from './ContactList.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
 import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
@@ -60,6 +61,31 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   const [filters, setFilters] = useState({
     company_id: '', branch_id: '', department: '', employee_id: '', from: '', to: '', q: '',
   });
+  /*
+   * THE FILTER BAR HAS TO ACTUALLY FILTER.
+   *
+   * Dinesh sent a screenshot of Salary deductions with Company set to
+   * BOOKNFLY PRIVATE LIMITED and all 86 people still in it, on screen and in
+   * the print. Nine panels took `payroll` whole and never looked at
+   * `filters` - the bar was drawn because the catalogue says those reports
+   * accept a company and a department, and then nothing read it.
+   *
+   * Narrowed ONCE here and handed to every panel that takes a month, rather
+   * than nine panels each growing their own idea of what a filter means.
+   * The original object is passed through untouched when nothing is
+   * narrowed, so a report that was right stays byte-identical.
+   */
+  const shown = useMemo(() => {
+    if (!payroll) return null;
+    const rows = (payroll.rows || []).filter(
+      (r) =>
+        (!filters.company_id || String(r.company_id) === String(filters.company_id)) &&
+        (!filters.department || String(r.department || '') === String(filters.department)) &&
+        (!filters.employee_id || String(r.employee_id) === String(filters.employee_id))
+    );
+    return rows.length === (payroll.rows || []).length ? payroll : { ...payroll, rows };
+  }, [payroll, filters.company_id, filters.department, filters.employee_id]);
+
   const [query, setQuery] = useState('');
   const [openCategory, setOpenCategory] = useState('attendance');
 
@@ -181,26 +207,33 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
    * rather than pretending to live here.
    */
   const PANELS = {
-    'payroll-by-company': () => <Totals period={period} payroll={payroll} grab={grab} />,
-    'cost-company': () => <Totals period={period} payroll={payroll} grab={grab} />,
-    'attendance-register': () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
-    'attendance-percent': () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
-    absenteeism: () => (payroll ? <AttendanceReport payroll={payroll} /> : null),
+    'payroll-by-company': () => <Totals period={period} payroll={shown} grab={grab} />,
+    'cost-company': () => <Totals period={period} payroll={shown} grab={grab} />,
+    'attendance-register': () => (shown ? <AttendanceReport payroll={shown} /> : null),
+    'attendance-percent': () => (shown ? <AttendanceReport payroll={shown} /> : null),
+    absenteeism: () => (shown ? <AttendanceReport payroll={shown} /> : null),
     'attendance-approvals': () => (
       <AttendanceRequests period={period} onReload={onReload} onError={(err) => setError(err.message)} />
     ),
     'leave-status': () => (
       <LeaveApplications period={period} companyId={filters.company_id || null} onGo={onGo} />
     ),
-    'missing-punch': () => (payroll ? <MissingPunch payroll={payroll} /> : null),
+    'missing-punch': () => (shown ? <MissingPunch payroll={shown} /> : null),
     'loan-settled': () => <LoanSettlement period={period} />,
-    deductions: () => (payroll ? <DeductionStatement payroll={payroll} /> : null),
-    'cost-department': () => (payroll ? <SalaryByDepartment payroll={payroll} /> : null),
+    'employee-contacts': () => (
+      <ContactList
+        employees={employees}
+        companyId={filters.company_id || null}
+        department={filters.department || null}
+      />
+    ),
+    deductions: () => (shown ? <DeductionStatement payroll={shown} /> : null),
+    'cost-department': () => (shown ? <SalaryByDepartment payroll={shown} /> : null),
     'leave-by-department': () => (
       <LeaveByDepartment period={period} companyId={filters.company_id || null} />
     ),
-    'leave-month': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
-    'leave-lop': () => (payroll ? <LeaveRegister payroll={payroll} /> : null),
+    'leave-month': () => (shown ? <LeaveRegister payroll={shown} /> : null),
+    'leave-lop': () => (shown ? <LeaveRegister payroll={shown} /> : null),
     'employee-documents': () => (
       <DocumentRegister
         companyId={filters.company_id || null}

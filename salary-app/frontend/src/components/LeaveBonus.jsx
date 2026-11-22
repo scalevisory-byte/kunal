@@ -292,7 +292,7 @@ export default function LeaveBonus({ period, companyId, onReload }) {
           ) : null}
         </div>
 
-        <table className="sheet">
+        <table className="sheet wide">
           <thead>
             <tr>
               <th>Name</th>

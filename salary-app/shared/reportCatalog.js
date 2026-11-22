@@ -148,6 +148,8 @@ export const REPORTS = [
     { note: 'Nothing tracks what has actually been paid. The dashboard names due dates as a reminder only.' }),
 
   /* ---- E. Employees ---- */
+  R('employee-contacts', 'Staff contact list', 'employee', 'ready',
+    { filters: ['company', 'department', 'search'], at: 'panel:employee-contacts' }),
   R('employee-master', 'Employee master register', 'employee', 'ready',
     { filters: ['company', 'department', 'search'], at: 'file:employees' }),
   R('employee-active', 'Active employee list', 'employee', 'ready',

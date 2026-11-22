@@ -71,7 +71,14 @@ test('every category in the specification carries exactly what it asked for', ()
    * leave ledger and the year end were asked for by name in the leave
    * brief and are reports in their own right.
    */
-  const beyondSpec = { leave: ['leave-ledger', 'leave-year-end'] };
+  const beyondSpec = {
+    leave: ['leave-ledger', 'leave-year-end'],
+    /* Asked for by name: "staff wise email & mobile number ka list bhi
+       chiaye with deopartmmet role". The employee export carries forty
+       columns including salaries, so this is deliberately its own report
+       rather than another column on that one. */
+    employee: ['employee-contacts'],
+  };
   for (const [key, count] of Object.entries(spec)) {
     const extras = beyondSpec[key] || [];
     assert.equal(

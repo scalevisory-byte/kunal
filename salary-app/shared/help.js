@@ -316,6 +316,18 @@ export const HELP = [
     note: 'Closure is worked out from the repayments, never stored. A loan is finished when what has been repaid reaches what was advanced — so a month set to zero, which the office is allowed to do, cannot leave a stale “closed” date behind. With no instalment set, months left reads as a dash: not known is not next month.',
   },
   {
+    id: 'contact-list',
+    title: 'Staff contact list — mobile, email, department, role',
+    tab: 'reports',
+    keywords: ['contact', 'mobile', 'phone', 'email', 'number', 'list', 'sampark', 'naam number'],
+    lines: [
+      'Reports → **Staff contact list**: name, code, company, department, role, mobile and email.',
+      'Search finds a name, a department, a role or a number. Print or download as CSV.',
+      'Change a number on the person’s own record and it changes here — there is one copy.',
+    ],
+    note: 'IT CARRIES NO SALARY, NO PAN AND NO BANK DETAILS, on purpose: a contact list gets printed and left on a desk. The employee export is the one with everything on it. Somebody with no number is listed with the gap showing rather than left out — they are the ones worth chasing.',
+  },
+  {
     id: 'missing-punch',
     title: 'Days the clock cannot account for',
     tab: 'reports',
