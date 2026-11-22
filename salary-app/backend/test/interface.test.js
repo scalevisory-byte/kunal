@@ -3385,3 +3385,64 @@ test('asking to cancel says plainly that nothing has changed yet', () => {
     `the leave page posted to ${calls}`
   );
 });
+
+/*
+ * THE LEAVE REGISTER — what a page of zeros has to say for itself.
+ *
+ * On the live server all 79 people read 0 due, 0 taken, 0 left, and the
+ * screen said nothing about why. It was not broken: nobody had set an
+ * entitlement. Three things came out of that.
+ */
+test('a register with no quota set anywhere explains itself', () => {
+  const leave = src('components/Leave.jsx');
+  /* It tells the office what is actually wrong, rather than showing 237
+     zeros and letting them conclude the data is lost. */
+  assert.match(leave, /No leave quota has been set for anybody yet/);
+  assert.match(leave, /noQuotas/);
+  /* And says the half that IS right, so nobody re-marks the grid. */
+  assert.match(leave, /counted off the attendance grid and are right/);
+});
+
+test('"over their entitlement" is measured against an entitlement somebody SET', () => {
+  const leave = src('components/Leave.jsx');
+  const line = leave.split('\n').find((l) => l.includes('LEAVE_TYPES.filter((t) =>'));
+  /* With every quota still nil, one day taken read as "over" - which is not
+     an offence, it is an unset quota, and a register that flags the whole
+     staff for it gets ignored. */
+  assert.ok(line, 'the over() rule is still one line');
+  assert.match(leave, /row\.quotas\[t\.code\] > 0 && row\.taken\[t\.code\] > row\.quotas\[t\.code\]/);
+});
+
+test('seventy-nine people can be given a quota without 237 boxes', () => {
+  const leave = src('components/Leave.jsx');
+  assert.match(leave, /setQuotasForAll/);
+  /* It must not quietly flatten a quota somebody has already adjusted by
+     hand - it says how many have one and offers to leave those alone. */
+  assert.match(leave, /already have a quota set/);
+  assert.match(leave, /only fill in the blanks/);
+  /* ONE reload at the end, not one per person: reloading inside the loop
+     would be seventy-nine round trips behind a spinner. The loop body is
+     read out and checked on its own. */
+  const start = leave.indexOf('for (const row of target) {');
+  assert.ok(start > -1, 'the bulk loop is still there');
+  const body = leave.slice(start, leave.indexOf('\n      }', start));
+  assert.ok(!body.includes('load('), `load() is inside the loop: ${body}`);
+  assert.match(leave.slice(start), /\n      \}\n      await load\(year\);/);
+});
+
+test('the leave register fills its width without a scrollbar inside a scrollbar', () => {
+  const css = src('styles.css');
+  /* `table.sheet` is deliberately width:auto so the Time tab's six columns
+     do not stretch; this one table opts in, scoped by its own class. */
+  assert.match(css, /table\.sheet\.leave-register \{ width: 100%; \}/);
+  /* Every figure column needs its own width or the slack pools in one of
+     them - widening the table alone gave Casual leave's Taken column the
+     whole 688px. */
+  assert.match(css, /leave-register thead tr:nth-child\(2\) th \{ width: [\d.]+%; \}/);
+  /* And it is not boxed in its own 684px window inside a page that already
+     scrolls. */
+  assert.match(css, /\.table-wrap\.unboxed \{ max-height: none; overflow: visible; \}/);
+  const leave = src('components/Leave.jsx');
+  assert.match(leave, /table-wrap unboxed/);
+  assert.match(leave, /sheet leave-register/);
+});

@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.78.0';
+export const VERSION = '1.79.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.79.0',
+    date: '22 Nov 2026',
+    title: 'The leave register: why it read all zeros, and setting everybody at once',
+    items: [
+      '**A page of zeros now says why it is zero.** On the live server every one of the 79 people read nil due, nil left \u2014 which looks like lost data and was not: **nobody had been given a leave entitlement**. The page says that in a line, says that the days TAKEN are counted off the attendance grid and are right, and puts the fix on the same screen.',
+      '**Set the entitlement for everybody in one go** \u2014 “Set quotas for these 79”. Three figures (CL, SL, PL) and it is done. Typing them by hand was 237 boxes, which is exactly why nothing was ever set.',
+      '**It will not flatten a quota somebody has already adjusted.** If any of them already have one it says how many and offers to leave those alone and only fill in the blanks.',
+      '**“Over their entitlement” now means over an entitlement somebody SET.** With every quota at nil, anybody who took a single day was flagged as over \u2014 that is not an offence, it is an unset quota, and a register that flags the whole staff gets ignored.',
+      '**The register fills the screen.** It was 906px wide inside a 1,594px frame \u2014 two thirds of the width left empty beside a table you had to scroll. And it had its **own scrollbar inside a page that already scrolls**, which put the totals at the bottom of a box instead of the end of the list. Both gone; the column headings stay put as you scroll.',
+      '**Each figure column has its own width**, or the slack pools in one: widening the table alone gave Casual leave’s Taken column the whole 688px and made it five times the width of Sick leave beside it.',
+    ],
+  },
   {
     version: '1.78.0',
     date: '22 Nov 2026',

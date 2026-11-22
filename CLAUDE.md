@@ -1593,6 +1593,32 @@ and the panel points at it rather than growing a half-duplicate.
   nothing disqualified anybody and the whole staff qualified every month. `normaliseRule` now
   falls back to the default list, and the panel refuses to untick the last one.
 
+### The leave register read all zeros (v1.79)
+
+Dinesh sent a screenshot of the live Balances page: *"leave page still not proper"* — 79 people,
+every Due, Taken and Left column nil. **Reproduced exactly before touching anything** (79
+employees, no quotas, one person with 2 CL marked), which is how four separate things were
+found rather than guessed at.
+
+- **Nobody had been given an entitlement**, and the page said nothing about it. 237 zeros read
+  as lost data. It now says so in a line, says the days TAKEN *are* right (they come off the
+  grid), and puts the fix on the same screen — the roll call's answer for a month nobody marked.
+- **Setting 79 people by hand is 237 boxes**, which is exactly why nothing was ever set. One
+  button sets CL/SL/PL for everybody on screen, honours the company filter, and **refuses to
+  flatten a quota somebody already adjusted** — it says how many have one and offers to fill in
+  only the blanks. One reload at the end, not one per person; there is a test reading the loop
+  body out on its own to pin that.
+- **"Over their entitlement" was measured against nil**, so anybody who took one day was
+  flagged. That is not an offence, it is an unset quota, and a register that flags the whole
+  staff gets ignored. `over()` now ignores a type with no quota.
+- **Measured, not eyeballed:** the table was **906px inside a 1,594px frame** and carried its
+  own `max-height: 72vh` scrollbar inside a page that already scrolls — so the totals sat at the
+  bottom of a box rather than the end of the list. Both fixed, scoped to this one table
+  (`table.sheet` stays `width: auto` globally, or the Time tab's six columns stretch).
+- **The width fix overshot on the first try and the browser caught it:** widening the table
+  alone handed the whole 688px to Casual leave's Taken column, five times the width of Sick
+  leave beside it. Every figure column needs its own width or the slack pools in one.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

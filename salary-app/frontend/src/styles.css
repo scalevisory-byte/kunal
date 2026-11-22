@@ -517,6 +517,44 @@ table.sheet {
 .table-wrap.dense table.sheet { font-size: 0.75rem; }
 
 /*
+ * A REGISTER FILLS THE WIDTH IT IS GIVEN.
+ *
+ * `table.sheet` is deliberately `width: auto` so the Time tab's six columns
+ * do not stretch across a monitor. But the leave register has twelve narrow
+ * columns and came out 906px wide inside a 1594px frame - two thirds of a
+ * laptop screen left empty beside a table somebody has to scroll. Scoped to
+ * this one table, with the slack going to the two text columns rather than
+ * being shared out among the figures.
+ */
+table.sheet.leave-register { width: 100%; }
+table.sheet.leave-register th.sticky-name,
+table.sheet.leave-register td.sticky-name { width: 24%; }
+table.sheet.leave-register thead tr:first-child th:nth-child(2) { width: 20%; }
+/*
+ * EVERY FIGURE COLUMN NEEDS ITS OWN WIDTH, or the slack pools in one of
+ * them. Widening the table alone gave the whole 688px to Casual leave's
+ * Taken column, which came out five times the width of Sick leave's beside
+ * it - wider than before and harder to read. Nine narrow columns, and the
+ * two text columns take what is left.
+ */
+table.sheet.leave-register thead tr:nth-child(2) th { width: 5.5%; }
+table.sheet.leave-register thead tr:first-child th:last-child { width: 6.5%; }
+
+/*
+ * And it is not boxed into its own scrolling window. A 2,300px table inside
+ * a 684px frame gives a scrollbar inside a page that already scrolls, and
+ * puts the totals at the bottom of a box instead of the end of the list.
+ * The page scrolls; the header stays put.
+ */
+.table-wrap.unboxed { max-height: none; overflow: visible; }
+.table-wrap.unboxed table.sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+
+/*
  * A sheet should read like a sheet. Every cell is ruled on all four sides, the
  * rows are one line tall, and an editable cell shows its figure rather than a
  * box with a second line of hint under it - which is what made eighty-five

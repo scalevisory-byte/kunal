@@ -68,7 +68,85 @@ export default function Leave({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, employees]);
 
-  const over = (row) => LEAVE_TYPES.filter((t) => row.taken[t.code] > row.quotas[t.code]);
+  /*
+   * OVER THEIR ENTITLEMENT MEANS AGAINST AN ENTITLEMENT SOMEBODY SET.
+   *
+   * With every quota still at nil, anybody who took a single day read as
+   * "over" — which is not an offence, it is an unset quota, and a register
+   * that flags the whole staff for it gets ignored. A type with no quota is
+   * not judged; the panel above says what is actually wrong instead.
+   */
+  const over = (row) =>
+    LEAVE_TYPES.filter((t) => row.quotas[t.code] > 0 && row.taken[t.code] > row.quotas[t.code]);
+
+  /** Nobody anywhere has an entitlement set — the whole register is nil. */
+  const noQuotas = rows.length > 0 &&
+    rows.every((r) => LEAVE_TYPES.every((t) => !Number(r.quotas[t.code])));
+
+  const [busy, setBusy] = useState(false);
+
+  /**
+   * SET THE ENTITLEMENT FOR EVERYBODY ON SCREEN.
+   *
+   * The inline boxes are right for correcting one person and hopeless for
+   * starting: seventy-nine people across three types is 237 boxes, which is
+   * why every quota on the live server was still nil.
+   *
+   * It asks for the three figures, names how many people it is about to
+   * change, and **never overwrites a quota somebody has already set** unless
+   * that is asked for — a bulk button that quietly flattened a
+   * hand-adjusted entitlement would be worse than no button.
+   */
+  const setQuotasForAll = async () => {
+    const people = filtered.length ? filtered : rows;
+    if (!people.length) return;
+    const ask = (label, fallback) => {
+      const typed = window.prompt(`${label} — days a year`, String(fallback));
+      return typed === null ? null : Math.max(0, Number(typed) || 0);
+    };
+    const cl = ask('Casual leave (CL)', 7);
+    if (cl === null) return;
+    const sl = ask('Sick leave (SL)', 7);
+    if (sl === null) return;
+    const pl = ask('Privilege leave (PL)', 12);
+    if (pl === null) return;
+
+    const already = people.filter((r) =>
+      LEAVE_TYPES.some((t) => Number(r.quotas[t.code]) > 0)
+    );
+    let overwrite = true;
+    if (already.length) {
+      overwrite = window.confirm(
+        `${already.length} of these ${people.length} already have a quota set.\n\n` +
+          'OK — change theirs too.\nCancel — leave those alone and only fill in the blanks.'
+      );
+    }
+    const target = overwrite ? people : people.filter((r) => !already.includes(r));
+    if (!target.length) return;
+    if (
+      !window.confirm(
+        `Set CL ${cl}, SL ${sl}, PL ${pl} for ${target.length} ` +
+          `${target.length === 1 ? 'person' : 'people'}?`
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      /* One patch each, then ONE reload - reloading per person would mean
+         seventy-nine round trips behind a spinner. */
+      for (const row of target) {
+        await onPatch(row.employee_id, { cl_quota: cl, sl_quota: sl, pl_quota: pl });
+      }
+      await load(year);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -251,17 +329,53 @@ export default function Leave({
           <button className="ghost" onClick={printLeave} disabled={!filtered.length}>
             Print the leave register
           </button>
+          {/*
+            * SETTING SEVENTY-NINE PEOPLE ONE BOX AT A TIME IS NOT A FEATURE.
+            * The inline boxes are right for correcting one person; they are
+            * no way to start, which is why every quota on the live server
+            * was still zero.
+            */}
+          <button disabled={!filtered.length || busy} onClick={setQuotasForAll}>
+            Set quotas for these {filtered.length}
+          </button>
           <span className="grow" />
           {loading && <span className="pill saving">Loading…</span>}
+          {busy && <span className="pill saving">Saving…</span>}
           {overCount > 0 && (
-            <span className="pill locked">{overCount} over entitlement</span>
+            <span className="pill locked">{overCount} over their entitlement</span>
           )}
         </div>
 
         {error && <p className="error">{error}</p>}
 
-        <div className="table-wrap">
-          <table className="sheet">
+        {/*
+          * A PAGE OF ZEROS READS AS BROKEN SOFTWARE.
+          *
+          * With no quota set anywhere, every Due, Left and Taken column is 0
+          * and the register looks as though it has lost the data. It has
+          * not: nobody has said how much leave anybody gets. Say that, and
+          * put the way to fix it right here - the same answer the roll call
+          * gives for a month nobody has marked.
+          */}
+        {!loading && rows.length > 0 && noQuotas ? (
+          <div className="ef-dup">
+            <strong>No leave quota has been set for anybody yet.</strong>
+            <p className="muted small">
+              That is why every figure reads nil — not because anything is missing. Days{' '}
+              <strong>taken</strong> are counted off the attendance grid and are right; what is
+              not set is how many days each person is <strong>entitled</strong> to.
+            </p>
+            <button className="primary" disabled={busy} onClick={setQuotasForAll}>
+              Set them for all {rows.length} people
+            </button>
+            <p className="muted small">
+              You can change any one of them afterwards, right in the table or on their record.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="table-wrap unboxed">
+          <table className="sheet leave-register">
             <thead>
               <tr>
                 <th className="sticky-name" rowSpan={2}>Employee</th>
