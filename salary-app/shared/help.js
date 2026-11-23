@@ -342,13 +342,17 @@ export const HELP = [
     tab: 'time',
     keywords: [
       'only days', 'days only', 'present absent', 'absent present half day', 'no hours',
+      'deduct', 'decision', 'katna he ya nahi', 'minus hours', 'apne aap',
       'hours off', 'ghante nahi', 'sirf din', 'din ke hisab se', 'manual', 'manual column',
       'month hrs', 'rule', 'policy', 'salary count',
     ],
     lines: [
       '**This is what a new month opens on.** The pay comes from the day count \u2014 Present pays, Absent docks a day, Half day docks half, leave is whatever that mark says. **Nothing is charged or paid for hours.**',
       '**The hours are still counted and still shown.** The salary sheet has a **Month hrs** column: what the clock came to for the month, nine hours a day against the days that were due. It is there to look at. It changes nobody\u2019s pay.',
-      '**To make the hours count, type them in.** The **OT min** box beside that column is the manual one \u2014 whatever you type there is charged or paid, whatever the rule says. Leave it blank and the rule decides; clear it and it hands back.',
+      '**You do not type the figure \u2014 you decide about it.** Above the sheet: **Deduct the short hours \u2014 N people, \u20b9X**. One press fills the **OT min** box on every one of those rows with the amount already worked out. **Pay the overtime** is a separate button, because deducting somebody\u2019s missing hours and paying somebody else\u2019s extra are two different questions.',
+      '**For one person, click their Month hrs figure** \u2014 it goes straight into their OT min box. Use it when somebody\u2019s hours should count and nobody else\u2019s should.',
+      '**Nothing is overwritten.** A row where a figure is already typed is left alone and counted, the same way *Mark everyone Present* fills blank days and never changes a mark. **Clear N typed figures** hands them all back to the rule.',
+      '**The OT min box is still the final word.** Whatever is in it is charged or paid, whatever the rule says; empty it and the rule decides again.',
       '**A \u221250 on the attendance grid is not a deduction on this rule.** The grid still shows each day\u2019s short or extra minutes, because that is the record of the day \u2014 but on this rule nothing reaches the pay from it.',
       '**To charge for hours, switch the rule** on **Time \u2192 Late and early** or **Admin \u2192 Settings**. Both say what the switch costs this month before it happens, and the rule is per month, so a change now never rewrites a month already paid.',
     ],

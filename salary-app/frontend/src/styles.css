@@ -5953,3 +5953,26 @@ h3.spaced { margin-top: 1.5rem; }
   text-align: left;
   letter-spacing: -0.01em;
 }
+
+/*
+ * THE MONTH'S HOURS - YES OR NO.
+ *
+ * Dinesh: *"Amount to apne aap aayega na minus hours ka / o deduct karna he
+ * ya nahi uska decision lena he khali"*. The bar sits directly above the
+ * sheet, on top of the Hours columns it is about, rather than on a settings
+ * screen somewhere else - the way in goes where the person is looking.
+ *
+ * `.hours-decide` is its own class and NOT a reuse of `.toolbar`, which is on
+ * a dozen screens: restyling that here would quietly redraw all of them. The
+ * `.alerts` / `.login` / `.sticky-name` trap.
+ */
+.hours-decide {
+  align-items: center;
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 8px);
+  background: var(--line-soft);
+}
+.hours-decide > strong { margin-right: 0.15rem; }
+.hours-decide .muted.small { flex: 1 1 18rem; min-width: 0; }

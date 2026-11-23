@@ -181,16 +181,21 @@ test('the server and the offline build share one list of policies', () => {
   }
 });
 
-test('the salary sheet shows the month’s hours beside the box, read-only', () => {
+test('the salary sheet shows the month’s hours beside the box, never typed into', () => {
   const sheet = src('components/SalarySheet.jsx');
   assert.match(sheet, /Month hrs/, 'the column has to be on the sheet');
-  /* It is a plain cell, never an EditableCell - the figure comes off the
-     clock and typing over it would be a second answer to one question. The
-     box beside it is the one to type in. */
-  const start = sheet.indexOf('{calc.monthly_hours_judged');
+  /*
+   * REWRITTEN at v2.7.0, not patched. The cell is still never an
+   * EditableCell - nobody may type a DIFFERENT figure over the clock's own,
+   * which would be a second answer to one question - but it IS a button
+   * now, which puts that same figure into the OT min box beside it. A
+   * figure that reads as a decision has to BE one.
+   */
+  const start = sheet.indexOf('!calc.monthly_hours_judged');
   assert.ok(start > -1, 'the cell renders the figure');
   const cell = sheet.slice(start, sheet.indexOf('</td>', start));
-  assert.ok(!/EditableCell/.test(cell), 'the month-hours cell must not be editable');
+  assert.ok(!/EditableCell/.test(cell), 'the month-hours cell must not be typed into');
+  assert.match(cell, /hoursMinutesOf\(calc\)/, 'and it writes the shared module’s own figure');
   /* And it says "not known" rather than 0. */
   assert.match(sheet, /monthly_hours_judged[\s\S]{0,400}\\u2014|monthly_hours_judged[\s\S]{0,400}—/);
 });

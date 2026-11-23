@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.6.0';
+export const VERSION = '2.7.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.7.0',
+    date: '23 Nov 2026',
+    title: 'The hours figure comes by itself \u2014 all that is left is yes or no',
+    items: [
+      '**You no longer type the figure.** Dinesh: *\u201cAmount to apne aap aayega na minus hours ka, o deduct karna he ya nahi uska decision lena he khali\u201d*. Above the salary sheet: **Deduct the short hours \u2014 8 people, \u20b91,443**. One press fills the **OT min** box on every one of those rows with the amount already worked out.',
+      '**Pay the overtime is a separate button.** Deducting somebody\u2019s missing hours and paying somebody else\u2019s extra are two different questions, and one button for both would answer the second without being asked.',
+      '**For one person, click their Month hrs figure** and it goes straight into their OT min box \u2014 for when somebody\u2019s hours should count and nobody else\u2019s should.',
+      '**Nothing is overwritten.** A row that already carries a typed figure is left alone, and the button says how many it is leaving \u2014 the same rule as *Mark everyone Present*, which fills blank days and never changes a mark.',
+      '**Somebody who clocked nothing is never included.** A dash means the hours are not known, which is not the same as nought hours, and writing 0 there would read as a decision somebody took.',
+      '**Clear N typed figures** hands them all back to the month\u2019s rule in one press.',
+      'The buttons follow the company filter and the search, like everything else on that screen, and both say what they will do and what it costs before they do it.',
+      '**It records a decision, it does not change the rule.** A rule applies to everybody from then on; this is a judgement taken person by person with the figure in front of you, written into a box you can see, change and clear.',
+    ],
+  },
   {
     version: '2.6.0',
     date: '23 Nov 2026',

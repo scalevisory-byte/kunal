@@ -4,6 +4,13 @@ import { col, num, printReport, printSlips } from '../printReport.js';
 import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
 import { formatDuration } from '../../../shared/timesheet.js';
+import {
+  CLEAR_HOURS_PATCH,
+  chargeHoursPatch,
+  hasTypedHours,
+  hoursDecision,
+  hoursMinutesOf,
+} from '../../../shared/hoursDecision.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -149,7 +156,77 @@ export default function SalarySheet({
     );
   }, [rows, query]);
 
-  const totals = useMemo(() => totalRows(filtered), [filtered]);
+  /*
+   * EVERY VISIBLE ROW, CALCULATED ONCE, and read by the footer, the decision
+   * bar and the printed register alike.
+   *
+   * The footer used to sum the fields STORED on each row while every row on
+   * screen recalculated itself - so between a change and the server's reply
+   * the rows and the total below them disagreed. One typed cell made that a
+   * blink; pressing "Deduct the short hours" changes eighty-six rows at
+   * once, which turned it into a visibly wrong total on a payroll screen.
+   */
+  const calcs = useMemo(
+    () => filtered.map((row) => ({ row, calc: calculateRow(row, period, row.attendance) })),
+    [filtered, period]
+  );
+  const totals = useMemo(() => totalRows(calcs.map((c) => c.calc)), [calcs]);
+
+  /*
+   * THE ONE THING LEFT TO DECIDE. Dinesh: *"Amount to apne aap aayega na
+   * minus hours ka / o deduct karna he ya nahi uska decision lena he
+   * khali"*. The figure is already worked out on every policy; this turns it
+   * into a yes or a no. Over the VISIBLE rows, so the company filter and the
+   * search narrow it like everything else on this screen.
+   */
+  const decision = useMemo(() => hoursDecision(calcs), [calcs]);
+
+  /*
+   * In small batches rather than eighty-six requests at once. `onPatchRow`
+   * already updates the row on screen before the save lands and counts
+   * itself into the "Saving N" pill, so there is no reload to do here - the
+   * leave-register lesson, the other way round.
+   */
+  const applyToAll = async (lines, patchOf) => {
+    for (let i = 0; i < lines.length; i += 8) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.all(lines.slice(i, i + 8).map((l) => onPatchRow(l.id, patchOf(l))));
+    }
+  };
+
+  const chargeShort = async () => {
+    const ok = window.confirm(
+      `Deduct the hours they are short of this month?\n\n` +
+        `${decision.short.length} ${decision.short.length === 1 ? 'person' : 'people'}, ` +
+        `₹${rupees(decision.shortAmount)} in all.\n\n` +
+        `It goes into the OT min box on each row, where you can see it, change it ` +
+        `or clear it. Nobody who already has a figure typed is touched` +
+        `${decision.decided.length ? ` (${decision.decided.length} of them)` : ''}.`
+    );
+    if (!ok) return;
+    await applyToAll(decision.short, (l) => chargeHoursPatch(l.minutes));
+  };
+
+  const payOver = async () => {
+    const ok = window.confirm(
+      `Pay the overtime for this month?\n\n` +
+        `${decision.over.length} ${decision.over.length === 1 ? 'person has' : 'people have'} ` +
+        `done more than their hours, ₹${rupees(decision.overAmount)} in all.`
+    );
+    if (!ok) return;
+    await applyToAll(decision.over, (l) => chargeHoursPatch(l.minutes));
+  };
+
+  const handBack = async () => {
+    const ok = window.confirm(
+      `Clear the hours figure on ${decision.decided.length} ` +
+        `${decision.decided.length === 1 ? 'row' : 'rows'}?\n\n` +
+        `Each one goes back to what the month's rule says, which on "only the days" ` +
+        `is nothing. Anything typed by hand is cleared too.`
+    );
+    if (!ok) return;
+    await applyToAll(decision.decided, () => CLEAR_HOURS_PATCH);
+  };
 
   // Company name repeats down column A in the sheet; here it only prints when
   // it changes, and carries that company's running total when it does.
@@ -178,7 +255,6 @@ export default function SalarySheet({
    * disagree about a rupee.
    */
   const printSheet = () => {
-    const calcs = filtered.map((row) => ({ row, calc: calculateRow(row, period, row.attendance) }));
     const sum = (get) => calcs.reduce((total, c) => total + (Number(get(c)) || 0), 0);
     printReport({
       title: 'Salary register',
@@ -426,6 +502,42 @@ export default function SalarySheet({
           onChanged={loadReview}
           onOpenEmployee={statementFor}
         />
+      ) : null}
+
+      {/*
+        * THE DECISION, where the figure is - right on top of the Hours
+        * columns rather than on another screen. The amount is worked out;
+        * all that is left is yes or no, which is exactly what was asked
+        * for.
+        */}
+      {decision.anything ? (
+        <div className="row gap wrap hours-decide">
+          <strong>The month&rsquo;s hours</strong>
+          {decision.short.length ? (
+            <button type="button" onClick={chargeShort} disabled={locked}>
+              Deduct the short hours &mdash; {decision.short.length}{' '}
+              {decision.short.length === 1 ? 'person' : 'people'}, &#8377;{rupees(decision.shortAmount)}
+            </button>
+          ) : null}
+          {decision.over.length ? (
+            <button type="button" className="ghost" onClick={payOver} disabled={locked}>
+              Pay the overtime &mdash; {decision.over.length}, &#8377;{rupees(decision.overAmount)}
+            </button>
+          ) : null}
+          {decision.decided.length ? (
+            <button type="button" className="ghost" onClick={handBack} disabled={locked}>
+              Clear {decision.decided.length} typed figure{decision.decided.length === 1 ? '' : 's'}
+            </button>
+          ) : null}
+          <span className="muted small">
+            It fills the <strong>OT min</strong> box on each row, so you can see it, change it
+            or clear it. Nothing is touched where a figure is already typed
+            {decision.unknown
+              ? `, and ${decision.unknown} ${decision.unknown === 1 ? 'person has' : 'people have'} no clock times at all`
+              : ''}
+            .
+          </span>
+        </div>
       ) : null}
 
       <ScrollFrame className={dense ? 'dense' : ''}>
@@ -762,9 +874,28 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
             : 'Nothing was clocked this month, so the hours are not known'
         }
       >
-        {calc.monthly_hours_judged
-          ? `${calc.monthly_hours_diff > 0 ? '+' : ''}${calc.monthly_hours_diff}`
-          : '\u2014'}
+        {!calc.monthly_hours_judged ? (
+          '\u2014'
+        ) : locked || hasTypedHours(row) || hoursMinutesOf(calc) === 0 ? (
+          `${calc.monthly_hours_diff > 0 ? '+' : ''}${calc.monthly_hours_diff}`
+        ) : (
+          /*
+            * One person, one press. The bar above does the whole month; this
+            * is the exception - somebody whose hours really should count
+            * when nobody else's does. A figure that reads as a decision has
+            * to BE one, which is the lesson this file keeps relearning.
+            */
+          <button
+            type="button"
+            className="link"
+            title={`Put ${hoursMinutesOf(calc)} into OT min for ${row.employee_name} - ${
+              hoursMinutesOf(calc) < 0 ? 'deduct' : 'pay'
+            } it this month`}
+            onClick={() => commit('ot_minutes_override', hoursMinutesOf(calc))}
+          >
+            {`${calc.monthly_hours_diff > 0 ? '+' : ''}${calc.monthly_hours_diff}`}
+          </button>
+        )}
       </td>
       <td className={calc.ot_minutes < 0 ? 'deduct-cell' : undefined}>
         <EditableCell

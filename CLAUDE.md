@@ -2905,6 +2905,43 @@ half day se hi ho / Monthly hour wala manual coloum do / Count karna he ki nahi 
   calls `minutesForMark`, which is what `setAttendance` does on the way in, and **4 of 13**
   fail with the old code. Same trap as v1.82; always prove a test by putting the bug back.
 
+### The hours figure comes by itself (v2.7.0) — `shared/hoursDecision.js`
+
+Dinesh, straight after v2.6.0: *"Amount to apne aap aayega na minus hours ka / o deduct karna
+he ya nahi uska decision lena he khali"*. v2.6.0 left him TYPING the figure into OT min, 86
+times — that is data entry, not a decision.
+
+- **`hoursDecision(calcs)` turns the figure `calculateRow` already returns into a yes or a
+  no.** It never calculates, so it cannot become a second opinion. Bar above the sheet:
+  *Deduct the short hours — 8 people, ₹1,443*; one press fills the OT min box on
+  every one of those rows.
+- **Short and over are TWO buttons.** Deducting somebody's missing hours and paying somebody
+  else's overtime are different questions; one button for both answers the second without
+  being asked, which is how an overtime bill nobody approved appears.
+- **It writes `ot_minutes_override`, NEVER the month's rule.** A rule applies to everybody
+  from then on; this is a judgement taken person by person with the figure in front of you,
+  into a box that is visible, changeable and clearable. A test asserts the patch carries that
+  one key and no `late_policy`.
+- **A row that already carries a typed figure is left alone and COUNTED**, and the confirm
+  says how many — the *Mark everyone Present* rule. **Somebody who clocked nothing is
+  never included**: `judged: false` is "not known", and writing 0 there would read as a
+  decision somebody took.
+- **Clicking one person's Month hrs figure puts it in their box** — the exception case,
+  and the cell is a button because a figure that reads as a decision has to BE one. The
+  v2.6.0 test asserting it was read-only was **rewritten to state the new rule**: still never
+  an `EditableCell` (nobody types a DIFFERENT figure over the clock's), but it is a way in.
+- **THE REAL BUG THIS SURFACED: the footer and the rows disagreed.** `totalRows(filtered)`
+  summed the fields STORED on each row while every `Row` recalculated itself, so between a
+  change and the server's reply the total was stale. One typed cell made that a blink;
+  pressing this button changes 86 rows at once and it became a **visibly wrong total on a
+  payroll screen** — measured at 2,07,000 against rows adding to 2,05,557. One `calcs`
+  memo now feeds the footer, the decision bar and the printed register; `totalRows` itself is
+  untouched because eight other callers sum stored rows on purpose. Verified every key
+  `totalRows` wants is returned by `calculateRow` before switching.
+- Driven end to end: bar reads 8 people ₹1,443 → click one person's figure → bar
+  drops to 7 / ₹1,287 and gains *Clear 1 typed figure* → press Deduct → all eight
+  filled, footer ‑1,443 → Clear → everybody back to 25,800.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
