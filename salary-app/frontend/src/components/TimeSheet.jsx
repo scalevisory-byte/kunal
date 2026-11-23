@@ -19,6 +19,7 @@ import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import MonthlyHours from './MonthlyHours.jsx';
 import { fillTimesFor, hasOwnShift, hoursForEmployee, shiftLengthProblem } from '../../../shared/lateEarly.js';
+import TimeCalendar from './TimeCalendar.jsx';
 import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import PunchImport from './PunchImport.jsx';
@@ -605,6 +606,21 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           >
             One person, whole month
           </button>
+          {/*
+            * THE CALENDAR, asked for by name: *"calcndr bana do usme sari
+            * date k dikh ajyenge"*. Same person, same month, same figures -
+            * laid out as weeks so thirty days are on one screen and a
+            * pattern shows. The table stays, because twelve punches do not
+            * fit in a calendar square; there they are one click away.
+            */}
+          <button
+            role="tab"
+            aria-selected={view === 'calendar'}
+            className={view === 'calendar' ? 'on' : undefined}
+            onClick={() => setView('calendar')}
+          >
+            One person, calendar
+          </button>
         </div>
 
         {view === 'day' ? (
@@ -920,6 +936,19 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         </div>
       )}
 
+      {view === 'calendar' ? (
+        <TimeCalendar
+          period={period}
+          person={person}
+          judge={judge}
+          entryOf={entryOf}
+          punches={person ? punchBook[person.employee_id] : null}
+          onOpenDay={(d) => {
+            setDay(d);
+            setView('day');
+          }}
+        />
+      ) : (
       <ScrollFrame>
         <table className="sheet timesheet">
           <thead>
@@ -1002,6 +1031,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           )}
         </table>
       </ScrollFrame>
+      )}
 
       <p className="muted small">
         {/* It said "less the lunch break" on every month, including the ones

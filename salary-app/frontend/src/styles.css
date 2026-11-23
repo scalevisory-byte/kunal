@@ -5999,3 +5999,39 @@ h3.spaced { margin-top: 1.5rem; }
  * rather than changing the global rule under every other screen.
  */
 .report-fields .hint { text-align: left; }
+
+/*
+ * ONE PERSON'S MONTH AS A CALENDAR (Time tab).
+ *
+ * It reuses `.lc-grid` / `.lc-cell` / `.lc-date` from the leave calendar
+ * deliberately: two calendars in one app that look different is a worse
+ * answer than one that reads the same wherever you meet it. Only what this
+ * one puts INSIDE a square is new, and every class below has a rule - the
+ * invented-class trap has cost this file five bugs already.
+ */
+.tc-grid .lc-cell { min-height: 5.6rem; align-items: flex-start; gap: 0.1rem; }
+.tc-cell.blank { background: var(--bg); }
+.tc-mark {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+  padding: 0.02rem 0.28rem; border-radius: 3px;
+}
+.tc-time { font-size: 0.64rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tc-worked { font-size: 0.66rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tc-mins { font-size: 0.64rem; font-variant-numeric: tabular-nums; }
+.tc-mins.bad { color: var(--bad); }
+.tc-mins.good { color: var(--good); }
+.tc-punches { font-size: 0.6rem; color: var(--muted); }
+.tc-warn { font-size: 0.6rem; color: var(--warn); overflow-wrap: anywhere; }
+.tc-warn-line { color: var(--warn); }
+@media (max-width: 760px) {
+  /* Seven columns on a phone: the times are what has to give, not the date. */
+  .tc-grid .lc-cell { min-height: 3.8rem; }
+  .tc-time, .tc-punches, .tc-warn { display: none; }
+}
+/*
+ * A Sunday has to LOOK like one. `.lc-cell.off` is `--line-soft`, which
+ * measured at rgb(251,251,250) against a white cell - a four-step
+ * difference nobody sees. This is the attendance grid's own Sunday tint, so
+ * the two screens agree about which squares are off days.
+ */
+.tc-grid .lc-cell.off { background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }

@@ -2983,6 +2983,49 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The calendar — `shared/monthGrid.js`, `TimeCalendar.jsx` (v2.11.0)
+
+Dinesh: *"calcndr bana do usme sari date k dikh ajyenge ya or koi accha option ho to"*,
+after *"sare log aane chiaye jitni bar andar gya jitni bar bahar se aaya"*. He was told the
+punches were already on five screens and that a 30-square grid cannot hold twelve door
+openings legibly; he asked for it anyway, so it is built — and the trade-off is designed
+around rather than argued with.
+
+- **A square carries the day's ANSWER** — mark, `in → out`, hours worked, ± minutes, and how
+  many punches there were. **Clicking it opens every punch of that day.** Nothing is hidden;
+  it is one click away instead of all at once. That is the honest resolution of the thing the
+  table does better.
+- **IT ASSEMBLES.** `judge` and `entryOf` are handed in from the Time tab — the same pair the
+  table and the save path use — so the calendar, the grid and the payslip cannot give three
+  answers about a day. A test strips the comments and **forbids `timesToDay` or
+  `minutesForMark` inside the component**; it fails when either is put back.
+- **A day nobody clocked is a blank square, never nought hours.** `timesToDay` already
+  returns `worked: null` for it, so the rule came for free and is stated rather than
+  reimplemented.
+- **`shared/monthGrid.js` is the layout, and BOTH calendars read it.** The leave calendar had
+  worked the weeks out inline since it was built; a second copy is how two calendars come to
+  disagree about which square the 1st sits in, so `LeaveCalendar.jsx` was **refactored onto
+  it** rather than left alone. A test asserts neither file slices its own weeks.
+- **A square with no date is blank, NOT the neighbouring month's date.** On a payroll
+  calendar, 29 and 30 October sitting in November read as days of this month. Tested.
+- **THE FOLD, MEASURED NOT GUESSED.** The day's detail was first put under the grid — and
+  clicking the 2nd landed the answer at **1,286px in a 1,200px window**, under the fold:
+  the one thing the click was for. It is above the grid now, measured at 739px, with a test
+  pinning the order in the markup. Same mistake and same fix as the attendance day picker's
+  clock block.
+- **A Sunday has to look like one.** `.lc-cell.off` is `--line-soft`, which measured at
+  rgb(251,251,250) against a white cell — a four-step difference nobody sees. It uses the
+  attendance grid's own Sunday tint, so the two screens agree about which squares are off.
+- It reuses `.lc-grid` / `.lc-cell` / `.lc-date` and the `code-XX` mark tints on purpose:
+  two calendars that look different, or a second colour scheme for the same thirteen marks,
+  is a worse answer than one that reads the same wherever you meet it. There is a test that
+  **every `tc-` class has a rule in `styles.css`** — the invented-class trap, which this file
+  has recorded five times.
+- **The table stays and is still the only place to type.** The calendar shows; the table
+  edits. *Open this day on the table* is on the day's panel.
+- Measured at 1420 (grid 1156px, five weeks, 113px squares) and at 420 (squares 55×80, the
+  times hidden by the media query, no horizontal scroll of its own).
+
 ### Two messages a day, because the hours do not exist yet (v2.10.0)
 
 Dinesh: *"daily report me / daily attendance / late coming / uniform / issue conduct /

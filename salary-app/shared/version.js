@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.10.0';
+export const VERSION = '2.11.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.11.0',
+    date: '24 Nov 2026',
+    title: 'One person\u2019s month as a calendar',
+    items: [
+      '**Time \u2192 One person, calendar.** Dinesh: *\u201ccalcndr bana do usme sari date k dikh ajyenge\u201d*. The whole month laid out as weeks, so every date is on one screen and a pattern shows \u2014 every Tuesday late, a whole week short, a run of absences.',
+      '**Each square carries the day\u2019s answer:** the mark, in \u2192 out, the hours worked and the \u00b1 minutes. A day nobody clocked reads as a blank square, never as nought hours.',
+      '**Click a date and every punch of that day opens above the calendar** \u2014 *\u201c09:04 \u00b7 10:44 \u00b7 11:06 \u00b7 12:10 \u00b7 12:20 \u00b7 13:08 \u00b7 13:35 \u00b7 14:32 \u00b7 15:27 \u00b7 16:40 \u00b7 17:03 \u00b7 19:03\u201d*. Twelve door openings do not fit in a calendar square, so they are one click away instead of all at once. The square says how many there were.',
+      '**The table is still there and still the place to type.** The calendar shows; the table edits. *Open this day on the table* is on the day\u2019s panel.',
+      '**It calculates nothing of its own.** Every figure comes from the same pair of functions the table and the save path use, so the calendar, the grid and the payslip cannot give three answers about a day.',
+      'Sundays are tinted the way they are on the attendance grid, and the clock\u2019s own warnings \u2014 *no out time*, *still in*, *one punch only* \u2014 show on the day they belong to.',
+      'The leave calendar and this one now share one month layout, so they can never disagree about which square the 1st sits in.',
+    ],
+  },
   {
     version: '2.10.0',
     date: '24 Nov 2026',

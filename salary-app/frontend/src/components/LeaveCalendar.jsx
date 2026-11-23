@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { WEEKDAYS, monthWeeks } from '../../../shared/monthGrid.js';
 import { api } from '../api.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 
@@ -27,16 +28,16 @@ export default function LeaveCalendar({ period, companyId, onGo, onError }) {
       .catch((err) => onError?.(err.message));
   }, [period?.id, companyId]);
 
-  const weeks = useMemo(() => {
-    if (!data) return [];
-    const first = new Date(Date.UTC(data.period.year, data.period.month - 1, 1)).getUTCDay();
-    const cells = [...Array(first).fill(null), ...data.days];
-    const out = [];
-    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7));
-    const last = out[out.length - 1];
-    while (last && last.length < 7) last.push(null);
-    return out;
-  }, [data]);
+  /* The month's layout comes from `shared/monthGrid.js`, which the Time
+     tab's calendar reads too - two calendars working out for themselves
+     which square the 1st sits in is how they come to disagree. */
+  const weeks = useMemo(
+    () =>
+      data
+        ? monthWeeks({ year: data.period.year, month: data.period.month, cells: data.days })
+        : [],
+    [data]
+  );
 
   if (!period) return <p className="muted small">No month is open.</p>;
   if (!data) return <p className="muted small">Loading…</p>;
@@ -58,7 +59,7 @@ export default function LeaveCalendar({ period, companyId, onGo, onError }) {
       </div>
 
       <div className="lc-grid">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+        {WEEKDAYS.map((d) => (
           <div className="lc-head" key={d}>{d}</div>
         ))}
         {weeks.flat().map((day, i) =>
