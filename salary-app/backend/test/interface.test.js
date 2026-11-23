@@ -3787,3 +3787,33 @@ test('the portal says when NO reader can reach somebody', () => {
   assert.match(page, /punch_match/, 'the portal must be told whether anything could match');
   assert.match(page, /no number for you yet/, 'and must say so in words');
 });
+
+test('a day marked HF with no departure can be put right, across the month', () => {
+  /*
+   * The importer used to decide the mark from a last punch that was really
+   * the return from lunch, then refuse to write that punch as an out time -
+   * so a day still running came out HF and docked half a day. That is fixed
+   * where days are WRITTEN, and a fix to the write path never reaches back.
+   *
+   * Three things this pins, each one learnt the hard way:
+   *  - it scans the whole month, not the view. This tab shows one day across
+   *    everybody or one person down the month, and the spoilt days are
+   *    scattered through both;
+   *  - it writes ONLY the mark, so the per-field merge keeps the arrival,
+   *    the lunch and the stored minutes;
+   *  - it asks first, and says that it PAYS A FULL DAY, because that is what
+   *    somebody pressing it is about to do.
+   */
+  const tab = src('components/TimeSheet.jsx');
+  assert.match(tab, /halfDayNoOut/, 'the finder must exist');
+  assert.match(tab, /for \(const row of filtered\)[\s\S]{0,120}for \(const d of dayList\)/,
+    'it must sweep every visible person across every day of the month');
+  assert.match(tab, /day: d, code: 'P'/, 'it writes the mark and nothing else');
+  assert.doesNotMatch(
+    tab,
+    /halfDayNoOut\.map\([^)]*(in_time|out_time|minutes)/,
+    'it must not resend the times - the merge keeps them'
+  );
+  assert.match(tab, /window\.confirm\(\s*\n?\s*`\$\{halfDayNoOut\.length\}/, 'it must ask first');
+  assert.match(tab, /PAYS A FULL DAY/, 'and say what pressing it costs');
+});

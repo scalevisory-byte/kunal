@@ -160,7 +160,32 @@ export default function BizcompassImport({ period, onReload, onGo }) {
             <div><b>{preview.coverage.days.length}</b><span>days in this month</span></div>
             <div><b>{preview.summary.present}</b><span>present</span></div>
             <div><b>{preview.summary.halfDay}</b><span>half days</span></div>
+            {/*
+              * An arrival with no departure: one punch, or a last punch that
+              * is the return from lunch. Those days go through as PRESENT
+              * with nothing charged - half a day cannot be worked out from
+              * hours nobody knows - and land on Reports → Missing punch.
+              */}
+            {preview.summary.noDeparture ? (
+              <div>
+                <b>{preview.summary.noDeparture}</b>
+                <span>in, but no departure</span>
+              </div>
+            ) : null}
           </div>
+
+          {preview.summary.noDeparture ? (
+            <p className="muted small">
+              <strong>{preview.summary.noDeparture}</strong> day
+              {preview.summary.noDeparture === 1 ? ' has' : 's have'} an arrival and no departure —
+              either one punch, or a last punch that is somebody coming back from lunch on a day
+              still running. {preview.summary.noDeparture === 1 ? 'It goes' : 'They go'} through as{' '}
+              <strong>present</strong> with no hours either way, and{' '}
+              {preview.summary.noDeparture === 1 ? 'lands' : 'land'} on Reports → Missing punch for
+              the real out time to be typed in. They are <strong>not</strong> marked half day: half
+              a day cannot be worked out from hours nobody knows.
+            </p>
+          ) : null}
 
           {/*
             * THE ONE THING THAT CANNOT BE GUESSED. The spool has no names in

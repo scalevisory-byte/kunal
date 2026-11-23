@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.1.0';
+export const VERSION = '2.2.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.2.0',
+    date: '23 Nov 2026',
+    title: 'A day still running is not half a day',
+    items: [
+      '**THIS WAS COSTING REAL MONEY \u2014 half a day\u2019s pay, per day.** The punch importer worked the mark out from the last punch of the day, and only afterwards decided whether that punch was a departure at all. So somebody who punched 09:35, 13:37, 14:16 \u2014 where the last one is them coming BACK from lunch \u2014 was marked **half day** at twenty past two, sitting at their desk. On a \u20b926,000 salary that is \u20b9500 off a day they worked in full.',
+      'The departure is decided **first** now, and the mark follows it. A mark may not rest on an hour the app itself refuses to record.',
+      '**An arrival with no departure goes through as PRESENT**, with nothing charged and nothing paid, and lands on Reports \u2192 Missing punch for the real out time to be typed in. Half a day cannot be worked out from hours nobody knows.',
+      'A day that **really did** finish short still reads as a half day \u2014 that case is untouched, and there is a test for it.',
+      'The import\u2019s dry run now counts and names those days before the Write button, so they are not a surprise afterwards.',
+      '**For the days already on the grid: Time \u2192 \u201cMark N half days present\u201d.** A fix to how days are written never reaches back. It sweeps the whole month, not just the day on screen, leaves every clock time exactly as it is, and says plainly that pressing it pays a full day where half was being paid.',
+    ],
+  },
   {
     version: '2.1.0',
     date: '23 Nov 2026',

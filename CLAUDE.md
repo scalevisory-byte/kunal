@@ -2641,14 +2641,51 @@ server rather than by guessing.
   partial unique index uses — number, second and reader guid — and the panel says how many
   were already filed, because "read 3" beside a count of 1 reads as punches going missing.
 
-### Worth flagging, not changed
+## A day still running is not half a day (v2.2.0)
 
-A day still running can be marked **HF** by the importer: HARISH punched 09:35 / 13:37 /
-14:16 and the mark came out half day at twenty past two, because first-to-last was under the
-half-day line. The out time is correctly blank and **nothing is charged** (minutes 0), and
-the next pull re-marks it once he punches out — blank/P/A/HF are the marks a punch may set.
-But a day whose last pull of the evening never sees a departure keeps the HF. Pre-existing,
-not introduced here, and his to decide.
+Flagged at the end of v2.1.0 as worth knowing; Dinesh: *"HF wala bhi theek kar do"*. It was
+worse than "worth knowing" — it was **half a day's pay per occurrence**.
+
+**The defect in one sentence: the mark was derived from a departure the same function then
+refused to write.** `punchesToMarks` computed `worked = seen.out - seen.in - lunch` and
+marked HF below the half-day line, and only a few lines LATER did `departureTime` decide
+that `seen.out` was really the return from lunch and blank the column. So HARISH's
+09:35 / 13:37 / 14:16 came out **HF at twenty past two**, sitting at his desk — 4h 02m off
+a departure the code itself did not believe in. Measured: ₹500 off a ₹26,000 salary, for
+that one day.
+
+- **The departure is decided FIRST now, and the mark follows it.** One `departureTime` call,
+  its result used both for the mark and for the column, so they cannot contradict each other.
+  The old one-punch branch (`seen.out === null || seen.out === seen.in`) became `!outText`,
+  which covers one punch, a repeated minute AND a last punch that is the lunch return — the
+  three cases that function already knew about.
+- **An arrival with no departure is PRESENT**, minutes 0, and lands on Missing punch. *Not
+  known is not half a day.* A day that really did finish short is untouched, with a test
+  that fails if the guard is written too broadly.
+- **Only `punches.js` had it.** `punchClock.js` (the phone) writes times and lets
+  `timesToDay` decide, and that already returns `code: ''` when the hours are unknown;
+  `monthlyStatus.js` takes the machine's own verdict. Checked rather than assumed.
+- **Nothing in the suite covered it** — 2211 tests passed with the bug in place, which is
+  how it shipped. The new tests were proved by putting the old rule back: 2 of them fail.
+- `summary.noDeparture` rides into the import's dry run, so those days are named **before**
+  the Write button.
+
+### A fix to the write path never reaches back
+
+Whatever is already on the grid stays until that day is saved again — the same lesson as
+v1.99.0's one-punch out times. **Time → "Mark N half days present"**, beside the one-punch
+clear.
+
+- **It sweeps the WHOLE MONTH, not the view.** That tab shows one day across everybody or
+  one person down the month, and the spoilt days are scattered through both; hunting them
+  one date at a time is why nobody would. (The older one-punch clear is still view-scoped;
+  left alone deliberately, since widening a shipped button's reach without being asked is
+  its own surprise.)
+- **It writes only `code: 'P'`**, so the per-field merge keeps the arrival, the lunch and
+  the stored minutes. There is a test refusing any `in_time`/`out_time`/`minutes` in that map.
+- **It asks, and says it PAYS A FULL DAY**, because that is what pressing it does. Driven in
+  a browser on two stale days across two people: both corrected, RIYA's genuine HF (a real
+  12:00 out time) untouched, and all three unclocked days still on Missing punch.
 
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday

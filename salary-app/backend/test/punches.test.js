@@ -185,3 +185,73 @@ test('many punches in a day still read first in, last out', () => {
   assert.equal(day.in_time, '09:14');
   assert.equal(day.out_time, '18:12');
 });
+
+test('A DAY STILL RUNNING IS NOT HALF A DAY', () => {
+  /*
+   * Dinesh saw this on his own portal: HARISH punched 09:35, 13:37, 14:16 and
+   * the day came out HF at twenty past two, sitting at his desk.
+   *
+   * The last punch is him coming BACK from lunch, not leaving. The mark was
+   * worked out from it (09:35 to 14:16, less the 39-minute break, is 4h 02m -
+   * under the half-day line) and only AFTERWARDS did the same function refuse
+   * to write 14:16 as an out time. Half a day's pay off a departure the code
+   * itself did not believe in.
+   */
+  const { entries, summary } = punchesToMarks({
+    rows: rows([
+      ['', 'Ashutosh Jha', '07/09/2026', '09:35', '13:37'],
+      ['', 'Ashutosh Jha', '07/09/2026', '14:16', ''],
+    ]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+  });
+
+  const day = entries.find((e) => e.day === 7);
+  assert.ok(day, 'the day is still written - the arrival is real');
+  assert.equal(day.code, 'P', 'present, not HF: when they left is not known');
+  assert.equal(day.in_time, '09:35');
+  assert.equal(day.out_time, '', 'the return from lunch is not a departure');
+  assert.equal(day.minutes, 0, 'nothing is charged and nothing is paid');
+  assert.equal(summary.halfDay, 0);
+  assert.equal(summary.noDeparture, 1, 'and the dry run can say so');
+});
+
+test('a day that really did finish short is still a half day', () => {
+  // The guard must not swallow the honest case: an out time that IS a
+  // departure, and a short day, still reads as one.
+  const { entries, summary } = punchesToMarks({
+    rows: rows([['', 'Ashutosh Jha', '08/09/2026', '09:30', '12:00']]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+  });
+  const day = entries.find((e) => e.day === 8);
+  assert.equal(day.code, 'HF');
+  assert.equal(day.out_time, '12:00');
+  assert.equal(summary.halfDay, 1);
+  assert.equal(summary.noDeparture, undefined, 'nothing to report here');
+});
+
+test('the mark and the out time can never contradict each other', () => {
+  /*
+   * The rule in one line: a mark derived from the hours may only exist where
+   * an out time was actually written. Anything else is a figure the module
+   * declined to record being used to decide pay.
+   */
+  const { entries } = punchesToMarks({
+    rows: rows([
+      ['', 'Ashutosh Jha', '09/09/2026', '10:50', '10:50'],
+      ['', 'Rohit Tayade', '09/09/2026', '09:00', '13:20'],
+      ['', 'Rohit Tayade', '09/09/2026', '14:00', ''],
+    ]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+  });
+  for (const e of entries) {
+    if (e.code === 'HF') assert.ok(e.out_time, `HF on ${e.day} with no out time`);
+    if (!e.out_time) assert.notEqual(e.code, 'HF', `no departure on ${e.day}, so no half day`);
+  }
+  assert.equal(entries.length, 2);
+});

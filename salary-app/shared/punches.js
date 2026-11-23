@@ -281,13 +281,41 @@ export function punchesToMarks({
     let code;
     let minutes = 0;
 
+    /*
+     * THE DEPARTURE IS DECIDED FIRST, AND THE MARK FOLLOWS IT.
+     *
+     * It used to be the other way round: the mark was worked out from
+     * `seen.out`, and only afterwards did `departureTime` decide whether that
+     * last punch was a departure at all. So a day still running - 09:35,
+     * 13:37, 14:16 at twenty past two, where the last punch is the person
+     * coming BACK from lunch - was marked HF off four and a half hours the
+     * code then refused to write as an out time. Half a day's pay, decided at
+     * lunchtime, on somebody sitting at their desk.
+     *
+     * The mark may not rest on a departure this module does not believe in,
+     * so both now come from the SAME call.
+     */
+    const inText = seen.in === null ? '' : formatTime(seen.in);
+    const outText = departureTime(
+      inText,
+      seen.out === null ? '' : formatTime(seen.out),
+      seen.lunchIn === null ? '' : formatTime(seen.lunchIn)
+    );
+
     if (seen.in === null) {
       code = settings.absentCode;
       summary.absent++;
-    } else if (seen.out === null || seen.out === seen.in) {
-      // One punch only - they were here, but there is nothing to measure.
+    } else if (!outText) {
+      /*
+       * Nothing to measure: one punch only, or the last punch was the return
+       * from lunch. They were here; when they left is not known, and NOT
+       * KNOWN IS NOT HALF A DAY. The day goes through as present with no
+       * minutes either way, and lands on Reports -> Missing punch for the
+       * real departure to be typed in.
+       */
       code = settings.presentCode;
       summary.present++;
+      summary.noDeparture = (summary.noDeparture || 0) + 1;
     } else {
       /*
        * Lunch comes off the hours, exactly as it does for a day typed on the
@@ -328,19 +356,19 @@ export function punchesToMarks({
       day: seen.day,
       code,
       minutes,
-      in_time: seen.in === null ? '' : formatTime(seen.in),
+      in_time: inText,
       /*
        * One punch leaves `out` equal to `in`, and writing that is a claim
-       * they left the moment they arrived. Blank is the honest record: they
-       * were here, nobody knows when they went. Sent as `''` rather than
-       * omitted, because `setAttendance` merges per field and leaving it out
-       * would keep a stale out time from some earlier day's import.
+       * they left the moment they arrived; a last punch that is the return
+       * from lunch is not a departure either. Blank is the honest record:
+       * they were here, nobody knows when they went. Sent as `''` rather
+       * than omitted, because `setAttendance` merges per field and leaving
+       * it out would keep a stale out time from some earlier day's import.
+       *
+       * This is the very figure the mark above was decided from, so the two
+       * cannot contradict each other.
        */
-      out_time: departureTime(
-        seen.in === null ? '' : formatTime(seen.in),
-        seen.out === null ? '' : formatTime(seen.out),
-        seen.lunchIn === null ? '' : formatTime(seen.lunchIn)
-      ),
+      out_time: outText,
       // Only when the sheet named those columns. `setAttendance` merges per
       // field, so leaving them out keeps whatever is already on the day.
       ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),

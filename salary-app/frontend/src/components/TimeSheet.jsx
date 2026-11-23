@@ -284,6 +284,73 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
     }
   };
 
+  /*
+   * DAYS MARKED HALF A DAY WITH NO DEPARTURE ON THEM.
+   *
+   * The importer used to decide the mark from a last punch that was really
+   * the return from lunch, then refuse to write that punch as an out time -
+   * so a day still running came out HF. That is fixed where days are WRITTEN,
+   * and a fix to the write path never reaches back: whatever is already on
+   * the grid stays until the day is saved again.
+   *
+   * The condition is narrow on purpose. An arrival, no departure, and HF: a
+   * half day somebody TYPED normally carries either both times or neither,
+   * and this one has exactly the shape the old rule produced.
+   */
+  const halfDayNoOut = useMemo(() => {
+    const found = [];
+    /*
+     * THE WHOLE MONTH, not just what is on screen.
+     *
+     * This tab shows one day across everybody, or one person down the month -
+     * never both. The days the old rule spoiled are scattered through the
+     * month and across the staff, and half a day's pay each is not something
+     * to go hunting for one date at a time. So it scans every visible
+     * person's whole month; the company filter still narrows who is counted,
+     * because `filtered` is what it reads.
+     */
+    for (const row of filtered) {
+      for (const d of dayList) {
+        const at = entryOf(row, d);
+        if (String(at.code || '').trim().toUpperCase() !== 'HF') continue;
+        if (!String(at.in_time || '').trim()) continue;
+        if (String(at.out_time || '').trim()) continue;
+        found.push({ row, day: d });
+      }
+    }
+    return found;
+  }, [filtered, dayList, draft]);
+
+  const clearHalfDayNoOut = async () => {
+    if (!halfDayNoOut.length) return;
+    const who = [...new Set(halfDayNoOut.map(({ row }) => row.employee_name))];
+    if (
+      !window.confirm(
+        `${halfDayNoOut.length} day${halfDayNoOut.length === 1 ? '' : 's'} are marked HALF DAY ` +
+          `with an arrival and no departure, for ${who.length} ` +
+          `${who.length === 1 ? 'person' : 'people'}: ${who.slice(0, 4).join(', ')}` +
+          `${who.length > 4 ? ' and others' : ''}.\n\n` +
+          `Half a day cannot be worked out from hours nobody knows — that mark came from ` +
+          `reading a return from lunch as a departure.\n\n` +
+          `Mark those days PRESENT? THIS PAYS A FULL DAY where half was being paid. The ` +
+          `times are left exactly as they are, and the days stay on Reports → Missing punch ` +
+          `so the real departure can be typed in.`
+      )
+    )
+      return;
+    setStatus('Marking…');
+    try {
+      /* Only the mark. `setAttendance` merges per field, so the arrival, the
+         lunch and the stored minutes are untouched. */
+      await onSave(
+        halfDayNoOut.map(({ row, day: d }) => ({ employee_id: row.employee_id, day: d, code: 'P' }))
+      );
+      setStatus('Marked present');
+    } catch (err) {
+      setStatus(err.message || 'could not be saved');
+    }
+  };
+
   /* How long the lunch break is, so "finish later" can add it back on. */
   const lunchMinutes = Math.max(
     0,
@@ -533,6 +600,18 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             </button>
             <span className="muted small">
               in and out at the same minute — one punch, not a day
+            </span>
+          </div>
+        ) : null}
+
+        {halfDayNoOut.length > 0 && !locked ? (
+          <div className="ts-block">
+            <button className="ghost" onClick={clearHalfDayNoOut}>
+              Mark {halfDayNoOut.length} half day{halfDayNoOut.length === 1 ? '' : 's'} present
+              {halfDayNoOut.length === 1 ? '' : ''}
+            </button>
+            <span className="muted small">
+              anywhere this month: marked HF with no out time — half a day off hours nobody knows
             </span>
           </div>
         ) : null}
