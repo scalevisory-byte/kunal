@@ -192,6 +192,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
 
   const clearDay = (row, d) => setTimes(row.employee_id, d, Object.fromEntries(TIME_FIELDS.map((f) => [f, ''])));
 
+
   const person = rows.find((r) => r.employee_id === personId);
 
   /* The rows on screen, whichever view is showing: one day across people, or
@@ -214,6 +215,55 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             sunday: isSunday(period.year, period.month, d),
           }))
         : [];
+
+  /*
+   * DAYS ALREADY STORED WITH ONE PUNCH IN BOTH COLUMNS.
+   *
+   * The importers stopped writing these, but a fix to the write path does
+   * not reach back: whatever is on a day stays there until that day is saved
+   * again. Dinesh: *"why in time and outtime same coming"* - because they
+   * were written before, and clearing eighty of them one `clear` at a time
+   * is why nobody would.
+   *
+   * It clears only the OUT time, naming it as '' so the per-field merge takes
+   * it, and leaves the arrival, the mark and everything else alone. Nothing
+   * is guessed: the departure is simply not known.
+   */
+  const onePunchDays = useMemo(() => {
+    const found = [];
+    for (const { row, day: d } of lines) {
+      const at = entryOf(row, d);
+      const inAt = String(at.in_time || '').trim();
+      if (inAt && String(at.out_time || '').trim() === inAt) found.push({ row, day: d });
+    }
+    return found;
+  }, [lines, draft]);
+
+  const clearOnePunchOuts = async () => {
+    if (!onePunchDays.length) return;
+    const who = [...new Set(onePunchDays.map(({ row }) => row.employee_name))];
+    if (
+      !window.confirm(
+        `${onePunchDays.length} day${onePunchDays.length === 1 ? '' : 's'} have the same minute ` +
+          `in BOTH the in and the out column — one punch, not a day — for ${who.length} ` +
+          `${who.length === 1 ? 'person' : 'people'}: ${who.slice(0, 4).join(', ')}` +
+          `${who.length > 4 ? ' and others' : ''}.\n\n` +
+          `Clear the OUT time on those days? The arrival, the mark and the hours already ` +
+          `worked out stay as they are — the departure is simply not known, and the day ` +
+          `lands on Reports → Missing punch to be typed in.`
+      )
+    )
+      return;
+    setStatus('Clearing…');
+    try {
+      await onSave(
+        onePunchDays.map(({ row, day: d }) => ({ employee_id: row.employee_id, day: d, out_time: '' }))
+      );
+      setStatus('Cleared');
+    } catch (err) {
+      setStatus(err.message || 'could not be saved');
+    }
+  };
 
   /* How long the lunch break is, so "finish later" can add it back on. */
   const lunchMinutes = Math.max(
@@ -453,6 +503,20 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             ) : null}
           </span>
         </div>
+
+        {/* Its own block: dropped between the Fill button and its caption, it
+            read as though "onto the days that have nothing on them" belonged
+            to this one. Measured on screen. */}
+        {onePunchDays.length > 0 && !locked ? (
+          <div className="ts-block">
+            <button className="ghost" onClick={clearOnePunchOuts}>
+              Clear {onePunchDays.length} one-punch out time{onePunchDays.length === 1 ? '' : 's'}
+            </button>
+            <span className="muted small">
+              in and out at the same minute — one punch, not a day
+            </span>
+          </div>
+        ) : null}
 
         <div className="ts-block">
           <label className="field inline" title="Whether the break comes off the day's hours">
@@ -736,10 +800,12 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
           */}
         {read.warning ? (
           <span
-            className={`pill ${/^no (in|out) time$/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
+            className={`pill ${/^no (in|out) time$|^one punch/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
             title={read.warning}
           >
-            {read.warning === 'no out time'
+            {read.warning.startsWith('one punch')
+              ? 'one punch'
+              : read.warning === 'no out time'
               ? 'no out'
               : read.warning === 'no in time'
                 ? 'no in'

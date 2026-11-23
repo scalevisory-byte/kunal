@@ -21,7 +21,7 @@
  * Dependency-free, so the server and the dashboard judge a punch identically.
  */
 
-import { TIME_RULES, formatTime, parseTime } from './timesheet.js';
+import { TIME_RULES, departureTime, formatTime, parseTime } from './timesheet.js';
 
 export const PUNCH_KINDS = ['in', 'out'];
 
@@ -170,7 +170,7 @@ export function punchesToDay(punches = [], { code = '' } = {}) {
 
   return {
     in_time: formatTime(first),
-    out_time: last > first ? formatTime(last) : '',
+    out_time: departureTime(formatTime(first), formatTime(last)),
     punches: stamps.length,
     // Anything the office should look at before trusting the day.
     flags: [

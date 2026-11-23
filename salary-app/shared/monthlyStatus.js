@@ -28,7 +28,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
-import { parseTime, formatTime, minutesForMark } from './timesheet.js';
+import { parseTime, formatTime, minutesForMark, departureTime } from './timesheet.js';
 import { hoursForEmployee } from './lateEarly.js';
 
 /* ---------------- what the machine's codes mean here ---------------- */
@@ -545,7 +545,13 @@ export function monthlyStatusToMarks({
         const t = person.times && person.times[day];
         if (t) {
           if (t.in) entry.in_time = t.in;
-          entry.out_time = t.out || '';
+          /*
+           * ONE PUNCH IS NOT AN ARRIVAL AND A DEPARTURE. This path had no
+           * such check and went on writing 10:50 into both columns after the
+           * spool and phone paths had been fixed - which is exactly why the
+           * rule is now one function and not three copies.
+           */
+          entry.out_time = departureTime(entry.in_time, t.out);
         }
         if (entry.in_time) {
           withTimes += 1;

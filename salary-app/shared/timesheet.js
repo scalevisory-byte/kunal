@@ -185,6 +185,17 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
     warning = 'no in time';
   } else if (at.out === null && at.in !== null) {
     warning = 'no out time';
+  } else if (oneTouch) {
+    /*
+     * In and out at the same minute is ONE PUNCH, not a day.
+     *
+     * Until this it said nothing at all: the hours read as a dash and the two
+     * identical times sat there looking like a record. Dinesh asked the
+     * obvious question - *"why in time and outtime same coming"* - and the
+     * screen had no answer on it. A day that cannot be measured has to say
+     * which half is missing.
+     */
+    warning = 'one punch only - no out time';
   }
 
   /*
@@ -207,6 +218,37 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
     overnight,
     warning,
   };
+}
+
+/**
+ * The day's DEPARTURE, given its arrival — '' when there is not one.
+ *
+ * ONE PUNCH IS NOT AN ARRIVAL AND A DEPARTURE. The readers are door locks,
+ * so a day normally carries six or eight openings and the earliest and the
+ * latest are taken as in and out. Somebody who went through once has only an
+ * arrival, and writing that minute into BOTH columns claims they left the
+ * moment they arrived.
+ *
+ * It is returned as '' and not as "leave it out", because `setAttendance`
+ * merges per field: omitting it would keep a stale out time from an earlier
+ * import and pay hours nobody worked.
+ *
+ * ONE function, because this rule was written three times and the third one
+ * was wrong. `punches.js` and `punchClock.js` each had their own copy and
+ * `monthlyStatus.js` — the eSSL report and the Access pull — had none at
+ * all, so that path went on writing 10:50 into both columns after the others
+ * had been fixed. A rule that lives in three places is a rule that disagrees
+ * with itself.
+ *
+ * Compared as the TEXT that gets written, so 10:50:01 and 10:50:59 are one
+ * punch: they are the same minute on every screen that shows them.
+ */
+export function departureTime(arrival, departure) {
+  const start = String(arrival ?? '').trim();
+  const end = String(departure ?? '').trim();
+  if (!end) return '';
+  if (start && end === start) return '';
+  return end;
 }
 
 /** True once a day has enough typed on it to be worth anything. */

@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.98.0';
+export const VERSION = '1.99.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.99.0',
+    date: '23 Nov 2026',
+    title: 'Sunday gets its own tab; and the last place in and out came out the same',
+    items: [
+      '**Sunday is its own tab now.** The register has been a fold at the bottom of Attendance since it was built, and Reports offered it only as a file to open in Excel \u2014 so it could not be found either way. It is one screen: which Sundays each person worked, the hours the clock says, the day rate, what that comes to, and whether it has been handed over. (The fold on Attendance stays, for whoever is marking the grid.)',
+      '**Why in time and out time still came out the same.** The one-punch fix in v1.94 went into the spool and phone paths \u2014 the eSSL report and the Access pull had no such check at all and went on writing 10:50 into both columns. The rule is now ONE function all three call, because a rule in three places is a rule that disagrees with itself.',
+      '**A day with one punch now SAYS SO.** It used to go quiet: the hours read as a dash and two identical times sat there looking like a record. The row is flagged **one punch**, and the day lands on **Reports \u2192 Missing punch** to be typed in.',
+      '**Clearing the ones already stored is one click.** A fix to what gets written does not reach back \u2014 whatever is on a day stays until that day is saved again, and clearing eighty of them one at a time is why nobody would. The Time tab offers **Clear N one-punch out times**: it clears the OUT time only, leaving the arrival, the mark and the hours alone. The departure is simply not known.',
+    ],
+  },
   {
     version: '1.98.0',
     date: '23 Nov 2026',

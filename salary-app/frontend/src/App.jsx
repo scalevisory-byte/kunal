@@ -71,6 +71,20 @@ const TABS = [
   ['sheet', 'Salary sheet', 'sheet', 'salary'],
   ['attendance', 'Attendance', 'attendance', 'attendance'],
   ['time', 'Time', 'clock', 'attendance'],
+  /*
+   * SUNDAY IS ITS OWN TAB, and the help topic that said otherwise was wrong.
+   *
+   * The register has been a fold at the bottom of Attendance since it was
+   * built, and Reports offers it only as a CSV to open in Excel. Dinesh:
+   * *"sunay register kaha dikhata he? / sunday ka alag se atedecne register
+   * and salary calckation bhi chaiye"* - he was asking for something that
+   * existed twice over and could not be found either way.
+   *
+   * NINTH time for that exact shape. A fold is where a thing goes when it is
+   * looked at once a month; the money that is paid from it is looked at by
+   * whoever is handing it over, and they need to be able to find it.
+   */
+  ['sunday', 'Sunday', 'sunday', 'attendance'],
   ['leave', 'Leave', 'leave', 'leave'],
   ['loans', 'Loans', 'loans', 'loans'],
   ['employees', 'Employees', 'employees', 'employees'],
@@ -1066,6 +1080,26 @@ function Shell() {
             onGo={setTab}
             onReload={() => loadPayroll(periodId)}
           />
+        )}
+
+        {tab === 'sunday' && period && payroll && (
+          <div className="stack">
+            {/*
+              * The register IS the Sunday attendance register and the Sunday
+              * salary calculation, both: a tick per date somebody worked, the
+              * hours the clock says, the day rate, what that comes to, and
+              * whether it has been handed over. It is not a second idea of
+              * any of those - `SundayRegister` recomputes with calculateRow,
+              * the same engine the salary sheet is paid from.
+              */}
+            <SundayRegister
+              period={period}
+              rows={visibleRows}
+              locked={locked}
+              onPatchRow={patchRow}
+              onSaveAttendance={saveAttendance}
+            />
+          </div>
         )}
 
         {tab === 'attendance' && period && payroll && (

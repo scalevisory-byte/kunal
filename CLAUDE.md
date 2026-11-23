@@ -2468,6 +2468,52 @@ applied and thrown away, so the app held a day's first and last and there was no
   minutes; with it inside the paid day the day charged **0**; a lunch typed by hand survived a
   re-import with `lunchKept: 1`.
 
+## Why in and out still came out the same, and Sunday's own tab (v1.99.0)
+
+Dinesh: *"why in time and outtime same coiing"*, then *"sunay register kaha dikhata he? /
+sunday ka lag se atedecne register andsalary calckation bhi chaiye"*.
+
+### The one-punch rule was written three times and the third was missing
+
+**v1.94 fixed `punches.js` and checked `punchClock.js` — and never looked at
+`shared/monthlyStatus.js`,** which is the eSSL report import AND the Access pull. That path
+wrote `entry.out_time = t.out || ''` with no comparison at all, so it went on putting 10:50
+into both columns after the other two were fixed. That is the honest answer to his question.
+
+- **`departureTime(arrival, departure)` in `shared/timesheet.js` is now the one rule**, called
+  by all three. It compares the TEXT that gets written, so 10:50:01 and 10:50:59 are one punch.
+  It returns `''` and never `undefined`, because `setAttendance` merges per field and a missing
+  key keeps a stale out time. A test asserts all three files call it.
+- **A day with one punch now says so.** After the 24-hour wrap was removed it went silent — the
+  hours read as a dash and two identical times sat there looking like a record. `readTimes`
+  returns `one punch only - no out time`, the Time row shows a **one punch** pill, and the day
+  lands on Reports → Missing punch.
+- **A fix to the write path does not reach back.** Whatever is on a day stays until that day is
+  saved again, and clearing eighty of them one `clear` at a time is why nobody would. The Time
+  tab offers **Clear N one-punch out times** — it clears the OUT time only, naming it `''`, and
+  leaves the arrival, the mark and the stored minutes alone.
+- **Bug I introduced and the browser caught:** `onePunchDays` was declared above `lines`, so the
+  whole Time tab threw *"Cannot access 'ie' before initialization"* and rendered nothing. A
+  `const` in a component body is a temporal dead zone like any other.
+- And a layout slip, also measured: the Clear button landed between *Fill the usual timings* and
+  its caption, so *"onto the days that have nothing on them"* read as belonging to the Clear
+  button. It has its own block now.
+
+### Sunday is its own tab — ninth time for that shape
+
+The register has been a **fold at the bottom of Attendance** since it was built, and Reports
+offers `sunday-register` as `at: 'file:sunday'` — **a CSV download, not a screen**. So it
+existed twice over and could not be found either way, which is exactly what he reported.
+
+- `['sunday', 'Sunday', 'sunday', 'attendance']` in `TABS`, rendering the same
+  `SundayRegister` — not a second one. It already IS both things he asked for: a tick per date
+  worked (the attendance register) and day rate × days = amount (the salary calculation), and
+  it recomputes with `calculateRow`, so it cannot disagree with the sheet.
+- The fold on Attendance **stays**, because that is where somebody marking the grid is standing.
+- **The help topic carried a comment saying "Not its own tab… which is exactly the kind of
+  'where is it' this help exists to answer"** — and then the person it was written for asked
+  where it was. Corrected, with the old wording kept in the comment as the reason.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -11,6 +12,7 @@ import {
   parseTime,
   readTimes,
   timesToDay,
+  departureTime,
 } from '../../shared/timesheet.js';
 
 test('a time is read however it was typed', () => {
@@ -196,5 +198,52 @@ test('a real overnight shift still wraps', () => {
   // exists for, and it must survive the fix above.
   const night = readTimes({ in_time: '22:00', out_time: '06:00' });
   assert.equal(night.worked, 8 * 60);
+  assert.equal(night.overnight, true);
+});
+
+test('ONE PUNCH IS NOT A DEPARTURE — and the rule lives in ONE place', async () => {
+  /*
+   * This rule was written three times and the third was missing. `punches.js`
+   * and `punchClock.js` each had their own copy; `monthlyStatus.js` — the
+   * eSSL report AND the Access pull — had none, so that path went on writing
+   * 10:50 into both columns after the other two had been fixed. Dinesh asked
+   * *"why in time and outtime same coming"* and the answer was that import.
+   */
+  assert.equal(departureTime('10:50', '10:50'), '', 'the same minute is one punch');
+  assert.equal(departureTime('10:50', '18:02'), '18:02');
+  assert.equal(departureTime('10:50', ''), '', 'nothing stays nothing');
+  assert.equal(departureTime('', '18:02'), '18:02', 'an out with no in is still a departure');
+  assert.equal(departureTime(null, null), '');
+  assert.equal(departureTime('10:50', ' 10:50 '), '', 'spacing is not a different minute');
+
+  /*
+   * It must be '' and NEVER undefined: setAttendance merges per field, so a
+   * missing key keeps a stale out time from an earlier import and pays hours
+   * nobody worked.
+   */
+  assert.equal(typeof departureTime('10:50', '10:50'), 'string');
+
+  // All three paths must call it rather than carry their own copy.
+  const read = (f) => fs.readFileSync(new URL(`../../shared/${f}`, import.meta.url), 'utf8');
+  for (const file of ['punches.js', 'punchClock.js', 'monthlyStatus.js']) {
+    assert.match(read(file), /departureTime\(/, `${file} must use the one rule`);
+  }
+});
+
+test('a day with one punch SAYS SO rather than going quiet', () => {
+  /*
+   * After the 24-hour wrap was removed it said nothing at all: the hours read
+   * as a dash and two identical times sat there looking like a record. A day
+   * that cannot be measured has to say which half is missing.
+   */
+  const day = timesToDay({ in_time: '10:50', out_time: '10:50' }, { hoursPerDay: 9 });
+  assert.equal(day.worked, null, 'nothing is invented');
+  assert.equal(day.minutes, 0, 'and nothing is charged for it');
+  assert.match(day.warning, /^one punch/);
+
+  // A real day is still silent, and a genuine overnight shift still wraps.
+  assert.equal(timesToDay({ in_time: '09:00', out_time: '18:00' }, { hoursPerDay: 9 }).warning, '');
+  const night = timesToDay({ in_time: '22:00', out_time: '06:00' }, { hoursPerDay: 8 });
+  assert.equal(night.worked, 480);
   assert.equal(night.overnight, true);
 });

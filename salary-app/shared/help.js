@@ -540,7 +540,7 @@ export const HELP = [
       'The people with the most are named at the top.',
       'The readers are door locks, so a normal day has many punches and the first and the last are taken as the arrival and the departure. **Somebody who went through once has an arrival and nothing else**, and the out time is left blank rather than guessed at — those days land here to be typed in by hand.',
     ],
-    note: 'NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
+    note: 'A day with the SAME minute in both the in and the out column is one punch, not a day \u2014 the row says "one punch" on the Time tab, and the Time tab can clear all of them at once. NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
   },
   {
     id: 'deductions-report',
@@ -635,14 +635,20 @@ export const HELP = [
   {
     id: 'sunday-register',
     title: 'Sunday and holiday working',
-    // Not its own tab: it is a fold on Attendance, which is exactly the kind
-    // of "where is it" this help exists to answer.
-    tab: 'attendance',
+    /*
+     * It IS its own tab now. This comment used to say the opposite - "not its
+     * own tab: it is a fold on Attendance, which is exactly the kind of
+     * 'where is it' this help exists to answer" - and then the person it was
+     * written for asked where it was. A fold and a CSV were both too far
+     * down; the register is where the Sunday money is handed over from.
+     */
+    tab: 'sunday',
     keywords: ['sunday', 'SP', 'HP', 'holiday working', 'register', 'ravivar', 'extra day'],
     lines: [
-      'It is the **Sunday working** fold at the bottom of the **Attendance** tab — not a tab of its own, because it is looked at once a month.',
+      'The **Sunday** tab. It is both things at once: which Sundays each person worked, and what that comes to in money. (The same register is also a fold at the bottom of **Attendance**, where somebody marking the grid is already standing.)',
       'Mark the day **SP** (worked the off day) or **HP** (worked the holiday) and the person appears there with their day rate and what they are owed.',
-      'It is paid and ticked off separately from the month’s salary, with its own status.',
+      'Each row: a ✓ per date worked, the **hours** the clock says for those days, the **day rate** (salary ÷ 26), the **amount**, who paid it and whether it is done.',
+      'It is paid and ticked off separately from the month’s salary, with its own status — the salary sheet’s net payable does not include a rupee of it.',
       'It exports as its own sheet in the workbook and as its own CSV.',
       '**A Sunday’s duty is six hours, and six hours on it earns the whole day’s pay.** The register shows what the clock says each of those days carried, and folds out the ones under six hours by name.',
     ],

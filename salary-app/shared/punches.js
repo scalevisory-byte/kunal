@@ -12,7 +12,7 @@
 
 import { ATTENDANCE_CODES } from './calc.js';
 import { findLunchGap } from './lunchGap.js';
-import { TIME_RULES, formatTime } from './timesheet.js';
+import { TIME_RULES, departureTime, formatTime } from './timesheet.js';
 
 /* ---------------- reading whatever was uploaded ---------------- */
 
@@ -336,7 +336,10 @@ export function punchesToMarks({
        * omitted, because `setAttendance` merges per field and leaving it out
        * would keep a stale out time from some earlier day's import.
        */
-      out_time: seen.out === null || seen.out === seen.in ? '' : formatTime(seen.out),
+      out_time: departureTime(
+        seen.in === null ? '' : formatTime(seen.in),
+        seen.out === null ? '' : formatTime(seen.out)
+      ),
       // Only when the sheet named those columns. `setAttendance` merges per
       // field, so leaving them out keeps whatever is already on the day.
       ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),
