@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.16.0';
+export const VERSION = '2.17.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.17.0',
+    date: '24 Nov 2026',
+    title: 'The staff portal gets the calendar too',
+    items: [
+      '**My attendance \u2192 List or Calendar.** Dinesh: *\u201cemploye login me bhi calander wala oprtion do\u201d*. The same month as weeks, with the mark, the hours and the \u00b1 in each square \u2014 built to be read on a phone, which is where a staff login actually gets used.',
+      '**Tap any date and that day opens above the calendar**: in, out, hours worked, the overtime or the shortfall, and **every punch of the day**. A reader on the door sees six to twelve openings; they do not fit in a square, so they are one tap away.',
+      '**It is the same record, shown two ways.** Every figure in the calendar comes out of the same month the list below it is drawn from \u2014 which is the row the payslip is printed from \u2014 so the two can never disagree about a day.',
+      'A day nobody clocked is a blank square and a dash, never nought hours: *not known* is not *you did nothing*. The choice between List and Calendar is remembered.',
+    ],
+  },
   {
     version: '2.16.0',
     date: '24 Nov 2026',

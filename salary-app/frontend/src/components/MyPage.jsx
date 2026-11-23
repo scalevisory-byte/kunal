@@ -17,6 +17,7 @@ import ChangePassword from './ChangePassword.jsx';
 import { Avatar } from './EmployeePhoto.jsx';
 import Help from './Help.jsx';
 import MyDashboard from './my/MyDashboard.jsx';
+import { WEEKDAYS, monthWeeks } from '../../../shared/monthGrid.js';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
 import MyProfileForm from './my/MyProfileForm.jsx';
@@ -496,6 +497,22 @@ function Line({ what, note, amount, strong, muted }) {
 function MyAttendance({ months, onError }) {
   const [openId, setOpenId] = useState(null);
   const [data, setData] = useState(null);
+  /*
+   * LIST OR CALENDAR, and the choice is remembered. Dinesh: *"employe login
+   * me bhi calander wala oprtion do"*, after the office side got one.
+   *
+   * The list reads down the month and is right for checking one day against
+   * the next; the calendar lays the weeks out so a pattern shows - every
+   * Tuesday late, a whole week short. Both are drawn from the SAME
+   * `statement.days`, so they cannot disagree about a day.
+   */
+  const [shape, setShape] = useState(() => {
+    try { return localStorage.getItem('my-att-shape') || 'list'; } catch { return 'list'; }
+  });
+  const pickShape = (next) => {
+    setShape(next);
+    try { localStorage.setItem('my-att-shape', next); } catch { /* a private window throws */ }
+  };
 
   useEffect(() => {
     if (!openId && months.length) setOpenId(months[0].period_id);
@@ -593,8 +610,36 @@ function MyAttendance({ months, onError }) {
           </div>
 
           <div className="card">
-            <h3>Day by day</h3>
-            {!lines.length ? (
+            <div className="late-head">
+              <h3 style={{ margin: 0 }}>Day by day</h3>
+              <div className="time-seg" role="tablist" aria-label="How to show the month">
+                <button
+                  role="tab"
+                  aria-selected={shape === 'list'}
+                  className={shape === 'list' ? 'on' : undefined}
+                  onClick={() => pickShape('list')}
+                >
+                  List
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={shape === 'calendar'}
+                  className={shape === 'calendar' ? 'on' : undefined}
+                  onClick={() => pickShape('calendar')}
+                >
+                  Calendar
+                </button>
+              </div>
+            </div>
+            {shape === 'calendar' && data?.period ? (
+              <MyCalendar
+                period={data.period}
+                days={data.statement?.days || []}
+                punches={punches}
+                matched={data.punch_match}
+                what={what}
+              />
+            ) : !lines.length ? (
               <p className="muted small">
                 Nothing has been marked for you this month yet. That is not the same as being
                 absent — an unmarked day is simply a day nobody has recorded.
@@ -676,8 +721,13 @@ function MyAttendance({ months, onError }) {
               </div>
             )}
             <p className="muted small">
+              {/* The wording follows the view: there is no out COLUMN on the
+                  calendar, so telling somebody to look under it is a note
+                  about a screen they are not on. */}
               {Object.keys(punches).length
-                ? 'Under the out time is every punch of that day — the reader is on the door, so stepping out for lunch and coming back shows there too. Only the first and the last count towards the hours. '
+                ? shape === 'calendar'
+                  ? 'Tap a date for every punch of that day — the reader is on the door, so stepping out for lunch and coming back shows there too. Only the first and the last count towards the hours. '
+                  : 'Under the out time is every punch of that day — the reader is on the door, so stepping out for lunch and coming back shows there too. Only the first and the last count towards the hours. '
                 : ''}
               {/*
                 * NOT MATCHED and NOT SEEN are different problems, and only
@@ -1232,6 +1282,128 @@ function MyTeam({ onError }) {
           </ul>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * THEIR OWN MONTH AS A CALENDAR.
+ *
+ * Dinesh: *"employe login me bhi calander wala oprtion do"*, after the office
+ * side got one. Same layout (`shared/monthGrid.js`), same classes, so the
+ * calendar an employee sees and the one the office sees read alike.
+ *
+ * IT ASSEMBLES AND CALCULATES NOTHING. Every square is one entry out of
+ * `statement.days` — the same array the list beside it is drawn from, which
+ * the server built from the same row the payslip is printed from. There is
+ * no second reading of the clock here, so the list, the calendar and the
+ * payslip cannot give three answers about a day.
+ *
+ * A day nobody clocked shows a dash, never nought hours: *not known* is not
+ * *they did nothing*. Clicking a date opens every punch of it ABOVE the
+ * grid — a day is six to twelve door openings and they do not fit in a
+ * square, and below the grid the answer lands under the fold, which is the
+ * mistake the office calendar made first and had measured out of it.
+ */
+function MyCalendar({ period, days: all = [], punches = {}, matched = '', what }) {
+  const [pick, setPick] = useState(null);
+
+  const weeks = monthWeeks({ year: period.year, month: period.month, cells: all });
+  const chosen = pick ? all.find((d) => d.day === pick) : null;
+  const mine = (d) => punches[d.day] || [];
+
+  return (
+    <div className="stack">
+      {chosen ? (
+        <div className="card">
+          <div className="late-head">
+            <h3 style={{ margin: 0 }}>
+              {chosen.weekday} {chosen.day} — {what(chosen)}
+            </h3>
+            <button className="ghost" onClick={() => setPick(null)}>Close</button>
+          </div>
+          <div className="late-figs">
+            <span><b>{chosen.in_time || '—'}</b><em>in</em></span>
+            <span><b>{chosen.out_time || '—'}</b><em>out</em></span>
+            <span>
+              <b>{chosen.worked_minutes === null ? '—' : formatDuration(chosen.worked_minutes)}</b>
+              <em>worked</em>
+            </span>
+            <span>
+              <b>
+                {chosen.ot_minutes
+                  ? `${chosen.ot_minutes > 0 ? '+' : '−'}${formatDuration(Math.abs(chosen.ot_minutes))}`
+                  : '—'}
+              </b>
+              <em>{chosen.ot_minutes > 0 ? 'overtime' : 'short hours'}</em>
+            </span>
+          </div>
+          {chosen.worked_minutes === null && chosen.time_warning ? (
+            <p className="small tc-warn-line">{chosen.time_warning}</p>
+          ) : null}
+          {mine(chosen).length ? (
+            <p className="small">
+              <strong>Every punch that day:</strong> {punchTimes(mine(chosen))}
+              <br />
+              <span className="muted">
+                The first is the arrival and the last is the departure — that is what the hours
+                are worked out from. The ones between are the door opening.
+              </span>
+            </p>
+          ) : (
+            <p className="muted small">
+              {matched
+                ? 'No punches on the readers for this day.'
+                : 'No punch ID is set against your record, so the readers have never been asked about you. Tell the office if you do punch.'}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="muted small">Tap any date to see that day.</p>
+      )}
+
+      <div className="lc-grid tc-grid">
+        {WEEKDAYS.map((d) => (
+          <div className="lc-head" key={d}>{d}</div>
+        ))}
+        {weeks.flat().map((d, i) =>
+          !d ? (
+            <div className="lc-cell empty" key={`b${i}`} />
+          ) : (
+            <button
+              type="button"
+              key={d.day}
+              className={[
+                'lc-cell',
+                'tc-cell',
+                d.weekly_off ? 'off' : '',
+                pick === d.day ? 'on' : '',
+                !d.code && !d.in_time ? 'blank' : '',
+              ].filter(Boolean).join(' ')}
+              onClick={() => setPick(pick === d.day ? null : d.day)}
+              title={what(d)}
+            >
+              <span className="lc-date">{d.day}</span>
+              {d.code ? <span className={`tc-mark code-${d.code}`}>{d.code}</span> : null}
+              {d.in_time || d.out_time ? (
+                <span className="tc-time">{d.in_time || '—'} → {d.out_time || '—'}</span>
+              ) : null}
+              {d.worked_minutes !== null && (d.in_time || d.out_time) ? (
+                <span className="tc-worked">{formatDuration(d.worked_minutes)}</span>
+              ) : null}
+              {d.ot_minutes ? (
+                <span className={`tc-mins ${d.ot_minutes < 0 ? 'bad' : 'good'}`}>
+                  {d.ot_minutes > 0 ? '+' : '−'}
+                  {formatDuration(Math.abs(d.ot_minutes))}
+                </span>
+              ) : null}
+              {mine(d).length > 2 ? (
+                <span className="tc-punches">{mine(d).length} punches</span>
+              ) : null}
+            </button>
+          )
+        )}
+      </div>
     </div>
   );
 }

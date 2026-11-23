@@ -132,9 +132,10 @@ export const HELP = [
     staff: true,
     title: 'My hours \u2014 in, out and what the day came to',
     tab: 'attendance',
-    keywords: ['hours', 'time', 'in out', 'clock', 'ghante', 'samay', 'kitne ghante', 'overtime', 'short'],
+    keywords: ['hours', 'time', 'in out', 'clock', 'ghante', 'samay', 'kitne ghante', 'overtime', 'short', 'calendar', 'calender', 'kalender', 'mahine ka calendar', 'sari date',],
     lines: [
       '**Every day shows your in time, your out time and the hours they come to**, with the overtime or the shortfall underneath. The month\u2019s total is at the top.',
+      '**List or Calendar** — the two buttons beside *Day by day*. The list reads down the month; the calendar lays the weeks out, so a pattern shows at a glance. **Tap any date on the calendar** and that day opens above it with your in, out, hours and every punch of it. Both are the same record, shown two ways.',
       '**A dash is “not known”, never nought.** A day with no clock times is a day nobody recorded the times for \u2014 it does not mean you worked nothing.',
       '**“No out time”** means the day was started and never finished. Nothing is guessed: the hours stay unknown until somebody says when you left.',
       '**The hours come off the same record your salary does.** If a day looks wrong, the day itself is wrong, and the office corrects it on the grid \u2014 not here.',

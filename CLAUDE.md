@@ -2983,6 +2983,35 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The staff portal's calendar (v2.17.0)
+
+Dinesh: *"employe login me bhi calander wala oprtion do"*, straight after the office side
+got one. `MyCalendar` in `MyPage.jsx`, behind a **List / Calendar** toggle on *Day by day*.
+
+- **No route change and no new figure.** `/api/me/attendance/:id` already returns
+  `statement.days` (mark, in, out, `worked_minutes`, `ot_minutes`, weekday, weekly off,
+  holiday, `time_warning`) and `punches` keyed by day. The calendar is a second **view** of
+  the array the list is already drawn from — which the server built from the row the payslip
+  is printed from — so the list, the calendar and the payslip cannot give three answers.
+  There is a test asserting the portal file contains no `timesToDay` or `minutesForMark` of
+  its own.
+- **It reuses `shared/monthGrid.js` and the office calendar's classes** (`.lc-grid`,
+  `.tc-*`), so the calendar an employee sees and the one the office sees read alike rather
+  than being two ideas of what a calendar looks like.
+- **The day's detail is ABOVE the grid** — the measured lesson from v2.11.0, where putting
+  it below landed the answer under the fold.
+- A day nobody clocked is a blank square and a dash, never nought hours.
+- **The choice is remembered**, wrapped in try/catch: a private window throws on even
+  touching `localStorage`.
+- **Driven on a 414px phone**, which is what a staff login is actually used on: signed in as
+  a real staff user, grid 346px wide with no sideways scroll, tapped the 2nd and got
+  *10:14 in · 19:03 out · 8h 49m worked · −11m short* with all twelve punches listed.
+- **The footnote follows the view.** It said *"Under the out time is every punch of that
+  day"* — true of the list, and a note about a screen you are not on when the calendar is
+  showing, which has no out column. It now says *"Tap a date"* there.
+- On a phone the media query hides the per-square times and punch count; the day's detail
+  carries them, which is the whole reason it exists.
+
 ### The dashboard opens on the roll call again (v2.16.0)
 
 Dinesh: *"dashboard tab me bhi space kam karo"*.

@@ -4232,3 +4232,43 @@ test('THE DASHBOARD OPENS ON THE ROLL CALL, NOT BELOW IT', () => {
     'no tile or part of one is hidden'
   );
 });
+
+test('THE STAFF PORTAL’S CALENDAR ASSEMBLES, LIKE THE OFFICE ONE', () => {
+  /*
+   * Dinesh: *"employe login me bhi calander wala oprtion do"*.
+   *
+   * It draws from `statement.days` - the SAME array the list beside it is
+   * drawn from, which the server built from the row the payslip is printed
+   * from. No second reading of the clock, so the list, the calendar and the
+   * payslip cannot give three answers about a day.
+   */
+  const portal = src('components/MyPage.jsx');
+  const code = portal.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  assert.match(portal, /function MyCalendar\(/);
+  assert.match(portal, /monthWeeks\(\{ year: period\.year, month: period\.month, cells: all \}\)/);
+  /* The toggle, and it is remembered. */
+  assert.match(code, /localStorage\.getItem\('my-att-shape'\)/);
+  assert.match(code, /localStorage\.setItem\('my-att-shape', next\)/);
+  /* A private window throws on even touching localStorage. */
+  assert.match(portal, /catch \{ \/\* a private window throws \*\/ \}/);
+
+  /* It never recalculates: no clock reading of its own anywhere in the file. */
+  assert.ok(!/timesToDay\(/.test(code), 'the portal must not read the clock itself');
+  assert.ok(!/minutesForMark\(/.test(code), 'nor judge a mark itself');
+
+  /* Not known is a dash, never nought hours - in the square and in the day. */
+  assert.match(portal, /d\.worked_minutes !== null && \(d\.in_time \|\| d\.out_time\)/);
+  assert.match(portal, /chosen\.worked_minutes === null \? '—' :/);
+
+  /* The day's detail is ABOVE the grid - the measured lesson from the office
+     calendar, where below it the answer landed under the fold. */
+  assert.ok(
+    portal.indexOf('{chosen ? (') < portal.indexOf('<div className="lc-grid tc-grid">'),
+    'the detail comes before the grid'
+  );
+
+  /* Same layout module and same classes as the office calendar, so the two
+     read alike rather than being two ideas of what a calendar looks like. */
+  assert.match(portal, /from '\.\.\/\.\.\/\.\.\/shared\/monthGrid\.js'/);
+});
