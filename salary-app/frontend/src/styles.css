@@ -6073,3 +6073,20 @@ h3.spaced { margin-top: 1.5rem; }
      figures take their own line rather than squeezing the button off. */
   .late-card .late-figs { flex-basis: 100%; }
 }
+
+/*
+ * THE MARK LEGEND, FOLDED — Dinesh: *"attendance tab me bhi same karo"*.
+ *
+ * Measured at 1420x1200: the legend card was 454px, bigger than the grid
+ * above it, so reaching Sunday working and Paid holidays meant scrolling
+ * past half a screen of explanation every time.
+ *
+ * The key itself stays readable closed: `.legend-key` is the whole list of
+ * marks in plain words on the summary line. Opening adds the salary effect
+ * per mark and the instructions.
+ */
+.legend-fold > summary { align-items: baseline; }
+.legend-key { display: inline; overflow-wrap: anywhere; }
+/* Inside the fold the list keeps its own spacing; the card already has the
+   padding, so the old top margin would double it. */
+.legend-fold .legend { margin-top: 0.5rem; }

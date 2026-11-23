@@ -763,8 +763,31 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
         />
       )}
 
-      <div className="legend card">
-        <strong>What each mark does to the salary</strong>
+      {/*
+        * FOLDED, like the three other blocks on this page.
+        *
+        * Dinesh: *"attendance tab me bhi same karo"*, after the Time tab's
+        * panels were cut down. Measured at 1420x1200: this card was 454px -
+        * bigger than the grid above it - so reaching Sunday working and
+        * Paid holidays meant scrolling past half a screen of explanation
+        * every time.
+        *
+        * THE KEY ITSELF STAYS READABLE WITHOUT OPENING IT: the summary spells
+        * out every mark in plain words, built from the same `codes` the list
+        * below is built from, so a mark added later cannot appear in one and
+        * not the other. What opening it adds is the exact salary effect per
+        * mark and the five paragraphs of instructions - which are read a few
+        * times, not every day.
+        */}
+      <details className="card fold legend-fold">
+        <summary>
+          <strong>What each mark does to the salary</strong>
+          <span className="muted small legend-key">
+            {' '}
+            — {Object.entries(codes).map(([code, meta]) => `${code} ${String(meta.label).toLowerCase()}`).join(' · ')}
+          </span>
+        </summary>
+        <div className="legend">
         <ul>
           {Object.entries(codes).map(([code, meta]) => (
             <li key={code}>
@@ -815,7 +838,8 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           (salary ÷ working days ÷ hours per day ÷ 60), so an hour short costs exactly an hour's pay.
           Overtime works the same way with a plus.
         </p>
-      </div>
+        </div>
+      </details>
     </section>
   );
 }

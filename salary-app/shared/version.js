@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.12.0';
+export const VERSION = '2.13.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.13.0',
+    date: '24 Nov 2026',
+    title: 'The Attendance tab fits on one screen',
+    items: [
+      '**The mark legend is a fold now, like the three blocks around it.** Dinesh: *\u201cattendance tab me bhi same karo\u201d*. Measured at 1420x1200: that card was **454px \u2014 bigger than the grid above it**, so reaching **Sunday working** and **Paid holidays** meant scrolling past half a screen of explanation every time. Closed it is **91px**, and the whole page now fits without scrolling.',
+      '**The key is still readable without opening it.** The closed line spells every mark out in words \u2014 *P present \u00b7 A absent \u00b7 HF half day \u00b7 CL casual leave \u2026* \u2014 and it is built from the same list the panel inside is built from, so a mark added later cannot appear in one and not the other.',
+      'Opening it adds what it always had: the exact salary effect per mark, and the notes on marking a whole day, a date range, Mark everyone Present and short hours.',
+    ],
+  },
   {
     version: '2.12.0',
     date: '24 Nov 2026',

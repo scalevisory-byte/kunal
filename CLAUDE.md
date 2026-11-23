@@ -2983,6 +2983,26 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The Attendance tab's legend, folded (v2.13.0)
+
+Dinesh: *"attendance tab me bhi same karo"*.
+
+**Inspected and measured first, and the problem was NOT where the Time tab's was.** The
+Attendance grid already starts at 271px; nothing above it needed cutting. What was eating
+the screen sat **below** it: the `What each mark does to the salary` card at **454px —
+bigger than the grid above it (323px)** — so reaching **Sunday working** (1077px) and
+**Paid holidays** (1139px) meant scrolling past half a screen of explanation every time.
+
+- It is a `<details className="card fold">`, the exact markup the three other blocks on that
+  page already use, so it reads as part of the page rather than as a new idea. **454px → 91px**,
+  and the whole tab now fits on one 1200px screen.
+- **THE KEY DOES NOT GO INTO THE FOLD.** The summary line spells every mark out in words —
+  *P present · A absent · HF half day · CL casual leave · …* — and it is **built from the same
+  `codes` object the list inside is built from**, so a mark added later cannot appear in one
+  and not the other. A test pins that derivation and that the key sits before the fold.
+- What opening adds is the exact salary effect per mark and the five paragraphs on marking a
+  whole day, a date range, Mark everyone Present and short hours — read a few times, not daily.
+
 ### The Time tab's chrome, measured (v2.12.0)
 
 Dinesh, with a crop of everything above the table: *"ye part bahut space kha raha he"*.

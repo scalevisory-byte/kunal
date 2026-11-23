@@ -4086,3 +4086,33 @@ test('THE TIME TAB’S RULE PANELS ARE ONE LINE UNTIL SOMEBODY OPENS THEM', () =
     'the figures are never hidden'
   );
 });
+
+test('THE MARK LEGEND IS FOLDED, BUT ITS KEY IS STILL READABLE CLOSED', () => {
+  /*
+   * Dinesh: *"attendance tab me bhi same karo"*. Measured at 1420x1200: the
+   * legend card was 454px - bigger than the grid above it - so reaching
+   * Sunday working and Paid holidays meant scrolling past half a screen of
+   * explanation every time. Closed it is 91px.
+   *
+   * THE LINE THIS MUST NOT CROSS: the key cannot go into the fold. The
+   * summary spells out every mark, and it is BUILT FROM `codes` - the same
+   * object the list inside is built from - so a mark added later cannot
+   * appear in one and not the other.
+   */
+  const jsx = src('components/Attendance.jsx');
+  const css = src('styles.css');
+  assert.match(jsx, /<details className="card fold legend-fold">/);
+  assert.match(jsx, /className="muted small legend-key"/);
+  assert.match(
+    jsx,
+    /Object\.entries\(codes\)\.map\(\(\[code, meta\]\) => `\$\{code\} \$\{String\(meta\.label\)\.toLowerCase\(\)\}`\)/,
+    'the key is derived from `codes`, never typed out a second time'
+  );
+  /* The summary must come before the list, or the key is inside the fold. */
+  assert.ok(
+    jsx.indexOf('legend-key') < jsx.indexOf('<div className="legend">'),
+    'the key sits on the summary, not inside the fold'
+  );
+  assert.match(css, /\.legend-key \{ display: inline;/);
+  assert.match(css, /\.legend-fold \.legend \{ margin-top:/);
+});
