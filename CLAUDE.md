@@ -2427,6 +2427,47 @@ Dinesh: *"DATE PE SCROLL KAR RAHE HE TO GLITCH AA RAAHE SAHI KARO"*, with a grid
 - Pinned by a test that reads the header-tint rules out of `styles.css` and refuses
   `, transparent)` in any of them.
 
+## The lunch break, found in the punches (v1.98.0) — `shared/lunchGap.js`
+
+Dinesh: *"JO 30 MINUTES GAP HO O LUNCH ME COUNT HO ESA HO SAKTA HE?"*, then *"HAAN BANA DO"*.
+
+**It could not have been built before v1.97**, which is the point: the raw punches were read,
+applied and thrown away, so the app held a day's first and last and there was no gap to look at.
+
+- `findLunchGap(times)` takes the day's stamps and returns the longest gap inside the window,
+  `{ out, in, minutes }` or null. **Two punches are a day, not a gap** — the time between an
+  arrival and a departure is the day itself, and reading it as a break would book the whole day
+  as lunch. A repeated stamp is one punch.
+- **The window is 20–90 minutes AND the middle of the day** (`startsAfter` 11:00,
+  `endsBefore` 16:30). Ten minutes at the door is tea; four hours is somebody who went home and
+  came back, and booking that as a break turns one day into two half days.
+  **The time-of-day half was found by a failing test**, not by thinking: a day of 09:00 / 10:30 /
+  11:00 / 13:00 / 13:40 / 18:00 has a NINETY-minute gap right after the arrival, and
+  longest-gap-wins called that lunch. On a lunch-deducted month that costs the person ninety
+  minutes. The window is data, so an office that really does eat at ten can be given its own.
+- **IT DOES NOT DECIDE WHAT LUNCH COSTS.** Whether the break comes off the paid day is the
+  month's existing `lunch_paid`, and `timesToDay` remains the single place that decides it. On
+  Dinesh's months the break is INSIDE the paid day, so filling it **cannot move a rupee** —
+  there is a test asserting the same day comes out at the same minutes with the lunch found and
+  with `findLunch: false`. Where lunch IS deducted it really does come off, and **the dry run
+  says how much before the Write button** — the pricing already existed, it just had to be named.
+- **A lunch somebody TYPED is never replaced.** `lunch_found` flags a lunch this module worked
+  out rather than read off a mapped column; `applyPunches` drops the flag before writing and
+  strips the times where the stored day already has a lunch, reporting `lunchKept`. A lunch from
+  a mapped column is untouched — that path came from a record somebody kept and behaves as it
+  always did.
+- Both import panels print the same sentence, because both end in one `applyPunches` and two
+  wordings would read as two rules.
+- **Test-fixture traps worth remembering, both mine:** a fixture whose first interval happened to
+  be a qualifying 90-minute gap (which found the real hole above), and a day of 8h 50m where the
+  shortfall went from 10 minutes (inside the 15-minute grace, forgiven) to 45 (charged) — so the
+  difference read as 45 for a 35-minute break. The grace was doing its job; the test was reading
+  it wrong.
+- Driven on a real spool folder end to end: lunch filled at 13:30–14:05 from
+  `09:12 · 11:40 · 11:52 · 13:30 · 14:05 · 18:02`; with lunch deducted the day charged 45
+  minutes; with it inside the paid day the day charged **0**; a lunch typed by hand survived a
+  re-import with `lunchKept: 1`.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

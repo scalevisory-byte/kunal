@@ -491,6 +491,19 @@ export const HELP = [
     note: 'IT CARRIES NO SALARY, NO PAN AND NO BANK DETAILS, on purpose: a contact list gets printed and left on a desk. The employee export is the one with everything on it. Somebody with no number is listed with the gap showing rather than left out — they are the ones worth chasing.',
   },
   {
+    id: 'lunch-gap',
+    title: 'The lunch break, found in the punches',
+    tab: 'reports',
+    keywords: ['lunch', 'break', 'gap', 'khana', 'lunch break', 'bahar gaya', 'dopahar'],
+    lines: [
+      'When punches are imported, the app looks for the lunch break in the day’s own gaps and fills the **Lunch out** and **Lunch in** columns.',
+      'A gap counts as lunch when it is **20 to 90 minutes** long AND falls in the middle of the day (after 11:00, ending by 16:30). If there are several, the longest wins; a true tie goes to the one nearer midday.',
+      'Ten minutes at the door is tea. Four hours is somebody who went home. A gap on the way in or on the way out is not a break either.',
+      'The import says how many it found **before** you press Write.',
+    ],
+    note: 'IT DOES NOT DECIDE WHAT LUNCH COSTS. Whether the break comes off the paid day is the month’s own "Lunch is inside the day" setting and always has been — with it on, filling the lunch cannot move a rupee; with it off, the break really does come out of the hours and the import says so first. And a lunch somebody TYPED is never replaced: a person who was there knows which gap was lunch and which was a client at the counter.',
+  },
+  {
     id: 'day-punches',
     title: 'Every punch of a day, not just in and out',
     tab: 'attendance',

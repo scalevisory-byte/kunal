@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { STANDALONE, api } from '../api.js';
+import { LUNCH_RULES } from '../../../shared/lunchGap.js';
 
 /**
  * Our own punch collector: the readers, and the punches we have kept.
@@ -375,6 +376,21 @@ export default function PunchDevices({ period, onReload, onGo }) {
                 {preview.collected?.toLocaleString('en-IN')} punches for this month,{' '}
                 {preview.matchedPeople} people matched, {preview.days?.length || 0} days.
                 {preview.keptMarks ? ` ${preview.keptMarks} marks somebody set were kept.` : ''}
+                {/* The same sentence the spool panel says, because the two
+                    ends in one `applyPunches` and must not read as two rules. */}
+                {preview.summary?.lunchFound ? (
+                  <>
+                    {' '}
+                    <strong>{preview.summary.lunchFound} lunch break
+                    {preview.summary.lunchFound === 1 ? '' : 's'} found</strong> (a gap of{' '}
+                    {LUNCH_RULES.minMinutes}&ndash;{LUNCH_RULES.maxMinutes} minutes in the middle
+                    of the day){' '}
+                    {period?.lunch_paid === 1
+                      ? '— recorded, and nothing deducted, because this month has the break inside the paid day.'
+                      : '— and this month takes the break off the hours, so it is in the figures above.'}
+                    {preview.lunchKept ? ` ${preview.lunchKept} typed lunches were left alone.` : ''}
+                  </>
+                ) : null}
               </p>
               {preview.unknownIds?.length ? (
                 <p className="warn">

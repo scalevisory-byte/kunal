@@ -43,10 +43,34 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
    * off the leave register with it.
    */
   const had = new Map();
+  const hadLunch = new Set();
   for (const row of listAttendance(period.id)) {
     if (row.code) had.set(`${row.employee_id}:${row.day}`, row.code);
+    if (row.lunch_out || row.lunch_in) hadLunch.add(`${row.employee_id}:${row.day}`);
   }
   const guarded = protectDecided(result.entries, (id, day) => had.get(`${id}:${day}`) || '');
+
+  /*
+   * A LUNCH SOMEBODY TYPED IS NEVER REPLACED BY ONE WE WORKED OUT.
+   *
+   * `findLunchGap` reads the day's own punches and calls the longest gap in
+   * the window the break. That is a good guess and it is still a guess: a
+   * person who was there knows which gap was lunch and which was a client at
+   * the counter. A lunch read off a mapped COLUMN is not touched here - it
+   * came from a record somebody kept, and that path behaves as it always did.
+   *
+   * `lunch_found` never reaches the database: it is this module's flag.
+   */
+  let lunchKept = 0;
+  for (const entry of guarded.entries) {
+    if (!entry.lunch_found) continue;
+    delete entry.lunch_found;
+    if (hadLunch.has(`${entry.employee_id}:${entry.day}`)) {
+      delete entry.lunch_out;
+      delete entry.lunch_in;
+      lunchKept++;
+    }
+  }
 
   if (!dryRun && guarded.entries.length) setAttendance(period.id, guarded.entries);
 
@@ -57,6 +81,7 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
     unknownIds: mapped.unknown,
     matchedPeople: mapped.matched.length,
     keptMarks: guarded.protected.length,
+    lunchKept,
     period: { month: period.month, year: period.year },
     dryRun,
     written: dryRun ? 0 : guarded.entries.length,

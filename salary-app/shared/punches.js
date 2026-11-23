@@ -11,6 +11,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
+import { findLunchGap } from './lunchGap.js';
 import { TIME_RULES, formatTime } from './timesheet.js';
 
 /* ---------------- reading whatever was uploaded ---------------- */
@@ -168,7 +169,10 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
  * @returns { entries, matched, unmatched, days, summary }
  *   entries feed straight into setAttendance.
  */
-export function punchesToMarks({ rows, mapping, rules, employees, period, deductLunch = true }) {
+export function punchesToMarks({
+  rows, mapping, rules, employees, period, deductLunch = true,
+  findLunch = true, lunchRules,
+}) {
   const hoursPerDay = Number(period.hours_per_day) || 9;
   // The half-day line follows the configured day - half of the month's hours -
   // unless the import names one, exactly as the Time tab does it. The two must
@@ -227,11 +231,14 @@ export function punchesToMarks({ rows, mapping, rules, employees, period, deduct
 
     const id = `${employee.id}:${day}`;
     const seen = perPersonDay.get(id) || {
-      employee, day, in: null, out: null, lunchOut: null, lunchIn: null, punches: 0,
+      employee, day, in: null, out: null, lunchOut: null, lunchIn: null, punches: 0, times: [],
     };
     for (const t of [inAt, outAt]) {
       if (t === null) continue;
       seen.punches++;
+      // Every stamp, not just the two ends: the lunch break is a GAP, and a
+      // gap cannot be seen in the first and the last alone.
+      seen.times.push(t);
       if (seen.in === null || t < seen.in) seen.in = t;
       if (seen.out === null || t > seen.out) seen.out = t;
     }
@@ -248,6 +255,29 @@ export function punchesToMarks({ rows, mapping, rules, employees, period, deduct
 
   for (const seen of perPersonDay.values()) {
     days.add(seen.day);
+
+    /*
+     * LUNCH, FOUND IN THE DAY'S OWN PUNCHES.
+     *
+     * Dinesh: *"JO 30 MINUTES GAP HO O LUNCH ME COUNT HO ESA HO SAKTA HE?"*.
+     * The readers are door locks, so stepping out to eat is two punches like
+     * any other; what marks it out is how long the gap is.
+     *
+     * A lunch the SHEET named always wins - `seen.lunchOut` is only set when
+     * the mapping carried those columns, and this fills nothing then. Whether
+     * the break comes off the paid day is the month's `lunch_paid` setting
+     * and is not decided here.
+     */
+    if (findLunch && seen.lunchOut === null && seen.lunchIn === null) {
+      const gap = findLunchGap(seen.times, lunchRules);
+      if (gap) {
+        seen.lunchOut = gap.out;
+        seen.lunchIn = gap.in;
+        seen.lunchFound = true;
+        summary.lunchFound = (summary.lunchFound || 0) + 1;
+        summary.lunchMinutes = (summary.lunchMinutes || 0) + gap.minutes;
+      }
+    }
     let code;
     let minutes = 0;
 
@@ -311,6 +341,11 @@ export function punchesToMarks({ rows, mapping, rules, employees, period, deduct
       // field, so leaving them out keeps whatever is already on the day.
       ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),
       ...(seen.lunchIn === null ? {} : { lunch_in: formatTime(seen.lunchIn) }),
+      /* Marks a lunch this module WORKED OUT from the gaps rather than read
+         off a column. The caller drops it before writing; what it is for is
+         deciding whether a lunch already on the day may be replaced. A person
+         who was there knows better than a rule about gap lengths. */
+      ...(seen.lunchFound ? { lunch_found: true } : {}),
     });
   }
 

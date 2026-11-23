@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { STANDALONE, api } from '../api.js';
+import { LUNCH_RULES } from '../../../shared/lunchGap.js';
+import { formatDuration } from '../../../shared/timesheet.js';
 
 /**
  * Attendance straight off the Bizcompass Sync Tool's punch spool.
@@ -208,6 +210,38 @@ export default function BizcompassImport({ period, onReload, onGo }) {
               </>
             ) : null}
           </p>
+
+          {/*
+            * THE LUNCH BREAK, FOUND IN THE DAY'S OWN PUNCHES.
+            *
+            * It has to say whether it costs anything BEFORE the Write button,
+            * because on a month where lunch comes off the hours it really
+            * does - and on Dinesh's, where the break sits inside the paid
+            * day, it cannot move a rupee. Saying "35 lunches found" without
+            * saying which of those two it is would be half an answer.
+            */}
+          {preview.summary.lunchFound ? (
+            <p className="muted small">
+              <strong>{preview.summary.lunchFound} lunch break
+              {preview.summary.lunchFound === 1 ? '' : 's'} found</strong> in the punches &mdash;
+              a gap of {LUNCH_RULES.minMinutes}&ndash;{LUNCH_RULES.maxMinutes} minutes in the
+              middle of the day, the longest one if there are several.{' '}
+              {period?.lunch_paid === 1 ? (
+                <>
+                  This month has the break <strong>inside the paid day</strong>, so these are
+                  recorded and <strong>nothing is deducted</strong>.
+                </>
+              ) : (
+                <>
+                  This month <strong>takes the break off the hours</strong>, so these{' '}
+                  {formatDuration(preview.summary.lunchMinutes || 0)} come out of the figures
+                  above. Change it in Settings if that is not what you want.
+                </>
+              )}{' '}
+              A lunch somebody typed is never replaced
+              {preview.lunchKept ? ` — ${preview.lunchKept} kept` : ''}.
+            </p>
+          ) : null}
 
           <div className="row">
             <button className="primary" disabled={!!busy} onClick={() => run(false)}>

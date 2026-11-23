@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.97.0';
+export const VERSION = '1.98.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.98.0',
+    date: '23 Nov 2026',
+    title: 'The lunch break, found in the punches',
+    items: [
+      '**A gap of 20 to 90 minutes in the middle of the day is now read as lunch** and fills the Lunch out and Lunch in columns by itself. Dinesh asked for thirty; the window is wide enough that a short lunch and a long one both land in it.',
+      'This was only possible from v1.97, when the app started keeping every punch. Before that it held a day\u2019s first and last and there was no gap to find.',
+      '**Ten minutes at the door is tea; four hours is somebody who went home.** Neither is lunch. Nor is a gap on the way in or on the way out \u2014 a ninety-minute errand at nine in the morning was being called lunch until a test caught it.',
+      '**It does not decide what lunch costs.** Whether the break comes off the paid day is the month\u2019s own \u201cLunch is inside the day\u201d setting and always has been. With it on \u2014 which is how this office runs \u2014 filling the lunch **cannot move a rupee**. With it off, the break really does come out of the hours, and the import says how much before you press Write.',
+      '**A lunch somebody typed is never replaced.** A person who was there knows which gap was lunch and which was a client at the counter; the import says how many it left alone.',
+    ],
+  },
   {
     version: '1.97.0',
     date: '23 Nov 2026',
