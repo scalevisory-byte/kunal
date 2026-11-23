@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DEFAULT_POLICY_FOR_NEW_MONTHS, POLICY, onConcession } from '../../shared/lateEarly.js';
+import { DEFAULT_POLICY_FOR_NEW_MONTHS, POLICY, POLICY_CHOICES, onConcession } from '../../shared/lateEarly.js';
 import { onMonthlyHours } from '../../shared/monthlyHours.js';
 import { calculateRow } from '../../shared/calc.js';
 
@@ -128,8 +128,18 @@ test('a typed OT figure still beats all four', () => {
   assert.equal(r.ot_minutes, -15);
 });
 
-test('a new month opens on both', () => {
-  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'monthly_late');
+/*
+ * REWRITTEN, not patched. v1.84 opened new months on both rules; v2.6.0
+ * opens them on `none` - Dinesh: *"Salary count sirf absent present half day
+ * se hi ho"*. Both rules are still here, still priced and still one switch
+ * away; what changed is where a month STARTS.
+ */
+test('a new month opens on the days alone, and both rules are still offered', () => {
+  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'none');
+  assert.ok(
+    POLICY_CHOICES.some((c) => c.key === 'monthly_late'),
+    'the combined rule must still be choosable'
+  );
 });
 
 /* ================================================================= *
@@ -158,9 +168,9 @@ const call = async (m, url, body) => {
   return { status: res.status, body: text ? JSON.parse(text) : null };
 };
 
-test('the server opens a month on both, and keeps every older month where it was', async () => {
+test('the server opens a month on the days alone, and keeps every older month where it was', async () => {
   const fresh = (await call('POST', '/api/periods', { year: 2028, month: 1 })).body;
-  assert.equal(fresh.late_policy, 'monthly_late');
+  assert.equal(fresh.late_policy, 'none');
 
   const old = (await call('POST', '/api/periods', { year: 2028, month: 2, late_policy: 'hours' })).body;
   assert.equal(old.late_policy, 'hours');

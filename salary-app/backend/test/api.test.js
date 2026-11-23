@@ -125,6 +125,12 @@ test('leave marks save and land on the row', async () => {
 });
 
 test('short hours marked on a day reach the salary sheet', async () => {
+  /*
+   * This test is about the day-by-day hours rule, so the month is put on it
+   * deliberately: from v2.6.0 a month opens on `none`, where hours are a
+   * record and not a charge. That it has to be said here is the point.
+   */
+  await api('PATCH', `/api/periods/${periodId}`, { late_policy: 'hours' });
   await api('POST', `/api/periods/${periodId}/attendance`, {
     entries: [
       { employee_id: employeeId, day: 12, code: 'P', minutes: -30 },

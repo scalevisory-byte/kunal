@@ -494,8 +494,8 @@ test('switching the late/early rule is on the trail - it changes what people are
   const { body } = await api('GET', `/api/people/audit?entity=periods&entity_id=${tracePeriodId}`);
   const line = body.entries.find((e) => e.field === 'late_policy');
   assert.ok(line);
-  // From whatever the month was opened on - new months open on `monthly_late`.
-  assert.equal(line.from_value, 'monthly_late');
+  // From whatever the month was opened on - new months open on `none`.
+  assert.equal(line.from_value, 'none');
   assert.equal(line.to_value, 'concession');
 });
 

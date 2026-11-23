@@ -31,7 +31,7 @@ import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
 import { TIME_FIELDS, minutesForMark, parseTime, timesToDay } from '../../shared/timesheet.js';
-import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee } from '../../shared/lateEarly.js';
+import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
   PENALTY_KINDS,
@@ -1815,9 +1815,9 @@ export async function handle(method, path, body) {
       // nothing for lateness as such - exactly as the server has it.
       /* One of three. Anything unrecognised falls back to 'hours', the
          behaviour every existing month runs on, so a typo cannot move money. */
-      late_policy: ['concession', 'monthly', 'monthly_late'].includes(body.late_policy)
-        ? body.late_policy
-        : 'hours',
+      /* One list, shared with the server - this one went stale the moment a
+         fifth policy was added. */
+      late_policy: normalisePolicy(body.late_policy),
       late_concession_minutes:
         body.late_concession_minutes === undefined ? 300 : Number(body.late_concession_minutes),
       late_grace_minutes: Number(body.late_grace_minutes) || 0,

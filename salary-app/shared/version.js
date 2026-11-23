@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.5.1';
+export const VERSION = '2.6.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.6.0',
+    date: '23 Nov 2026',
+    title: 'Pay from the days alone, and the month\u2019s hours as a column you decide about',
+    items: [
+      '**Salary now comes from the day count alone** \u2014 Present, Absent, Half day and the leave marks. Dinesh: *\u201cSalary count sirf absent present half day se hi ho\u201d*. Nothing is charged or paid for hours any more, so a `\u221250` on the attendance grid really does change nobody\u2019s pay.',
+      '**TURNING THE HOURS OFF STOPS THE OVERTIME TOO.** It is the day count or nothing \u2014 somebody who stayed two hours late every evening is now paid the same as somebody who left on time.',
+      '**A new column on the salary sheet: Month hrs.** What the clock came to for the month \u2014 nine hours a day against the days that were due. It is there to look at, and it changes nothing. A month nobody clocked reads as a dash, never as 0, because *not known* is not *they did no hours*.',
+      '**The OT min box beside it is the manual column.** *\u201cMonthly hour wala manual coloum do, count karna he ki nahi uske liye\u201d* \u2014 type a figure there and it is charged or paid whatever the rule says; leave it blank and the rule decides; clear it and it hands back. That box has always beaten every rule; now it is the only thing that charges for hours.',
+      '**NO MONTH ALREADY OPEN IS MOVED BY THIS UPDATE.** The rule is held per month and nothing rewrites a stored value, so no payslip already prepared can change. Months opened from now start on the new rule; switch the open one on **Time \u2192 Late and early** or **Admin \u2192 Settings**, which says what the switch costs \u2014 how much stops being deducted AND how much stops being paid \u2014 before it acts.',
+      'The old rules are all still there and still one switch away: each day on its own, the 300-minute concession, the month\u2019s 9\u00d726 total, or both together.',
+      'The Excel export carries the new figure as **Month Hrs +/-**, blank where nothing was clocked.',
+      'The server and the single-file build kept **two copies** of the list of rules, and both would have gone stale the moment a fifth was added \u2014 the same drift that once made a month on one rule render as another. One list now.',
+    ],
+  },
   {
     version: '2.5.1',
     date: '23 Nov 2026',

@@ -256,7 +256,12 @@ test('the part-timer IS charged when they genuinely leave early', async () => {
     company_id: company.id, name: 'Half Day Hiren', monthly_salary: 26000,
     joined_on: '2024-01-01', shift_in: '10:00', shift_out: '16:00',
   })).body;
-  const periodId = (await call('POST', '/api/periods', { year: 2026, month: 9 })).body.id;
+  /* Opened on the day-by-day rule on purpose - a month now opens on `none`,
+     where nothing is charged for hours at all, and this test is about what a
+     short day costs. */
+  const periodId = (await call('POST', '/api/periods', {
+    year: 2026, month: 9, late_policy: 'hours',
+  })).body.id;
   await call('GET', `/api/periods/${periodId}/payroll`);
 
   // Six hours expected, five worked: an hour short, once.

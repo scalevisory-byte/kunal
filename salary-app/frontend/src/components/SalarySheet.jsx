@@ -3,6 +3,7 @@ import { calculateRow, totalRows } from '../../../shared/calc.js';
 import { col, num, printReport, printSlips } from '../printReport.js';
 import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
+import { formatDuration } from '../../../shared/timesheet.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -440,7 +441,7 @@ export default function SalarySheet({
               <th className="sticky-name" />
               <th colSpan={6}>Attendance</th>
               <th colSpan={5}>Salary calculation</th>
-              <th colSpan={2}>OT</th>
+              <th colSpan={3}>Hours</th>
               <th colSpan={3}>Add / deduct</th>
               <th colSpan={3}>Statutory</th>
               <th colSpan={2}>Recoveries</th>
@@ -461,7 +462,17 @@ export default function SalarySheet({
               <th title="Salary / working days / hours per day">Per hr</th>
               <th title="Absent days x day rate">Absent ₹</th>
               <th title="Salary - absent salary">After absent</th>
-              <th title="Added up from the short hours marked on each day. Type a number to override the month's total.">OT min</th>
+              {/*
+                * READ-ONLY, and on every policy. What the clock came to for
+                * the month: nine hours times the days that were due, against
+                * what was actually worked. On the days-only rule it changes
+                * nobody's pay - it is here so the office can SEE it and
+                * decide, which is exactly what the box beside it is for.
+                */}
+              <th title="What the clock came to this month: hours worked against hours due. On the 'only the days' rule this is information, not a charge - type a figure into OT min beside it if you want it to count.">
+                Month hrs
+              </th>
+              <th title="What is actually charged or paid for hours. Blank uses the month's rule; type a number and that number is used instead, whatever the rule says.">OT min</th>
               <th title="Auto = minutes x per-minute rate. Type an amount to override it.">OT ₹</th>
               <th title="Anything extra to pay this month - an incentive, arrears, a reimbursement">Add</th>
               <th title="Anything to take off - a breakage, a fine, a recovery. Enter it as a positive number.">Deduct</th>
@@ -484,7 +495,7 @@ export default function SalarySheet({
               item.type === 'company' ? (
                 <tr className="company-row" key={item.key}>
                   <td className="row-no" />
-                  <td className="sticky-name" colSpan={25}>
+                  <td className="sticky-name" colSpan={26}>
                     <button
                       className="company-link"
                       title="Show only this company - click again for all of them"
@@ -509,7 +520,7 @@ export default function SalarySheet({
             )}
             {!filtered.length && (
               <tr>
-                <td colSpan={24} className="empty">
+                <td colSpan={25} className="empty">
                   No employees here yet. Add them under <strong>Employees</strong>, or import a sheet
                   from <strong>Reports</strong>.
                 </td>
@@ -527,6 +538,9 @@ export default function SalarySheet({
                 <td>{rupees(totals.salary)}</td>
                 <td colSpan={2} />
                 <td>{rupees(totals.absent_salary)}</td>
+                {/* After absent, Month hrs, OT min - three now that the
+                    month's own hours are shown beside the typed figure. */}
+                <td />
                 <td />
                 <td />
                 <td>{rupees(totals.ot_salary)}</td>
@@ -733,6 +747,25 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
       <td className="num muted">{rupees2(calc.per_hour)}</td>
       <td className="num deduct">{calc.absent_salary ? `-${rupees(calc.absent_salary)}` : '-'}</td>
       <td className="num muted">{rupees(calc.gross_after_absent)}</td>
+      {/* `judged` false means nobody clocked anything - "not known", which a
+          number could not say. Never 0, which would read as "they did their
+          hours exactly". */}
+      <td
+        className="num muted"
+        title={
+          calc.monthly_hours_judged
+            ? `${formatDuration(calc.monthly_hours_worked)} worked against ${formatDuration(
+                calc.monthly_hours_expected
+              )} due over ${calc.monthly_hours_days} days = ${rupees2(
+                Math.abs(calc.monthly_hours_amount)
+              )} ${calc.monthly_hours_diff < 0 ? 'short' : 'of overtime'}`
+            : 'Nothing was clocked this month, so the hours are not known'
+        }
+      >
+        {calc.monthly_hours_judged
+          ? `${calc.monthly_hours_diff > 0 ? '+' : ''}${calc.monthly_hours_diff}`
+          : '\u2014'}
+      </td>
       <td className={calc.ot_minutes < 0 ? 'deduct-cell' : undefined}>
         <EditableCell
           row={row}

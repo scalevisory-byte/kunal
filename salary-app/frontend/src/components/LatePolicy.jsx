@@ -25,8 +25,19 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
 
   const preview = useMemo(() => {
     const out = { people: [], charge: 0, absorbed: 0, bothCharge: 0, minutes: 0, judged: 0,
-      unknown: 0, each: [], monthlyPeople: [], monthlyCharge: 0, monthlyMinutes: 0 };
+      unknown: 0, each: [], monthlyPeople: [], monthlyCharge: 0, monthlyMinutes: 0,
+      nowCharged: 0, nowPaid: 0 };
     for (const row of rows) {
+      /*
+       * What this month is ACTUALLY taking and paying for hours right now,
+       * whatever rule it is on - so switching to "only the days" can be
+       * priced the way every other switch here is. Deliberately read off
+       * `ot_salary` and `late_salary`, the figures the payslip prints, and
+       * never recomputed from a rule: it has to be what is really happening.
+       */
+      const ot = Number(row.ot_salary) || 0;
+      out.nowCharged += Math.max(0, -ot) + (Number(row.late_salary) || 0);
+      out.nowPaid += Math.max(0, ot);
       if (row.late_total_minutes > 0 || row.late_days || row.early_days) {
         out.minutes += row.late_total_minutes || 0;
         // The summary is of EVERYBODY who was late or early, not only those
@@ -227,6 +238,22 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
                         'it is charged on top — never the two added, because a late minute ' +
                         'nobody made up is already in the shortfall.\n\n' +
                         `On this month that comes to ${money(preview.bothCharge)}. Turn both on?`
+                    );
+                    if (!ok) return;
+                  }
+                  /*
+                   * Turning the hours OFF moves money just as much as
+                   * turning one on, so it is priced the same way. Both sides
+                   * are named: somebody is also losing their overtime.
+                   */
+                  if (next === POLICY.none && (preview.nowCharged > 0 || preview.nowPaid > 0)) {
+                    const ok = window.confirm(
+                      'Only the days will decide the pay.\n\n' +
+                        'Nothing is charged or paid for hours any more \u2014 Present, Absent and ' +
+                        'Half day alone. The hours are still counted and shown on the salary ' +
+                        'sheet, and you can still type a figure into OT min for anybody.\n\n' +
+                        `On this month that stops ${money(preview.nowCharged)} being deducted ` +
+                        `and ${money(preview.nowPaid)} being paid as overtime. Switch?`
                     );
                     if (!ok) return;
                   }

@@ -337,6 +337,25 @@ export const HELP = [
     note: 'The hours are judged against the month’s own working day, so an eight-hour month breaks at four, not at four and a half. And a day under the half-day line is marked HF and its missing hours are NOT also deducted — it is already paid at half.',
   },
   {
+    id: 'days-only',
+    title: 'Pay from the days alone \u2014 Present, Absent and Half day',
+    tab: 'time',
+    keywords: [
+      'only days', 'days only', 'present absent', 'absent present half day', 'no hours',
+      'hours off', 'ghante nahi', 'sirf din', 'din ke hisab se', 'manual', 'manual column',
+      'month hrs', 'rule', 'policy', 'salary count',
+    ],
+    lines: [
+      '**This is what a new month opens on.** The pay comes from the day count \u2014 Present pays, Absent docks a day, Half day docks half, leave is whatever that mark says. **Nothing is charged or paid for hours.**',
+      '**The hours are still counted and still shown.** The salary sheet has a **Month hrs** column: what the clock came to for the month, nine hours a day against the days that were due. It is there to look at. It changes nobody\u2019s pay.',
+      '**To make the hours count, type them in.** The **OT min** box beside that column is the manual one \u2014 whatever you type there is charged or paid, whatever the rule says. Leave it blank and the rule decides; clear it and it hands back.',
+      '**A \u221250 on the attendance grid is not a deduction on this rule.** The grid still shows each day\u2019s short or extra minutes, because that is the record of the day \u2014 but on this rule nothing reaches the pay from it.',
+      '**To charge for hours, switch the rule** on **Time \u2192 Late and early** or **Admin \u2192 Settings**. Both say what the switch costs this month before it happens, and the rule is per month, so a change now never rewrites a month already paid.',
+    ],
+    note:
+      'TURNING THE HOURS OFF STOPS OVERTIME TOO. It is the day count or nothing \u2014 somebody who stayed two hours late every evening is paid the same as somebody who left on time. If you want the overtime paid without the shortfall charged, that is a different rule, or a figure typed into OT min for that one person.\n\nA month already run keeps the rule it was run on. Installing this update does NOT move a single figure on any month that is already open \u2014 switch it by hand, with the cost on screen first.',
+  },
+  {
     id: 'monthly-hours',
     title: 'The month\u2019s hours \u2014 9 \u00d7 26 = 234, settled once a month',
     tab: 'time',
@@ -346,8 +365,9 @@ export const HELP = [
     ],
     lines: [
       '**Time \u2192 The month\u2019s hours.** Nine hours a day for the days each person was due \u2014 26 days is **234 hours**. A day short and a day long cancel; only what is missing from the **total** comes off the pay.',
-      '**A month now opens on BOTH this and the late/early concession.** They are different questions \u2014 did the hours go in, and did somebody turn up on time \u2014 and they are charged as the **greater of the two, never added**, because a late minute nobody made up is already inside the month\u2019s shortfall.',
-      '**Every month opened from now starts on this rule.** A month already run keeps the rule it was run on, so no payslip already paid can move \u2014 switch the open month with **Charge this month on it** on the same panel, which says what it costs before it acts.',
+      '**This rule is OFF unless somebody turns it on.** A month now opens on **only the days** \u2014 Present, Absent and Half day decide the pay and hours charge nothing. Switch the open month with **Charge this month on it** on this panel, or from **Admin \u2192 Settings**; either way the cost is on screen before it acts.',
+      '**It can run together with the late/early concession.** They are different questions \u2014 did the hours go in, and did somebody turn up on time \u2014 and they are charged as the **greater of the two, never added**, because a late minute nobody made up is already inside the month\u2019s shortfall.',
+      '**A month already run keeps the rule it was run on**, so no payslip already paid can move.',
       '**The total is not a flat 234.** Somebody absent two days owes 24 \u00d7 9 \u2014 those two days already came off as absences. Leave, a holiday, a weekly off and a half day add nothing to the total either.',
       '**A day nobody clocked counts on neither side.** No in time means not known, so it adds no hours to what is owed and none to what was worked.',
       '**A shorter or longer shift owes its own hours.** Somebody on 10:00\u201316:00 owes 6 \u00d7 26, not 234.',

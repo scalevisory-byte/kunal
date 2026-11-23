@@ -41,6 +41,14 @@ const CALC_COLUMNS = [
   { head: 'Salary / Hour', get: (r) => r.per_hour, money: MONEY },
   { head: 'Salary / Minutes', get: (r) => r.per_minute, money: MONEY },
   { head: 'Hours Worked', get: (r) => round2((r.worked_minutes || 0) / 60), money: HOURS },
+  /*
+   * What the clock came to for the month, on every policy: hours worked
+   * against hours due. On the days-only rule it is a record and not a
+   * charge, so it is reported beside the figure that IS charged rather than
+   * instead of it. Blank where nobody clocked anything - "not known", which
+   * a 0 would misreport as "they did their hours exactly".
+   */
+  { head: 'Month Hrs +/-', get: (r) => (r.monthly_hours_judged ? r.monthly_hours_diff : '') },
   { head: 'OT/LT In Minutes', get: (r) => r.ot_minutes },
   { head: 'OT/LT Salary', get: (r) => r.ot_salary, money: MONEY0 },
   { head: 'Addition', get: (r) => r.addition, money: MONEY0 },

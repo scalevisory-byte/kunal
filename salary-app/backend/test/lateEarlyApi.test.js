@@ -33,7 +33,7 @@ let periodId;
 let employeeId;
 let nightId;
 
-test('a month opens on both rules; this file pins it back to hours', async () => {
+test('a month opens on the days alone; this file pins it back to hours', async () => {
   const company = await api('POST', '/api/companies', { name: 'BOOKNFLY' });
   const employee = await api('POST', '/api/employees', {
     company_id: company.body.id,
@@ -56,15 +56,16 @@ test('a month opens on both rules; this file pins it back to hours', async () =>
   assert.equal(period.status, 201);
   periodId = period.body.id;
   /*
-   * A month now OPENS on the monthly-hours rule, which Dinesh asked for from
-   * November onwards. This file is about the other two rules, so it is put
-   * back onto `hours` deliberately - and that it has to be says the switch
-   * is per month and nothing switches a month by itself.
+   * REWRITTEN at v2.6.0, not patched. A month now OPENS on `none` - the pay
+   * comes from the day count alone, which is what Dinesh asked for. This
+   * file is about the rules that DO charge for hours, so it is put back onto
+   * `hours` deliberately - and that it has to be is itself the proof that
+   * the rule is per month and nothing switches a month by itself.
    */
   assert.equal(
     period.body.late_policy,
-    'monthly_late',
-    'a new month opens on the monthly target AND the concession'
+    'none',
+    'a new month opens on the days alone'
   );
   const back = await api('PATCH', `/api/periods/${periodId}`, { late_policy: 'hours' });
   assert.equal(back.body.late_policy, 'hours');

@@ -243,16 +243,21 @@ const call = async (m, url, body) => {
   return { status: res.status, body: text ? JSON.parse(text) : null };
 };
 
-test('a month opened from now starts on the monthly rule', async () => {
-  /*
-   * On the monthly target AND the late/early concession, which Dinesh asked
-   * for one after the other. `onMonthlyHours` is true for both values, so
-   * everything in this file holds either way; `bothRules.test.js` is where
-   * the combination itself is pinned.
-   */
-  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'monthly_late');
+/*
+ * REWRITTEN at v2.6.0, not patched. A month opened from now starts on
+ * `none` - the day count alone decides the pay, which is what Dinesh asked
+ * for. The monthly rule is still here, still priced before it is chosen and
+ * still one switch away; everything else in this file sets it deliberately,
+ * which is the point - a month only ever arrives on it because somebody put
+ * it there.
+ */
+test('a month opened from now starts on the days alone', async () => {
+  assert.equal(DEFAULT_POLICY_FOR_NEW_MONTHS, 'none');
   const made = (await call('POST', '/api/periods', { year: 2027, month: 1 })).body;
-  assert.equal(made.late_policy, 'monthly_late');
+  assert.equal(made.late_policy, 'none');
+  /* And nothing is charged for hours there, however short the month runs. */
+  const switched = (await call('PATCH', `/api/periods/${made.id}`, { late_policy: 'monthly' })).body;
+  assert.equal(switched.late_policy, 'monthly', 'the monthly rule is still choosable');
 });
 
 test('AND A MONTH ALREADY OPEN IS NOT TOUCHED', async () => {
@@ -297,7 +302,11 @@ test('the write route cannot change what the monthly rule charges', async () => 
   const typed = await mk('Typed Tarun');
   const punched = await mk('Punched Pooja');
 
-  const p = (await call('POST', '/api/periods', { year: 2027, month: 6 })).body;
+  /* This test is ABOUT the monthly rule, so the month is opened on it
+     deliberately - a month no longer arrives there by itself. */
+  const p = (await call('POST', '/api/periods', {
+    year: 2027, month: 6, late_policy: 'monthly_late',
+  })).body;
   assert.equal(p.late_policy, 'monthly_late');
   await call('GET', `/api/periods/${p.id}/payroll`);
 

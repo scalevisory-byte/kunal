@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
 import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
-import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee } from '../../shared/lateEarly.js';
+import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 
@@ -1669,15 +1669,14 @@ export function updatePeriod(id, patch) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     /*
-     * The policy is one of four and nothing else. An unrecognised value
-     * falls back to 'hours' - what every existing month runs on - so a typo
-     * or a stale form cannot land a month on a rule nobody chose.
+     * The policy is one of the listed ones and nothing else. An unrecognised
+     * value falls back to 'hours' - what every month opened before v1.83 runs
+     * on - so a typo or a stale form cannot land a month on a rule nobody
+     * chose. `normalisePolicy` is shared with the offline build, which kept
+     * its own copy of the list until a fifth policy was added.
      */
     if (key === 'late_policy') {
-      const asked = String(patch[key] || '').toLowerCase();
-      values.push(
-        ['concession', 'monthly', 'monthly_late'].includes(asked) ? asked : 'hours'
-      );
+      values.push(normalisePolicy(patch[key]));
       continue;
     }
     values.push(key === 'locked' || key === 'lunch_paid' ? (patch[key] ? 1 : 0) : patch[key]);

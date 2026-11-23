@@ -51,7 +51,7 @@ import { monthTotals } from './timesheet.js';
  */
 import { earnedStructure } from './structure.js';
 import { esiFor, isAuto, isNone, pfFor } from './contributions.js';
-import { hoursForEmployee, lateEarlyLine, onConcession } from './lateEarly.js';
+import { hoursForEmployee, lateEarlyLine, onConcession, onDaysOnly } from './lateEarly.js';
 import { monthlyHoursLine, onMonthlyHours } from './monthlyHours.js';
 
 /**
@@ -281,6 +281,16 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
    * can price a switch before it is made, and worth nothing unless the period
    * is on it - exactly as the concession line beside it.
    */
+  /*
+   * DAYS ONLY. Dinesh: *"Salary count sirf absent present half day se hi
+   * ho"*. Neither the day-by-day shortfall, nor the month's total, nor the
+   * lateness is charged - the pay comes off the day count, exactly as it did
+   * before any clock times existed. Both lines above are still worked out,
+   * so the sheet can SHOW the month's hours and the office can decide; and a
+   * figure typed into the sheet's OT/LT box still wins, which is the manual
+   * column he asked for.
+   */
+  const daysOnlyMode = onDaysOnly(period);
   const monthlyMode = onMonthlyHours(period);
   const monthlyHours = monthlyHoursLine(attendance, {
     employee: row,
@@ -300,11 +310,13 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
    */
   const chargedMinutes = isSet(row.ot_minutes_override)
     ? num(row.ot_minutes_override)
-    : monthlyMode
-      ? monthlyHours.minutes
-      : concessionMode
-        ? Math.max(0, minutesFromDays)
-        : minutesFromDays;
+    : daysOnlyMode
+      ? 0
+      : monthlyMode
+        ? monthlyHours.minutes
+        : concessionMode
+          ? Math.max(0, minutesFromDays)
+          : minutesFromDays;
   const otMinutes = chargedMinutes;
   const otSalary = isSet(row.ot_amount_override) // AT
     ? num(row.ot_amount_override)

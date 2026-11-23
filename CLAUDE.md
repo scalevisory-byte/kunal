@@ -2861,6 +2861,50 @@ Dinesh, off the very screenshot sent to him: *"naam wala column wala fix kar do"
 - Tests pin the variable, that neither rule may go back to a literal `rem`, and the four
   properties on the link; **proved by putting the old CSS back — both fail.**
 
+## Pay from the days alone, and the hours as a column (v2.6.0) — `POLICY.none`
+
+Dinesh, having had the whole calculation explained to him: *"Salary count sirf absent presnet
+half day se hi ho / Monthly hour wala manual coloum do / Count karna he ki nahi uske liye"*.
+
+- **A fifth policy, `none`, and it is now `DEFAULT_POLICY_FOR_NEW_MONTHS`.** The pay comes
+  from the day count — P, A, HF and the leave marks — and `calculateRow` charges
+  `0` for hours. `onDaysOnly` is asked FIRST, beside `onConcession` and `onMonthlyHours`,
+  so each policy is recognised in one place. There was no "off" before: `hours` (the old
+  default) still charged every day's shortfall, so "don't charge for hours" was unreachable.
+- **TURNING THE HOURS OFF STOPS THE OVERTIME TOO**, and that is the sentence somebody will
+  be surprised by. It is the day count or nothing. Said in help, in the changelog and in the
+  switch confirmation, which names both sides — what stops being deducted AND what
+  stops being paid, read off `ot_salary`/`late_salary`, the figures the payslip prints,
+  never recomputed from a rule.
+- **The month's hours are still computed on every policy** — they always were, so the
+  panels could price a switch — and now a **read-only `Month hrs` column** on the salary
+  sheet shows `monthly_hours_diff` beside the box. `judged: false` renders a dash: *not
+  known* is not *they did no hours*. It is deliberately NOT an `EditableCell` (a test
+  asserts it), because the figure comes off the clock and typing over it would be a second
+  answer to one question.
+- **The manual column is `ot_minutes_override`, which already existed and already beat every
+  policy.** What changed is that nothing else charges for hours now, so that box is the only
+  thing that does. Driven: eight people at 26,000, everybody's gross 26,000 (ALIFAYA 25,000
+  for one absence) with month hours running −13 to −166; typed −300 on one row
+  → −556, net 25,244, and clearing it hands back.
+- **NOTHING REWRITES A STORED VALUE.** Every month already open keeps the rule it was run
+  on; only months opened from now start on `none`. Same as v1.83/v1.84, with the same tests.
+- **`normalisePolicy` in `shared/lateEarly.js` is now the one validator.** `db.js` and
+  `localStore.js` each kept their own `['concession','monthly','monthly_late']` — a list
+  typed twice, which would have gone stale the moment a fifth policy was added, exactly as
+  the hand-written `<option>`s did in v1.85. An unknown value still falls back to `hours`,
+  **deliberately not to the current default**: a month must only ever arrive on today's rule
+  by being opened today.
+- **Nine tests had pinned the old default and were REWRITTEN to state the new rule**, not
+  patched; three of them now set a charging policy explicitly, and that they have to is
+  itself the proof that nothing switches a month by itself.
+- **THE FIXTURE TRAP, AGAIN, AND IT NEARLY SHIPPED A USELESS TEST FILE.** `calculateRow`
+  does not read clock times for the day-by-day rule — it sums the `minutes` already
+  stored on each day. A first draft of `daysOnly.test.js` built days with times and no
+  `minutes`, so with the `none` branch DELETED only **1 of 13** tests failed. The fixture now
+  calls `minutesForMark`, which is what `setAttendance` does on the way in, and **4 of 13**
+  fail with the old code. Same trap as v1.82; always prove a test by putting the bug back.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

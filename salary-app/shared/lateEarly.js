@@ -60,6 +60,21 @@ export const POLICY = {
    * the two rather than the sum, so no minute is ever taken twice.
    */
   monthlyLate: 'monthly_late',
+  /*
+   * NOTHING IS CHARGED FOR HOURS AT ALL.
+   *
+   * Dinesh: *"Salary count sirf absent present half day se hi ho / Monthly
+   * hour wala manual coloum do / count karna he ki nahi uske liye"*. The pay
+   * comes from the day count alone - Present, Absent, Half day, leave - and
+   * the clock is a record, not a charge.
+   *
+   * This is NOT the same as "no clock times". The month's hours are still
+   * worked out, still shown on the salary sheet and still reported; they
+   * simply do not move a rupee unless somebody types a figure into the
+   * sheet's own OT/LT box, which beats every policy here as it always has.
+   * That typed figure is the "manual column" he asked for.
+   */
+  none: 'none',
 };
 
 /**
@@ -83,7 +98,7 @@ export const POLICY = {
  * One constant, read by `createPeriod` on the server and by `localStore` in
  * the single-file build, so the two cannot open a month on different rules.
  */
-export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthlyLate;
+export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.none;
 
 /**
  * THE POLICIES AS A LIST, so no screen can enumerate them and go stale.
@@ -98,6 +113,11 @@ export const DEFAULT_POLICY_FOR_NEW_MONTHS = POLICY.monthlyLate;
  * reaches all of them or none.
  */
 export const POLICY_CHOICES = [
+  {
+    key: POLICY.none,
+    label: 'Only the days \u2014 Present, Absent and Half day decide the pay',
+    why: 'The clock is a record, not a charge. Hours are still counted and shown on the salary sheet, but nothing is deducted or paid for them unless somebody types a figure into the month\u2019s own OT/LT box.',
+  },
   {
     key: POLICY.hours,
     label: 'Each day on its own \u2014 short hours charged that day',
@@ -122,6 +142,23 @@ export const POLICY_CHOICES = [
 
 export const policyLabel = (key) =>
   POLICY_CHOICES.find((c) => c.key === String(key || POLICY.hours))?.label || String(key);
+
+/**
+ * The stored value for a policy somebody asked for.
+ *
+ * An unrecognised value falls back to `hours` - what every month opened
+ * before v1.83 runs on - so a typo or a stale form cannot land a month on a
+ * rule nobody chose. Deliberately NOT the current default: a month must only
+ * ever arrive on today's rule by being opened today.
+ *
+ * The server and the offline build both call this. They each kept their own
+ * hand-written `['concession', 'monthly', 'monthly_late']`, which is a list
+ * typed twice - the same drift the hand-written `<option>`s caused.
+ */
+export const normalisePolicy = (value) => {
+  const asked = String(value || '').toLowerCase();
+  return POLICY_CHOICES.some((c) => c.key === asked) ? asked : POLICY.hours;
+};
 
 export const policyWhy = (key) =>
   POLICY_CHOICES.find((c) => c.key === String(key || POLICY.hours))?.why || '';
@@ -170,6 +207,16 @@ export function readLateRules(source = {}) {
 }
 
 /** True when this period prices late and early minutes rather than hours. */
+/**
+ * Is this month paid from the DAY COUNT alone?
+ *
+ * True on `POLICY.none`, where the hours are a record and not a charge. Asked
+ * the same way as `onConcession` and `onMonthlyHours` beside it, so there is
+ * one place each policy is recognised.
+ */
+export const onDaysOnly = (period = {}) =>
+  String(period.late_policy || POLICY.hours).toLowerCase() === POLICY.none;
+
 export const onConcession = (period = {}) => {
   const p = String(period.late_policy || POLICY.hours).toLowerCase();
   return p === POLICY.concession || p === POLICY.monthlyLate;

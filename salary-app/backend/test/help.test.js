@@ -130,6 +130,12 @@ test('the traps are written down, because they are the valuable half', () => {
    */
   assert.match(noteOf('monthly-hours'), /THE SAME MINUTES ARE NEVER CHARGED TWICE/i);
   assert.match(noteOf('monthly-hours'), /GREATER of the two and never the sum/i);
+  /*
+   * The one somebody will be surprised by: turning the hours off stops the
+   * overtime as well. It is the day count or nothing.
+   */
+  assert.match(noteOf('days-only'), /TURNING THE HOURS OFF STOPS OVERTIME TOO/i);
+  assert.match(noteOf('days-only'), /keeps the rule it was run on/i);
   assert.match(noteOf('shifts'), /SAME LENGTH CHANGES NO FIGURE/i);
   assert.match(noteOf('settings'), /ONE SCREEN OWNS EACH FIGURE/i);
   assert.match(noteOf('my-record-fill'), /Nothing on this form can change your salary/i);
