@@ -101,7 +101,7 @@ export default function DailyReport({ period, rows, day, companyName = '' }) {
       {!open ? (
         <p className="muted small">
           The message your office types into the group every morning — attendance with reasons, late coming,
-          early going, uniform and overtime — written from this day's marks.
+          early going, uniform, <strong>short hours</strong> and overtime — written from this day's marks.
         </p>
       ) : (
         <>
@@ -186,7 +186,7 @@ export default function DailyReport({ period, rows, day, companyName = '' }) {
             )}
             <span className="muted small">
               {built.counts.present} present · {built.counts.absent} absent · {built.counts.late} late ·{' '}
-              {built.counts.overtime} on overtime
+              {built.counts.short} short · {built.counts.overtime} on overtime
             </span>
           </div>
           {said && <p className="muted small">{said}</p>}

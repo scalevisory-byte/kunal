@@ -129,6 +129,34 @@ export function dailyReport({
 
   const overtime = people.filter((p) => p.minutes > 0).sort((a, b) => b.minutes - a.minutes);
 
+  /*
+   * SHORT HOURS - "kam time wale", asked for by name.
+   *
+   * The mirror of the Overtime section that was already here, off the same
+   * `minutes` column: what the day actually carries, which is what the salary
+   * sheet is paid from. NOT re-read off the clock, so the message, the roll
+   * call and the payslip cannot give three answers - and so a figure the
+   * office typed over the clock is the one that goes out, because that is the
+   * one that is charged.
+   *
+   * It follows the month's own grace without knowing about it: a day inside
+   * the grace carries 0 and is simply not short. Worst first, because that is
+   * the name the group is going to ask about.
+   */
+  const short = people.filter((p) => p.minutes < 0).sort((a, b) => a.minutes - b.minutes);
+
+  /*
+   * AND THE PEOPLE WHO ARE NOT ON THAT LIST AND SHOULD NOT BE READ AS FINE.
+   *
+   * Somebody at work who clocked in and never out has no hours to be short
+   * of - "not known" is not "did their day". Counting them silently would
+   * make the list read as the whole truth, and these are exactly the names
+   * somebody in the group will ask about.
+   */
+  const noClockOut = people.filter(
+    (p) => WORKED_MARKS.has(p.code) && p.in_time && !p.out_time
+  );
+
   /* ---- the text, in the shape the office already sends ---- */
 
   const out = [];
@@ -206,6 +234,29 @@ export function dailyReport({
     out.push('');
   }
 
+  /* Before Overtime: it is the half somebody reads the message for. */
+  out.push('Short hours');
+  if (!short.length) {
+    out.push('Nobody was short of hours today');
+  } else {
+    out.push(
+      ...bullets(
+        short,
+        (p) =>
+          `${name(p)} — ${formatDuration(-p.minutes)} short` +
+          (p.in_time || p.out_time ? ` (${p.in_time || '—'} to ${p.out_time || '—'})` : '')
+      )
+    );
+  }
+  if (noClockOut.length) {
+    out.push(
+      `${noClockOut.length} ${noClockOut.length === 1 ? 'person' : 'people'} clocked in and ` +
+        'not out, so their hours are not known yet: ' +
+        noClockOut.map((p) => name(p)).join(', ')
+    );
+  }
+  out.push('');
+
   out.push('Overtime');
   if (!overtime.length) {
     out.push('No overtime logged today');
@@ -235,11 +286,15 @@ export function dailyReport({
       out_of_uniform: outOfUniform.length,
       uniform_not_checked: notLookedAt.length,
       overtime: overtime.length,
+      short: short.length,
+      /* Minutes, as a positive figure - the message says "1h 32m short". */
+      short_minutes: short.reduce((t, p) => t - p.minutes, 0),
+      no_clock_out: noClockOut.length,
       not_marked: notMarked.length,
       nothing_marked: nothingMarked,
     },
     /** Named, so a screen can show who is behind each line without re-deriving it. */
-    lists: { absent, onLeave, halfDay, late, early, outOfUniform, overtime, notMarked },
+    lists: { absent, onLeave, halfDay, late, early, outOfUniform, overtime, short, noClockOut, notMarked },
   };
 }
 

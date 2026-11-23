@@ -358,7 +358,7 @@ export default function Dashboard({
           department: row.department || '',
           /* What the clock says, or null for a day nobody clocked - which is
              "not known", not "worked none of it". */
-          workedMinutes: readTimes(times).worked,
+          workedMinutes: readTimes(times, { deductLunch: !period.lunch_paid }).worked,
         };
 
         if (!code) out.unmarked.push(person);
@@ -373,7 +373,11 @@ export default function Dashboard({
           out.clocked++;
           if (parseTime(times.out_time) === null) out.noClockOut.push(person);
         }
-        const workedToday = readTimes(times).worked;
+        /* THE MONTH'S OWN LUNCH SETTING. These two were the last pair left
+           reading the default - on a month with the break inside the paid day
+           the roll call reported every nine-hour day as 8h 20m, and the day's
+           total hours with it. Same miss as the Time tab in v2.0.0. */
+        const workedToday = readTimes(times, { deductLunch: !period.lunch_paid }).worked;
         if (workedToday !== null && workedToday > 0) out.workedMinutes += workedToday;
         if (judgedOnTime(code)) {
           if (isLateIn(times, { start: standard.in_time, grace })) {

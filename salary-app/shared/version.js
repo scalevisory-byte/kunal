@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.8.0';
+export const VERSION = '2.9.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.9.0',
+    date: '23 Nov 2026',
+    title: 'Short hours in the daily WhatsApp message',
+    items: [
+      '**The daily report for the group now has a Short hours section.** Dinesh: *\u201cdaily whatup report bana kam time walo ka\u201d*. It sits beside the Overtime section that was already there \u2014 worst first, with how far short and the times behind it: *\u201cVIMAL PATIL \u2014 1h 00m short (09:30 to 17:30)\u201d*.',
+      '**Somebody who clocked in and never out is NAMED, not counted as fine.** They have no hours to be short of \u2014 *not known* is not *did their day* \u2014 and leaving them out silently would make the list read as the whole truth.',
+      '**It reads the day\u2019s own minutes and never re-reads the clock**, so the message, the roll call and the payslip cannot give three answers. A figure the office typed over the clock is the one that goes out, because that is the one the salary is charged on.',
+      'A day off is never short, whatever the clock says \u2014 a Sunday, a holiday, leave and a half day all carry nothing by the time they reach the message.',
+      'The summary under the box now counts it too: *9 present \u00b7 0 absent \u00b7 6 late \u00b7 5 short \u00b7 3 on overtime*.',
+      '**A bug found while building it:** the roll call\u2019s hours never read the month\u2019s lunch setting, so on a month with the break inside the paid day every nine-hour day showed as 8h 20m \u2014 and the day\u2019s total hours with it. The last two places still reading the default, three releases after the Time tab was fixed.',
+    ],
+  },
   {
     version: '2.8.0',
     date: '23 Nov 2026',

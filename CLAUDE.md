@@ -2983,6 +2983,38 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### Short hours in the daily WhatsApp message (v2.9.0)
+
+Dinesh: *"daily whatup report bana kam time walo ka"*. **Inspected first, and the daily
+WhatsApp report already existed** — `shared/dailyReport.js` + `DailyReport.jsx`, built from
+his own group's message, with Attendance / Late Coming – Early Going / Uniform / Office
+Inspection / Conduct / **Overtime** / Incidents, Copy and an Open WhatsApp link. What was
+missing is the mirror of the Overtime section that was already there.
+
+- **`short` is `people.filter(p => p.minutes < 0)`, worst first**, printed with how far short
+  and the times behind it — the first thing somebody in the group asks.
+- **IT READS THE DAY'S OWN `minutes` AND NEVER RE-READS THE CLOCK.** That is the column the
+  salary sheet is paid from, so the message, the roll call and the payslip cannot give three
+  answers; a figure the office typed OVER the clock is the one that goes out, because that is
+  the one charged. It also follows the month's new `day_grace_minutes` **without knowing the
+  grace exists** — a forgiven day carries 0 and is simply not short.
+- **Somebody who clocked in and never out is NAMED under the list, never counted as fine.**
+  They have no hours to be short of; leaving them out silently makes the list read as the
+  whole truth, and those are exactly the names the group asks about.
+- A day off can never appear: `minutesForMark` has already zeroed S/SP/HP/PH/CL/SL/PL/A/HF by
+  the time the message is built, and there is a test sweeping all nine.
+- The folded blurb and the summary line both NAME the new section — twelfth time for that
+  shape; a section missing from the sentence that lists them is a section nobody knows is there.
+- **THE BUG FOUND WHILE LOOKING:** `Dashboard.jsx` called `readTimes(times)` twice with no
+  `deductLunch`, so on a month with the break inside the paid day the roll call reported every
+  nine-hour day as 8h 20m, and the day's total hours with it. **The last two places still
+  reading the default, three releases after v2.0.0 fixed the Time tab** — the same miss,
+  found by reading the call sites before building on them.
+- Driven in a browser on a seeded month, after pressing v2.8.0's *Count every minute* on it:
+  the message listed VIMAL PATIL 1h 00m, YASNA 15m, SUHANI 11m, Zahid 10m, VISHAL 8m, with the
+  three on overtime below — the two releases working together.
+- Tests proved by deleting the `short` list: 3 of them fail.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

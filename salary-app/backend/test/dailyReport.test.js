@@ -17,6 +17,9 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { TYPED_DEFAULTS, dailyReport } from '../../shared/dailyReport.js';
 
 const DAY = 19;
@@ -164,4 +167,100 @@ test('the heading is whatever the office calls it', () => {
   });
   assert.equal(built.text.split('\n')[0], 'BOOKNFLY DAILY OFFICE REPORT');
   assert.equal(built.text.split('\n')[1], 'Date: 19 November 2026');
+});
+
+/* ================================================================= *
+ * SHORT HOURS — "daily whatup report bana kam time walo ka"
+ * ================================================================= */
+
+test('short hours are listed, worst first, with the times behind them', () => {
+  const built = build([
+    person(1, 'Suhani Kapadnis', { code: 'P', in_time: '10:14', out_time: '19:03', minutes: -11 }),
+    person(2, 'Vimal Patil', { code: 'P', in_time: '09:30', out_time: '17:30', minutes: -60 }),
+    person(3, 'Vaibhav Gupta', { code: 'P', in_time: '12:05', out_time: '21:18', minutes: 13 }),
+    person(4, 'Tushar Sheode', { code: 'P', in_time: '09:30', out_time: '18:30', minutes: 0 }),
+  ]);
+  assert.equal(built.counts.short, 2);
+  assert.equal(built.counts.short_minutes, 71, 'said as a positive figure');
+
+  const block = built.text.split('Short hours')[1].split('Overtime')[0];
+  assert.ok(block.indexOf('Vimal Patil') < block.indexOf('Suhani Kapadnis'), 'worst first');
+  assert.ok(block.includes('1h 00m short'));
+  assert.ok(block.includes('11m short'));
+  /* The times, because that is the first thing the group asks about. */
+  assert.ok(block.includes('09:30 to 17:30'));
+  /* Nobody who did their hours, and nobody who did more. */
+  assert.ok(!block.includes('Tushar Sheode'));
+  assert.ok(!block.includes('Vaibhav Gupta'));
+});
+
+test('it reads the day’s own minutes and never re-reads the clock', () => {
+  /*
+   * THE RULE: the message, the roll call and the payslip must not give three
+   * answers. `minutes` is the column the salary sheet is paid from, so a
+   * figure the office typed OVER the clock is the one that goes out - and a
+   * day inside the month's grace carries 0 and is simply not short, without
+   * this module needing to know the grace exists.
+   */
+  const built = build([
+    /* Nine hours on the clock, but the office typed 45 minutes onto the day. */
+    person(1, 'Typed Tarun', { code: 'P', in_time: '09:30', out_time: '18:30', minutes: -45 }),
+    /* Eight hours on the clock, and the day carries nothing - forgiven. */
+    person(2, 'Forgiven Falguni', { code: 'P', in_time: '09:30', out_time: '17:30', minutes: 0 }),
+  ]);
+  assert.equal(built.counts.short, 1);
+  assert.ok(built.text.includes('Typed Tarun'));
+  assert.ok(!built.text.split('Short hours')[1].split('Overtime')[0].includes('Forgiven Falguni'));
+});
+
+test('somebody who clocked in and not out is NAMED, never counted as fine', () => {
+  /*
+   * They have no hours to be short of - "not known" is not "did their day".
+   * Leaving them out silently makes the list read as the whole truth, and
+   * these are exactly the names somebody in the group asks about.
+   */
+  const built = build([
+    person(1, 'Ashok Mishra', { code: 'P', in_time: '09:40', out_time: '', minutes: 0 }),
+    person(2, 'Vimal Patil', { code: 'P', in_time: '09:30', out_time: '17:30', minutes: -60 }),
+  ]);
+  assert.equal(built.counts.no_clock_out, 1);
+  assert.equal(built.counts.short, 1, 'and they are NOT on the short list');
+  const block = built.text.split('Short hours')[1].split('Overtime')[0];
+  assert.ok(block.includes('clocked in and') && block.includes('not out'));
+  assert.ok(block.includes('Ashok Mishra'));
+});
+
+test('a day off is never short, whatever the clock says', () => {
+  /*
+   * The marks that are paid by the day carry 0 minutes by the time they reach
+   * here - `minutesForMark` sees to that on the way in - so the message
+   * cannot report a Sunday or a day of leave as short.
+   */
+  for (const code of ['S', 'SP', 'HP', 'PH', 'CL', 'SL', 'PL', 'A', 'HF']) {
+    const built = build([person(1, 'Somebody', { code, in_time: '10:00', out_time: '13:00', minutes: 0 })]);
+    assert.equal(built.counts.short, 0, `${code} must never be short`);
+    assert.equal(built.counts.no_clock_out, 0, `${code} is not a missing punch`);
+  }
+});
+
+test('a quiet day says so rather than printing an empty heading', () => {
+  const built = build([person(1, 'Amit Patel', { code: 'P', minutes: 0 })]);
+  assert.ok(built.text.includes('Short hours'));
+  assert.ok(built.text.includes('Nobody was short of hours today'));
+  assert.equal(built.counts.short, 0);
+  assert.equal(built.counts.short_minutes, 0);
+});
+
+test('the panel NAMES the section, or it reads as not included', () => {
+  /*
+   * Twelfth time for that shape: the folded blurb lists what the message
+   * carries, and a section missing from that sentence is a section nobody
+   * knows is there.
+   */
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const panel = fs.readFileSync(
+    path.join(here, '../../frontend/src/components/DailyReport.jsx'),
+    'utf8'
+  );
+  assert.match(panel, /short hours/i);
 });
