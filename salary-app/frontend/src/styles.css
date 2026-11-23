@@ -6129,3 +6129,85 @@ h3.spaced { margin-top: 1.5rem; }
 .wf-card:not(.open) .wf-step.at .wf-why::before { content: ' — '; }
 .wf-card:not(.open) .wf-step.at .wf-why { display: inline; }
 .wf-card:not(.open) .wf-actions { margin-top: 0; flex: 1 1 auto; }
+
+/*
+ * THE DASHBOARD, TIGHTENED — Dinesh: *"dashboard tab me bhi space kam karo"*.
+ *
+ * Measured at 1420x1200: the six tiles were 265px in two rows of three, the
+ * charts row 381px (driven by Quick stats, six rows at 49px each), and the
+ * ROLL CALL - the thing this page was deliberately made to open on - began
+ * at 807px, well below the fold.
+ *
+ * Nothing is removed. Every tile, every figure and every Quick stats line is
+ * still there; they are laid out across instead of down.
+ */
+/* Six across from 1200px, not 1500: the tiles are a row now, not a column,
+   so they fit. Re-measured at 1420, 1100 and 390 after the change. */
+@media (min-width: 1200px) { .dash .kpi-band { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* Bounded at the bottom, so the phone rules above (2 across under 860, one
+   across under 520) still win - they were measured at 390px and this rule
+   would otherwise sit later in the file and override them. */
+@media (min-width: 861px) and (max-width: 1199px) { .dash .kpi-band { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.dash .kpi-band { gap: 0.55rem; }
+/*
+ * THE TILE STAYS A COLUMN. A first attempt laid it out as a row and the
+ * browser showed why that cannot work: `.dash .kpi-head` carries
+ * `width: 100%`, so as a flex ROW item it took the whole tile and pushed the
+ * value and caption out of it - "ATTENDANCE NOT MARKED 9" printed straight
+ * across the tile beside it. Caught by looking at the page, not by reading
+ * the rule.
+ *
+ * So: same shape, less of it. Icon, value and caption all shrink; the value
+ * and its caption share one line under the label.
+ */
+/*
+ * `align-items: stretch`, and this is the whole fix for the caption that ran
+ * past the tile. The base `.kpi` is `align-items: flex-start`, which on a
+ * COLUMN flex container sizes every child to its own content - so
+ * "0 EMPLOYEE-DAYS ABSENT THIS MONTH" made `.kpi-body` 30px wider than the
+ * tile and the `text-overflow: ellipsis` on the caption never came into play
+ * because nothing was ever too narrow. Stretch gives the body the tile's
+ * width and the ellipsis does its job.
+ *
+ * Found by measuring every child against its tile, not by looking: the tiles
+ * themselves never overlapped each other, so the page looked fine.
+ */
+.dash .kpi { gap: 0.3rem; padding: 0.5rem 0.65rem; border-radius: 10px; align-items: stretch; }
+.dash .kpi-icon { width: 1.7rem; height: 1.7rem; border-radius: 8px; font-size: 0.8rem; }
+.dash .kpi-head { gap: 0.45rem; }
+.dash .kpi-body { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; min-width: 0; }
+/* A flex item will not shrink below its content, so the long captions -
+   "0 EMPLOYEE-DAYS ABSENT THIS MONTH" - ran 30px past the tile's right edge.
+   Measured, not guessed: the tile itself never overlapped its neighbour, so
+   only a per-element check found it. */
+.dash .kpi-body > * { min-width: 0; }
+.dash .kpi-value { font-size: 1.4rem; line-height: 1.1; }
+/*
+ * SIX TILES ACROSS MEANS 185px EACH, AND THE CAPTION HAS TO WRAP.
+ *
+ * `.kpi-caption` is `white-space: nowrap` with an ellipsis, which suited a
+ * 380px tile. At 185 it ran 70px past the edge - and an ellipsis would have
+ * eaten the figure anyway ("0 EMPLOYEE-DAYS ABSENT THIS M..."). Two short
+ * lines keep the whole sentence and the tile is tall enough for them.
+ */
+.dash .kpi-caption {
+  font-size: 0.64rem; min-width: 0;
+  white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25;
+}
+
+/* Quick stats and Pending actions: six rows at 49px was 294px of list for
+   six numbers, and it set the height of the whole charts row beside it. */
+.qs-row { padding: 0.3rem 0.2rem; gap: 0.5rem; }
+.qs-ico { width: 1.5rem; height: 1.5rem; border-radius: 7px; }
+
+/*
+ * The roll call's twelve figures. Scoped to this card ONLY - `.stat-row` is
+ * used on a dozen other screens and shrinking it everywhere is a change
+ * nobody asked for.
+ *
+ * The label keeps its two-line reserve: that is what stops "Out of uniform"
+ * dropping one figure below the other eleven and making the row read as two.
+ */
+.roll-call .stat-row { margin-bottom: 0.6rem; gap: 0 0.9rem; }
+.roll-call .stat { padding: 0.1rem 0 0.1rem 0.9rem; }
+.roll-call .stat-value { font-size: 1.15rem; line-height: 1.15; }

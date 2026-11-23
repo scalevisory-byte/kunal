@@ -2983,6 +2983,41 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The dashboard opens on the roll call again (v2.16.0)
+
+Dinesh: *"dashboard tab me bhi space kam karo"*.
+
+**Measured at 1420x1200:** six KPI tiles **265px** in two rows of three, the charts row
+**381px** (its height set by Quick stats — six rows at 49px each), and the **roll call, the
+thing this page was deliberately made to open on, began at 807px — below the fold.** After:
+**134 / 295**, roll call at **588px**.
+
+- The tiles are six abreast from 1200px up instead of three, with smaller icon, value and
+  caption. Every tile and every figure stays.
+- `.qs-row` padding and icon cut: Quick stats was 294px of list for six numbers, **and it
+  set the height of the whole row beside it**, so the charts row shrank with it.
+- The roll call's own twelve figures are tighter, scoped to `.roll-call` only — `.stat-row`
+  is used on a dozen other screens and shrinking it everywhere is a change nobody asked for.
+  The label keeps its two-line reserve, which is what stops *Out of uniform* dropping one
+  figure below the other eleven.
+
+**TWO BUGS OF MY OWN, BOTH FOUND BY MEASURING RATHER THAN LOOKING:**
+
+- The first attempt made the tile a flex **row**. `.dash .kpi-head` carries `width: 100%`,
+  so as a row item it took the whole tile and pushed the value and caption out — *"ATTENDANCE
+  NOT MARKED 9"* printed straight across the tile beside it. Visible in the screenshot, and
+  the reason the tile stays a column.
+- Then `.kpi-body` ran **70px past its tile**: the base `.kpi` is `align-items: flex-start`,
+  which on a COLUMN flex container sizes every child to its own content, so
+  `text-overflow: ellipsis` on the caption never came into play because nothing was ever too
+  narrow. **The tiles never overlapped each other, so the page looked fine** — only a
+  per-child check against its own tile found it. `align-items: stretch` is the fix, plus
+  letting the caption wrap: an ellipsis at 185px would have eaten the figure it carries.
+- The new breakpoint is **bounded at the bottom** (`min-width: 861px`), because it sits later
+  in the file than the phone rules and would otherwise override the ones measured at 390px.
+  Re-checked at 1420 / 1100 / 860 / 520 / 390: no overlap, no child outside its tile, no
+  sideways page scroll, and the phone still gets one tile a row.
+
 ### The salary sheet's own chrome, measured (v2.15.0)
 
 Dinesh: *"salary sheet tab me bhi space kam karo"*.

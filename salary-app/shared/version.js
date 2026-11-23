@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.15.0';
+export const VERSION = '2.16.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.16.0',
+    date: '24 Nov 2026',
+    title: 'The dashboard opens on the roll call again',
+    items: [
+      '**The daily roll call now starts at 588px instead of 807px** on a 1,200px screen \u2014 so the thing this page was made to open on is actually on the first screen. Dinesh: *\u201cdashboard tab me bhi space kam karo\u201d*.',
+      '**The six tiles across the top are one row, not two.** 265px \u2192 134px. Every tile, every figure and every caption is still there \u2014 they are smaller and six abreast instead of three.',
+      '**Quick stats** was six rows at 49px each, and it set the height of the whole charts row beside it. Tighter rows bring that row from 381px to 295px, with all six lines still listed.',
+      'The roll call\u2019s own twelve figures are a little tighter too, and the long caption on a tile now wraps instead of being cut off \u2014 an ellipsis at that width would have eaten the figure it carries.',
+    ],
+  },
   {
     version: '2.15.0',
     date: '24 Nov 2026',

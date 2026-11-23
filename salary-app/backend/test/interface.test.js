@@ -4196,3 +4196,39 @@ test('THE SALARY SHEET’S CHROME IS CUT WITHOUT LOSING A FIGURE', () => {
   /* The total it carried moved into the heading, so it is not lost. */
   assert.match(pex, /Things to check\{summary\?\.open \? ` \(\$\{summary\.open\}\)` : ''\}/);
 });
+
+test('THE DASHBOARD OPENS ON THE ROLL CALL, NOT BELOW IT', () => {
+  /*
+   * Dinesh: *"dashboard tab me bhi space kam karo"*. Measured at 1420x1200:
+   * six tiles 265px in two rows of three, the charts row 381px (set by Quick
+   * stats, six rows at 49px), and the ROLL CALL - the thing this page was
+   * deliberately made to open on - started at 807px, below the fold. After:
+   * 134 / 295, roll call at 588px.
+   *
+   * TWO BUGS THE BROWSER FOUND, both in my own first attempt:
+   *  - laying the tile out as a ROW let `.kpi-head`'s `width: 100%` take the
+   *    whole tile and print the value over the tile beside it;
+   *  - `align-items: flex-start` on the column sized `.kpi-body` to its own
+   *    content, so a long caption ran 70px past the tile with the ellipsis
+   *    never coming into play. The tiles never overlapped, so only a
+   *    per-child measurement found it.
+   */
+  const css = src('styles.css');
+  /* Six across only where they fit, and the measured phone rules still win. */
+  assert.match(css, /@media \(min-width: 1200px\) \{ \.dash \.kpi-band \{ grid-template-columns: repeat\(6/);
+  assert.match(css, /@media \(min-width: 861px\) and \(max-width: 1199px\)/);
+  /* The tile is a column; a row layout is what broke it. */
+  assert.ok(
+    !/\.dash \.kpi \{[^}]*flex-direction:\s*row/.test(css),
+    'the dashboard tile must stay a column'
+  );
+  assert.match(css, /\.dash \.kpi \{[^}]*align-items: stretch/);
+  /* The caption wraps rather than being cut: an ellipsis at 185px would eat
+     the figure it carries. */
+  assert.match(css, /\.dash \.kpi-caption \{[\s\S]*?white-space: normal/);
+  /* Nothing on the band is hidden. */
+  assert.ok(
+    !/\.dash \.kpi[-a-z]*\s*\{[^}]*display:\s*none/.test(css),
+    'no tile or part of one is hidden'
+  );
+});
