@@ -27,6 +27,7 @@
  */
 
 import {
+  dayGrace,
   formatDuration,
   minutesForMark,
   readTimes,
@@ -84,7 +85,14 @@ export function inOutRegister(rows = [], period = {}, { punches = null, everyDay
        * say when the two differ; it never replaces the stored one.
        */
       const chargeable = Number(entry.minutes) || 0;
-      const fromClock = minutesForMark(entry, { hoursPerDay, code, deductLunch });
+      const fromClock = minutesForMark(entry, {
+        hoursPerDay,
+        code,
+        deductLunch,
+        /* The month's OWN grace, or every day would read as typed over the
+           moment the two disagreed about a few minutes. */
+        graceMinutes: dayGrace(period),
+      });
       const typedOver = anyTime && chargeable !== fromClock;
 
       if (read.worked !== null) workedMinutes += read.worked;

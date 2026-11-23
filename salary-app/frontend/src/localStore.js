@@ -30,7 +30,14 @@ import { buildWorkbook } from '../../shared/workbook.js';
 import { buildMonthlyPack } from '../../shared/monthlyPack.js';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../shared/statutory.js';
 import { employeeReport } from '../../shared/employeeReport.js';
-import { TIME_FIELDS, minutesForMark, parseTime, timesToDay } from '../../shared/timesheet.js';
+import {
+  DEFAULT_DAY_GRACE_FOR_NEW_MONTHS,
+  TIME_FIELDS,
+  dayGrace,
+  minutesForMark,
+  parseTime,
+  timesToDay,
+} from '../../shared/timesheet.js';
 import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
@@ -1487,6 +1494,9 @@ export async function handle(method, path, body) {
         lunch_paid: 0,
         late_policy: DEFAULT_POLICY_FOR_NEW_MONTHS,
         monthly_hours_grace: 0,
+        /* Every minute counts on a month opened from now - the same constant
+           the server names, so the file and the server cannot differ. */
+        day_grace_minutes: DEFAULT_DAY_GRACE_FOR_NEW_MONTHS,
         late_concession_minutes: 300,
         late_grace_minutes: 0,
         shift_in: '09:30',
@@ -1921,6 +1931,7 @@ export async function handle(method, path, body) {
           'lunch_paid',
           'late_policy',
           'monthly_hours_grace',
+          'day_grace_minutes',
           'late_concession_minutes',
           'late_grace_minutes',
           'shift_in',
@@ -2052,7 +2063,11 @@ export async function handle(method, path, body) {
           // Clock times become money here too, so hours are worth the same in
           // the file as they are on the server.
           if (anyTime && !('minutes' in entry)) {
-            const judged = timesToDay(times, { hoursPerDay: hoursFor(entry.employee_id) });
+            const judged = timesToDay(times, {
+              hoursPerDay: hoursFor(entry.employee_id),
+              deductLunch: !period?.lunch_paid,
+              rules: { graceMinutes: dayGrace(period || {}) },
+            });
             minutes = judged.minutes;
             if (!('code' in entry) && AUTO_TIME_MARKS.has(code)) {
               if (judged.code) code = judged.code;
@@ -2065,6 +2080,7 @@ export async function handle(method, path, body) {
               hoursPerDay: hoursFor(entry.employee_id),
               code,
               deductLunch: !period?.lunch_paid,
+              graceMinutes: dayGrace(period || {}),
             });
           }
 

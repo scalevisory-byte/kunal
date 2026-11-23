@@ -1046,8 +1046,20 @@ test("the office's usual timings add up to the day, and say so", () => {
    * already; this screen was the one that did not, and it is the one people
    * type into. Rewritten to state that, not patched to pass.
    */
-  assert.match(tab, /const usual = timesToDay\(standard, \{ hoursPerDay: period\.hours_per_day, deductLunch \}\)/);
+  /*
+   * REWRITTEN again at v2.8.0, not patched: the same call now also carries
+   * the month's own daily grace, and pinning the exact one-line spelling
+   * broke on nothing but a line wrap. The RULE is what matters - the usual
+   * day is judged on the month's lunch setting and the month's grace - so
+   * that is what is asserted.
+   */
+  const usualCall = tab.slice(tab.indexOf('const usual = timesToDay(standard'));
+  const usualArgs = usualCall.slice(0, usualCall.indexOf('});') + 1);
+  assert.match(usualArgs, /hoursPerDay: period\.hours_per_day/);
+  assert.match(usualArgs, /deductLunch/);
+  assert.match(usualArgs, /graceMinutes: grace/);
   assert.match(tab, /const deductLunch = !period\.lunch_paid;/);
+  assert.match(tab, /const grace = dayGrace\(period\);/);
   /*
    * And NOTHING on this screen may judge a day without it.
    *

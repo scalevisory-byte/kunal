@@ -79,7 +79,17 @@ test('set the scene: one company, four people on the same salary, one open month
    * the people here carry other days from the tests above. That rule has its
    * own file; this one is about the three write routes agreeing per day.
    */
-  const period = await api('POST', '/api/periods', { year: 2026, month: 11, late_policy: 'hours' });
+  /*
+   * Pinned to the day-by-day rule AND to the old 15-minute grace, both
+   * deliberately. This file is about the three write routes agreeing per
+   * day, and its people carry other days from earlier tests in the file -
+   * so a month-wide account, or a grace that counts every minute, moves
+   * figures this file is not asking about. That it has to be said is itself
+   * the proof that neither switches a month by itself.
+   */
+  const period = await api('POST', '/api/periods', {
+    year: 2026, month: 11, late_policy: 'hours', day_grace_minutes: 15,
+  });
   periodId = period.body.id;
   await api('GET', `/api/periods/${periodId}/payroll`);
 });

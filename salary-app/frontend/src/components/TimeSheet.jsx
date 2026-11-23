@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS } from '../../../shared/calc.js';
 import {
   dayNotFinished,
+  dayGrace,
   formatDuration,
   formatTime,
   hasTimes,
@@ -106,6 +107,13 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
    * type into.
    */
   const deductLunch = !period.lunch_paid;
+  /*
+   * How many minutes a day may be out before the + / - column counts it.
+   * Held per month, so a figure changed now never rewrites a month already
+   * paid. Dinesh, looking at a column of dashes: *"kuch logo me +- minutes
+   * kyu nahi aa rahi he"* - every one of those days was inside this.
+   */
+  const grace = dayGrace(period);
 
   /*
    * THE SCREEN MUST SHOW WHAT THE SHEET CHARGES, not what the clock says on
@@ -120,13 +128,14 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
    */
   const judge = (row, d) => {
     const entry = entryOf(row, d);
-    const day = timesToDay(entry, { hoursPerDay: hoursOf(row), deductLunch });
+    const day = timesToDay(entry, { hoursPerDay: hoursOf(row), deductLunch, rules: { graceMinutes: grace } });
     return {
       ...day,
       minutes: minutesForMark(entry, {
         hoursPerDay: hoursOf(row),
         code: entry.code || day.code,
         deductLunch,
+        graceMinutes: grace,
       }),
     };
   };
@@ -144,7 +153,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         const [employeeId, d] = key.split(':').map(Number);
         const row = rows.find((r) => r.employee_id === employeeId);
         const merged = { ...(row?.attendance?.[d] || {}), ...times };
-        const worked = timesToDay(merged, { hoursPerDay: hoursOf(row || {}), deductLunch });
+        const worked = timesToDay(merged, {
+          hoursPerDay: hoursOf(row || {}),
+          deductLunch,
+          rules: { graceMinutes: grace },
+        });
         const current = String(row?.attendance?.[d]?.code || '').toUpperCase();
         // Only a mark that says nothing in particular gives way to the clock.
         const code = worked.code && AUTO_MARKS.has(current) ? worked.code : current;
@@ -158,7 +171,12 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           minutes:
             worked.worked === null
               ? Number(row?.attendance?.[d]?.minutes) || 0
-              : minutesForMark(merged, { hoursPerDay: hoursOf(row || {}), code, deductLunch }),
+              : minutesForMark(merged, {
+                  hoursPerDay: hoursOf(row || {}),
+                  code,
+                  deductLunch,
+                  graceMinutes: grace,
+                }),
           ...times,
         };
       });
@@ -319,6 +337,84 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   };
 
   /*
+   * DAYS THE MONTH'S GRACE IS STILL FORGIVING.
+   *
+   * Dinesh, looking at a Time tab where every + / - read a dash: *"kuch logo
+   * me +- minutes kyu nahi aa rahi he"*, then *"dikhavo"*. A month opened
+   * from now counts every minute; a month already open keeps the quarter of
+   * an hour it was run on, because nothing in this app rewrites a stored
+   * value by itself.
+   *
+   * And a changed rule does not reach back: whatever is on a day stays until
+   * that day is saved again — the one-punch lesson of v1.99.0 and the half
+   * day of v2.2.0. So this sweeps the WHOLE MONTH, not the view: that tab
+   * shows one day across everybody or one person down the month, and the
+   * days are scattered through both.
+   */
+  const graceDays = useMemo(() => {
+    if (grace === 0) return [];
+    const found = [];
+    for (const row of rows) {
+      const att = row.attendance || {};
+      for (let d = 1; d <= total; d += 1) {
+        const entry = att[d];
+        if (!entry || !hasTimes(entry)) continue;
+        const code = String(entry.code || '').trim().toUpperCase();
+        const now = Number(entry.minutes) || 0;
+        const every = minutesForMark(entry, {
+          hoursPerDay: hoursOf(row),
+          code,
+          deductLunch,
+          graceMinutes: 0,
+        });
+        if (every !== now) found.push({ row, day: d, from: now, to: every });
+      }
+    }
+    return found;
+  }, [rows, total, grace, deductLunch, period]);
+
+  const countEveryMinute = async () => {
+    if (!graceDays.length) return;
+    const who = new Set(graceDays.map(({ row }) => row.employee_name));
+    const net = graceDays.reduce((t, g) => t + (g.to - g.from), 0);
+    /*
+     * What it costs, said plainly and differently per rule - because on the
+     * month's own hours rule these minutes were ALREADY counted (that rule
+     * reads the clock, not this column), so the screen changes and the pay
+     * does not. Claiming otherwise either way would be the worse mistake.
+     */
+    const policy = String(period.late_policy || '').toLowerCase();
+    const effect =
+      policy === 'none'
+        ? 'Nothing anybody is paid changes: this month pays from the days alone.'
+        : policy === 'monthly' || policy === 'monthly_late'
+          ? 'Nothing anybody is paid changes: this month is judged on its own total of ' +
+            'hours, which has always counted every minute. Only the column changes.'
+          : 'This month charges each day on its own, so these minutes WILL move the pay.';
+    if (
+      !window.confirm(
+        `Count every minute on ${period.label}?\n\n` +
+          `${graceDays.length} day${graceDays.length === 1 ? '' : 's'} across ${who.size} ` +
+          `${who.size === 1 ? 'person' : 'people'} are inside the ${grace}-minute grace and ` +
+          `read as a dash. Showing them comes to ${net > 0 ? '+' : ''}${net} minutes in all.\n\n` +
+          `${effect}\n\nThe grace for this month goes to 0 and those days are worked out again.`
+      )
+    )
+      return;
+    setStatus('Counting…');
+    try {
+      await onPatchPeriod?.({ day_grace_minutes: 0 });
+      await onSave(
+        graceDays.map(({ row, day: d, to }) => ({ employee_id: row.employee_id, day: d, minutes: to }))
+      );
+      setStatus('Counted');
+      onReload?.();
+    } catch (err) {
+      setStatus(err.message || 'could not be saved');
+    }
+  };
+
+  /*
    * DAYS MARKED HALF A DAY WITH NO DEPARTURE ON THEM.
    *
    * The importer used to decide the mark from a last punch that was really
@@ -392,7 +488,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   );
 
   /* What the usual timings come to against the day the month is paid on. */
-  const usual = timesToDay(standard, { hoursPerDay: period.hours_per_day, deductLunch });
+  const usual = timesToDay(standard, {
+    hoursPerDay: period.hours_per_day,
+    deductLunch,
+    rules: { graceMinutes: grace },
+  });
   /*
    * The lunch break: recorded, or taken off the day?
    *
@@ -634,6 +734,19 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             </button>
             <span className="muted small">
               in and out at the same minute — one punch, not a day
+            </span>
+          </div>
+        ) : null}
+
+        {graceDays.length > 0 && !locked ? (
+          <div className="ts-block">
+            <button className="ghost" onClick={countEveryMinute}>
+              Count every minute &mdash; {graceDays.length} day
+              {graceDays.length === 1 ? '' : 's'}
+            </button>
+            <span className="muted small">
+              inside this month&rsquo;s {grace}-minute grace, so the + / &minus; column reads a
+              dash on them
             </span>
           </div>
         ) : null}

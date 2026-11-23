@@ -9,7 +9,7 @@ import { onMonthlyHours } from '../../../../shared/monthlyHours.js';
 import { STANDARD_WORKING_DAYS } from '../../../../shared/calc.js';
 import { rupees } from '../../format.js';
 
-import { formatDuration, timesToDay } from '../../../../shared/timesheet.js';
+import { dayGrace, formatDuration, timesToDay } from '../../../../shared/timesheet.js';
 /**
  * The rules a month is paid on, in one place.
  *
@@ -55,7 +55,14 @@ export default function Settings({ period, locked, onPatch, onGo }) {
       lunch_in: period.shift_lunch_in,
       out_time: period.shift_out,
     },
-    { hoursPerDay: period.hours_per_day, deductLunch: !period.lunch_paid },
+    {
+      hoursPerDay: period.hours_per_day,
+      deductLunch: !period.lunch_paid,
+      /* It reads `usual.minutes`, so it has to use the month's own grace or
+         this line and the Time tab would say different things about the same
+         timings. */
+      rules: { graceMinutes: dayGrace(period) },
+    },
   );
 
   /*
@@ -217,6 +224,15 @@ export default function Settings({ period, locked, onPatch, onGo }) {
             'Zero on purpose: a monthly pool plus a daily allowance gives the same minutes away twice.')}
           {box('monthly_hours_grace', 'The month may fall short by, minutes', 'number',
             'Zero on purpose, for the same reason. Only counts while the month\u2019s total is charged.')}
+          {/*
+            * The one that made a whole column read as dashes. It only ever
+            * touched the day's own + / - figure: the month's total reads the
+            * clock times themselves and has always counted every minute.
+            */}
+          {box('day_grace_minutes', 'A day may be out by, minutes', 'number',
+            `${dayGrace(period)} now. Under this, the day\u2019s + / \u2212 column reads a dash. ` +
+            'A month opened from now starts at 0 \u2014 every minute counts. It does NOT change ' +
+            'the month\u2019s own total of hours, which always counted them.')}
         </div>
         <p className="muted small">
           <strong>Right now: </strong>

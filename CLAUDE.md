@@ -2942,6 +2942,47 @@ times — that is data entry, not a decision.
   drops to 7 / ₹1,287 and gains *Clear 1 typed figure* → press Deduct → all eight
   filled, footer ‑1,443 → Clear → everybody back to 25,800.
 
+### The quarter of an hour that was hiding every minute (v2.8.0)
+
+Dinesh, off his live Time tab where the whole + / − column read a dash: *"kuch logo me +-
+minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
+
+- **Nothing was wrong.** `TIME_RULES.graceMinutes` has been 15 since the Time tab was built,
+  and every day on his screen was inside it: **+7, −11, +8, +13, −8, −15, −10**
+  — recomputed here from his own clock times before answering, not guessed at. The rows
+  reading `9h 00m` were genuinely 0 (the "Fill the usual timings" days).
+- **THE HALF THAT MADE IT CONFUSING, and it is now a test:** the grace only ever touched that
+  column. `monthlyHoursLine` reads the clock times themselves, so **Month hrs has always
+  counted every minute** — his three days came to 0, 0, 0 on the grid and **+9** in the
+  month, which is the figure the "Deduct the short hours" decision is taken on.
+- **`day_grace_minutes` is now a period column**, read through `dayGrace(period)`.
+  **The column default is 15 and `DEFAULT_DAY_GRACE_FOR_NEW_MONTHS` is 0, deliberately two
+  different figures**: the first is what every month already run was paid on, so the migration
+  cannot move a rupee; the second is what a month opened from now starts on.
+- **A changed rule does not reach back**, the v1.99.0/v2.2.0 lesson again. **Time → "Count
+  every minute"** patches the month to 0 and re-works the stored days in one press, sweeping
+  the WHOLE month rather than the view. It names the days, the people and the net minutes, and
+  **says what it costs per policy** — nothing on `none`, nothing on `monthly`/`monthly_late`
+  (that rule already counted them), real money only on `hours`.
+- **THE BUG IT FOUND, and it is the third of its kind:** `setAttendance` reads the month with a
+  **named column list**, and the new figure was not on it — so the server went on forgiving
+  fifteen minutes while the month said 0. Same trap as `listPayrollRows` missing the salary
+  breakup. Caught by the end-to-end test, which fails with the column removed.
+- Threaded through every screen that stores or shows the figure (`db.js`, `localStore.js`,
+  `TimeSheet.jsx`, `Attendance.jsx`, `Settings.jsx`, `inOutRegister.js`, `monthlyStatus.js`),
+  with a test naming each — the v2.0.0 `deductLunch` lesson, where one screen out of five
+  was missed and it was the one people type into. `attendanceStatement.js` and
+  `myDashboard.js` read only `worked`, so they are deliberately untouched.
+- An omitted `graceMinutes` still behaves exactly as before, so the punch importer's own
+  defaults and every fixture are unmoved.
+- Two tests pinned the old call shapes and were **rewritten to state the new rule**: the
+  Time tab's usual-day assertion (which broke on nothing but a line wrap, so it now asserts
+  the RULE rather than the spelling), and `attendanceWrites`, whose period is now pinned to
+  the old grace as well as to `hours`, for the reason already written there.
+- Driven on a month seeded like his: 84 days across 7 people, −192 minutes, confirm read
+  *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
+  −8m / −15m / −10m with the 9h 00m row still a dash.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

@@ -52,6 +52,38 @@ const { halfDayHours: _fixedHalfDay, ...TIME_RULES_WITHOUT_HALF } = TIME_RULES;
  * a 20-hour shift comes to be refused in one place and paid in the other.
  */
 export const MAX_DAY_MINUTES = 16 * 60;
+
+/**
+ * HOW MANY MINUTES A DAY MAY BE OUT BEFORE IT COUNTS.
+ *
+ * Dinesh, looking at a Time tab where every + / - column read a dash:
+ * *"kuch logo me +- minutes kyu nahi aa rahi he"*. Nothing was wrong - every
+ * one of those days was inside the quarter-hour this rule forgives. His own
+ * figures that morning: +7, -11, +8, +13, -8, -15, -10, all forgiven.
+ *
+ * `TIME_RULES.graceMinutes` (15) is what the app has always done and what
+ * every month already run was paid on. A month opened from now starts on
+ * **0** - every minute counts, which is what he asked to see - and the
+ * figure is held PER MONTH, so a rule changed in December never rewrites
+ * November.
+ *
+ * WORTH KNOWING, and it is the thing that made the question confusing: the
+ * grace only ever touched this column. `monthlyHours` reads the clock times
+ * themselves, so the month's own total has always counted every minute. On
+ * his three days above the column read 0, 0, 0 and the month read +9.
+ */
+export const DEFAULT_DAY_GRACE_FOR_NEW_MONTHS = 0;
+
+/**
+ * The grace one month runs on. A month with nothing stored keeps the old
+ * quarter of an hour, so no month already run can move.
+ */
+export const dayGrace = (period = {}) => {
+  const given = period?.day_grace_minutes;
+  if (given === null || given === undefined || given === '') return TIME_RULES.graceMinutes;
+  const n = Number(given);
+  return Number.isFinite(n) && n >= 0 && n <= 240 ? Math.round(n) : TIME_RULES.graceMinutes;
+};
 const DAY = 24 * 60;
 
 /**
@@ -411,8 +443,15 @@ export const HOURS_EXPECTED = new Set(['', 'P', 'WH']);
  * One function so the server, the offline file and the import preview cannot
  * give three answers for the same day.
  */
-export function minutesForMark(times, { hoursPerDay = 9, code = '', deductLunch = true } = {}) {
-  const judged = timesToDay(times, { hoursPerDay, deductLunch });
+export function minutesForMark(
+  times,
+  { hoursPerDay = 9, code = '', deductLunch = true, graceMinutes } = {}
+) {
+  const judged = timesToDay(times, {
+    hoursPerDay,
+    deductLunch,
+    ...(graceMinutes === undefined ? {} : { rules: { graceMinutes } }),
+  });
   const mark = String(code || '').trim().toUpperCase();
   const owesTheDay = HOURS_EXPECTED.has(mark);
 

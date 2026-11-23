@@ -28,7 +28,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
-import { parseTime, formatTime, minutesForMark, departureTime } from './timesheet.js';
+import { parseTime, formatTime, minutesForMark, departureTime, dayGrace } from './timesheet.js';
 import { hoursForEmployee } from './lateEarly.js';
 
 /* ---------------- what the machine's codes mean here ---------------- */
@@ -567,7 +567,9 @@ export function monthlyStatusToMarks({
            */
           const m = minutesForMark(
             { in_time: entry.in_time, out_time: entry.out_time },
-            { hoursPerDay: theirHours, code },
+            /* The month's own grace, so what the dry run promises is what
+               the write produces. */
+            { hoursPerDay: theirHours, code, graceMinutes: dayGrace(period) },
           );
           if (m < 0) { shortMinutes -= m; shortDays += 1; }
           else if (m > 0) { overtimeMinutes += m; overtimeDays += 1; }

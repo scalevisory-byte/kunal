@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.7.0';
+export const VERSION = '2.8.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.8.0',
+    date: '23 Nov 2026',
+    title: 'Every minute shows \u2014 the quarter-hour that was hiding them',
+    items: [
+      '**Why the + / \u2212 column read a dash on almost everybody.** Dinesh: *\u201ckuch logo me +- minutes kyu nahi aa rahi he\u201d*. Nothing was wrong \u2014 the app has always forgiven a day that is within **15 minutes** of its hours. On his own screen that morning: +7, \u221211, +8, +13, \u22128, \u221215, \u221210. All inside it, so all a dash.',
+      '**That grace is now a figure you set, held per month** (Admin \u2192 Settings, *A day may be out by*). A month opened from now starts at **0** \u2014 every minute shows. **No month already open is changed by this update**, because it is what those months were run on.',
+      '**Time \u2192 \u201cCount every minute\u201d** switches the open month to 0 and works those days out again, in one press. A changed rule never reaches back on its own: whatever is on a day stays until the day is saved. It says how many days, how many people and how many minutes before it acts.',
+      '**It also says what it COSTS, and the answer is usually nothing.** On a month paying from the days alone, or on the month\u2019s own hours target, the pay does not move \u2014 only the column. It moves money only on the old day-by-day rule.',
+      '**The thing that made the question confusing:** the grace only ever touched that one column. The **Month hrs** figure reads the clock times themselves and has always counted every minute. On the three days above, the column said 0, 0, 0 and the month said +9.',
+      '**A bug found while building it:** the server read the month\u2019s settings with a named list of columns that the new figure was not on, so it went on forgiving a quarter of an hour while the month said 0. The same trap as the salary breakup that never reached the payslip.',
+    ],
+  },
   {
     version: '2.7.0',
     date: '23 Nov 2026',

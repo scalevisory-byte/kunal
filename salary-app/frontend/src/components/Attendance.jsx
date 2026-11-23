@@ -10,6 +10,7 @@ import {
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
 import {
   formatDuration,
+  dayGrace,
   minutesForMark,
   monthTotals,
   readTimes,
@@ -290,6 +291,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           hoursPerDay: hoursForEmployee(row, { period }),
           code: entry.code,
           deductLunch: !period.lunch_paid,
+          graceMinutes: dayGrace(period),
         })
       : Number(entry.minutes) || 0;
     const next = { ...draft, [key]: entry };
@@ -1100,6 +1102,7 @@ function DayPicker({
     hoursPerDay,
     code: entry.code || '',
     deductLunch,
+    graceMinutes: dayGrace(period || {}),
   });
   const expected = Math.round(Number(hoursPerDay) * 60);
   /* A figure somebody typed over the clock. Saying so is the whole point:

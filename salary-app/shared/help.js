@@ -343,6 +343,7 @@ export const HELP = [
     keywords: [
       'only days', 'days only', 'present absent', 'absent present half day', 'no hours',
       'deduct', 'decision', 'katna he ya nahi', 'minus hours', 'apne aap',
+      'grace', 'chhoot', 'dash', 'nahi aa rahi', '15 minute', 'every minute',
       'hours off', 'ghante nahi', 'sirf din', 'din ke hisab se', 'manual', 'manual column',
       'month hrs', 'rule', 'policy', 'salary count',
     ],
@@ -353,6 +354,8 @@ export const HELP = [
       '**For one person, click their Month hrs figure** \u2014 it goes straight into their OT min box. Use it when somebody\u2019s hours should count and nobody else\u2019s should.',
       '**Nothing is overwritten.** A row where a figure is already typed is left alone and counted, the same way *Mark everyone Present* fills blank days and never changes a mark. **Clear N typed figures** hands them all back to the rule.',
       '**The OT min box is still the final word.** Whatever is in it is charged or paid, whatever the rule says; empty it and the rule decides again.',
+      '**A day within a few minutes of its hours reads as a dash.** Each month carries a figure \u2014 *A day may be out by* in **Admin \u2192 Settings** \u2014 and anything inside it is not counted on the + / \u2212 column. Months opened from now start at **0**, so every minute shows. **Time \u2192 Count every minute** switches an older month over and works its days out again.',
+      '**That grace never touched the Month hrs figure.** The month\u2019s own total reads the clock times and has always counted every minute \u2014 so a day can read a dash on the grid and still be in the month\u2019s total.',
       '**A \u221250 on the attendance grid is not a deduction on this rule.** The grid still shows each day\u2019s short or extra minutes, because that is the record of the day \u2014 but on this rule nothing reaches the pay from it.',
       '**To charge for hours, switch the rule** on **Time \u2192 Late and early** or **Admin \u2192 Settings**. Both say what the switch costs this month before it happens, and the rule is per month, so a change now never rewrites a month already paid.',
     ],

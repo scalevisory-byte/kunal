@@ -1,6 +1,11 @@
 import Database from 'better-sqlite3';
 import { MONTH_NAMES, STANDARD_WORKING_DAYS } from '../../shared/calc.js';
-import { minutesForMark, timesToDay } from '../../shared/timesheet.js';
+import {
+  DEFAULT_DAY_GRACE_FOR_NEW_MONTHS,
+  dayGrace,
+  minutesForMark,
+  timesToDay,
+} from '../../shared/timesheet.js';
 import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
 import { config } from './config.js';
 import { log } from './logger.js';
@@ -504,6 +509,16 @@ const periodLateColumns = [
    * on, the same reasoning as late_grace_minutes above.
    */
   ['monthly_hours_grace', 'INTEGER NOT NULL DEFAULT 0'],
+  /*
+   * HOW MANY MINUTES A DAY MAY BE OUT BEFORE IT COUNTS.
+   *
+   * The column default is 15 - what the app has always done and what every
+   * month already run was paid on, so this migration cannot move a rupee.
+   * A month opened from now is given 0 explicitly by `createPeriod`, from
+   * `DEFAULT_DAY_GRACE_FOR_NEW_MONTHS`, because Dinesh asked to see every
+   * minute. The two are deliberately different figures.
+   */
+  ['day_grace_minutes', 'INTEGER NOT NULL DEFAULT 15'],
   ['shift_in', "TEXT NOT NULL DEFAULT '09:30'"],
   ['shift_out', "TEXT NOT NULL DEFAULT '18:30'"],
   /*
@@ -1633,14 +1648,23 @@ export function createPeriod(input) {
      * table is never rewritten - see the note on the constant.
      */
     late_policy: input.late_policy || DEFAULT_POLICY_FOR_NEW_MONTHS,
+    /*
+     * Every minute counts on a month opened from now. Named here rather
+     * than left to the column's default, which stays at the old 15 so that
+     * no month already in the table moves.
+     */
+    day_grace_minutes:
+      input.day_grace_minutes === undefined
+        ? DEFAULT_DAY_GRACE_FOR_NEW_MONTHS
+        : Number(input.day_grace_minutes),
   };
   if (!row.year || !row.month) throw new Error('year and month are required');
   if (row.month < 1 || row.month > 12) throw new Error('month must be 1-12');
   if (!row.label) row.label = `${MONTH_NAMES[row.month - 1]} ${row.year}`;
   const info = db
     .prepare(
-      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount, late_policy)
-       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount, @late_policy)`
+      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount, late_policy, day_grace_minutes)
+       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount, @late_policy, @day_grace_minutes)`
     )
     .run(row);
   return getPeriod(info.lastInsertRowid);
@@ -1660,6 +1684,7 @@ export function updatePeriod(id, patch) {
     'late_concession_minutes',
     'late_grace_minutes',
     'monthly_hours_grace',
+    'day_grace_minutes',
     'shift_in',
     'shift_out',
     'shift_lunch_out',
@@ -2734,7 +2759,14 @@ export const setAttendance = db.transaction((periodId, entries) => {
   // The month's own hours, so the half-day line and the shortfall are judged
   // against the day this month is actually paid on.
   const month = db
-    .prepare(`SELECT hours_per_day, lunch_paid, shift_in, shift_out FROM periods WHERE id = ?`)
+    /* day_grace_minutes is on this list for a reason: it was left off and the
+       server went on forgiving a quarter of an hour while the month said 0.
+       A named column list goes stale the moment a column is added - the same
+       trap as `listPayrollRows` and the salary breakup. */
+    .prepare(
+      `SELECT hours_per_day, lunch_paid, shift_in, shift_out, day_grace_minutes
+       FROM periods WHERE id = ?`
+    )
     .get(periodId);
   const hoursPerDay = Number(month?.hours_per_day) || 9;
   /*
@@ -2764,6 +2796,9 @@ export const setAttendance = db.transaction((periodId, entries) => {
   // ...and whether the lunch break comes off it. Off by default, so no month
   // already paid moves; see the column's note above.
   const deductLunch = !month?.lunch_paid;
+  /* How many minutes a day may be out before it counts, held per month so a
+     rule changed in December never rewrites November. */
+  const grace = dayGrace(month || {});
   /*
    * The attendance trail. A mark REPLACED by a different mark is recorded; a
    * blank day being filled in is not. That is the line worth drawing: "Mark
@@ -2864,7 +2899,11 @@ export const setAttendance = db.transaction((periodId, entries) => {
      * left alone: it has already applied the rule and may have its own.
      */
     if (anyTime && !('minutes' in entry)) {
-      const judged = timesToDay(times, { hoursPerDay: hoursFor(employeeId), deductLunch });
+      const judged = timesToDay(times, {
+        hoursPerDay: hoursFor(employeeId),
+        deductLunch,
+        rules: { graceMinutes: grace },
+      });
       minutes = judged.minutes;
       /*
        * The mark is only set from the hours when the day is blank or carries a
@@ -2901,7 +2940,12 @@ export const setAttendance = db.transaction((periodId, entries) => {
        * the day on the Sunday register, outside the salary this would come
        * out of.
        */
-      minutes = minutesForMark(times, { hoursPerDay: hoursFor(employeeId), code, deductLunch });
+      minutes = minutesForMark(times, {
+        hoursPerDay: hoursFor(employeeId),
+        code,
+        deductLunch,
+        graceMinutes: grace,
+      });
     }
 
     // A day with no mark, no minutes and no times has nothing left to record.
