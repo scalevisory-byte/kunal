@@ -43,7 +43,7 @@ import { STANDALONE, api } from '../api.js';
 /** Marks the times are allowed to overwrite - everything else is deliberate. */
 const AUTO_MARKS = new Set(['', 'P', 'A', 'HF']);
 
-export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked, onReload }) {
+export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked, onReload, openAt = null, onOpened = null }) {
   const total = daysInMonth(period.year, period.month);
   const today = new Date();
   const isThisMonth = today.getFullYear() === period.year && today.getMonth() + 1 === period.month;
@@ -61,6 +61,27 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
     setPersonId(id);
     setView('month');
   };
+
+  /*
+   * ARRIVING FROM THE MISSING PUNCH REPORT, at one person on one day.
+   *
+   * Dinesh: *"kisi ka punch missing he to manually kaise log hoga"*. That
+   * report names the person and the day and then left you to remember both,
+   * switch tab and find them again. It opens their MONTH, not the day view,
+   * because the day it is about is one row of it and the rest of the month
+   * is the context for judging the time - including that day's punches.
+   *
+   * It calls `openPerson`, the same two pieces of state everything else on
+   * this screen sets, and then clears the request so an ordinary visit to
+   * the tab does not jump anywhere.
+   */
+  useEffect(() => {
+    if (!openAt?.employee_id) return;
+    openPerson(openAt.employee_id);
+    if (openAt.day) setDay(Number(openAt.day));
+    onOpened?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openAt?.employee_id, openAt?.day]);
   const [query, setQuery] = useState('');
   const [importing, setImporting] = useState(false);
   const [draft, setDraft] = useState({}); // "employeeId:day" -> the four times

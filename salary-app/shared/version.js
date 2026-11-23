@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.13.0';
+export const VERSION = '2.14.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.14.0',
+    date: '24 Nov 2026',
+    title: 'The missing-punch list can open the day it found',
+    items: [
+      '**Click a name in Reports \u2192 Missing punch and it opens that person\u2019s month on the Time tab**, with the in / lunch / out boxes already on the day. Dinesh: *\u201ckisi ka punch missing he to manually kaise log hoga\u201d*. The report named the person and the day and then left you to remember both, change tab and find them again in a list of eighty-five.',
+      '**The report still writes nothing.** One screen owns typing a clock time \u2014 a second one would be a second answer to how the day\u2019s \u00b1 minutes are worked out, which is exactly the bug that once saved a wrong deduction. Typing the time on the Time tab re-works the day by itself; nothing else has to be touched.',
+      'The three ways to put a missing time in are unchanged and all still there: the **day menu** on the Attendance grid, the **Time** tab, and the employee raising it from their own login for the office to approve.',
+    ],
+  },
   {
     version: '2.13.0',
     date: '24 Nov 2026',

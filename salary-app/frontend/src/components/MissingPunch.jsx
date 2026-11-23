@@ -13,8 +13,17 @@ import { saveCsv } from '../saveCsv.js';
  * It counts nothing and changes nothing: every day here is already paid,
  * whatever the sheet made of it. This is a list of things to go and ask
  * about.
+ *
+ * AND NOW A WAY IN, which it did not have. Dinesh: *"kisi ka punch missing
+ * he to manually kaise log hoga"*. This report names the person and the day
+ * and then left you to remember both, switch tab, find them in a list of
+ * eighty-five and count down to the date - FOURTEENTH time for that shape.
+ * Clicking a row opens that person's month on the Time tab, where the four
+ * boxes already are. It does NOT write anything itself: one screen owns
+ * typing a clock time, and a second one would be a second answer to how the
+ * day's minutes are worked out.
  */
-export default function MissingPunch({ payroll }) {
+export default function MissingPunch({ payroll, onGo = null }) {
   const [only, setOnly] = useState('');
 
   const { lines, totals, worst } = useMemo(
@@ -129,7 +138,18 @@ export default function MissingPunch({ payroll }) {
           {shown.map((l) => (
             <tr key={`${l.employee_id}-${l.day}`}>
               <td>
-                {l.name}
+                {onGo ? (
+                  <button
+                    type="button"
+                    className="link name-link"
+                    title={`Open ${l.name}\u2019s month on the Time tab to type it in`}
+                    onClick={() => onGo('time', { employee_id: l.employee_id, day: l.day })}
+                  >
+                    {l.name}
+                  </button>
+                ) : (
+                  l.name
+                )}
                 {l.code ? <span className="muted small"> · {l.code}</span> : null}
               </td>
               <td className="small">{l.department}</td>
@@ -155,6 +175,12 @@ export default function MissingPunch({ payroll }) {
           )}
         </tbody>
       </table>
+      <p className="muted small">
+        <strong>To fill one in, click the name.</strong> It opens that person&rsquo;s whole month
+        on the <strong>Time</strong> tab, where the in, lunch and out boxes are \u2014 type the
+        time and the day works itself out. The same four boxes are in the day menu on the
+        Attendance grid, if that is where you are standing.
+      </p>
       <p className="muted small">
         A day <strong>nobody</strong> clocked is not the same as a day <strong>half</strong>{' '}
         clocked — the first may be a job where nobody punches, the second is a record that is

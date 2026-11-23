@@ -2983,6 +2983,39 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### Logging a punch that never arrived (v2.14.0)
+
+Dinesh: *"kisi ka punch missing he to manually kaise log hoga"*.
+
+**Inspected first, and three ways already existed** — the four clock boxes in the day menu
+on the Attendance grid, the Time tab, and the employee raising a correction from their own
+login for the office to approve. The help topic `fix-a-punch` already answered the question
+in words. **What did not exist is a way in from the report that finds them.**
+
+`Reports → Missing punch` named the person and the day and then left you to remember both,
+change tab, find them in a list of eighty-five and count down to the date. **Fourteenth time
+for that shape.**
+
+- The name is a `name-link` button: `onGo('time', { employee_id, day })` → `App` keeps a
+  `timeAt`, hands it to `TimeSheet` as `openAt`, and the tab calls **`openPerson`** — the
+  same two pieces of state the toggle and the select already set, not a third way of saying
+  who is on screen. `onOpened` clears it, so an ordinary visit to the tab does not jump.
+- **It opens their MONTH, not the day view**, because the day in question is one row of it
+  and the rest of the month is the context for judging the time — including that day's own
+  punches under the out box.
+- **THE REPORT STILL WRITES NOTHING,** and there is a test for it: no `onSave`, no
+  `minutesForMark`. One screen owns typing a clock time, because a second one would be a
+  second answer to how a day's minutes are worked out — which is exactly the v2.0.0 bug that
+  saved a wrong deduction beside new hours.
+- Driven end to end: cleared SUHANI's out time on the 5th → the report listed *"Punched in,
+  never out · 10:14"* → clicked the name → Time tab, month view, her month, header
+  `DAY / SUHANI KAPADNIS` → typed `19:03` → the row read **8h 49m / −11m** and the server
+  stored `minutes = -11`, not a stale 0.
+- **The help was amended, not duplicated.** A new line was written on the `time-tab` topic
+  and then deleted: `fix-a-punch` already owns this question and owned it better. The same
+  call as v1.81's onboarding topic. Its stale half-sentence about the report was trimmed at
+  the same time, and `manually` / `haath se` / `punch nahi hua` now reach it.
+
 ### The Attendance tab's legend, folded (v2.13.0)
 
 Dinesh: *"attendance tab me bhi same karo"*.

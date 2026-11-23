@@ -224,7 +224,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     'leave-status': () => (
       <LeaveApplications period={period} companyId={filters.company_id || null} onGo={onGo} />
     ),
-    'missing-punch': () => (shown ? <MissingPunch payroll={shown} /> : null),
+    'missing-punch': () => (shown ? <MissingPunch payroll={shown} onGo={onGo} /> : null),
     /* Not a month's report: it reads the staff list as it is today, so it
        takes `employees` and not `shown`. */
     'punch-ids': () => <PunchIdReport employees={employees} onGo={onGo} />,

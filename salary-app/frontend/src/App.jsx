@@ -256,6 +256,12 @@ function Shell() {
    * already is and carries the destination with it.
    */
   const [focusOn, setFocusOn] = useState(null);
+  /*
+   * A person and a day to open the Time tab on, from a report that found a
+   * day needing a clock time. `null` means "wherever it was" - the tab must
+   * not jump about on an ordinary visit.
+   */
+  const [timeAt, setTimeAt] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [newsOpen, setNewsOpen] = useState(false);
   const [whoOpen, setWhoOpen] = useState(false);
@@ -1183,6 +1189,8 @@ function Shell() {
             onSave={saveAttendance}
             onPatchPeriod={patchPeriod}
             onReload={loadPayroll}
+            openAt={timeAt}
+            onOpened={() => setTimeAt(null)}
           />
         )}
 
@@ -1363,7 +1371,14 @@ function Shell() {
             period={period}
             payroll={payroll}
             onReload={loadAll}
-            onGo={setTab}
+            onGo={(toTab, what) => {
+              setTab(toTab);
+              /* A report can ask for one person on one day - Missing punch
+                 opens the Time tab there so the boxes are already in front
+                 of whoever is going to type the time. */
+              if (what && typeof what === 'object') setTimeAt(what);
+              else if (typeof what === 'string') setFocusOn(what);
+            }}
             focus={focusOn}
             onFocused={() => setFocusOn(null)}
             employees={employees}

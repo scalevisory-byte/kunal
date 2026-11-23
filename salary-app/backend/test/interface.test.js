@@ -4116,3 +4116,34 @@ test('THE MARK LEGEND IS FOLDED, BUT ITS KEY IS STILL READABLE CLOSED', () => {
   assert.match(css, /\.legend-key \{ display: inline;/);
   assert.match(css, /\.legend-fold \.legend \{ margin-top:/);
 });
+
+test('THE MISSING PUNCH REPORT CAN OPEN THE DAY IT FOUND', () => {
+  /*
+   * Dinesh: *"kisi ka punch missing he to manually kaise log hoga"*. The
+   * report named the person and the day and then left you to remember both,
+   * switch tab, find them in a list of eighty-five and count down to the
+   * date - FOURTEENTH time for that shape in this app.
+   *
+   * THE LINE IT MUST NOT CROSS: the report does not write. One screen owns
+   * typing a clock time, because a second one would be a second answer to
+   * how the day's minutes are worked out - which is the v2.0.0 bug that
+   * saved a wrong deduction.
+   */
+  const report = src('components/MissingPunch.jsx');
+  const app = src('App.jsx');
+  const tab = src('components/TimeSheet.jsx');
+
+  assert.match(report, /onGo\('time', \{ employee_id: l\.employee_id, day: l\.day \}\)/);
+  assert.match(report, /className="link name-link"/);
+  /* It reads; it does not save. */
+  const code = report.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/onSave/.test(code), 'the report must not write attendance');
+  assert.ok(!/minutesForMark/.test(code), 'nor work out a day of its own');
+
+  assert.match(app, /openAt=\{timeAt\}/);
+  assert.match(app, /if \(what && typeof what === 'object'\) setTimeAt\(what\)/);
+  /* Clearing it matters: an ordinary visit to the tab must not jump. */
+  assert.match(app, /onOpened=\{\(\) => setTimeAt\(null\)\}/);
+  assert.match(tab, /openPerson\(openAt\.employee_id\)/);
+  assert.match(tab, /onOpened\?\.\(\)/);
+});
