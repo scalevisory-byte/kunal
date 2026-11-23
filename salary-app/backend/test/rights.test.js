@@ -165,6 +165,15 @@ test('a staff login cannot be given an office area at all', async () => {
   const cookie = await signIn('amit.shah', 'staff-pass-123');
   const res = await call(cookie, 'GET', `/api/periods/${month.id}/payroll`);
   assert.equal(res.status, 403, 'its whole authority is /api/me');
+
+  /*
+   * The day's punch list is their own record and they see it on their own
+   * page - but the OFFICE route that serves anybody's is still an office
+   * route. A staff login reaching it would be a door onto everybody's
+   * comings and goings, which is a different thing from their own.
+   */
+  const theirs = await call(cookie, 'GET', `/api/employees/${amit.id}/punches?period_id=${month.id}`);
+  assert.equal(theirs.status, 403, 'even their OWN punches are asked for through /api/me');
 });
 
 /* ---------------- the screen and the server must agree ---------------- */

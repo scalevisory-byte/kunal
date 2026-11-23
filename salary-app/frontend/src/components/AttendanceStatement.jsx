@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { STANDALONE, api } from '../api.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { col, num, printReport } from '../printReport.js';
@@ -35,6 +36,29 @@ export default function AttendanceStatement({ row, period, holidays = [], onClos
     () => attendanceStatement(row, period, { holidays }),
     [row, period, holidays]
   );
+
+  /*
+   * EVERY punch of each day, not just the two ends.
+   *
+   * The readers are door locks: a normal day is six or eight openings, and In
+   * and Out are the first and the last of them. Everything between is what
+   * settles "I left at 6:30, that 5:45 one was tea" - and until the spool's
+   * raw punches were kept, the app did not have it to show.
+   *
+   * It is NOT a second opinion about the hours. In and Out are still earliest
+   * and latest, which is what the sheet is paid from; this only says what
+   * else the machine saw.
+   */
+  const [punches, setPunches] = useState({});
+  useEffect(() => {
+    if (STANDALONE || !row?.employee_id || !period?.id) return;
+    setPunches({});
+    api
+      .get(`/employees/${row.employee_id}/punches?period_id=${period.id}`)
+      .then((body) => setPunches(body?.days || {}))
+      .catch(() => setPunches({}));
+  }, [row?.employee_id, period?.id]);
+
   if (!row) return null;
 
   const { employee, days, summary } = stm;
@@ -239,7 +263,14 @@ export default function AttendanceStatement({ row, period, holidays = [], onClos
                   <td className="val muted small">
                     {d.lunch_out || d.lunch_in ? `${d.lunch_out || '…'}–${d.lunch_in || '…'}` : '—'}
                   </td>
-                  <td className="val">{d.out_time || '—'}</td>
+                  <td className="val">
+                    {d.out_time || '—'}
+                    {(punches[d.day] || []).length > 2 ? (
+                      <span className="my-att-punches">
+                        {punches[d.day].map((p) => p.at).join(' · ')}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="num">{hours(d.worked_minutes) || '—'}</td>
                   <td className={`num${d.ot_minutes < 0 ? ' deduct' : ''}`}>
                     {d.ot_minutes ? `${d.ot_minutes > 0 ? '+' : ''}${d.ot_minutes}` : '—'}

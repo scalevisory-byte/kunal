@@ -491,6 +491,19 @@ export const HELP = [
     note: 'IT CARRIES NO SALARY, NO PAN AND NO BANK DETAILS, on purpose: a contact list gets printed and left on a desk. The employee export is the one with everything on it. Somebody with no number is listed with the gap showing rather than left out — they are the ones worth chasing.',
   },
   {
+    id: 'day-punches',
+    title: 'Every punch of a day, not just in and out',
+    tab: 'attendance',
+    keywords: ['punches', 'door', 'door lock', 'lunch punch', 'in out', 'har punch', 'darwaza', 'kitne baar'],
+    lines: [
+      'The readers are on the door, so a normal day is six or eight openings — in, out for tea, back, out for lunch, back, home.',
+      '**In** and **Out** are the first and the last of those. Under the out time, every punch of that day is listed.',
+      'The office sees it on a person’s attendance statement (click their name on the grid); the employee sees the same list on their own **My attendance**.',
+      'It only appears where the day carries more than two punches — otherwise it would repeat In and Out.',
+    ],
+    note: 'IT IS NOT A SECOND OPINION ABOUT THE HOURS. The hours are still worked out from the first punch and the last, which is what the salary is paid from; this only says what else the machine saw. And it starts from the day the app began keeping them — punches read before that were used and thrown away, so older days show only In and Out.',
+  },
+  {
     id: 'punch-totals',
     title: 'How many punches each person has',
     tab: 'reports',

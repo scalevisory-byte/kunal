@@ -520,6 +520,9 @@ function MyAttendance({ months, onError }) {
     return all.filter((d) => d.code || d.in_time || d.out_time || d.ot_minutes || d.holiday);
   }, [data]);
   const summary = data?.statement?.summary || null;
+  /* Every punch of every day, keyed by day number. Empty where the person has
+     no number the readers can match - nobody looked, so there is nothing. */
+  const punches = data?.punches || {};
 
   if (!months.length) return <div className="card"><p className="muted small">Nothing yet.</p></div>;
 
@@ -625,7 +628,25 @@ function MyAttendance({ months, onError }) {
                         >
                           {d.in_time || '—'}
                         </td>
-                        <td className="num">{d.out_time || '—'}</td>
+                        <td className="num">
+                          {d.out_time || '—'}
+                          {/*
+                            * THE WHOLE DAY, not just the two ends. The reader
+                            * is a door lock, so a normal day is six or eight
+                            * openings and In/Out are only the first and the
+                            * last of them. The rest answers "I left at 6:30,
+                            * that 5:45 one was tea".
+                            *
+                            * It is not a second opinion about the hours - the
+                            * hours still come from the first and the last,
+                            * which is what the salary is worked out from.
+                            */}
+                          {(punches[d.day] || []).length > 2 ? (
+                            <span className="my-att-punches">
+                              {punches[d.day].map((p) => p.at).join(' · ')}
+                            </span>
+                          ) : null}
+                        </td>
                         <td className="num">
                           {/* NOT KNOWN is a dash. Nought hours would read as a
                               day somebody turned up for and did nothing. */}
@@ -654,7 +675,10 @@ function MyAttendance({ months, onError }) {
               </div>
             )}
             <p className="muted small">
-              Hours are worked out from the in and out times on the day
+              {Object.keys(punches).length
+                ? 'Under the out time is every punch of that day — the reader is on the door, so stepping out for lunch and coming back shows there too. Only the first and the last count towards the hours. '
+                : ''}
+              Hours come from the in and out times on the day
               {data.period?.lunch_paid ? ' (the lunch break is inside the paid day)' : ', less the lunch break'}.
               A day with no clock times shows a dash — that means the times are not known, not that
               you worked nothing. If a day looks wrong, raise it with the office; it is the same

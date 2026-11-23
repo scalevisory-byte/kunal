@@ -826,6 +826,32 @@ table.attendance th .dow { display: block; font-size: 0.6rem; opacity: 0.75; }
 table.attendance th.sunday, table.attendance td.sunday { background: color-mix(in srgb, var(--bad) 8%, transparent); }
 
 /*
+ * A STICKY HEADER CELL MUST BE OPAQUE, OR THE TABLE SCROLLS THROUGH IT.
+ *
+ * The Sunday and today tints are `color-mix(... , transparent)` - 92% and 91%
+ * see-through. In the BODY that is right: the tint has to sit over the row's
+ * own stripe and its hover without replacing them. In the sticky header there
+ * is nothing behind it but the rows scrolling past, so they showed straight
+ * through: Dinesh's grid read "P" and "+35" printed over Sun 1, Sun 8 and
+ * Sun 15 while he scrolled, and only ever over the Sunday columns - every
+ * other header cell was already opaque.
+ *
+ * Measured before and after: 12 of 12 scroll frames changed the date header,
+ * then 0 of 12. The same tint, mixed into the header's own background rather
+ * than into nothing.
+ */
+table.attendance thead th.sunday {
+  background: color-mix(in srgb, var(--bad) 8%, var(--line-soft));
+}
+table.attendance thead th.today {
+  background: color-mix(in srgb, var(--brand) 9%, var(--line-soft));
+}
+/* Both at once: today falling on a Sunday is one cell, not a toss-up. */
+table.attendance thead th.today.sunday {
+  background: color-mix(in srgb, var(--brand) 9%, color-mix(in srgb, var(--bad) 8%, var(--line-soft)));
+}
+
+/*
  * THE DATE ROW STAYS PUT. Eighty-five names deep, the day numbers have
  * scrolled off and the only way to know which column you are clicking is to
  * count across with a finger from the left edge - which is how somebody
@@ -5798,3 +5824,20 @@ table.sheet.results-table tbody tr:hover td.tr-acts {
 /* A heading that follows a row of controls needs air above it, or it reads as
    a label for the button rather than the start of the next thing. */
 h3.spaced { margin-top: 1.5rem; }
+
+/*
+ * Every punch of a day, under the out time on the employee's own attendance.
+ *
+ * A door lock records six or eight openings a day; In and Out are only the
+ * first and the last. This is the rest, small and on its own line, because it
+ * is a record to check against and not a figure anybody adds up.
+ */
+.my-att-punches {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+}

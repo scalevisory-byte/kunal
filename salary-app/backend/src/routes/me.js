@@ -41,6 +41,7 @@ import {
 } from '../people.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
+import { punchesByDay } from '../devices.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
 import { forEmployee as announcementsFor } from '../../../shared/announcements.js';
 import { listVacancies } from '../hiring.js';
@@ -217,6 +218,21 @@ meRouter.get('/attendance/:periodId', (req, res) => {
     /* Only the days and the summary: the statement's `employee` block is
        their own name back again, which the page already has. */
     statement: { days: statement.days, summary: statement.summary },
+    /*
+     * EVERY punch of every day, not just the first and the last.
+     *
+     * Dinesh: *"EMPLOYEE LOGIN ME UNKA PURE DIN KA INOUT DIKHA HE?"*, then
+     * *"DONO KO DIKHE"*. The readers are door locks, so a day carries six or
+     * eight openings; the page showed two. The rest is the answer to "I left
+     * at 6:30, that 5:45 one was tea" - and this is the screen the person
+     * with that question is already looking at.
+     *
+     * It is their OWN punches and nobody else's: the employee id comes off
+     * the login, like every other route here. And it is not a second opinion
+     * about the hours - in and out are still earliest and latest, which is
+     * what the salary is worked out from.
+     */
+    punches: punchesByDay(employee, { year: period.year, month: period.month }).days,
   });
 });
 

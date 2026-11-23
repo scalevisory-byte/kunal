@@ -90,6 +90,32 @@ db.exec(`
     ON device_punches(punched_at);
 `);
 
+/*
+ * Where a punch came from, and THE TRAP THAT MAKES THIS COLUMN NECESSARY.
+ *
+ * The Bizcompass spool belongs to no reader of ours, so its rows carry
+ * device_id NULL - and in SQLite a UNIQUE index treats NULLs as DISTINCT.
+ * device_punches_once above would therefore not stop a thing: the same punch
+ * would be filed again every five minutes, for ever, and the day's punch list
+ * would read as somebody opening the door two hundred times.
+ *
+ * So spool rows get their own PARTIAL unique index, on the source instead of
+ * the device. Our own readers keep the original index untouched, so nothing
+ * about them changes.
+ */
+{
+  const have = new Set(db.prepare('PRAGMA table_info(device_punches)').all().map((c) => c.name));
+  if (!have.has('source')) {
+    db.exec("ALTER TABLE device_punches ADD COLUMN source TEXT NOT NULL DEFAULT ''");
+    log.info('Migrated device_punches: added source.');
+  }
+}
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS device_punches_source_once
+    ON device_punches(device_code, punched_at, source)
+    WHERE device_id IS NULL;
+`);
+
 const DEVICE_FIELDS = ['name', 'host', 'port', 'comm_key', 'company_id', 'active', 'note'];
 
 const clean = (input = {}) => ({
@@ -163,8 +189,8 @@ export function deleteDevice(id) {
 /* ---------------- the store ---------------- */
 
 const insertPunch = () => db.prepare(`
-  INSERT OR IGNORE INTO device_punches (device_id, device_code, punched_at, state, verify)
-  VALUES (?, ?, ?, ?, ?)
+  INSERT OR IGNORE INTO device_punches (device_id, device_code, punched_at, state, verify, source)
+  VALUES (?, ?, ?, ?, ?, ?)
 `);
 
 /**
@@ -178,7 +204,14 @@ export function savePunches(deviceId, punches = []) {
   db.transaction(() => {
     for (const p of punches) {
       if (!p.user || !p.at) continue;
-      const info = stmt.run(deviceId ?? null, String(p.user), p.at, p.state ?? null, p.verify ?? null);
+      const info = stmt.run(
+        deviceId ?? null,
+        String(p.user),
+        p.at,
+        p.state ?? null,
+        p.verify ?? null,
+        deviceId ? `device:${deviceId}` : ''
+      );
       added += info.changes;
     }
   })();
@@ -467,4 +500,78 @@ export function punchEventsForMonth({ month, year }) {
      WHERE p.punched_at LIKE ?
      ORDER BY p.punched_at
   `).all(`${Number(year)}-${m}-%`);
+}
+
+/**
+ * File the raw punches the Bizcompass spool carried.
+ *
+ * Until now the spool was read, turned into marks, and THROWN AWAY — so the
+ * app held a day's first and last punch and nothing in between. On readers
+ * that are door locks, everything in between is the answer to "I left at
+ * 6:30, that 5:45 one was tea", and there was no answer at all.
+ *
+ * These rows belong to no reader of ours (`device_id` NULL), so they are kept
+ * apart by `source` and the partial unique index above — see the note there
+ * for why a NULL device_id cannot be part of the key.
+ *
+ * It stores and nothing else: no marks, no attendance, no money. The punches
+ * were already read and applied by the time this is called.
+ */
+export function saveSpoolPunches(punches = []) {
+  const stmt = insertPunch();
+  let added = 0;
+  db.transaction(() => {
+    for (const p of punches) {
+      if (!p.user || !p.when) continue;
+      // 'dd-mm-yyyy HH:MM:SS' -> the sortable stamp this table is keyed on.
+      const m = String(p.when).match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}:\d{2}:\d{2})/);
+      if (!m) continue;
+      const at = `${m[3]}-${m[2]}-${m[1]} ${m[4]}`;
+      // The reader's own id rides in `source`, so two gates recording the same
+      // second stay two punches and the key separates them.
+      const source = p.device ? `bizcompass:${String(p.device).slice(0, 40)}` : 'bizcompass';
+      added += stmt.run(null, String(p.user), at, null, p.verify ?? null, source).changes;
+    }
+  })();
+  return { seen: punches.length, added };
+}
+
+/**
+ * Every punch held for one person in one month, day by day.
+ *
+ * The person is matched the way every importer matches them: their Punch ID
+ * when they have one, else an employee code that IS a number. Somebody with
+ * neither gets an empty map — nobody ever looked for them, which is not the
+ * same as them never punching.
+ */
+export function punchesByDay(employee, { year, month }) {
+  const own = String(employee?.device_code || '').trim();
+  const code = String(employee?.code || '').trim();
+  const id = own || (/^\d+$/.test(code) ? code : '');
+  if (!id) return { matched_on: '', days: {} };
+
+  // 0037 and 37 are one enrolment, so the lookup strips leading zeros on both
+  // sides rather than comparing the text.
+  const bare = id.replace(/^0+(?=\d)/, '');
+  const m = String(Number(month)).padStart(2, '0');
+  const rows = db.prepare(`
+    SELECT p.punched_at AS at, p.source AS source,
+           COALESCE(d.name, '') AS device_name
+      FROM device_punches p
+      LEFT JOIN punch_devices d ON d.id = p.device_id
+     WHERE p.punched_at LIKE ?
+       AND (p.device_code = ? OR LTRIM(p.device_code, '0') = ?)
+     ORDER BY p.punched_at
+  `).all(`${Number(year)}-${m}-%`, id, bare);
+
+  const days = {};
+  for (const r of rows) {
+    const day = Number(r.at.slice(8, 10));
+    if (!Number.isFinite(day)) continue;
+    (days[day] ||= []).push({
+      at: r.at.slice(11, 16),
+      where: r.device_name || (r.source.startsWith('bizcompass') ? 'reader' : ''),
+    });
+  }
+  return { matched_on: own ? 'punch_id' : 'code', id, days };
 }

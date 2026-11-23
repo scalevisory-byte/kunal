@@ -16,6 +16,12 @@ import path from 'node:path';
 import { coverage, fileCouldMatter, readLogFiles } from '../../shared/bizcompassLogs.js';
 import { listPeriods } from './db.js';
 import { applyPunches, periodFor } from './punchApply.js';
+/*
+ * devices.js imports monthForAuto from here, so this is a cycle - and it is
+ * safe because both sides are hoisted `export function` declarations that are
+ * only ever called, never read while either module is still evaluating.
+ */
+import { saveSpoolPunches } from './devices.js';
 import { log } from './logger.js';
 
 /** Where the spool is, if the office has said. */
@@ -103,10 +109,23 @@ export function runImport(periodId, { dryRun = true } = {}) {
   const spool = readLogFiles(files);
   const applied = applyPunches(period, spool.punches, { dryRun });
 
+  /*
+   * Keep the raw punches, but ONLY on a real run - a look must not write, and
+   * that rule holds for the punch store as much as for attendance.
+   *
+   * Until this the spool was read, turned into marks and discarded, so the
+   * app held a day's first and last punch and nothing in between. On a door
+   * lock everything in between is the whole record of the day.
+   *
+   */
+  let stored = null;
+  if (!dryRun) stored = saveSpoolPunches(spool.punches);
+
   return {
     status: 200,
     body: {
       ...applied,
+      stored,
       spool: {
         dir,
         files: spool.files,

@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.96.0';
+export const VERSION = '1.97.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.97.0',
+    date: '23 Nov 2026',
+    title: 'Every punch of the day \u2014 to the office and to the employee',
+    items: [
+      '**The readers are door locks, so a normal day is six or eight openings** \u2014 in, out for tea, back, out for lunch, back, home. The app showed two of them: the first and the last. Everything in between is the answer to \u201cI left at 6:30, that 5:45 one was tea\u201d, and there was no answer at all.',
+      'Now the whole day is listed under the out time, in **both** places: on the office\u2019s attendance statement (click a name on the grid) and on the employee\u2019s own **My attendance**.',
+      '**Nothing about pay changes.** In and Out are still the first punch and the last, which is what the hours and the salary come from. This only says what else the machine saw.',
+      '**The punches are now kept.** Until this release the Bizcompass folder was read, turned into marks and thrown away. From this update they are filed, so a day can be looked at again \u2014 and the same punch read twenty times a day is still one punch.',
+      '**Older days will show only In and Out**, because the punches behind them were never kept. It starts filling from the next import.',
+      '**Fixed: the date row glitched while scrolling the attendance grid.** Marks and figures from the rows underneath printed over the day numbers \u2014 and only ever over the Sunday and today columns, because those two are the only tinted ones and their tint was see-through. Every other date cell was already solid. Measured on one Sunday cell across fourteen scroll positions: it changed on all fourteen before, none after.',
+    ],
+  },
   {
     version: '1.96.0',
     date: '23 Nov 2026',

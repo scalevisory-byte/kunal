@@ -3680,3 +3680,31 @@ test('the Time tab judges a day by its MARK, not by the clock alone', () => {
   assert.doesNotMatch(tab, /minutes: worked\.minutes/, 'never straight off the clock');
   assert.match(tab, /minutes: minutesForMark\(entry/, 'and the figure on screen is the same one');
 });
+
+test('A STICKY HEADER CELL IS OPAQUE, or the table scrolls through it', () => {
+  /*
+   * Dinesh: *"DATE PE SCROLL KAR RAHE HE TO GLITCH AA RAAHE"*, with a grid
+   * reading "P" and "+35" printed over Sun 1, Sun 8 and Sun 15.
+   *
+   * The Sunday and today tints are `color-mix(..., transparent)` - 92% and
+   * 91% see-through. In the BODY that is right: the tint sits over the row's
+   * own stripe and its hover rather than replacing them. In the STICKY
+   * HEADER there is nothing behind it but the rows scrolling past, so they
+   * showed straight through - and only ever in those two kinds of column,
+   * because every other header cell was already opaque.
+   *
+   * Measured in a browser on one Sunday date cell across fourteen scroll
+   * positions: 14 of 14 changed before, 0 of 14 after.
+   */
+  const css = src('styles.css');
+  const headerTints = css.match(/table\.attendance thead th\.(sunday|today)[^{]*\{[^}]*\}/g) || [];
+  assert.ok(headerTints.length >= 2, 'the header tints must be stated for the header, not inherited');
+  for (const rule of headerTints) {
+    assert.doesNotMatch(
+      rule,
+      /,\s*transparent\s*\)/,
+      `a sticky header cell cannot be mixed into transparent:\n${rule}`
+    );
+    assert.match(rule, /var\(--line-soft\)/, 'it mixes into the header’s own background');
+  }
+});

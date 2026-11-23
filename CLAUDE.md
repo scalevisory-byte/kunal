@@ -2366,6 +2366,67 @@ dekhne k liye hoga"*. `shared/punchTotals.js`, `PunchTotals.jsx`, `GET /api/punc
   our own readers"* with no spool at all, and a bare `—` in the Punch ID column beside a count
   of 3 for somebody matched on a numeric employee code (now `45 (code)`).
 
+## Every punch of the day, to both sides (v1.97.0)
+
+Dinesh: *"EMPLOYEE LOGIN ME UNKA PURE DIN KA INOUT DIKHA HE?"* — **inspected rather than
+answered from memory, and the honest answer was half.** The portal has shown Date / Day / Mark /
+In / Out / Hours per day since the `attendanceStatement` work, with lunch in a tooltip and a dash
+where the times are not known. What it could not show is **every punch of the day**, and neither
+could the office: the readers are door locks, a normal day is six or eight openings, and the app
+held two. He then said: *"DONO KO DIKHE"*.
+
+- **THE PUNCHES WERE BEING THROWN AWAY.** `runImport` read the Bizcompass spool, turned it into
+  marks and discarded it, so there was nothing to show and no way to answer *"I left at 6:30,
+  that 5:45 one was tea"*. `saveSpoolPunches` now files them — **only on a real run**, because a
+  look must not write, and that rule holds for the punch store as much as for attendance.
+- **THE TRAP THAT NEEDED A NEW COLUMN.** Spool rows belong to no reader of ours, so `device_id`
+  is NULL — and SQLite treats NULLs in a UNIQUE index as DISTINCT, so `device_punches_once` would
+  not have stopped a thing. Read every five minutes, one punch would be filed thousands of times
+  and a day would read as the door opening all afternoon. `source` plus a **partial** unique
+  index (`WHERE device_id IS NULL`) keys the spool rows; our own readers keep the original index
+  untouched. Proved: the same batch three times = 3 added, 0, 0.
+- The reader's own guid rides in `source`, so two gates recording the same second stay two
+  punches. A reader punch and a spool punch for the same second are **both** kept — the person
+  really did go through two doors, and they are the same event only in theory.
+- `punchesByDay(employee, {year, month})` matches the way every importer does: the Punch ID, else
+  an employee code that IS a number. **Somebody with neither gets an empty map and no id** —
+  nobody ever looked for them, which is not the same as them never punching, and guessing would
+  put somebody else's comings and goings on their statement.
+- Shown in **both** places under the out time, only where the day carries **more than two**
+  punches (otherwise it would just repeat In and Out): the office's `AttendanceStatement` (a new
+  `GET /api/employees/:id/punches`) and the employee's own `MyPage` (riding on the existing
+  `/api/me/attendance/:periodId`, where the employee id comes off the LOGIN).
+- **It is not a second opinion about the hours.** In and Out are still earliest and latest, which
+  is what the sheet is paid from; this only says what else the machine saw. Said on both screens.
+- A test asserts a staff login gets **403** on the office route even for their OWN punches: their
+  own record reaches them through `/api/me`, and a door onto everybody's comings and goings is a
+  different thing.
+- Driven end to end: a real spool folder, dry run (stored nothing), real run (stored 6), run
+  again (added 0), then both screens — office statement and the staff portal at phone width —
+  reading `09:12 · 11:40 · 11:52 · 13:30 · 14:05 · 18:02` under an 18:02 out time.
+- Test-fixture trap: `createDevice` returns `{ device }`, not the row. Passing `device.id` of the
+  wrapper filed the reader's punches as NULL-device rows, which the test caught by name.
+
+### The date row glitched while scrolling (v1.97.0)
+
+Dinesh: *"DATE PE SCROLL KAR RAHE HE TO GLITCH AA RAAHE SAHI KARO"*, with a grid reading `P` and
+`+35` printed over Sun 1, Sun 8 and Sun 15.
+
+- **A STICKY HEADER CELL MUST BE OPAQUE.** The Sunday and today tints are
+  `color-mix(..., transparent)` — 92% and 91% see-through. In the BODY that is right: the tint
+  has to sit over the row's own stripe and its hover without replacing them. In the sticky header
+  there is nothing behind it but the rows scrolling past, so they showed straight through — and
+  **only ever in those two kinds of column**, because every other header cell was already opaque.
+  The tints now mix into `var(--line-soft)`, the header's own background, and `th.today.sunday`
+  is stated so the two together are one colour rather than a toss-up.
+- **Measured, not eyeballed, and the measurement was wrong twice first.** Comparing a fixed band
+  while scrolling proved nothing (the dates change) and comparing it during a vertical scroll
+  proved nothing either (the page scrolls too, moving the band). The honest test clips **one
+  Sunday date cell, re-measured every frame**: 14 of 14 scroll positions changed it before, 0 of
+  14 after — and the old rule was injected back to prove the test can see the bug at all.
+- Pinned by a test that reads the header-tint rules out of `styles.css` and refuses
+  `, transparent)` in any of them.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

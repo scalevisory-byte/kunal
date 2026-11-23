@@ -34,6 +34,7 @@ import {
   pullMinutes,
   storeSummary,
   punchEventsForMonth,
+  punchesByDay,
   unknownIds,
   updateDevice,
 } from '../devices.js';
@@ -41,7 +42,7 @@ import { matchPunchIds } from '../../../shared/punchIdMatch.js';
 import { PUNCH_TOTAL_COLUMNS, punchTotals } from '../../../shared/punchTotals.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
-import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance, updateEmployee } from '../db.js';
+import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, listPeriods, setAttendance, updateEmployee } from '../db.js';
 import { buildMonthlyPack, packLabel } from '../../../shared/monthlyPack.js';
 import { getPeriod } from '../db.js';
 
@@ -555,6 +556,31 @@ reportsRouter.get('/punch-totals', (req, res, next) => {
       spool,
       ...punchTotals(punches, listEmployees()),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+ * One person's punches for a month, day by day — the WHOLE day, not just the
+ * first and the last.
+ *
+ * Dinesh: *"EMPLOYEE LOGIN ME UNKA PURE DIN KA INOUT DIKHA HE?"*, then
+ * *"DONO KO DIKHE"*. The readers are door locks, so a day carries six or
+ * eight openings and the app showed two of them. Everything in between is the
+ * answer to "I left at 6:30, that 5:45 one was tea".
+ *
+ * It reads. It changes nothing, and it is NOT a second opinion about the
+ * hours: in and out are still the earliest and the latest, which is what the
+ * sheet is paid from.
+ */
+reportsRouter.get('/employees/:id/punches', (req, res, next) => {
+  try {
+    const employee = listEmployees({ all: true }).find((e) => e.id === Number(req.params.id));
+    if (!employee) return res.status(404).json({ error: 'not found' });
+    const period = listPeriods().find((p) => p.id === Number(req.query.period_id));
+    if (!period) return res.status(404).json({ error: 'month not found' });
+    res.json(punchesByDay(employee, { year: period.year, month: period.month }));
   } catch (err) {
     next(err);
   }
