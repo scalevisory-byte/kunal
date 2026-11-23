@@ -2307,11 +2307,64 @@ long, and six hours on it earns the WHOLE day's Sunday pay.
   a fold naming every short Sunday with how far under. Driven in a browser on a seeded
   November: ALIFAYA 14h 21m with two `✓!`, ANSARI 6h 39m clear, ASHOK 10h 11m clear with his
   unclocked Sunday correctly absent from the list.
-- **What was deliberately NOT changed, and is the open question:** overtime on a Sunday is
-  still measured against the office's nine-hour day, not six. Judging it against six would take
-  ASHOK MISHRA's 10h 11m from +71m to +251m — a rise nobody asked for — and the alternative
-  reading (a Sunday is paid by the day, so its hours pay no overtime at all) would take the
-  +71m away. Both move money and neither was stated, so neither was assumed.
+### Answered: a Sunday pays no overtime (v1.96.0)
+
+Asked which of the two readings he meant, Dinesh: *"Overtime me nahi jayega / Sunday ki full
+day ki salary lene k liye minimum 6 hours complete karne he wesa he"*.
+
+- **`PAID_BY_THE_DAY` in `shared/timesheet.js` is `{S, SP, HP, PH}`** and `minutesForMark`
+  returns 0 on it in BOTH directions. The shortfall was already not charged; now the overtime
+  is not paid either, because the Sunday register pays the day. **Leave is NOT in the set and
+  neither is OD** — somebody out on the company's business who puts in eleven hours is doing a
+  working day somewhere else, and taking their overtime away was never asked for. There is a
+  test for each.
+- **It is the WRITE path, so nothing already stored moves** and no month already paid can
+  change. Found while driving it: on `monthly_late` the stale figures are **worth ₹0 anyway**,
+  because `monthlyHours` skips a day that is not in `HOURS_EXPECTED` — it adds nothing to the
+  target and nothing to what was worked. The banner says exactly that rather than printing
+  "worth ₹0", which reads as a broken sum.
+- `sundayOvertimeIn` finds what an open month is still carrying, **prices it with
+  `calculateRow` rather than multiplying it out** (the per-minute rate follows the person's own
+  shift and the month's rule), and `clearSundayOvertime` builds entries naming **only
+  `minutes`**, so the per-field merge rule keeps the mark, the clock times and the reason.
+- **`sundayAmountIf(row, period, { shortPays })`** prices a short Sunday at a fraction the
+  office picks — half a day or nothing — and writes the ordinary `sunday_salary_override`,
+  which is visible on the row and can be typed over. He named the six-hour line and NOT what
+  sits below it, so the fraction is a choice on the screen, never an assumption. **A Sunday
+  nobody clocked still counts as a full day.**
+- The old test asserting *"overtime is still paid on whatever day it was worked"* was
+  **rewritten to state the new rule**, not patched.
+- One test caught by driving it: `.warn-line` was another invented class with no CSS behind it
+  (fourth time) — it uses the established `.banner`.
+
+## Punch totals — how many punches each person has (v1.96.0)
+
+Dinesh: *"sare employee ka total punches dekhne ho alag se ek uska report bhi banana / o sirf
+dekhne k liye hoga"*. `shared/punchTotals.js`, `PunchTotals.jsx`, `GET /api/punch-totals`.
+
+- **It counts RAW EVENTS and is never a second opinion about attendance.** What a punch becomes
+  — present, half day, the hours — is `punchesToMarks`' job and lives on the grid, which is what
+  the sheet is paid from. The two cannot disagree because they are not asked the same question.
+  Nothing on the panel writes anything.
+- **A dash is not a nought.** `punches: null` means the person has no number the readers can
+  match, so nobody ever looked for them; `0` means they were looked for and never seen. Two
+  different problems, and only the first is somebody's job to fix — adding them together hides
+  it. The unreachable sort first.
+- **Both feeds are counted and NAMED apart** (`sources`), because "the Bizcompass spool is
+  running and our own reader is not" is the answer somebody needs.
+- `normalId` folds `0037` and `37` into one enrolment, as the Punch ID report does. A stamp that
+  cannot be read costs that punch its *day*, not the whole count.
+- `punchEventsForMonth` in `devices.js` is deliberately **not** `punchesForMonth` reshaped: that
+  one hands back the importer's `dd-mm-yyyy` so `punchesToMarks` can read it, and a report
+  re-parsing that string would be a second idea of what a date is.
+- `PUNCH_TOTAL_COLUMNS` is the whole of what it carries, with a test that no salary, PAN,
+  Aadhaar, bank account or date of birth is on it.
+- Declared in the catalogue test's `beyondSpec` rather than bumping a count.
+- **Needs the server** (rows in our store, files in the Bizcompass folder); the single-file
+  build says so.
+- Two wording bugs the browser caught: *"no Bizcompass folder is configured, **the rest** from
+  our own readers"* with no spool at all, and a bare `—` in the Punch ID column beside a count
+  of 3 for somebody matched on a numeric employee code (now `45 (code)`).
 
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
@@ -2334,11 +2387,7 @@ long, and six hours on it earns the WHOLE day's Sunday pay.
 6. **Whether to pull eSSL punches directly** from the eTimeTrackLite database rather than
    importing a file — needs the database engine, whether TSRV can reach DESKTOP-6OKJT47, and a
    read-only login. The file import works today either way.
-7. **Sunday overtime** — a Sunday's duty is six hours and six hours earns the full day, but
-   hours BEYOND six are still paid as overtime against the nine-hour office day. Judging them
-   against six would raise Sunday overtime; treating the day as paid-by-the-day only would
-   remove it. Not assumed either way (v1.95.0).
-8. **Which channel the reminder digest should go out on**, and its credentials — the text is
+7. **Which channel the reminder digest should go out on**, and its credentials — the text is
    ready and the endpoint is there; nothing sends it yet.
 
 ## Alternative architecture considered (not being built, for reference)

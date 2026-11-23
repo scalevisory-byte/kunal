@@ -640,19 +640,32 @@ test('a day nobody was due to work is never docked for short hours', async () =>
   }
 });
 
-test('but overtime is still paid on whatever day it was worked', async () => {
+test('and a day off pays no overtime either - a Sunday is paid BY THE DAY', async () => {
   const who = staff.Imported;
   /*
-   * The no-double-charge principle says do not take money off twice. It
-   * never said to refuse hours somebody actually worked because the day was
-   * a Sunday, so a long day pays its overtime whatever the mark.
+   * This test used to assert the opposite, on the reasoning that refusing
+   * hours somebody actually worked would take money off them. Dinesh settled
+   * it: *"Overtime me nahi jayega / Sunday ki full day ki salary lene k liye
+   * minimum 6 hours complete karne he wesa he"*.
+   *
+   * A Sunday earns its WHOLE day from the Sunday register once six hours are
+   * done. Paying the clock on top pays the same work twice - his ASHOK
+   * MISHRA did 10h 11m on Sunday 22 November and drew both a full day's
+   * Sunday rate and 71 minutes of overtime.
    */
-  for (const [day, code] of [[23, 'P'], [24, 'SP'], [25, 'HP']]) {
+  for (const [day, code] of [[24, 'SP'], [25, 'HP']]) {
     await api('POST', `/api/periods/${periodId}/attendance`, {
       entries: [{ employee_id: who, day, code, in_time: '09:00', out_time: '20:00' }],
     });
-    assert.equal((await dayOf(who, day)).minutes, 660 - 540, `${code} is paid its overtime`);
+    assert.equal((await dayOf(who, day)).minutes, 0, `${code} is paid by the day, not by the hour`);
   }
+
+  // A WORKING day still pays its overtime, which is the whole point of the
+  // column. Only the days nobody was due in on are exempt.
+  await api('POST', `/api/periods/${periodId}/attendance`, {
+    entries: [{ employee_id: who, day: 23, code: 'P', in_time: '09:00', out_time: '20:00' }],
+  });
+  assert.equal((await dayOf(who, 23)).minutes, 660 - 540, 'eleven hours on a working day is two over');
 });
 
 test('the lunch break can be recorded without being deducted', async () => {

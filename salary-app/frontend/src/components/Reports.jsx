@@ -19,6 +19,7 @@ import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
 import { DeductionStatement, SalaryByDepartment } from './PayReports.jsx';
 import MissingPunch from './MissingPunch.jsx';
 import PunchIdReport from './PunchIdReport.jsx';
+import PunchTotals from './PunchTotals.jsx';
 import LoanSettlement from './LoanSettlement.jsx';
 import ContactList from './ContactList.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
@@ -225,6 +226,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     /* Not a month's report: it reads the staff list as it is today, so it
        takes `employees` and not `shown`. */
     'punch-ids': () => <PunchIdReport employees={employees} onGo={onGo} />,
+    'punch-totals': () => <PunchTotals period={period} onGo={onGo} />,
     'loan-settled': () => <LoanSettlement period={period} />,
     'employee-contacts': () => (
       <ContactList

@@ -33,8 +33,8 @@
  * cannot give three answers.
  */
 
-import { ATTENDANCE_CODES } from './calc.js';
-import { readTimes } from './timesheet.js';
+import { ATTENDANCE_CODES, calculateRow } from './calc.js';
+import { PAID_BY_THE_DAY, readTimes } from './timesheet.js';
 
 /**
  * How long a Sunday's duty runs. Six hours, per Dinesh, against the office's
@@ -124,4 +124,102 @@ export function shortSundays(rows = [], period = {}) {
   }
   lines.sort((a, b) => b.days.length - a.days.length || a.employee_name.localeCompare(b.employee_name));
   return lines;
+}
+
+/* ---------------- the overtime a day off must not pay ---------------- */
+
+/**
+ * Minutes still sitting on days that are paid BY THE DAY.
+ *
+ * `minutesForMark` stopped writing these, but it is the WRITE path: a figure
+ * already stored on a day does not move until that day is saved again, which
+ * is exactly the rule that stops a month already paid from changing under
+ * anybody. An OPEN month is still carrying whatever it was given before the
+ * rule changed, and somebody has to be able to see it and clear it.
+ *
+ * Reports only. `clearSundayOvertime` below builds the entries; nothing here
+ * writes anything.
+ */
+export function sundayOvertimeIn(rows = [], period = {}) {
+  const lines = [];
+  for (const row of rows) {
+    const attendance = row.attendance || {};
+    const days = [];
+    for (const [key, entry] of Object.entries(attendance)) {
+      if (!PAID_BY_THE_DAY.has(codeOf(entry))) continue;
+      const minutes = Number(typeof entry === 'object' && entry ? entry.minutes : 0) || 0;
+      if (minutes === 0) continue;
+      const day = Number(key);
+      if (!Number.isFinite(day)) continue;
+      days.push({ day, code: codeOf(entry), minutes });
+    }
+    if (!days.length) continue;
+    days.sort((a, b) => a.day - b.day);
+
+    /*
+     * What it is worth is asked of calculateRow with and without those
+     * minutes, rather than multiplied out here - the per-minute rate follows
+     * the person's own shift length and the month's rule, and a second
+     * opinion about it is how two answers come to exist.
+     */
+    const before = calculateRow(row, period, attendance);
+    const cleared = { ...attendance };
+    for (const d of days) cleared[d.day] = { ...attendance[d.day], minutes: 0 };
+    const after = calculateRow(row, period, cleared);
+
+    lines.push({
+      employee_id: row.employee_id ?? row.id ?? null,
+      row_id: row.id ?? null,
+      employee_name: row.employee_name || row.name || '',
+      company_name: row.company_name || '',
+      days,
+      minutes: days.reduce((n, d) => n + d.minutes, 0),
+      worth: Math.round((before.net_salary || 0) - (after.net_salary || 0)),
+    });
+  }
+  lines.sort((a, b) => b.minutes - a.minutes || a.employee_name.localeCompare(b.employee_name));
+  return lines;
+}
+
+/** The attendance entries that clear it. One per day, naming only `minutes`. */
+export function clearSundayOvertime(lines = []) {
+  const entries = [];
+  for (const line of lines) {
+    for (const d of line.days) {
+      // Only `minutes` is named, so the same per-field merge rule everything
+      // else follows keeps the mark, the clock times and the reason intact.
+      entries.push({ employee_id: line.employee_id, day: d.day, minutes: 0 });
+    }
+  }
+  return entries;
+}
+
+/* ---------------- what a short Sunday is worth ---------------- */
+
+/**
+ * The Sunday amount if a Sunday under the six hours pays `shortPays` of a day.
+ *
+ * Dinesh: *"Sunday ki full day ki salary lene k liye minimum 6 hours complete
+ * karne he"*. He named the line and not what sits below it, so this takes the
+ * fraction as an argument and the office picks it on the screen - half a day,
+ * or nothing.
+ *
+ * A Sunday NOBODY CLOCKED still counts as a full day. "Not known" is not
+ * "under six hours", and with most of the staff still off the readers the
+ * other reading would stop nearly every Sunday in the month being paid.
+ */
+export function sundayAmountIf(row = {}, period = {}, { shortPays = 0 } = {}) {
+  const duty = sundayDutyFor(row, period);
+  const calc = calculateRow(row, period, row.attendance || {});
+  const perDay = Number(calc.per_day) || 0;
+  const short = duty.shortDays.length;
+  const full = duty.counted - short;
+  return {
+    per_day: perDay,
+    full,
+    short,
+    // Rounded like the register's own amount, so the two cannot differ by a rupee.
+    amount: Math.round((full + short * shortPays) * perDay),
+    now: Math.round(Number(calc.sunday_salary) || 0),
+  };
 }

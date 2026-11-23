@@ -77,7 +77,14 @@ test('every category in the specification carries exactly what it asked for', ()
        inside the import panel that vanished with the file - there was nowhere
        to open on an ordinary day and ask whose attendance will not arrive.
        It is not a month's report: it reads the staff list as it is today. */
-    attendance: ['punch-ids'],
+    attendance: [
+      'punch-ids',
+      /* "sare employee ka total punches dekhne ho alag se ek uska report bhi
+         banana / o sirf dekhne k liye hoga". The Punch ID report says whether
+         somebody COULD be reached; this says whether they actually are. It
+         counts raw events and is never a second opinion about attendance. */
+      'punch-totals',
+    ],
     leave: ['leave-ledger', 'leave-year-end'],
     /* Asked for by name: "staff wise email & mobile number ka list bhi
        chiaye with deopartmmet role". The employee export carries forty

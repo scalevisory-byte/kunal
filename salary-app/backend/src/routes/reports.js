@@ -20,7 +20,7 @@ import {
   punchRows,
   readLogFiles,
 } from '../../../shared/bizcompassLogs.js';
-import { lastAutoRun, autoMinutes, runImport, spoolStatus } from '../bizcompass.js';
+import { lastAutoRun, autoMinutes, readSpool, runImport, spoolDir, spoolStatus } from '../bizcompass.js';
 import { attendanceFeedHealth } from '../feedStatus.js';
 import {
   checkDevice,
@@ -33,10 +33,12 @@ import {
   pullDevice,
   pullMinutes,
   storeSummary,
+  punchEventsForMonth,
   unknownIds,
   updateDevice,
 } from '../devices.js';
 import { matchPunchIds } from '../../../shared/punchIdMatch.js';
+import { PUNCH_TOTAL_COLUMNS, punchTotals } from '../../../shared/punchTotals.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
 import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, setAttendance, updateEmployee } from '../db.js';
@@ -502,6 +504,62 @@ reportsRouter.post('/employees/punch-ids', (req, res, next) => {
  * usual, because the file carries a reader's user number and no name at all -
  * a number nobody carries has to be named, never guessed at.
  */
+/*
+ * Every employee's total punches, to look at. Dinesh: *"sare employee ka
+ * total punches dekhne ho alag se ek uska report bhi banana / o sirf dekhne
+ * k liye hoga"*.
+ *
+ * IT WRITES NOTHING. It is a count of the raw events the readers recorded,
+ * not a second opinion about attendance - what a punch BECOMES is worked out
+ * by punchesToMarks and lives on the grid, which is what the sheet is paid
+ * from. The two cannot disagree because they are not asked the same thing.
+ *
+ * Both feeds are counted and NAMED separately, because "the spool is running
+ * and our own reader is not" is the answer somebody needs, and one combined
+ * figure hides it.
+ */
+reportsRouter.get('/punch-totals', (req, res, next) => {
+  try {
+    const now = new Date();
+    const text = String(req.query.month || '').trim();
+    const m = text.match(/^(\d{4})-(\d{2})$/);
+    const year = m ? Number(m[1]) : now.getFullYear();
+    const month = m ? Number(m[2]) : now.getMonth() + 1;
+
+    const punches = punchEventsForMonth({ month, year });
+
+    /* The spool is files on disk, not rows, so it is read here rather than
+       queried. A folder that is not configured is not an error - it is an
+       office that uses the other feed. */
+    let spool = { read: 0, files: 0, error: '' };
+    const dir = spoolDir();
+    if (dir) {
+      try {
+        const { files } = readSpool(dir, { month: { year, month } });
+        const got = readLogFiles(files);
+        spool = { read: got.punches.length, files: files.length, error: '' };
+        for (const punch of got.punches) {
+          // 'dd-mm-yyyy HH:MM:SS' -> the sortable stamp this report counts in.
+          const d = String(punch.when || '').match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}:\d{2}:\d{2})/);
+          if (!d) continue;
+          punches.push({ code: punch.user, at: `${d[3]}-${d[2]}-${d[1]} ${d[4]}`, source: 'Bizcompass spool' });
+        }
+      } catch (err) {
+        spool = { read: 0, files: 0, error: err.message };
+      }
+    }
+
+    punches.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    res.json({
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      spool,
+      ...punchTotals(punches, listEmployees()),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 reportsRouter.get('/bizcompass/status', (req, res) => {
   res.json({ ...spoolStatus(), autoMinutes: autoMinutes(), lastRun: lastAutoRun() });
 });

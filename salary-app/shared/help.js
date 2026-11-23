@@ -491,6 +491,19 @@ export const HELP = [
     note: 'IT CARRIES NO SALARY, NO PAN AND NO BANK DETAILS, on purpose: a contact list gets printed and left on a desk. The employee export is the one with everything on it. Somebody with no number is listed with the gap showing rather than left out — they are the ones worth chasing.',
   },
   {
+    id: 'punch-totals',
+    title: 'How many punches each person has',
+    tab: 'reports',
+    keywords: ['punch totals', 'total punches', 'punches', 'kitne punch', 'machine', 'reader', 'hajri machine'],
+    lines: [
+      'Reports → **Punch totals**: every punch the readers recorded this month, counted per person, with the days covered and when they were last seen.',
+      'It is **only to look at** — no button on it changes anything.',
+      'Both feeds are named apart, so you can see that the Bizcompass folder is running while a reader of our own is not.',
+      'It also lists the reader numbers that belong to nobody.',
+    ],
+    note: 'IT IS NOT ATTENDANCE. This counts the raw events the machine recorded; what a punch BECOMES — present, half day, the hours — is worked out separately and lives on the attendance grid, which is what the salary is paid from. And "—" is not "0": a dash means the person has no number the readers can match, so nobody ever looked for them; 0 means they were looked for and not seen.',
+  },
+  {
     id: 'missing-punch',
     title: 'Days the clock cannot account for',
     tab: 'reports',

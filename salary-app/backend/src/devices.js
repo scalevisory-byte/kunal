@@ -448,3 +448,23 @@ export function startDevicePulls() {
 export function stopDevicePulls() {
   if (timer) { clearInterval(timer); timer = null; }
 }
+
+/**
+ * Every punch we hold for a month, in the shape `punchTotals` counts.
+ *
+ * Deliberately NOT `punchesForMonth` reshaped by the caller: that one hands
+ * back the importer's `dd-mm-yyyy` so `punchesToMarks` can read it, and a
+ * report that re-parsed that string would be a second idea of what a date is.
+ * This gives back the stored, sortable stamp.
+ */
+export function punchEventsForMonth({ month, year }) {
+  const m = String(Number(month)).padStart(2, '0');
+  return db.prepare(`
+    SELECT p.device_code AS code, p.punched_at AS at,
+           COALESCE(d.name, 'a reader since removed') AS source
+      FROM device_punches p
+      LEFT JOIN punch_devices d ON d.id = p.device_id
+     WHERE p.punched_at LIKE ?
+     ORDER BY p.punched_at
+  `).all(`${Number(year)}-${m}-%`);
+}

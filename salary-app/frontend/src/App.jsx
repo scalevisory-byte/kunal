@@ -1124,6 +1124,7 @@ function Shell() {
                 rows={visibleRows}
                 locked={locked}
                 onPatchRow={patchRow}
+                onSaveAttendance={saveAttendance}
               />
             </details>
 

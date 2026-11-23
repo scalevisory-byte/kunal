@@ -307,14 +307,46 @@ export function minutesForMark(times, { hoursPerDay = 9, code = '', deductLunch 
    * was due to work, charged for not working long enough. The same held for
    * SP and HP, which are paid by the day on the Sunday register: six hours
    * worked on a Sunday took three hours off the salary AND paid a day rate.
-   *
-   * OVERTIME is left alone. Refusing to pay hours somebody actually worked
-   * because the day was a Sunday would take money off them, and the
-   * no-double-charge principle this rests on never required that.
    */
   if (!owesTheDay && judged.minutes < 0) return 0;
+
+  /*
+   * AND A DAY OFF PAYS NO OVERTIME EITHER. Dinesh, asked directly:
+   * *"Overtime me nahi jayega / Sunday ki full day ki salary lene k liye
+   * minimum 6 hours complete karne he wesa he"*.
+   *
+   * A Sunday is paid BY THE DAY on the Sunday register - six hours on it
+   * earns the whole day. Paying the clock as well would pay the same work
+   * twice: his ASHOK MISHRA did 10h 11m on Sunday 22 November and drew a
+   * full day's Sunday rate AND 71 minutes of overtime on his salary.
+   *
+   * The set is deliberately narrow (see PAID_BY_THE_DAY): the weekly off,
+   * the weekly off worked, a holiday and a holiday worked. Leave is NOT in
+   * it, and neither is OD - somebody out on the company's business who puts
+   * in eleven hours is doing a working day somewhere else, and taking their
+   * overtime away was never asked for.
+   *
+   * This is the WRITE path, so nothing already stored on a day moves and no
+   * month already paid can change. The register's own button clears what an
+   * open month is carrying, after saying whose it is and how much.
+   */
+  if (PAID_BY_THE_DAY.has(mark)) return 0;
+
   return judged.minutes;
 }
+
+/**
+ * Marks whose clock hours pay nothing in either direction.
+ *
+ *   S     the weekly off - nobody was due in
+ *   SP    the weekly off WORKED - paid by the day on the Sunday register
+ *   HP    a holiday worked - likewise
+ *   PH    a paid holiday - nobody was due in
+ *
+ * Kept here beside `HOURS_EXPECTED` rather than in `sundayDuty.js`, because
+ * `sundayDuty` imports this module and the two must not import each other.
+ */
+export const PAID_BY_THE_DAY = new Set(['S', 'SP', 'HP', 'PH']);
 
 /** Everything typed on one person's month, added up. */
 export function monthTotals(daysWithTimes = [], options = {}) {

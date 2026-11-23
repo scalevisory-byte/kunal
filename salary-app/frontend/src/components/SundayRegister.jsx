@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, sundayDaysFromAttendance } from '../../../shared/calc.js';
-import { shortSundays, sundayDutyFor, sundayHoursFor } from '../../../shared/sundayDuty.js';
+import {
+  clearSundayOvertime,
+  shortSundays,
+  sundayAmountIf,
+  sundayDutyFor,
+  sundayHoursFor,
+  sundayOvertimeIn,
+} from '../../../shared/sundayDuty.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, rupees, rupees2, weekday } from '../format.js';
 
@@ -13,7 +20,7 @@ import { days, daysInMonth, isSunday, rupees, rupees2, weekday } from '../format
  * so it gets its own list - who worked which Sundays, at what day rate, for how
  * much - with its own paid/unpaid tracking.
  */
-export default function SundayRegister({ period, rows, onPatchRow, locked }) {
+export default function SundayRegister({ period, rows, onPatchRow, onSaveAttendance, locked }) {
   const [query, setQuery] = useState('');
   const [hidePaid, setHidePaid] = useState(false);
 
@@ -79,6 +86,76 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
   }, [computed, period]);
   const short = useMemo(() => shortSundays(worked, period), [worked, period]);
   const [showShort, setShowShort] = useState(false);
+  const [busy, setBusy] = useState('');
+
+  /*
+   * Overtime still sitting on days that are paid BY THE DAY. The write path
+   * stopped producing it, but a figure already on a day does not move until
+   * that day is saved again - which is exactly the rule that keeps a month
+   * already paid from changing under anybody. An open month has to be able
+   * to be cleared, after saying whose it is and what it is worth.
+   */
+  const stuckOt = useMemo(() => sundayOvertimeIn(computed, period), [computed, period]);
+  const otWorth = stuckOt.reduce((n, l) => n + l.worth, 0);
+
+  const clearOt = async () => {
+    const names = stuckOt.slice(0, 4).map((l) => l.employee_name).join(', ');
+    if (
+      !window.confirm(
+        `Clear the overtime on ${stuckOt.reduce((n, l) => n + l.days.length, 0)} day(s) off ` +
+          `for ${stuckOt.length} ${stuckOt.length === 1 ? 'person' : 'people'} — ${names}` +
+          `${stuckOt.length > 4 ? ' and others' : ''}?\n\n` +
+          (otWorth > 0
+            ? `It takes ${rupees(otWorth)} off this month's salary.`
+            : `It is worth nothing on this month's rule, so no pay changes — it only tidies ` +
+              `the record so the figure cannot be paid if the rule is ever switched.`) +
+          `\n\nThey keep their full Sunday day rate here; the marks, the clock times and ` +
+          `everything else stay exactly as they are.`
+      )
+    )
+      return;
+    setBusy('ot');
+    try {
+      await onSaveAttendance(clearSundayOvertime(stuckOt));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  /*
+   * "Sunday ki full day ki salary lene k liye minimum 6 hours complete karne
+   * he." He named the line and NOT what sits below it, so the fraction is
+   * picked here rather than assumed, and it writes the ordinary Amount
+   * override - visible on the row, editable, and undone by clearing the box.
+   */
+  const applyShort = async (fraction) => {
+    const priced = short
+      .map((line) => {
+        const row = computed.find((r) => (r.employee_id ?? r.id) === line.employee_id);
+        if (!row) return null;
+        return { line, row, ...sundayAmountIf(row, period, { shortPays: fraction }) };
+      })
+      .filter(Boolean)
+      .filter((x) => x.amount !== x.now);
+    if (!priced.length) return;
+    const total = priced.reduce((n, x) => n + (x.now - x.amount), 0);
+    if (
+      !window.confirm(
+        `${priced.length} ${priced.length === 1 ? 'person has' : 'people have'} a Sunday the ` +
+          `clock puts under ${sundayHours}h.\n\n` +
+          `Pay ${fraction === 0 ? 'nothing' : 'half a day'} for those Sundays? ` +
+          `It takes ${rupees(total)} off the Sunday register.\n\n` +
+          `It is written as the Amount on their row, so you can see it and type over it.`
+      )
+    )
+      return;
+    setBusy('short');
+    try {
+      for (const x of priced) await onPatchRow(x.row.id, { sunday_salary_override: x.amount });
+    } finally {
+      setBusy('');
+    }
+  };
 
   const totals = worked.reduce(
     (acc, r) => ({ count: acc.count + r.sundays_worked, amount: acc.amount + r.sunday_salary }),
@@ -109,6 +186,36 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
           {unpaid.length > 0 && ` · ${rupees(unpaid.reduce((s, r) => s + r.sunday_salary, 0))} still to pay`}
         </span>
       </div>
+
+      {stuckOt.length > 0 && (
+        <p className="banner">
+          <strong>A day off pays no overtime</strong> — it is paid by the day here. But{' '}
+          {stuckOt.length} {stuckOt.length === 1 ? 'person has' : 'people have'}{' '}
+          {stuckOt.reduce((n, l) => n + l.days.length, 0)} day(s) off still carrying overtime from
+          before the rule changed —{' '}
+          {stuckOt.slice(0, 3).map((l) => l.employee_name).join(', ')}
+          {stuckOt.length > 3 && ` and ${stuckOt.length - 3} more`}.{' '}
+          {otWorth > 0 ? (
+            <>
+              It is worth <strong>{rupees(otWorth)}</strong> on this month&rsquo;s salary.{' '}
+            </>
+          ) : (
+            <>
+              {/* On the monthly-hours rule a day off is skipped entirely - it adds nothing
+                  to the target and nothing to what was worked - so the stored figure pays
+                  nobody. Saying "worth 0" without saying WHY reads as a broken sum. */}
+              This month is run on a monthly hours total, which leaves a day off out of the
+              account altogether, so <strong>nothing is being paid for it</strong> — clearing it
+              only tidies the record.{' '}
+            </>
+          )}
+          {!locked && (
+            <button className="ghost" onClick={clearOt} disabled={busy === 'ot'}>
+              {busy === 'ot' ? 'Clearing…' : 'Clear it'}
+            </button>
+          )}
+        </p>
+      )}
 
       <div className="table-wrap">
         <table className="sheet">
@@ -223,8 +330,9 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
       <p className="muted small">
         A Sunday&rsquo;s duty is <strong>{sundayHours} hours</strong>, and {sundayHours} hours on it
         earns the <strong>whole day&rsquo;s</strong> pay — the full day rate, the same as any other
-        Sunday. A day with no clock times on it reads as a dash: that is{' '}
-        <strong>not known</strong>, not nought hours.
+        Sunday. Hours on a Sunday <strong>never pay overtime</strong> on the salary: it is paid by
+        the day, here. A day with no clock times on it reads as a dash — that is{' '}
+        <strong>not known</strong>, not nought hours, and it still counts as a full day.
       </p>
       {short.length > 0 && (
         <div className="card narrow">
@@ -264,11 +372,22 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
                 </tbody>
               </table>
               <p className="muted small">
-                <strong>Nothing here has been deducted.</strong> Each of these is still paid a full
-                day. Somebody whose second punch never registered has done the day, and docking that
-                automatically is a mistake nobody can see. Type over the <strong>Amount</strong> on
-                their row above if one of them should not be paid in full.
+                <strong>Nothing here has been deducted yet.</strong> Each of these is still paid a
+                full day. Somebody whose second punch never registered has done the day, and docking
+                that automatically is a mistake nobody can see — so the office decides, and what it
+                writes is the ordinary <strong>Amount</strong> on their row, which you can see and
+                type over.
               </p>
+              {!locked && (
+                <p>
+                  <button className="ghost" onClick={() => applyShort(0.5)} disabled={!!busy}>
+                    Pay half a day for these
+                  </button>{' '}
+                  <button className="ghost" onClick={() => applyShort(0)} disabled={!!busy}>
+                    Pay nothing for these
+                  </button>
+                </p>
+              )}
             </>
           )}
         </div>

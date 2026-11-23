@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.95.0';
+export const VERSION = '1.96.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.96.0',
+    date: '23 Nov 2026',
+    title: 'A Sunday pays no overtime, and a punch-totals report',
+    items: [
+      '**Hours on a Sunday no longer pay overtime.** A Sunday is paid BY THE DAY on the Sunday register \u2014 six hours on it earns the whole day \u2014 so paying the clock as well paid the same work twice. ASHOK MISHRA did 10h 11m on Sunday 22 November and drew a full day\u2019s Sunday rate AND 71 minutes of overtime on his salary.',
+      'It covers the weekly off, a weekly off worked, a holiday and a holiday worked. **Leave is not in it, and neither is Official Duty** \u2014 somebody out on the company\u2019s business who puts in eleven hours is doing a working day somewhere else.',
+      '**No month already paid moves.** A figure already stored on a day stays until that day is saved again. An open month still carrying it says so on the Sunday register, names who, prices it, and has one button to clear it.',
+      'And on the Sunday register: **a Sunday the clock puts under six hours can now be paid half a day or nothing, in one click** \u2014 the office picks which, and it is written as the ordinary Amount on their row, where it can be seen and typed over.',
+      '**New \u2014 Reports \u2192 Punch totals.** Every punch the readers recorded this month, counted per person: how many, over how many days, when they were last seen, and which feed carried them. Only to look at; nothing on it changes anything.',
+      '**A dash is not a nought there.** A dash means the person has no number the readers can match, so nobody ever looked for them; 0 means they were looked for and never seen. They are different problems and only one of them is somebody\u2019s job to fix.',
+    ],
+  },
   {
     version: '1.95.0',
     date: '23 Nov 2026',

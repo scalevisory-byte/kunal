@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { calculateRow } from '../../shared/calc.js';
+import { PAID_BY_THE_DAY, minutesForMark } from '../../shared/timesheet.js';
 import {
   SUNDAY_DAY_HOURS,
+  clearSundayOvertime,
+  sundayAmountIf,
+  sundayOvertimeIn,
   SUNDAY_MARKS,
   shortSundays,
   sundayDutyFor,
@@ -115,4 +119,89 @@ test('NOTHING HERE MOVES A RUPEE', () => {
   }
   assert.equal(a.sundays_worked, 2);
   assert.ok(a.sunday_salary > 0, 'both Sundays are still paid in full');
+});
+
+test('A DAY OFF PAYS NO OVERTIME — a Sunday is paid by the day, not by the hour', () => {
+  /*
+   * Dinesh, asked directly: "Overtime me nahi jayega / Sunday ki full day ki
+   * salary lene k liye minimum 6 hours complete karne he wesa he".
+   *
+   * His ASHOK MISHRA did 10h 11m on Sunday 22 November and drew BOTH a full
+   * day's Sunday rate from the register AND 71 minutes of overtime on his
+   * salary - the same work paid twice.
+   */
+  const long = { in_time: '07:45', out_time: '17:56' }; // 10h 11m against a 9h day
+  for (const code of ['S', 'SP', 'HP', 'PH']) {
+    assert.equal(minutesForMark(long, { code }), 0, `${code} pays by the day, never by the hour`);
+  }
+
+  // A WORKING day still pays its overtime - that is what the column is for.
+  for (const code of ['', 'P', 'WH']) {
+    assert.equal(minutesForMark(long, { code }), 71, `${code} is a working day`);
+  }
+
+  /*
+   * And the set stays narrow. Somebody out on the company's business who put
+   * in eleven hours did a working day somewhere else; taking their overtime
+   * away was never asked for, and neither was taking it off leave.
+   */
+  assert.equal(minutesForMark(long, { code: 'OD' }), 71, 'official duty is still work');
+  assert.deepEqual([...PAID_BY_THE_DAY].sort(), ['HP', 'PH', 'S', 'SP']);
+});
+
+test('overtime already stored on a day off is found, priced and cleared — never guessed at', () => {
+  const row = {
+    id: 7,
+    employee_id: 7,
+    employee_name: 'ASHOK MISHRA',
+    salary: 26000,
+    attendance: {
+      10: { code: 'P', in_time: '09:00', out_time: '19:00', minutes: 60 },
+      22: { code: 'S', in_time: '07:45', out_time: '17:56', minutes: 71 },
+      29: { code: 'SP', in_time: '09:00', out_time: '15:00', minutes: 0 },
+    },
+  };
+  const [line] = sundayOvertimeIn([row], PERIOD);
+  assert.equal(line.employee_name, 'ASHOK MISHRA');
+  assert.deepEqual(line.days.map((d) => d.day), [22], 'only the day off, and only where there is something');
+  assert.equal(line.minutes, 71);
+  assert.ok(line.worth > 0, 'priced from calculateRow, not multiplied out here');
+
+  /*
+   * The entries name ONLY `minutes`, so the per-field merge rule everything
+   * else follows keeps the mark, the clock times and the reason intact.
+   */
+  const entries = clearSundayOvertime([line]);
+  assert.deepEqual(entries, [{ employee_id: 7, day: 22, minutes: 0 }]);
+
+  // Clearing it is worth exactly what the line said it was.
+  const after = { ...row.attendance, 22: { ...row.attendance[22], minutes: 0 } };
+  const before = calculateRow(row, PERIOD, row.attendance);
+  assert.equal(before.net_salary - calculateRow(row, PERIOD, after).net_salary, line.worth);
+  // The working day's overtime is untouched.
+  assert.equal(after[10].minutes, 60);
+});
+
+test('what a short Sunday is worth is a fraction the office picks, never assumed', () => {
+  const row = {
+    id: 1,
+    employee_id: 1,
+    salary: 26000,
+    attendance: {
+      1: { code: 'SP', in_time: '09:00', out_time: '15:00' }, // six hours - full
+      8: { code: 'SP', in_time: '11:00', out_time: '14:00' }, // three - short
+      15: { code: 'SP' }, // nobody clocked it
+    },
+  };
+  const perDay = 26000 / 26;
+
+  const nothing = sundayAmountIf(row, PERIOD, { shortPays: 0 });
+  const half = sundayAmountIf(row, PERIOD, { shortPays: 0.5 });
+
+  assert.equal(nothing.short, 1);
+  assert.equal(nothing.full, 2, 'THE UNCLOCKED SUNDAY STILL COUNTS AS A FULL DAY');
+  assert.equal(nothing.now, Math.round(3 * perDay), 'all three are paid in full today');
+  assert.equal(nothing.amount, Math.round(2 * perDay));
+  assert.equal(half.amount, Math.round(2.5 * perDay));
+  assert.ok(half.amount > nothing.amount && half.amount < nothing.now);
 });
