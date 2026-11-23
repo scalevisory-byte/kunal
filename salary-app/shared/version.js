@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.5.0';
+export const VERSION = '2.5.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.5.1',
+    date: '23 Nov 2026',
+    title: 'Long names fit the attendance grid',
+    items: [
+      '**A long name no longer runs into the Code column on the attendance grid.** AJEETKUMAR UPDHYAY read as *\u201cAJEETKUMAR UPDHYAY.\u201d* and ALIFAYA CHIKHALIWALA as *\u201cALIFAYA CHIKHALIWALA.\u201d* \u2014 that full stop was not part of anybody\u2019s name, it was the column cutting the name off and drawing the \u2026 past its own border. It read as a typo in somebody\u2019s name.',
+      'The name column is wider, and a name still too long for it is now cut off **inside** the cell with a proper \u2026 \u2014 widening alone would only have moved the problem to the next longer name. On a phone the column narrows again and the Code column follows it.',
+      'Nothing else changed: no figure, no mark and no pay. One day fewer fits on screen at a time, which the grid scrolls past as it always did.',
+    ],
+  },
   {
     version: '2.5.0',
     date: '23 Nov 2026',

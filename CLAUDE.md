@@ -2837,6 +2837,30 @@ somebody is standing on when they spot a missing punch. **Eleventh time for that
   `minutesForMark` whenever the patch names a time field. Driven in a browser: a day with in
   09:30, no out and 0 minutes, typed `1730` → stored `−60`, not left at 0.
 
+### The name column, and a full stop that was not in anybody's name (v2.5.1)
+
+Dinesh, off the very screenshot sent to him: *"naam wala column wala fix kar do"*.
+
+- **It read as a typo in an employee's name.** `AJEETKUMAR UPDHYAY.` and `ALIFAYA
+  CHIKHALIWALA.` — the dot was the `td`'s own `text-overflow: ellipsis` being drawn
+  **past its right border**, over the Code cell beside it. Measured first: the link itself
+  did not overflow (`-3px`), so widening the link was not the fix; the ellipsis belonged to
+  the wrong element.
+- **Both halves were needed.** The column went 10rem → 13rem (his names run to twenty
+  characters and 10rem held exactly twenty with no slack), AND the ellipsis moved onto
+  `.name-link` (`display: inline-block; max-width: 100%; overflow: hidden`), because
+  widening alone only moves the problem to the next longer name. Proved with a 37-character
+  name forced onto a row: cut off cleanly inside the cell at both widths.
+- **ONE FIGURE DRIVES BOTH.** `table.attendance { --name-col }` is the width of the name
+  column and the `left` the Code column freezes at. They were two hand-written `10rem`s —
+  the same drift `CALC_COLUMNS` was introduced to stop in the Excel export — and changing
+  one alone leaves a gap or an overlap. The phone breakpoint sets the one variable to 9rem
+  and the Code column follows it for free. Measured `gapToCode: 0` at 1460px and 700px.
+- Nothing else moved: no figure, no mark, no pay. One day fewer fits on screen, which the
+  grid scrolls past as it always did.
+- Tests pin the variable, that neither rule may go back to a literal `rem`, and the four
+  properties on the link; **proved by putting the old CSS back — both fail.**
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

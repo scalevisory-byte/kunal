@@ -884,10 +884,17 @@ table.attendance thead th.sticky-code { z-index: 6; }
 /*
  * The employee code, frozen beside the name. It is what the machine and the
  * bank file call them, and it was on every row and shown nowhere.
+ *
+ * ONE figure drives both the name column's width and the offset the code
+ * freezes at. They were two hand-written `10rem`s, which is how a gap or an
+ * overlap appears the first time somebody changes one of them - the same
+ * drift `CALC_COLUMNS` was introduced to stop in the Excel export.
  */
+table.attendance { --name-col: 13rem; }
+
 table.attendance .sticky-code {
   position: sticky;
-  left: 10rem;
+  left: var(--name-col);
   z-index: 3;
   background: var(--surface);
   min-width: 4.5rem;
@@ -896,7 +903,25 @@ table.attendance .sticky-code {
 table.attendance thead .sticky-code { background: var(--line-soft); }
 table.attendance tbody tr:hover .sticky-code { background: var(--row-hover, var(--line-soft)); }
 /* The name column is pinned at a known width so the code can sit against it. */
-table.attendance .sticky-name { min-width: 10rem; max-width: 10rem; }
+table.attendance .sticky-name { min-width: var(--name-col); max-width: var(--name-col); }
+
+/*
+ * A name too long for the column is cut off INSIDE the cell.
+ *
+ * The ellipsis belonged to the `td`, which drew it past its own right border
+ * and over the code beside it - so AJEETKUMAR UPDHYAY read as "AJEETKUMAR
+ * UPDHYAY." and ALIFAYA CHIKHALIWALA as "ALIFAYA CHIKHALIWALA.", which looks
+ * like a full stop typed into somebody's name rather than a column that is
+ * too narrow. Widening alone would only move it to the next longer name, so
+ * both halves are needed.
+ */
+table.attendance td.sticky-name .name-link {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
 
 /*
  * TODAY. A single column, marked by its edges rather than a fill, so it
@@ -1556,6 +1581,10 @@ button.trend-bar:hover:not(:disabled) .trend-fill { background: color-mix(in srg
   header { padding: 0.6rem; }
   .table-wrap { max-height: 65vh; }
   .sticky-name { min-width: 7.5rem; }
+  /* Thirteen rem of a phone is more than a third of the screen. Setting the
+     one variable moves the code column with it, which is the whole point of
+     there being a variable. */
+  table.attendance { --name-col: 9rem; }
 }
 
 /* ======================================================================

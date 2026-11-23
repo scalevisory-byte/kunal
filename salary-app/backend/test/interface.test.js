@@ -3938,3 +3938,43 @@ test('the grid can show the day’s HOURS under each mark, and says that changes
   assert.match(css, /\.mark-minutes\.hours\s*\{/, '.mark-minutes.hours needs a rule');
   assert.match(css, /\.under-pick\s*\{/, '.under-pick needs a rule');
 });
+
+/*
+ * "naam wala column wala fix kar do" — the attendance grid's name column was
+ * pinned at 10rem and his names do not fit it. AJEETKUMAR UPDHYAY read as
+ * "AJEETKUMAR UPDHYAY." and ALIFAYA CHIKHALIWALA as "ALIFAYA CHIKHALIWALA.",
+ * because the `td`'s own ellipsis was drawn PAST its right border and over
+ * the code beside it. A full stop after a surname reads as a typo in
+ * somebody's name, not as a column that is too narrow.
+ */
+test('the name column and the code column are driven by one figure', () => {
+  const css = src('styles.css');
+  /* The code freezes at exactly the name column's width. Two hand-written
+     `10rem`s is how a gap or an overlap appears the first time one of them
+     is changed; one variable cannot drift from itself. */
+  assert.match(css, /table\.attendance \{ --name-col: [\d.]+rem; \}/);
+  assert.match(css, /table\.attendance \.sticky-code \{[^}]*left: var\(--name-col\);/);
+  assert.match(
+    css,
+    /table\.attendance \.sticky-name \{ min-width: var\(--name-col\); max-width: var\(--name-col\); \}/
+  );
+  /* Neither may go back to a literal figure. */
+  const codeRule = css.slice(css.indexOf('table.attendance .sticky-code {'));
+  assert.ok(
+    !/left: [\d.]+rem/.test(codeRule.slice(0, codeRule.indexOf('}'))),
+    'the code column must not freeze at a hand-written offset again'
+  );
+});
+
+test('a name too long for the column is cut off inside the cell', () => {
+  const css = src('styles.css');
+  /* Widening alone only moves the problem to the next longer name, so the
+     ellipsis sits on the link itself, inside the cell that clips it. */
+  const rule = css.match(/table\.attendance td\.sticky-name \.name-link \{[^}]*\}/);
+  assert.ok(rule, 'the name link needs its own ellipsis rule');
+  assert.match(rule[0], /overflow: hidden/);
+  assert.match(rule[0], /text-overflow: ellipsis/);
+  assert.match(rule[0], /max-width: 100%/);
+  /* An inline element cannot be given a max-width. */
+  assert.match(rule[0], /display: inline-block/);
+});
