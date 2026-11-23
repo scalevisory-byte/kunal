@@ -2251,6 +2251,37 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+## One punch is not a twenty-four hour shift (v1.94.0)
+
+Dinesh sent the Time tab showing **24h 00m worked and +900m overtime** on ABDULHAK BHENSWALA
+(10:50/10:50), ASHOK MISHRA, ANURAG VERMA, ASHUTOSH JHA and AXAY DHADUK. Then he explained the
+readers: *"punhcingmachine doorlock wala he to din me khi bar in out hote rehta he / punching k
+bina door open nahi hota / to first punch for arriving :last punch for day end esa gin sakte
+he"* — which is already the rule every importer follows, and which makes a **one-punch day the
+odd case rather than the normal one**.
+
+- `readTimes` in `shared/timesheet.js` wrapped `gross <= 0` to a whole day, for a genuine
+  overnight shift. **In == out is not an overnight shift**, it is one punch written into both
+  columns. `oneTouch` is now excluded from the wrap; a real 22:00→06:00 still wraps.
+- `shared/punches.js` writes `out_time: ''` when the latest punch IS the earliest. **It must be
+  sent as `''`, not omitted** — `setAttendance` merges per field, so leaving it out would keep a
+  stale out time from an earlier import. `shared/punchClock.js` (the phone path) was already
+  correct (`last > first ? … : ''`), which is how the right answer was known.
+- **No payslip had moved**: `setAttendance` only recomputes minutes `if (anyTime && !('minutes'
+  in entry))`, and the importer sends `minutes`. It was a mine, not a loss — a Time-tab edit of
+  such a day would have saved the 900 minutes for real.
+- **THE SECOND HALF, found while fixing the first: `TimeSheet.jsx` judged a day by the CLOCK
+  and not by the MARK.** `timesToDay` knows the hours; only `minutesForMark` knows what the
+  day's mark does with them. So a Sunday showed ALIFAYA CHIKHALIWALA **−219m** that the payslip
+  took nothing for — and worse, `queueSave` **stored** that figure, writing a deduction onto an
+  off day that the biometric import deliberately refuses to write. Both the screen and the save
+  now call `minutesForMark`, judged by the mark the day ENDS UP with (after the auto-mark
+  decision), so the screen, the save, `db.js`, `localStore.js` and the import preview are one
+  answer. Pinned by a test that also forbids `minutes: worked.minutes`.
+- **Test-fixture trap worth remembering:** `punchesToMarks` skips anybody without `active`
+  (`if (!emp.active) continue`), so a fixture employee written without `active: 1` matches
+  nothing and the assertion fails on `undefined`, not on the behaviour under test.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

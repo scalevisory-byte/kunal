@@ -7,6 +7,7 @@ import {
   formatTime,
   hasTimes,
   readTimes,
+  minutesForMark,
   monthTotals,
   parseTime,
   timesToDay,
@@ -89,7 +90,27 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
      with, so this screen and the payslip cannot disagree. */
   const hoursOf = (row) => hoursForEmployee(row, { period });
 
-  const readDay = (row, d) => timesToDay(entryOf(row, d), { hoursPerDay: hoursOf(row) });
+  /*
+   * THE SCREEN MUST SHOW WHAT THE SHEET CHARGES, not what the clock says on
+   * its own. `timesToDay` knows the hours; only `minutesForMark` knows what
+   * the day's MARK does with them - a shortfall on a Sunday, on leave or on a
+   * holiday is not charged, and a day under half is already paid at half.
+   *
+   * Reading it without the mark showed ALIFAYA CHIKHALIWALA -219m against a
+   * Sunday the payslip took nothing for. The same call now answers here, in
+   * db.js, in localStore.js and in the import preview, so the four cannot
+   * disagree.
+   */
+  const judge = (row, d) => {
+    const entry = entryOf(row, d);
+    const day = timesToDay(entry, { hoursPerDay: hoursOf(row) });
+    return {
+      ...day,
+      minutes: minutesForMark(entry, { hoursPerDay: hoursOf(row), code: entry.code || day.code }),
+    };
+  };
+
+  const readDay = (row, d) => judge(row, d);
 
   /**
    * Saves in a batch a moment after typing stops, the way the grid does, so
@@ -104,12 +125,19 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         const merged = { ...(row?.attendance?.[d] || {}), ...times };
         const worked = timesToDay(merged, { hoursPerDay: hoursOf(row || {}) });
         const current = String(row?.attendance?.[d]?.code || '').toUpperCase();
+        // Only a mark that says nothing in particular gives way to the clock.
+        const code = worked.code && AUTO_MARKS.has(current) ? worked.code : current;
         return {
           employee_id: employeeId,
           day: d,
-          // Only a mark that says nothing in particular gives way to the clock.
-          code: worked.code && AUTO_MARKS.has(current) ? worked.code : current,
-          minutes: worked.worked === null ? Number(row?.attendance?.[d]?.minutes) || 0 : worked.minutes,
+          code,
+          /* Judged by the MARK the day ends up with, not by the clock alone.
+             Typing a time onto a Sunday used to write the shortfall against a
+             nine-hour day - a deduction the import itself refuses to write. */
+          minutes:
+            worked.worked === null
+              ? Number(row?.attendance?.[d]?.minutes) || 0
+              : minutesForMark(merged, { hoursPerDay: hoursOf(row || {}), code }),
           ...times,
         };
       });

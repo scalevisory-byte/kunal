@@ -499,6 +499,7 @@ export const HELP = [
       'Reports → **Missing punch**: days somebody was at work and the times do not add up.',
       'Four kinds, counted apart — in with no out, out with no in, half a lunch, and nothing at all.',
       'The people with the most are named at the top.',
+      'The readers are door locks, so a normal day has many punches and the first and the last are taken as the arrival and the departure. **Somebody who went through once has an arrival and nothing else**, and the out time is left blank rather than guessed at — those days land here to be typed in by hand.',
     ],
     note: 'NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
   },

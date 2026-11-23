@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.93.0';
+export const VERSION = '1.94.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.94.0',
+    date: '23 Nov 2026',
+    title: 'One punch is not a twenty-four hour shift',
+    items: [
+      '**A day with only ONE punch read as a whole day on the premises.** The readers are door locks, so a day normally carries many punches and the earliest counts as the arrival and the latest as the departure. Somebody who went through the door once has only an arrival \u2014 and that one minute was being written into BOTH the in and the out column, which the hours then read as a shift from 10:50 to 10:50 the following day.',
+      'On the live November month that showed as **24h 00m worked and +900 minutes of overtime** on ABDULHAK BHENSWALA, ASHOK MISHRA, ANURAG VERMA, ASHUTOSH JHA and AXAY DHADUK \u2014 fifteen hours of overtime each, for one punch.',
+      '**No payslip moved**, because the import sends the minutes it worked out and the server does not recalculate them. It was still a mine waiting to go off: editing any such day on the Time tab would have saved the 900 minutes for real.',
+      'Now a single punch writes the arrival and leaves the departure **blank**, which is the honest record \u2014 nobody can say when they left. The day is still Present and nothing is charged or paid for hours nobody can measure. **Reports \u2192 Missing punch** lists those days so the office can type the real out time in.',
+      '**The Time tab now judges a day by its MARK, not by the clock alone.** A Sunday, a holiday or a day on leave was showing a shortfall the payslip never took \u2014 ALIFAYA CHIKHALIWALA read \u2212219m against a Sunday that cost her nothing. Worse, typing a time onto such a day **saved** that deduction, which the biometric import deliberately refuses to write. The screen, the save, the server and the import now all ask the same question.',
+    ],
+  },
   {
     version: '1.93.0',
     date: '22 Nov 2026',

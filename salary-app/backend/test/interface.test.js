@@ -3656,3 +3656,27 @@ test('A PANEL MAY NOT INVENT A FIGURE-STRIP CLASS', () => {
     }
   }
 });
+
+test('the Time tab judges a day by its MARK, not by the clock alone', () => {
+  /*
+   * `timesToDay` knows how long somebody was here. Only `minutesForMark`
+   * knows what the day's mark does with that: a shortfall on a Sunday, on
+   * leave or on a holiday is not charged, and a day under half is already
+   * paid at half.
+   *
+   * Both halves matter. Reading it without the mark showed a Sunday docked
+   * 219 minutes that the payslip took nothing for - a screen disagreeing
+   * with the sheet. WRITING it without the mark was worse: typing a time
+   * onto a Sunday stored that deduction, which the biometric import
+   * deliberately refuses to store.
+   */
+  const tab = src('components/TimeSheet.jsx');
+  assert.match(tab, /minutesForMark,/, 'it must import the one rule');
+  assert.match(
+    tab,
+    /minutes:\s*\n?\s*worked\.worked === null[\s\S]{0,160}minutesForMark\(merged/,
+    'the saved minutes must come from minutesForMark'
+  );
+  assert.doesNotMatch(tab, /minutes: worked\.minutes/, 'never straight off the clock');
+  assert.match(tab, /minutes: minutesForMark\(entry/, 'and the figure on screen is the same one');
+});

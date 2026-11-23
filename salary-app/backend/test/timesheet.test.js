@@ -168,3 +168,33 @@ test('the grace still applies on a day of any length', () => {
   assert.equal(day.code, 'P');
   assert.equal(day.minutes, 0);
 });
+
+test('ONE PUNCH IS NOT A TWENTY-FOUR HOUR SHIFT', () => {
+  /*
+   * The readers are door locks: no punch, no door, so people touch them many
+   * times a day and the app takes the earliest as the arrival and the latest
+   * as the departure. Somebody who went through once has the SAME minute in
+   * both columns - and `gross <= 0` wrapped that to a whole day.
+   *
+   * On his live Time tab: ABDULHAK BHENSWALA in 10:50, out 10:50, "24h 00m
+   * worked, +900m" - fifteen hours of overtime for one tap; ASHOK MISHRA's
+   * month reading 317h against a 234h target.
+   *
+   * The same minute on both sides means the departure is NOT KNOWN, which is
+   * what a blank out time already describes.
+   */
+  const one = readTimes({ in_time: '10:50', out_time: '10:50' });
+  assert.equal(one.worked, null, 'one punch cannot say how long they were here');
+  assert.equal(one.overnight, false);
+
+  const blank = readTimes({ in_time: '10:50', out_time: '' });
+  assert.equal(one.worked, blank.worked, 'it must read exactly like no out time at all');
+});
+
+test('a real overnight shift still wraps', () => {
+  // out < in is somebody who left after midnight. That is the case the wrap
+  // exists for, and it must survive the fix above.
+  const night = readTimes({ in_time: '22:00', out_time: '06:00' });
+  assert.equal(night.worked, 8 * 60);
+  assert.equal(night.overnight, true);
+});

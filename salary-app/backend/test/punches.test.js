@@ -142,3 +142,46 @@ test('rows for another month are counted, not silently dropped', () => {
   assert.equal(result.entries.length, 1);
   assert.equal(result.unreadableDates, 1);
 });
+
+test('ONE PUNCH WRITES A BLANK OUT TIME, NOT THE SAME MINUTE TWICE', () => {
+  /*
+   * The readers are door locks, so most days carry many punches and earliest
+   * / latest is the right rule. Somebody who went through once has only an
+   * arrival, and writing that minute into BOTH columns claims they left the
+   * moment they arrived. Every screen downstream then read it as a 24-hour
+   * shift.
+   *
+   * Blank is the honest record, and it must be sent as '' rather than left
+   * out: `setAttendance` merges per field, so omitting it would keep a stale
+   * out time from an earlier import.
+   */
+  const got = punchesToMarks({
+    rows: [{ values: ['E1', '20-11-2026 10:50:00'] }],
+    mapping: { employee: 0, date: 1, inTime: 1, outTime: 1, matchBy: 'code' },
+    rules: DEFAULT_RULES,
+    employees: [{ id: 1, code: 'E1', name: 'ABDULHAK BHENSWALA', active: 1 }],
+    period: { month: 11, year: 2026, hours_per_day: 9 },
+  });
+  const day = got.entries.find((e) => e.day === 20);
+  assert.equal(day.in_time, '10:50');
+  assert.equal(day.out_time, '', 'the departure is not known, and must not be invented');
+  assert.ok('out_time' in day, 'it must be named so a stale out time is cleared');
+  assert.equal(day.code, 'P', 'they were here');
+  assert.equal(day.minutes, 0, 'and nothing is charged or paid for hours nobody can measure');
+});
+
+test('many punches in a day still read first in, last out', () => {
+  // A door lock: in, out for tea, in, out for lunch, in, home. Everything
+  // between the first and the last is simply the door opening.
+  const stamps = ['09:14', '11:02', '11:20', '13:30', '14:05', '18:12'];
+  const got = punchesToMarks({
+    rows: stamps.map((t) => ({ values: ['E1', `20-11-2026 ${t}:00`] })),
+    mapping: { employee: 0, date: 1, inTime: 1, outTime: 1, matchBy: 'code' },
+    rules: DEFAULT_RULES,
+    employees: [{ id: 1, code: 'E1', name: 'SOMEBODY', active: 1 }],
+    period: { month: 11, year: 2026, hours_per_day: 9 },
+  });
+  const day = got.entries.find((e) => e.day === 20);
+  assert.equal(day.in_time, '09:14');
+  assert.equal(day.out_time, '18:12');
+});

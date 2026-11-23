@@ -299,7 +299,14 @@ export function punchesToMarks({ rows, mapping, rules, employees, period, deduct
       code,
       minutes,
       in_time: seen.in === null ? '' : formatTime(seen.in),
-      out_time: seen.out === null ? '' : formatTime(seen.out),
+      /*
+       * One punch leaves `out` equal to `in`, and writing that is a claim
+       * they left the moment they arrived. Blank is the honest record: they
+       * were here, nobody knows when they went. Sent as `''` rather than
+       * omitted, because `setAttendance` merges per field and leaving it out
+       * would keep a stale out time from some earlier day's import.
+       */
+      out_time: seen.out === null || seen.out === seen.in ? '' : formatTime(seen.out),
       // Only when the sheet named those columns. `setAttendance` merges per
       // field, so leaving them out keeps whatever is already on the day.
       ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),

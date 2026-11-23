@@ -143,9 +143,25 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
 
   let gross = null;
   let overnight = false;
-  if (at.in !== null && at.out !== null) {
+  /*
+   * ONE PUNCH IS NOT A TWENTY-FOUR HOUR SHIFT.
+   *
+   * Somebody who touched the reader once has an arrival and no departure, and
+   * the importer writes the same minute into both columns. Read as `out - in`
+   * that is 0, and `gross <= 0` then wrapped it to a whole day: his live Time
+   * tab showed ABDULHAK BHENSWALA in at 10:50, out at 10:50, "24h 00m worked,
+   * +900m" - fifteen hours of overtime for one tap, and ASHOK MISHRA's month
+   * reading 317h against a 234h target.
+   *
+   * The same minute on both sides means there is only one punch, so the
+   * departure is NOT KNOWN - exactly the state a blank out time describes.
+   * Nothing invents a departure. And an overnight shift is `out < in`, never
+   * `out === in`: nobody clocks out at the same minute of the next day.
+   */
+  const oneTouch = at.in !== null && at.out !== null && at.out === at.in;
+  if (at.in !== null && at.out !== null && !oneTouch) {
     gross = at.out - at.in;
-    if (gross <= 0) {
+    if (gross < 0) {
       gross += DAY;
       overnight = true;
     }
