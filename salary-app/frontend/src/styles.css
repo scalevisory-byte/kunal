@@ -5976,3 +5976,26 @@ h3.spaced { margin-top: 1.5rem; }
 }
 .hours-decide > strong { margin-right: 0.15rem; }
 .hours-decide .muted.small { flex: 1 1 18rem; min-width: 0; }
+
+/*
+ * The daily report's three shapes. A real rule, because `.report-shapes` on
+ * its own would have been the invented-class trap for the seventh time -
+ * `.row` already gives the flex and the gap, so this only separates the
+ * choice from the boxes under it and keeps a long label on one line.
+ */
+.report-shapes { margin: 0.5rem 0 0.2rem; }
+.report-shapes button { white-space: nowrap; }
+@media (max-width: 760px) {
+  /* Three labels of eight words do not share a phone's width. */
+  .report-shapes { flex-direction: column; align-items: stretch; }
+  .report-shapes button { white-space: normal; text-align: left; }
+}
+
+/*
+ * `.hint` is `text-align: right` because it was written for a figure under a
+ * sheet cell. Under a form box it reads as a stray ragged-left paragraph, so
+ * this panel's hints are handed back to the left - the same narrow override
+ * `table.timesheet .sticky-name .hint` and `.due-what .hint` already make,
+ * rather than changing the global rule under every other screen.
+ */
+.report-fields .hint { text-align: left; }

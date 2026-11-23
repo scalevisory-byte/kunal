@@ -26,6 +26,29 @@
  *   **"Not known" is never "on time".** Somebody with no clock times is left
  *   out of Late Coming, not counted as punctual.
  *
+ * ---------------------------------------------------------------------------
+ * THE THING THREE SHAPES EXIST FOR, and it is not a formatting choice.
+ *
+ * Dinesh: *"short hours & ot ka report aaj ki date ka dusre din jayega / same
+ * day kaise jayega / uske liye kya solution he"*.
+ *
+ * Attendance, late coming and uniform are known by ten in the morning.
+ * **Short hours and overtime cannot be known until the person has gone home**
+ * — they are `out − in − lunch`, and there is no out time until there is.
+ * No data source has it earlier; the readers themselves do not know.
+ *
+ * So the answer is not to compute it sooner, it is to send it when it exists.
+ * One message in the morning carrying what the morning knows, and one after
+ * the last shift carrying the hours — both of them today's. Or, for an office
+ * that wants one message a day, the morning one carrying **yesterday's**
+ * hours under yesterday's own date, which is honest about what it is.
+ *
+ * WHAT THE MORNING SHAPE MUST NEVER DO IS PRINT "Nobody was short of hours
+ * today" AT TEN IN THE MORNING. Every day is inside its grace at that hour,
+ * so the sum really does come to nothing — and it would read as a clean day's
+ * work to a group of people who have not finished it yet. The hours headings
+ * are left out of that shape altogether, with one line saying where they are.
+ *
  * Dependency-free, like the rest of shared/.
  */
 
@@ -35,6 +58,73 @@ import { isEarlyOut, isLateIn, lateByMinutes, formatDuration } from './timesheet
 
 /** Who was at work, so there was a uniform to see. */
 export const WORKED_MARKS = new Set(['P', 'HF', 'SP', 'HP']);
+
+/**
+ * The three shapes, and WHEN each one is true.
+ *
+ * `end_of_day` is the default because it is what this report has always
+ * been — everything, for the day asked for — so a cron or a saved link that
+ * names no shape gets exactly the message it got before.
+ */
+export const REPORT_SHAPES = [
+  {
+    key: 'morning',
+    label: 'Morning — before anybody has finished',
+    why:
+      'Attendance, late coming and uniform. The hours are left out on purpose: nobody has ' +
+      'clocked out yet, so "nobody was short" would read as a clean day that has not been ' +
+      'worked. They go out in the end-of-day message.',
+  },
+  {
+    key: 'with_yesterday',
+    label: "Morning + yesterday's hours",
+    why:
+      "One message a day. Today's attendance, and yesterday's short hours and overtime under " +
+      "yesterday's own date, so nothing in it reads as today's.",
+  },
+  {
+    key: 'end_of_day',
+    label: 'End of day — everything, today',
+    why:
+      "Sent after the last shift. Today's attendance and today's hours, with anybody who has " +
+      'not clocked out named rather than quietly counted as fine.',
+  },
+];
+
+export const SHAPE_KEYS = REPORT_SHAPES.map((s) => s.key);
+export const DEFAULT_SHAPE = 'end_of_day';
+
+/** An unknown shape falls back to the long-standing one, never to a newer default. */
+export const normaliseShape = (value) => {
+  const asked = String(value || '').toLowerCase();
+  return SHAPE_KEYS.includes(asked) ? asked : DEFAULT_SHAPE;
+};
+
+/**
+ * WHICH SHAPE IS TRUE RIGHT NOW, off the clock rather than off a preference.
+ *
+ * A day already gone is finished whatever the hour, so it gets the whole
+ * message. Today is `morning` until the usual day has ended and `end_of_day`
+ * after it — which is exactly the line the hours cannot be known before. A
+ * day still to come can only be `morning`.
+ *
+ * It SUGGESTS: whoever is sending the message still picks. A shape chosen by
+ * the clock and then not shown would be a rule nobody could see.
+ */
+export const suggestShape = ({ date = '', shiftOut = '', now = new Date() } = {}) => {
+  const asked = String(date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(asked)) return DEFAULT_SHAPE;
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  if (asked < today) return 'end_of_day';
+  if (asked > today) return 'morning';
+  const [h, m] = String(shiftOut || '18:30').split(':').map(Number);
+  const ends = Number.isFinite(h) ? h * 60 + (Number.isFinite(m) ? m : 0) : 18 * 60 + 30;
+  return now.getHours() * 60 + now.getMinutes() >= ends ? 'end_of_day' : 'morning';
+};
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -58,24 +148,14 @@ const withReason = (row) => {
 const bullets = (list, each = withReason) => list.map((row) => `  • ${each(row)}`);
 
 /**
- * @param period   the open month
- * @param rows     its calculated rows, each with `attendance` and the day's times
- * @param day      which day of the month
- * @param date     that day as ISO, for the heading
- * @param standard the usual in/out times, for late and early
- * @param typed    office inspection / conduct / incidents, as the office words them
- * @param title    the heading, so another company can use its own
+ * One day of one month, off the rows the roll call is drawn from.
+ *
+ * Taken out as a function because the morning-plus-yesterday shape reads TWO
+ * days out of the same rows, and two copies of this mapping is how the hours
+ * and the attendance would come to disagree about what a mark is.
  */
-export function dailyReport({
-  period = null,
-  rows = [],
-  day,
-  date = '',
-  standard = {},
-  typed = {},
-  title = 'DAILY OFFICE REPORT',
-} = {}) {
-  const people = rows.map((row) => {
+const peopleFor = (rows, day) =>
+  rows.map((row) => {
     const entry = (row.attendance || {})[day] || {};
     const code = String(entry.code || entry.mark || '').toUpperCase();
     return {
@@ -88,6 +168,55 @@ export function dailyReport({
       minutes: Number(entry.minutes ?? entry.ot_minutes ?? 0) || 0,
     };
   });
+
+/**
+ * SHORT HOURS AND OVERTIME, off the day's own `minutes` column.
+ *
+ * That is the column the salary sheet is paid from, so the message, the roll
+ * call and the payslip cannot give three answers — and a figure the office
+ * typed over the clock is the one that goes out, because that is the one that
+ * is charged. It follows the month's grace without knowing the grace exists:
+ * a forgiven day carries 0 and is simply not short.
+ *
+ * `open` is the half that must never be read as fine: somebody at work who
+ * clocked in and never out has no hours to be short of. Before the end of the
+ * day that is a person still at their desk; after it, a punch that never
+ * arrived. Either way it is "not known", which is not "did their day".
+ */
+const hoursOf = (people) => ({
+  short: people.filter((p) => p.minutes < 0).sort((a, b) => a.minutes - b.minutes),
+  overtime: people.filter((p) => p.minutes > 0).sort((a, b) => b.minutes - a.minutes),
+  open: people.filter((p) => WORKED_MARKS.has(p.code) && p.in_time && !p.out_time),
+});
+
+/**
+ * @param period      the open month
+ * @param rows        its calculated rows, each with `attendance` and the day's times
+ * @param day         which day of the month
+ * @param date        that day as ISO, for the heading
+ * @param standard    the usual in/out times, for late and early
+ * @param typed       office inspection / conduct / incidents, as the office words them
+ * @param title       the heading, so another company can use its own
+ * @param shape       one of REPORT_SHAPES — which sections are true at this hour
+ * @param asOf        "19:10", stamped under the date; omitted leaves the old text alone
+ * @param hoursDay    for `with_yesterday`: which day the hours come from
+ * @param hoursDate   that day as ISO, for its own heading
+ */
+export function dailyReport({
+  period = null,
+  rows = [],
+  day,
+  date = '',
+  standard = {},
+  typed = {},
+  title = 'DAILY OFFICE REPORT',
+  shape = DEFAULT_SHAPE,
+  asOf = '',
+  hoursDay = null,
+  hoursDate = '',
+} = {}) {
+  const which = normaliseShape(shape);
+  const people = peopleFor(rows, day);
 
   const marked = people.filter((p) => p.code);
   const nothingMarked = people.length > 0 && marked.length === 0;
@@ -127,41 +256,31 @@ export function dailyReport({
   const outOfUniform = people.filter((p) => WORKED_MARKS.has(p.code) && notProper(p.uniform));
   const notLookedAt = people.filter((p) => WORKED_MARKS.has(p.code) && notSeen(p.uniform));
 
-  const overtime = people.filter((p) => p.minutes > 0).sort((a, b) => b.minutes - a.minutes);
-
   /*
-   * SHORT HOURS - "kam time wale", asked for by name.
+   * WHICH DAY THE HOURS ARE FOR.
    *
-   * The mirror of the Overtime section that was already here, off the same
-   * `minutes` column: what the day actually carries, which is what the salary
-   * sheet is paid from. NOT re-read off the clock, so the message, the roll
-   * call and the payslip cannot give three answers - and so a figure the
-   * office typed over the clock is the one that goes out, because that is the
-   * one that is charged.
-   *
-   * It follows the month's own grace without knowing about it: a day inside
-   * the grace carries 0 and is simply not short. Worst first, because that is
-   * the name the group is going to ask about.
+   * `with_yesterday` reads the day before out of the same rows — and refuses
+   * to when that day is in the PREVIOUS MONTH. `attendance` is keyed by day of
+   * month, so day 0 is not yesterday, it is nothing at all, and reading it
+   * would print a confident "nobody was short" for a day this payroll has
+   * never seen.
    */
-  const short = people.filter((p) => p.minutes < 0).sort((a, b) => a.minutes - b.minutes);
-
-  /*
-   * AND THE PEOPLE WHO ARE NOT ON THAT LIST AND SHOULD NOT BE READ AS FINE.
-   *
-   * Somebody at work who clocked in and never out has no hours to be short
-   * of - "not known" is not "did their day". Counting them silently would
-   * make the list read as the whole truth, and these are exactly the names
-   * somebody in the group will ask about.
-   */
-  const noClockOut = people.filter(
-    (p) => WORKED_MARKS.has(p.code) && p.in_time && !p.out_time
-  );
+  const wantsYesterday = which === 'with_yesterday';
+  const askedDay = wantsYesterday ? Number(hoursDay) : day;
+  const hoursInAnotherMonth = wantsYesterday && !(Number.isFinite(askedDay) && askedDay >= 1);
+  const hoursFromDay = which === 'morning' || hoursInAnotherMonth ? null : askedDay;
+  const hoursOn = hoursFromDay === day ? date : hoursDate;
+  const hoursPeople = hoursFromDay === null ? [] : peopleFor(rows, hoursFromDay);
+  const { short, overtime, open } = hoursOf(hoursPeople);
 
   /* ---- the text, in the shape the office already sends ---- */
 
   const out = [];
   out.push(title);
   out.push(`Date: ${longDate(date)}`);
+  /* Stamped only when the caller says what time it is - an absent stamp
+   * leaves the message byte-identical to the one this report always sent. */
+  if (String(asOf || '').trim()) out.push(`As at: ${String(asOf).trim()}`);
   out.push('');
 
   out.push('Attendance');
@@ -234,34 +353,60 @@ export function dailyReport({
     out.push('');
   }
 
-  /* Before Overtime: it is the half somebody reads the message for. */
-  out.push('Short hours');
-  if (!short.length) {
-    out.push('Nobody was short of hours today');
+  if (hoursFromDay === null) {
+    /*
+     * NO HOURS HEADINGS AT ALL, and a line saying why.
+     *
+     * This is the whole reason the morning shape exists: at that hour every
+     * day is still inside its grace, so "Nobody was short of hours today"
+     * is arithmetically true and completely misleading.
+     */
+    if (hoursInAnotherMonth) {
+      out.push(
+        'Short hours and overtime: yesterday falls in the previous month, which is a ' +
+          'separate sheet — open that month to report its hours.'
+      );
+    } else {
+      out.push(
+        'Short hours and overtime are not in this message: the day is not finished, so ' +
+          "nobody's hours are known yet. They go out in the end-of-day message."
+      );
+    }
+    out.push('');
   } else {
-    out.push(
-      ...bullets(
-        short,
-        (p) =>
-          `${name(p)} — ${formatDuration(-p.minutes)} short` +
-          (p.in_time || p.out_time ? ` (${p.in_time || '—'} to ${p.out_time || '—'})` : '')
-      )
-    );
-  }
-  if (noClockOut.length) {
-    out.push(
-      `${noClockOut.length} ${noClockOut.length === 1 ? 'person' : 'people'} clocked in and ` +
-        'not out, so their hours are not known yet: ' +
-        noClockOut.map((p) => name(p)).join(', ')
-    );
-  }
-  out.push('');
+    /* The hours' own day is named whenever it is not the message's date. */
+    const sameDay = hoursFromDay === day;
+    const forDay = sameDay ? '' : ` — ${longDate(hoursOn)}`;
 
-  out.push('Overtime');
-  if (!overtime.length) {
-    out.push('No overtime logged today');
-  } else {
-    out.push(...bullets(overtime, (p) => `${name(p)} — ${formatDuration(p.minutes)}`));
+    /* Before Overtime: it is the half somebody reads the message for. */
+    out.push(`Short hours${forDay}`);
+    if (!short.length) {
+      out.push(sameDay ? 'Nobody was short of hours today' : 'Nobody was short of hours');
+    } else {
+      out.push(
+        ...bullets(
+          short,
+          (p) =>
+            `${name(p)} — ${formatDuration(-p.minutes)} short` +
+            (p.in_time || p.out_time ? ` (${p.in_time || '—'} to ${p.out_time || '—'})` : '')
+        )
+      );
+    }
+    if (open.length) {
+      out.push(
+        `${open.length} ${open.length === 1 ? 'person' : 'people'} clocked in and ` +
+          'not out, so their hours are not known yet: ' +
+          open.map((p) => name(p)).join(', ')
+      );
+    }
+    out.push('');
+
+    out.push(`Overtime${forDay}`);
+    if (!overtime.length) {
+      out.push(sameDay ? 'No overtime logged today' : 'No overtime logged');
+    } else {
+      out.push(...bullets(overtime, (p) => `${name(p)} — ${formatDuration(p.minutes)}`));
+    }
   }
 
   if (typed.incidents !== undefined) {
@@ -273,6 +418,11 @@ export function dailyReport({
   return {
     title,
     date,
+    shape: which,
+    as_of: String(asOf || '').trim(),
+    /** Which day the hours in this message are for — null when it carries none. */
+    hours_day: hoursFromDay,
+    hours_date: hoursFromDay === null ? '' : hoursOn,
     text: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
     counts: {
       people: people.length,
@@ -289,12 +439,15 @@ export function dailyReport({
       short: short.length,
       /* Minutes, as a positive figure - the message says "1h 32m short". */
       short_minutes: short.reduce((t, p) => t - p.minutes, 0),
-      no_clock_out: noClockOut.length,
+      no_clock_out: open.length,
       not_marked: notMarked.length,
       nothing_marked: nothingMarked,
+      /** False on the morning shape, so a screen can say so without guessing. */
+      hours_in_message: hoursFromDay !== null,
+      hours_in_another_month: hoursInAnotherMonth,
     },
     /** Named, so a screen can show who is behind each line without re-deriving it. */
-    lists: { absent, onLeave, halfDay, late, early, outOfUniform, overtime, short, noClockOut, notMarked },
+    lists: { absent, onLeave, halfDay, late, early, outOfUniform, overtime, short, noClockOut: open, notMarked },
   };
 }
 

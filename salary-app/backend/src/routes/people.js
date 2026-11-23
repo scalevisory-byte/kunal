@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { may } from '../../../shared/rights.js';
 import { requireArea } from '../auth.js';
 import { digest } from '../../../shared/digest.js';
-import { dailyReport } from '../../../shared/dailyReport.js';
+import { dailyReport, normaliseShape } from '../../../shared/dailyReport.js';
 import { buildPayroll } from '../payroll.js';
 import { listPeriods } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
@@ -1542,6 +1542,13 @@ peopleRouter.post('/tickets/:id/reopen', (req, res) => {
  * The three lines this app cannot know (office inspection, conduct,
  * incidents) come in as query values, exactly as the office words them. They
  * are NOT invented: left out, their headings do not appear at all.
+ *
+ * `?shape=` picks WHEN the message is true, which is the whole point of
+ * having shapes: the hours cannot exist before people go home, so a cron
+ * fetches `shape=morning` at ten and `shape=end_of_day` at eight, both of
+ * them today's - or `shape=with_yesterday` once a day for one message
+ * carrying yesterday's hours under yesterday's date. `?as_of=19:10` stamps
+ * the hour it was built; left out, the text is exactly what it always was.
  */
 peopleRouter.get('/daily-report', (req, res) => {
   const periods = listPeriods();
@@ -1561,11 +1568,29 @@ peopleRouter.get('/daily-report', (req, res) => {
     if (req.query[key] !== undefined) typed[key] = String(req.query[key]);
   }
 
+  /*
+   * WHICH DAY THE HOURS COME FROM, worked out here rather than in the module.
+   *
+   * `attendance` is keyed by day of month, so the day before the 1st is not
+   * day 0 - it is a different sheet. The module is told `null` and says so,
+   * instead of being handed a number that reads as a day with nobody short.
+   */
+  const shape = normaliseShape(req.query.shape);
+  const prev = new Date(Date.UTC(year, month - 1, dayOfMonth));
+  prev.setUTCDate(prev.getUTCDate() - 1);
+  const prevIso = prev.toISOString().slice(0, 10);
+  const prevInThisMonth =
+    prev.getUTCFullYear() === payroll.period.year && prev.getUTCMonth() + 1 === payroll.period.month;
+
   const built = dailyReport({
     period: payroll.period,
     rows: payroll.rows,
     day: dayOfMonth,
     date,
+    shape,
+    asOf: String(req.query.as_of || ''),
+    hoursDay: prevInThisMonth ? prev.getUTCDate() : null,
+    hoursDate: prevIso,
     /*
      * The month's own shift wins, exactly as the roll call's `shiftOfMonth`
      * does; the screen may send its own, because the usual timings are also

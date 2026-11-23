@@ -1231,6 +1231,7 @@ export const HELP = [
       'attendance report', 'send', 'bhejna', 'roz', 'daily', 'report group me',
       'late coming list', 'absent list', 'uniform', 'incident', 'inspection', 'conduct',
       'short hours', 'kam time', 'kam ghante', 'overtime', 'kam time wale',
+      'same day', 'subah', 'shaam', 'end of day', 'kal ka', 'yesterday', 'two messages',
     ],
     lines: [
       '**Dashboard → under the roll call → Write the message.** It writes the report your office already types into the group every morning, from the day on screen: heading, date, **Attendance** with every absent name and the reason in brackets, **Late Coming / Early Going** with how late, **Uniform**, **Short hours** and **Overtime**.',
@@ -1238,10 +1239,12 @@ export const HELP = [
       'Step the roll call back a day with ‹ › and the message follows it. Set the company filter and it covers that company only, and names it in the heading.',
       '**Office Inspection, Conduct and Incidents are three boxes you type.** They are not recorded anywhere in this app, so nothing is claimed about an inspection nobody logged. The whole message can be edited before it goes.',
       '**Copy the message**, or press **Open WhatsApp** and choose the group yourself.',
-      'For an automatic send every morning, `GET /api/people/daily-report?format=text` returns the same message as plain text, and takes `&day=`, `&inspection=`, `&conduct=` and `&incidents=`.',
+      '**Three shapes, because the hours cannot exist before people go home.** Short hours and overtime are `out \u2212 in \u2212 lunch`, so at ten in the morning there is nothing to report. **Morning** leaves them out altogether. **End of day** carries today\u2019s. **Morning + yesterday\u2019s hours** is one message a day, with yesterday\u2019s figures under yesterday\u2019s own date.',
+      'The shape is **picked from the clock** \u2014 the morning one until the usual day ends, the end-of-day one after it \u2014 and the panel says so, so you can overrule it. The **time on the message** is stamped under the date, so the group knows how fresh it is.',
+      'For an automatic send, `GET /api/people/daily-report?format=text&shape=morning` returns the same message as plain text; fetch it again with `shape=end_of_day` after the last shift and both messages are today\u2019s. It also takes `&shape=with_yesterday`, `&day=`, `&as_of=`, `&inspection=`, `&conduct=` and `&incidents=`.',
       'Everybody in it comes off the same marks the salary sheet is paid from — the message and the roll call above it cannot disagree about who was late.',
     ],
-    note: 'THE APP ASSEMBLES IT, IT DOES NOT SEND IT. There is no WhatsApp API for a personal number, and the task assistant already holds the one linked session — a second one risks the number. Two other things it will not do: a day nobody has marked says so instead of listing the whole staff as absent, and somebody with no clock time is left out of Late Coming rather than counted as on time.\n\nSHORT HOURS READS THE DAY\u2019S OWN FIGURE, never the clock again \u2014 so the message, the roll call and the payslip cannot give three answers, and a figure the office typed over the clock is the one that goes out.',
+    note: 'THE APP ASSEMBLES IT, IT DOES NOT SEND IT. There is no WhatsApp API for a personal number, and the task assistant already holds the one linked session — a second one risks the number. Two other things it will not do: a day nobody has marked says so instead of listing the whole staff as absent, and somebody with no clock time is left out of Late Coming rather than counted as on time.\n\nAND THE MORNING SHAPE NEVER SAYS \u201cNOBODY WAS SHORT OF HOURS TODAY\u201d. At that hour every day is still inside its grace, so the sum really does come to nothing \u2014 and it would read as a clean day\u2019s work to people who have not finished it. The headings are left out instead, with one line saying where the hours are. The end-of-day message is also only as fresh as the last punch import.\n\nSHORT HOURS READS THE DAY\u2019S OWN FIGURE, never the clock again \u2014 so the message, the roll call and the payslip cannot give three answers, and a figure the office typed over the clock is the one that goes out.',
   },
   {
     id: 'assets',

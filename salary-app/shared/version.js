@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.9.2';
+export const VERSION = '2.10.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.10.0',
+    date: '24 Nov 2026',
+    title: 'The daily report, in two messages a day',
+    items: [
+      '**Short hours and overtime can now go out the same day they happened.** Dinesh: *\u201cshort hours & ot ka report aaj ki date ka dusre din jayega / same day kaise jayega / uske liye kya solution he\u201d*. The answer is not to work them out sooner \u2014 they are `out \u2212 in \u2212 lunch`, so **they cannot exist until the person has gone home**, and no machine knows them earlier. The answer is two messages: attendance in the morning, the hours after the last shift. Both of them today\u2019s.',
+      '**Three shapes on the panel.** *Morning* \u2014 attendance, late coming and uniform, with the hours left out. *End of day* \u2014 everything, including today\u2019s hours. *Morning + yesterday\u2019s hours* \u2014 one message a day, with yesterday\u2019s figures under yesterday\u2019s own date so nothing in it reads as today\u2019s.',
+      '**The morning message never says \u201cNobody was short of hours today\u201d**, and that is the whole reason the shapes exist. At ten in the morning every day is still inside its grace, so the sum really does come to nothing \u2014 and it would read to the group as a clean day\u2019s work that nobody has done yet. The headings are left out instead, with one line saying where the hours are.',
+      '**The shape is picked from the clock** \u2014 the morning one until the usual day ends, the end-of-day one after it \u2014 and the panel says which and why, so you can overrule it. A day already gone always gets the whole message.',
+      '**The time it was built is stamped under the date** (*As at: 19:10*), so the group knows how fresh it is. Clear the box for no stamp.',
+      '**On the 1st of the month, yesterday belongs to the previous sheet** and the message says so, instead of reporting a day this month has never seen as a day nobody was short.',
+      'For an automatic send, the same link takes `&shape=morning` and `&shape=end_of_day` \u2014 so one scheduled fetch at ten and one after the last shift post both messages with nobody opening the app.',
+      '**Said plainly on the panel: the end-of-day message is only as fresh as the last punch import.** An out punch the app has not read yet leaves that person\u2019s hours unknown \u2014 and they are named, never counted as fine.',
+    ],
+  },
   {
     version: '2.9.2',
     date: '24 Nov 2026',

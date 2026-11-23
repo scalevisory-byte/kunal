@@ -2983,6 +2983,59 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### Two messages a day, because the hours do not exist yet (v2.10.0)
+
+Dinesh: *"daily report me / daily attendance / late coming / uniform / issue conduct /
+inspection — short hours & ot ka report aaj ki date ka dusre din jayega / same day kaise
+jayega / uske liye kya solution he"*.
+
+**The honest answer is that it cannot be computed sooner.** Short hours and overtime are
+`out − in − lunch`; there is no out time until the person has gone home, and no source has it
+earlier — not the readers, not the spool, not the Access database. So the solution is not
+arithmetic, it is **when the message goes**: attendance in the morning, the hours after the
+last shift, both of them today's. `REPORT_SHAPES` in `shared/dailyReport.js`.
+
+- **`morning`** — attendance, late coming, uniform and the three typed lines. **The hours
+  headings are left out altogether**, which is the whole point: at ten in the morning every
+  day is still inside its grace, so *"Nobody was short of hours today"* is arithmetically
+  true and reads to the group as a clean day's work nobody has done yet. One line says where
+  the hours are instead. There is a test asserting that sentence can never appear in this
+  shape, and it fails if the shape is ignored.
+- **`end_of_day`** — everything, today's. **It is the default**, so a cron or a saved link
+  naming no shape gets byte-for-byte the message this report always sent; there is a test
+  comparing the two.
+- **`with_yesterday`** — one message a day, yesterday's figures under **yesterday's own
+  date** (`Short hours — 12 November 2026`), so nothing in it reads as today's.
+- **On the 1st, yesterday is in the previous month.** `attendance` is keyed by day of month,
+  so day 0 is not yesterday, it is nothing — and reading it would print a confident "nobody
+  was short" for a day this payroll has never seen. The route works the date out and hands
+  the module `null`; the module names it. Tested on both sides.
+- **The shape is suggested by the clock** (`suggestShape`): the morning one until the usual
+  day ends, the end-of-day one after it, and a day already gone always gets the whole
+  message. It **suggests and says so** — "it is 17:55 and the usual day ends at 18:30" — with
+  a link back to the suggestion when it has been overruled. A rule nobody can see is worse
+  than one they disagree with.
+- **`as_of` stamps the hour** under the date. Omitted, the text is exactly what it was, which
+  is how every existing test stayed green.
+- `GET /api/people/daily-report` takes `&shape=` and `&as_of=`, so **one scheduled fetch at
+  ten and one after the last shift post both messages** with nobody opening the app. That is
+  the actual answer to *"same day kaise jayega"* for an automatic send.
+- **Said on the panel: the end-of-day message is only as fresh as the last punch import.** An
+  out punch the app has not read yet leaves that person's hours unknown — and `open` names
+  them rather than counting them as fine, which is the v2.9.0 rule doing its job at the one
+  hour it matters most.
+- `peopleFor(rows, day)` and `hoursOf(people)` were factored out because this shape reads
+  **two** days out of one payroll, and two copies of that mapping is how the hours and the
+  attendance would come to disagree about what a mark is.
+- **The regex trap, again:** the first API assertion was `!/^Short hours/m`, which matches the
+  explanatory line *"Short hours and overtime are not in this message…"* and failed against
+  perfectly correct text. Anchor both ends when asserting a heading is absent.
+- `.report-shapes` got a real rule before it was used (eighth time for that trap), and
+  `.report-fields .hint` hands the hint back to the left — the global `.hint` is
+  `text-align: right` because it was written for a figure under a sheet cell, and under a
+  form box it reads as a stray ragged-left paragraph. Scoped, as
+  `table.timesheet .sticky-name .hint` already is, rather than changing it under every screen.
+
 ### Short hours in the daily WhatsApp message (v2.9.0)
 
 Dinesh: *"daily whatup report bana kam time walo ka"*. **Inspected first, and the daily
