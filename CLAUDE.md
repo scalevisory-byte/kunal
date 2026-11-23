@@ -2745,6 +2745,52 @@ Under the out time, by the same `showPunches` / `punchTimes` the statement and t
 would be eighty, so there it is a `log` button per row.** A row whose person has no punch ID
 says so rather than showing an empty list.
 
+## Every in and out, for the whole month (v2.4.0) — `shared/inOutRegister.js`
+
+Dinesh: *"need all logs / all in out"*. `InOutRegister.jsx`, `GET /api/punches/month`,
+Reports → **Working hours — every in and out**.
+
+**Inspected first.** The Time tab shows one DAY across everybody or one PERSON down the
+month, never both. The punch log lists raw door openings, which is a different question. The
+statement is one person. So the plain register — who came in and who went home, whole month,
+one page — did not exist.
+
+- **The catalogue carried `working-hours` as `partial`, noted "No standalone report"**, and
+  that had been stale for a long time: every figure already existed and nobody had built the
+  screen. **Sixth stale "cannot be built" note**, exactly as this file keeps warning — a note
+  explaining why something is impossible outlives the thing that made it so. Flipped to
+  `ready` with the panel behind it, so no `beyondSpec` entry was needed.
+- **IT ASSEMBLES.** The hours come from `readTimes` and what a day COSTS comes from the
+  `minutes` stored on it — the column the sheet has always been paid from. `from_clock` exists
+  only so the register can say when the two differ; it never replaces the stored figure.
+- **A figure typed over the clock is marked `typed`**, with the clock's own figure on hover.
+  Without that the register reads as a sum that does not add up, which is worse than no sum.
+- **A day nobody clocked is `null`, never 0** — nought hours would read as somebody who turned
+  up and did nothing. Blank days are counted and left out, with a tick to list them.
+- **`GET /api/punches/month` returns the whole month keyed by employee then day, in ONE
+  request.** Asking the per-person route eighty times is eighty requests nobody wanted. It
+  carries only the id and the times — a test asserts no salary and not even an employee code.
+- The register itself computes in the browser off the loaded month, so the single-file build
+  gets it; only the punch column needs the server and it says so.
+
+**Three bugs of my own, all found by driving it:**
+
+- **`payroll` is the month OBJECT `{ period, rows }`, not an array.** Every sibling panel takes
+  it that way and reads `.rows` itself. Taking it as a list threw *"t is not iterable"* inside
+  the `useMemo`, on render. Pinned by a test.
+- **One `rows` for two different things** — the payroll's rows and the CSV's rows — and the
+  build failed with *"The symbol rows has already been declared"*. **And `npx vite build
+  --logLevel error | tail -3` HID IT**: the browser went on serving the previous bundle and the
+  same error reproduced three times before I checked the asset hash had not changed. Check the
+  hash, or read the head of the build output, not the tail.
+- **The layout, measured at 1280px.** `.report-body table.sheet { width: 100% }` squeezed it
+  into the panel, which clipped the OT column off the right edge **with no way to scroll to
+  it**, and squashed a day's punches into a column so narrow they stacked five lines tall.
+  `table.sheet.inout` is `width: auto; min-width: 100%` so the frame scrolls, and the punches
+  moved under the out time (where the Time tab, the statement and the portal already put them)
+  with `white-space: nowrap` scoped to this table. After: 810px table in a 660px frame that
+  really scrolls, last cell reachable, row height 40px at every width.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

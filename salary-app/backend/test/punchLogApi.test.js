@@ -197,6 +197,38 @@ test('THE SPOOL FILES ARE ACTUALLY READ, and a punch already stored is not count
   }
 });
 
+test('every punch of a month comes back once, keyed by person and day', async () => {
+  /*
+   * For the in/out register. Asking the per-person route eighty times is
+   * eighty requests nobody wanted, so the whole month comes back in one.
+   */
+  const { status, body } = await api('GET', '/api/punches/month?month=2026-11');
+  assert.equal(status, 200);
+  assert.equal(body.month, '2026-11');
+  const mine = body.punches[amit.id];
+  assert.ok(mine, 'the matched person is keyed by their employee id');
+  assert.deepEqual(Object.keys(mine).sort(), ['20', '21']);
+  assert.deepEqual(mine['20'].map((p) => p.at), ['09:12:01', '13:37:00', '18:02:44']);
+  // A number nobody carries is counted, not filed against somebody.
+  assert.equal(body.unmatched, 1);
+  for (const id of Object.keys(body.punches)) {
+    assert.notEqual(id, 'null');
+    assert.notEqual(id, 'undefined');
+  }
+});
+
+test('the month-wide punches carry no salary and nothing statutory', async () => {
+  const { body } = await api('GET', '/api/punches/month?month=2026-11');
+  const text = JSON.stringify(body.punches);
+  assert.ok(!text.includes('26000'), 'no salary figure travels');
+  assert.ok(!/BNF-EMP/.test(text), 'and no employee code either - only the id and the times');
+});
+
+test('a staff login cannot read everybody\u2019s punches', async () => {
+  const { status } = await api('GET', '/api/punches/month?month=2026-11', null, 'not-the-key');
+  assert.equal(status, 401);
+});
+
 test.after(() => {
   server.close();
   fs.rmSync(DATA, { recursive: true, force: true });

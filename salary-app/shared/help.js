@@ -534,6 +534,20 @@ export const HELP = [
     note: 'IT IS NOT ATTENDANCE. This counts the raw events the machine recorded; what a punch BECOMES — present, half day, the hours — is worked out separately and lives on the attendance grid, which is what the salary is paid from. And "—" is not "0": a dash means the person has no number the readers can match, so nobody ever looked for them; 0 means they were looked for and not seen.',
   },
   {
+    id: 'in-out-register',
+    title: 'Every in and out, for the whole month',
+    tab: 'reports',
+    keywords: ['in out', 'in and out', 'all logs', 'sare log', 'working hours', 'ghante', 'hours report', 'time report', 'register', 'attendance times'],
+    lines: [
+      'Reports \u2192 **Working hours \u2014 every in and out**: every person and every day of the month on one page \u2014 in, lunch out, lunch in, out, the hours, the OT or shortfall, and every punch the reader recorded that day.',
+      'The Time tab shows one **day** across everybody or one **person** down the month. This shows both at once, which is what you want when somebody asks about last Tuesday.',
+      'Narrow it by company, department or one person with the boxes at the top; download the CSV or print it.',
+      'A day marked **typed** carries an OT/short figure somebody typed in rather than the one the clock comes to \u2014 hover it to see both. The typed one is what the salary uses.',
+      'Blank days are counted and left out. Tick **Include blank days** to list them as well.',
+    ],
+    note: 'IT ASSEMBLES, IT DOES NOT RECALCULATE. The hours come from the same reader the Time tab uses and what a day costs comes from the figure the salary sheet is paid from, so this register and the payslip cannot disagree. And a day with no clock times shows a dash, never 00:00 \u2014 not known is not nought.',
+  },
+  {
     id: 'punch-log',
     title: 'The punch log — every punch, one line each',
     tab: 'reports',

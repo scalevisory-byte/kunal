@@ -39,7 +39,7 @@ import {
   updateDevice,
 } from '../devices.js';
 import { matchPunchIds } from '../../../shared/punchIdMatch.js';
-import { PUNCH_TOTAL_COLUMNS, punchTotals } from '../../../shared/punchTotals.js';
+import { PUNCH_TOTAL_COLUMNS, matcherFor, punchTotals } from '../../../shared/punchTotals.js';
 import { PUNCH_LOG_COLUMNS, PUNCH_LOG_LIMIT, punchLog } from '../../../shared/punchLog.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
@@ -622,6 +622,47 @@ reportsRouter.get('/punch-log', (req, res, next) => {
       columns: PUNCH_LOG_COLUMNS,
       limit: PUNCH_LOG_LIMIT,
       ...punchLog(punches, listEmployees(), { day, employeeId }),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+ * EVERYBODY's punches for a month, day by day — for the in/out register.
+ *
+ * Dinesh: *"need all logs / all in out"*. Asking the per-person route eighty
+ * times is eighty requests nobody wanted, so the whole month comes back once,
+ * keyed by employee and then by day, matched the way every importer matches:
+ * the Punch ID, else an employee code that IS a number.
+ *
+ * It reads, and it is NOT a second opinion about the hours: in and out are
+ * still earliest and latest, which is what the sheet is paid from.
+ */
+reportsRouter.get('/punches/month', (req, res, next) => {
+  try {
+    const { year, month } = monthOf(req.query.month);
+    const { punches } = gatherPunches({ year, month });
+    const { who } = matcherFor(listEmployees());
+
+    const byPerson = {};
+    let unmatched = 0;
+    for (const punch of punches) {
+      const person = who(punch.code);
+      if (!person) {
+        unmatched += 1;
+        continue;
+      }
+      const m = String(punch.at || '').match(/^\d{4}-\d{2}-(\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+      if (!m) continue;
+      const day = Number(m[1]);
+      ((byPerson[person.id] ||= {})[day] ||= []).push({ at: m[2] });
+    }
+
+    res.json({
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      punches: byPerson,
+      unmatched,
     });
   } catch (err) {
     next(err);

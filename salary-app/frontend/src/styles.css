@@ -487,6 +487,21 @@ input:disabled, select:disabled { background: var(--line-soft); color: var(--mut
 .card .table-wrap { border: none; border-radius: 0; }
 
 /*
+ * THE IN/OUT REGISTER carries ten things per row, so it is allowed to be
+ * wider than the panel and the frame scrolls.
+ *
+ * `.report-body table.sheet { width: 100% }` squeezes every report into the
+ * panel, which is right for a report with six columns. Here it clipped the
+ * OT column off the right edge and squashed a day's punches into a column so
+ * narrow they stacked five lines tall. Measured at 1280px before and after.
+ */
+.report-body table.sheet.inout { width: auto; min-width: 100%; }
+table.sheet.inout .ts-lunch-len.punches {
+  white-space: nowrap;
+  text-align: right;
+}
+
+/*
  * The fade that says a sheet carries on past its edge. See ScrollFrame.jsx -
  * the class is only put on when there really is something hidden on that
  * side, so a table that fits wears nothing.

@@ -3858,3 +3858,32 @@ test('the Time tab shows every punch too, and never calls a running day short', 
   assert.match(tab, /view !== 'day' && person\?\.employee_id/, 'the month view loads itself');
   assert.match(tab, /onWantPunches/, 'the day view asks per person');
 });
+
+test('the in/out register fills the page and is allowed to scroll sideways', () => {
+  /*
+   * Dinesh: *"need all logs / all in out"*. Ten things per row, so it is the
+   * one report allowed to be wider than the panel.
+   *
+   * `.report-body table.sheet { width: 100% }` squeezes every report into the
+   * panel — right for a report with six columns. Here it clipped the OT column
+   * off the right edge with NO way to scroll to it, and squashed a day's
+   * punches into a column so narrow they stacked five lines tall. Measured at
+   * 1280px: 810px table in a 660px frame, last cell 150px past the edge and
+   * now reachable, row height 40px at every width.
+   */
+  const css = src('styles.css');
+  assert.match(css, /\.report-body table\.sheet\.inout\s*\{[^}]*width:\s*auto/, 'it may exceed the panel');
+  assert.match(css, /\.report-body table\.sheet\.inout\s*\{[^}]*min-width:\s*100%/, 'and still fill it');
+  assert.match(
+    css,
+    /table\.sheet\.inout \.ts-lunch-len\.punches\s*\{[^}]*white-space:\s*nowrap/,
+    'a day of punches stays on one line here, whatever the Time tab does'
+  );
+
+  const panel = src('components/InOutRegister.jsx');
+  // The payroll arrives as { period, rows }; taking it as a list threw
+  // "t is not iterable" on render.
+  assert.match(panel, /payroll\?\.rows \|\| \[\]/, 'it must read .rows off the month');
+  assert.match(panel, /payroll\?\.period \|\| \{\}/, 'and the period off the same object');
+  assert.doesNotMatch(panel, /inOutRegister\(payroll/, 'never the object straight in');
+});

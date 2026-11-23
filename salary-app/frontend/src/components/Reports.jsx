@@ -21,6 +21,7 @@ import MissingPunch from './MissingPunch.jsx';
 import PunchIdReport from './PunchIdReport.jsx';
 import PunchTotals from './PunchTotals.jsx';
 import PunchLog from './PunchLog.jsx';
+import InOutRegister from './InOutRegister.jsx';
 import LoanSettlement from './LoanSettlement.jsx';
 import ContactList from './ContactList.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
@@ -229,6 +230,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     'punch-ids': () => <PunchIdReport employees={employees} onGo={onGo} />,
     'punch-totals': () => <PunchTotals period={period} onGo={onGo} />,
     'punch-log': () => <PunchLog period={period} employees={employees} onGo={onGo} />,
+    'working-hours': () => (shown ? <InOutRegister payroll={shown} filters={filters} /> : null),
     'loan-settled': () => <LoanSettlement period={period} />,
     'employee-contacts': () => (
       <ContactList

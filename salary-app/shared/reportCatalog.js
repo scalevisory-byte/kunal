@@ -83,9 +83,12 @@ export const REPORTS = [
   R('punch-log', 'Punch log', 'attendance', 'ready',
     { filters: ['month'], at: 'panel:punch-log',
       note: 'Every punch, one line each. The readers\u2019 own record - never attendance.' }),
-  R('working-hours', 'Working hours', 'attendance', 'partial',
-    { filters: ['month', 'company', 'department', 'employee'],
-      note: 'Hours worked is calculated and rides into the Excel export. No standalone report.' }),
+  /* Was `partial`, noted "No standalone report" — and that had been stale for
+     a long time: every figure already existed and nobody had built the
+     screen. Dinesh asked for it as *"need all logs / all in out"*. */
+  R('working-hours', 'Working hours \u2014 every in and out', 'attendance', 'ready',
+    { filters: ['month', 'company', 'department', 'employee'], at: 'panel:working-hours',
+      note: 'Every person, every day: in, lunch, out, hours, and every punch behind them.' }),
   R('overtime', 'Overtime', 'attendance', 'partial',
     { filters: ['month', 'company', 'department', 'employee'],
       note: 'OT minutes and OT pay are calculated. Export columns only.' }),

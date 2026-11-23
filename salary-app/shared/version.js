@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.3.0';
+export const VERSION = '2.4.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.4.0',
+    date: '23 Nov 2026',
+    title: 'Every in and out, for the whole month, on one page',
+    items: [
+      '**Reports \u2192 Working hours \u2014 every in and out.** Asked for as *\u201cneed all logs / all in out\u201d*. The Time tab shows one DAY across everybody or one PERSON down the month and never both; the punch log lists raw door openings, which answers a different question. This is the plain register: every person, every day, with in, lunch, out, the hours, the OT or shortfall, and every punch behind them.',
+      'Download it or print it. The company, department and employee filters at the top narrow it like every other report.',
+      '**It assembles, it does not recalculate.** The hours come from the same reader the Time tab uses and what a day costs comes from the figure the salary sheet has always been paid from \u2014 so this register and the payslip cannot disagree.',
+      '**Where somebody typed over the clock, it says so** \u2014 marked *typed*, with what the clock comes to on hover. Without that the register reads as a sum that does not add up.',
+      '**A blank day is left out and counted, not shown as nought hours.** A day nobody clocked means the times are not known, never that nothing was worked. Tick *Include blank days* to list them anyway.',
+      '**The catalogue had carried this as \u201cpartial \u2014 no standalone report\u201d for a long time, and that note was simply stale**: every figure already existed and nobody had built the screen.',
+      'The raw punches for the whole month come back in **one request**, not one per person.',
+    ],
+  },
   {
     version: '2.3.0',
     date: '23 Nov 2026',
