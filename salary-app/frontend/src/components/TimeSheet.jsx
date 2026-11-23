@@ -1056,7 +1056,7 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear, punc
  * was typed into HH:MM when the box is left. Anything it cannot read is put
  * back rather than saved as a blank hour.
  */
-function TimeInput({ value, disabled, label, onCommit }) {
+export function TimeInput({ value, disabled, label, onCommit }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
 

@@ -8,11 +8,19 @@ import {
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
-import { formatDuration, minutesForMark, monthTotals, readTimes } from '../../../shared/timesheet.js';
+import {
+  formatDuration,
+  minutesForMark,
+  monthTotals,
+  readTimes,
+  TIME_FIELDS,
+  TIME_LABELS,
+} from '../../../shared/timesheet.js';
 import { punchTimes } from '../../../shared/punchLog.js';
 import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import AttendanceStatement from './AttendanceStatement.jsx';
+import { TimeInput } from './TimeSheet.jsx';
 import { api } from '../api.js';
 import { col, num, printReport } from '../printReport.js';
 import { hoursForEmployee } from '../../../shared/lateEarly.js';
@@ -224,6 +232,38 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
     return () => window.removeEventListener('keydown', onKey);
   }, [picker]);
 
+  /*
+   * WHAT SITS UNDER EACH MARK.
+   *
+   * HR, looking at the grid: *"sir iske place pe total hours hi rakho na
+   * ismai jiska minus hai uska kam ho raha hai salary jiska + hai uska salry
+   * jyada ho raha hai"* — put the total hours there instead of the ± minutes.
+   *
+   * Her reason is not right on this month's rule: `calc.js` charges the
+   * MONTH's hours total on `monthly`/`monthly_late`, and the daily minutes
+   * are not charged individually at all. But the request is, because the
+   * hours are the thing the month is actually judged on, and a column of
+   * ±119s reads as a column of deductions.
+   *
+   * So the hours are shown by default and the ± is one click away. NEITHER
+   * CHANGES A RUPEE — it is the same day either way, and the strip says so.
+   */
+  const [under, setUnder] = useState(() => {
+    try {
+      return localStorage.getItem('attendance-under') || 'hours';
+    } catch {
+      return 'hours';
+    }
+  });
+  const chooseUnder = (next) => {
+    setUnder(next);
+    try {
+      localStorage.setItem('attendance-under', next);
+    } catch {
+      /* a private window throws on touching storage; the grid must not go down for it */
+    }
+  };
+
   const setEntry = (employeeId, day, patch) => {
     if (locked) return;
     const key = `${employeeId}:${day}`;
@@ -231,8 +271,27 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
     const current = row ? entryOf(row, day) : { code: '', minutes: 0 };
     const entry = { ...current, ...patch };
     entry.code = String(entry.code || '').trim().toUpperCase();
-    entry.minutes = Number(entry.minutes) || 0;
     if (entry.code && !codes[entry.code]) return; // ignore anything not in the legend
+    /*
+     * A CLOCK TIME CHANGING MUST RE-WORK THE DAY'S MINUTES.
+     *
+     * `queueSave` sends `minutes` on every entry, and `setAttendance` leaves a
+     * caller's own minutes alone - so typing an out time here while carrying
+     * the old figure would save new hours with the old deduction beside them.
+     * That is exactly the bug the Time tab had in v2.0.0.
+     *
+     * `minutesForMark` is the one rule, judged by the mark the day ends up
+     * with, so this menu, the Time tab, the server and the import preview all
+     * give one answer.
+     */
+    const touchedTime = TIME_FIELDS.some((f) => f in patch);
+    entry.minutes = touchedTime && row
+      ? minutesForMark(entry, {
+          hoursPerDay: hoursForEmployee(row, { period }),
+          code: entry.code,
+          deductLunch: !period.lunch_paid,
+        })
+      : Number(entry.minutes) || 0;
     const next = { ...draft, [key]: entry };
     setDraft(next);
     queueSave(next);
@@ -429,6 +488,29 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           * what the office files is a muster - every name, every day, and
           * what each person's month came to.
           */}
+        {/*
+          * Which figure sits under each mark. It is a VIEW, not a rule — the
+          * line beside it says so, because the whole reason it was asked for
+          * was a worry that those ± figures were moving salaries.
+          */}
+        <span className="under-pick">
+          <em>Under each mark</em>
+          {[
+            ['hours', 'Hours'],
+            ['minutes', '+/− minutes'],
+            ['off', 'Nothing'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={under === key ? 'chip active' : 'chip'}
+              onClick={() => chooseUnder(key)}
+            >
+              {label}
+            </button>
+          ))}
+          <em className="muted">neither changes the pay</em>
+        </span>
         <button className="ghost" onClick={printMuster} disabled={!filtered.length}>
           Print the muster
         </button>
@@ -533,6 +615,9 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                   {dayList.map((d) => {
                     const entry = entryOf(row, d);
                     const open = picker?.employeeId === row.employee_id && picker?.day === d;
+                    /* The day's hours, by the same reader the Time tab and
+                       the payslip use — so no second opinion is possible. */
+                    const worked = readTimes(entry, { deductLunch: !period.lunch_paid }).worked;
                     return (
                       <td
                         key={d}
@@ -545,6 +630,8 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                           title={
                             [
                               entry.code ? codes[entry.code]?.label : 'No mark - counted as worked',
+                              /* Both figures on hover, whichever is on screen. */
+                              worked === null ? '' : `${formatDuration(worked)} worked`,
                               entry.minutes ? `${entry.minutes > 0 ? '+' : ''}${entry.minutes} minutes` : '',
                             ]
                               .filter(Boolean)
@@ -565,11 +652,18 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                           }}
                         >
                           <span className="mark-code">{entry.code || '·'}</span>
-                          {entry.minutes !== 0 && (
+                          {/*
+                            * Hours where the clock knows them; otherwise the
+                            * ± figure, because a day with minutes typed on it
+                            * and nothing shown would hide a real deduction.
+                            */}
+                          {under === 'hours' && worked !== null ? (
+                            <span className="mark-minutes hours">{formatDuration(worked)}</span>
+                          ) : under !== 'off' && entry.minutes !== 0 ? (
                             <span className={`mark-minutes${entry.minutes < 0 ? ' short' : ' extra'}`}>
                               {entry.minutes > 0 ? `+${entry.minutes}` : entry.minutes}
                             </span>
-                          )}
+                          ) : null}
                         </button>
                       </td>
                     );
@@ -1053,16 +1147,27 @@ function DayPicker({
             </span>
           </div>
 
+          {/*
+            * TYPE THEM HERE, not on another tab.
+            *
+            * HR, on this very screen: *"punch krna bhul jye aur add krna ho
+            * toh?"* — and when asked where the option was, *"na nhi hai"*.
+            * It existed on the Time tab all along, which is a different tab
+            * from the one somebody is standing on when they notice a missing
+            * punch. Eleventh time for that shape.
+            *
+            * The same `TimeInput` the Time tab uses, so "930", "9.30" and
+            * "6pm" are read the same way on both screens.
+            */}
           <div className="picker-times">
-            {[
-              ['In', entry.in_time],
-              ['Lunch out', entry.lunch_out],
-              ['Lunch in', entry.lunch_in],
-              ['Out', entry.out_time],
-            ].map(([label, at]) => (
-              <span key={label}>
-                <em>{label}</em>
-                <b>{String(at || '').trim() || '—'}</b>
+            {TIME_FIELDS.map((field) => (
+              <span key={field}>
+                <em>{TIME_LABELS[field]}</em>
+                <TimeInput
+                  value={entry[field] || ''}
+                  label={TIME_LABELS[field]}
+                  onCommit={(next) => onChange({ [field]: next })}
+                />
               </span>
             ))}
           </div>

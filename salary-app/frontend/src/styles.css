@@ -932,6 +932,18 @@ td.mark { padding: 0.1rem !important; }
 .mark-cell.open { outline: 2px solid var(--brand); }
 .mark-cell.code-none .mark-code { color: var(--muted); font-weight: 400; }
 .mark-minutes { font-size: 0.55rem; font-weight: 700; }
+/*
+ * The day's HOURS under the mark, which is what HR asked to see in place of
+ * the ± minutes. Deliberately NOT coloured red or green: it is a fact about
+ * the day, not a verdict on it, and the ± keeps the colours because that one
+ * really is a plus or a minus.
+ */
+.mark-minutes.hours { color: var(--muted); font-weight: 600; letter-spacing: -0.02em; }
+
+/* Which figure sits under each mark. A view, not a rule. */
+.under-pick { display: inline-flex; align-items: center; gap: 0.3rem; }
+.under-pick em { font-style: normal; font-size: 0.78rem; color: var(--muted); }
+.under-pick .chip { padding: 0.12rem 0.45rem; font-size: 0.74rem; }
 .mark-minutes.short { color: var(--bad); }
 .mark-minutes.extra { color: var(--good); }
 

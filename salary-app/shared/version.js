@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.4.0';
+export const VERSION = '2.5.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.5.0',
+    date: '23 Nov 2026',
+    title: 'Hours under each mark, and a forgotten punch typed where you notice it',
+    items: [
+      '**The attendance grid now shows the day\u2019s HOURS under each mark** \u2014 `8h 05m` instead of `\u221255`. HR asked for exactly this: *\u201ciske place pe total hours hi rakho na\u201d*. The \u00b1 minutes are one click away (**Under each mark**: Hours / +/\u2212 minutes / Nothing) and both figures are on hover.',
+      '**NEITHER VIEW CHANGES ANYBODY\u2019S PAY**, and the strip says so. The worry behind the request was that those \u00b1 figures were cutting salaries \u2014 on this month\u2019s rule they are not: the **month\u2019s hours total** is what is charged, and the daily figures are only what adds up to it. A day short and a day long still cancel.',
+      'A day with minutes typed on it and no clock times still shows them, whichever view is on \u2014 a real deduction must not be hidden by a new way of looking.',
+      '**A forgotten punch can be typed on the attendance grid now.** Click the day and the four clock times are boxes: In, Lunch out, Lunch in, Out. HR asked *\u201cpunch krna bhul jye aur add krna ho toh?\u201d* and could not find it \u2014 it was on the **Time** tab all along, which is a different tab from the one you are on when you spot a missing punch.',
+      'They are the same boxes the Time tab uses, so `930`, `9.30` and `6pm` are read the same way, and the sum underneath updates as you type: *\u201c8h 00m worked against 9h 00m expected = \u221260 minutes by the clock\u201d*.',
+      '**The day\u2019s minutes are re-worked when a time changes**, not left as they were. Typing an out time onto a day that carried nothing would otherwise have saved the new hours beside the old figure \u2014 the same trap the Time tab fell into. Driven: in 09:30 with no out and 0 minutes, typed 17:30, stored as \u221260.',
+    ],
+  },
   {
     version: '2.4.0',
     date: '23 Nov 2026',

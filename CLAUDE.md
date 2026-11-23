@@ -2791,6 +2791,52 @@ one page — did not exist.
   with `white-space: nowrap` scoped to this table. After: 810px table in a 660px frame that
   really scrolls, last cell reachable, row height 40px at every width.
 
+## HR's two questions off the grid (v2.5.0)
+
+Dinesh forwarded a WhatsApp thread with **HR Booknfly**. Two asks, and the first one's
+*reasoning* is wrong while the request itself is right.
+
+### "iske place pe total hours hi rakho na" — hours under each mark
+
+HR: *"sir iske place pe total hours hi rakho na ismai jiska minus hai uska kam ho raha hai
+salary jiska + hai uska salry jyada ho raha hai"* — put total hours where the ± minutes are,
+because a minus cuts that person's salary and a plus raises it.
+
+**CHECKED IN `calc.js` RATHER THAN ASSUMED, and the premise does not hold on his months.**
+`chargedMinutes` on `monthly`/`monthly_late` is `monthlyHours.minutes` — *"on `monthly` the
+month's own total is what is charged and the daily minutes are not"*. His months open on
+`monthly_late`, so a `−119` on the grid is **not** deducting from that person individually; it
+is one input to the month's hours, and only the month's shortfall against the target is
+charged. A day short and a day long still cancel.
+
+So the reasoning is wrong and **the request is right anyway**: the hours are what the month is
+actually judged on, and a column of ±119s reads as a column of deductions.
+
+- `under` state (hours / ± minutes / nothing), remembered in localStorage, with the strip
+  saying **"neither changes the pay"** in words — because that worry is the whole reason it
+  was asked for, and a quieter display could easily read as the deduction having stopped.
+- Hours come from `readTimes` with the month's own `lunch_paid`, so no second opinion.
+- **A day with minutes typed on it and no clock times still shows them** in hours mode. A real
+  deduction must not be hidden by a new way of looking.
+- `.mark-minutes.hours` is deliberately **not** red or green: it is a fact about the day, not
+  a verdict. The ± keeps its colours, because that one really is a plus or a minus.
+
+### "punch krna bhul jye aur add krna ho toh?" — and "na nhi hai"
+
+She asked where to add a forgotten punch; told there must be an option somewhere, she replied
+*"na nhi hai"*. **It existed on the Time tab all along** — a different tab from the one
+somebody is standing on when they spot a missing punch. **Eleventh time for that shape.**
+
+- The day menu's clock block (added v2.3.0 as read-only) is now **four editable boxes**, using
+  the **same `TimeInput` the Time tab uses** — now exported rather than copied, so `930`,
+  `9.30` and `6pm` are read identically on both screens. The sum underneath updates as you
+  type.
+- **THE TRAP, and it is the v2.0.0 one again:** `queueSave` sends `minutes` on every entry and
+  `setAttendance` leaves a caller's own minutes alone, so typing an out time while carrying the
+  old figure saves new hours beside a stale deduction. `setEntry` now re-works the minutes with
+  `minutesForMark` whenever the patch names a time field. Driven in a browser: a day with in
+  09:30, no out and 0 minutes, typed `1730` → stored `−60`, not left at 0.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

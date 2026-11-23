@@ -3887,3 +3887,54 @@ test('the in/out register fills the page and is allowed to scroll sideways', () 
   assert.match(panel, /payroll\?\.period \|\| \{\}/, 'and the period off the same object');
   assert.doesNotMatch(panel, /inOutRegister\(payroll/, 'never the object straight in');
 });
+
+test('a forgotten punch can be typed where it is noticed, and the minutes are RE-WORKED', () => {
+  /*
+   * HR, on the attendance grid: *"punch krna bhul jye aur add krna ho toh?"*
+   * — and asked where the option was, *"na nhi hai"*. It existed on the Time
+   * tab all along, which is a different tab from the one she was standing on.
+   * Eleventh time for that shape.
+   *
+   * THE TRAP: `queueSave` sends `minutes` on every entry and `setAttendance`
+   * leaves a caller's own minutes alone, so typing an out time while carrying
+   * the old figure would save new hours beside a stale deduction — exactly
+   * the bug the Time tab had in v2.0.0. Driven: 09:30 with no out and 0
+   * minutes, typed 1730, stored as −60 rather than left at 0.
+   */
+  const grid = src('components/Attendance.jsx');
+  assert.match(grid, /TIME_FIELDS\.some\(\(f\) => f in patch\)/, 'it must notice a time changing');
+  assert.match(
+    grid,
+    /entry\.minutes = touchedTime && row\s*\n?\s*\? minutesForMark\(entry/,
+    'and re-work the minutes with the one rule'
+  );
+  // The same box as the Time tab, so "930" and "6pm" are read identically.
+  assert.match(grid, /import \{ TimeInput \} from '\.\/TimeSheet\.jsx'/);
+  assert.match(grid, /<TimeInput/, 'the day menu must offer the four times');
+  assert.match(src('components/TimeSheet.jsx'), /export function TimeInput/, 'and it must be shared, not copied');
+});
+
+test('the grid can show the day’s HOURS under each mark, and says that changes no pay', () => {
+  /*
+   * HR: *"sir iske place pe total hours hi rakho na ismai jiska minus hai
+   * uska kam ho raha hai salary jiska + hai uska salry jyada ho raha hai"*.
+   *
+   * Her reason is not right on this month's rule — `calc.js` charges the
+   * MONTH's hours total on monthly/monthly_late and the daily minutes are not
+   * charged individually — but the request is, because the hours are what the
+   * month is judged on and a column of ±119s reads as a column of deductions.
+   * So it is a VIEW, and the strip says so in words.
+   */
+  const grid = src('components/Attendance.jsx');
+  assert.match(grid, /under === 'hours' && worked !== null/, 'hours where the clock knows them');
+  assert.match(grid, /neither changes the pay/, 'and it must say so, because that was the worry');
+  // A day with minutes typed on it and no clock times must still show them,
+  // or a real deduction would be hidden by the new view.
+  assert.match(grid, /under !== 'off' && entry\.minutes !== 0/);
+  assert.match(grid, /readTimes\(entry, \{ deductLunch: !period\.lunch_paid \}\)/, 'the month’s own lunch rule');
+
+  // Sixth time for the invented-class trap, so both are checked.
+  const css = src('styles.css');
+  assert.match(css, /\.mark-minutes\.hours\s*\{/, '.mark-minutes.hours needs a rule');
+  assert.match(css, /\.under-pick\s*\{/, '.under-pick needs a rule');
+});

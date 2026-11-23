@@ -534,6 +534,32 @@ export const HELP = [
     note: 'IT IS NOT ATTENDANCE. This counts the raw events the machine recorded; what a punch BECOMES — present, half day, the hours — is worked out separately and lives on the attendance grid, which is what the salary is paid from. And "—" is not "0": a dash means the person has no number the readers can match, so nobody ever looked for them; 0 means they were looked for and not seen.',
   },
   {
+    id: 'fix-a-punch',
+    title: 'Somebody forgot to punch \u2014 adding the time by hand',
+    tab: 'attendance',
+    keywords: ['forgot punch', 'punch bhul', 'add time', 'missing punch', 'in out add', 'time add karna', 'hajri time', 'correction'],
+    lines: [
+      '**Click the day on the Attendance grid.** The four clock times are at the top of the menu \u2014 In, Lunch out, Lunch in, Out \u2014 and you can type straight into them.',
+      'Type it however you like: `930`, `9.30`, `9`, `6pm` and `18:30` are all read.',
+      'The sum underneath updates as you type, so you can see what the day comes to before you close the menu.',
+      'The **Time** tab does the same thing for a whole day across everybody, or one person down the month, and **Reports \u2192 Missing punch** lists every day that is half-clocked.',
+      'An employee can also raise it themselves from their own login, and the office approves it in Reports \u2192 Attendance corrections.',
+    ],
+    note: 'THE DAY\u2019S HOURS ARE RE-WORKED THE MOMENT A TIME CHANGES. You do not have to touch the OT/short figure as well \u2014 and you should not, unless you mean to override the clock, in which case the register marks it as typed.',
+  },
+  {
+    id: 'under-each-mark',
+    title: 'Hours or \u00b1 minutes under each mark',
+    tab: 'attendance',
+    keywords: ['hours on grid', 'total hours', 'minus minutes', 'plus minutes', 'ghante grid', 'under mark', 'minutes dikha'],
+    lines: [
+      'The strip above the grid \u2014 **Under each mark** \u2014 chooses what sits beneath the P or the A: the day\u2019s **hours**, the **\u00b1 minutes**, or nothing.',
+      'Hover any day to see both.',
+      'Whichever you pick is remembered on that computer.',
+    ],
+    note: 'IT IS A VIEW, NOT A RULE \u2014 neither choice changes anybody\u2019s pay by a rupee. And on the month\u2019s own rule the daily \u00b1 figures are not charged one by one: the MONTH\u2019S hours total is what is judged, so a day short and a day long cancel each other out.',
+  },
+  {
     id: 'in-out-register',
     title: 'Every in and out, for the whole month',
     tab: 'reports',
