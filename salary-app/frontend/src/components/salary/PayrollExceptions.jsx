@@ -119,7 +119,14 @@ export default function PayrollExceptions({ period, review, onError, onChanged, 
       <div className="row">
         <button className="pex-fold" onClick={() => setShut(!folded)} aria-expanded={!folded}>
           <span className={`pex-caret ${folded ? '' : 'open'}`}>›</span>
-          <h3>Things to check</h3>
+          {/*
+            * The total lives in the heading now. Folded, this card used to
+            * print "19 open - 0 critical, 18 warning, 1 informational"
+            * UNDER a row of pills already saying 18 warning and 1 info -
+            * 117px of card to say what one line says. Dinesh: *"salary
+            * sheet tab me bhi space kam karo"*.
+            */}
+          <h3>Things to check{summary?.open ? ` (${summary.open})` : ''}</h3>
         </button>
         {/*
           * THE THREE COUNTS ADD UP TO WHAT IS OPEN. They did not before:
@@ -135,13 +142,7 @@ export default function PayrollExceptions({ period, review, onError, onChanged, 
         <button className="ghost" onClick={printIt} disabled={!shown.length}>Print</button>
       </div>
 
-      {folded ? (
-        <p className="muted small">
-          {summary?.open
-            ? `${summary.open} open — ${summary.critical} critical, ${summary.warning} warning, ${summary.info} informational.`
-            : 'Nothing open on this month.'}
-        </p>
-      ) : (
+      {folded ? null : (
         <>
           <div className="toolbar pex-filters">
             <div className="chips">

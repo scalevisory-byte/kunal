@@ -6090,3 +6090,42 @@ h3.spaced { margin-top: 1.5rem; }
 /* Inside the fold the list keeps its own spacing; the card already has the
    padding, so the old top margin would double it. */
 .legend-fold .legend { margin-top: 0.5rem; }
+
+/*
+ * THE SALARY SHEET'S OWN CHROME — Dinesh: *"salary sheet tab me bhi space kam
+ * karo"*. Measured at 1420x1200: six KPI cards 107px, the workflow card
+ * 137px, the exception card 117px folded, and `table.sheet` did not start
+ * until 667px of a 1,200px window.
+ *
+ * NOTHING IS HIDDEN. Every figure stays on screen; what goes is the box
+ * around it, the repeated sentence and four stage captions that describe
+ * what has already happened.
+ */
+.kpi-row {
+  display: flex; flex-wrap: wrap; align-items: center;
+  column-gap: 1.5rem; row-gap: 0.2rem; margin-bottom: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+}
+/* One figure, one line: icon, value, what it is. The card's own border and
+   padding go, because six boxes in a row is six borders doing no work. */
+.kpi { border: 0; background: none; padding: 0; gap: 0.4rem; }
+.kpi > div { display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
+.kpi b { display: inline; font-size: 1.05rem; }
+.kpi-ico { width: 1.4rem; height: 1.4rem; border-radius: 6px; font-size: 0.75rem; }
+/* The warn border has nowhere to sit now, so the figure itself carries it. */
+.kpi.flag b { color: var(--warn, #b8860b); }
+
+/* The five stages, closed: the dots stay - where the month has got to is
+   still visible - and only the CURRENT one keeps its label and its reason.
+   The other four describe what has already happened. */
+.wf-card:not(.open) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1rem; padding: 0.45rem 0.9rem; }
+.wf-card:not(.open) .wf { flex: 0 0 auto; align-items: center; gap: 0.35rem; }
+.wf-card:not(.open) .wf-step { flex: 0 0 auto; min-width: 0; padding: 0; display: flex; align-items: center; gap: 0.4rem; }
+.wf-card:not(.open) .wf-step::before { display: none; }
+.wf-card:not(.open) .wf-dot { margin: 0; }
+.wf-card:not(.open) .wf-step:not(.at) .wf-label,
+.wf-card:not(.open) .wf-step:not(.at) .wf-why { display: none; }
+.wf-card:not(.open) .wf-step.at .wf-why::before { content: ' — '; }
+.wf-card:not(.open) .wf-step.at .wf-why { display: inline; }
+.wf-card:not(.open) .wf-actions { margin-top: 0; flex: 1 1 auto; }

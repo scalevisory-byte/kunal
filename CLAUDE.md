@@ -2983,6 +2983,32 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The salary sheet's own chrome, measured (v2.15.0)
+
+Dinesh: *"salary sheet tab me bhi space kam karo"*.
+
+**Measured at 1420x1200 before touching anything:** six KPI cards **107px**, the five-stage
+workflow card **137px**, *Things to check* **117px while folded**, the sub-tabs 35, the
+toolbar 36, the hours-decide bar 58 — and `table.sheet` did not start until **667px**.
+After: **61 / 52 / 73**, and the table at **489px**.
+
+- **The six figures are a strip, not six boxes.** The `.kpi` cards keep their icons and every
+  figure; what goes is the border and padding round each one, and the value sits inline with
+  its label. A figure that needs attention is **coloured** (`.kpi.flag b`) rather than boxed,
+  because the border had nowhere to sit.
+- **The workflow folds to one line, and the DOTS STAY.** Where the month has got to is the
+  one thing that must survive the fold, so only the four finished stages lose their caption;
+  the current one keeps its label and its reason inline (*"Management approval — waiting for
+  approval"*). **`.wf-actions` is never hidden** — the Approve button folding away would be
+  the worst possible version of this. Tests assert both, and fail when either is hidden.
+- ***Things to check* was printing the pills twice**: `18 warning` `1 info` on the summary
+  row and then *"19 open — 0 critical, 18 warning, 1 informational"* underneath it. The
+  sentence is gone and the total moved into the heading — **Things to check (19)** — so the
+  one figure the pills did not give is kept.
+- Opening the workflow gives back exactly the 137px card it was; measured.
+- The whole change is CSS plus a fold flag on two components — no figure is computed
+  differently, and the full suite is unmoved at 2311.
+
 ### Logging a punch that never arrived (v2.14.0)
 
 Dinesh: *"kisi ka punch missing he to manually kaise log hoga"*.

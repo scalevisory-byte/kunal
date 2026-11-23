@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.14.0';
+export const VERSION = '2.15.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.15.0',
+    date: '24 Nov 2026',
+    title: 'The salary sheet gets its screen back too',
+    items: [
+      '**The sheet now starts at 489px instead of 667px** on a 1,200px screen. Dinesh: *\u201csalary sheet tab me bhi space kam karo\u201d*. Measured before and after, not guessed.',
+      '**The six figures across the top are one strip** \u2014 *9 total employees \u00b7 \u20b92.34 L gross \u00b7 1,800 deductions \u00b7 \u20b92.32 L net \u00b7 67% attendance marked \u00b7 19 things to check*. 107px \u2192 61px. All six are still there; what went is the box round each one. A figure that needs attention is now **coloured** instead of boxed.',
+      '**The five-stage strip is one line.** 137px \u2192 52px. The dots stay, so where the month has got to is still visible at a glance, and the stage it is ON keeps its name and its reason \u2014 *\u201cManagement approval \u2014 waiting for approval\u201d*. The other four described what had already happened. **Approve the payroll never folds away**, and *All 5 steps* brings the full strip back exactly as it was.',
+      '**Things to check** stopped printing *\u201c19 open \u2014 0 critical, 18 warning, 1 informational\u201d* underneath a row of pills already saying 18 warning and 1 info. The total moved into the heading: **Things to check (19)**. 117px \u2192 73px.',
+    ],
+  },
   {
     version: '2.14.0',
     date: '24 Nov 2026',

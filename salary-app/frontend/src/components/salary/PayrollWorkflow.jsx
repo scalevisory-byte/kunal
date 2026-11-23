@@ -15,6 +15,17 @@ import { api } from '../../api.js';
  */
 export default function PayrollWorkflow({ workflow, period, isAdmin, onError, onChanged }) {
   const [busy, setBusy] = useState(false);
+  /*
+   * ONE LINE UNTIL SOMEBODY OPENS IT.
+   *
+   * Dinesh: *"salary sheet tab me bhi space kam karo"*. Measured at
+   * 1420x1200: this card was 137px and the sheet did not start until 667px.
+   * Closed, the five dots stay - so where the month has got to is still
+   * visible at a glance - and only the stage that is CURRENT keeps its
+   * label and its reason, because the other four say what has already
+   * happened. The action button never folds away.
+   */
+  const [steps, setSteps] = useState(false);
   const [history, setHistory] = useState(null);
 
   /*
@@ -99,7 +110,7 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
   };
 
   return (
-    <div className="card wf-card">
+    <div className={`card wf-card${steps ? ' open' : ''}`}>
       <ol className="wf">
         {workflow.stages.map((stage) => (
           <li
@@ -149,6 +160,9 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
           <span className="muted small">Approving and locking are an admin’s.</span>
         )}
         <span className="grow" />
+        <button className="ghost small" onClick={() => setSteps((v) => !v)}>
+          {steps ? 'Hide the steps' : `All ${workflow.stages.length} steps`}
+        </button>
         <button className="ghost small" onClick={showHistory}>Approval history</button>
         {period.reopen_reason && !period.locked ? (
           <span className="muted small">Reopened: {period.reopen_reason}</span>

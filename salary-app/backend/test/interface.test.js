@@ -4147,3 +4147,52 @@ test('THE MISSING PUNCH REPORT CAN OPEN THE DAY IT FOUND', () => {
   assert.match(tab, /openPerson\(openAt\.employee_id\)/);
   assert.match(tab, /onOpened\?\.\(\)/);
 });
+
+test('THE SALARY SHEET’S CHROME IS CUT WITHOUT LOSING A FIGURE', () => {
+  /*
+   * Dinesh: *"salary sheet tab me bhi space kam karo"*. Measured at
+   * 1420x1200: six KPI cards 107px, the workflow card 137px, the exception
+   * card 117px FOLDED, and `table.sheet` did not start until 667px of a
+   * 1,200px window. After: 61 / 52 / 73 and the table at 489px.
+   *
+   * THE LINE: nothing may be hidden. What went is the box around each
+   * figure, four stage captions describing what has already happened, and a
+   * sentence that repeated the pills above it.
+   */
+  const css = src('styles.css');
+  const sheet = src('components/SalarySheet.jsx');
+  const wf = src('components/salary/PayrollWorkflow.jsx');
+  const pex = src('components/salary/PayrollExceptions.jsx');
+
+  /* All six figures are still rendered. */
+  assert.equal((sheet.match(/className=\{?["`]kpi /g) || []).length + (sheet.match(/className="kpi"/g) || []).length, 6);
+  /* ...and the stylesheet never hides one. */
+  assert.ok(
+    !/\.kpi[^-{][^{]*\{[^}]*display:\s*none/.test(css),
+    'a KPI figure is never hidden'
+  );
+
+  /* The workflow folds, and the DOTS stay - where the month has got to is
+     still visible at a glance - while the four finished captions go. */
+  assert.match(wf, /card wf-card\$\{steps \? ' open' : ''\}/);
+  assert.match(wf, /All \$\{workflow\.stages\.length\} steps/);
+  assert.match(css, /\.wf-card:not\(\.open\) \.wf-step:not\(\.at\) \.wf-label,\n\.wf-card:not\(\.open\) \.wf-step:not\(\.at\) \.wf-why \{ display: none; \}/);
+  assert.ok(
+    !/\.wf-card:not\(\.open\)[^{]*\.wf-dot[^{]*\{[^}]*display:\s*none/.test(css),
+    'the stage dots are never hidden'
+  );
+  /* The action button is outside the fold entirely. */
+  assert.ok(
+    !/\.wf-card:not\(\.open\)[^{]*\.wf-actions[^{]*\{[^}]*display:\s*none/.test(css),
+    'the approve button never folds away'
+  );
+
+  /* The exception card's folded sentence repeated the pills beside it. */
+  assert.match(pex, /\{folded \? null : \(/);
+  assert.ok(
+    !/\$\{summary\.open\} open — \$\{summary\.critical\} critical/.test(pex),
+    'the sentence that repeated the pills is gone'
+  );
+  /* The total it carried moved into the heading, so it is not lost. */
+  assert.match(pex, /Things to check\{summary\?\.open \? ` \(\$\{summary\.open\}\)` : ''\}/);
+});
