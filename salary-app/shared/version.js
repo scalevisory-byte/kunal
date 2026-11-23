@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.94.0';
+export const VERSION = '1.95.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '1.95.0',
+    date: '23 Nov 2026',
+    title: 'A Sunday\u2019s duty is six hours',
+    items: [
+      '**A Sunday\u2019s duty is six hours, and six hours on it earns the whole day\u2019s pay.** The Sunday register could not say which Sundays actually carried those hours \u2014 a two-hour Sunday and a nine-hour one looked identical on it and were paid identically.',
+      'It now shows the **hours** each person did on their Sundays, marks a short one `\u2713!` on the grid with the times behind it, and folds out **every Sunday the clock puts under six hours**, by name, with how far short.',
+      '**Nothing on that list has been deducted, and no payslip moves.** Each is still paid a full day. Somebody whose second punch never registered has done the day, and docking that automatically is a mistake nobody can see. Type over the **Amount** on their row if one should not be paid in full.',
+      '**A Sunday nobody clocked reads as a dash \u2014 that is \u201cnot known\u201d, not \u201cnought hours\u201d.** Most of the staff still have no punch ID, so reading a blank day as zero would condemn almost every Sunday in the month.',
+    ],
+  },
   {
     version: '1.94.0',
     date: '23 Nov 2026',

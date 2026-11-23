@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, sundayDaysFromAttendance } from '../../../shared/calc.js';
+import { shortSundays, sundayDutyFor, sundayHoursFor } from '../../../shared/sundayDuty.js';
+import { formatDuration } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, rupees, rupees2, weekday } from '../format.js';
 
 /**
@@ -59,6 +61,25 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
     return [...set].sort((a, b) => a - b);
   }, [computed, period]);
 
+  /*
+   * Dinesh: "sunday duty minimum six hours ki rehti he", "6 hours work full
+   * day salary sunday". So the register has to be able to say WHICH Sundays
+   * actually carried the six hours - until now a two-hour Sunday and a
+   * nine-hour one looked identical here and were paid identically.
+   *
+   * It reports. It deducts nothing: a Sunday with no clock times is "not
+   * known", not "nought hours", and most of the staff are not on the readers
+   * yet. Whoever hands the money over decides.
+   */
+  const sundayHours = sundayHoursFor(period);
+  const duty = useMemo(() => {
+    const map = new Map();
+    for (const row of computed) map.set(row.id, sundayDutyFor(row, period));
+    return map;
+  }, [computed, period]);
+  const short = useMemo(() => shortSundays(worked, period), [worked, period]);
+  const [showShort, setShowShort] = useState(false);
+
   const totals = worked.reduce(
     (acc, r) => ({ count: acc.count + r.sundays_worked, amount: acc.amount + r.sunday_salary }),
     { count: 0, amount: 0 }
@@ -102,6 +123,9 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
                 </th>
               ))}
               <th title="Sundays and holidays worked">Days</th>
+              <th title={`What the clock says they did on those days. A Sunday's duty is ${sundayHours} hours.`}>
+                Hours
+              </th>
               <th title="Salary ÷ working days">Day rate</th>
               <th title="Days × day rate, unless a number is typed over it">Amount</th>
               <th>Paid by</th>
@@ -113,12 +137,34 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
               <tr key={row.id} className={row.sunday_status === 'paid' ? 'paid' : undefined}>
                 <td className="sticky-name">{row.employee_name}</td>
                 <td className="muted">{row.company_name}</td>
-                {dates.map((d) => (
-                  <td key={d} className={`num${isSunday(period.year, period.month, d) ? ' sunday' : ''}`}>
-                    {(row.sunday_days || []).includes(d) ? '✓' : ''}
-                  </td>
-                ))}
+                {dates.map((d) => {
+                  const on = (row.sunday_days || []).includes(d);
+                  const seen = duty.get(row.id)?.days.find((x) => x.day === d);
+                  return (
+                    <td
+                      key={d}
+                      className={`num${isSunday(period.year, period.month, d) ? ' sunday' : ''}`}
+                      title={
+                        seen && seen.worked !== null
+                          ? `${seen.in_time || '?'}–${seen.out_time || '?'} · ${formatDuration(seen.worked)}`
+                          : on
+                            ? 'no clock times on this day'
+                            : undefined
+                      }
+                    >
+                      {on ? (seen && seen.full === false ? '✓!' : '✓') : ''}
+                    </td>
+                  );
+                })}
                 <td className="num strong">{days(row.sundays_worked)}</td>
+                <td className="num muted">
+                  {(() => {
+                    const d = duty.get(row.id);
+                    if (!d || !d.clocked) return '—';
+                    const total = d.days.reduce((s2, x) => s2 + (x.worked || 0), 0);
+                    return formatDuration(total);
+                  })()}
+                </td>
                 <td className="num muted">{rupees2(row.per_day)}</td>
                 <td>
                   <SundayAmount row={row} locked={locked} onPatchRow={onPatchRow} />
@@ -150,7 +196,7 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
             ))}
             {!worked.length && (
               <tr>
-                <td colSpan={dates.length + 7} className="empty">
+                <td colSpan={dates.length + 8} className="empty">
                   Nobody has worked a Sunday this month yet. Mark a day <strong>SP</strong> (Sunday
                   Present) or <strong>HP</strong> (Holiday Present) on the attendance grid and they
                   will appear here.
@@ -165,6 +211,7 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
                 <td colSpan={dates.length + 1} />
                 <td className="num">{days(totals.count)}</td>
                 <td />
+                <td />
                 <td className="grand">{rupees(totals.amount)}</td>
                 <td colSpan={2} />
               </tr>
@@ -173,6 +220,59 @@ export default function SundayRegister({ period, rows, onPatchRow, locked }) {
         </table>
       </div>
 
+      <p className="muted small">
+        A Sunday&rsquo;s duty is <strong>{sundayHours} hours</strong>, and {sundayHours} hours on it
+        earns the <strong>whole day&rsquo;s</strong> pay — the full day rate, the same as any other
+        Sunday. A day with no clock times on it reads as a dash: that is{' '}
+        <strong>not known</strong>, not nought hours.
+      </p>
+      {short.length > 0 && (
+        <div className="card narrow">
+          <button className="ghost" onClick={() => setShowShort((v) => !v)}>
+            {showShort ? 'Hide' : 'Show'} the {short.reduce((n, l) => n + l.days.length, 0)} Sunday
+            {short.reduce((n, l) => n + l.days.length, 0) === 1 ? '' : 's'} the clock puts under{' '}
+            {sundayHours}h ({short.length} {short.length === 1 ? 'person' : 'people'})
+          </button>
+          {showShort && (
+            <>
+              <table className="sheet">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Day</th>
+                    <th>In</th>
+                    <th>Out</th>
+                    <th>Worked</th>
+                    <th>Short by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {short.map((line) =>
+                    line.days.map((d) => (
+                      <tr key={`${line.employee_id}:${d.day}`}>
+                        <td>{line.employee_name}</td>
+                        <td className="num">
+                          {d.day} {weekday(period.year, period.month, d.day)}
+                        </td>
+                        <td className="num muted">{d.in_time || '—'}</td>
+                        <td className="num muted">{d.out_time || '—'}</td>
+                        <td className="num">{formatDuration(d.worked)}</td>
+                        <td className="num deduct">{formatDuration(d.short)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              <p className="muted small">
+                <strong>Nothing here has been deducted.</strong> Each of these is still paid a full
+                day. Somebody whose second punch never registered has done the day, and docking that
+                automatically is a mistake nobody can see. Type over the <strong>Amount</strong> on
+                their row above if one of them should not be paid in full.
+              </p>
+            </>
+          )}
+        </div>
+      )}
       <p className="muted small">
         This pay is settled <strong>entirely apart</strong> from the month's salary: it is not in
         the gross, not in the salary sheet's net payable, and it does not count towards the{' '}

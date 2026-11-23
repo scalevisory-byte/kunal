@@ -2282,6 +2282,37 @@ odd case rather than the normal one**.
   (`if (!emp.active) continue`), so a fixture employee written without `active: 1` matches
   nothing and the assertion fails on `undefined`, not on the behaviour under test.
 
+## A Sunday's duty is six hours (v1.95.0) — `shared/sundayDuty.js`
+
+Dinesh: *"sundsy duty minimum six hours ki rehti he"*, then *"6 hours work full day salary
+sunday"*. A Sunday is not a short version of a working day — it is its own thing, six hours
+long, and six hours on it earns the WHOLE day's Sunday pay.
+
+- **It reports and deducts NOTHING.** `calculateRow` still pays `sundays_worked × perDay`
+  exactly as before and nothing in the module is an input to it; there is a test asserting a
+  two-hour Sunday and a nine-hour one come out identical on gross, net, PT, `sundays_worked`
+  and `sunday_salary`. What it answers is a question the register could not: **which Sundays
+  actually carried the six hours.** A two-hour Sunday and a nine-hour one looked identical
+  there and were paid identically.
+- Named, not docked, for the same reason an **unreturned asset is named and never deducted**:
+  somebody whose second punch never registered has done the day, and docking that
+  automatically is a mistake nobody can see. The office types over the **Amount**.
+- **A Sunday nobody clocked is `null`, never 0 — "not known" is not "nought hours".** Most of
+  the staff still have no punch ID, so reading a blank day as zero would condemn almost every
+  Sunday in the month. `full` and `short` stay null all the way out, and such a day is never
+  on the short list. Same rule as the biometric import's day with no record.
+- `sunday_hours` is held **per period** (default 6; a figure outside 0–24 falls back), so a
+  rule changed in December never rewrites November.
+- The register gained an **Hours** column, `✓!` on a short day with the times in its title, and
+  a fold naming every short Sunday with how far under. Driven in a browser on a seeded
+  November: ALIFAYA 14h 21m with two `✓!`, ANSARI 6h 39m clear, ASHOK 10h 11m clear with his
+  unclocked Sunday correctly absent from the list.
+- **What was deliberately NOT changed, and is the open question:** overtime on a Sunday is
+  still measured against the office's nine-hour day, not six. Judging it against six would take
+  ASHOK MISHRA's 10h 11m from +71m to +251m — a rise nobody asked for — and the alternative
+  reading (a Sunday is paid by the day, so its hours pay no overtime at all) would take the
+  +71m away. Both move money and neither was stated, so neither was assumed.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and
@@ -2303,7 +2334,11 @@ odd case rather than the normal one**.
 6. **Whether to pull eSSL punches directly** from the eTimeTrackLite database rather than
    importing a file — needs the database engine, whether TSRV can reach DESKTOP-6OKJT47, and a
    read-only login. The file import works today either way.
-7. **Which channel the reminder digest should go out on**, and its credentials — the text is
+7. **Sunday overtime** — a Sunday's duty is six hours and six hours earns the full day, but
+   hours BEYOND six are still paid as overtime against the nine-hour office day. Judging them
+   against six would raise Sunday overtime; treating the day as paid-by-the-day only would
+   remove it. Not assumed either way (v1.95.0).
+8. **Which channel the reminder digest should go out on**, and its credentials — the text is
    ready and the endpoint is there; nothing sends it yet.
 
 ## Alternative architecture considered (not being built, for reference)

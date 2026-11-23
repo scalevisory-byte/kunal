@@ -605,8 +605,9 @@ export const HELP = [
       'Mark the day **SP** (worked the off day) or **HP** (worked the holiday) and the person appears there with their day rate and what they are owed.',
       'It is paid and ticked off separately from the month’s salary, with its own status.',
       'It exports as its own sheet in the workbook and as its own CSV.',
+      '**A Sunday’s duty is six hours, and six hours on it earns the whole day’s pay.** The register shows what the clock says each of those days carried, and folds out the ones under six hours by name.',
     ],
-    note: 'Sunday pay is settled entirely apart: it is NOT added into the salary sheet’s net, and PT is not charged on it. The statutory wage register is the one exception — it adds it in, because a muster roll that left out wages actually paid would understate them.',
+    note: 'Nothing on the short-Sundays list has been deducted — every one of them is still paid a full day, because somebody whose second punch never registered has done the day. And a Sunday with no clock times reads as a dash: that is NOT KNOWN, not nought hours. Sunday pay is settled entirely apart: it is NOT added into the salary sheet’s net, and PT is not charged on it. The statutory wage register is the one exception — it adds it in, because a muster roll that left out wages actually paid would understate them.',
   },
   {
     id: 'festivals',
