@@ -14,7 +14,7 @@ import {
   TIME_LABELS,
   timesToDay,
 } from '../../../shared/timesheet.js';
-import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
+import { MONTHS, days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
 import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import MonthlyHours from './MonthlyHours.jsx';
@@ -924,7 +924,27 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         <table className="sheet timesheet">
           <thead>
             <tr>
-              <th className="sticky-name">{view === 'day' ? 'Employee' : 'Day'}</th>
+              {/*
+                * THE DATE LIVES IN THE HEADER TOO.
+                *
+                * Dinesh compared a row off this tab with a row off the
+                * attendance grid and asked how one person had two different
+                * out times - they were two different days, and the date
+                * picker had scrolled off the top of the screen. The table
+                * header is sticky, so this is the one place the day cannot
+                * scroll away from the rows it labels.
+                *
+                * Mirrored in the month view: there the first column IS the
+                * day, so the useful thing to name is WHOSE month it is.
+                */}
+              <th className="sticky-name">
+                {view === 'day' ? 'Employee' : 'Day'}
+                <span className="hint">
+                  {view === 'day'
+                    ? `${weekday(period.year, period.month, day)} ${day} ${MONTHS[period.month - 1]}`
+                    : person?.employee_name || ''}
+                </span>
+              </th>
               <th title="The day's attendance mark">Mark</th>
               {TIME_FIELDS.map((field) => (
                 <th key={field}>{TIME_LABELS[field]}</th>

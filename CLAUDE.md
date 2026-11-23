@@ -3031,6 +3031,22 @@ Dinesh: *"yaha pe name pe click kare to pure month ka in out report dikhe wese k
 - Driven: day view → click SUHANI KAPADNIS → month view, 30 rows, header reads *Day*, the
   person picker shows her name, every day reads 10:14 → 19:03, 8h 49m, −11m.
 
+### The date in the header, so a scroll cannot lose it (v2.9.2)
+
+Dinesh: *"date bhi header me daal do"* — straight after he had compared two different days
+and asked how one person could have two out times. His crop showed the Time tab with no date
+anywhere in it, because the date picker is above the table and had scrolled off the top.
+
+- The sticky header's name cell now carries the day under its own label: **EMPLOYEE / THU 5
+  NOVEMBER** in *one day, everybody*, and **DAY / SUHANI KAPADNIS** in *one person, whole
+  month*. One cell, two questions — *what are these rows?* and *which day (or whose month) is
+  this?* — and the second one is the one a screenshot loses.
+- **It is in the STICKY header**, which is the whole point: the figure has to survive the
+  scroll that hid the picker. Measured in a browser — header row 46px, `position: sticky`,
+  still readable with the table scrolled to the bottom.
+- It reuses `weekday()` from `format.js` and the `hint` span the header already used for the
+  month view's name, so nothing new was invented to hold it.
+
 ### He compared two different days (answered, no change)
 
 *"abdul last out 19:58 / attendnce me 17:14 / how?"*, with two screenshots. They are two

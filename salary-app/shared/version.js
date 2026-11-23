@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.9.1';
+export const VERSION = '2.9.2';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.9.2',
+    date: '24 Nov 2026',
+    title: 'The Time tab\u2019s header says which day it is',
+    items: [
+      '**The date is in the table header now**, under *Employee* \u2014 `EMPLOYEE / MON 23 NOVEMBER`. The header sticks to the top as you scroll, so the day can no longer scroll away from the rows it belongs to.',
+      'Dinesh compared a row off this tab with the same person on the attendance grid and asked how one of them could have two different out times. They were **two different days**: the date picker had scrolled off the top of the screen.',
+      '**In the month view it names the person instead** \u2014 `DAY / SUHANI KAPADNIS` \u2014 because there the first column already IS the day.',
+    ],
+  },
   {
     version: '2.9.1',
     date: '24 Nov 2026',

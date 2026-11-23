@@ -4015,3 +4015,33 @@ test('a name on the Time tab opens that person\u2019s whole month', () => {
   assert.match(upTo, /className="link"/);
   assert.match(upTo, /onClick=\{onOpenPerson\}/);
 });
+
+
+/*
+ * "date bhi header me daal do" — after he compared a row off the Time tab
+ * with a row off the attendance grid and asked how one person had two
+ * different out times. They were two different days, and the date picker had
+ * scrolled off the top of the screen.
+ *
+ * `table.sheet thead th` is sticky, so the header is the one place the day
+ * cannot scroll away from the rows it labels.
+ */
+test('the Time tab header says which day, and whose month', () => {
+  const tab = src('components/TimeSheet.jsx');
+  const start = tab.indexOf('<th className="sticky-name">');
+  assert.ok(start > -1, 'the header cell is there');
+  const cell = tab.slice(start, tab.indexOf('</th>', start));
+  /* The day view names the DATE... */
+  assert.match(cell, /weekday\(period\.year, period\.month, day\)/);
+  assert.match(cell, /MONTHS\[period\.month - 1\]/);
+  /* ...and the month view names the PERSON, because there the first column
+     IS the day and repeating it would say nothing. */
+  assert.match(cell, /person\?\.employee_name/);
+  /* It must be the established sub-line class, not an invented one - the
+     trap this file has caught six times. */
+  assert.match(cell, /className="hint"/);
+  assert.match(src('styles.css'), /\.hint \{/);
+  /* And the header has to actually stick, or putting the date there buys
+     nothing the picker above did not already. */
+  assert.match(src('styles.css'), /table\.sheet thead th \{[^}]*position: sticky;/);
+});
