@@ -84,6 +84,11 @@ test('every category in the specification carries exactly what it asked for', ()
          somebody COULD be reached; this says whether they actually are. It
          counts raw events and is never a second opinion about attendance. */
       'punch-totals',
+      /* "sare logs kaha dikhte he?" - and the honest answer was that this one
+         did not exist. Punch totals COUNTS the events; this LISTS them, one
+         line each, so a disputed morning can actually be read. It is the raw
+         record and never a second opinion about attendance. */
+      'punch-log',
     ],
     leave: ['leave-ledger', 'leave-year-end'],
     /* Asked for by name: "staff wise email & mobile number ka list bhi

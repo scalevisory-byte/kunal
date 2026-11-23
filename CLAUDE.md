@@ -2567,6 +2567,89 @@ run the Time tab off a laptop. `readTimes` already returned `lunch` and `lunchDe
 figures existed and were never shown, so reading one meant subtracting in your head
 eighty-six times.
 
+## The punch log, and the punch that was on the record but on no screen (v2.1.0)
+
+Dinesh: *"sare logs kaha dikhte he?"*, then, looking at HARISH's own portal,
+*"employee me bhi nahi dikh rahe"*. `shared/punchLog.js`, `PunchLog.jsx`,
+`GET /api/punch-log`.
+
+**Inspected first, and there were three different "logs".** The **audit trail** exists
+(People, `audit_log`); **Punch totals** says how many punches each person has; a day's
+punches show under the out time on a statement. What did not exist is the record itself —
+every punch, with its time, its reader and who it matched. There was nowhere to open on an
+ordinary Tuesday and settle an argument about a morning.
+
+- **IT IS THE RAW RECORD AND NOT ATTENDANCE.** A punch is one door opening; what the day
+  BECOMES is `punchesToMarks`' job and lives on the grid, which is what the sheet is paid
+  from. The two cannot disagree because they are not asked the same question. Nothing on
+  the panel writes anything, and there is an API test asserting that reading it files no
+  punch.
+- **A punch nobody carries is LISTED, never dropped** (`employee_id: null`, not a name and
+  not an empty id). That is attendance arriving for a person it can never reach, and it is
+  usually why somebody opens this.
+- **To the SECOND, deliberately** — the one place in the app that is not minutes. Two
+  touches of the door forty seconds apart printed as `10:50 · 10:50`, which reads as a fault
+  rather than as what happened, and that is exactly the day whose out time is blank.
+- **A capped page SAYS how much it left off.** A list silently cut short reads as "that is
+  all there was", which on a punch log sends somebody hunting for a feed that is working
+  perfectly.
+- `matcherFor` was factored out of `punchTotals.js` so the counts and the log cannot
+  disagree about whose punch a number is; `gatherPunches` in `reports.js` is likewise one
+  function, for the same reason.
+
+### *"employee me bhi nahi dikh rahe"* — the rule v2.0.0 broke
+
+A day's punches appeared only where it carried **more than two**, on the reasoning that two
+punches ARE the in and the out and printing them again is noise. **v2.0.0 broke that**: a
+one-punch day and a back-from-lunch day both have their out time suppressed, because neither
+is a departure. So the punch was on the record, the Out column read a dash, and nothing on
+either screen showed it.
+
+- **`showPunches(day, punches)` counts it instead of guessing**: show them whenever In and
+  Out do not between them account for every punch. The rule had been written into **two**
+  components separately, which is how a rule comes to disagree with itself — one function
+  now, with a test refusing a second copy.
+- **The portal says when NO reader can reach somebody.** `punchesByDay` returns
+  `matched_on: ''` for anybody with no punch ID and a non-numeric code, and `me.js` was
+  throwing that away. "Not matched" and "not seen" are different problems and only one is
+  the employee's to raise — without the line, an empty list read to them as the machine
+  having missed them all month.
+- `punchesByDay` now keeps the **seconds** and the screens decide how much to show
+  (`punchTimes`): minutes normally, seconds wherever a minute occurs twice in one day.
+- Driven in a real browser at phone width on three people: ALIFAYA (two punches in one
+  minute, out suppressed) now reads `10:50:00 · 10:50:40` where it showed nothing; HARISH
+  reads `09:12 · 13:30 · 14:05 · 18:02`; KIRAN, who has no punch ID, gets the sentence
+  saying so.
+
+### Two older defects the "Seen by" column exposed
+
+Both were in the **shipped** Punch totals report, found by reading one column on a running
+server rather than by guessing.
+
+- **Every spool punch was labelled "a reader since removed".** `punchEventsForMonth`
+  COALESCEd over the device name, and a spool punch has `device_id` NULL because that reader
+  is not one of ours. Nothing was removed; that feed is the one still running. It now reports
+  the feed from `source`, with the removed-reader case kept for what it actually means.
+- **THE SPOOL FILES WERE NEVER READ AT ALL.** `fileCouldMatter(name, { month })` takes a
+  month **NUMBER**; the route passed `{ year, month }`, so it compared a number to an object,
+  answered false for every file, and read nothing — on a server with sixteen thousand files
+  in the folder the report said none were found, and the sentence underneath claimed no
+  Bizcompass folder was set.
+- Fixing that brought back the other half: since the app began **filing** the spool's
+  punches, an imported month holds them as rows AND still has the files they came from. Both
+  read would list every door opening twice. They are de-duplicated on the key the store's own
+  partial unique index uses — number, second and reader guid — and the panel says how many
+  were already filed, because "read 3" beside a count of 1 reads as punches going missing.
+
+### Worth flagging, not changed
+
+A day still running can be marked **HF** by the importer: HARISH punched 09:35 / 13:37 /
+14:16 and the mark came out half day at twenty past two, because first-to-last was under the
+half-day line. The out time is correctly blank and **nothing is charged** (minutes 0), and
+the next pull re-marks it once he punches out — blank/P/A/HF are the marks a punch may set.
+But a day whose last pull of the evening never sees a departure keeps the HF. Pre-existing,
+not introduced here, and his to decide.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

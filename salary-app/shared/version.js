@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.0.0';
+export const VERSION = '2.1.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.1.0',
+    date: '23 Nov 2026',
+    title: 'The punch log — every punch, one line each',
+    items: [
+      '**Reports → Punch log.** Dinesh asked *“sare logs kaha dikhte he?”* and the honest answer was that this one did not exist. Punch totals said HOW MANY punches somebody had; a day’s punches showed under an out time on a statement. The record itself — date, time, punch ID, who it belongs to, which reader saw it — could not be opened anywhere.',
+      'Narrow it to one day or one person. Download it, print it. **Nothing on it changes anything.**',
+      '**A punch on a number nobody carries is listed anyway**, and named as such. That is attendance arriving for a person it can never reach, and it is usually why somebody opens this.',
+      'A long month shows a page at a time and **says how many more there are** — a list silently cut short reads as “that is all there was”, which sends somebody hunting for a feed that is working perfectly.',
+      '**THE BUG HE FOUND NEXT: *“employee me bhi nahi dikh rahe”*.** A day’s punches only appeared where it carried MORE THAN TWO, on the reasoning that two punches are the in and the out. Last night’s release broke that: a one-punch day and a back-from-lunch day both have their out time suppressed, so the punch was on the record, the Out column read a dash, and nothing on either screen showed it.',
+      'The rule is counted now, not guessed — show them whenever In and Out do not between them account for every punch. It had been written into two screens separately, which is how a rule comes to disagree with itself; it is one function now and a test refuses a second copy.',
+      '**The portal now says when no reader can reach somebody at all.** Without a punch ID nobody has ever been looked for, and an empty list read to that person as the machine having missed them all month. Those are different problems and only one of them is theirs to raise.',
+    ],
+  },
   {
     version: '2.0.0',
     date: '23 Nov 2026',

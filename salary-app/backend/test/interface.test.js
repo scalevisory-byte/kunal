@@ -3749,3 +3749,41 @@ test('A STICKY HEADER CELL IS OPAQUE, or the table scrolls through it', () => {
     assert.match(rule, /var\(--line-soft\)/, 'it mixes into the header’s own background');
   }
 });
+
+test('A SUPPRESSED OUT TIME STILL SHOWS ITS PUNCH, on both screens', () => {
+  /*
+   * Dinesh: *"employee me bhi nahi dikh rahe"*, looking at his own portal.
+   *
+   * The rule was "more than two punches", on the reasoning that two punches
+   * ARE the in and the out and printing them again is noise. v2.0.0 broke it:
+   * a one-punch day and a day whose last punch is the return from lunch both
+   * have their OUT TIME SUPPRESSED, because neither of those is a departure.
+   * So the punch was on the record, the Out column read a dash, and nothing
+   * on the page showed it.
+   *
+   * The rule lived in TWO components, which is how a rule comes to disagree
+   * with itself. It is one function now and both must call it.
+   */
+  for (const file of ['components/MyPage.jsx', 'components/AttendanceStatement.jsx']) {
+    const text = src(file);
+    assert.match(text, /showPunches/, `${file} must use the one rule`);
+    assert.match(text, /from '\.\.\/\.\.\/\.\.\/shared\/punchLog\.js'/, `${file} must import it`);
+    assert.doesNotMatch(
+      text,
+      /\(punches\[d\.day\] \|\| \[\]\)\.length > 2/,
+      `${file} must not keep its own copy of the old rule`
+    );
+  }
+});
+
+test('the portal says when NO reader can reach somebody', () => {
+  /*
+   * "Not matched" and "not seen" are different problems, and only one of them
+   * is the employee's to raise. Somebody with no punch ID has never been
+   * looked for at all, so an empty list would read to them as the machine
+   * having missed them all month.
+   */
+  const page = src('components/MyPage.jsx');
+  assert.match(page, /punch_match/, 'the portal must be told whether anything could match');
+  assert.match(page, /no number for you yet/, 'and must say so in words');
+});

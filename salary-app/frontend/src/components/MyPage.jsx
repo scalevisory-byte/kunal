@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { earnedSoFar } from '../../../shared/earnedSoFar.js';
 import { api } from '../api.js';
 import { rupees, rupees2, days } from '../format.js';
+import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import {
@@ -641,9 +642,9 @@ function MyAttendance({ months, onError }) {
                             * hours still come from the first and the last,
                             * which is what the salary is worked out from.
                             */}
-                          {(punches[d.day] || []).length > 2 ? (
+                          {showPunches(d, punches[d.day] || []) ? (
                             <span className="my-att-punches">
-                              {punches[d.day].map((p) => p.at).join(' · ')}
+                              {punchTimes(punches[d.day])}
                             </span>
                           ) : null}
                         </td>
@@ -678,6 +679,18 @@ function MyAttendance({ months, onError }) {
               {Object.keys(punches).length
                 ? 'Under the out time is every punch of that day — the reader is on the door, so stepping out for lunch and coming back shows there too. Only the first and the last count towards the hours. '
                 : ''}
+              {/*
+                * NOT MATCHED and NOT SEEN are different problems, and only
+                * one of them is theirs to raise. Somebody with no punch ID
+                * has never been looked for at all, so "no punches" would
+                * read to them as the machine having missed them all month.
+                */}
+              {!data.punch_match ? (
+                <>
+                  The door reader has no number for you yet, so none of its punches can reach your
+                  record — ask the office to add your punch ID. Any times below were typed in.{' '}
+                </>
+              ) : null}
               Hours come from the in and out times on the day
               {data.period?.lunch_paid ? ' (the lunch break is inside the paid day)' : ', less the lunch break'}.
               A day with no clock times shows a dash — that means the times are not known, not that

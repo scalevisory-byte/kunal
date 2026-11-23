@@ -175,6 +175,12 @@ export default function PunchTotals({ period, onGo }) {
         {spool.files || spool.error
           ? 'the rest from readers the app collects from itself.'
           : 'from readers the app collects from itself.'}
+        {/* An imported month holds the spool's punches as rows AND still has
+            the files they came from. Saying so stops "read 3" beside a count
+            of 1 reading as punches going missing. */}
+        {spool.already
+          ? ` ${n(spool.already)} of the file's punches were already filed from an earlier import and are listed once, not twice.`
+          : ''}
       </p>
 
       <div className="row gap wrap">

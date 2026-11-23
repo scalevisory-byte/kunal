@@ -44,9 +44,14 @@ const timeOf = (stamp) => {
  * @param punches  [{ code, at, source }] - `at` sortable, `source` free text
  * @param people   the staff list
  */
-export function punchTotals(punches = [], people = [], { activeOnly = true } = {}) {
-  /* Which employee a reader number belongs to, the way the importer matches:
-     the Punch ID when there is one, else a purely numeric employee code. */
+/**
+ * Whose punch a reader number is, the way every importer decides it: the
+ * Punch ID when there is one, else an employee code that IS a number.
+ *
+ * One matcher, shared by the totals and the log, because "whose punch is
+ * this" answered two ways is two answers to the same question.
+ */
+export function matcherFor(people = [], { activeOnly = true } = {}) {
   const byId = new Map();
   const staff = people.filter((p) => (activeOnly ? p.active !== 0 : true) && !p.is_draft);
   for (const p of staff) {
@@ -55,6 +60,11 @@ export function punchTotals(punches = [], people = [], { activeOnly = true } = {
     if (own) byId.set(own, p);
     else if (fallback && /^\d+$/.test(String(p.code || '').trim())) byId.set(fallback, p);
   }
+  return { staff, byId, who: (code) => byId.get(normalId(code)) || null };
+}
+
+export function punchTotals(punches = [], people = [], { activeOnly = true } = {}) {
+  const { staff, byId } = matcherFor(people, { activeOnly });
 
   const seen = new Map(); // normalised id -> tally
   for (const punch of punches) {

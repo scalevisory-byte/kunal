@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api } from '../api.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { formatDuration } from '../../../shared/timesheet.js';
+import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import { col, num, printReport } from '../printReport.js';
 
 /**
@@ -265,9 +266,9 @@ export default function AttendanceStatement({ row, period, holidays = [], onClos
                   </td>
                   <td className="val">
                     {d.out_time || '—'}
-                    {(punches[d.day] || []).length > 2 ? (
+                    {showPunches(d, punches[d.day] || []) ? (
                       <span className="my-att-punches">
-                        {punches[d.day].map((p) => p.at).join(' · ')}
+                        {punchTimes(punches[d.day])}
                       </span>
                     ) : null}
                   </td>

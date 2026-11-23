@@ -232,7 +232,17 @@ meRouter.get('/attendance/:periodId', (req, res) => {
      * about the hours - in and out are still earliest and latest, which is
      * what the salary is worked out from.
      */
-    punches: punchesByDay(employee, { year: period.year, month: period.month }).days,
+    /*
+     * The punches, AND whether anything could have matched them. A person
+     * with no punch ID and a non-numeric employee code gets an empty map -
+     * nobody ever looked for them - and "no punches" would read to them as
+     * "the machine did not see me". The two are different problems and only
+     * one is theirs to raise.
+     */
+    ...(() => {
+      const found = punchesByDay(employee, { year: period.year, month: period.month });
+      return { punches: found.days, punch_match: found.matched_on };
+    })(),
   });
 });
 

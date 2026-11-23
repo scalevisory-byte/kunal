@@ -492,9 +492,28 @@ export function stopDevicePulls() {
  */
 export function punchEventsForMonth({ month, year }) {
   const m = String(Number(month)).padStart(2, '0');
+  /*
+   * The source has to say which FEED a punch came from, and the three cases
+   * are different facts:
+   *
+   *   - one of our own readers, by name;
+   *   - the Bizcompass spool, which belongs to no reader of ours and so
+   *     carries device_id NULL and its reader's guid in `source`;
+   *   - a reader that has been removed since - the punches are kept, because
+   *     some of them have already been paid.
+   *
+   * Reading the first case's COALESCE over the second reported every spool
+   * punch as "a reader since removed", which is simply untrue: nothing was
+   * removed and that feed is the one still running.
+   */
   return db.prepare(`
     SELECT p.device_code AS code, p.punched_at AS at,
-           COALESCE(d.name, 'a reader since removed') AS source
+           p.source AS raw_source,
+           CASE
+             WHEN d.name IS NOT NULL THEN d.name
+             WHEN p.source LIKE 'bizcompass:%' THEN 'Bizcompass spool'
+             ELSE 'a reader since removed'
+           END AS source
       FROM device_punches p
       LEFT JOIN punch_devices d ON d.id = p.device_id
      WHERE p.punched_at LIKE ?
@@ -569,7 +588,10 @@ export function punchesByDay(employee, { year, month }) {
     const day = Number(r.at.slice(8, 10));
     if (!Number.isFinite(day)) continue;
     (days[day] ||= []).push({
-      at: r.at.slice(11, 16),
+      // The seconds are kept. A day with two punches in the same minute reads
+      // as the same time twice unless they can be told apart, and that is the
+      // day most in need of explaining - it is why the out time is blank.
+      at: r.at.slice(11, 19),
       where: r.device_name || (r.source.startsWith('bizcompass') ? 'reader' : ''),
     });
   }

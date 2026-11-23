@@ -48,20 +48,26 @@ test('two gates recording the same second stay two punches', () => {
 test('the whole day comes back in order, as clock times', () => {
   const { days, matched_on } = punchesByDay(amit, NOV);
   assert.equal(matched_on, 'punch_id');
-  assert.deepEqual(days[20].map((p) => p.at), ['09:12', '11:40', '18:02']);
+  /*
+   * The SECONDS are kept. A day with two punches in the same minute reads as
+   * the same time twice unless they can be told apart - and that is exactly
+   * the day whose out time is blank and most needs explaining. How much to
+   * show is the screen's decision (`punchTimes`), not the store's.
+   */
+  assert.deepEqual(days[20].map((p) => p.at), ['09:12:01', '11:40:33', '18:02:44']);
   assert.ok(days[20].every((p) => p.where === 'reader'));
 });
 
 test('a leading zero is the same enrolment', () => {
   saveSpoolPunches([spool('0037', '22-11-2026 10:00:00')]);
-  assert.deepEqual(punchesByDay(amit, NOV).days[22].map((p) => p.at), ['10:00']);
+  assert.deepEqual(punchesByDay(amit, NOV).days[22].map((p) => p.at), ['10:00:00']);
 });
 
 test('somebody matched on a numeric employee code is found; somebody unreachable is EMPTY, not wrong', () => {
   saveSpoolPunches([spool('45', '20-11-2026 09:30:00')]);
   const forRiya = punchesByDay(riya, NOV);
   assert.equal(forRiya.matched_on, 'code');
-  assert.deepEqual(forRiya.days[20].map((p) => p.at), ['09:30']);
+  assert.deepEqual(forRiya.days[20].map((p) => p.at), ['09:30:00']);
 
   /*
    * KIRAN has no Punch ID and an employee code no reader will ever send. The

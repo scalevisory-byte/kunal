@@ -40,6 +40,7 @@ import {
 } from '../devices.js';
 import { matchPunchIds } from '../../../shared/punchIdMatch.js';
 import { PUNCH_TOTAL_COLUMNS, punchTotals } from '../../../shared/punchTotals.js';
+import { PUNCH_LOG_COLUMNS, PUNCH_LOG_LIMIT, punchLog } from '../../../shared/punchLog.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
 import { leaveSummary, listAttendance, listDocuments, listEmployees, listHolidays, listPeriods, setAttendance, updateEmployee } from '../db.js';
@@ -519,42 +520,108 @@ reportsRouter.post('/employees/punch-ids', (req, res, next) => {
  * and our own reader is not" is the answer somebody needs, and one combined
  * figure hides it.
  */
+/*
+ * EVERY punch of a month, from BOTH feeds, gathered once.
+ *
+ * The totals report and the punch log must never disagree about what punches
+ * exist - they are the same events counted and listed. So the gathering is
+ * one function rather than copied into each route, which is how two answers
+ * to one question come to exist.
+ */
+function monthOf(text) {
+  const now = new Date();
+  const m = String(text || '').trim().match(/^(\d{4})-(\d{2})$/);
+  return { year: m ? Number(m[1]) : now.getFullYear(), month: m ? Number(m[2]) : now.getMonth() + 1 };
+}
+
+function gatherPunches({ year, month }) {
+  const punches = punchEventsForMonth({ month, year });
+
+  /* The spool is files on disk, not rows, so it is read here rather than
+     queried. A folder that is not configured is not an error - it is an
+     office that uses the other feed. */
+  let spool = { read: 0, files: 0, error: '', already: 0 };
+  const dir = spoolDir();
+  if (dir) {
+    try {
+      /*
+       * `month` is a NUMBER here. Passing { year, month } made
+       * fileCouldMatter compare a number to an object, so it answered false
+       * for every file and the spool was never read at all - on a server with
+       * sixteen thousand files in the folder, the report said none were
+       * found. It had been doing that since the totals report shipped.
+       */
+      const { files } = readSpool(dir, { month });
+      const got = readLogFiles(files);
+      spool = { read: got.punches.length, files: files.length, error: '', already: 0 };
+      /*
+       * A PUNCH ALREADY IN OUR STORE MUST NOT BE COUNTED AGAIN.
+       *
+       * Since the app began filing the spool's punches, an imported month
+       * holds them as rows AND still has the files they came from sitting in
+       * the folder. Reading both would list every punch twice, under two
+       * different names for the same door opening. The key is the one the
+       * store's own unique index uses - the number, the second, and the
+       * reader's guid - so it de-duplicates exactly what was filed and
+       * nothing more.
+       */
+      const held = new Set(punches.map((p) => `${p.code}|${p.at}|${p.raw_source || ''}`));
+      for (const punch of got.punches) {
+        // 'dd-mm-yyyy HH:MM:SS' -> the sortable stamp these reports read.
+        const d = String(punch.when || '').match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}:\d{2}:\d{2})/);
+        if (!d) continue;
+        const at = `${d[3]}-${d[2]}-${d[1]} ${d[4]}`;
+        if (held.has(`${punch.user}|${at}|bizcompass:${punch.device || ''}`)) {
+          spool.already += 1;
+          continue;
+        }
+        punches.push({ code: punch.user, at, source: 'Bizcompass spool' });
+      }
+    } catch (err) {
+      spool = { read: 0, files: 0, error: err.message, already: 0 };
+    }
+  }
+
+  punches.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  return { punches, spool };
+}
+
 reportsRouter.get('/punch-totals', (req, res, next) => {
   try {
-    const now = new Date();
-    const text = String(req.query.month || '').trim();
-    const m = text.match(/^(\d{4})-(\d{2})$/);
-    const year = m ? Number(m[1]) : now.getFullYear();
-    const month = m ? Number(m[2]) : now.getMonth() + 1;
-
-    const punches = punchEventsForMonth({ month, year });
-
-    /* The spool is files on disk, not rows, so it is read here rather than
-       queried. A folder that is not configured is not an error - it is an
-       office that uses the other feed. */
-    let spool = { read: 0, files: 0, error: '' };
-    const dir = spoolDir();
-    if (dir) {
-      try {
-        const { files } = readSpool(dir, { month: { year, month } });
-        const got = readLogFiles(files);
-        spool = { read: got.punches.length, files: files.length, error: '' };
-        for (const punch of got.punches) {
-          // 'dd-mm-yyyy HH:MM:SS' -> the sortable stamp this report counts in.
-          const d = String(punch.when || '').match(/^(\d{2})-(\d{2})-(\d{4})[ T](\d{2}:\d{2}:\d{2})/);
-          if (!d) continue;
-          punches.push({ code: punch.user, at: `${d[3]}-${d[2]}-${d[1]} ${d[4]}`, source: 'Bizcompass spool' });
-        }
-      } catch (err) {
-        spool = { read: 0, files: 0, error: err.message };
-      }
-    }
-
-    punches.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const { year, month } = monthOf(req.query.month);
+    const { punches, spool } = gatherPunches({ year, month });
     res.json({
       month: `${year}-${String(month).padStart(2, '0')}`,
       spool,
       ...punchTotals(punches, listEmployees()),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/*
+ * THE PUNCH LOG - every punch, one line each. Dinesh: *"sare logs kaha dikhte
+ * he?"*, and the honest answer was that this one did not exist: the counts
+ * were on Punch totals, a day's punches showed under an out time on a
+ * statement, and the record itself could not be opened anywhere.
+ *
+ * It READS. It is the raw record and NOT attendance - what a punch becomes is
+ * worked out by punchesToMarks and lives on the grid, which is what the sheet
+ * is paid from.
+ */
+reportsRouter.get('/punch-log', (req, res, next) => {
+  try {
+    const { year, month } = monthOf(req.query.month);
+    const { punches, spool } = gatherPunches({ year, month });
+    const day = Number(req.query.day) || 0;
+    const employeeId = Number(req.query.employee_id) || 0;
+    res.json({
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      spool,
+      columns: PUNCH_LOG_COLUMNS,
+      limit: PUNCH_LOG_LIMIT,
+      ...punchLog(punches, listEmployees(), { day, employeeId }),
     });
   } catch (err) {
     next(err);

@@ -507,12 +507,16 @@ export const HELP = [
     id: 'day-punches',
     title: 'Every punch of a day, not just in and out',
     tab: 'attendance',
+    /* The employee has this exact list on their own My attendance, and asked
+       where it was - so it belongs in their help too, not only the office's. */
+    staff: true,
     keywords: ['punches', 'door', 'door lock', 'lunch punch', 'in out', 'har punch', 'darwaza', 'kitne baar'],
     lines: [
       'The readers are on the door, so a normal day is six or eight openings — in, out for tea, back, out for lunch, back, home.',
       '**In** and **Out** are the first and the last of those. Under the out time, every punch of that day is listed.',
       'The office sees it on a person’s attendance statement (click their name on the grid); the employee sees the same list on their own **My attendance**.',
-      'It only appears where the day carries more than two punches — otherwise it would repeat In and Out.',
+      'It appears whenever In and Out do not between them account for every punch — so a day whose out time is blank because the last punch was the return from lunch still shows what the machine saw.',
+      'To read the whole month’s punches rather than one day’s, use **Reports → Punch log**.',
     ],
     note: 'IT IS NOT A SECOND OPINION ABOUT THE HOURS. The hours are still worked out from the first punch and the last, which is what the salary is paid from; this only says what else the machine saw. And it starts from the day the app began keeping them — punches read before that were used and thrown away, so older days show only In and Out.',
   },
@@ -528,6 +532,21 @@ export const HELP = [
       'It also lists the reader numbers that belong to nobody.',
     ],
     note: 'IT IS NOT ATTENDANCE. This counts the raw events the machine recorded; what a punch BECOMES — present, half day, the hours — is worked out separately and lives on the attendance grid, which is what the salary is paid from. And "—" is not "0": a dash means the person has no number the readers can match, so nobody ever looked for them; 0 means they were looked for and not seen.',
+  },
+  {
+    id: 'punch-log',
+    title: 'The punch log — every punch, one line each',
+    tab: 'reports',
+    keywords: ['punch log', 'logs', 'log', 'sare log', 'raw punches', 'machine log', 'door log', 'punch list', 'history'],
+    lines: [
+      'Reports → **Punch log**: every punch the readers recorded this month, one line each — date, time, punch ID, who it belongs to and which reader saw it. Newest first.',
+      'Narrow it to **one day** or **one person** from the boxes at the top.',
+      'It is **only to look at** — nothing on it changes anything.',
+      'A punch on a number nobody on the staff list carries is **listed anyway**, and named as such. Those are usually the reason somebody opens this.',
+      'A long month is shown a page at a time and it says how many more there are, so a short list never reads as the whole story.',
+      'This is the record to settle an argument about a morning: Punch totals says how many, this says exactly which.',
+    ],
+    note: 'IT IS THE RAW RECORD AND NOT ATTENDANCE. A punch is one door opening; what the day BECOMES — present, half day, the hours, the lunch break — is worked out separately and lives on the attendance grid, which is what the salary is paid from. The two cannot disagree because they are not answering the same question. It also starts from the day the app began keeping punches — earlier ones were used and thrown away.',
   },
   {
     id: 'missing-punch',
