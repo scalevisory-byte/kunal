@@ -2983,6 +2983,44 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### The Time tab's chrome, measured (v2.12.0)
+
+Dinesh, with a crop of everything above the table: *"ye part bahut space kha raha he"*.
+
+**Measured at 1420x1200 before touching anything:** `Late and early` 156px, `The month's
+hours` 146px, the toolbar 54, the usual-day strip 55, the note under it 38 — and
+**`table.timesheet` did not start until 681px of a 1,200px window.** More than half the
+screen was preamble. After: **414px.**
+
+- **The two rule panels are one line each when closed**, and the rule that governs it is
+  *no figure may go into the fold*. `98h 00m · 7 over the concession · 6,600 would be
+  charged` and `5 short · 3 over · 2,311 would be deducted` are all still on the closed row,
+  with **Charge this month on it** beside them — only the explaining sentence (`late-why`)
+  and the person-by-person `<details>` fold away, and the panel's own button brings both
+  back. 156/146px → **52px each**. There is a test that the figures are never given
+  `display: none`; it fails when they are.
+- **`display: contents` on `.late-head`** is what lets the title block and the button become
+  items of the card itself, so the figures sit between them on one row. Everything else
+  (`<p>`, `<details>`, the rule editor) takes `flex: 1 0 100%` and wraps under it.
+- **The note under the usual-day strip now says something or says nothing.** On an agreeable
+  month it only repeated the strip directly above it — which already shows `= 9h 00m` in
+  green and whether lunch comes off — so it is not rendered at all. **What it must never
+  stop saying is the disagreeing case**: timings short of the paid day, which was the
+  ~1.66 lakh-a-month bug, still prints in red before anybody presses Fill.
+- The test pinning `className={usual.minutes < 0 ? 'warn-text' : undefined}` was
+  **rewritten to state the new rule, not patched**: inside the branch that now draws the
+  sentence the answer is always `warn-text`, so what is asserted is that the paragraph
+  appears only when there is something to say and the mismatch is marked when it does.
+- **A JSX comment between two text lines swallows the whitespace**, which is why that note
+  read *"is ignored.A day under"*. An explicit `{' '}` is the fix — worth remembering,
+  because it looks like a typo in the prose and is not.
+- **A `{/* ... */}` comment cannot sit beside the returned element.** Putting the
+  explanation above `<section>` inside `return (` made two children of one return and the
+  build failed with *Expected ")" but found "className"*. It is a plain `/* */` above the
+  `return` now.
+- Phone width (420px): the figures take their own line rather than squeezing the button
+  off, measured at 137px per card with nothing clipped.
+
 ### The calendar — `shared/monthGrid.js`, `TimeCalendar.jsx` (v2.11.0)
 
 Dinesh: *"calcndr bana do usme sari date k dikh ajyenge ya or koi accha option ho to"*,

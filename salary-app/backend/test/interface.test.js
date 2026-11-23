@@ -1097,8 +1097,19 @@ test("the office's usual timings add up to the day, and say so", () => {
    * line under the settings strip. It is still MARKED when the timings fall
    * short of the paid day, which is the whole point of it, and the sum is
    * still beside the timings themselves rather than only in the sentence.
+   *
+   * REWRITTEN at v2.12.0, not patched. Dinesh: *"ye part bahut space kha
+   * raha he"*. On an agreeable month the sentence only repeated the strip
+   * directly above it, so the paragraph is no longer rendered at all - which
+   * means the `usual.minutes < 0 ? 'warn-text' : undefined` conditional it
+   * used to carry is gone, because inside the branch that now draws it the
+   * answer is always `warn-text`. The RULE is what is asserted: the
+   * paragraph appears only when there is something to say, and the mismatch
+   * is marked when it does.
    */
-  assert.match(tab, /className=\{usual\.minutes < 0 \? 'warn-text' : undefined\}/);
+  assert.match(tab, /\{\(ownShifts > 0 \|\| usual\.minutes !== 0 \|\| lunchEffect\.days > 0\) && \(/);
+  assert.match(tab, /\{usual\.minutes !== 0 \? \(/);
+  assert.match(tab, /<span className="warn-text">/);
   assert.match(tab, /className="time-notes muted small"/);
   // The read-out beside the usual day, which carries the same warning.
   assert.match(tab, /ts-sum\$\{usual\.minutes < 0 \? ' short'/);
@@ -4044,4 +4055,34 @@ test('the Time tab header says which day, and whose month', () => {
   /* And the header has to actually stick, or putting the date there buys
      nothing the picker above did not already. */
   assert.match(src('styles.css'), /table\.sheet thead th \{[^}]*position: sticky;/);
+});
+
+test('THE TIME TAB’S RULE PANELS ARE ONE LINE UNTIL SOMEBODY OPENS THEM', () => {
+  /*
+   * Dinesh, pointing at the top of that tab: *"ye part bahut space kha raha
+   * he"*. Measured at 1420x1200: the two cards were 156px and 146px and the
+   * table did not start until 681px of a 1,200px window. After: 52px each
+   * and the table at 414px.
+   *
+   * THE LINE THIS MUST NOT CROSS is hiding a figure. What folds away is the
+   * explaining sentence and the person-by-person list; the figures stay on
+   * the closed row, so nothing readable before is behind a click now.
+   */
+  const css = src('styles.css');
+  for (const panel of ['components/LatePolicy.jsx', 'components/MonthlyHours.jsx']) {
+    const jsx = src(panel);
+    assert.match(jsx, /late-card\$\{open \? ' open' : ''\}/, `${panel} marks its open state`);
+    assert.match(jsx, /className="muted small late-why"/, `${panel} names the folding sentence`);
+    /* The figures are NOT inside the fold. */
+    const why = jsx.indexOf('late-why');
+    const figs = jsx.indexOf('className="late-figs"');
+    assert.ok(figs > 0 && why > 0 && why < figs, `${panel} keeps the figures out of the fold`);
+  }
+  assert.match(css, /\.late-card \.late-why,\n\.late-card \.late-detail \{ display: none; \}/);
+  assert.match(css, /\.late-card\.open \.late-why \{ display: block/);
+  /* The figures must never be given `display: none` by the fold. */
+  assert.ok(
+    !/\.late-card[^{]*\.late-figs[^{]*\{[^}]*display:\s*none/.test(css),
+    'the figures are never hidden'
+  );
 });

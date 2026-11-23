@@ -93,8 +93,18 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
     onPatch(patch);
   };
 
+  /*
+   * ONE LINE UNTIL SOMEBODY OPENS IT.
+   *
+   * Dinesh, pointing at the top of this tab: *"ye part bahut space kha raha
+   * he"*. Measured at 1420x1200: these two cards were 156px and 146px, and
+   * the table did not start until 681px - more than half the window was the
+   * rule panels. The `open` class puts the sentence and the person-by-person
+   * list back; the FIGURES never leave the row, so nothing that was readable
+   * before is behind a click now.
+   */
   return (
-    <section className="card late-card">
+    <section className={`card late-card${open ? ' open' : ''}`}>
       <div className="late-head">
         <div>
           <h3>
@@ -106,25 +116,26 @@ export default function LatePolicy({ period, rows, onPatch, locked }) {
               {on ? 'charged' : 'counted only'}
             </span>
           </h3>
-          <p className="muted small">
-            {on ? (
-              <>
-                Charged: every minute late in or left early is pooled for the month,{' '}
-                {formatDuration(period.late_concession_minutes ?? DEFAULT_LATE_RULES.concession_minutes)} free,
-                the rest off the pay.
-              </>
-            ) : (
-              <>
-                Counted but not charged. Lateness only costs money today if it made the day short
-                of its hours.
-              </>
-            )}
-          </p>
         </div>
         <button type="button" className="ghost" onClick={() => setOpen(!open)}>
           {open ? 'Hide' : 'Set the rule'}
         </button>
       </div>
+
+      <p className="muted small late-why">
+        {on ? (
+          <>
+            Charged: every minute late in or left early is pooled for the month,{' '}
+            {formatDuration(period.late_concession_minutes ?? DEFAULT_LATE_RULES.concession_minutes)} free,
+            the rest off the pay.
+          </>
+        ) : (
+          <>
+            Counted but not charged. Lateness only costs money today if it made the day short of
+            its hours.
+          </>
+        )}
+      </p>
 
       {/*
         * Three figures on one line, not three stacked blocks.

@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.11.0';
+export const VERSION = '2.12.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.12.0',
+    date: '24 Nov 2026',
+    title: 'The Time tab gets its screen back',
+    items: [
+      '**The two rule panels at the top are one line each now.** Dinesh: *\u201cye part bahut space kha raha he\u201d*. Measured on a 1,200px screen: they were **156px and 146px**, and the table did not start until **681px** \u2014 more than half the window was the panels. Now **52px each, and the table starts at 414px**.',
+      '**No figure was hidden.** *98h 00m \u00b7 7 over the concession \u00b7 6,600 would be charged* and *5 short \u00b7 3 over \u00b7 2,311 would be deducted* are all still on the closed line, with **Charge this month on it** beside them. What folds away is the explaining sentence and the person-by-person list, and *Set the rule* / *Show* brings both back exactly as before.',
+      '**The paragraph under the usual-day strip now says something or says nothing.** On a month where everything agrees it only repeated the strip above it \u2014 the strip already shows `= 9h 00m` in green and whether lunch comes off. The warning it exists for is untouched: timings short of the paid day still say so, in red, before anybody presses Fill.',
+      'A missing space in that note \u2014 *\u201cis ignored.A day under\u201d* \u2014 is fixed.',
+    ],
+  },
   {
     version: '2.11.0',
     date: '24 Nov 2026',

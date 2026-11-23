@@ -68,7 +68,7 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
   };
 
   return (
-    <section className="card late-card">
+    <section className={`card late-card${open ? ' open' : ''}`}>
       <div className="late-head">
         <div>
           <h3>
@@ -77,13 +77,6 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
               {on ? 'charged' : 'counted only'}
             </span>
           </h3>
-          <p className="muted small">
-            Nine hours a day for the days each person was due &mdash; a day short and a day long
-            cancel, and only what is missing from the <strong>total</strong> comes off.{' '}
-            {on
-              ? 'This month is charged on it.'
-              : 'This month is not charged on it; the figures below are what it would come to.'}
-          </p>
         </div>
         <div className="row">
           {/*
@@ -104,6 +97,17 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
           </button>
         </div>
       </div>
+
+      {/* Shown when the panel is open. Closed, these two cards are one line
+          each: they were 302px of a 1,200px window between them, which is
+          what Dinesh meant by *"ye part bahut space kha raha he"*. */}
+      <p className="muted small late-why">
+        Nine hours a day for the days each person was due &mdash; a day short and a day long
+        cancel, and only what is missing from the <strong>total</strong> comes off.{' '}
+        {on
+          ? 'This month is charged on it.'
+          : 'This month is not charged on it; the figures below are what it would come to.'}
+      </p>
 
       {/* The same figure row the panel above uses - value first, then what it
           is. A label-then-value pair with no class behind it ran the two

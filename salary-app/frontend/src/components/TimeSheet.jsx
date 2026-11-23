@@ -831,30 +831,48 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         * person 45 minutes for a full day they had worked - invisible,
         * because nothing on screen ever added the timings up.
         */}
-      <p className="time-notes muted small">
-        {ownShifts > 0 ? (
-          <>
-            <strong>{ownShifts}</strong> of the {lines.length} on screen have their own shift times
-            on their record, so <strong>Fill the usual timings</strong> writes each of those
-            people <em>their</em> hours and everybody else the office day below. A shift that
-            crosses midnight is filled without a lunch break, because the office&rsquo;s does not
-            fall inside it.{' '}
-          </>
-        ) : null}
-        <span className={usual.minutes < 0 ? 'warn-text' : undefined}>
-          {usual.minutes === 0
-            ? `These timings come to exactly the ${formatDuration(usual.expected)} day. Come when you like \u2014 what counts is finishing it.`
-            : usual.minutes < 0
-              ? `These timings are ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled this way is docked ${formatDuration(-usual.minutes)}.`
-              : `These timings are ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled this way is paid that as overtime.`}
-        </span>{' '}
-        {lunchPaid
-          ? 'Lunch times are recorded and NOT taken off the hours \u2014 the break sits inside the day.'
-          : 'Lunch times are taken off the hours worked.'}{' '}
-        {lunchEffect.days
-          ? `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ${lunchEffect.days === 1 ? 'carries' : 'carry'} one, ${formatDuration(lunchEffect.minutes)} in all.`
-          : 'No lunch times have been entered this month.'}
-      </p>
+      {/*
+        * SAYS SOMETHING, OR SAYS NOTHING.
+        *
+        * Dinesh: *"ye part bahut space kha raha he"*. On a month where
+        * everything is in order this paragraph only repeated the strip
+        * directly above it - the strip already shows `= 9h 00m` in green and
+        * whether lunch comes off. So the agreeable case is now silent and the
+        * paragraph does not render at all.
+        *
+        * WHAT IT MUST NEVER STOP SAYING is the disagreeing case: timings
+        * short of the day the month is paid on docked every person every day,
+        * about 1.66 lakh a month across 114 people, out of a mismatch nothing
+        * on screen had ever stated.
+        */}
+      {(ownShifts > 0 || usual.minutes !== 0 || lunchEffect.days > 0) && (
+        <p className="time-notes muted small">
+          {ownShifts > 0 ? (
+            <>
+              <strong>{ownShifts}</strong> of the {lines.length} on screen have their own shift times
+              on their record, so <strong>Fill the usual timings</strong> writes each of those
+              people <em>their</em> hours and everybody else the office day below. A shift that
+              crosses midnight is filled without a lunch break, because the office&rsquo;s does not
+              fall inside it.{' '}
+            </>
+          ) : null}
+          {usual.minutes !== 0 ? (
+            <>
+              <span className="warn-text">
+                {usual.minutes < 0
+                  ? `These timings are ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled this way is docked ${formatDuration(-usual.minutes)}.`
+                  : `These timings are ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled this way is paid that as overtime.`}
+              </span>{' '}
+              {lunchPaid
+                ? 'Lunch times are recorded and NOT taken off the hours \u2014 the break sits inside the day.'
+                : 'Lunch times are taken off the hours worked.'}{' '}
+            </>
+          ) : null}
+          {lunchEffect.days
+            ? `${lunchEffect.days} ${lunchEffect.days === 1 ? 'day' : 'days'} this month ${lunchEffect.days === 1 ? 'carries' : 'carry'} a lunch break, ${formatDuration(lunchEffect.minutes)} in all${lunchPaid ? ', which is inside the paid day' : ', taken off the hours'}.`
+            : null}
+        </p>
+      )}
 
       {/*
         * The two numbers that have to agree, and do not.
@@ -1043,7 +1061,9 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         </strong>
         . Anything more or less than
         the day's {days(period.hours_per_day)} hours goes into that day's OT/LT minutes, which the
-        salary sheet pays or deducts at the per-minute rate — a few minutes either way is ignored.
+        salary sheet pays or deducts at the per-minute rate — a few minutes either way is ignored.{' '}
+        {/* A JSX comment between two text lines swallows the whitespace, so
+            this read "is ignored.A day under". The explicit space is the fix. */}
         {/* Half of the month's OWN day, not a fixed 4½ - that was only right
             because the default day is nine, and the note went stale the
             moment the day changed. */}

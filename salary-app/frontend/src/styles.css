@@ -6035,3 +6035,41 @@ h3.spaced { margin-top: 1.5rem; }
  * the two screens agree about which squares are off days.
  */
 .tc-grid .lc-cell.off { background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
+
+/*
+ * THE TWO RULE PANELS ON THE TIME TAB, CLOSED, ARE ONE LINE EACH.
+ *
+ * Dinesh, pointing at the top of that tab: *"ye part bahut space kha raha
+ * he"*. Measured at 1420x1200: the cards were 156px and 146px and the table
+ * did not start until 681px - more than half the window was the panels.
+ *
+ * The figures STAY on the closed line. Nothing readable before is behind a
+ * click now; what folds away is the explaining sentence and the
+ * person-by-person list, which the panel's own button brings back.
+ */
+.late-card {
+  display: flex; flex-wrap: wrap; align-items: center;
+  column-gap: 1.1rem; row-gap: 0.3rem; padding: 0.45rem 0.9rem;
+}
+/* `display: contents` lets the title block and the button become items of
+   the card itself, so the figures can sit between them on one row. */
+.late-card .late-head { display: contents; }
+.late-card .late-head > div:first-child { order: 0; }
+.late-card .late-figs { order: 1; flex: 1 1 auto; margin: 0; }
+.late-card .late-head > button,
+.late-card .late-head > .row { order: 2; margin-left: auto; }
+/* Everything else wraps onto its own full-width line under that row. */
+.late-card > p,
+.late-card > details,
+.late-card > .late-rule,
+.late-card > .banner { flex: 1 0 100%; }
+/* The sentence and the list only when the panel is open. */
+.late-card .late-why,
+.late-card .late-detail { display: none; }
+.late-card.open .late-why { display: block; margin: 0.2rem 0 0; max-width: 72ch; }
+.late-card.open .late-detail { display: block; }
+@media (max-width: 760px) {
+  /* On a phone the row cannot hold title, figures and a button: let the
+     figures take their own line rather than squeezing the button off. */
+  .late-card .late-figs { flex-basis: 100%; }
+}
