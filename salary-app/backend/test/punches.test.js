@@ -255,3 +255,113 @@ test('the mark and the out time can never contradict each other', () => {
   }
   assert.equal(entries.length, 2);
 });
+
+test('A DAY THAT CANNOT HAVE FINISHED YET IS NOT GIVEN A DEPARTURE', () => {
+  /*
+   * Dinesh on the Time tab at twenty past four: *"out time abhi bhi aa raha
+   * he"*. v2.0.0 caught the lunch-return case, but somebody with only TWO
+   * punches was still handed a departure and charged a shortfall while they
+   * sat at their desk — ANURAG VERMA read 10:49 to 15:37 and −252 minutes on
+   * a day with two hours of it left to run.
+   *
+   * You cannot have finished your day before your day's length has gone by.
+   */
+  const at = (h, m) => new Date(2026, 8, 7, h, m);
+  const args = (now) => ({
+    rows: rows([
+      ['', 'Ashutosh Jha', '07/09/2026', '10:49', '15:37'],
+    ]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+    now,
+  });
+
+  const midday = punchesToMarks(args(at(16, 14)));
+  const day = midday.entries.find((e) => e.day === 7);
+  assert.equal(day.out_time, '', 'they are still in - the departure is not known');
+  assert.equal(day.code, 'P', 'present, and not half a day');
+  assert.equal(day.minutes, 0, 'NOTHING IS CHARGED for a day still running');
+  assert.equal(midday.summary.stillIn, 1, 'and the dry run can say so');
+
+  // Once the day really is over, the same punches read normally.
+  const evening = punchesToMarks(args(at(20, 30)));
+  const done = evening.entries.find((e) => e.day === 7);
+  assert.equal(done.out_time, '15:37', 'the evening pull writes the real departure');
+  // 4h 48m is 288 minutes, which is MORE than half of nine hours, so the day
+  // is present and short by 252 — the very figure Dinesh screenshotted.
+  assert.equal(done.code, 'P');
+  assert.equal(done.minutes, -252, 'and only then is the shortfall charged');
+  assert.equal(evening.summary.stillIn, undefined);
+});
+
+test('a day in the past is finished whatever the clock says now', () => {
+  // The guard looks at TODAY only, so no stored month can move - a month
+  // imported at four in the afternoon reads exactly as one imported at
+  // midnight.
+  const early = punchesToMarks({
+    rows: rows([['', 'Ashutosh Jha', '03/09/2026', '10:49', '15:37']]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+    now: new Date(2026, 8, 7, 16, 14),
+  });
+  const day = early.entries.find((e) => e.day === 3);
+  assert.equal(day.out_time, '15:37');
+  assert.equal(day.code, 'P');
+  assert.equal(day.minutes, -252);
+  assert.equal(early.summary.stillIn, undefined);
+});
+
+test('somebody who started early enough HAS finished, and is judged', () => {
+  // 06:42 plus nine hours is 15:42, which has gone by at 16:14. The guard
+  // must not swallow every day on the current date.
+  const got = punchesToMarks({
+    rows: rows([['', 'Ashutosh Jha', '07/09/2026', '06:42', '11:00']]),
+    mapping: MAP,
+    employees: STAFF,
+    period: PERIOD,
+    now: new Date(2026, 8, 7, 16, 14),
+  });
+  const day = got.entries.find((e) => e.day === 7);
+  assert.equal(day.out_time, '11:00');
+  assert.equal(day.code, 'HF');
+});
+
+test('an imported day is judged against THEIR shift, not the office day', () => {
+  /*
+   * v1.82 made the shift length personal and `hoursForEmployee` the one
+   * answer to it — and this file was missed. A day read off the punch machine
+   * was measured against the month's nine hours, so a six-hour part-timer
+   * finishing exactly on time was docked three hours, every day.
+   */
+  const part = [{ id: 7, name: 'Part Timer', code: 'BNF007', active: 1, shift_in: '09:00', shift_out: '15:00' }];
+  const got = punchesToMarks({
+    rows: rows([['', 'Part Timer', '03/09/2026', '09:00', '15:00']]),
+    mapping: MAP,
+    employees: part,
+    period: PERIOD,
+    now: new Date(2026, 8, 7, 20, 0),
+  });
+  const day = got.entries.find((e) => e.day === 3);
+  assert.equal(day.code, 'P', 'six hours IS their full day');
+  assert.equal(day.minutes, 0, 'and nothing is docked for the other three');
+});
+
+test('somebody on the usual shift comes out exactly as before', () => {
+  // hasOwnShift compares against the office day rather than asking whether the
+  // column is filled in, so this must be byte for byte unchanged.
+  const same = [{ id: 8, name: 'Normal Hours', code: 'BNF008', active: 1, shift_in: '09:30', shift_out: '18:30' }];
+  for (const staff of [STAFF.slice(0, 1), same]) {
+    const got = punchesToMarks({
+      rows: rows([['', staff[0].name, '03/09/2026', '09:30', '17:30']]),
+      mapping: MAP,
+      employees: staff,
+      period: PERIOD,
+      now: new Date(2026, 8, 7, 20, 0),
+    });
+    const day = got.entries.find((e) => e.day === 3);
+    assert.equal(day.code, 'P');
+    assert.equal(day.minutes, -60, 'eight hours against nine is an hour short');
+  }
+});

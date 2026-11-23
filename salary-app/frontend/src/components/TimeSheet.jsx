@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS } from '../../../shared/calc.js';
 import {
-  TIME_FIELDS,
-  TIME_LABELS,
+  dayNotFinished,
   formatDuration,
   formatTime,
   hasTimes,
-  readTimes,
   minutesForMark,
   monthTotals,
   parseTime,
+  readTimes,
+  TIME_FIELDS,
+  TIME_LABELS,
   timesToDay,
 } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, rupees, weekday } from '../format.js';
@@ -17,9 +18,10 @@ import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import MonthlyHours from './MonthlyHours.jsx';
 import { fillTimesFor, hasOwnShift, hoursForEmployee, shiftLengthProblem } from '../../../shared/lateEarly.js';
+import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import PunchImport from './PunchImport.jsx';
-import { STANDALONE } from '../api.js';
+import { STANDALONE, api } from '../api.js';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -213,6 +215,38 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
 
 
   const person = rows.find((r) => r.employee_id === personId);
+
+  /*
+   * EVERY PUNCH OF THE DAY, HERE TOO.
+   *
+   * Dinesh, after the same thing was added to the attendance day menu: *"yaha
+   * pe bhi sare log dekhne ka option do"*. The readers are door locks, so In
+   * and Out are only the first and the last of six or eight openings, and this
+   * is the screen the hours are read off.
+   *
+   * It is NOT a second opinion about the hours - those still come from the
+   * first punch and the last, which is what the sheet is paid from.
+   *
+   * One person down the month is ONE request, so it is fetched as soon as the
+   * tab opens. One day across eighty people would be eighty, so there it is
+   * fetched per person when somebody asks.
+   */
+  const [punchBook, setPunchBook] = useState({});
+  const wantPunches = async (employeeId) => {
+    if (STANDALONE || !employeeId || punchBook[employeeId] !== undefined) return;
+    setPunchBook((b) => ({ ...b, [employeeId]: null }));
+    try {
+      const got = await api.get(`/employees/${employeeId}/punches?period_id=${period.id}`);
+      setPunchBook((b) => ({ ...b, [employeeId]: got }));
+    } catch {
+      setPunchBook((b) => ({ ...b, [employeeId]: { days: {}, matched_on: '', error: true } }));
+    }
+  };
+  useEffect(() => {
+    if (view !== 'day' && person?.employee_id) wantPunches(person.employee_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, person?.employee_id, period.id]);
+
 
   /* The rows on screen, whichever view is showing: one day across people, or
      one person across days. Everything below draws from this. */
@@ -792,6 +826,8 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
                 read={readDay(line.row, line.day)}
                 onSet={(patch) => setTimes(line.row.employee_id, line.day, patch)}
                 onClear={() => clearDay(line.row, line.day)}
+                punches={punchBook[line.row.employee_id]}
+                onWantPunches={() => wantPunches(line.row.employee_id)}
               />
             ))}
             {!lines.length && (
@@ -846,7 +882,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   );
 }
 
-function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
+function TimeRow({ line, period, view, locked, entry, read, onSet, onClear, punches, onWantPunches }) {
   const mark = String(entry.code || '').toUpperCase();
   const monthly = useMemo(() => {
     if (view !== 'day') return null;
@@ -865,6 +901,36 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
    * a blank row, so it got missed until the hours came out wrong.
    */
   const halfTyped = !!(entry.in_time && !entry.out_time);
+
+  /* One person down the month arrives already loaded; one day across eighty
+     people is fetched when somebody asks, so eighty rows are not eighty
+     requests nobody wanted. */
+  const dayPunches = punches?.days?.[line.day] || [];
+  const askedFor = punches !== undefined;
+
+  /*
+   * STILL IN, not "no out".
+   *
+   * A day that cannot have finished yet has no departure on purpose - the
+   * importer refuses to call a mid-day punch one. Reading that as "no out
+   * time" puts everybody currently at work on the list of days to chase, and
+   * a list of things to check that is mostly fine stops being read.
+   *
+   * The read side cannot tell on its own: the out column is simply empty.
+   * This screen can, because it knows the day, the month and their shift.
+   */
+  const stillIn =
+    !!entry.in_time &&
+    !entry.out_time &&
+    dayNotFinished({
+      year: period.year,
+      month: period.month,
+      day: line.day,
+      arrival: entry.in_time,
+      hoursPerDay: hoursForEmployee(line.row, { period }),
+      lunchMinutes: read.lunch,
+      deductLunch: !period.lunch_paid,
+    });
 
   return (
     <tr
@@ -905,6 +971,17 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
               {read.lunchDeducted ? ' off' : ''}
             </span>
           ) : null}
+          {/*
+            * EVERY PUNCH, under the out time - the same place the attendance
+            * statement and the employee's own page put it. Shown only where
+            * In and Out do not between them account for them all, by the one
+            * rule all three screens share.
+            */}
+          {field === 'out_time' && showPunches(entry, dayPunches) ? (
+            <span className="ts-lunch-len punches" title="every punch the reader recorded - only the first and the last count towards the hours">
+              {punchTimes(dayPunches)}
+            </span>
+          ) : null}
         </td>
       ))}
       <td className="num strong">{read.worked === null ? '-' : formatDuration(read.worked)}</td>
@@ -926,7 +1003,11 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
           * typed a nineteen-hour day. Dinesh: *"improve missing-time
           * indicators"*. The full sentence stays on hover.
           */}
-        {read.warning ? (
+        {stillIn ? (
+          <span className="pill warn-pill" title="Their day has not run its length yet, so the last punch is not a departure. The evening's pull writes the real one; nothing is charged meanwhile.">
+            still in
+          </span>
+        ) : read.warning ? (
           <span
             className={`pill ${/^no (in|out) time$|^one punch|^back from lunch/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
             title={read.warning}
@@ -948,6 +1029,18 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
         ) : (
           read.overnight && <span className="pill" title="Read as finishing after midnight">+1 day</span>
         )}
+        {/* The way in, in the day view - where the whole month is not already
+            loaded. It reads, it changes nothing. */}
+        {view === 'day' && !askedFor && !STANDALONE && onWantPunches ? (
+          <button className="ghost tiny" title="Show every punch the reader recorded that day" onClick={onWantPunches}>
+            log
+          </button>
+        ) : null}
+        {view === 'day' && askedFor && punches && !punches.matched_on ? (
+          <span className="pill warn-pill" title="No punch ID on this employee, so no reader punch can reach them">
+            no punch id
+          </span>
+        ) : null}
         {(read.worked !== null || entry.in_time || entry.out_time) && !locked && (
           <button className="ghost tiny" title="Clear this day's times" onClick={onClear}>
             clear

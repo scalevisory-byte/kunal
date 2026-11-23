@@ -2747,6 +2747,34 @@ table.sheet.roll-table .why { display: block; margin: 0; }
 
 /* The day menu's reason block: the same shape as the short-hours block under
    it, so the menu reads as one thing. */
+/*
+ * THE SUM BEHIND A DAY'S MINUTES, in the day menu.
+ *
+ * Dinesh asked for the time log where the figure is - clicking a cell reading
+ * "P / -50" should say where the -50 came from. Four clock times across the
+ * top, then the punches, then the arithmetic in words.
+ */
+.picker-clock { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
+.picker-times {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  margin: 0.45rem 0;
+}
+.picker-times span { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.picker-times em {
+  font-style: normal;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.picker-times b { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+/* A phone: four columns of clock times is two, not four. */
+@media (max-width: 480px) {
+  .picker-times { grid-template-columns: repeat(2, 1fr); }
+}
+
 .picker-why { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .picker-why > input { width: 100%; margin: 0.35rem 0; }
 
@@ -5857,4 +5885,15 @@ h3.spaced { margin-top: 1.5rem; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+/*
+ * The day's punches, under the out time. A door-lock day runs to six or eight
+ * of them, so it wraps rather than widening the column - the Time tab already
+ * only just fits a laptop.
+ */
+.ts-lunch-len.punches {
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
+  letter-spacing: -0.01em;
 }

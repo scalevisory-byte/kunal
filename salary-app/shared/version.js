@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.2.0';
+export const VERSION = '2.3.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.3.0',
+    date: '23 Nov 2026',
+    title: 'Where a day\u2019s minutes came from \u2014 and nobody is charged for a day still running',
+    items: [
+      '**ANOTHER ONE THAT WAS COSTING MONEY.** People still at work were being handed a departure and charged a shortfall. ANURAG VERMA read in 10:49, out 15:37 and **\u2212252 minutes** at twenty past four, with two hours of his day left to run. Last night\u2019s release caught the clearest case \u2014 a last punch that is the return from lunch \u2014 but somebody with only two punches was still being judged.',
+      'The rule now is the one sentence that is always true: **you cannot have finished your day before your day\u2019s length has gone by.** Until then the departure is not known, nothing is charged and nothing is paid, and the row says **still in** rather than flagging a missing out time. The evening\u2019s pull writes the real departure.',
+      'It only ever looks at today, so no day in the past can move.',
+      '**Click a day on the attendance grid and it now says where its minutes came from** \u2014 asked for exactly that way. The four clock times, the sum in words (*\u201c8h 05m worked against 9h 00m expected, after taking the 40-minute lunch out = \u221255 minutes\u201d*), and every punch the reader recorded that day. It sits at the TOP of the menu, above the marks, because it is why you clicked.',
+      '**If somebody typed over the clock, it says so** \u2014 *\u201cthis day carries \u221250, not the \u221230 the clock comes to\u201d*. Without that the sum reads as not adding up.',
+      '**The Time tab shows every punch too.** The readers are door locks, so In and Out are only the first and the last of six or eight openings. One person down the month loads itself; one day across everybody has a **log** button per row, so eighty rows are not eighty requests nobody wanted.',
+      '**And a third old one, found on the way:** a day read off the punch machine was measured against the month\u2019s nine hours for everybody. A six-hour part-timer finishing exactly on time was docked three hours, every day. Every other screen has judged people against their own shift since the shift work went in \u2014 this one file was missed. Somebody on the usual shift comes out byte for byte as before, with a test for it.',
+    ],
+  },
   {
     version: '2.2.0',
     date: '23 Nov 2026',

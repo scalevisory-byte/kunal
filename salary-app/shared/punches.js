@@ -12,7 +12,8 @@
 
 import { ATTENDANCE_CODES } from './calc.js';
 import { findLunchGap } from './lunchGap.js';
-import { TIME_RULES, departureTime, formatTime } from './timesheet.js';
+import { hoursForEmployee } from './lateEarly.js';
+import { dayNotFinished, departureTime, formatTime, TIME_RULES } from './timesheet.js';
 
 /* ---------------- reading whatever was uploaded ---------------- */
 
@@ -171,15 +172,16 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
  */
 export function punchesToMarks({
   rows, mapping, rules, employees, period, deductLunch = true,
-  findLunch = true, lunchRules,
+  findLunch = true, lunchRules, now = new Date(),
 }) {
   const hoursPerDay = Number(period.hours_per_day) || 9;
   // The half-day line follows the configured day - half of the month's hours -
   // unless the import names one, exactly as the Time tab does it. The two must
   // agree: a day read off the machine and a day typed by hand are the same day.
   const settings = { ...DEFAULT_RULES, halfDayHours: hoursPerDay / 2, ...(rules || {}) };
-  const fullDayMinutes = hoursPerDay * 60;
-  const halfDayMinutes = Number(settings.halfDayHours) * 60;
+  /* The half-day line and the full day are now worked out PER PERSON inside
+     the loop, against their own shift - see the note there. Nothing may read
+     a month-wide figure here, or the two would disagree. */
 
   // Employees can be matched on the name or on the code they carry in the
   // machine, whichever the report gives.
@@ -278,6 +280,25 @@ export function punchesToMarks({
         summary.lunchMinutes = (summary.lunchMinutes || 0) + gap.minutes;
       }
     }
+    /*
+     * JUDGED AGAINST THEIR OWN DAY, not the office's.
+     *
+     * v1.82 made the shift length personal and `hoursForEmployee` the one
+     * answer to it - called by the salary engine, the server, the offline
+     * file, the Time tab and the eSSL reader. THIS FILE WAS MISSED, so a day
+     * read off the punch machine was still measured against the month's nine
+     * hours: a six-hour part-timer finishing exactly on time was docked three
+     * hours, every day.
+     *
+     * `hasOwnShift` compares against the office day rather than asking
+     * whether the column is filled in, so for everybody on the usual shift
+     * this comes out byte for byte as before.
+     */
+    const personHours = hoursForEmployee(seen.employee, { period });
+    const fullDay = Math.round(personHours * 60);
+    const halfLine =
+      (rules && rules.halfDayHours != null ? Number(rules.halfDayHours) : personHours / 2) * 60;
+
     let code;
     let minutes = 0;
 
@@ -296,11 +317,38 @@ export function punchesToMarks({
      * so both now come from the SAME call.
      */
     const inText = seen.in === null ? '' : formatTime(seen.in);
-    const outText = departureTime(
-      inText,
-      seen.out === null ? '' : formatTime(seen.out),
-      seen.lunchIn === null ? '' : formatTime(seen.lunchIn)
-    );
+    /*
+     * AND A DAY THAT CANNOT HAVE FINISHED YET HAS NO DEPARTURE.
+     *
+     * Dinesh on the Time tab at 16:14: *"out time abhi bhi aa raha he"*. The
+     * lunch-return case was caught in v2.0.0, but somebody with only two
+     * punches was still handed a departure and CHARGED a shortfall while they
+     * were at their desk - ANURAG VERMA read 10:49 to 15:37 and −252 minutes
+     * on a day with two hours left to run.
+     *
+     * Only ever today, and only until their own day's length has gone by, so
+     * no day in the past can move. The evening's pull writes the real one.
+     */
+    const unfinished = dayNotFinished({
+      year: period.year,
+      month: period.month,
+      day: seen.day,
+      arrival: seen.in,
+      hoursPerDay: personHours,
+      lunchMinutes:
+        seen.lunchOut !== null && seen.lunchIn !== null && seen.lunchIn > seen.lunchOut
+          ? seen.lunchIn - seen.lunchOut
+          : 0,
+      deductLunch,
+      now,
+    });
+    const outText = unfinished
+      ? ''
+      : departureTime(
+          inText,
+          seen.out === null ? '' : formatTime(seen.out),
+          seen.lunchIn === null ? '' : formatTime(seen.lunchIn)
+        );
 
     if (seen.in === null) {
       code = settings.absentCode;
@@ -316,6 +364,7 @@ export function punchesToMarks({
       code = settings.presentCode;
       summary.present++;
       summary.noDeparture = (summary.noDeparture || 0) + 1;
+      if (unfinished) summary.stillIn = (summary.stillIn || 0) + 1;
     } else {
       /*
        * Lunch comes off the hours, exactly as it does for a day typed on the
@@ -329,14 +378,14 @@ export function punchesToMarks({
           ? seen.lunchIn - seen.lunchOut
           : 0;
       const worked = seen.out - seen.in - lunch;
-      if (worked < halfDayMinutes) {
+      if (worked < halfLine) {
         code = settings.halfDayCode;
         summary.halfDay++;
       } else {
         code = settings.presentCode;
         summary.present++;
         if (settings.countShortHours) {
-          const diff = Math.round(worked - fullDayMinutes);
+          const diff = Math.round(worked - fullDay);
           if (Math.abs(diff) > Number(settings.graceMinutes)) {
             minutes = diff;
             if (diff < 0) summary.shortHours++;

@@ -3817,3 +3817,44 @@ test('a day marked HF with no departure can be put right, across the month', () 
   assert.match(tab, /window\.confirm\(\s*\n?\s*`\$\{halfDayNoOut\.length\}/, 'it must ask first');
   assert.match(tab, /PAYS A FULL DAY/, 'and say what pressing it costs');
 });
+
+test('the day menu says where a day’s minutes came from, ABOVE the marks', () => {
+  /*
+   * Dinesh, hovering a cell reading "P / −50": *"yaha click karne se uske time
+   * log bhi open ho esa ho sakta he, jisse −50 minute ka hisab mil sake"*. The
+   * figure was on the grid and the sum behind it was two screens away.
+   *
+   * It goes ABOVE the fourteen mark buttons, because it is why somebody
+   * clicked the cell — put below them it was at 922px in a card 1442 tall,
+   * which is the "feature nobody can find" mistake again.
+   *
+   * And it ASSEMBLES: `readTimes` and `minutesForMark` are the same two
+   * functions the Time tab, the server and the payslip use, so it can never
+   * become a second opinion about the day.
+   */
+  const grid = src('components/Attendance.jsx');
+  assert.match(grid, /picker-clock/, 'the block must exist');
+  assert.match(grid, /readTimes\(entry, \{ deductLunch \}\)/, 'it reads the day with the month’s own lunch rule');
+  assert.match(grid, /minutesForMark\(entry, \{/, 'and the minutes with the one rule');
+  assert.match(grid, /typedOver/, 'a figure typed over the clock must say so');
+  assert.ok(
+    grid.indexOf('picker-clock') < grid.indexOf('<ul className="picker-list">'),
+    'it must come before the mark list, not after it'
+  );
+});
+
+test('the Time tab shows every punch too, and never calls a running day short', () => {
+  /*
+   * *"yaha pe bhi sare log dekhne ka option do"* and *"out time abhi bhi aa
+   * raha he"*, both off the same screen.
+   */
+  const tab = src('components/TimeSheet.jsx');
+  assert.match(tab, /showPunches\(entry, dayPunches\)/, 'the one rule decides whether to show them');
+  assert.match(tab, /punchTimes\(dayPunches\)/, 'and the one formatter prints them');
+  assert.match(tab, /dayNotFinished\(\{/, 'a day still running must be recognised');
+  assert.match(tab, /still in/, 'and said in words, not reported as a missing out time');
+  // One person down the month is one request; one day across eighty is eighty,
+  // so that one is asked for.
+  assert.match(tab, /view !== 'day' && person\?\.employee_id/, 'the month view loads itself');
+  assert.match(tab, /onWantPunches/, 'the day view asks per person');
+});

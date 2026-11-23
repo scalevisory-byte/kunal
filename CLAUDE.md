@@ -2687,6 +2687,64 @@ clear.
   a browser on two stale days across two people: both corrected, RIYA's genuine HF (a real
   12:00 out time) untouched, and all three unclocked days still on Missing punch.
 
+## The sum behind a day, and nobody charged for a day still running (v2.3.0)
+
+Three messages off one screen: *"yaha click karne se uske time log bhi open ho esa ho sakta
+he, jisse −50 minute ka hisab mil sake"*, *"yaha pe bhi sare log dekhne ka option do"*, and
+*"out time abhi bhi aa raha he"*.
+
+### A day that cannot have finished yet has no departure — `dayNotFinished`
+
+**The third money bug in three releases, and the same family as the other two.** v2.0.0
+caught a last punch that is the return from lunch; v2.2.0 stopped a mark resting on a
+departure the code refused to write. What was still happening: somebody with only **two**
+punches was handed a departure and **charged a shortfall while they were at their desk**.
+ANURAG VERMA read 10:49 → 15:37 and **−252 minutes** at 16:14, with two hours of his day
+left. (That figure is in his screenshot, and the test reproduces it to the minute.)
+
+- The rule is the one sentence always true: **you cannot have finished your day before your
+  day's length has gone by.** Until then the departure is not known, nothing is charged and
+  nothing is paid.
+- **It only ever looks at TODAY**, so no stored day can move; there is a test for a past day
+  being judged identically whatever time the import runs. `LATEST_FINISH` (22:00) stops an
+  afternoon shift whose arrival + hours lands past midnight from never resolving.
+- The Time tab says **still in** instead of "no out". The read side cannot know — the column
+  is simply empty — but that screen has the day, the month and their shift, so it can.
+- `summary.stillIn` rides into the dry run.
+
+### And the importer was judging everybody against the office day
+
+Found while testing the above: `punchesToMarks` used `period.hours_per_day` for the half-day
+line and the full day. **v1.82 made the shift length personal and `hoursForEmployee` the one
+answer to it — and this file was missed**, so a six-hour part-timer finishing exactly on time
+was docked three hours a day on the import path. `hasOwnShift` compares against the office day
+rather than asking whether the column is filled in, so everybody on the usual shift comes out
+byte for byte as before (there is a test asserting exactly that). The month-wide
+`fullDayMinutes`/`halfDayMinutes` constants were **deleted**, not left sitting unused — a dead
+constant beside a live one is how two answers come to exist.
+
+### Clicking a day says where its minutes came from
+
+`DayPicker` gained a clock block: the four times, the sum **in words** (*"8h 05m worked
+against 9h 00m expected, after taking the 40-minute lunch out = −55 minutes by the clock"*),
+and every punch that day.
+
+- **It ASSEMBLES** — `readTimes` and `minutesForMark`, the same two functions the Time tab,
+  the server and the payslip use, so it cannot become a second opinion about the day.
+- **A figure typed over the clock says so**: *"this day carries −50, not the −30 the clock
+  comes to"*. Without that line the sum reads as not adding up, which is worse than no sum.
+- **It sits ABOVE the fourteen mark buttons.** Put below them it measured at 922px in a card
+  1442 tall — the "feature nobody can find" mistake for the tenth time. A test pins the order.
+- `.picker-clock` / `.picker-times` got real CSS. **Fifth time** for the invented-class trap,
+  so it was checked before writing rather than after.
+
+### The Time tab shows every punch too
+
+Under the out time, by the same `showPunches` / `punchTimes` the statement and the portal use.
+**One person down the month is ONE request, so it loads itself; one day across eighty people
+would be eighty, so there it is a `log` button per row.** A row whose person has no punch ID
+says so rather than showing an empty list.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

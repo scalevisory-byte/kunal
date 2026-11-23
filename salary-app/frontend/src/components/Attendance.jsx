@@ -8,7 +8,8 @@ import {
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
-import { formatDuration, monthTotals } from '../../../shared/timesheet.js';
+import { formatDuration, minutesForMark, monthTotals, readTimes } from '../../../shared/timesheet.js';
+import { punchTimes } from '../../../shared/punchLog.js';
 import { isWeeklyOff, policyFor } from '../../../shared/weeklyOff.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import AttendanceStatement from './AttendanceStatement.jsx';
@@ -625,6 +626,9 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
             period={period}
             entry={entryOf(row, picker.day)}
             perMinute={row.per_minute}
+            row={row}
+            hoursPerDay={hoursForEmployee(row, { period })}
+            deductLunch={!period.lunch_paid}
             onChange={(patch) => setEntry(picker.employeeId, picker.day, patch)}
             onClose={() => setPicker(null)}
           />
@@ -975,11 +979,56 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
 }
 
 /** The menu for one day: the mark by name, then that day's short hours. */
-function DayPicker({ codes, picker, period, entry, perMinute, onChange, onClose }) {
+function DayPicker({
+  codes, picker, period, entry, perMinute, row, hoursPerDay = 9, deductLunch = true,
+  onChange, onClose,
+}) {
   const [custom, setCustom] = useState('');
+  const [punches, setPunches] = useState(null);
   const date = new Date(period.year, period.month - 1, picker.day);
   const rate = Number(perMinute) || 0;
   const cost = (mins) => Math.round(Math.abs(mins) * rate);
+
+  /*
+   * WHERE THE MINUTES CAME FROM.
+   *
+   * Dinesh, hovering a cell reading "P / −50": *"yaha click karne se uske
+   * time log bhi open ho esa ho sakta he, jisse −50 minute ka hisab mil
+   * sake"*. The figure was on the grid and the sum behind it was two screens
+   * away.
+   *
+   * It ASSEMBLES, it does not recalculate. `readTimes` and `minutesForMark`
+   * are the same two functions the Time tab, the server and the payslip use,
+   * so this cannot become a second opinion about the day.
+   */
+  const read = readTimes(entry, { deductLunch });
+  const fromClock = minutesForMark(entry, {
+    hoursPerDay,
+    code: entry.code || '',
+    deductLunch,
+  });
+  const expected = Math.round(Number(hoursPerDay) * 60);
+  /* A figure somebody typed over the clock. Saying so is the whole point:
+     otherwise the sum below reads as not adding up. */
+  const typedOver = read.worked !== null && entry.minutes !== fromClock;
+
+  /* The day's punches, fetched only when somebody actually asks. The office
+     route; a month at a time, because that is what it answers. */
+  const loadPunches = async () => {
+    if (punches !== null || !row?.employee_id) return;
+    try {
+      const got = await api.get(`/employees/${row.employee_id}/punches?period_id=${period.id}`);
+      setPunches(got);
+    } catch {
+      setPunches({ days: {}, matched_on: '', error: true });
+    }
+  };
+  useEffect(() => {
+    loadPunches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.employee_id, picker.day]);
+
+  const dayPunches = punches?.days?.[picker.day] || [];
 
   return (
     <div className="picker-backdrop" onClick={onClose}>
@@ -990,6 +1039,87 @@ function DayPicker({ codes, picker, period, entry, perMinute, onChange, onClose 
             {weekday(period.year, period.month, picker.day)} {picker.day}{' '}
             {date.toLocaleString('en-IN', { month: 'long' })}
           </span>
+        </div>
+
+        {/*
+          * THE SUM, SPELT OUT. Clock times, then the punches behind them,
+          * then what the minutes come to and whether anybody typed over it.
+          */}
+        <div className="picker-clock">
+          <div className="picker-minutes-head">
+            <strong>The clock on this day</strong>
+            <span className="muted small">
+              {read.worked === null ? 'hours not known' : formatDuration(read.worked)}
+            </span>
+          </div>
+
+          <div className="picker-times">
+            {[
+              ['In', entry.in_time],
+              ['Lunch out', entry.lunch_out],
+              ['Lunch in', entry.lunch_in],
+              ['Out', entry.out_time],
+            ].map(([label, at]) => (
+              <span key={label}>
+                <em>{label}</em>
+                <b>{String(at || '').trim() || '—'}</b>
+              </span>
+            ))}
+          </div>
+
+          {read.worked === null ? (
+            <p className="muted small">
+              {read.warning
+                ? `${read.warning} — so the hours are not known, and nothing is charged for them.`
+                : 'No clock times on this day, so the hours are not known. A dash is not nought hours.'}
+            </p>
+          ) : (
+            <p className="muted small">
+              {formatDuration(read.worked)} worked against {formatDuration(expected)} expected
+              {read.lunch > 0
+                ? read.lunchDeducted
+                  ? `, after taking the ${read.lunch}-minute lunch out`
+                  : `, with the ${read.lunch}-minute lunch inside the paid day`
+                : ''}
+              {' '}= <strong>{fromClock > 0 ? `+${fromClock}` : fromClock} minutes</strong> by the
+              clock.
+            </p>
+          )}
+
+          {typedOver ? (
+            <p className="note small">
+              This day carries <strong>{entry.minutes > 0 ? `+${entry.minutes}` : entry.minutes}</strong>,
+              not the {fromClock > 0 ? `+${fromClock}` : fromClock} the clock comes to — somebody
+              typed over it, and the typed figure is what the salary uses.
+            </p>
+          ) : null}
+
+          {/*
+            * The readers are door locks, so a day is six or eight openings and
+            * In/Out are only the first and the last. This is the answer to
+            * "I left at 6:30, that 5:45 one was tea".
+            */}
+          {dayPunches.length ? (
+            <>
+              <div className="picker-minutes-head">
+                <strong>Every punch that day</strong>
+                <span className="muted small">
+                  {dayPunches.length} punch{dayPunches.length === 1 ? '' : 'es'}
+                </span>
+              </div>
+              <p className="mono small">{punchTimes(dayPunches)}</p>
+              <p className="muted small">
+                Only the first and the last count towards the hours.
+              </p>
+            </>
+          ) : punches && !punches.matched_on ? (
+            <p className="muted small">
+              No punch ID on this employee, so no reader punch can reach them — any times above
+              were typed in.
+            </p>
+          ) : punches ? (
+            <p className="muted small">No reader punches held for this day.</p>
+          ) : null}
         </div>
 
         <ul className="picker-list">

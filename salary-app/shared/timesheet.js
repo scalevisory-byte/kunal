@@ -282,6 +282,54 @@ export function departureTime(arrival, departure, lunchReturn = '') {
   return end;
 }
 
+/*
+ * Past this hour, call the day finishable whatever the sum says. Without it a
+ * shift starting after lunch could never resolve: arrival + nine hours lands
+ * past midnight, "not finished" would hold all night, and the day would never
+ * be given a departure at all.
+ */
+const LATEST_FINISH = 22 * 60;
+
+/**
+ * Whether a day CANNOT HAVE FINISHED YET, so its last punch is somebody
+ * moving about rather than leaving.
+ *
+ * Dinesh, on the Time tab at twenty past four: *"out time abhi bhi aa raha
+ * he"*. v2.0.0 caught the clearest case - a last punch that is the return
+ * from lunch - but people with only two punches were still being handed a
+ * departure and CHARGED A SHORTFALL while they were sitting at their desks.
+ * ANURAG VERMA read 10:49 to 15:37 and −252 minutes at 16:14, on a day with
+ * two hours of it left to run.
+ *
+ * The rule is the one sentence that is always true: **you cannot have
+ * finished your day before your day's length has gone by.** Until then the
+ * departure is not known, nothing is charged and nothing is paid - and a
+ * later pull, once the day really is over, writes the real one.
+ *
+ * It only ever looks at TODAY. A day in the past is finished whatever it
+ * carries, so no stored month can move.
+ */
+export function dayNotFinished({
+  year, month, day, arrival,
+  hoursPerDay = 9, lunchMinutes = 0, deductLunch = true,
+  now = new Date(),
+} = {}) {
+  const sameDate =
+    now.getFullYear() === Number(year) &&
+    now.getMonth() + 1 === Number(month) &&
+    now.getDate() === Number(day);
+  if (!sameDate) return false;
+
+  const start = typeof arrival === 'number' ? arrival : parseTime(arrival);
+  if (start === null) return false;
+
+  const needed =
+    Math.round(Number(hoursPerDay) * 60) +
+    (deductLunch ? Math.max(0, Number(lunchMinutes) || 0) : 0);
+  const couldFinishAt = Math.min(start + needed, LATEST_FINISH);
+  return now.getHours() * 60 + now.getMinutes() < couldFinishAt;
+}
+
 /** True once a day has enough typed on it to be worth anything. */
 export const hasTimes = (times = {}) => TIME_FIELDS.some((f) => parseTime(times[f]) !== null);
 
