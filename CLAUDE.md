@@ -3015,6 +3015,34 @@ missing is the mirror of the Overtime section that was already there.
   three on overtime below — the two releases working together.
 - Tests proved by deleting the `short` list: 3 of them fail.
 
+### A name on the Time tab opens that person's month (v2.9.1)
+
+Dinesh: *"yaha pe name pe click kare to pure month ka in out report dikhe wese karo"*.
+
+- **The view already existed** — *One person, whole month* is the pill at the top of the Time
+  tab, and it draws every in and out for the month. Reaching it meant scrolling back up and
+  finding the name in a select of eighty-five. **THIRTEENTH time for that shape.**
+- `openPerson(id)` sets the **same two pieces of state** the toggle and the select already set
+  (`setPersonId` + `setView('month')`), rather than growing a third way of saying who is on
+  screen. The name is a `<button className="link">` — the established generic, not a new class.
+- **Only in the day view.** In the month view that column is a DATE, and a date that opened
+  somebody's month would be nonsense; `onOpenPerson` is null there and the label stays plain.
+  Pinned by a test, along with the handler and the button.
+- Driven: day view → click SUHANI KAPADNIS → month view, 30 rows, header reads *Day*, the
+  person picker shows her name, every day reads 10:14 → 19:03, 8h 49m, −11m.
+
+### He compared two different days (answered, no change)
+
+*"abdul last out 19:58 / attendnce me 17:14 / how?"*, with two screenshots. They are two
+different days, and **his own screenshots prove it**: the lunch windows differ (13:37–14:16
+against 11:06–12:10), which one day cannot have. The Attendance menu's own header said
+**Sat 21 November**; the Time tab in *One day, everybody* opens on today, the 23rd, and its
+date picker had scrolled off the top of his crop. Both figures check out — the 21st is
+09:04→17:14 = 8h 10m = −50 (the grid shows `P −50`), the 23rd is 10:50→19:58 = 9h 08m = +8,
+forgiven by that month's 15-minute grace, so a dash. **Recomputed before answering rather
+than assumed.** Offered to put the date into the Time tab's table header so it survives a
+scroll; not built unasked.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

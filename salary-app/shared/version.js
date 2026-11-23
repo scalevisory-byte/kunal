@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.9.0';
+export const VERSION = '2.9.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.9.1',
+    date: '24 Nov 2026',
+    title: 'A name on the Time tab opens that person\u2019s whole month',
+    items: [
+      '**Click anybody\u2019s name on the Time tab and you get their every in and out for the month.** Dinesh: *\u201cyaha pe name pe click kare to pure month ka in out report dikhe wese karo\u201d*. It switches to the **One person, whole month** view that was already there \u2014 the same one the toggle at the top opens \u2014 with that person already chosen.',
+      'Before this, getting there meant scrolling back up and finding the name in a list of eighty-five. The view was built; the way in was not.',
+      'The name only opens somebody in the **day** view. In the month view that column is a date, and a date that opened somebody\u2019s month would make no sense.',
+    ],
+  },
   {
     version: '2.9.0',
     date: '23 Nov 2026',

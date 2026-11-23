@@ -199,7 +199,7 @@ export const HELP = [
     id: 'time-tab',
     title: 'Typing in, lunch and out times',
     tab: 'time',
-    keywords: ['time', 'in out', 'lunch', 'clock', 'working hours', 'samay', 'ghante', 'timing', 'late', 'early', 'overtime', 'short hours', 'usual timings'],
+    keywords: ['time', 'in out', 'lunch', 'clock', 'working hours', 'samay', 'ghante', 'timing', 'late', 'early', 'overtime', 'short hours', 'usual timings', 'name pe click', 'pure month', 'month ka in out', 'whole month'],
     lines: [
       'The **Time** tab takes four times a day: in, lunch out, lunch in, out. Type them however you like — `9:30`, `930`, `9.30`, `6pm`, `18:30` all read.',
       'out − in − lunch is compared with the day’s expected hours, and the difference becomes that day’s short hours or overtime.',
@@ -207,6 +207,7 @@ export const HELP = [
       '**Fill the usual timings** writes them onto the days that have nothing on them. It never overwrites a day somebody has already typed.',
       '**Somebody on a different shift gets THEIR hours, not the office’s.** Set them on the employee record — Employees, open the name, *Shift starts* and *Shift ends*. The strip says how many people on screen have their own before you press Fill. A night shift is filled with no lunch break, because the office’s break falls outside it.',
       '**One day, everybody** or **One person, whole month** — the pill at the top left. Day mode has the day stepper and a search; month mode has a person picker.',
+      '**Click a name in the day view** and it opens that person\u2019s whole month — every in and out, day by day. The same view the pill opens, with them already chosen.',
       '**Import from Excel** is on the same bar: your own sheet of hours, previewed before anything is written.',
       'Whether the lunch break comes off the day is the tick beside them.',
       'A day with an in time and no out time is **shaded and flagged “no out”** — it used to look exactly like an empty day.',

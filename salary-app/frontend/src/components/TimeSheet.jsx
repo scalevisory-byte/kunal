@@ -50,6 +50,16 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   const [view, setView] = useState('day'); // 'day' = everybody today, 'month' = one person
   const [day, setDay] = useState(isThisMonth ? today.getDate() : 1);
   const [personId, setPersonId] = useState(rows[0]?.employee_id || null);
+
+  /*
+   * One press from a name on the day view to that person's whole month. It
+   * sets the SAME two pieces of state the toggle and the select above set,
+   * rather than growing a third way of saying which person is on screen.
+   */
+  const openPerson = (id) => {
+    setPersonId(id);
+    setView('month');
+  };
   const [query, setQuery] = useState('');
   const [importing, setImporting] = useState(false);
   const [draft, setDraft] = useState({}); // "employeeId:day" -> the four times
@@ -941,6 +951,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
                 onClear={() => clearDay(line.row, line.day)}
                 punches={punchBook[line.row.employee_id]}
                 onWantPunches={() => wantPunches(line.row.employee_id)}
+                onOpenPerson={view === 'day' ? () => openPerson(line.row.employee_id) : null}
               />
             ))}
             {!lines.length && (
@@ -995,7 +1006,9 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   );
 }
 
-function TimeRow({ line, period, view, locked, entry, read, onSet, onClear, punches, onWantPunches }) {
+function TimeRow({
+  line, period, view, locked, entry, read, onSet, onClear, punches, onWantPunches, onOpenPerson,
+}) {
   const mark = String(entry.code || '').toUpperCase();
   const monthly = useMemo(() => {
     if (view !== 'day') return null;
@@ -1052,7 +1065,31 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear, punc
         .join(' ') || undefined}
     >
       <td className="sticky-name">
-        {line.label}
+        {/*
+          * THE NAME IS THE WAY INTO THAT PERSON'S WHOLE MONTH.
+          *
+          * Dinesh: *"yaha pe name pe click kare to pure month ka in out
+          * report dikhe wese karo"*. The view already existed - "One person,
+          * whole month" is the toggle at the top - but reaching it meant
+          * going back up and picking the name out of a select of eighty-five.
+          * Thirteenth time for that shape: a feature you can only reach from
+          * a control that does not look like one.
+          *
+          * Only in the day view: in the month view the label is a DATE, and
+          * a date that opened somebody's month would be nonsense.
+          */}
+        {onOpenPerson ? (
+          <button
+            type="button"
+            className="link"
+            title={`${line.label} — every in and out this month`}
+            onClick={onOpenPerson}
+          >
+            {line.label}
+          </button>
+        ) : (
+          line.label
+        )}
         {line.sub && <span className="hint">{line.sub}</span>}
       </td>
       <td className="num muted" title={ATTENDANCE_CODES[mark]?.label || 'No mark yet'}>

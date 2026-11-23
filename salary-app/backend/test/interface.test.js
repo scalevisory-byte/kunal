@@ -3990,3 +3990,28 @@ test('a name too long for the column is cut off inside the cell', () => {
   /* An inline element cannot be given a max-width. */
   assert.match(rule[0], /display: inline-block/);
 });
+
+
+/*
+ * "yaha pe name pe click kare to pure month ka in out report dikhe wese karo"
+ *
+ * The view already existed - "One person, whole month" is the toggle at the
+ * top of the Time tab - but reaching it meant scrolling back up and finding
+ * the name in a select of eighty-five. THIRTEENTH time for that shape: a
+ * feature reachable only from a control that does not look like one.
+ */
+test('a name on the Time tab opens that person\u2019s whole month', () => {
+  const tab = src('components/TimeSheet.jsx');
+  /* One handler, setting the SAME two pieces of state the toggle and the
+     select above set - not a third way of saying who is on screen. */
+  assert.match(tab, /const openPerson = \(id\) => \{[\s\S]{0,120}setPersonId\(id\);[\s\S]{0,60}setView\('month'\);/);
+  /* Only in the day view: in the month view that cell is a DATE, and a date
+     that opened somebody's month would be nonsense. */
+  assert.match(tab, /onOpenPerson=\{view === 'day' \? \(\) => openPerson\(line\.row\.employee_id\) : null\}/);
+  /* And it has to LOOK like a way in, which is the whole point. */
+  const cell = tab.slice(tab.indexOf('{onOpenPerson ? ('));
+  const upTo = cell.slice(0, cell.indexOf('</td>'));
+  assert.match(upTo, /<button/);
+  assert.match(upTo, /className="link"/);
+  assert.match(upTo, /onClick=\{onOpenPerson\}/);
+});
