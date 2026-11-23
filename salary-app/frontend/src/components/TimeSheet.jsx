@@ -91,6 +91,21 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   const hoursOf = (row) => hoursForEmployee(row, { period });
 
   /*
+   * THE MONTH'S OWN ANSWER ON WHETHER THE BREAK COMES OFF THE DAY.
+   *
+   * This screen never asked. `timesToDay` and `minutesForMark` both default
+   * to deducting, so on a month with "Lunch is inside the day" ticked - which
+   * is how this office runs - the Time tab showed 8h 20m and -40m for a
+   * nine-hour day, AND SAVED IT: the tab sends `minutes`, and a caller that
+   * names minutes beats the server's own figure.
+   *
+   * `calc.js`, `db.js` and `localStore.js` all read `period.lunch_paid`
+   * already. This screen was the one that did not, and it is the one people
+   * type into.
+   */
+  const deductLunch = !period.lunch_paid;
+
+  /*
    * THE SCREEN MUST SHOW WHAT THE SHEET CHARGES, not what the clock says on
    * its own. `timesToDay` knows the hours; only `minutesForMark` knows what
    * the day's MARK does with them - a shortfall on a Sunday, on leave or on a
@@ -103,10 +118,14 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
    */
   const judge = (row, d) => {
     const entry = entryOf(row, d);
-    const day = timesToDay(entry, { hoursPerDay: hoursOf(row) });
+    const day = timesToDay(entry, { hoursPerDay: hoursOf(row), deductLunch });
     return {
       ...day,
-      minutes: minutesForMark(entry, { hoursPerDay: hoursOf(row), code: entry.code || day.code }),
+      minutes: minutesForMark(entry, {
+        hoursPerDay: hoursOf(row),
+        code: entry.code || day.code,
+        deductLunch,
+      }),
     };
   };
 
@@ -123,7 +142,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         const [employeeId, d] = key.split(':').map(Number);
         const row = rows.find((r) => r.employee_id === employeeId);
         const merged = { ...(row?.attendance?.[d] || {}), ...times };
-        const worked = timesToDay(merged, { hoursPerDay: hoursOf(row || {}) });
+        const worked = timesToDay(merged, { hoursPerDay: hoursOf(row || {}), deductLunch });
         const current = String(row?.attendance?.[d]?.code || '').toUpperCase();
         // Only a mark that says nothing in particular gives way to the clock.
         const code = worked.code && AUTO_MARKS.has(current) ? worked.code : current;
@@ -137,7 +156,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           minutes:
             worked.worked === null
               ? Number(row?.attendance?.[d]?.minutes) || 0
-              : minutesForMark(merged, { hoursPerDay: hoursOf(row || {}), code }),
+              : minutesForMark(merged, { hoursPerDay: hoursOf(row || {}), code, deductLunch }),
           ...times,
         };
       });
@@ -272,7 +291,7 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   );
 
   /* What the usual timings come to against the day the month is paid on. */
-  const usual = timesToDay(standard, { hoursPerDay: period.hours_per_day });
+  const usual = timesToDay(standard, { hoursPerDay: period.hours_per_day, deductLunch });
   /*
    * The lunch break: recorded, or taken off the day?
    *
@@ -674,7 +693,9 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
               {TIME_FIELDS.map((field) => (
                 <th key={field}>{TIME_LABELS[field]}</th>
               ))}
-              <th title="Out − in, less the lunch break">Worked</th>
+              <th title={deductLunch ? 'Out − in, less the lunch break' : 'Out − in; the break sits inside the paid day'}>
+                Worked
+              </th>
               <th title="Against the day's expected hours">+ / −</th>
               {view === 'day' && <th title="Hours worked so far this month">Month so far</th>}
               <th />
@@ -724,7 +745,14 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
       </ScrollFrame>
 
       <p className="muted small">
-        Worked hours are <strong>out − in, less the lunch break</strong>. Anything more or less than
+        {/* It said "less the lunch break" on every month, including the ones
+            that pay the break - contradicting the line at the top of the same
+            screen. */}
+        Worked hours are{' '}
+        <strong>
+          {deductLunch ? 'out − in, less the lunch break' : 'out − in; the break sits inside the paid day'}
+        </strong>
+        . Anything more or less than
         the day's {days(period.hours_per_day)} hours goes into that day's OT/LT minutes, which the
         salary sheet pays or deducts at the per-minute rate — a few minutes either way is ignored.
         {/* Half of the month's OWN day, not a fixed 4½ - that was only right
@@ -744,7 +772,10 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
   const monthly = useMemo(() => {
     if (view !== 'day') return null;
     const stored = line.row.attendance || {};
-    return monthTotals(Object.values(stored), { hoursPerDay: hoursForEmployee(line.row, { period }) });
+    return monthTotals(Object.values(stored), {
+      hoursPerDay: hoursForEmployee(line.row, { period }),
+      deductLunch: !period.lunch_paid,
+    });
   }, [line.row, period, view]);
 
   /*
@@ -777,6 +808,24 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
             label={TIME_LABELS[field]}
             onCommit={(next) => onSet({ [field]: next })}
           />
+          {/*
+            * HOW LONG THE BREAK WAS, under the minute they came back.
+            *
+            * Dinesh: *"lunch ka time bhi dikhavo kitni minute liya o"*. The
+            * two clock times were there and the length was not, so reading it
+            * meant subtracting in your head, eighty-six times.
+            *
+            * It says whether it comes OFF the hours, because that is the
+            * whole of what it costs and it is the month's own setting: on a
+            * month where the break sits inside the paid day the figure is a
+            * record and nothing else.
+            */}
+          {field === 'lunch_in' && read.lunch > 0 ? (
+            <span className="ts-lunch-len" title={read.lunchDeducted ? 'taken off the hours worked' : 'inside the paid day - not deducted'}>
+              {formatDuration(read.lunch)}
+              {read.lunchDeducted ? ' off' : ''}
+            </span>
+          ) : null}
         </td>
       ))}
       <td className="num strong">{read.worked === null ? '-' : formatDuration(read.worked)}</td>
@@ -800,10 +849,12 @@ function TimeRow({ line, period, view, locked, entry, read, onSet, onClear }) {
           */}
         {read.warning ? (
           <span
-            className={`pill ${/^no (in|out) time$|^one punch/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
+            className={`pill ${/^no (in|out) time$|^one punch|^back from lunch/.test(read.warning) ? 'warn-pill' : 'error-pill'}`}
             title={read.warning}
           >
-            {read.warning.startsWith('one punch')
+            {read.warning.startsWith('back from lunch')
+              ? 'still in'
+              : read.warning.startsWith('one punch')
               ? 'one punch'
               : read.warning === 'no out time'
               ? 'no out'

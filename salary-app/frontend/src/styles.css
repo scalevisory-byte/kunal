@@ -5841,3 +5841,20 @@ h3.spaced { margin-top: 1.5rem; }
   font-variant-numeric: tabular-nums;
   white-space: normal;
 }
+
+/*
+ * How long the lunch break was, under the minute they came back.
+ *
+ * Small and muted: the two clock times are the record and this is the sum
+ * anybody would otherwise do in their head. It sits inside the cell rather
+ * than taking a tenth column, which would have run the Time tab off a laptop.
+ */
+.ts-lunch-len {
+  display: block;
+  margin-top: 0.05rem;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}

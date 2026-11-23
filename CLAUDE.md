@@ -2514,6 +2514,59 @@ existed twice over and could not be found either way, which is exactly what he r
   'where is it' this help exists to answer"** — and then the person it was written for asked
   where it was. Corrected, with the old wording kept in the comment as the reason.
 
+## An out time that was not one, and the lunch the Time tab was charging for (v2.0.0)
+
+Dinesh, on his live Time tab: *"jab shift khatamnahi hui to out me time kyu aa rah ahe"* and
+*"and lunch ka ime bhi dikhavo kitni minute liya o"*.
+
+### The last punch of a day still running is the return from lunch
+
+ABDULHAK BHENSWALA at twenty to three in the afternoon: punches 10:50, 13:37, 14:16. Earliest
+is the arrival, latest is 14:16 — **which is him coming back, not leaving**. With the lunch
+finder now setting 13:37–14:16, the day read as in 10:50, out 14:16, **worked 2h 47m**: a
+finished short day, for somebody sitting at his desk.
+
+- **`departureTime` gained a third argument, the lunch return.** Nobody returns from lunch and
+  leaves in the same minute, so that minute is a return and the departure is not known. The
+  same knowledge is applied on the READ side in `readTimes`, so a day that arrived before this
+  release, or was typed by hand, reads the same way.
+- The row says **still in**, the hours are `—` and nothing is charged. The warning is ordered
+  BEFORE the plain "no out time", because both are true and only one says why — the "check"
+  pill lesson again.
+- The break itself stays on the record and is still measured; only the departure goes.
+
+### THE MONEY BUG THAT QUESTION FOUND
+
+**The Time tab never read `period.lunch_paid`.** `timesToDay` and `minutesForMark` both default
+to deducting the break, so on a month with "Lunch is inside the day" ticked — which is how this
+office runs, and the strip at the top of that very screen said so — a 09:30–18:30 day with a
+40-minute lunch read **8h 20m and −40m** instead of **9h 00m and nothing**.
+
+**And it SAVED that.** `queueSave` sends `minutes`, and `setAttendance` leaves a caller's own
+minutes alone (`if (anyTime && !('minutes' in entry))`), so the screen's wrong figure beat the
+server's correct one. `calc.js`, `db.js` and `localStore.js` all read the setting already; this
+one screen did not, and it is the one people type into.
+
+- Fixed in all six places on that screen plus the two other totals (`Attendance.jsx`,
+  `Dashboard.jsx`), and `db.js`'s own `timesToDay` for the auto-mark.
+- **A test now refuses any `timesToDay` / `minutesForMark` / `monthTotals` call in
+  `TimeSheet.jsx` that does not pass `deductLunch`.** The existing test pinned the call
+  WITHOUT it — exactly the bug — and was **rewritten to state the new rule**, not patched.
+- **Test-regex trap worth remembering:** the first version of that sweep was
+  `/\([^)]*\{[^}]*\}/`, which stops at the first `)` and so cut `hoursOf(row || {})` in half
+  and failed on a perfectly correct call. It scans with balanced brackets now. A naive match
+  there would have had me "fixing" working code.
+- The footnote said "less the lunch break" on every month, contradicting the line at the top of
+  the same screen. It follows the setting now.
+
+### How long the break was
+
+`.ts-lunch-len` under the LUNCH IN cell: `40m`, or `40m off` where the month takes it out of the
+hours, with the reason on hover. Inside the cell rather than a tenth column, which would have
+run the Time tab off a laptop. `readTimes` already returned `lunch` and `lunchDeducted` — the
+figures existed and were never shown, so reading one meant subtracting in your head
+eighty-six times.
+
 ## Open questions put to Dinesh and still unanswered
 1. **PT on Sunday pay** — the sheet charges PT on the month's gross, which excludes Sunday
    pay. Including it would move exactly two people in April (Mahesh Shinde, Riya Pal) and

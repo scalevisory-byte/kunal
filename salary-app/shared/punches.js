@@ -338,7 +338,8 @@ export function punchesToMarks({
        */
       out_time: departureTime(
         seen.in === null ? '' : formatTime(seen.in),
-        seen.out === null ? '' : formatTime(seen.out)
+        seen.out === null ? '' : formatTime(seen.out),
+        seen.lunchIn === null ? '' : formatTime(seen.lunchIn)
       ),
       // Only when the sheet named those columns. `setAttendance` merges per
       // field, so leaving them out keeps whatever is already on the day.

@@ -247,3 +247,49 @@ test('a day with one punch SAYS SO rather than going quiet', () => {
   assert.equal(night.worked, 480);
   assert.equal(night.overnight, true);
 });
+
+test('THE LAST PUNCH OF A DAY STILL RUNNING IS THE RETURN FROM LUNCH', () => {
+  /*
+   * ABDULHAK BHENSWALA, on Dinesh's screen at twenty to three in the
+   * afternoon: punches 10:50, 13:37, 14:16. Earliest is the arrival, latest
+   * is 14:16 — which is him coming BACK, not leaving. It read as in 10:50,
+   * lunch 13:37–14:16, out 14:16, worked 2h 47m: a finished short day, for
+   * somebody sitting at his desk. *"jab shift khatam nahi hui to out me time
+   * kyu aa raha he"*.
+   *
+   * Nobody returns from lunch and leaves in the same minute.
+   */
+  assert.equal(departureTime('10:50', '14:16', '14:16'), '', 'the return is not a departure');
+  assert.equal(departureTime('10:50', '18:30', '14:16'), '18:30', 'a real evening still counts');
+  assert.equal(departureTime('10:50', '14:16', ''), '14:16', 'with no lunch there is nothing to compare');
+
+  // And the reader says the same about a day however it got there.
+  const day = timesToDay(
+    { in_time: '10:50', lunch_out: '13:37', lunch_in: '14:16', out_time: '14:16' },
+    { hoursPerDay: 9 }
+  );
+  assert.equal(day.worked, null, 'the hours are not known yet');
+  assert.equal(day.minutes, 0, 'so nothing is charged or paid');
+  assert.match(day.warning, /back from lunch/);
+
+  // The break itself is still on the record, and still measured.
+  assert.equal(day.lunch, 39);
+});
+
+test('the lunch length is reported, and whether it comes off the hours', () => {
+  const inside = timesToDay(
+    { in_time: '09:30', lunch_out: '13:00', lunch_in: '13:40', out_time: '18:30' },
+    { hoursPerDay: 9, deductLunch: false }
+  );
+  assert.equal(inside.lunch, 40, 'the break is measured either way');
+  assert.equal(inside.lunchDeducted, 0, 'but not taken off a month that pays it');
+  assert.equal(inside.worked, 540);
+
+  const taken = timesToDay(
+    { in_time: '09:30', lunch_out: '13:00', lunch_in: '13:40', out_time: '18:30' },
+    { hoursPerDay: 9, deductLunch: true }
+  );
+  assert.equal(taken.lunch, 40);
+  assert.equal(taken.lunchDeducted, 40);
+  assert.equal(taken.worked, 500, 'exactly the break, nothing else');
+});

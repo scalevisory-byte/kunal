@@ -1034,7 +1034,48 @@ test("the office's usual timings add up to the day, and say so", () => {
    * everybody and nothing on the page had ever shown the sum. A mismatch is
    * stated before the button, not discovered on the payslip.
    */
-  assert.match(tab, /const usual = timesToDay\(standard, \{ hoursPerDay: period\.hours_per_day \}\)/);
+  /*
+   * ...ON THE MONTH'S OWN LUNCH SETTING.
+   *
+   * This assertion used to pin the call WITHOUT `deductLunch`, which is
+   * exactly what was wrong: `timesToDay` and `minutesForMark` both default to
+   * deducting, so on a month with "Lunch is inside the day" ticked the Time
+   * tab read a nine-hour day as 8h 20m and -40m — and SAVED it, because the
+   * tab sends `minutes` and a caller that names minutes beats the server's
+   * own figure. calc.js, db.js and localStore.js all read `period.lunch_paid`
+   * already; this screen was the one that did not, and it is the one people
+   * type into. Rewritten to state that, not patched to pass.
+   */
+  assert.match(tab, /const usual = timesToDay\(standard, \{ hoursPerDay: period\.hours_per_day, deductLunch \}\)/);
+  assert.match(tab, /const deductLunch = !period\.lunch_paid;/);
+  /*
+   * And NOTHING on this screen may judge a day without it.
+   *
+   * Scanned with balanced brackets rather than a regex: the first attempt was
+   * /\([^)]*\{[^}]*\}/, which stops at the first ')' and so cut
+   * `hoursOf(row || {})` in half and failed on a call that was perfectly
+   * correct. A naive match here would have had me "fixing" working code.
+   */
+  for (const name of ['timesToDay', 'minutesForMark', 'monthTotals']) {
+    let at = 0;
+    for (;;) {
+      const start = tab.indexOf(`${name}(`, at);
+      if (start < 0) break;
+      let depth = 0;
+      let end = start + name.length;
+      for (; end < tab.length; end++) {
+        if (tab[end] === '(') depth++;
+        else if (tab[end] === ')' && --depth === 0) break;
+      }
+      const call = tab.slice(start, end + 1);
+      at = end + 1;
+      assert.match(
+        call,
+        /deductLunch/,
+        `this call decides hours without the month's lunch setting:\n${call}`
+      );
+    }
+  }
   assert.match(tab, /SHORT of the/);
   assert.match(tab, /every day filled this way is docked/);
   assert.match(tab, /OVER the/);

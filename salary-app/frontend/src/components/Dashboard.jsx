@@ -725,6 +725,7 @@ export default function Dashboard({
         /* Each person against their own day's length, so the month's
            short/overtime totals add up to what the sheet actually charges. */
         const month = monthTotals(Object.values(marks), {
+          deductLunch: !period.lunch_paid,
           hoursPerDay: hoursForEmployee(row, { period }),
         });
         hours.days += month.days;

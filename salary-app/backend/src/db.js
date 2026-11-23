@@ -2865,7 +2865,7 @@ export const setAttendance = db.transaction((periodId, entries) => {
      * left alone: it has already applied the rule and may have its own.
      */
     if (anyTime && !('minutes' in entry)) {
-      const judged = timesToDay(times, { hoursPerDay: hoursFor(employeeId) });
+      const judged = timesToDay(times, { hoursPerDay: hoursFor(employeeId), deductLunch });
       minutes = judged.minutes;
       /*
        * The mark is only set from the hours when the day is blank or carries a

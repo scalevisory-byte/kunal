@@ -159,6 +159,14 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
    * `out === in`: nobody clocks out at the same minute of the next day.
    */
   const oneTouch = at.in !== null && at.out !== null && at.out === at.in;
+  /*
+   * The same rule as `departureTime` above, on the READ side: a day whose
+   * out time is the minute they came back from lunch has no departure on it,
+   * however it got there - imported before this release, or typed by hand.
+   */
+  const backFromLunch =
+    at.out !== null && at.lunchIn !== null && at.out === at.lunchIn;
+  if (backFromLunch) at.out = null;
   if (at.in !== null && at.out !== null && !oneTouch) {
     gross = at.out - at.in;
     if (gross < 0) {
@@ -183,6 +191,14 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
     warning = 'only one lunch time is filled, so no break was taken off';
   } else if (at.in === null && at.out !== null) {
     warning = 'no in time';
+  } else if (backFromLunch) {
+    /*
+     * BEFORE the plain "no out time", because this one says WHY there is
+     * none. Both are true; only this one tells somebody what happened, and a
+     * column that reads the same for every cause is the "check" pill all over
+     * again.
+     */
+    warning = 'back from lunch - no out time';
   } else if (at.out === null && at.in !== null) {
     warning = 'no out time';
   } else if (oneTouch) {
@@ -243,11 +259,26 @@ export function readTimes(times = {}, { deductLunch = true } = {}) {
  * Compared as the TEXT that gets written, so 10:50:01 and 10:50:59 are one
  * punch: they are the same minute on every screen that shows them.
  */
-export function departureTime(arrival, departure) {
+export function departureTime(arrival, departure, lunchReturn = '') {
   const start = String(arrival ?? '').trim();
   const end = String(departure ?? '').trim();
+  const back = String(lunchReturn ?? '').trim();
   if (!end) return '';
   if (start && end === start) return '';
+  /*
+   * AND THE LAST PUNCH OF A DAY STILL RUNNING IS THE RETURN FROM LUNCH.
+   *
+   * Punches 10:50, 13:37, 14:16 at twenty to three in the afternoon: the
+   * earliest is the arrival and the latest is 14:16, which is them coming
+   * BACK, not leaving. Dinesh, looking at exactly that: *"jab shift khatam
+   * nahi hui to out me time kyu aa raha he"*.
+   *
+   * It showed as in 10:50, lunch 13:37-14:16, out 14:16, worked 2h 47m - a
+   * finished short day, for somebody who was sitting at their desk. Nobody
+   * returns from lunch and leaves in the same minute, so that minute is a
+   * return and the departure is not known yet.
+   */
+  if (back && end === back) return '';
   return end;
 }
 

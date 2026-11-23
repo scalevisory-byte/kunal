@@ -536,11 +536,12 @@ export const HELP = [
     keywords: ['missing punch', 'no out time', 'punch', 'hajri time', 'in out missing'],
     lines: [
       'Reports → **Missing punch**: days somebody was at work and the times do not add up.',
+      'The lunch break\u2019s **length** shows under the minute they came back, on the Time tab \u2014 and whether it comes off the hours, which is the month\u2019s own setting.',
       'Four kinds, counted apart — in with no out, out with no in, half a lunch, and nothing at all.',
       'The people with the most are named at the top.',
       'The readers are door locks, so a normal day has many punches and the first and the last are taken as the arrival and the departure. **Somebody who went through once has an arrival and nothing else**, and the out time is left blank rather than guessed at — those days land here to be typed in by hand.',
     ],
-    note: 'A day with the SAME minute in both the in and the out column is one punch, not a day \u2014 the row says "one punch" on the Time tab, and the Time tab can clear all of them at once. NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
+    note: 'An out time that is the minute somebody came BACK from lunch is not a departure \u2014 the day is still running, and the row says "still in". A day with the SAME minute in both the in and the out column is one punch, not a day \u2014 the row says "one punch" on the Time tab, and the Time tab can clear all of them at once. NOTHING HERE IS A DEDUCTION. Every one of these days is already paid, whatever the sheet made of it — it is a list of things to go and ask about. And a day NOBODY clocked is not the same as a day HALF clocked: the first may be a job where nobody punches, the second is a record that is wrong.',
   },
   {
     id: 'deductions-report',

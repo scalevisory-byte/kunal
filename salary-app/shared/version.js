@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '1.99.0';
+export const VERSION = '2.0.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.0.0',
+    date: '23 Nov 2026',
+    title: 'An out time that was not one, and the lunch the Time tab was charging for',
+    items: [
+      '**A day still running no longer shows an out time.** Punches 10:50, 13:37, 14:16 at twenty to three in the afternoon: the last one is them coming BACK from lunch, not leaving. It read as a finished 2h 47m day for somebody sitting at their desk. Nobody returns from lunch and leaves in the same minute \u2014 the row now says **still in**, and the day lands on Reports \u2192 Missing punch.',
+      '**How long the lunch was is now on the screen**, under the minute they came back \u2014 `40m`, or `40m off` on a month that takes the break out of the hours. The two clock times were there and the length was not, so reading it meant subtracting in your head, eighty-six times.',
+      '**A REAL MONEY BUG, found by that question.** The Time tab never read the month\u2019s own \u201cLunch is inside the day\u201d setting. It always took the break off \u2014 so on this office\u2019s months a 09:30\u201318:30 day with a 40-minute lunch read **8h 20m and \u221240m** instead of **9h 00m and nothing**, AND SAVED IT: the tab sends its own figure, and that beats the server\u2019s.',
+      'The salary engine, the server and the offline file all read that setting already. This one screen did not \u2014 and it is the screen people type into. Every figure on it now follows the month, with a test that refuses any calculation on that page that does not.',
+      'The footnote said \u201cless the lunch break\u201d on every month, contradicting the line at the top of the same screen. It now says what the month actually does.',
+    ],
+  },
   {
     version: '1.99.0',
     date: '23 Nov 2026',
