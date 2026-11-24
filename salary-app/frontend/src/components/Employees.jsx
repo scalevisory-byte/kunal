@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
-import { openOnboarding } from '../../../shared/onboarding.js';
+import { bankDetailsMissing, openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
 import { DEFAULT_TEMPLATE, applyTemplate } from '../../../shared/structure.js';
 import EmployeeProfile from './EmployeeProfile.jsx';
@@ -899,7 +899,9 @@ export default function Employees({
                         left
                       </span>
                     )}
-                    {!emp.bank_account && <span className="pill todo" title="No bank details yet">bank?</span>}
+                    {bankDetailsMissing(emp) && (
+                      <span className="pill todo" title="Paid by bank transfer with no account number yet">bank?</span>
+                    )}
                     <button
                       className="ghost tiny"
                       title="Their own report — attendance, leave and pay, month by month"

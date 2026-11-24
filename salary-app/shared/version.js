@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.25.0';
+export const VERSION = '2.26.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.26.0',
+    date: '24 Nov 2026',
+    title: 'A flag that could never be cleared, and a code nobody was reading',
+    items: [
+      '**The employee code is no longer printed under every name on the roll call.** Dinesh: *\u201cemployee id nikal do na\u201d*. It doubled the height of the name cell for a figure nobody is looking for on that page. Hover the name and it is still there.',
+      '**Everybody paid in cash wore a \u201cbank?\u201d marker they could never clear.** The employee list flagged anybody with no account number \u2014 cash included \u2014 while the joining checklist beside it deliberately skips the bank step for exactly those people. So the two screens said different things about the same person, and the flag was permanent. A marker that is always on stops being read. Both now read one rule; somebody paid by transfer with no account is still flagged.',
+      '**Nothing else on the tab was wrong, and that is now measured**: every figure on the staff list \u2014 name, company, designation, punch ID, shift, department, religion, born, joined, left, salary, PF, ESI, payment mode \u2014 was matched one by one against the record behind it across 285 cells, with no mismatch. Search, the company filter, the sticky name column and the record drawer were all driven, with no error anywhere.',
+    ],
+  },
   {
     version: '2.25.0',
     date: '24 Nov 2026',

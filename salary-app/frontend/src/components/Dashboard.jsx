@@ -1878,9 +1878,19 @@ export default function Dashboard({
               <tbody>
                 {shownRows.map((p) => (
                   <tr key={p.id} className={`r${p.rank}`}>
-                    <td className="sticky-name" title={p.employee_name}>
+                    {/*
+                      * THE EMPLOYEE CODE IS NOT PRINTED UNDER THE NAME.
+                      * Dinesh: *"employee id nikal do na"*. The roll call is
+                      * read down the names; a code under every one of them
+                      * doubled the height of the cell for a figure nobody is
+                      * looking for there. It rides on the title instead, so
+                      * it is one hover away rather than gone.
+                      */}
+                    <td
+                      className="sticky-name"
+                      title={p.employee_code ? `${p.employee_name} · ${p.employee_code}` : p.employee_name}
+                    >
                       {p.employee_name}
-                      {p.employee_code ? <div className="muted small">{p.employee_code}</div> : null}
                     </td>
                     {/*
                       * The MARK, in words. "What" beside it is why somebody is

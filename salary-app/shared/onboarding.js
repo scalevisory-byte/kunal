@@ -110,6 +110,24 @@ const filled = (employee, key) => {
 };
 
 /**
+ * IS THIS PERSON PAID INTO A BANK AT ALL?
+ *
+ * Somebody paid in cash has no bank details to be missing, and the onboarding
+ * step for them is skipped for exactly that reason - *"saying otherwise is
+ * noise"*. The employee list carried a `bank?` flag on anybody with no
+ * account number, cash included, so every cash-paid person wore a marker
+ * that could never be satisfied. A flag that is always on stops being read.
+ *
+ * One rule, exported, so the checklist and the list cannot disagree about
+ * who is actually missing a bank account.
+ */
+export const paidInCash = (employee = {}) => /cash/i.test(employee.payment_mode || '');
+
+/** Do they need bank details, and are they missing? */
+export const bankDetailsMissing = (employee = {}) =>
+  !paidInCash(employee) && !clean(employee.bank_account);
+
+/**
  * Where this person is. Steps carry their own missing and malformed lists, so
  * the UI can show one section at a time rather than a wall of red.
  */
@@ -166,7 +184,7 @@ export function openOnboarding(employees = []) {
     .filter((employee) => employee.active !== 0)
     .map((employee) => ({
       employee,
-      status: onboardingStatus(employee, { paidInCash: /cash/i.test(employee.payment_mode || '') }),
+      status: onboardingStatus(employee, { paidInCash: paidInCash(employee) }),
     }))
     .filter(({ status }) => !status.complete)
     .sort((a, b) => String(b.employee.joined_on || '').localeCompare(String(a.employee.joined_on || '')));

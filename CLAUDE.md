@@ -2251,6 +2251,51 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The Employees tab audited, and a flag nobody could clear (v2.26.0)
+
+Dinesh: *"employees tab ka bhi check karo"*, and mid-audit *"employee id nikal do na"* with a
+crop of the roll call.
+
+**The list itself is right, and that is now measured.** Every figure on the staff table —
+name, company, designation, punch ID, shift in and out, department, religion, born, joined,
+left, salary, PF, ESI, payment mode — matched one by one against the record behind it:
+**285 cells, no mismatch.** Search narrows to one and clears back to nineteen; the leaver is
+off the list and behind *Past employees*; the **name column stays pinned** at `left: 0` with
+the last column still reachable when the 1,991px table is scrolled fully right; the Punch ID
+panel opens unfolded (v1.89.0 holding); no console error anywhere; no sideways page scroll.
+
+### THE DEFECT: `bank?` on everybody paid in cash
+
+The list flagged anybody with no account number — `!emp.bank_account`, unconditional. The
+joining checklist beside it **deliberately skips the bank step for cash**, with its own
+comment: *"Cash in hand needs no bank details, and saying otherwise is noise."* So the two
+screens said different things about the same person, and **the flag could never be cleared**:
+a cash employee would wear it for ever. Reproduced by setting one to Cash — the checklist
+reported the bank step `skipped: true, done: true` while the pill stayed on the row.
+
+`paidInCash` and `bankDetailsMissing` are exported from `shared/onboarding.js` and both
+screens read them, so they cannot drift again. Somebody paid by transfer with no account is
+still flagged, and so is somebody with no payment mode chosen yet — a transfer is still the
+assumption until it is not. Driven after the change: the cash row clean, the eighteen on
+transfer still marked.
+
+### The employee code under every name
+
+The roll call printed `BNF-EMP-0048` under each name. It is on the cell's **title** instead —
+one hover away rather than gone — and the row went **32px → 26px**, which is the v2.22.0
+compaction continuing for free.
+
+**The test pins both**, with the first one stated as the rule rather than the fix: a cash
+employee is never missing bank details, a transfer with no account is, the checklist and the
+list agree on the same record, and the roll call's name cell carries no code line while its
+title still does. Proved by putting both bugs back: 2 of 5 fail.
+
+**Harness notes.** `.tab-body` does not exist in this app — an earlier sweep only worked
+because it fell back to `document.body`; the employee table is found by its own `NAME`
+header. `p.evaluate(fn, null, 1)` is "too many arguments", not a JSON.stringify indent. And a
+sensitive-column sweep reported `pan` on the table: **COM-PAN-Y** matched it, which is the
+substring trap and not a leak — there is no PAN column there.
+
 ### The Reports tab audited — four reports that were all the same one (v2.25.0)
 
 Dinesh: *"reports tab ka bhi check karo"*. Every entry opened in a real browser, every money
