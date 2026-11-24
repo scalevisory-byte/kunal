@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.19.0';
+export const VERSION = '2.19.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.19.1',
+    date: '24 Nov 2026',
+    title: 'Punch totals says the same thing the log does',
+    items: [
+      '**Punch totals** was still worded for one feed \u2014 *\u201cevery punch the readers recorded\u201d*, *\u201cpeople the readers saw\u201d* \u2014 on a screen that was plainly showing punches from somebody\u2019s own login. It now names all three, like the log does.',
+      '**Somebody with no Punch ID now shows a real count** once they punch from their own login, instead of a dash, and they stop being counted under *cannot be reached at all*. The line explaining that figure says so, rather than claiming no punch can ever find them.',
+      'The **punch log\u2019s person picker** offers everybody, not only the people a reader can match \u2014 their punches were on screen and could not be narrowed to.',
+      'No figure changed: these were the words, not the counts.',
+    ],
+  },
   {
     version: '2.19.0',
     date: '24 Nov 2026',

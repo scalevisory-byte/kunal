@@ -2313,6 +2313,21 @@ blank name, which reads as a fault.
 `dayPunches` test pinned `{matched_on:'', days:{}}` as a whole object, which encoded the early
 return, and was **rewritten to state the rule** rather than repointed.
 
+### Punch totals, checked on screen (v2.19.1)
+
+Dinesh: *"punch totals me bhi check karo dikh raha he ya nahi"*. It was — HARISH read
+**12 punches, 3 days, “Bizcompass spool, Their own login”**, both feeds added on one line —
+and looking at it found the same stale wording the log had: *"every punch the readers
+recorded"*, *"people the readers saw"*. **Second panel in one release written for one feed**,
+so there is now a test that both name all three (comments stripped first).
+
+Driven for the case his live system is actually in — somebody with **no Punch ID at all**
+punching from their own login: KIRAN went from a dash to **1 punch, “Their own login”**, and
+the *cannot be reached at all* figure fell from 1 to 0. That falls out of the merge rather
+than being coded: `counted` is `punches !== null`, and a phone punch gives a number. The
+sentence under it no longer claims *"no punch will ever find them"* — only that no READER
+can, which is still true and is still the office's job to fix.
+
 ## Punching from the staff portal, and today's date (v2.18.0)
 
 Dinesh, looking at HARISH signed into the staff portal: *"punch in wala kaha he"*, then

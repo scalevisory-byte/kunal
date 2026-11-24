@@ -11,7 +11,9 @@ import { toCsv } from '../../../shared/statutory.js';
  * bhi banana / o sirf dekhne k liye hoga"*. So: no buttons that change
  * anything, no marks written, nothing to approve.
  *
- * It counts the RAW events the readers recorded. What a punch becomes —
+ * It counts the RAW events, from every feed - the readers, the Bizcompass
+ * spool, and anybody punching from their own login or punch link. What a
+ * punch becomes —
  * present, half day, the hours — is `punchesToMarks`' job and lives on the
  * grid, which is what the sheet is paid from. The two can never disagree
  * because they are not asked the same question.
@@ -90,7 +92,7 @@ export default function PunchTotals({ period, onGo }) {
   const print = () =>
     printReport({
       title: 'Punch totals',
-      subtitle: `${month} · counted from the readers, not from attendance`,
+      subtitle: `${month} · the raw count, not attendance`,
       columns: [
         col('Employee', (r) => r.employee_name, 3),
         col('Punch ID', (r) => r.punch_id || r.code || '—', 1),
@@ -107,7 +109,9 @@ export default function PunchTotals({ period, onGo }) {
     <section className="card">
       <h2>Punch totals — how many punches each person has</h2>
       <p className="muted small">
-        Every punch the readers recorded in <strong>{month}</strong>, counted per person. This is
+        Every punch in <strong>{month}</strong>, counted per person, from all three feeds — the
+        door readers, the Bizcompass spool, and anybody punching from their own login or punch
+        link. The <em>Seen by</em> column says which of them a person was seen on. This is
         the <strong>raw count</strong>, not attendance: what a punch becomes — present, half day,
         the hours — is worked out separately and lives on the attendance grid, which is what the
         salary is paid from. <strong>Nothing here changes anything.</strong>
@@ -116,7 +120,7 @@ export default function PunchTotals({ period, onGo }) {
       <div className="late-figs">
         <span><b>{n(totals.punches)}</b> <em>punches this month</em></span>
         <span><b>{n(totals.days)}</b> <em>days covered</em></span>
-        <span><b>{n(totals.reaching)}</b> <em>people the readers saw</em></span>
+        <span><b>{n(totals.reaching)}</b> <em>people with punches</em></span>
         <span className={totals.silent ? 'charge' : undefined}>
           <b>{n(totals.silent)}</b> <em>have a number but no punches</em>
         </span>
@@ -149,9 +153,10 @@ export default function PunchTotals({ period, onGo }) {
       {totals.unreachable > 0 ? (
         <p className="note small">
           <strong>{totals.unreachable}</strong> {totals.unreachable === 1 ? 'person has' : 'people have'}{' '}
-          no Punch ID and an employee code the readers cannot match, so no punch will ever find
-          them. Their count reads <strong>—</strong>, not 0 — nobody has looked, so nothing was
-          counted.{' '}
+          no Punch ID and an employee code the readers cannot match, so <strong>no reader</strong>
+          can find them. Their count reads <strong>—</strong>, not 0 — nobody has looked, so
+          nothing was counted. They can still punch from their own login or punch link, which
+          needs no number; the moment they do, a real count appears here instead.{' '}
           {onGo ? (
             <button type="button" className="ghost" onClick={() => onGo('employees')}>
               Fill the numbers in →

@@ -4379,3 +4379,41 @@ test('THE PUNCH BUTTON IS FIRST ON THE PORTAL, above the day it reports on', () 
   /* And it posts to the door where the LOGIN says who is punching. */
   assert.match(dash, /api\.post\('\/me\/punch'/);
 });
+
+test('THE PUNCH PANELS NAME ALL THREE FEEDS, not just the readers', () => {
+  /*
+   * Both of these were written when there was one feed, and both still said
+   * so after phone punches joined them: the log was headed *"every punch the
+   * readers recorded"* and the totals counted *"people the readers saw"*,
+   * on screens that were plainly showing punches from somebody's own login.
+   *
+   * Twice in one release is a drift worth pinning rather than re-reading.
+   * Comments are stripped first, so an explanation of the old wording cannot
+   * pass for the wording itself.
+   */
+  const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  for (const file of ['components/PunchLog.jsx', 'components/PunchTotals.jsx']) {
+    const body = strip(src(file));
+    assert.match(body, /own login or punch link/, `${file} does not mention the phone feed`);
+    assert.match(body, /Bizcompass/, `${file} does not mention the spool`);
+    assert.ok(
+      !/every punch the readers recorded/i.test(body),
+      `${file} still calls the log the readers' own record`
+    );
+    assert.ok(
+      !/people the readers saw/i.test(body),
+      `${file} still counts only what the readers saw`
+    );
+  }
+});
+
+test('a person with no Punch ID can still be picked in the punch log', () => {
+  /*
+   * The picker filtered to people a reader could match, which was right
+   * while that was the only way a punch could arrive. Their punches were on
+   * the screen and could not be narrowed to.
+   */
+  const body = src('components/PunchLog.jsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  const pickable = body.slice(body.indexOf('const pickable'), body.indexOf('if (STANDALONE)'));
+  assert.ok(!/device_code/.test(pickable), 'the picker still excludes people with no Punch ID');
+});
