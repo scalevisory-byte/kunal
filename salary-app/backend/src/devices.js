@@ -29,6 +29,7 @@ import { monthForAuto } from './bizcompass.js';
 import { log } from './logger.js';
 import { pullAttendance, testDevice } from './zk/client.js';
 import { DEFAULT_PORT } from '../../shared/zkProtocol.js';
+import { localStamp } from '../../shared/punchClock.js';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS punch_devices (
@@ -567,33 +568,72 @@ export function punchesByDay(employee, { year, month }) {
   const own = String(employee?.device_code || '').trim();
   const code = String(employee?.code || '').trim();
   const id = own || (/^\d+$/.test(code) ? code : '');
-  if (!id) return { matched_on: '', days: {} };
-
-  // 0037 and 37 are one enrolment, so the lookup strips leading zeros on both
-  // sides rather than comparing the text.
-  const bare = id.replace(/^0+(?=\d)/, '');
   const m = String(Number(month)).padStart(2, '0');
-  const rows = db.prepare(`
-    SELECT p.punched_at AS at, p.source AS source,
-           COALESCE(d.name, '') AS device_name
-      FROM device_punches p
-      LEFT JOIN punch_devices d ON d.id = p.device_id
-     WHERE p.punched_at LIKE ?
-       AND (p.device_code = ? OR LTRIM(p.device_code, '0') = ?)
-     ORDER BY p.punched_at
-  `).all(`${Number(year)}-${m}-%`, id, bare);
-
   const days = {};
-  for (const r of rows) {
-    const day = Number(r.at.slice(8, 10));
-    if (!Number.isFinite(day)) continue;
-    (days[day] ||= []).push({
-      // The seconds are kept. A day with two punches in the same minute reads
-      // as the same time twice unless they can be told apart, and that is the
-      // day most in need of explaining - it is why the out time is blank.
-      at: r.at.slice(11, 19),
-      where: r.device_name || (r.source.startsWith('bizcompass') ? 'reader' : ''),
-    });
+
+  /*
+   * The seconds are kept throughout. A day with two punches in the same
+   * minute reads as the same time twice unless they can be told apart, and
+   * that is the day most in need of explaining - it is why the out time is
+   * blank.
+   */
+  const add = (at, where) => {
+    const day = Number(String(at).slice(8, 10));
+    if (!Number.isFinite(day)) return;
+    (days[day] ||= []).push({ at: String(at).slice(11, 19), where });
+  };
+
+  /* What the READERS saw, if any of them can reach this person at all.
+     0037 and 37 are one enrolment, so the lookup strips leading zeros on
+     both sides rather than comparing the text. */
+  if (id) {
+    const bare = id.replace(/^0+(?=\d)/, '');
+    const rows = db.prepare(`
+      SELECT p.punched_at AS at, p.source AS source,
+             COALESCE(d.name, '') AS device_name
+        FROM device_punches p
+        LEFT JOIN punch_devices d ON d.id = p.device_id
+       WHERE p.punched_at LIKE ?
+         AND (p.device_code = ? OR LTRIM(p.device_code, '0') = ?)
+       ORDER BY p.punched_at
+    `).all(`${Number(year)}-${m}-%`, id, bare);
+    for (const r of rows) {
+      add(r.at, r.device_name || (r.source.startsWith('bizcompass') ? 'reader' : ''));
+    }
   }
-  return { matched_on: own ? 'punch_id' : 'code', id, days };
+
+  /*
+   * AND WHAT THEY PUNCHED THEMSELVES, which needs no reader number at all.
+   *
+   * This runs even when `id` is empty - the whole point of a phone punch is
+   * that it names its person, so somebody no reader can reach still has a
+   * record here. Returning early on a missing punch ID, as this used to,
+   * hid their own punches from them on their own page.
+   *
+   * Stored as ISO, which is UTC, so it goes through `localStamp` rather than
+   * being sliced: in India that is five and a half hours, and an arrival
+   * would read as the middle of the night.
+   */
+  if (employee?.id) {
+    const mine = db.prepare(`
+      SELECT p.at AS at, p.source AS source
+        FROM punch_events p
+       WHERE p.employee_id = ?
+       ORDER BY p.at
+    `).all(employee.id);
+    const want = `${Number(year)}-${m}`;
+    for (const r of mine) {
+      const at = localStamp(r.at);
+      if (!at.startsWith(want)) continue;
+      add(at, r.source === 'portal' ? 'their login' : 'their punch link');
+    }
+  }
+
+  // One day can now hold both feeds, so the order is restored per day.
+  for (const day of Object.keys(days)) days[day].sort((a, b) => a.at.localeCompare(b.at));
+
+  /* `matched_on` is still about the READERS - it answers "can a machine in
+     the corridor find this person", which is a job for the office whatever
+     they punch from their own phone. */
+  return { matched_on: own ? 'punch_id' : id ? 'code' : '', id, days };
 }

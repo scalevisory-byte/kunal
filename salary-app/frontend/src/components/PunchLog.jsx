@@ -36,14 +36,20 @@ export default function PunchLog({ period, employees = [], onGo }) {
       .catch((err) => setError(err.message || 'could not be read'));
   }, [month, day, who]);
 
-  /* Only people the readers could ever match are worth offering: picking
-     somebody with no Punch ID would always return nothing and read as a
-     fault in the log rather than a missing number. */
+  /*
+   * EVERYBODY, not only the people a reader can match.
+   *
+   * This used to offer only those with a Punch ID or a numeric code, on the
+   * reasoning that anybody else would always return nothing. That stopped
+   * being true the moment phone punches joined this log: somebody with no
+   * Punch ID at all can now have a month of their own punches in it, and
+   * leaving them out of the picker meant their punches were on the screen
+   * and could not be narrowed to.
+   */
   const pickable = useMemo(
     () =>
       employees
         .filter((e) => e.active !== 0 && !e.is_draft)
-        .filter((e) => String(e.device_code || '').trim() || /^\d+$/.test(String(e.code || '').trim()))
         .sort((a, b) => String(a.name).localeCompare(String(b.name))),
     [employees]
   );
@@ -65,12 +71,16 @@ export default function PunchLog({ period, employees = [], onGo }) {
 
   const header = (
     <>
-      <h2>Punch log — every punch the readers recorded</h2>
+      <h2>Punch log — every punch, whatever recorded it</h2>
       <p className="muted small">
-        One line per punch in <strong>{month}</strong>, newest first. The readers are on the doors,
-        so a normal day is six or eight openings. This is the <strong>raw record</strong>, not
-        attendance: what a punch becomes is worked out separately and lives on the attendance grid,
-        which is what the salary is paid from. <strong>Nothing here changes anything.</strong>
+        One line per punch in <strong>{month}</strong>, newest first, from all three feeds:
+        the <strong>readers on the doors</strong> (so a normal day is six or eight openings),
+        the <strong>Bizcompass spool</strong>, and anybody punching from <strong>their own login
+        or punch link</strong>. The <em>Seen by</em> column says which. A punch from a phone has
+        no reader number, so its Punch ID is blank — it named the person instead.
+        This is the <strong>raw record</strong>, not attendance: what a punch becomes is worked
+        out separately and lives on the attendance grid, which is what the salary is paid from.
+        <strong> Nothing here changes anything.</strong>
       </p>
       <div className="row gap wrap">
         <label>
@@ -114,7 +124,7 @@ export default function PunchLog({ period, employees = [], onGo }) {
     );
   }
 
-  const { rows, shown, total, more, counts, spool, limit } = report;
+  const { rows, shown, total, more, counts, spool, limit, phone = 0 } = report;
 
   const table = rows.map((r) =>
     PUNCH_LOG_COLUMNS.map(({ key }) => {
@@ -136,7 +146,7 @@ export default function PunchLog({ period, employees = [], onGo }) {
   const print = () =>
     printReport({
       title: 'Punch log',
-      subtitle: `${month}${day ? ` · day ${day}` : ''} · the readers' own record, not attendance`,
+      subtitle: `${month}${day ? ` · day ${day}` : ''} · the raw record, not attendance`,
       columns: [
         col('Date', (r) => r.date, 1),
         col('Time', (r) => r.time, 1),
@@ -215,19 +225,36 @@ export default function PunchLog({ period, employees = [], onGo }) {
         </p>
       ) : null}
 
+      {/*
+        * WHERE A MONTH'S PUNCHES CAME FROM, one feed at a time.
+        *
+        * Written as a list rather than a sentence because there are three of
+        * them now and the sentence had started contradicting itself - it
+        * said "all of these came from readers" and then counted some that
+        * had come from phones. A feed missing from here is a feed nobody
+        * knows is running, which on a quiet day reads as a fault.
+        */}
       <p className="muted small">
         Where they came from:{' '}
-        {spool.error
-          ? `the Bizcompass folder could not be read — ${spool.error}. `
-          : spool.files
-            ? `${n(spool.read)} from ${n(spool.files)} Bizcompass file(s); `
-            : 'no Bizcompass folder is set on this server, so all of these came '}
-        {spool.files || spool.error
-          ? 'the rest from readers the app collects from itself.'
-          : 'from readers the app collects from itself.'}
-        {/* An imported month holds the spool's punches as rows AND still has
-            the files they came from. Saying so stops "read 3" beside a count
-            of 1 reading as punches going missing. */}
+        {[
+          /* Everything with a reader number behind it - whether the app
+             collected it itself or read it out of a Bizcompass file. */
+          `${n(Math.max(0, counts.punches - phone))} from the door readers${
+            spool.error
+              ? ' (the Bizcompass folder could not be read)'
+              : spool.files
+                ? ` (${n(spool.read)} of them read from ${n(spool.files)} Bizcompass file(s))`
+                : ''
+          }`,
+          phone
+            ? `${n(phone)} from people punching on their own login or punch link, which needs no reader number at all`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('; ')}
+        .
+        {spool.error ? ` The folder said: ${spool.error}.` : ''}
+        {!spool.files && !spool.error ? ' No Bizcompass folder is set on this server.' : ''}
         {spool.already
           ? ` ${n(spool.already)} of the file's punches were already filed from an earlier import and are listed once, not twice.`
           : ''}

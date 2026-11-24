@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'daypunch-'));
-const { createEmployee, createCompany } = await import('../src/db.js');
+const { createEmployee, createCompany, db } = await import('../src/db.js');
 const { punchesByDay, saveSpoolPunches, savePunches, createDevice } = await import('../src/devices.js');
 
 const company = createCompany({ name: 'BNF' });
@@ -70,13 +70,41 @@ test('somebody matched on a numeric employee code is found; somebody unreachable
   assert.deepEqual(forRiya.days[20].map((p) => p.at), ['09:30:00']);
 
   /*
-   * KIRAN has no Punch ID and an employee code no reader will ever send. The
-   * honest answer is an empty map and NO id: nobody ever looked for him,
-   * which is not the same as him never punching. Guessing a match here would
-   * put somebody else's door openings on his statement.
+   * KIRAN has no Punch ID and an employee code no reader will ever send, and
+   * he has punched nothing from a phone either. The honest answer is an empty
+   * map and no id: nobody ever looked for him, which is not the same as him
+   * never punching. Guessing a match here would put somebody else's door
+   * openings on his statement.
+   *
+   * This test used to pin the whole object, which encoded an early return
+   * that has since gone - the phone punches below are read whatever the
+   * reader can or cannot do. It states the RULE now rather than the shape.
    */
   const forKiran = punchesByDay(kiran, NOV);
-  assert.deepEqual(forKiran, { matched_on: '', days: {} });
+  assert.equal(forKiran.matched_on, '', 'no reader can reach him, and that has not changed');
+  assert.deepEqual(forKiran.days, {});
+});
+
+test('SOMEBODY NO READER CAN REACH still sees what they punched themselves', () => {
+  /*
+   * The point of a phone punch is that it names its person, so it needs no
+   * reader number. Returning early on a missing Punch ID - which is what this
+   * did - hid somebody's own punches from them on their own page, which is
+   * precisely what Dinesh reported in v2.1.0 about the other half of this.
+   *
+   * Stored as ISO (UTC) and read back through `localStamp`, so the time is
+   * the one the clock on the wall showed.
+   */
+  const at = new Date(2026, 10, 21, 9, 42, 30); // 21 Nov 2026, local
+  db.prepare(
+    `INSERT INTO punch_events (employee_id, at, day, kind, located, note, source)
+     VALUES (?, ?, ?, 'in', 0, '', 'portal')`
+  ).run(kiran.id, at.toISOString(), at.toISOString().slice(0, 10));
+
+  const forKiran = punchesByDay(kiran, NOV);
+  assert.equal(forKiran.matched_on, '', 'a phone punch does not make a reader able to find him');
+  assert.deepEqual(forKiran.days[21].map((p) => p.at), ['09:42:30']);
+  assert.equal(forKiran.days[21][0].where, 'their login');
 });
 
 test('another month is not this month', () => {

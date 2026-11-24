@@ -2251,6 +2251,68 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+## Phone punches in the punch log — three feeds, one record (v2.19.0)
+
+Dinesh, straight after v2.18.0 named it as a known gap: *"punch log me bhi phone punch
+dikhao"*. `phonePunchesForMonth` in `attendanceSelf.js`, `localStamp` in `punchClock.js`,
+`resolverFor` in `punchTotals.js`.
+
+**The two stores and why they could not simply be concatenated.** `device_punches` holds what
+the readers and the Bizcompass spool collected and knows a **reader NUMBER**; `punch_events`
+holds what somebody punched from the portal or their link and knows the **PERSON**. Two things
+had to be right before one list could hold both:
+
+- **THE TIME.** `recordPunch` stores `at` as an ISO stamp, which is **UTC**, while every
+  reader's punch is the local string it printed. The attendance roll-up was always right
+  because `minutesOf` reads it through `getHours()`. **Anything reading the stored STRING is
+  not** — on his IST server a 09:42 arrival would have printed in the log as **04:12**, which
+  reads as a fault in the machine rather than a bug here. `localStamp` converts, and the test
+  file **runs under `TZ=Asia/Kolkata` on purpose**: in UTC the two formats are the same text
+  and a test written here would have proved nothing. It asserts the zone first, because if the
+  runner ignored TZ every other assertion would pass for the wrong reason.
+- **WHOSE PUNCH IT IS.** `resolverFor(people)` is the one answer: a punch carrying
+  `employee_id` is taken at its word, anything else goes through `matcherFor`. Written once
+  because it was about to be written three times (the log, the totals, the in/out register),
+  and three copies is how one screen comes to disagree with another about whose morning it was.
+  **Forcing a phone punch through a code would hang it on whoever carries that number, and
+  lose it entirely for everybody who carries none** — who are exactly the people punching from
+  a phone. HARISH, in his own screenshots, is one of them.
+
+- **`gatherPunches` merges them**, so the punch log, Punch totals and the in/out register all
+  get them from one place and cannot drift. It also returns `phone`, the count, because a feed
+  missing from the "where they came from" line is a feed nobody knows is running.
+- **An empty punch ID is NOT a number nobody carries.** `unknownIds` counts reader numbers that
+  reach nobody; a phone punch has no number at all, so counting its blank one would report a
+  reader sending blanks — a fault that is not happening, on the screen somebody opens to find
+  real ones.
+- **`punchTotals` tallies the two feeds under different keys and `lineFor` adds them up.** A
+  person whose `reach` is `none` now shows their own phone punches instead of a dash: `null`
+  means *"no punch can ever find them"*, which stops being true the moment they punch from
+  their own login, and a dash there sends the office hunting for a punch ID that would change
+  nothing.
+- **`punchesByDay` no longer returns early on a missing Punch ID.** That early return hid
+  somebody's own punches from them on their own page — the same complaint as v2.1.0's
+  *"employee me bhi nahi dikh rahe"*, one level down. `matched_on` keeps its meaning (it is
+  about the READERS) and the portal's *"no reader has a number for you"* line now appears only
+  when nothing of theirs is arriving at all, so somebody who punches from their phone is not
+  told their times were all typed in by hand.
+
+**Three screen bugs the browser run found, all the same family — wording written when there
+was one feed:**
+- The panel was headed *"every punch the readers recorded"*.
+- **The person picker excluded anybody without a Punch ID**, on the sound old reasoning that
+  they would always return nothing. Their punches were now on screen and could not be narrowed
+  to. It offers everybody.
+- The feed sentence read *"all of these came from readers"* and then counted some that had come
+  from phones. **Patched twice, then rewritten as a list of feeds**, which is what it is.
+
+A deleted employee's punch is listed as *"no longer on the staff list"* rather than with a
+blank name, which reads as a fault.
+
+**Proved by putting the gap back:** removing the merge fails 2 of the 12 new tests; the old
+`dayPunches` test pinned `{matched_on:'', days:{}}` as a whole object, which encoded the early
+return, and was **rewritten to state the rule** rather than repointed.
+
 ## Punching from the staff portal, and today's date (v2.18.0)
 
 Dinesh, looking at HARISH signed into the staff portal: *"punch in wala kaha he"*, then

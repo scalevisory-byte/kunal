@@ -63,16 +63,78 @@ export function matcherFor(people = [], { activeOnly = true } = {}) {
   return { staff, byId, who: (code) => byId.get(normalId(code)) || null };
 }
 
+/**
+ * Two tallies for one person into one, or null when there is neither.
+ *
+ * Null matters: it is what keeps "no punch can ever reach them" apart from
+ * "nothing arrived", and only the first is somebody's job to fix.
+ */
+function merge(tallies) {
+  const found = tallies.filter(Boolean);
+  if (!found.length) return null;
+  if (found.length === 1) return found[0];
+  const days = new Set();
+  const sources = new Set();
+  let punches = 0;
+  let first = '';
+  let last = '';
+  for (const t of found) {
+    punches += t.punches;
+    for (const d of t.days) days.add(d);
+    for (const sO of t.sources) sources.add(sO);
+    if (t.first && (!first || t.first < first)) first = t.first;
+    if (t.last && (!last || t.last > last)) last = t.last;
+  }
+  return { id: found[0].id, raw: found[0].raw, punches, days, sources, first, last };
+}
+
+/**
+ * WHOSE PUNCH IS THIS? — the one answer, for every screen that asks.
+ *
+ * Two feeds, two kinds of evidence. A reader knows a NUMBER, and who carries
+ * it is `matcherFor`'s job. A punch from a phone already knows the PERSON,
+ * because a login or a signed link said so, and it must be taken at its word:
+ * pushing it back through a punch ID would hang it on whoever carries that
+ * number, and lose it altogether for the many people who carry none - who are
+ * exactly the people punching from a phone.
+ *
+ * Written once because it was about to be written three times, in the log, in
+ * the totals and in the in/out register, and three copies of this is how one
+ * screen comes to disagree with another about whose morning it was.
+ */
+export function resolverFor(people = [], options = {}) {
+  const { who, staff } = matcherFor(people, options);
+  /* By id over the WHOLE list, not the active staff: a punch that names its
+     person is evidence about them whether or not they are still on the
+     payroll today. */
+  const byPerson = new Map(people.map((p) => [p.id, p]));
+  return {
+    staff,
+    person: (punch) =>
+      (punch?.employee_id ? byPerson.get(punch.employee_id) || null : who(punch?.code)),
+    /* The id even when the row has gone - the punch still happened. */
+    id: (punch, person) => (person ? person.id : punch?.employee_id || null),
+  };
+}
+
 export function punchTotals(punches = [], people = [], { activeOnly = true } = {}) {
   const { staff, byId } = matcherFor(people, { activeOnly });
 
   const seen = new Map(); // normalised id -> tally
   for (const punch of punches) {
-    const id = normalId(punch.code);
+    /*
+     * A PHONE PUNCH NAMES ITS PERSON; a reader's punch names a NUMBER.
+     *
+     * So the two are tallied under different keys and `lineFor` adds both
+     * up. Pushing a phone punch back through a punch ID would hang it on
+     * whoever carries that number - and lose it entirely for the many people
+     * who carry none, who are exactly the ones a phone punch exists for.
+     */
+    const id = punch.employee_id ? `emp:${punch.employee_id}` : normalId(punch.code);
     if (!id) continue;
     let tally = seen.get(id);
     if (!tally) {
-      tally = { id, raw: String(punch.code), punches: 0, days: new Set(), sources: new Set(), first: '', last: '' };
+      tally = { id, raw: String(punch.code || ''), punches: 0, days: new Set(), sources: new Set(), first: '', last: '' };
       seen.set(id, tally);
     }
     tally.punches += 1;
@@ -88,7 +150,9 @@ export function punchTotals(punches = [], people = [], { activeOnly = true } = {
     const own = normalId(person.device_code);
     const fallback = normalId(person.code);
     const id = own || (/^\d+$/.test(String(person.code || '').trim()) ? fallback : '');
-    const tally = id ? seen.get(id) : null;
+    /* Both halves of one person's month: what a reader saw of their number,
+       and what they punched from their own phone. */
+    const tally = merge([id ? seen.get(id) : null, seen.get(`emp:${person.id}`)]);
     return {
       employee_id: person.id,
       employee_name: person.name,
@@ -123,8 +187,11 @@ export function punchTotals(punches = [], people = [], { activeOnly = true } = {
       a.employee_name.localeCompare(b.employee_name)
   );
 
+  /* A phone punch always names somebody, so it can never be a number nobody
+     carries - the `emp:` keys are skipped here rather than listed as unknown
+     reader IDs, which is what they would otherwise read as. */
   const unknown = [...seen.values()]
-    .filter((t) => !byId.has(t.id))
+    .filter((t) => !String(t.id).startsWith('emp:') && !byId.has(t.id))
     .map((t) => ({
       id: t.raw,
       punches: t.punches,

@@ -137,6 +137,33 @@ const minutesOf = (iso) => {
   return Number.isNaN(d.getTime()) ? null : d.getHours() * 60 + d.getMinutes();
 };
 
+const pad = (n) => String(n).padStart(2, '0');
+
+/**
+ * A PHONE PUNCH'S TIME AS THE WALL CLOCK SHOWED IT.
+ *
+ * `recordPunch` stores `at` as an ISO stamp, which is **UTC** - and every
+ * other punch in the app is a local time string the reader printed. The
+ * attendance roll-up was always right, because `minutesOf` above reads it
+ * through `getHours()`, which is local.
+ *
+ * Anything that reads the stored STRING instead is not. On a server in India
+ * that is five and a half hours out: a nine o'clock arrival would print in
+ * the punch log as 03:42, which reads as a fault in the machine rather than
+ * as a bug here. So nothing may slice that string; it comes through here.
+ *
+ * Returns `YYYY-MM-DD HH:MM:SS` in the server's own zone - the same shape the
+ * readers and the Bizcompass spool produce, so one log can hold all three.
+ */
+export const localStamp = (iso) => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  );
+};
+
 /**
  * The day's in and out from however many punches there were.
  *

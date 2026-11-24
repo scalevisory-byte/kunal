@@ -615,8 +615,10 @@ export const HELP = [
     tab: 'reports',
     keywords: ['punch log', 'logs', 'log', 'sare log', 'raw punches', 'machine log', 'door log', 'punch list', 'history'],
     lines: [
-      'Reports → **Punch log**: every punch the readers recorded this month, one line each — date, time, punch ID, who it belongs to and which reader saw it. Newest first.',
-      'Narrow it to **one day** or **one person** from the boxes at the top.',
+      'Reports → **Punch log**: every punch this month, one line each — date, time, punch ID, who it belongs to and what saw it. Newest first.',
+      '**Three feeds, one list**: the door readers, the Bizcompass spool, and anybody punching from **their own login or punch link**. The *Seen by* column says which, and the line under the table says how many came from where.',
+      '**A punch from a phone has a blank Punch ID** — it has no reader number and needs none, because the login said who it was. That is not a missing number.',
+      'Narrow it to **one day** or **one person** from the boxes at the top — **everybody** is on that list now, including people no reader can reach, because they can still punch from their own login.',
       'It is **only to look at** — nothing on it changes anything.',
       'A punch on a number nobody on the staff list carries is **listed anyway**, and named as such. Those are usually the reason somebody opens this.',
       'A long month is shown a page at a time and it says how many more there are, so a short list never reads as the whole story.',

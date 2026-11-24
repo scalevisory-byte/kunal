@@ -8,7 +8,7 @@ import {
 } from './db.js';
 import { config } from './config.js';
 import { log } from './logger.js';
-import { judgePunch, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
+import { judgePunch, localStamp, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
 import {
   canCancel,
   canDecide,
@@ -102,6 +102,70 @@ export const listPunches = ({ employee_id, day, from, to, limit = 500 } = {}) =>
     .all(params)
     .map((row) => ({ ...row, located: !!row.located, inside_fence: row.inside_fence === null ? null : !!row.inside_fence }));
 };
+
+/**
+ * EVERY PHONE PUNCH OF A MONTH, in the shape the readers' punches arrive in.
+ *
+ * Dinesh: *"punch log me bhi phone punch dikhao"*. The punch log reads
+ * `device_punches` - our own readers plus the Bizcompass spool - and a punch
+ * from a phone has never been in it, so somebody who punched from the portal
+ * or their personal link simply was not in the record.
+ *
+ * TWO THINGS HAD TO BE RIGHT FOR THEM TO SHARE A LIST:
+ *
+ *   **The time.** These are stored as ISO, which is UTC; the readers store
+ *   the local string they printed. `localStamp` converts, because slicing the
+ *   stored text would print a nine o'clock arrival as 03:42 in India.
+ *
+ *   **Whose punch it is.** A reader knows a NUMBER and the log works out who
+ *   that is; a phone punch already knows the PERSON. So it travels with
+ *   `employee_id` on it and is never pushed back through a punch ID - forcing
+ *   it through a code would put it on whoever happens to carry that number,
+ *   or lose it entirely for the many people who have none.
+ *
+ * The month is the LOCAL one, so a punch either side of midnight is counted
+ * on the day it felt like, not the day UTC says it was.
+ */
+export function phonePunchesForMonth({ year, month }) {
+  const m = String(Number(month)).padStart(2, '0');
+  const want = `${Number(year)}-${m}`;
+
+  /* `day` on the row is derived from the ISO, so it is a UTC date. A day
+     either side covers every local punch of this month without having to
+     trust it. */
+  const from = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+  from.setUTCDate(from.getUTCDate() - 1);
+  const to = new Date(Date.UTC(Number(year), Number(month), 1));
+
+  const rows = db
+    .prepare(
+      `SELECT p.employee_id, p.at, p.kind, p.source, p.note
+         FROM punch_events p
+        WHERE p.day >= ? AND p.day <= ?
+        ORDER BY p.at`
+    )
+    .all(from.toISOString().slice(0, 10), to.toISOString().slice(0, 10));
+
+  const out = [];
+  for (const row of rows) {
+    const at = localStamp(row.at);
+    if (!at.startsWith(want)) continue;
+    out.push({
+      // No reader number: a phone punch names its person instead.
+      code: '',
+      employee_id: row.employee_id,
+      at,
+      kind: row.kind,
+      raw_source: `phone:${row.source || ''}`,
+      /* What the office reads in the "Seen by" column. The portal and the
+         personal link are the same act on two surfaces, and saying which is
+         the difference between "they punched" and "they punched from the
+         page they were already on". */
+      source: row.source === 'portal' ? 'Their own login' : 'Their punch link',
+    });
+  }
+  return out;
+}
 
 /**
  * The mark already on that day, uppercased, or '' when there is none.

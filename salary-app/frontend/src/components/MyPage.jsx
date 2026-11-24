@@ -737,7 +737,12 @@ function MyAttendance({ months, onError }) {
                 * has never been looked for at all, so "no punches" would
                 * read to them as the machine having missed them all month.
                 */}
-              {!data.punch_match ? (
+              {/*
+                * Only when NOTHING of theirs is arriving. Punching from their
+                * own login needs no reader number, so somebody who does that
+                * must not be told their times were all typed in by hand.
+                */}
+              {!data.punch_match && !Object.keys(punches).length ? (
                 <>
                   The door reader has no number for you yet, so none of its punches can reach your
                   record — ask the office to add your punch ID. Any times below were typed in.{' '}
@@ -1354,8 +1359,8 @@ function MyCalendar({ period, days: all = [], punches = {}, matched = '', what }
             </p>
           ) : (
             <p className="muted small">
-              {matched
-                ? 'No punches on the readers for this day.'
+              {matched || Object.keys(punches).length
+                ? 'Nothing punched on this day.'
                 : 'No punch ID is set against your record, so the readers have never been asked about you. Tell the office if you do punch.'}
             </p>
           )}

@@ -23,7 +23,7 @@
  * from; `matcherFor` decides whose it is, the same way every importer does.
  */
 
-import { matcherFor } from './punchTotals.js';
+import { resolverFor } from './punchTotals.js';
 import { normalId } from './punchIdReport.js';
 
 /** The most rows a page may carry. A month is tens of thousands of punches. */
@@ -50,13 +50,19 @@ const dayOf = (at) => {
 };
 
 /**
- * @param punches  [{ code, at, source }] — `at` sortable
+ * @param punches  [{ code, at, source, employee_id? }] — `at` sortable
  * @param people   the staff list
  * @param day      narrow to one day of the month, or 0 for all
  * @param employeeId  narrow to one person, or 0 for everybody
+ *
+ * A punch carrying `employee_id` already KNOWS whose it is - that is how a
+ * phone punch arrives, because the login or the link said so. It is taken at
+ * its word and never put back through a punch ID: a reader's number belongs
+ * to whoever carries it, and most of the staff carry none, so matching a
+ * phone punch by code would either lose it or hang it on somebody else.
  */
 export function punchLog(punches = [], people = [], { day = 0, employeeId = 0, limit = PUNCH_LOG_LIMIT } = {}) {
-  const { who } = matcherFor(people);
+  const resolve = resolverFor(people);
 
   const all = [];
   let unreadable = 0;
@@ -67,8 +73,11 @@ export function punchLog(punches = [], people = [], { day = 0, employeeId = 0, l
       continue;
     }
     if (day && when.day !== day) continue;
-    const person = who(punch.code);
-    if (employeeId && person?.id !== employeeId) continue;
+    const person = resolve.person(punch);
+    /* It may name somebody this list does not hold - a deleted employee. The
+       punch is still real, so it is listed, as an unmatched one is. */
+    const personId = resolve.id(punch, person);
+    if (employeeId && personId !== employeeId) continue;
     all.push({
       date: when.date,
       day: when.day,
@@ -76,8 +85,10 @@ export function punchLog(punches = [], people = [], { day = 0, employeeId = 0, l
       punch_id: String(punch.code ?? ''),
       // `null`, not a name and not an empty string: nobody carries this
       // number, and that is a fact worth reading as a fact.
-      employee_id: person ? person.id : null,
-      employee_name: person ? person.name : '',
+      employee_id: personId,
+      /* Named, or said to be unnameable. A blank name beside a real id reads
+         as a fault in the log rather than as somebody since removed. */
+      employee_name: person ? person.name : personId ? 'no longer on the staff list' : '',
       code: person ? person.code || '' : '',
       company_name: person ? person.company_name || '' : '',
       where: punch.source || '',
@@ -88,7 +99,12 @@ export function punchLog(punches = [], people = [], { day = 0, employeeId = 0, l
   all.sort((a, b) => (a.date === b.date ? b.time.localeCompare(a.time) : b.date.localeCompare(a.date)));
 
   const people_seen = new Set(all.filter((r) => r.employee_id).map((r) => r.employee_id));
-  const unknownIds = new Set(all.filter((r) => !r.employee_id).map((r) => normalId(r.punch_id)));
+  /* Only a READER NUMBER can be one nobody carries. A phone punch has no
+     number at all, so an empty punch ID must never be counted as one - it
+     would read as a reader sending blanks. */
+  const unknownIds = new Set(
+    all.filter((r) => !r.employee_id && r.punch_id).map((r) => normalId(r.punch_id))
+  );
 
   return {
     // Capped, and the caller is TOLD by how much. A list silently cut short

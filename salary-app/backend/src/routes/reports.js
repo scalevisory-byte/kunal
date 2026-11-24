@@ -38,8 +38,9 @@ import {
   unknownIds,
   updateDevice,
 } from '../devices.js';
+import { phonePunchesForMonth } from '../attendanceSelf.js';
 import { matchPunchIds } from '../../../shared/punchIdMatch.js';
-import { PUNCH_TOTAL_COLUMNS, matcherFor, punchTotals } from '../../../shared/punchTotals.js';
+import { PUNCH_TOTAL_COLUMNS, matcherFor, punchTotals, resolverFor } from '../../../shared/punchTotals.js';
 import { PUNCH_LOG_COLUMNS, PUNCH_LOG_LIMIT, punchLog } from '../../../shared/punchLog.js';
 import * as XLSX from 'xlsx';
 import { CSV_COLUMNS, statutoryReport, toCsv } from '../../../shared/statutory.js';
@@ -535,7 +536,24 @@ function monthOf(text) {
 }
 
 function gatherPunches({ year, month }) {
-  const punches = punchEventsForMonth({ month, year });
+  /*
+   * THREE FEEDS, ONE RECORD.
+   *
+   * Our own readers and the Bizcompass spool both speak in reader NUMBERS;
+   * a punch from a phone - the portal or a personal link - names the PERSON,
+   * because a login or a signed link said who it was. They were separate
+   * records until Dinesh asked for the obvious: *"punch log me bhi phone
+   * punch dikhao"*. Somebody who punched from their phone was simply not in
+   * the log, which is the one screen for settling an argument about a
+   * morning.
+   *
+   * They are joined here rather than in each report, so the log, the totals
+   * and the in/out register cannot come to hold different ideas of what a
+   * punch is.
+   */
+  const fromDevices = punchEventsForMonth({ month, year });
+  const fromPhones = phonePunchesForMonth({ year, month });
+  const punches = [...fromDevices, ...fromPhones];
 
   /* The spool is files on disk, not rows, so it is read here rather than
      queried. A folder that is not configured is not an error - it is an
@@ -583,16 +601,19 @@ function gatherPunches({ year, month }) {
   }
 
   punches.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-  return { punches, spool };
+  // Counted so the screen can say where a month's punches came from. A feed
+  // left out of that sentence is a feed nobody knows is running.
+  return { punches, spool, phone: fromPhones.length };
 }
 
 reportsRouter.get('/punch-totals', (req, res, next) => {
   try {
     const { year, month } = monthOf(req.query.month);
-    const { punches, spool } = gatherPunches({ year, month });
+    const { punches, spool, phone } = gatherPunches({ year, month });
     res.json({
       month: `${year}-${String(month).padStart(2, '0')}`,
       spool,
+      phone,
       ...punchTotals(punches, listEmployees()),
     });
   } catch (err) {
@@ -613,12 +634,13 @@ reportsRouter.get('/punch-totals', (req, res, next) => {
 reportsRouter.get('/punch-log', (req, res, next) => {
   try {
     const { year, month } = monthOf(req.query.month);
-    const { punches, spool } = gatherPunches({ year, month });
+    const { punches, spool, phone } = gatherPunches({ year, month });
     const day = Number(req.query.day) || 0;
     const employeeId = Number(req.query.employee_id) || 0;
     res.json({
       month: `${year}-${String(month).padStart(2, '0')}`,
       spool,
+      phone,
       columns: PUNCH_LOG_COLUMNS,
       limit: PUNCH_LOG_LIMIT,
       ...punchLog(punches, listEmployees(), { day, employeeId }),
@@ -643,12 +665,15 @@ reportsRouter.get('/punches/month', (req, res, next) => {
   try {
     const { year, month } = monthOf(req.query.month);
     const { punches } = gatherPunches({ year, month });
-    const { who } = matcherFor(listEmployees());
+    /* The same resolver the log and the totals use: a reader's punch is
+       matched by number, a phone's punch names its own person. Matching a
+       phone punch by code would drop every one of them into `unmatched`. */
+    const resolve = resolverFor(listEmployees());
 
     const byPerson = {};
     let unmatched = 0;
     for (const punch of punches) {
-      const person = who(punch.code);
+      const person = resolve.person(punch);
       if (!person) {
         unmatched += 1;
         continue;

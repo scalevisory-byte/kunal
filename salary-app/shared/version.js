@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.18.0';
+export const VERSION = '2.19.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.19.0',
+    date: '24 Nov 2026',
+    title: 'Phone punches are in the punch log',
+    items: [
+      '**Reports \u2192 Punch log now carries all three feeds**: the door readers, the Bizcompass spool, and anybody punching from their own login or punch link. The *Seen by* column says which, and the line underneath says how many came from where.',
+      'The same punches reach **Punch totals** and the **in and out register**, and a person\u2019s own day on the portal and on their statement \u2014 so no screen holds a different idea of what a punch is.',
+      '**A phone punch has no reader number, and is not matched by one.** It names the person, because a login or a signed link said who it was. Its Punch ID column is blank. Pushing it through a punch ID would hang it on whoever carries that number \u2014 and lose it entirely for everybody who carries none, who are exactly the people a phone punch is for.',
+      '**Somebody with no Punch ID can now be picked** in the log and on the totals, and their own portal shows their punches instead of saying no reader can reach them. That sentence only appears now when truly nothing of theirs is arriving.',
+      '**The time is the one the clock on the wall showed.** A phone punch is stored as UTC; read straight it would have printed a 9:42 arrival as 4:12 in the morning. Nothing anywhere slices that stamp any more.',
+      '**Nothing about pay changed.** The log is the raw record; what a day becomes still lives on the attendance grid, which is what the salary is paid from.',
+    ],
+  },
   {
     version: '2.18.0',
     date: '24 Nov 2026',
