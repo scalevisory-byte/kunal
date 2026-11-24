@@ -2251,6 +2251,50 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The hours bar was netting what it deducts against what it pays (v2.27.0)
+
+Dinesh, off his live v2.26.0 sheet: *"5 lac wala solve nahi hua"* and *"ot wala minus amount
+abhi bhi salary me se less ho raaha he"* — both reported for the SECOND time.
+
+**Both buttons were driven on a reproduction of his exact state before anything was theorised**,
+because a complaint repeated twice means either the button is not being pressed or it does not
+work. **Both work.** "Use the record's figure on it" put 50,000 onto the row (gross recomputed,
+bar gone); "Only show them, don't charge" switched the month to `none` and took every `ot_salary`
+to 0. So the answer to both complaints is that the buttons were not pressed — and that is by
+design, recorded here: *the app cannot tell a mistyped salary from a month meant to pay something
+else, so there is no rule and none was written.*
+
+**THE REAL DEFECT THE SECOND COMPLAINT EXPOSED.** `hoursDecision`'s `chargedAmount` summed
+`ot_salary` across everybody, so the bar printed **one netted figure** — on his November
+*"₹1,251 across 60 people"*. That is ASHOK MISHRA at **+13,237** of overtime paid cancelling
+against AJEETKUMAR at **−3,192** of hours charged. **The deduction he was asking about was
+invisible on the very line that exists to report it**, and ₹1,251 reads as trivial.
+
+- `chargedDeducted` / `chargedPaid` (with their own people counts) are now reported **apart**,
+  `chargedAmount` kept as the net because that is what the sheet's own OT column adds up to. The
+  module already held *"SHORT AND OVER ARE TWO DECISIONS, NOT ONE"* for the buttons — the same
+  is true of the figure describing them.
+- **`chargedPhrase(decision, money)` is one phrase read by the bar AND by the confirmation.**
+  Written out twice they would drift, and the one that drifted would be the one somebody presses.
+  The formatter is injected so the shared module stays free of a currency.
+- **The confirmation now names what pressing it COSTS.** It stops both sides, so anybody on
+  overtime loses theirs — with the amount, before the press. And it says what to do next: after
+  the switch the same bar offers **Pay the overtime**, so the short hours can stop being deducted
+  while the overtime is still paid. **Driven end to end: switch off → nobody deducted → one press
+  → +3,343 back and still nobody deducted.** That path already existed and nothing said so.
+- **NO FIGURE MOVED.** This is only what the screen says about figures it was already showing;
+  the suite went 2394 → **2401 passing**, nothing under `calc.js` touched.
+- `inRupees` is a module-level helper in `SalarySheet.jsx` because **`money` in that file is the
+  month's own totals, not a formatter** — the first patch passed it as one.
+- **A test pinned the confirmation's WORDING and failed on a rewrite that said it better.**
+  Rewritten to state the rule (both sides named, with their amounts, from the shared phrase),
+  not patched — the v2.12.0 lesson. Proved by putting both halves of the bug back: 2 of 7 fail
+  on the wording, 3 of 7 on the module.
+- Help: `salary-sheet`'s note now says **if a figure on the sheet looks wrong, the answer is
+  usually a bar at the top, and neither bar changes anything until its button is pressed**, with
+  `5 lac` and `record se alag` among its keywords; `monthly-hours` gained the two-sides line and
+  the keep-the-overtime recipe, findable on `ot minus`, `ot kat raha`, `minus amount`.
+
 ### The Employees tab audited, and a flag nobody could clear (v2.26.0)
 
 Dinesh: *"employees tab ka bhi check karo"*, and mid-audit *"employee id nikal do na"* with a

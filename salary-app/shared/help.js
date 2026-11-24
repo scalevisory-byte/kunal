@@ -376,6 +376,7 @@ export const HELP = [
     keywords: [
       'monthly hours', '234', '9 hours', 'nine hours', 'total hours', 'hours target',
       'short hours', 'overtime', 'ghante', 'mahina', 'monthly', 'kam hours', 'rule',
+      'ot minus', 'minus amount', 'ot kat raha', 'deduct ot', 'hours deduction',
     ],
     lines: [
       '**Time \u2192 The month\u2019s hours.** Nine hours a day for the days each person was due \u2014 26 days is **234 hours**. A day short and a day long cancel; only what is missing from the **total** comes off the pay.',
@@ -386,6 +387,8 @@ export const HELP = [
       '**A day nobody clocked counts on neither side.** No in time means not known, so it adds no hours to what is owed and none to what was worked.',
       '**A shorter or longer shift owes its own hours.** Somebody on 10:00\u201316:00 owes 6 \u00d7 26, not 234.',
       '**On this rule the clock times are the record.** A short-hours figure typed onto a day that already has an in and an out does not override those times. To forgive a whole month, type over the OT/LT box on the salary sheet \u2014 that beats every rule.',
+      '**The bar on the salary sheet says what the hours are DEDUCTING and what they are PAYING, apart.** One figure for both would net them \u2014 somebody losing thousands cancels against somebody being paid thousands, and the deduction disappears from the line meant to report it.',
+      '**To stop the deduction but keep paying the overtime**: press *Only show them, don\u2019t charge* (that stops both), then press *Pay the overtime* on the same bar, which fills each row\u2019s OT min box with what they earned. One person can still be charged by typing into their own OT min box.',
     ],
     note:
       'THE SAME MINUTES ARE NEVER CHARGED TWICE. Somebody an hour short on Tuesday is ALREADY an hour short in the month\u2019s total, so \u201ceach day on its own\u201d and \u201cthe month owes a total\u201d are alternatives \u2014 pick one.\n\nThe month\u2019s total and the late/early concession DO run together, because they ask different questions. When they do, the month is charged the GREATER of the two and never the sum \u2014 a late minute nobody made up is already inside the shortfall.\n\nWhat the monthly rule changes against the old one: each day used to forgive up to a quarter of an hour, which over 26 days is six and a half hours a month given away. Ten minutes short every day used to cost nothing; on this rule it is 4h 20m off the total.',
@@ -800,7 +803,10 @@ export const HELP = [
     id: 'salary-sheet',
     title: 'How a month is worked out',
     tab: 'sheet',
-    keywords: ['salary', 'gross', 'net', 'calculation', 'how', 'pagar', 'hisab', 'payable'],
+    keywords: [
+      'salary', 'gross', 'net', 'calculation', 'how', 'pagar', 'hisab', 'payable',
+      'wrong salary', 'galat', 'zyada', '5 lac', 'different salary', 'record se alag',
+    ],
     lines: [
       '**If a row pays a different salary from the employee record, a line at the top says so**, names both figures and offers to bring the record’s across. A month keeps the salary it was given, so correcting a mistyped salary on the record does not reach a month that already has the row — and sometimes a month is meant to pay something else, which is why nothing changes by itself.',
       'Per-day rate = monthly salary ÷ 26. Days counted = 26 − what the absences cost.',
@@ -809,7 +815,8 @@ export const HELP = [
       'Net = gross − PF − ESI − PT − loan instalment.',
       'Any figure can be typed over; it then shows with a ✎ and the audit trail records it by name and column.',
     ],
-    note: 'Sunday pay is not in the net. The sheet ends at Net payable.',
+    note:
+      'IF A FIGURE ON THE SHEET LOOKS WRONG, THE ANSWER IS USUALLY A BAR AT THE TOP. The salary bar names a row paying something different from the record; the hours bar says what the month\u2019s hours are deducting and paying. NEITHER CHANGES ANYTHING UNTIL ITS BUTTON IS PRESSED \u2014 deliberately, because a month is sometimes meant to pay something else and nothing should rewrite a figure already paid.\n\nSunday pay is not in the net. The sheet ends at Net payable.',
   },
   {
     id: 'payroll-review',

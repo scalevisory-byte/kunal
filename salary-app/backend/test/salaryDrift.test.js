@@ -112,11 +112,16 @@ test('A MONTH THAT ALREADY CHARGES THE HOURS SAYS SO, and does not offer to char
     .slice(sheet.indexOf('const stopCharging'), sheet.indexOf('const grouped'))
     .replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(fn, /onPatchPeriod\(\{ late_policy: 'none' \}\)/);
-  assert.match(
-    fn,
-    /stop being deducted AND the overtime stops being paid/,
-    'the confirmation names only one side of the switch'
-  );
+  /*
+   * BOTH SIDES, WITH THEIR AMOUNTS - stated as the rule and not as a form of
+   * words. This assertion used to pin the sentence itself, so it failed on a
+   * rewrite that said the same thing better: the figure was split into what
+   * the hours DEDUCT and what they PAY, because one netted figure printed
+   * "Rs 1,251" over a month taking thousands off individual people.
+   */
+  assert.match(fn, /chargedPhrase\(decision/, 'the two figures must come from the one shared phrase');
+  assert.match(fn, /decision\.chargedPaid/, 'pressing it also stops the overtime, which costs those people money');
+  assert.match(fn, /BOTH STOP/, 'the confirmation names only one side of the switch');
   /* And it says where the figures go, since they do not disappear. */
   assert.match(fn, /Month hrs/);
 });

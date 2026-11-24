@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.26.0';
+export const VERSION = '2.27.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.27.0',
+    date: '24 Nov 2026',
+    title: 'What the hours are deducting, said apart from what they are paying',
+    items: [
+      '**The month\u2019s hours bar was netting the two sides into one figure**, and on the live November that printed as *\u201c\u20b91,251 across 60 people\u201d* \u2014 which reads as a trivial amount. It was people losing thousands in short hours cancelling against people being paid thousands in overtime. Dinesh asked about that deduction twice, and it was invisible on the very line that exists to report it. The bar now says what is **deducted from** how many people **and** what is **paid to** how many \u2014 both read off the payslip\u2019s own figures, never recomputed.',
+      '**\u201cOnly show them, don\u2019t charge\u201d now names what pressing it costs.** It stops both sides, so anybody on overtime loses it, and the confirmation says so with the amount before you press. It also says what to do next: after the switch the same bar offers \u201cPay the overtime\u201d, so the short hours can stop being deducted while the overtime is still paid.',
+      '**Nothing changed in any calculation.** No figure on any payslip moves because of this release \u2014 it is what the screen says about figures it was already showing. Both buttons were driven end to end: the rule switched off, nobody deducted, the overtime paid back with one press.',
+      '**The salary difference bar and this one both work and both wait for you.** Neither changes anything until its button is pressed \u2014 a month keeps the salary it was given, deliberately, because sometimes a month is meant to pay something else. If a figure looks wrong on the sheet, the bar at the top is the thing to press.',
+    ],
+  },
   {
     version: '2.26.0',
     date: '24 Nov 2026',

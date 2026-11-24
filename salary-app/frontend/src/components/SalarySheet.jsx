@@ -7,6 +7,7 @@ import { formatDuration } from '../../../shared/timesheet.js';
 import {
   CLEAR_HOURS_PATCH,
   chargeHoursPatch,
+  chargedPhrase,
   hasTypedHours,
   hoursDecision,
   hoursMinutesOf,
@@ -28,6 +29,12 @@ import { todayIso } from '../../../shared/today.js';
  * the same module the server uses, then saves in the background - so the totals
  * never lag behind the keyboard, and a failed save is visible rather than lost.
  */
+
+/**
+ * An amount in a sentence. `money` in this file is the month's own totals, not
+ * a formatter, so the two must not be confused.
+ */
+const inRupees = (n) => `\u20b9${rupees(Math.round(Number(n) || 0))}`;
 
 /** Columns the user can type into, and how each behaves. */
 const EDITABLE = {
@@ -275,11 +282,13 @@ export default function SalarySheet({
   const stopCharging = async () => {
     const ok = window.confirm(
       `Stop charging the hours on this month?\n\n` +
-        `\u20b9${rupees(Math.abs(decision.chargedAmount))} across ${decision.chargedPeople} ` +
-        `${decision.chargedPeople === 1 ? 'person' : 'people'} comes out of the net — ` +
-        `the short hours stop being deducted AND the overtime stops being paid.\n\n` +
-        `The figures stay on screen in Month hrs. To charge somebody after that, ` +
-        `type it into their OT min box.`
+        `Right now ${chargedPhrase(decision, inRupees)}.\n\n` +
+        `BOTH STOP. Nobody is charged for short hours and nobody is paid for ` +
+        `overtime, so this also takes ${inRupees(decision.chargedPaid)} off the ` +
+        `${decision.chargedPaidPeople === 1 ? 'person' : 'people'} on overtime.\n\n` +
+        `The figures stay on screen in Month hrs. Afterwards this same bar offers ` +
+        `"Pay the overtime", and one person can still be charged by typing into ` +
+        `their OT min box.`
     );
     if (!ok) return;
     await onPatchPeriod({ late_policy: 'none' });
@@ -615,10 +624,20 @@ export default function SalarySheet({
             */}
           {decision.charging ? (
             <>
+              {/*
+                * THE TWO SIDES, NAMED APART.
+                *
+                * This was the net - one figure summing `ot_salary` across
+                * everybody - and on his live November it printed
+                * "Rs 1,251 across 60 people", which reads as a trivial
+                * amount. It was people losing thousands cancelling against
+                * people being paid thousands, which is why the deduction he
+                * was asking about twice was invisible on the very bar that
+                * exists to report it.
+                */}
               <span>
-                This month <strong>charges the hours</strong>: &#8377;
-                {rupees(Math.abs(decision.chargedAmount))} across {decision.chargedPeople}{' '}
-                {decision.chargedPeople === 1 ? 'person is' : 'people are'} already in the net below.
+                This month <strong>charges the hours</strong>:{' '}
+                {chargedPhrase(decision, inRupees)}, already in the net below.
               </span>
               {onPatchPeriod ? (
                 <button type="button" onClick={stopCharging} disabled={locked}>

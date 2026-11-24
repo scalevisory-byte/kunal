@@ -62,6 +62,7 @@ export const hoursMinutesOf = (calc = {}) =>
  * @returns {{
  *   short: Array, over: Array, decided: Array, unknown: number,
  *   shortAmount: number, overAmount: number, anything: boolean,
+ *   charging: boolean, chargedDeducted: number, chargedPaid: number,
  * }}
  */
 export function hoursDecision(calcs = [], { period = null } = {}) {
@@ -84,18 +85,47 @@ export function hoursDecision(calcs = [], { period = null } = {}) {
     short: [], over: [], decided: [], unknown: 0,
     shortAmount: 0, overAmount: 0, anything: false,
     charging,
-    // What the hours are actually taking out of (or adding to) the month as
-    // it stands. Read off `ot_salary`, the figure the payslip prints, never
-    // recomputed from a rule.
+    /*
+     * WHAT THE HOURS ARE DOING TO THE MONTH AS IT STANDS - DEDUCTED AND PAID
+     * REPORTED APART, NEVER NETTED.
+     *
+     * This was one figure, the sum of `ot_salary` across everybody, and on
+     * Dinesh's live November that printed as *"\u20b91,251 across 60 people"* -
+     * which reads as a trivial amount and was why he reported the deduction
+     * twice. It was the NET: ASHOK MISHRA was +13,237 of overtime paid and
+     * AJEETKUMAR -3,192 of hours charged, and they cancelled.
+     *
+     * The module already holds that short and over are two decisions and not
+     * one, for the buttons. The same is true of the figure describing them:
+     * somebody deciding whether to stop charging the hours needs to know what
+     * stops being deducted AND what stops being paid, because the second is
+     * money people lose by pressing it.
+     *
+     * All three are read off `ot_salary`, the figure the payslip prints, and
+     * never recomputed from a rule. `chargedAmount` stays as the net, which is
+     * what the month's own OT total column adds up to.
+     */
     chargedAmount: 0,
     chargedPeople: 0,
+    chargedDeducted: 0,
+    chargedDeductedPeople: 0,
+    chargedPaid: 0,
+    chargedPaidPeople: 0,
   };
   for (const entry of calcs) {
     const row = entry?.row || {};
     const calc = entry?.calc || {};
     if (charging && num(calc.ot_salary) !== 0) {
-      out.chargedAmount += num(calc.ot_salary);
+      const paid = num(calc.ot_salary);
+      out.chargedAmount += paid;
       out.chargedPeople += 1;
+      if (paid < 0) {
+        out.chargedDeducted += -paid;
+        out.chargedDeductedPeople += 1;
+      } else {
+        out.chargedPaid += paid;
+        out.chargedPaidPeople += 1;
+      }
     }
     /* Already answered, by hand or by a previous press. Counted, never
        overwritten - the office's own figure outranks ours. */
@@ -125,6 +155,8 @@ export function hoursDecision(calcs = [], { period = null } = {}) {
   out.shortAmount = Math.round(out.shortAmount);
   out.overAmount = Math.round(out.overAmount);
   out.chargedAmount = Math.round(out.chargedAmount);
+  out.chargedDeducted = Math.round(out.chargedDeducted);
+  out.chargedPaid = Math.round(out.chargedPaid);
   out.anything =
     out.short.length > 0 || out.over.length > 0 || out.decided.length > 0 || charging;
   return out;
@@ -133,3 +165,30 @@ export function hoursDecision(calcs = [], { period = null } = {}) {
 /** The patch that records a yes. Clearing hands the row back to the rule. */
 export const chargeHoursPatch = (minutes) => ({ ot_minutes_override: minutes });
 export const CLEAR_HOURS_PATCH = { ot_minutes_override: '' };
+
+/**
+ * WHAT THE HOURS ARE DOING TO THIS MONTH, IN ONE PHRASE.
+ *
+ * Read by the bar on the salary sheet AND by the confirmation that stops the
+ * rule. Written out in both places they would drift, and the one that drifted
+ * would be the one somebody presses.
+ *
+ * It names the two sides apart rather than netting them: the net is what made
+ * a month deducting thousands from one person print as *"₹1,251"*.
+ *
+ * @param {object} decision what `hoursDecision` returned
+ * @param {(n: number) => string} money how to write an amount - the caller
+ *   passes its own formatter, so this module stays free of a currency
+ * @returns {string} e.g. "13,237 deducted from 24 people and 14,488 paid to 36 people"
+ */
+export function chargedPhrase(decision = {}, money = (n) => String(n)) {
+  const parts = [];
+  const people = (n) => `${n} ${n === 1 ? 'person' : 'people'}`;
+  if (decision.chargedDeductedPeople) {
+    parts.push(`${money(decision.chargedDeducted)} deducted from ${people(decision.chargedDeductedPeople)}`);
+  }
+  if (decision.chargedPaidPeople) {
+    parts.push(`${money(decision.chargedPaid)} paid to ${people(decision.chargedPaidPeople)}`);
+  }
+  return parts.join(' and ');
+}
