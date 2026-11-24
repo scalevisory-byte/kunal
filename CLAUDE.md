@@ -2251,6 +2251,63 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The attendance tab audited, and the days its own row did not count (v2.24.0)
+
+Dinesh: *"attendance tab ka bhi check karo"*. Same method as the salary sheet — the grid
+scraped out of a real browser and every summary column matched against an independent count
+off the API's own marks.
+
+**Most of it is right, and that is now measured.** 200 column figures across 20 people, zero
+mismatches on P / Absent / WO / LWP / HD / Sun / Hours / Minutes. **Mark everyone Present**
+said *"The 6 days after today are left blank — they have not happened yet"* and left every
+existing mark alone, writing S on the Sundays (v1.91.0 holding). The **name AND code columns
+stay pinned** with `gapToCode: 0` when the 2,214px table is scrolled fully right, and the
+last column is reachable. The **Sunday header is opaque** (v1.97.0 holding). The legend fold
+is 91px with the key spelled out before the fold (v2.13.0 holding). Clicking a date header
+opens the day marker. The Hours / ± minutes / Nothing toggle is right on both a 9h day
+(nothing, correctly) and a 10h30m one (+90 / 10h 30m). No console error anywhere, whole tab
+1,255px.
+
+### THE DEFECT: three marks were counted in NOTHING
+
+The row's month figures are P, Absent, WO, PL, LWP, HD, Sun. **CL, SL and PH fell through
+every one of them.** On real data: fifteen days marked, fourteen accounted for, and nothing
+on the row saying where the fifteenth went. P is days present, Absent is days of salary lost,
+WO is the weekly off, LWP is unpaid — a casual leave day is none of those. And his festival
+panel writes **PH** for exactly the staff a festival covers, so every Diwali and Eid landed on
+the grid and showed up in none of its figures.
+
+**And the PL column meant two different things on two screens.** The salary sheet renders
+`PL + CL + SL` with a tooltip saying so; the grid rendered `counts.PL`. One person with a
+casual leave day and a privilege leave day read **2** on one screen and **1** on the other.
+The grid's own comment promised they could not disagree *"because both read the same
+`countMarks`"* — and they did. **What differed was the SUM, written out twice.** It is
+`paidLeaveDays` in `shared/calc.js` now and both screens call it; a HOL column counts PH.
+
+**The printed muster had a THIRD set of columns**, and it is the one that gets signed. Its
+`P` left out **OD**, so somebody away on the company's business was present on screen and
+nowhere on the paper; and its single `Leave` column added **UL** in with the paid codes,
+hiding the only one of them that costs a day's pay. It is the grid's ten columns now,
+rendered to PDF and read back: 42 columns fit A4 landscape at 1,200px with no overflow, day
+columns 27px, and the values match the grid row for row.
+
+**No figure moved.** These are counts of marks already on the grid; what a month pays comes
+from the marks themselves through `calculateRow`, which is untouched. Verified after the
+change: 200 figures, 0 mismatches, and every row now adds up — day columns summing to exactly
+the days marked.
+
+**The test is the invariant, not the fix.** `backend/test/gridColumns.test.js` declares which
+column counts each mark and asserts **every key of `ATTENDANCE_CODES` has one** — so a
+fifteenth mark fails here until somebody decides where it goes — plus that the map names no
+code that has been removed, that both screens call the one sum and neither adds the leave
+codes up by hand (comments stripped), and that the grid really renders each column in the map.
+Proved by putting both bugs back: 3 of 8 fail.
+
+**Two harness notes.** A `.tab-body > *` sweep reported the tab as one block and missed the
+Sunday working and Paid holidays folds entirely — they were there, as a print-media render
+showed. And `printReport` mounts into **`#print-root` in the same page**, not a popup, so
+waiting on `context.on('page')` times out; measure it by hiding the app and showing that div.
+
 ### The salary sheet audited, and the date the whole app was writing (v2.23.0)
 
 Dinesh: *"salary sheet tab ka bhi check karo sab theek he ya nahi"*. Audited by

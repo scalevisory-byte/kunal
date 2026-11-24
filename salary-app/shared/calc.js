@@ -193,6 +193,31 @@ export function countMarks(attendance = {}) {
 }
 
 /**
+ * PAID LEAVE TAKEN — casual, sick and privilege leave together.
+ *
+ * Found by auditing the attendance tab. The salary sheet's **PL** column
+ * rendered `PL + CL + SL`, with a tooltip saying so; the attendance grid's
+ * column, same label and same month, rendered `counts.PL` alone. One person
+ * with a casual leave day and a privilege leave day read **2** on one screen
+ * and **1** on the other.
+ *
+ * The grid's own comment promised they could not disagree, because both read
+ * the same `countMarks` — and they did. What differed was the SUM, written
+ * out twice. So it is written once here and both screens call it.
+ *
+ * It mattered more than a label: the grid has no CL or SL column of its own,
+ * so a casual leave day was counted in NOTHING. P is days present, Absent is
+ * days of salary lost, WO is the weekly off, LWP is unpaid — a CL day is none
+ * of those, so fifteen days marked showed as fourteen days accounted for, and
+ * nothing on the row said where the fifteenth went.
+ *
+ * Paid leave costs nobody anything, which is exactly why it has to be
+ * visible: it is the figure the leave register is read for.
+ */
+export const paidLeaveDays = (counts = {}) =>
+  (counts.PL || 0) + (counts.CL || 0) + (counts.SL || 0);
+
+/**
  * Short hours and overtime added up across the month, in minutes.
  * Negative is time not worked and is deducted; positive is overtime.
  * A day needs no mark to carry minutes - someone can be Present and 30 short.

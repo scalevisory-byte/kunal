@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  absentDaysFromAttendance,
   ATTENDANCE_CODES,
   CODE_ALIASES,
-  absentDaysFromAttendance,
   countMarks,
   minutesFromAttendance,
+  paidLeaveDays,
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
@@ -170,10 +171,23 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           get: (l) => (l.merged[d]?.code || l.merged[d] || '').toString(),
           align: 'mid',
         })),
-        num('P', (l) => tally(l, 'P', 'WH') || ''),
+        /*
+         * THE SAME COLUMNS AS THE GRID ABOVE, and that is the point of them.
+         * This printout had a third set: its P left OUT official duty, which
+         * the screen counts, so somebody out on the company's business was
+         * present on screen and nowhere on the paper; and its one Leave
+         * column added UNPAID leave in with the paid codes, hiding the only
+         * one of them that costs a day's pay. A muster that is signed must
+         * say what the screen it came from says.
+         */
+        num('P', (l) => tally(l, 'P', 'WH', 'OD') || ''),
         num('A', (l) => tally(l, 'A', 'AD') || ''),
         num('HF', (l) => tally(l, 'HF') || ''),
-        num('Leave', (l) => tally(l, 'CL', 'SL', 'PL', 'UL') || ''),
+        num('WO', (l) => tally(l, 'S') || ''),
+        num('HOL', (l) => tally(l, 'PH') || ''),
+        num('PL', (l) => paidLeaveDays(l.counts) || ''),
+        num('LWP', (l) => tally(l, 'UL') || ''),
+        num('Sun', (l) => tally(l, 'SP', 'HP') || ''),
         num('Days lost', (l) => l.absent || ''),
         num('OT/LT min', (l) => l.minutes || ''),
       ],
@@ -558,7 +572,16 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
               <th title="Days present, including work from home and official duty">P</th>
               <th title="Days of salary these marks cost">Absent</th>
               <th title="Weekly off days (S)">WO</th>
-              <th title="Paid leave taken">PL</th>
+              {/*
+                * PAID HOLIDAYS, which were counted in no column at all.
+                * His festival system writes PH onto a day for the staff a
+                * festival covers, so every Diwali and Eid landed on the grid
+                * and then showed up in none of these figures. The absent and
+                * present report has had a holidays column all along; this is
+                * the same count, where the marking is done.
+                */}
+              <th title="Paid holidays (PH) - a day off that costs nothing">HOL</th>
+              <th title="Paid leave taken: CL, SL and PL. It costs nothing - it is here because the register is read for it, and because the grid has no column of its own for casual or sick leave.">PL</th>
               <th title="Leave without pay (unpaid leave)">LWP</th>
               <th title="Half days">HD</th>
               <th title="Sundays and holidays worked">Sun</th>
@@ -672,7 +695,8 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                   <td className="num">{(counts.P || 0) + (counts.WH || 0) + (counts.OD || 0) || '-'}</td>
                   <td className="num strong">{days(absentDaysFromAttendance(merged))}</td>
                   <td className="num">{counts.S || '-'}</td>
-                  <td className="num">{counts.PL || '-'}</td>
+                  <td className="num">{counts.PH || '-'}</td>
+                  <td className="num">{paidLeaveDays(counts) || '-'}</td>
                   <td className="num">{counts.UL || '-'}</td>
                   <td className="num">{counts.HF || '-'}</td>
                   <td className="num">{days(sundaysFromAttendance(merged))}</td>

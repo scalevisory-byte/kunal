@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { calculateRow, totalRows } from '../../../shared/calc.js';
+import { calculateRow, paidLeaveDays, totalRows } from '../../../shared/calc.js';
 import { col, num, printReport, printSlips } from '../printReport.js';
 import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
@@ -976,7 +976,7 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
       {/* Paid leave and unpaid leave, counted off the marks the month is paid
           from - CL/SL/PL cost nothing, UL docks a day like an absence. */}
       <td className="num muted">
-        {days((row.mark_counts?.PL || 0) + (row.mark_counts?.CL || 0) + (row.mark_counts?.SL || 0))}
+        {days(paidLeaveDays(row.mark_counts))}
       </td>
       <td className="num muted">{days(row.mark_counts?.UL || 0)}</td>
       <td><EditableCell row={row} field="salary" disabled={locked} onCommit={commit} /></td>

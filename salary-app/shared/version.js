@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.23.0';
+export const VERSION = '2.24.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.24.0',
+    date: '24 Nov 2026',
+    title: 'The attendance grid accounts for every day you mark',
+    items: [
+      '**Casual leave, sick leave and paid holidays were counted in no column at all.** The row\u2019s month figures \u2014 P, Absent, WO, PL, LWP, HD, Sun \u2014 had nowhere to put them, so a month with fifteen days marked showed fourteen days accounted for and nothing said where the fifteenth had gone. Every festival day his holiday panel writes was in that gap.',
+      '**PL now means the same thing on both screens.** The salary sheet\u2019s PL column has always been casual, sick and privilege leave together; the attendance grid\u2019s column, same name and same month, counted privilege leave alone \u2014 so one person read **2** on one screen and **1** on the other. The sum is written in one place now and both screens read it.',
+      '**A new HOL column** counts paid holidays, where the marking is done. The absent-and-present report has had that figure all along.',
+      '**The printed muster now matches the screen it came from.** It had a third set of columns: its P left OUT official duty, so somebody away on the company\u2019s business was present on screen and nowhere on the paper, and its single Leave column added unpaid leave in with the paid kinds \u2014 hiding the only one that costs a day\u2019s pay.',
+      '**No figure moved and no salary changed.** These are counts of marks that were already on the grid; what the month pays comes from the marks themselves and is untouched.',
+    ],
+  },
   {
     version: '2.23.0',
     date: '24 Nov 2026',
