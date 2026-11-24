@@ -21,8 +21,12 @@ import { deleteDocumentFile, documentFile, uploadDocument } from '../documents.j
 import {
   createRequest,
   decideRequest,
+  employeeForSelfService,
   getRequest,
+  listPunches,
   listRequests,
+  recordPunch,
+  selfServiceConfig,
   askToCancel,
   withdrawRequest,
 } from '../attendanceSelf.js';
@@ -42,6 +46,7 @@ import {
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { punchesByDay } from '../devices.js';
+import { nextKind } from '../../../shared/punchClock.js';
 import { directReports, forTeam, mayDecideFor } from '../../../shared/team.js';
 import { forEmployee as announcementsFor } from '../../../shared/announcements.js';
 import { listVacancies } from '../hiring.js';
@@ -704,6 +709,80 @@ meRouter.delete('/documents/:id', (req, res) => {
   deleteDocumentFile(doc);
   deleteDocument(doc.id);
   res.status(204).end();
+});
+
+/* ---------------- punching, from their own login ---------------- */
+
+/*
+ * PUNCHING IN FROM THE PORTAL.
+ *
+ * The personal punch link came first, and it had to: a hundred and fifteen
+ * people were not being given logins, so a signed token in a bookmarked link
+ * WAS the identity. Then logins arrived - and somebody who has one signs in,
+ * looks at their own dashboard, and there is nowhere to punch. They are not
+ * going to keep a second link for the one thing the portal cannot do.
+ *
+ * So the same two calls live here, with ONE difference that matters: the
+ * employee id comes off the LOGIN, exactly as every other route in this file
+ * takes it, never from a URL or a body. It is the stronger identity of the
+ * two - a login cannot be forwarded the way a link can.
+ *
+ * Everything else is deliberately the SAME CALL the link makes:
+ * `recordPunch`, which judges the fence, honours the strict setting, refuses
+ * nothing it should record, and rolls the day up onto the grid. Two paths
+ * from a punch to an attendance row is how two sets of rules come to
+ * disagree, and this one is about pay.
+ */
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+/** What the button needs: whether punching is on, today's punches, and which way round. */
+meRouter.get('/punch', (req, res) => {
+  const mine = listPunches({ employee_id: req.employeeId, day: todayIso() });
+  res.json({
+    settings: selfServiceConfig(),
+    today: todayIso(),
+    punches: mine,
+    next: nextKind(mine),
+  });
+});
+
+meRouter.post('/punch', selfLimit(20, 'punch'), (req, res) => {
+  /*
+   * `employeeForSelfService` and not `getEmployee`: somebody who has left
+   * keeps their login until it is removed, and a leaver must not go on
+   * punching attendance onto a payroll.
+   */
+  const employee = employeeForSelfService(req.employeeId);
+  if (!employee) return res.status(404).json({ error: 'not found' });
+
+  const body = req.body || {};
+  const result = recordPunch({
+    employee,
+    kind: body.kind,
+    point:
+      body.lat !== undefined && body.lng !== undefined
+        ? { lat: Number(body.lat), lng: Number(body.lng) }
+        : null,
+    accuracy: body.accuracy,
+    // Says where it came from, so the punch log can tell the portal from the
+    // link from a reader in the corridor.
+    source: 'portal',
+    ip: req.ip,
+    restrictions: selfServiceConfig(),
+  });
+
+  if (!result.ok) return res.status(400).json({ error: result.reason, judgement: result.judgement });
+  const punches = listPunches({ employee_id: employee.id, day: todayIso() });
+  res.status(201).json({
+    ok: true,
+    at: new Date().toISOString(),
+    where: result.judgement.note,
+    inside: result.judgement.inside_fence,
+    punches,
+    next: nextKind(punches),
+    day: result.day,
+  });
 });
 
 /** What they are holding, so a handover slip is not a surprise. */

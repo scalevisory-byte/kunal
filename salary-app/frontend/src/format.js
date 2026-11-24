@@ -22,3 +22,19 @@ export const weekday = (year, month, day) =>
   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(year, month - 1, day).getDay()];
 
 export const isSunday = (year, month, day) => new Date(year, month - 1, day).getDay() === 0;
+
+/**
+ * Today, written out: `Tue 24 November 2026`.
+ *
+ * Dinesh: *"dashboard me current date kahi pe nahi aa rai he / employee login
+ * me bhi"*. The month picker said *November 2026* and the roll call carried
+ * the day five hundred pixels down the page, so the one screen people open
+ * first could not say what day it was.
+ *
+ * ONE helper, used by the office dashboard and the staff portal both, because
+ * two screens each writing out a date is how two formats come to exist.
+ */
+export const todayLong = (now = new Date()) =>
+  `${WEEKDAY_NAMES[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

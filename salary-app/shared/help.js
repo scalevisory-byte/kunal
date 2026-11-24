@@ -85,7 +85,7 @@ export const HELP = [
     tab: 'dash',
     keywords: ['portal', 'dashboard', 'my page', 'employee', 'self service', 'mera', 'khud ka'],
     lines: [
-      '**Dashboard** — today at a glance: whether you are marked, your hours, leave left, last month’s pay, and what is coming up.',
+      '**Dashboard** — **Punch IN / Punch OUT** at the top, then today at a glance: whether you are marked, your hours, leave left, last month’s pay, and what is coming up.',
       '**My attendance** — every day of the month with your in and out times, and the months before it.',
       '**My leave** — what you have left, and the form to apply. **A leave application pays nobody until the office approves it.**',
       '**My salary** — your payslip, and under it *how it was worked out*, line by line.',
@@ -1105,12 +1105,16 @@ export const HELP = [
     staff: true,
     title: 'Punching from a phone',
     tab: 'reports',
-    keywords: ['punch', 'phone', 'gps', 'location', 'mobile attendance', 'fence', 'link'],
+    keywords: [
+      'punch', 'phone', 'gps', 'location', 'mobile attendance', 'fence', 'link',
+      'punch in', 'punch out', 'portal', 'hajri', 'andar', 'bahar',
+    ],
     lines: [
+      '**Two ways in, and they punch the same thing.** Somebody with a login taps **Punch IN at the top of their own dashboard**; somebody without one opens their **personal link**. Both write the same day on the same grid.',
       'Each employee gets a personal link. Opening it lets them punch in and out and see their own punches — nothing else, and nobody else.',
       'The first punch of the day becomes in, the last becomes out — the same columns the sheet pays from.',
       'Office locations and the allowed distance are set in the same panel.',
-      'It is off until it is switched on.',
+      'It is off until it is switched on, and until it is, **no button appears** — on either one.',
     ],
     note: 'A punch from outside the fence is RECORDED and flagged, never refused. Refusing leaves somebody genuinely at a client’s office with no attendance at all, and it gets retyped from memory that evening with no record. A link can be forwarded and a phone handed over — the fence narrows it and the log makes it visible, and that is the honest limit.',
   },

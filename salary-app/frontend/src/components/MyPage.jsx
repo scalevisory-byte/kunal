@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { earnedSoFar } from '../../../shared/earnedSoFar.js';
 import { api } from '../api.js';
-import { rupees, rupees2, days } from '../format.js';
+import { rupees, rupees2, days, todayLong } from '../format.js';
 import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
@@ -162,6 +162,8 @@ export default function MyPage({ me, onError, onSignOut }) {
               <span aria-hidden="true"> &#128075;</span>
             </h1>
             <p className="muted small">{who || 'Your record'}</p>
+            {/* The same date, from the same helper, as the office dashboard. */}
+            <p className="today-is">{todayLong()}</p>
           </div>
           <span className="grow" />
           <div className="my-who">

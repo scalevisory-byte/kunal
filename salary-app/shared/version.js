@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.17.1';
+export const VERSION = '2.18.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.18.0',
+    date: '24 Nov 2026',
+    title: 'Punch in and out from the staff portal',
+    items: [
+      '**There is a Punch IN button on the portal now**, first thing on the dashboard. Until today punching lived only on the personal link \u2014 right while nobody had a login, and no use at all to somebody who signs in, looks at their own page and finds nowhere to punch.',
+      'It is the **same button and the same rules** as the link: the office fence, the same four messages when a location cannot be found, in then out, and the day\u2019s punches listed underneath. One difference, and it is the one that matters: **who is punching comes off the login**, so nothing sent from a page can stamp somebody else\u2019s attendance.',
+      'The punch **reaches the grid exactly as before** \u2014 it writes the day\u2019s in and out time, which is what the salary sheet is paid from. Nothing new decides anything about a day.',
+      'The card appears **only once the office switches punching on** (`PUNCH_ENABLED`). A dead button on everybody\u2019s dashboard reads as a fault.',
+      '**Today\u2019s date is on both dashboards now** \u2014 beside the month picker in the office, and under your name on the staff portal. The month picker said *November 2026* and the roll call carried the day half a screen down, so the page everybody opens first could not say what morning it was.',
+      '**Known gap, said plainly:** a punch from a phone \u2014 the link or the portal \u2014 still does not appear in Reports \u2192 Punch log, which lists what the readers and the Bizcompass feed collected. The two are separate records and joining them properly is its own job.',
+    ],
+  },
   {
     version: '2.17.1',
     date: '24 Nov 2026',

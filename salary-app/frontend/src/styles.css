@@ -1848,6 +1848,25 @@ label.field input, label.field select, label.field textarea { width: 100%; font-
 .public.punch section { margin-top: 1.4rem; }
 .public.punch .jobs li { padding: 0.6rem 0; }
 
+/*
+ * The shared punch block, used by the personal link AND the staff portal.
+ *
+ * It carries its own list and note rules because the originals are scoped to
+ * `.public` - on the portal there is no such ancestor, so the punches would
+ * have rendered as a default bulleted list and the caption at full body size.
+ * A shared component has to look the same wherever it is put.
+ */
+.punch-now .jobs { list-style: none; padding: 0; margin: 0; }
+.punch-now .jobs li { border-top: 1px solid var(--line); padding: 0.6rem 0; }
+.punch-now .jobs li:first-child { border-top: none; }
+.punch-now .note { font-size: 0.78rem; color: var(--muted); }
+.punch-now > h3 { margin: 1.2rem 0 0.2rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+/* On the portal it sits in a card of its own, first on the page. */
+.my-punch { margin-bottom: 1rem; }
+.my-punch > h3 { margin: 0 0 0.8rem; }
+.my-punch .punch-button { font-size: 1.15rem; padding: 1.1rem 1rem; }
+
 /* The late/early policy panel: a heading with its switch pushed to the right. */
 .late-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .late-head h3 { margin: 0 0 0.2rem; }
@@ -6211,3 +6230,27 @@ h3.spaced { margin-top: 1.5rem; }
 .roll-call .stat-row { margin-bottom: 0.6rem; gap: 0 0.9rem; }
 .roll-call .stat { padding: 0.1rem 0 0.1rem 0.9rem; }
 .roll-call .stat-value { font-size: 1.15rem; line-height: 1.15; }
+
+
+/*
+ * TODAY'S DATE, on the office filter strip and in the portal header.
+ *
+ * Dinesh: *"dashboard me current date kahi pe nahi aa rai he / employee login
+ * me bhi"*. Quiet rather than loud - it is a fact you glance at, not a
+ * figure - but on the strip it reads first, which is the whole point.
+ */
+.today-is {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  align-self: center;
+}
+.page-filters .top-row .today-is { margin-right: 0.3rem; }
+.my-top .today-is { margin: 0.15rem 0 0; }
+
+/* On a phone the strip is already two rows; the date takes its own line
+   rather than squeezing the month picker. */
+@media (max-width: 560px) {
+  .page-filters .top-row .today-is { flex-basis: 100%; margin: 0 0 0.2rem; }
+}

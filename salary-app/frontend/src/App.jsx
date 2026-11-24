@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AuthError, STANDALONE, api, clearToken } from './api.js';
-import { MONTHS } from './format.js';
+import { MONTHS, todayLong } from './format.js';
 import Attendance from './components/Attendance.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import Employees from './components/Employees.jsx';
@@ -951,6 +951,14 @@ function Shell() {
           */}
         <div className="page-filters">
         <div className="top-row">
+          {/*
+            * TODAY'S DATE, on the strip somebody reads first.
+            *
+            * The month picker beside it says *November 2026* and the roll
+            * call carries the day half a screen down, so the page the office
+            * opens every morning could not say what morning it was.
+            */}
+          <span className="today-is" title="Today">{todayLong()}</span>
           {/* A login with neither the salary sheet nor attendance has no month
               to pick and cannot open one, so the picker would offer nothing
               but "No months yet" and a New month button that is refused. */}

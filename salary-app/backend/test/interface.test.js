@@ -4286,15 +4286,96 @@ test('A PUNCH THAT CANNOT FIND A LOCATION SAYS WHY, NOT JUST "ALLOW IT"', () => 
    *
    * Proved from a real LAN address (http://192.0.2.2:4387), not reasoned
    * about: the page now names the http problem instead of the server's line.
+   *
+   * THIS TEST USED TO READ PunchPage.jsx, and it was rewritten rather than
+   * repointed when the portal grew a punch button of its own: the rule is no
+   * longer "the link page explains itself", it is the stronger one below.
    */
-  const page = src('components/PunchPage.jsx');
-  assert.match(page, /window\.isSecureContext === false/);
-  assert.match(page, /only give a location over https/);
+  const shared = src('components/PunchNow.jsx');
+  assert.match(shared, /window\.isSecureContext === false/);
+  assert.match(shared, /only give a location over https/);
   /* The three browser reasons, told apart. */
-  assert.match(page, /err\.code === 1/);
-  assert.match(page, /err\.code === 3/);
+  assert.match(shared, /err\.code === 1/);
+  assert.match(shared, /err\.code === 3/);
   /* The server still decides; the phone only explains a location refusal. */
-  assert.match(page, /problem && \/location\/i\.test\(said\)/);
+  assert.match(shared, /problem && \/location\/i\.test\(message\)/);
   /* And the point still travels under its own names, or the fence is blind. */
-  assert.match(page, /\.\.\.\(point \|\| \{\}\)/);
+  assert.match(shared, /\.\.\.\(found\.point \|\| \{\}\)/);
+});
+
+test('ONE LOCATION HELPER, because two would become two sets of advice', () => {
+  /*
+   * Two screens can punch now — the personal link and the staff portal — and
+   * the four reasons above were a real bug fixed in ONE of them. A copy in
+   * the other is how the fix comes to exist in one place and not the other,
+   * which is worse than never having made it: both screens would LOOK right.
+   *
+   * So `navigator.geolocation` is asked for in exactly one file in the whole
+   * frontend, and the screens that punch go through it.
+   */
+  const dir = path.join(here, '../../frontend/src');
+  const asks = [];
+  const walk = (at) => {
+    for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
+      const full = path.join(at, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.jsx?$/.test(entry.name) && fs.readFileSync(full, 'utf8').includes('navigator.geolocation')) {
+        asks.push(path.relative(dir, full));
+      }
+    }
+  };
+  walk(dir);
+  /*
+   * One exception, and it is not a punch: the office setting an office's own
+   * coordinates with "Use where I am". It fills a form box and has no advice
+   * to give, so it owes nothing to the rule above - but it is NAMED here, so
+   * that a third caller has to be thought about rather than slipping in.
+   */
+  assert.deepEqual(
+    asks.sort(),
+    ['components/AttendanceRequests.jsx', 'components/PunchNow.jsx'],
+    `a screen asks for a location on its own: ${asks}`
+  );
+
+  /* Neither screen that punches has one of its own. */
+  for (const file of ['components/PunchPage.jsx', 'components/my/MyDashboard.jsx']) {
+    assert.ok(
+      !src(file).includes('navigator.geolocation'),
+      `${file} asks for a location itself instead of going through PunchNow`
+    );
+  }
+
+  for (const file of ['components/PunchPage.jsx', 'components/my/MyDashboard.jsx']) {
+    assert.match(src(file), /PunchNow/, `${file} does not use the shared punch button`);
+  }
+});
+
+test('the shared punch block carries its own look, wherever it is put', () => {
+  /*
+   * `.jobs` and `.note` only ever had rules under `.public` — the link page's
+   * own wrapper. On the portal there is no such ancestor, so the punches
+   * would have rendered as a default bulleted list and the caption at full
+   * body size. Caught before it shipped by reading the rules rather than the
+   * screen; it is the invented-class trap with the ancestor moved.
+   */
+  const css = src('styles.css');
+  for (const rule of ['.punch-now .jobs', '.punch-now .note', '.my-punch']) {
+    assert.ok(css.includes(rule), `${rule} has no rule in styles.css`);
+  }
+});
+
+test('THE PUNCH BUTTON IS FIRST ON THE PORTAL, above the day it reports on', () => {
+  /*
+   * Dinesh, looking at his own staff dashboard: *"punch in wala kaha he"*.
+   * It is what somebody opens the portal at half past nine to DO; everything
+   * below it is a report on a day already worked. Below the fold it would be
+   * the fifteenth feature that exists and cannot be found.
+   */
+  const dash = src('components/my/MyDashboard.jsx');
+  assert.ok(
+    dash.indexOf('<MyPunch') < dash.indexOf('className="my-cards"'),
+    'the punch button sits below the cards it should be above'
+  );
+  /* And it posts to the door where the LOGIN says who is punching. */
+  assert.match(dash, /api\.post\('\/me\/punch'/);
 });

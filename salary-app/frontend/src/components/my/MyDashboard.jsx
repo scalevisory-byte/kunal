@@ -6,6 +6,7 @@ import { comingUp, leaveFor, monthFor, todayFor, trendFor } from '../../../../sh
 import { recordSummary } from '../../../../shared/myRecord.js';
 import { kindIcon } from '../../../../shared/announcements.js';
 import { hoursForEmployee } from '../../../../shared/lateEarly.js';
+import PunchNow from '../PunchNow.jsx';
 
 /**
  * WHAT ONE PERSON SEES WHEN THEY SIGN IN.
@@ -42,6 +43,9 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
   const [notices, setNotices] = useState([]);
   const [openings, setOpenings] = useState(0);
   const [loading, setLoading] = useState(true);
+  /* Bumped after a punch: the punch rolls up onto the day's in/out, so the
+     Today and Working hours cards beside the button are now out of date. */
+  const [tick, setTick] = useState(0);
 
   const today = new Date().toISOString().slice(0, 10);
   /*
@@ -85,7 +89,7 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestId]);
+  }, [latestId, tick]);
 
   const day = useMemo(
     () => (current
@@ -154,6 +158,10 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
 
   return (
     <div className="my-dash">
+      {/* FIRST, because this is what somebody opens the portal at half past
+          nine to do. Everything below is a report on a day already worked. */}
+      <MyPunch onPunched={() => setTick((n) => n + 1)} />
+
       <div className="my-cards">
         <article className={`my-card tone-${stateTone}`}>
           <header><span className="my-ico">&#128203;</span><h3>Today</h3></header>
@@ -392,5 +400,62 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
         </section>
       </div>
     </div>
+  );
+}
+
+/* ---------------- punching, from their own login ---------------- */
+
+/**
+ * PUNCH IN / PUNCH OUT, on the page they already have open.
+ *
+ * Punching used to live only on the personal link, which was right while
+ * nobody had a login - but somebody who signs in should not need a second
+ * bookmark for the one thing the portal could not do. Dinesh asked this
+ * directly, looking at his own staff dashboard: *"punch in wala kaha he"*.
+ *
+ * The BUTTON is the shared `PunchNow`, the same component the link uses, so
+ * the location helper and every refusal message are one implementation. Only
+ * the door differs: this one posts to `/api/me/punch`, where the login says
+ * who is punching.
+ *
+ * It renders NOTHING while punching is switched off on the server and nothing
+ * has been punched. A dead button on everybody's dashboard reads as a fault;
+ * the office turning it on is what makes it appear.
+ */
+function MyPunch({ onPunched }) {
+  const [state, setState] = useState(null);
+
+  const load = async () => {
+    try {
+      setState(await api.get('/me/punch'));
+    } catch {
+      /* The portal needs a server, so this only fails where there is none.
+         Showing nothing is the honest answer - never a button that cannot work. */
+      setState(null);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (!state) return null;
+  if (!state.settings?.enabled && !state.punches?.length) return null;
+
+  return (
+    <section className="card my-punch">
+      <h3>Attendance</h3>
+      <PunchNow
+        settings={state.settings}
+        next={state.next}
+        punches={state.punches || []}
+        post={(payload) => api.post('/me/punch', payload)}
+        onDone={async () => {
+          await load();
+          await onPunched?.();
+        }}
+        heading="Punched today"
+      />
+    </section>
   );
 }

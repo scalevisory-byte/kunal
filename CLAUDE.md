@@ -2251,6 +2251,68 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+## Punching from the staff portal, and today's date (v2.18.0)
+
+Dinesh, looking at HARISH signed into the staff portal: *"punch in wala kaha he"*, then
+*"dashboard me current date kahi pe nahi aa rai he / employee login me bhi"*.
+`frontend/src/components/PunchNow.jsx`, `POST /api/me/punch`, `todayLong()` in `format.js`.
+
+**Inspected first, and the gap was real:** `/api/me` had no punch route and `MyPage.jsx` had
+no punch button. Punching lived ONLY on the personal link (`/punch/<token>` → `PunchPage.jsx`),
+which was right while nobody had a login — 115 people were not being given one, so a signed
+token in a bookmarked link WAS the identity. Then logins arrived, and somebody who signs in
+looks at their own dashboard and finds nowhere to punch. **Fifteenth time for "the feature
+exists but not where the person is standing."**
+
+- **`PunchNow.jsx` is the button, shared by BOTH screens**, and that is the point of the
+  refactor rather than a tidy-up: the four location messages were a **real bug fixed in one
+  of them** in v2.17.1 (plain http gives advice nobody can follow). A second copy is how a fix
+  comes to exist in one place and not the other, with both screens LOOKING right. A test
+  sweeps the whole frontend for `navigator.geolocation` and requires exactly two files —
+  `PunchNow.jsx`, and `AttendanceRequests.jsx`, which is **named with its reason**: the office
+  setting an office's own coordinates with "Use where I am" is a form box, not a punch, and
+  owes nothing to the rule. The two punching screens must contain none of their own.
+- **`post` is injected, because only the DOOR differs.** The link posts to
+  `/api/punch/<token>/punch`, where the token says who they are; the portal posts to
+  `/api/me/punch`, where the **LOGIN** does. The employee id comes off `requireSelf`, never a
+  URL or a body — there is a test sending `employee_id` of somebody else and asserting the
+  punch is filed against the caller and that the other person's record does not grow one.
+  **Proved by putting the bug back:** letting the body name the employee fails 2 tests.
+- It calls the **same `recordPunch`** — the fence, the strict setting, the roll-up onto
+  `in_time`/`out_time`. Two paths from a punch to an attendance row is how two sets of rules
+  come to disagree, and this one is about pay.
+- `source: 'portal'`, so the store can tell the link, the portal and a corridor reader apart.
+- **The card renders only once punching is switched on** (`PUNCH_ENABLED`) — a dead button on
+  eighty-six dashboards reads as a fault — and it is **FIRST on the page**, above the Today
+  and Working hours cards, because it is what somebody opens the portal at half past nine to
+  DO; everything below is a report on a day already worked. Pinned by a test on the markup order.
+- **`GET /api/me/punch` is a look and files nothing** (tested), and a punch bumps a `tick` so
+  the Today and Working hours cards beside it are not left stale.
+- **THE CSS TRAP, caught before it shipped:** `.jobs` and `.note` have rules only under
+  `.public` — the link page's own wrapper. On the portal there is no such ancestor, so the
+  punches would have rendered as a default bulleted list and the caption at full body size.
+  The shared component carries its own `.punch-now` rules. It is the invented-class trap with
+  the ancestor moved, and the fix is that **a shared component looks the same wherever it is put**.
+- **KNOWN GAP, said in the changelog rather than quietly left:** a phone punch (link or portal)
+  lands in **`punch_events`**, while Reports → Punch log reads **`device_punches`** plus the
+  Bizcompass spool. They are separate stores with different identity models — one knows the
+  employee, the other knows a reader number — and joining them properly means teaching
+  `punchLog` about rows that name their own person. Forcing a phone punch through a code would
+  mis-attribute everybody who has no Punch ID. Not done here; not pretended otherwise.
+- **`todayLong()` in `format.js` is ONE helper** used by the office strip (`.today-is` beside
+  the month picker) and the portal header, because two screens each writing out a date is how
+  two formats come to exist. Measured at 1420 / 390 / 414: on a phone the office one takes its
+  own line rather than squeezing the month picker, and nothing scrolls sideways.
+- Driven end to end as HARISH on a 414px phone with `PUNCH_ENABLED=true`: punch in at the
+  office fence → *"Punched in at 05:33 — at BNF Vadodara"*, button flips to Punch OUT, Working
+  hours card updates to *"In 05:33 · Out — · still in"*, nobody else's name anywhere on the page.
+- Also cleared on the way: a **duplicate `deductLunch` key** in `Attendance.jsx` that the build
+  had been warning about (same value twice, so no figure moved).
+- **Test-harness notes:** `POST /api/auth/staff` takes `employee_ids` (an ARRAY) and answers
+  `{made, refused}`; `GET /periods/:id/attendance` returns `{employees:[{employee_id, attendance:{day:entry}}]}`,
+  not a flat list. And a Playwright assertion against a heading styled `text-transform: uppercase`
+  must be case-insensitive — `/Working hours/` found nothing on a card that plainly had it.
+
 ## One punch is not a twenty-four hour shift (v1.94.0)
 
 Dinesh sent the Time tab showing **24h 00m worked and +900m overtime** on ABDULHAK BHENSWALA

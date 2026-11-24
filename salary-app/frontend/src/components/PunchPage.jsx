@@ -6,8 +6,7 @@ import {
   spans,
 } from '../../../shared/attendanceRequests.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
-
-const clock = (iso) => String(iso || '').slice(11, 16);
+import PunchNow from './PunchNow.jsx';
 
 /**
  * The employee's own page, opened from a link on their phone.
@@ -19,7 +18,6 @@ const clock = (iso) => String(iso || '').slice(11, 16);
 export default function PunchPage({ token }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState('');
   const [said, setSaid] = useState('');
   const [asking, setAsking] = useState(false);
   const [raising, setRaising] = useState(false);
@@ -40,83 +38,9 @@ export default function PunchPage({ token }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  /*
-   * WHERE THEY ARE, AND IF NOT, WHY NOT.
-   *
-   * This used to resolve `null` for every failure alike, so the server's one
-   * message came back for all of them: *"Allow location access and try
-   * again."* That is right when somebody tapped Block, and it is ADVICE THEY
-   * CANNOT FOLLOW when the page is open over plain http - a browser does not
-   * offer the location API there at all, so there is nothing to allow and
-   * the punch can never work. Somebody would tap it all morning.
-   *
-   * Only the phone knows which of the four it was, so it says.
-   */
-  const where = () =>
-    new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve({ point: null, problem: 'This browser cannot give a location at all.' });
-        return;
-      }
-      if (window.isSecureContext === false) {
-        resolve({
-          point: null,
-          problem:
-            'This page is open over plain http, and a browser will only give a location over https. ' +
-            'Open the link the office sent you — it starts with https:// — rather than an address with ' +
-            'numbers in it.',
-        });
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          resolve({
-            point: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
-            problem: '',
-          }),
-        (err) =>
-          resolve({
-            point: null,
-            problem:
-              err && err.code === 1
-                ? 'Location is blocked for this page. Allow it in the browser and tap again.'
-                : err && err.code === 3
-                  ? 'Finding your location took too long. Step outside or near a window and tap again.'
-                  : 'Your phone could not find a location just now. Try again in a moment.',
-          }),
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-      );
-    });
-
-  const punch = async (kind) => {
-    setBusy('Finding where you are…');
-    setError('');
+  const refresh = async () => {
     setSaid('');
-    try {
-      const { point, problem } = await where();
-      setBusy('Recording…');
-      const res = await fetch(`/api/punch/${token}/punch`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, ...(point || {}) }),
-      });
-      const body = await res.json();
-      /*
-       * The server decides whether to refuse; the phone says WHY there was no
-       * location. Where the refusal is about the location and we know the
-       * reason, ours is the specific one, so it is the one shown.
-       */
-      if (!res.ok) {
-        const said = body?.error || 'Could not record that';
-        throw new Error(problem && /location/i.test(said) ? problem : said);
-      }
-      setSaid(`${kind === 'in' ? 'Punched in' : 'Punched out'} at ${clock(body.at)} — ${body.where}`);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy('');
-    }
+    await load();
   };
 
   if (error && !data) {
@@ -141,45 +65,26 @@ export default function PunchPage({ token }) {
         <span className="where">{employee.designation || 'Attendance'}</span>
       </header>
 
-      {!settings.enabled ? (
-        <div className="banner">
-          Punching from a phone is switched off. Ask the office to turn it on.
-        </div>
-      ) : null}
-
       {said ? <div className="banner good">{said}</div> : null}
       {error ? <div className="banner bad">{error}</div> : null}
 
-      <button
-        className="primary punch-button"
-        disabled={!settings.enabled || !!busy}
-        onClick={() => punch(next)}
-      >
-        {busy || (next === 'in' ? 'Punch IN' : 'Punch OUT')}
-      </button>
-      <p className="note" style={{ textAlign: 'center' }}>
-        {settings.requireLocation
-          ? 'Your location is recorded with each punch.'
-          : 'Location is recorded when you allow it.'}
-      </p>
-
       <section>
-        <h3>Today</h3>
-        {punches.length ? (
-          <ul className="jobs">
-            {punches
-              .slice()
-              .reverse()
-              .map((p) => (
-                <li key={p.id}>
-                  <strong>{p.kind === 'in' ? 'In' : 'Out'}</strong> at {clock(p.at)}
-                  <div className="muted small">{p.note}</div>
-                </li>
-              ))}
-          </ul>
-        ) : (
-          <p className="note">Nothing punched yet today.</p>
-        )}
+        <PunchNow
+          settings={settings}
+          next={next}
+          punches={punches}
+          post={async (payload) => {
+            const res = await fetch(`/api/punch/${token}/punch`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body?.error || 'Could not record that');
+            return body;
+          }}
+          onDone={refresh}
+        />
       </section>
 
       <section>

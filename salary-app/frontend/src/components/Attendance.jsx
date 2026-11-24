@@ -580,7 +580,6 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                   // The month's own answer on the lunch break, like every other total.
                   deductLunch: !period.lunch_paid,
                   hoursPerDay: hoursForEmployee(row, { period }),
-                  deductLunch: !period.lunch_paid,
                 }).worked
               );
               return (
