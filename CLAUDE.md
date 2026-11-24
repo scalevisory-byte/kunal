@@ -2251,6 +2251,72 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The Reports tab audited — four reports that were all the same one (v2.25.0)
+
+Dinesh: *"reports tab ka bhi check karo"*. Every entry opened in a real browser, every money
+figure matched against a separate calculation of the same month.
+
+**69 reports, every one opens, zero console errors.** The `partial` and `planned` ones say so
+on their own page rather than rendering an empty table; the ones that are a pointer say which
+tab to open; the file-only ones offer their download. The money reports agree with the salary
+sheet to the rupee: company summary gross 3,81,067 / net 3,65,117 / PT 2,600 / PF 12,600 /
+ESI 750 / Sunday 18,173, and **Salary deductions balances** — earned 3,82,067 − deducted
+16,950 = net 3,65,117, with the Deduct box added back exactly as `earnedOf` intends.
+
+### THE DEFECT: four statutory reports, one register
+
+`pf-register`, `esi-register`, `pt-register` and `wage-register` are four entries in the tree
+and **every one of them rendered `<Statutory period={period} />`**, whose own tab state starts
+at `pf`. So all four opened on Provident Fund. The tabs across the top of the panel do move
+between the registers, which is exactly why it read as working.
+
+**Why it was not merely untidy.** The PF register deliberately carries only the people PF is
+deducted for — on the audited month, **seven names out of twenty**. So opening the **wage
+register** showed seven people with nothing on the page saying thirteen were missing, and a
+wage register that understates the wages actually paid is the one thing it exists not to do.
+The panel's own Download follows the same tab, so pressing it on that screen handed over the
+PF CSV under the wage register's name.
+
+`show` is now passed per report. It is an **effect, not just initial state**: React keeps the
+component mounted when the report id changes — the element type is the same — so the state
+would survive from the last register opened. Proved by driving PF then Wage: it lands on Wage.
+Verified on screen: PF 7 rows, ESI 5, PT 1 line per company, **Wage register 20**.
+
+### And the same shape one category over
+
+**"Active employee list" handed over the leavers.** It fetched the same unfiltered
+`/employees.csv` as "Employee master register" — the route has taken `?active=` all along and
+nothing was asking it to. Both also saved as `Employees.csv`, so taking both left the second
+as `Employees (1).csv` with nothing on the name to tell them apart. Driven: one employee
+marked as left, the active list came back **19 rows, no leaver, `Active-employees.csv`**.
+
+**Checked and deliberately left alone**, because the name is honest for each: `bank-register`
+and `unpaid-salary` share `bank.csv`, and that file *does* drop a row marked paid (proved by
+marking one — 20 → 19), so the unpaid report is right and the bank one is the `partial` with
+a note already saying what it lacks; `sunday-register` / `sunday-holiday-pay` are the same
+register by design; `attendance-register` / `attendance-percent` are one table whose last
+column is the percentage. **Reported rather than changed**, since nobody asked and each
+reading is defensible: `leave-month` / `leave-lop` show the whole leave register (the LWP
+column is on it, but the report named LOP does not narrow to LOP), and `cost-company` is the
+payroll summary with no employer PF/ESI while `cost-department` beside it has both an
+employer column and a cost-to-company one.
+
+**The test pins the rule, not the fix.** `backend/test/statutoryPanels.test.js` builds the
+expected mapping from the panel's **own `TABS` list**, so a fifth register offered with no
+report to open it — or a report pointing at a tab that does not exist — fails there rather
+than silently landing somebody on Provident Fund. It also asserts the fallback guard is on
+both the initial state and the effect, and, in `shared/statutory.js`, that the wage register
+carries everybody while the PF register does not — which is the arithmetic the whole thing
+turned on. Proved by putting both bugs back: 1 of 7 and then 2 of 9 fail.
+
+**Harness notes, both mine.** A sweep of `button` elements clicked the nav rail first and
+navigated out of Reports, reporting thirteen reports as "vanished" — scope a sweep to the
+panel it is about. The tree is `<details>` per category, so only the open category's reports
+are in the DOM; setting `.open = true` on each is how all 69 were reached. And a Python
+`str.replace` whose target had already been changed by an earlier replace in the same script
+**does nothing and says nothing** — `KNOWN` never got inserted and the panel threw
+*"KNOWN is not defined"* in the browser, not at build time.
+
 ### The attendance tab audited, and the days its own row did not count (v2.24.0)
 
 Dinesh: *"attendance tab ka bhi check karo"*. Same method as the salary sheet — the grid

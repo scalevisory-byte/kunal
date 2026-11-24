@@ -1202,7 +1202,8 @@ export const HELP = [
     tab: 'reports',
     keywords: ['ecr', 'register', 'filing', 'pf register', 'esi register', 'wage register', 'return'],
     lines: [
-      'Four registers off the calculated month: PF, ESI, PT per company, and the wage register.',
+      'Four registers off the calculated month: PF, ESI, PT per company, and the wage register. Each is its own entry in the report list and opens on its own register; the tabs across the top move between them.',
+      '**The PF and ESI registers carry only the people those are deducted for**, which is what they are for \u2014 so they are shorter than the staff list and that is not a gap. **The wage register carries everybody paid**, which is what a muster roll has to do.',
       'Anybody missing a UAN or an ESIC number is named rather than quietly left out.',
       'The PF register flags a row where the deduction is not 12% of the wages reported — the commonest reason an ECR bounces.',
     ],

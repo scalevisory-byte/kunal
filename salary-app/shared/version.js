@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.24.0';
+export const VERSION = '2.25.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.25.0',
+    date: '24 Nov 2026',
+    title: 'The report you open is the report you get',
+    items: [
+      '**All four statutory registers opened on Provident Fund.** PF register, ESI register, Professional tax register and Wage register are four entries in the report list and every one of them landed on the same screen, on the PF tab \u2014 so opening the **wage register** showed the PF one. The tabs across the top did move between them, which is why it looked like it worked.',
+      '**That one mattered more than it looks.** The PF register deliberately carries only the people PF is deducted for: on a twenty-person month that is seven names. So somebody who opened the wage register saw seven of twenty with nothing saying the rest were missing \u2014 and a wage register that understates the wages actually paid is the one thing it exists not to do. The panel\u2019s own Download followed the tab too, so pressing it there handed over the PF file.',
+      'Each report now opens on its own register, and keeps doing so when you move between them. Checked on a real month: PF 7 rows, ESI 5, PT 1 line per company, wage register all 20.',
+      '**"Active employee list" was handing over the leavers.** It fetched the same unfiltered file as "Employee master register" \u2014 both of them also saved as `Employees.csv`, so taking both left the second one named `Employees (1).csv`. The active list is now narrowed to people still working, and the two files have their own names.',
+      '**Nothing was recalculated and no figure moved.** Every report in the tab was opened and checked against a separate calculation of the same month: 69 reports, no errors, and the money ones \u2014 company summary, salary deductions, department-wise cost, the registers \u2014 all agree with the salary sheet to the rupee.',
+    ],
+  },
   {
     version: '2.24.0',
     date: '24 Nov 2026',

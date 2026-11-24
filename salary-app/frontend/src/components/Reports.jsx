@@ -253,10 +253,10 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
         onError={(m) => setError(m)}
       />
     ),
-    'pf-register': () => <Statutory period={period} />,
-    'esi-register': () => <Statutory period={period} />,
-    'pt-register': () => <Statutory period={period} />,
-    'wage-register': () => <Statutory period={period} />,
+    'pf-register': () => <Statutory period={period} show="pf" />,
+    'esi-register': () => <Statutory period={period} show="esi" />,
+    'pt-register': () => <Statutory period={period} show="pt" />,
+    'wage-register': () => <Statutory period={period} show="wages" />,
   };
 
   const FILES = period
@@ -276,8 +276,18 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
         'bank-register': [`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`],
         'unpaid-salary': [`/periods/${period.id}/bank.csv`, `Bank-${period.label}.csv`],
         'leave-balance': [`/leave.csv?year=${period.year}`, `Leave-${period.year}.csv`],
-        'employee-master': ['/employees.csv', 'Employees.csv'],
-        'employee-active': ['/employees.csv', 'Employees.csv'],
+        'employee-master': ['/employees.csv', 'Employee-master.csv'],
+        /*
+         * THE ACTIVE LIST HAS TO BE NARROWED TO THE ACTIVE.
+         *
+         * Both entries fetched the same unfiltered file, so "Active employee
+         * list" handed over everybody, leavers included - under a name that
+         * says it does not. The route has taken `?active=` all along;
+         * nothing was asking it to. They also shared one filename, so taking
+         * both left the second as "Employees (1).csv" with nothing on the
+         * name to tell them apart.
+         */
+        'employee-active': ['/employees.csv?active=1', 'Active-employees.csv'],
       }
     : {};
 

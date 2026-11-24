@@ -18,11 +18,39 @@ const TABS = [
   ['wages', 'Wage register'],
 ];
 
-export default function Statutory({ period }) {
+/** Built from TABS, so a fifth register cannot be offered and then ignored. */
+const KNOWN = new Set(TABS.map(([key]) => key));
+
+/**
+ * THE REGISTER THE OFFICE ASKED FOR IS THE ONE THAT OPENS.
+ *
+ * Reports lists these as four separate reports - PF register, ESI register,
+ * Professional tax register, Wage register - and every one of them rendered
+ * `<Statutory period={period} />`, whose own tab state started at `pf`. So
+ * all four opened on Provident Fund.
+ *
+ * On the real data that is not merely untidy: the PF register carries only
+ * the people PF is deducted for, so somebody opening the **wage register**
+ * was shown seven names out of twenty and no sign that thirteen were
+ * missing - and a wage register that lists a third of the staff understates
+ * the wages actually paid, which is the one thing it exists to state.
+ * The panel's own Download follows the tab too, so pressing it on that
+ * screen handed over the PF CSV under the wage register's name.
+ *
+ * `show` is the register to open on; the tabs still move freely from there.
+ * It is an effect and not just the initial state because React keeps this
+ * component mounted when the report id changes - the element type is the
+ * same - so the state would survive from the last register opened.
+ */
+export default function Statutory({ period, show = 'pf' }) {
   const [report, setReport] = useState(null);
-  const [which, setWhich] = useState('pf');
+  const [which, setWhich] = useState(KNOWN.has(show) ? show : 'pf');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setWhich(KNOWN.has(show) ? show : 'pf');
+  }, [show]);
 
   useEffect(() => {
     if (!period) return;
