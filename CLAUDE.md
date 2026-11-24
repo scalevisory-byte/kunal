@@ -2983,6 +2983,41 @@ minutes kyu nahi aa rahi he"*, then *"dikhavo"*.
   *"Nothing anybody is paid changes"*, and the grid then read +7m / −11m / +8m / +13m /
   −8m / −15m / −10m with the 9h 00m row still a dash.
 
+### "Punching error" — what each one means (v2.17.1)
+
+Dinesh: *"Punching error"*, with no more words. **Reproduced every refusal the phone punch
+can give rather than guessing**, on a real punch link in a real browser:
+
+| What is wrong | What the employee sees |
+|---|---|
+| `PUNCH_ENABLED` not `true` | *Punching from a phone is switched off. Ask the office to turn it on.* — and the **Punch IN button is greyed out**, so nothing is even sent |
+| Location blocked in the browser | *Location is blocked for this page. Allow it in the browser and tap again.* |
+| Page open over plain **http** | *This page is open over plain http, and a browser will only give a location over https…* |
+| GPS slow | *Finding your location took too long. Step outside or near a window…* |
+| Outside the fence with `PUNCH_ALLOW_OUTSIDE=false` | *You are 4.7 km from the office.* |
+| More than 20 taps a minute | *Too many taps. Wait a minute.* |
+| Link reissued or expired | *This link is not valid any more. Ask the office for a new one.* |
+
+**The commonest one is the first, and it is one environment variable**: `PUNCH_ENABLED=true`
+on the server, then restart. Verified: with it off the button is dead; with it on, SUHANI's
+link punched in at 02:25.
+
+**THE ONE THAT WAS A REAL FAULT.** `where()` resolved `null` for every failure alike, so the
+server's single sentence came back for all of them — *"Allow location access and try again"*.
+That is **advice nobody can follow over plain http**: the browser does not offer the location
+API on an insecure origin at all, so there is nothing to allow and the punch can never
+succeed. Somebody would tap it all morning. Only the phone knows which of the four it was, so
+the phone now says, and the server still decides whether to refuse. **Proved from a real LAN
+address (`http://192.0.2.2:4387`), not reasoned about.**
+
+- Also worth knowing: **`PUBLIC_URL` unset makes `url` null** on the punch-link response, so
+  the office gets a path and not something it can send on WhatsApp. Behind the tunnel it
+  should be `https://bnfhrms.scalevisory.in`.
+- **No office location set is not an error.** `judgePunch` returns `inside_fence: null` with
+  the note *"no office locations set"*, and with the default `PUNCH_ALLOW_OUTSIDE` the punch
+  is recorded and flagged — which is the v1.x rule: refusing leaves somebody genuinely at a
+  client's office with no attendance at all.
+
 ### The staff portal's calendar (v2.17.0)
 
 Dinesh: *"employe login me bhi calander wala oprtion do"*, straight after the office side

@@ -40,12 +40,50 @@ export default function PunchPage({ token }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  /*
+   * WHERE THEY ARE, AND IF NOT, WHY NOT.
+   *
+   * This used to resolve `null` for every failure alike, so the server's one
+   * message came back for all of them: *"Allow location access and try
+   * again."* That is right when somebody tapped Block, and it is ADVICE THEY
+   * CANNOT FOLLOW when the page is open over plain http - a browser does not
+   * offer the location API there at all, so there is nothing to allow and
+   * the punch can never work. Somebody would tap it all morning.
+   *
+   * Only the phone knows which of the four it was, so it says.
+   */
   const where = () =>
     new Promise((resolve) => {
-      if (!navigator.geolocation) return resolve(null);
+      if (!navigator.geolocation) {
+        resolve({ point: null, problem: 'This browser cannot give a location at all.' });
+        return;
+      }
+      if (window.isSecureContext === false) {
+        resolve({
+          point: null,
+          problem:
+            'This page is open over plain http, and a browser will only give a location over https. ' +
+            'Open the link the office sent you — it starts with https:// — rather than an address with ' +
+            'numbers in it.',
+        });
+        return;
+      }
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-        () => resolve(null),
+        (pos) =>
+          resolve({
+            point: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
+            problem: '',
+          }),
+        (err) =>
+          resolve({
+            point: null,
+            problem:
+              err && err.code === 1
+                ? 'Location is blocked for this page. Allow it in the browser and tap again.'
+                : err && err.code === 3
+                  ? 'Finding your location took too long. Step outside or near a window and tap again.'
+                  : 'Your phone could not find a location just now. Try again in a moment.',
+          }),
         { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
       );
     });
@@ -55,15 +93,23 @@ export default function PunchPage({ token }) {
     setError('');
     setSaid('');
     try {
-      const at = await where();
+      const { point, problem } = await where();
       setBusy('Recording…');
       const res = await fetch(`/api/punch/${token}/punch`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, ...(at || {}) }),
+        body: JSON.stringify({ kind, ...(point || {}) }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || 'Could not record that');
+      /*
+       * The server decides whether to refuse; the phone says WHY there was no
+       * location. Where the refusal is about the location and we know the
+       * reason, ours is the specific one, so it is the one shown.
+       */
+      if (!res.ok) {
+        const said = body?.error || 'Could not record that';
+        throw new Error(problem && /location/i.test(said) ? problem : said);
+      }
       setSaid(`${kind === 'in' ? 'Punched in' : 'Punched out'} at ${clock(body.at)} — ${body.where}`);
       await load();
     } catch (err) {

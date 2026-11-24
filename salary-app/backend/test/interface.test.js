@@ -4272,3 +4272,29 @@ test('THE STAFF PORTAL’S CALENDAR ASSEMBLES, LIKE THE OFFICE ONE', () => {
      read alike rather than being two ideas of what a calendar looks like. */
   assert.match(portal, /from '\.\.\/\.\.\/\.\.\/shared\/monthGrid\.js'/);
 });
+
+test('A PUNCH THAT CANNOT FIND A LOCATION SAYS WHY, NOT JUST "ALLOW IT"', () => {
+  /*
+   * Dinesh: *"Punching error"*. The server has ONE message for a missing
+   * location — *"Allow location access and try again."* — and it is right
+   * when somebody tapped Block.
+   *
+   * IT IS ADVICE NOBODY CAN FOLLOW over plain http: a browser does not offer
+   * the location API on an insecure origin at all, so there is nothing to
+   * allow and the punch can never work. Somebody would tap it all morning.
+   * Only the phone knows which of the four it was, so the phone says.
+   *
+   * Proved from a real LAN address (http://192.0.2.2:4387), not reasoned
+   * about: the page now names the http problem instead of the server's line.
+   */
+  const page = src('components/PunchPage.jsx');
+  assert.match(page, /window\.isSecureContext === false/);
+  assert.match(page, /only give a location over https/);
+  /* The three browser reasons, told apart. */
+  assert.match(page, /err\.code === 1/);
+  assert.match(page, /err\.code === 3/);
+  /* The server still decides; the phone only explains a location refusal. */
+  assert.match(page, /problem && \/location\/i\.test\(said\)/);
+  /* And the point still travels under its own names, or the fence is blind. */
+  assert.match(page, /\.\.\.\(point \|\| \{\}\)/);
+});

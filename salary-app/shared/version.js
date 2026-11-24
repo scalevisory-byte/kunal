@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.17.0';
+export const VERSION = '2.17.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.17.1',
+    date: '24 Nov 2026',
+    title: 'A punch that will not go through now says why',
+    items: [
+      '**The phone punch had one message for every location failure** — *\u201cAllow location access and try again\u201d* — which is right when somebody tapped Block, and **advice nobody can follow when the page is open over plain http**: a browser does not offer the location at all on an insecure address, so there is nothing to allow and the punch can never work. Somebody would tap it all morning.',
+      'It now names which of the four it was: the page is on **http instead of https** (open the link the office sent), **blocked** in the browser, **took too long** (step outside), or the phone simply could not find a fix.',
+      '**Nothing else changed.** The server still decides whether to refuse a punch; the phone only explains why there was no location to send.',
+    ],
+  },
   {
     version: '2.17.0',
     date: '24 Nov 2026',
