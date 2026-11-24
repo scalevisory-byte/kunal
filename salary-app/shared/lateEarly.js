@@ -235,6 +235,56 @@ export function shiftFor(employee = {}, rules = DEFAULT_LATE_RULES) {
 }
 
 /**
+ * THE DAY ONE PERSON IS JUDGED ON — the single answer, for every screen.
+ *
+ * `shiftFor` above has always been right, and the payroll has always used it.
+ * The screens did not: the roll call, the month's late count and the daily
+ * WhatsApp message each judged everybody against the OFFICE day, so an
+ * employee shift typed on the record changed the payslip and nothing anybody
+ * could see. HR reported exactly that — *"shift time add kiya, phir bhi jo
+ * late ka hai wo time proper show nhi kr rha hai"*. Somebody on an evening
+ * shift then reads as hours late every single day, which is how a late list
+ * stops being read at all.
+ *
+ * ---------------------------------------------------------------------------
+ * THE AWKWARD PART, and it is a fact about the schema, not a choice here:
+ * `employees.shift_in` CARRIES A DEFAULT of 09:30 for everybody. "Nobody set
+ * one" and "somebody set 09:30" are the same bytes, and nothing can tell them
+ * apart.
+ *
+ * So a value equal to the shipped default is read as NOT SET and the office
+ * day wins. Without that, a month moved to a 10:00 start would be ignored for
+ * every one of the eighty-six people still carrying the default - the office
+ * setting would quietly do nothing, which is the same complaint one level up.
+ *
+ * The cost is the rare person deliberately put on 09:30 while the office runs
+ * later; they follow the office. That is not expressible in this column
+ * anyway, and it harms one person instead of everybody.
+ * ---------------------------------------------------------------------------
+ *
+ * Takes the office day in either spelling, because the screens hold it as
+ * `{in_time, out_time}` and the rules hold it as `{shift_in, shift_out}`.
+ */
+export function shiftTimesFor(employee = {}, standard = {}) {
+  const office = {
+    in: standard.in_time ?? standard.shift_in ?? standard.in ?? DEFAULT_LATE_RULES.shift_in,
+    out: standard.out_time ?? standard.shift_out ?? standard.out ?? DEFAULT_LATE_RULES.shift_out,
+  };
+  /* Set, readable, and not simply the column default. */
+  const theirs = (value, fallbackDefault) => {
+    const mine = parseTime(value);
+    if (mine === null) return null;
+    return mine === parseTime(fallbackDefault) ? null : value;
+  };
+  const ownIn = theirs(employee.shift_in, DEFAULT_LATE_RULES.shift_in);
+  const ownOut = theirs(employee.shift_out, DEFAULT_LATE_RULES.shift_out);
+  return {
+    in: ownIn ?? office.in,
+    out: ownOut ?? office.out,
+  };
+}
+
+/**
  * Does this person work hours of their own, rather than the office's?
  *
  * COMPARED AGAINST THE OFFICE DAY, not merely "is the column filled in".

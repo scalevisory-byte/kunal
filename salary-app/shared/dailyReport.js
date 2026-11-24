@@ -53,7 +53,7 @@
  */
 
 import { ATTENDANCE_CODES } from './calc.js';
-import { FULL_DAY_MARKS } from './lateEarly.js';
+import { FULL_DAY_MARKS, shiftTimesFor } from './lateEarly.js';
 import { isEarlyOut, isLateIn, lateByMinutes, formatDuration } from './timesheet.js';
 
 /** Who was at work, so there was a uniform to see. */
@@ -235,12 +235,22 @@ export function dailyReport({
   const grace = Number.isFinite(Number(standard.grace)) ? Number(standard.grace) : undefined;
   const lateOpts = grace === undefined ? { start: standard.in } : { start: standard.in, grace };
   const earlyOpts = grace === undefined ? { end: standard.out } : { end: standard.out, grace };
+  /*
+   * EACH PERSON AGAINST THEIR OWN SHIFT, where they have one.
+   *
+   * This judged everybody against the office day, so a shift typed on a
+   * record changed the payslip and not this message - and anybody on an
+   * evening shift went out to the group as hours late, every day.
+   */
+  const dayOf = (p) => shiftTimesFor(p, { in_time: standard.in, out_time: standard.out });
   const late = judged
-    .filter((p) => p.in_time && isLateIn({ in_time: p.in_time }, lateOpts))
-    .map((p) => ({ ...p, by: lateByMinutes({ in_time: p.in_time }, { start: standard.in }) }))
+    .filter((p) => p.in_time && isLateIn({ in_time: p.in_time }, { ...lateOpts, start: dayOf(p).in }))
+    .map((p) => ({ ...p, by: lateByMinutes({ in_time: p.in_time }, { start: dayOf(p).in }) }))
     .sort((a, b) => (b.by || 0) - (a.by || 0));
   const early = judged.filter(
-    (p) => p.out_time && isEarlyOut({ in_time: p.in_time, out_time: p.out_time }, earlyOpts)
+    (p) =>
+      p.out_time &&
+      isEarlyOut({ in_time: p.in_time, out_time: p.out_time }, { ...earlyOpts, end: dayOf(p).out })
   );
 
   /*

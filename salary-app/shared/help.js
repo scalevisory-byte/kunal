@@ -400,6 +400,8 @@ export const HELP = [
       'Their shift decides **when** they are late or early, **what \u201cFill the usual timings\u201d writes** on their days, and **how long their day is** \u2014 so short hours and overtime are judged against their own hours, not the office\u2019s nine.',
       'Their hourly rate follows it too: an hour missing from a six-hour day is worth a sixth of that day.',
       'A night shift that crosses midnight is read correctly \u2014 22:00 to 06:00 is eight hours.',
+      '**Leaving it at the usual 09:30–18:30 means “no shift of their own”**, and the office day applies — including a start the office changes later. Type a different time to give somebody a shift.',
+      'The **roll call, the month’s late count and the daily WhatsApp message** all judge each person against their own shift, the same as the payslip does.',
     ],
     note:
       'A SHIFT AT ANOTHER TIME OF DAY BUT THE SAME LENGTH CHANGES NO FIGURE. 14:00\u201323:00 is still nine hours. Only a different LENGTH moves money.\n\nA shift under two hours or over sixteen is treated as a typo: the month\u2019s hours are used instead and the Time tab says so. 09:00\u201309:30 taken literally would make a half-hour day the standard and pay eight and a half hours of overtime every single day.',

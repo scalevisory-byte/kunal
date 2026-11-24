@@ -2251,6 +2251,43 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+## A shift of their own, on the screens as well as the payslip (v2.20.0)
+
+HR, through Dinesh, with the Employees screen showing the shift column filled in: *"shift
+time add kiya, phir bhi jo late ka hai wo time proper show nhi kr rha hai"*. **Inspected
+rather than answered, and it was true.**
+
+`shiftFor` has existed since v1.82 and the PAYROLL has always used it, so a shift really did
+change what somebody was charged. **The screens did not.** `shiftOfMonth(period)` in
+`frontend/src/standardTimes.js` knows the month's shift and a localStorage fallback and has
+never looked at `employees.shift_in` — so three places judged everybody against the office
+day: the **roll call's Late in list and its "Late by"**, the **month-wide late/early counts**,
+and **`shared/dailyReport.js`**, the daily WhatsApp message.
+
+- **`shiftTimesFor(employee, standard)` in `shared/lateEarly.js` is the one answer**, called by
+  all three. Written as a helper because it was about to be written three times inline, which
+  is how the payroll and the screens came to disagree in the first place.
+- Measured on a real month: an evening-shift person arriving 14:05 against their own 14:00
+  read **Late by 4h 35m** (against 09:30) and now reads **Late by 5m**. Driven in a browser.
+- **THE AWKWARD PART, and it is the schema not a choice: `employees.shift_in` CARRIES A
+  DEFAULT of 09:30 for everybody.** "Nobody set one" and "somebody set 09:30" are the same
+  bytes. So a value equal to the shipped default is read as NOT SET and the office day wins.
+  Without that, a month moved to a 10:00 start would be ignored for all eighty-six people
+  still carrying the default — the office setting would quietly do nothing, which is the same
+  complaint one level up. The cost is the rare person deliberately put on 09:30 while the
+  office runs later; they follow the office, which is not expressible in this column anyway.
+  **Found by a failing test, not by thinking**: `dailyReportApi`'s `?in=10:30` override stopped
+  working on the first attempt, because everybody "had their own shift".
+- The two halves are judged apart: office start, own finish is a real arrangement.
+- **No figure moved.** These screens LIST who was late; what is CHARGED is the month's
+  `late_policy` through `calculateRow`, which already read `shiftFor`. The screens now agree
+  with the payslip rather than disagreeing with it — there is a test asserting the daily
+  message carries no rupee sign at all.
+- **Build trap, again:** the new import went into the `timesheet.js` block rather than
+  `lateEarly.js` and the build failed — `| head -4` showed "Build failed" and I copied `dist`
+  to `backend/public` anyway. **Read the whole head of the build output, and do not copy on a
+  failure.**
+
 ## Phone punches in the punch log — three feeds, one record (v2.19.0)
 
 Dinesh, straight after v2.18.0 named it as a known gap: *"punch log me bhi phone punch

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.19.1';
+export const VERSION = '2.20.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.20.0',
+    date: '24 Nov 2026',
+    title: 'A shift of their own now shows on the screens too',
+    items: [
+      '**HR: \u201cshift time add kiya, phir bhi jo late ka hai wo time proper show nhi kr rha hai\u201d. That was true.** The payslip has always been worked out against a person\u2019s own shift; the **roll call, the month\u2019s late count and the daily WhatsApp message** judged everybody against the office day, so a shift typed on a record changed the pay and nothing anybody could see.',
+      '**Worst on an evening shift.** Somebody starting at 2pm read as more than four hours late \u2014 every single day. On his own figures: 14:05 against a 14:00 shift now reads **Late by 5m**, where it read **Late by 4h 35m** before.',
+      'An early finish is judged the same way, against **their** end of day.',
+      '**A shift left at the usual 09:30\u201318:30 counts as \u201cnot set\u201d**, so the office\u2019s own start still applies to everybody on it. The column carries that default for every person, so reading it as a personal shift would have made the office setting do nothing at all.',
+      '**No figure moved.** These screens list who was late; what is charged is the month\u2019s own rule, which already read the person\u2019s shift. The screens now agree with the payslip instead of disagreeing with it.',
+    ],
+  },
   {
     version: '2.19.1',
     date: '24 Nov 2026',

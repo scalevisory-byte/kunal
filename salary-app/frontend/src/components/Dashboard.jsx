@@ -18,7 +18,7 @@ import Glyph from '../icons.jsx';
 import { shiftOfMonth } from '../standardTimes.js';
 import DailyReport from './DailyReport.jsx';
 import { dayStats } from '../../../shared/frontOffice.js';
-import { hoursForEmployee } from '../../../shared/lateEarly.js';
+import { hoursForEmployee, shiftTimesFor } from '../../../shared/lateEarly.js';
 
 /**
  * The month at a glance, on one screen.
@@ -380,10 +380,19 @@ export default function Dashboard({
         const workedToday = readTimes(times, { deductLunch: !period.lunch_paid }).worked;
         if (workedToday !== null && workedToday > 0) out.workedMinutes += workedToday;
         if (judgedOnTime(code)) {
-          if (isLateIn(times, { start: standard.in_time, grace })) {
-            out.late.push({ ...person, lateBy: lateByMinutes(times, { start: standard.in_time }) });
+          /*
+           * THEIR OWN SHIFT, not the office's.
+           *
+           * This judged everybody against the office day, so a shift typed on
+           * somebody's record moved their payslip and changed nothing here -
+           * which is what HR reported. On an evening shift it is worse than
+           * wrong: they read as hours late every day.
+           */
+          const shift = shiftTimesFor(row, standard);
+          if (isLateIn(times, { start: shift.in, grace })) {
+            out.late.push({ ...person, lateBy: lateByMinutes(times, { start: shift.in }) });
           }
-          if (isEarlyOut(times, { end: standard.out_time, grace })) out.early.push(person);
+          if (isEarlyOut(times, { end: shift.out, grace })) out.early.push(person);
         }
         // Overtime and short hours are the day's own minutes, whether they came
         // off the clock or were typed straight onto the grid.
@@ -918,6 +927,9 @@ export default function Dashboard({
 
       return rows.map((row) => {
         const marks = Object.values(row.attendance || {});
+        // The person's own shift, or the month's count disagrees with the
+        // list the roll call shows for the same day.
+        const shift = shiftTimesFor(row, standard);
         let present = 0;
         let late = 0;
         let early = 0;
@@ -931,8 +943,8 @@ export default function Dashboard({
           const leftAt = parseTime(times.out_time);
           if (cameAt !== null || leftAt !== null) clocked++;
           if (!judgedOnTime(code)) continue;
-          if (isLateIn(times, { start: standard.in_time, grace })) late++;
-          if (isEarlyOut(times, { end: standard.out_time, grace })) early++;
+          if (isLateIn(times, { start: shift.in, grace })) late++;
+          if (isEarlyOut(times, { end: shift.out, grace })) early++;
         }
         return {
           id: row.employee_id,
