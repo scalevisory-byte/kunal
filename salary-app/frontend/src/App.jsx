@@ -1088,6 +1088,7 @@ function Shell() {
             saving={saving}
             locked={locked}
             onPatchRow={patchRow}
+            onPatchPeriod={patchPeriod}
             onPayslip={setPayslip}
             onCompany={pickCompany}
             me={me}

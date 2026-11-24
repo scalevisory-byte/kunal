@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.21.0';
+export const VERSION = '2.22.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.22.0',
+    date: '24 Nov 2026',
+    title: 'The salary the month pays, the hours it charges, and a shorter roll call',
+    items: [
+      '**A row paying a different salary from the employee record is now named on the salary sheet.** Dinesh: *\u201c5 lac salary showing / 50 dala he\u201d* \u2014 the record said 50,000 and the month was paying 5,00,000. A month keeps the salary it was given when the row was made, so a figure corrected on the record afterwards never reached it, and nothing said so. Both figures are shown with a button to bring the record\u2019s across. **Nothing changes by itself** \u2014 sometimes a month really is meant to pay something else.',
+      '**The hours bar now says whether this month charges them at all.** *\u201cot plus mins net me count ho raha he / o sirf dikhna chahiye\u201d* \u2014 his November was opened before the days-only rule and really is charging them, while the bar was offering to *\u201cdeduct the short hours\u201d* that were already in the net. It states the amount already charged and offers **Only show them, don\u2019t charge**, which puts the month on the days-only rule: the figures stay on screen in Month hrs, and anything to be deducted is typed into that person\u2019s OT min box.',
+      'The two bulk hours buttons no longer appear on a month that already charges \u2014 they were for the other rule, and on this one they meant nothing.',
+      '**The roll call is half the height.** Measured: rows were 65px, so ten people filled the screen and thirty-three took four pages. They are **32px** now and a page holds **15**. Nothing was removed \u2014 the company name was wrapping onto three lines in a narrow column and a table row is as tall as its tallest cell.',
+    ],
+  },
   {
     version: '2.21.0',
     date: '24 Nov 2026',

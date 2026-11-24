@@ -2251,6 +2251,46 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The salary the month pays, the hours it charges, a shorter roll call (v2.22.0)
+
+Three messages off his live screens. `shared/salaryDrift.js` is new.
+
+**1. *"5 lac salary showing / 50 dala he"* — the record said 50,000, the sheet paid 5,00,000.**
+**Not a ×10 bug:** `payroll_rows.salary` is taken from the record when the row is first made,
+and `syncPayrollRows`'s `bumpSalary` only fills it in `WHERE salary = 0`. So a salary mistyped,
+then corrected on the record, never reaches a month that already holds the row — by design,
+because a month that has been run must not move when somebody edits a master later, and
+because the office does sometimes mean a month to pay something else.
+**The app cannot tell those two apart, so there is no rule here and none was written.** The
+sheet names the difference with both figures and the worst one read back in the confirmation,
+and the office presses it. Same answer as the ✎ typed-over cell, the asset that is "not
+checked" rather than missing, the punch day that is "not known" rather than absent.
+
+**2. *"ot plus mins net me count ho raha he / o sirf dikhna chahiye / katna he to o manually
+add hoga"*.** His November was opened before `POLICY.none` existed, so it runs on
+`monthly_late` and the hours really are in the net — which `calc.js` confirms
+(`daysOnlyMode ? 0`), and his own screenshot proves, because **OT MIN equals MONTH HRS on
+every row**. What was wrong is that the bar offered to *"Deduct the short hours — 38 people,
+₹24,307"* on a month where they were **already deducted**. `hoursDecision` now takes the
+period, reports `charging` and `chargedAmount` (read off `ot_salary`, the payslip's own
+figure), states it, offers **Only show them, don't charge** (`late_policy: 'none'`, naming
+BOTH sides), and **hides the two bulk buttons**, which belong to the other rule.
+
+**3. *"isko compct karo"* — the roll call.** Measured at 1420x1100 first: rows **65px**, so ten
+people filled the screen and thirty-three took four pages.
+**The cause was not the content:** every cell measured 52–65px with nothing inside taller than
+22. `table.sheet.roll-table td` is `white-space: normal` so What and Why can hold a sentence —
+which also let **"BOOKNFLY PRIVATE LIMITED" wrap onto three lines**, and a table row is as tall
+as its tallest cell. Company and Department get `.one-line` with the full text on the title;
+the name column went to 13.5rem because at 160px against a name needing 159 ALIFAYA
+CHIKHALIWALA wrapped and that row alone stood 48 against 32 (**the v2.5.1 lesson again**).
+**65px → 32px**, and `PER_PAGE` 10 → 15 because ten compact rows use a third of the screen.
+Checked at 1420 and 390: no sideways scroll, and the only clipped cell is Company, deliberately.
+
+- Two tests pinned old shapes and were **rewritten, not loosened**: `hoursDecision(calcs)` now
+  takes the period, and `PER_PAGE = 10`.
+- `.drift-bar` was checked for a rule before it was used, not after.
+
 ### Quick stats opens its list, and overtime finally has one (v2.21.0)
 
 Dinesh: *"early going bhi check karo"*, then, with a crop of the Quick stats card,

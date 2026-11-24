@@ -195,7 +195,13 @@ test('the footer and the rows come from ONE calculation', () => {
   const sheet = src('components/SalarySheet.jsx');
   assert.match(sheet, /const calcs = useMemo\(/, 'one calculation for the whole sheet');
   assert.match(sheet, /totalRows\(calcs\.map\(\(c\) => c\.calc\)\)/, 'the footer reads it');
-  assert.match(sheet, /hoursDecision\(calcs\)/, 'and so does the decision bar');
+  /*
+   * The bar reads that same memo and now also the PERIOD, because what it may
+   * offer depends on whether the month charges the hours at all. This used to
+   * pin `hoursDecision(calcs)` exactly and was rewritten rather than loosened
+   * when the second argument arrived.
+   */
+  assert.match(sheet, /hoursDecision\(calcs, \{ period \}\)/, 'and so does the decision bar');
   /* And nothing rebuilds its own copy - that is how two answers appear. */
   const rebuilds = sheet.match(/filtered\.map\(\(row\) => \(\{ row, calc:/g) || [];
   assert.equal(rebuilds.length, 1, 'the rows are calculated in exactly one place');

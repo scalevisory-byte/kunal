@@ -885,7 +885,10 @@ test('the dashboard wears the corporate look and nothing else does', () => {
    * narrowing to one company while on page 4 would otherwise show an empty
    * table, which reads as "nobody matched".
    */
-  assert.match(d, /const PER_PAGE = 10;/);
+  /* Fifteen since the rows were halved in height: a page of ten used a third
+     of the screen and sent somebody through four pages for thirty-three
+     people. Rewritten from `PER_PAGE = 10` rather than loosened. */
+  assert.match(d, /const PER_PAGE = 15;/);
   assert.match(d, /\}, \[bucket, find, sort, regCompany, regDept, shownDay\]\);/);
   assert.match(d, /All companies<\/option>/);
   assert.match(d, /All departments<\/option>/);

@@ -738,7 +738,15 @@ export default function Dashboard({
      * to one company while on page 4 shows an empty table, which reads as
      * "nobody matched".
      */
-    const PER_PAGE = 10;
+    /*
+     * Fifteen, not ten, because the rows are half what they were.
+     *
+     * At 65px a page of ten filled the screen; at 32px it uses a third of it
+     * and sends somebody through four pages for thirty-three people. Fifteen
+     * is about 480px of table - still a screenful on a laptop with the chips
+     * and the search above it.
+     */
+    const PER_PAGE = 15;
     const pages = Math.max(1, Math.ceil(listed.length / PER_PAGE));
     const onPage = Math.min(page, pages);
     const shownRows = listed.slice((onPage - 1) * PER_PAGE, onPage * PER_PAGE);
@@ -1870,7 +1878,7 @@ export default function Dashboard({
               <tbody>
                 {shownRows.map((p) => (
                   <tr key={p.id} className={`r${p.rank}`}>
-                    <td className="sticky-name">
+                    <td className="sticky-name" title={p.employee_name}>
                       {p.employee_name}
                       {p.employee_code ? <div className="muted small">{p.employee_code}</div> : null}
                     </td>
@@ -2000,10 +2008,23 @@ export default function Dashboard({
                         </button>
                       </span>
                     </td>
-                    <td className="muted small">
+                    {/*
+                      * THESE TWO DRIVE THE HEIGHT OF EVERY ROW.
+                      *
+                      * `.roll-table td` is `white-space: normal` so the What
+                      * and Why cells can hold a sentence - which also let
+                      * "BOOKNFLY PRIVATE LIMITED" wrap onto THREE lines in a
+                      * narrow column, and a table row is as tall as its
+                      * tallest cell. Measured: every cell 52px with nothing
+                      * in it taller than 22. They are named so the stylesheet
+                      * can hand them back their one line.
+                      */}
+                    <td className="muted small one-line" title={p.department || ''}>
                       {p.department || <span className="muted">—</span>}
                     </td>
-                    <td className="muted small">{p.company_name}</td>
+                    <td className="muted small one-line" title={p.company_name}>
+                      {p.company_name}
+                    </td>
                     {/*
                       * Straight to that person's record. The morning list is
                       * where somebody notices a problem; making them go to

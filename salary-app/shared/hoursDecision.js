@@ -35,6 +35,8 @@
  *   bundling them into one button answers the second without being asked.
  */
 
+import { onDaysOnly } from './lateEarly.js';
+
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 /** Does this row already carry a figure somebody typed into OT min? */
@@ -62,14 +64,39 @@ export const hoursMinutesOf = (calc = {}) =>
  *   shortAmount: number, overAmount: number, anything: boolean,
  * }}
  */
-export function hoursDecision(calcs = []) {
+export function hoursDecision(calcs = [], { period = null } = {}) {
+  /*
+   * IS THE MONTH ALREADY CHARGING THESE HOURS?
+   *
+   * Dinesh, off his live sheet: *"ot plus mins net me count ho raha he / o
+   * sirf dikhna chahiye / katna he to o manually add hoga"*. His November was
+   * opened before the days-only rule existed and still runs on the monthly
+   * one, so every OT figure on it is in the net — and this bar was offering
+   * to *"deduct the short hours"* that were already deducted, which reads as
+   * though they were not.
+   *
+   * A month keeps the rule it was opened on, deliberately, so nothing here
+   * switches it — but the bar has to say which world it is in, and offer the
+   * switch rather than a button that means nothing.
+   */
+  const charging = period ? !onDaysOnly(period) : false;
   const out = {
     short: [], over: [], decided: [], unknown: 0,
     shortAmount: 0, overAmount: 0, anything: false,
+    charging,
+    // What the hours are actually taking out of (or adding to) the month as
+    // it stands. Read off `ot_salary`, the figure the payslip prints, never
+    // recomputed from a rule.
+    chargedAmount: 0,
+    chargedPeople: 0,
   };
   for (const entry of calcs) {
     const row = entry?.row || {};
     const calc = entry?.calc || {};
+    if (charging && num(calc.ot_salary) !== 0) {
+      out.chargedAmount += num(calc.ot_salary);
+      out.chargedPeople += 1;
+    }
     /* Already answered, by hand or by a previous press. Counted, never
        overwritten - the office's own figure outranks ours. */
     if (hasTypedHours(row)) {
@@ -97,7 +124,9 @@ export function hoursDecision(calcs = []) {
   out.over.sort((a, b) => b.minutes - a.minutes);
   out.shortAmount = Math.round(out.shortAmount);
   out.overAmount = Math.round(out.overAmount);
-  out.anything = out.short.length > 0 || out.over.length > 0 || out.decided.length > 0;
+  out.chargedAmount = Math.round(out.chargedAmount);
+  out.anything =
+    out.short.length > 0 || out.over.length > 0 || out.decided.length > 0 || charging;
   return out;
 }
 

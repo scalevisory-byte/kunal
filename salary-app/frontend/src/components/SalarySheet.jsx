@@ -11,6 +11,7 @@ import {
   hoursDecision,
   hoursMinutesOf,
 } from '../../../shared/hoursDecision.js';
+import { salaryDrift, takeMasterPatch } from '../../../shared/salaryDrift.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
 import { loadCompanyLogos, logoFor } from '../companyLogos.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -111,7 +112,7 @@ const VIEWS = [
 ];
 
 export default function SalarySheet({
-  period, rows, onPatchRow, onPayslip, onCompany, saving, locked, me, onGo, onReload, companyId,
+  period, rows, onPatchRow, onPatchPeriod, onPayslip, onCompany, saving, locked, me, onGo, onReload, companyId,
 }) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
@@ -179,7 +180,17 @@ export default function SalarySheet({
    * into a yes or a no. Over the VISIBLE rows, so the company filter and the
    * search narrow it like everything else on this screen.
    */
-  const decision = useMemo(() => hoursDecision(calcs), [calcs]);
+  const decision = useMemo(() => hoursDecision(calcs, { period }), [calcs, period]);
+
+  /*
+   * WHERE THE MONTH AND THE RECORD DISAGREE ABOUT SOMEBODY'S SALARY.
+   *
+   * Dinesh: *"5 lac salary showing / 50 dala he"*. The month keeps the figure
+   * it was given when the row was made, so a salary corrected on the record
+   * afterwards never reaches it — and nothing said so. Named here, decided by
+   * the office; see `shared/salaryDrift.js` for why there is no rule.
+   */
+  const drift = useMemo(() => salaryDrift(rows), [rows]);
 
   /*
    * In small batches rather than eighty-six requests at once. `onPatchRow`
@@ -226,6 +237,51 @@ export default function SalarySheet({
     );
     if (!ok) return;
     await applyToAll(decision.decided, () => CLEAR_HOURS_PATCH);
+  };
+
+  /*
+   * Bring the record's salary onto the month, for every row that disagrees.
+   *
+   * It names the worst one in the confirmation, because a figure out by a
+   * factor of ten is the whole reason somebody presses this and reading it
+   * back is the last chance to notice it is the OTHER figure that is wrong.
+   */
+  const takeMaster = async () => {
+    const worst = drift.worst;
+    const ok = window.confirm(
+      `Put the employee record's salary onto ${drift.lines.length} ` +
+        `${drift.lines.length === 1 ? 'row' : 'rows'} of this month?\n\n` +
+        (worst
+          ? `The biggest difference is ${worst.name}: this month pays \u20b9${rupees(worst.sheet)}, ` +
+            `the record says \u20b9${rupees(worst.master)}.\n\n`
+          : '') +
+        `Every other figure on the row stays. If a month was meant to pay something ` +
+        `different, press Cancel and fix the record instead.`
+    );
+    if (!ok) return;
+    await applyToAll(drift.lines, (line) => takeMasterPatch(line));
+  };
+
+  /*
+   * Stop this month charging the hours — the days-only rule, which every
+   * month opened since v2.6.0 already starts on.
+   *
+   * It switches the MONTH, which is a policy and not a per-person judgement,
+   * so it is deliberately a different button from "Deduct the short hours"
+   * beside it, and it says both sides: what stops being deducted AND what
+   * stops being paid, read off the payslip's own figures.
+   */
+  const stopCharging = async () => {
+    const ok = window.confirm(
+      `Stop charging the hours on this month?\n\n` +
+        `\u20b9${rupees(Math.abs(decision.chargedAmount))} across ${decision.chargedPeople} ` +
+        `${decision.chargedPeople === 1 ? 'person' : 'people'} comes out of the net — ` +
+        `the short hours stop being deducted AND the overtime stops being paid.\n\n` +
+        `The figures stay on screen in Month hrs. To charge somebody after that, ` +
+        `type it into their OT min box.`
+    );
+    if (!ok) return;
+    await onPatchPeriod({ late_policy: 'none' });
   };
 
   // Company name repeats down column A in the sheet; here it only prints when
@@ -510,16 +566,82 @@ export default function SalarySheet({
         * all that is left is yes or no, which is exactly what was asked
         * for.
         */}
+      {/*
+        * THE SALARY THE MONTH IS PAYING AGAINST THE SALARY ON THE RECORD.
+        *
+        * Dinesh: *"5 lac salary showing / 50 dala he"*. The month keeps the
+        * figure it was given when the row was made; a correction on the
+        * record afterwards never reaches it, and nothing said so. Both
+        * figures are named and the office decides - there is no rule that
+        * could be right here, so there is no rule.
+        */}
+      {drift.any ? (
+        <div className="row gap wrap hours-decide drift-bar">
+          <strong>Salary</strong>
+          <span>
+            {drift.lines.length} {drift.lines.length === 1 ? 'row pays' : 'rows pay'} something
+            different from the employee record
+            {drift.worst ? (
+              <>
+                {' '}&mdash; <strong>{drift.worst.name}</strong> is on &#8377;
+                {rupees(drift.worst.sheet)} here and &#8377;{rupees(drift.worst.master)} on the record
+              </>
+            ) : null}
+            .
+          </span>
+          <button type="button" onClick={takeMaster} disabled={locked}>
+            Use the record&rsquo;s figure on {drift.lines.length === 1 ? 'it' : `all ${drift.lines.length}`}
+          </button>
+          <span className="muted small">
+            A month keeps the salary it was given, so a figure corrected on the record later does
+            not reach it by itself &mdash; and sometimes a month is meant to pay something else.
+            Nothing changes until you press it.
+          </span>
+        </div>
+      ) : null}
+
       {decision.anything ? (
         <div className="row gap wrap hours-decide">
           <strong>The month&rsquo;s hours</strong>
-          {decision.short.length ? (
+          {/*
+            * WHICH WORLD THIS MONTH IS IN, said before the buttons.
+            *
+            * Dinesh: *"ot plus mins net me count ho raha he / o sirf dikhna
+            * chahiye / katna he to o manually add hoga"*. His November was
+            * opened before the days-only rule existed, so the hours really
+            * are in the net - and this bar was offering to "deduct the short
+            * hours" that were already deducted.
+            */}
+          {decision.charging ? (
+            <>
+              <span>
+                This month <strong>charges the hours</strong>: &#8377;
+                {rupees(Math.abs(decision.chargedAmount))} across {decision.chargedPeople}{' '}
+                {decision.chargedPeople === 1 ? 'person is' : 'people are'} already in the net below.
+              </span>
+              {onPatchPeriod ? (
+                <button type="button" onClick={stopCharging} disabled={locked}>
+                  Only show them, don&rsquo;t charge
+                </button>
+              ) : null}
+            </>
+          ) : null}
+          {/*
+            * The two bulk buttons belong to the days-only world: there the
+            * hours are shown and charged nothing, and saying yes is the whole
+            * decision. On a month that ALREADY charges them, "Deduct the
+            * short hours - 3 people, Rs 333" is offering to deduct what is
+            * already inside the Rs 3,205 named above, which is exactly the
+            * confusion that was reported. The per-row OT min box is still
+            * there for one person.
+            */}
+          {!decision.charging && decision.short.length ? (
             <button type="button" onClick={chargeShort} disabled={locked}>
               Deduct the short hours &mdash; {decision.short.length}{' '}
               {decision.short.length === 1 ? 'person' : 'people'}, &#8377;{rupees(decision.shortAmount)}
             </button>
           ) : null}
-          {decision.over.length ? (
+          {!decision.charging && decision.over.length ? (
             <button type="button" className="ghost" onClick={payOver} disabled={locked}>
               Pay the overtime &mdash; {decision.over.length}, &#8377;{rupees(decision.overAmount)}
             </button>
@@ -530,8 +652,10 @@ export default function SalarySheet({
             </button>
           ) : null}
           <span className="muted small">
-            It fills the <strong>OT min</strong> box on each row, so you can see it, change it
-            or clear it. Nothing is touched where a figure is already typed
+            {decision.charging
+              ? 'Type into a row\u2019s OT min box to overrule the rule for one person'
+              : 'It fills the OT min box on each row, so you can see it, change it or clear it. ' +
+                'Nothing is touched where a figure is already typed'}
             {decision.unknown
               ? `, and ${decision.unknown} ${decision.unknown === 1 ? 'person has' : 'people have'} no clock times at all`
               : ''}

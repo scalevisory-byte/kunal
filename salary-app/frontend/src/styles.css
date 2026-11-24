@@ -6254,3 +6254,77 @@ h3.spaced { margin-top: 1.5rem; }
 @media (max-width: 560px) {
   .page-filters .top-row .today-is { flex-basis: 100%; margin: 0 0 0.2rem; }
 }
+
+
+/*
+ * THE ROLL CALL, COMPACT.
+ *
+ * Dinesh, with a screenshot of ten absent people filling the whole screen:
+ * *"isko compct karo"*. Measured at 1420x1100 first: rows were **65px**, so
+ * ten of them were 650px and 33 people took four pages.
+ *
+ * What was spending it: the employee code on its own line under the name,
+ * generous line-height on both, and an input and two button rows each sized
+ * for a form rather than a register. Nothing is removed - every column, every
+ * figure and every control stays and stays usable; they are just not spaced
+ * like a form any more.
+ *
+ * Scoped to this one table. `table.sheet` is a dozen other screens.
+ */
+table.sheet.roll-table td,
+table.sheet.roll-table th {
+  padding: 0.12rem 0.4rem;
+  line-height: 1.25;
+}
+table.sheet.roll-table td.sticky-name { line-height: 1.2; }
+/* The code under the name: still readable, no longer a whole second row. */
+table.sheet.roll-table td.sticky-name .small {
+  font-size: 0.66rem;
+  line-height: 1.1;
+  display: block;
+}
+/* Several reasons still take a line each - that is the point of them - but a
+   line is a line, not a paragraph. */
+table.sheet.roll-table .why { line-height: 1.25; }
+table.sheet.roll-table input.why-box { padding: 0.1rem 0.3rem; height: 1.35rem; }
+table.sheet.roll-table .yesno button { padding: 0.02rem 0.32rem; }
+
+/*
+ * The two columns that were wrapping, and so setting the height of the whole
+ * row. A table row is as tall as its tallest cell, and a company name in a
+ * narrow column is three lines. The full text is on the title, so nothing is
+ * lost - it is read, not added up.
+ */
+table.sheet.roll-table td.one-line {
+  white-space: nowrap;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The name column, with slack in it.
+ *
+ * Measured: 160px wide against a name needing 159, so ALIFAYA CHIKHALIWALA
+ * wrapped and that row alone stood 48px against the others' 32. His names run
+ * past twenty characters - AJEETKUMAR UPDHYAY, NIDHEE CHAUDHARI - so this is
+ * the v2.5.1 lesson again: a column sized to exactly the longest name today
+ * wraps on the next person hired. One line each, cut cleanly if it ever
+ * overflows, with the whole name on the title.
+ */
+table.sheet.roll-table td.sticky-name,
+table.sheet.roll-table th.sticky-name {
+  width: 13.5rem;
+  min-width: 13.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * The salary-disagreement bar. Same shape as the hours bar beside it, marked
+ * by the warning colour because a month paying ten times the record is not a
+ * decision waiting to be made - it is very likely a typo somebody has already
+ * corrected on the other screen.
+ */
+.hours-decide.drift-bar { border-left: 3px solid var(--warn); }

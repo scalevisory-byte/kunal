@@ -354,6 +354,7 @@ export const HELP = [
       'month hrs', 'rule', 'policy', 'salary count',
     ],
     lines: [
+      '**A month keeps the rule it was opened on.** If the sheet says *“This month charges the hours”*, that month was started before this rule existed — press **Only show them, don’t charge** on the hours bar to move it over. The figures stay on screen either way.',
       '**This is what a new month opens on.** The pay comes from the day count \u2014 Present pays, Absent docks a day, Half day docks half, leave is whatever that mark says. **Nothing is charged or paid for hours.**',
       '**The hours are still counted and still shown.** The salary sheet has a **Month hrs** column: what the clock came to for the month, nine hours a day against the days that were due. It is there to look at. It changes nobody\u2019s pay.',
       '**You do not type the figure \u2014 you decide about it.** Above the sheet: **Deduct the short hours \u2014 N people, \u20b9X**. One press fills the **OT min** box on every one of those rows with the amount already worked out. **Pay the overtime** is a separate button, because deducting somebody\u2019s missing hours and paying somebody else\u2019s extra are two different questions.',
@@ -801,6 +802,7 @@ export const HELP = [
     tab: 'sheet',
     keywords: ['salary', 'gross', 'net', 'calculation', 'how', 'pagar', 'hisab', 'payable'],
     lines: [
+      '**If a row pays a different salary from the employee record, a line at the top says so**, names both figures and offers to bring the record’s across. A month keeps the salary it was given, so correcting a mistyped salary on the record does not reach a month that already has the row — and sometimes a month is meant to pay something else, which is why nothing changes by itself.',
       'Per-day rate = monthly salary ÷ 26. Days counted = 26 − what the absences cost.',
       'Gross after absence = per-day × days counted, then OT/short hours, then any Add and Deduct.',
       'PT is charged on **the month’s gross**, not the master salary — so somebody whose absences pull them under the slab pays none.',
