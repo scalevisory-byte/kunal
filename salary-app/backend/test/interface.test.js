@@ -4467,3 +4467,30 @@ test('the roll call footnote does not state one office day for everybody', () =>
   assert.match(dash, /out\.ownShift\+\+/, 'nothing counts the people on their own shift');
   assert.match(dash, /judged against their own shift instead/, 'the footnote never mentions them');
 });
+
+test('AN ABSENCE IS NEVER A UNIFORM FAILURE, even with a verdict stored on the day', () => {
+  /*
+   * Checked by hand first: somebody marked `A` with `uniform: false` really
+   * sitting on their attendance row — which the grid will store, because the
+   * two columns are independent and a verdict typed before an absence came in
+   * stays there. The roll call read "Out of uniform 1" (the one person who was
+   * actually at work) and "check the 2 at work", leaving the absent one out of
+   * both the list and the denominator.
+   *
+   * That rests entirely on the push being guarded by WORKED_MARKS rather than
+   * by `person.uniform === false` alone, so the guard is what is pinned. Without
+   * it an absence reads as a uniform offence, and the morning's walk could never
+   * be finished — nobody can inspect somebody who was not there.
+   */
+  const dash = src('components/Dashboard.jsx');
+  const guard = dash.match(/if \(code && WORKED_MARKS\.has\(code\)\) \{([\s\S]{0,400}?)\n        \}/);
+  assert.ok(guard, 'the uniform lists are no longer behind the at-work guard');
+  assert.match(guard[1], /outOfUniform\.push/, 'out of uniform is counted outside the guard');
+  assert.match(guard[1], /uniformChecked\+\+/, 'the denominator is counted outside the guard');
+
+  /* And the marks that mean "not at work" are not in the set. */
+  const set = dash.match(/const WORKED_MARKS = new Set\(\[([^\]]*)\]\)/);
+  for (const code of ["'A'", "'UL'", "'AD'", "'CL'", "'SL'", "'PL'"]) {
+    assert.ok(!set[1].includes(code), `${code} would be asked about its uniform`);
+  }
+});
