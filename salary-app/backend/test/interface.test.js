@@ -4417,3 +4417,53 @@ test('a person with no Punch ID can still be picked in the punch log', () => {
   const pickable = body.slice(body.indexOf('const pickable'), body.indexOf('if (STANDALONE)'));
   assert.ok(!/device_code/.test(pickable), 'the picker still excludes people with no Punch ID');
 });
+
+test('EVERY QUICK STATS ROW OPENS ITS OWN LIST, not another tab', () => {
+  /*
+   * Dinesh: *"ye open karne se hali inki list mile esa karo"*. The rows used
+   * to call onGo('time') / onGo('attendance') — which leaves the dashboard
+   * for a tab with no filter on it, where the people behind the figure are
+   * not shown at all. A figure with a chevron on it has to lead to its names.
+   *
+   * The roll call below already has a chip per list, so the rows set that
+   * chip rather than growing a second idea of what "the late list" is.
+   */
+  const dash = src('components/Dashboard.jsx');
+  /* `.roll-call` also appears far ABOVE this card, inside openRoll's own
+     querySelector, so the end of the slice is searched from the start of the
+     card rather than from the start of the file. */
+  const from = dash.indexOf('Quick stats');
+  const card = dash.slice(from, dash.indexOf('card roll-call', from));
+  assert.match(card, /onClick=\{\(\) => openRoll\(key\)\}/, 'the rows do not open the roll call');
+  assert.ok(!/onGo\(to\)/.test(card), 'a Quick stats row still jumps to another tab');
+
+  /* Every key it names must be a real bucket, or the chip silently matches
+     nobody and the table goes empty — worse than the old jump. */
+  const buckets = dash.slice(dash.indexOf('const buckets'), dash.indexOf('const atWorkRows'));
+  for (const key of ['late', 'early', 'halfDay', 'overtime', 'short', 'uniform']) {
+    assert.match(card, new RegExp(`'${key}'\\]`), `Quick stats does not offer ${key}`);
+    assert.match(buckets, new RegExp(`\\['${key}',`), `${key} is not a roll call chip`);
+  }
+});
+
+test('OVERTIME IS A LIST, not only a number', () => {
+  /*
+   * `roll.overtime` was counted from the day this page was built and put on
+   * no list at all, so the card could say "Overtime 3" with nowhere saying
+   * WHICH three — the one figure on it with nothing behind it.
+   */
+  const dash = src('components/Dashboard.jsx');
+  assert.match(dash, /for \(const p of roll\.overtime\) \{/, 'overtime people reach no list');
+  assert.match(dash, /'overtime'\);/, 'overtime rows carry no bucket key');
+});
+
+test('the roll call footnote does not state one office day for everybody', () => {
+  /*
+   * It read *"early before 18:30"* flat, on a screen listing somebody judged
+   * against their own 23:00 — which is exactly what made a shift look as if
+   * it did nothing. It counts them and says so, and only when there are any.
+   */
+  const dash = src('components/Dashboard.jsx');
+  assert.match(dash, /out\.ownShift\+\+/, 'nothing counts the people on their own shift');
+  assert.match(dash, /judged against their own shift instead/, 'the footnote never mentions them');
+});

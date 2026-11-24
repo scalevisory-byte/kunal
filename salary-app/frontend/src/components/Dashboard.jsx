@@ -97,6 +97,19 @@ export default function Dashboard({
   // Which of the roll call's lists is on screen. 'late' is the one Dinesh
   // asked for by name; 'all' is the morning's whole list.
   const [bucket, setBucket] = useState('all');
+  /*
+   * Open one of the roll call's lists from somewhere above it.
+   *
+   * Quick stats sits above the roll call, so setting the chip alone would
+   * change a table the person cannot see. The scroll happens after the
+   * render that applies the chip, or it measures the page as it was.
+   */
+  const openRoll = (key) => {
+    setBucket(key);
+    requestAnimationFrame(() => {
+      document.querySelector('.roll-call')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
   /* The register's own search and sort. Neither touches anything stored. */
   const [find, setFind] = useState('');
   const [sort, setSort] = useState({ by: '', dir: 1 });
@@ -331,6 +344,8 @@ export default function Dashboard({
          * somebody who was not there, so an absence is never "not in uniform".
          */
         atWork: [], outOfUniform: [], uniformProper: 0, uniformChecked: 0,
+        // People judged against a shift of their own rather than the office day.
+        ownShift: 0,
       };
 
       for (const row of rows) {
@@ -389,6 +404,9 @@ export default function Dashboard({
            * wrong: they read as hours late every day.
            */
           const shift = shiftTimesFor(row, standard);
+          /* How many are NOT on the office day, so the footnote below cannot
+             state one pair of times as though it applied to everybody. */
+          if (shift.in !== standard.in_time || shift.out !== standard.out_time) out.ownShift++;
           if (isLateIn(times, { start: shift.in, grace })) {
             out.late.push({ ...person, lateBy: lateByMinutes(times, { start: shift.in }) });
           }
@@ -586,6 +604,18 @@ export default function Dashboard({
       for (const p of roll.short) {
         note(p, 4, `Short ${formatDuration(-p.minutes)} of ${roll.dayHours}h`, '', 'short');
       }
+      /*
+       * OVERTIME WAS COUNTED AND NEVER LISTED.
+       *
+       * `roll.overtime` has been on the figures since this page was built and
+       * on no list at all, so Quick stats could say "Overtime 3" and there was
+       * nowhere that said WHICH three - it was the only figure on the card
+       * with nothing behind it. It is rank 4 beside short hours: worth seeing,
+       * not something to chase anybody about.
+       */
+      for (const p of roll.overtime) {
+        note(p, 4, `Overtime ${formatDuration(p.minutes)}`, p.out_time, 'overtime');
+      }
       for (const p of roll.leave) note(p, 5, ATTENDANCE_CODES[p.code]?.label || 'On leave', '', 'leave');
       for (const p of roll.unmarked) note(p, 6, 'Not marked yet', '', 'unmarked');
 
@@ -624,6 +654,7 @@ export default function Dashboard({
               ['halfDay', 'Half day', roll.halfDay.length],
               ['leave', 'On leave', roll.leave.length],
               ['short', 'Short hours', roll.short.length],
+              ['overtime', 'On overtime', roll.overtime.length],
               ['uniform', 'Out of uniform', roll.outOfUniform.length],
               ['unmarked', 'Not marked', roll.unmarked.length],
             ]
@@ -1537,15 +1568,32 @@ export default function Dashboard({
             Quick stats
           </div>
           <div className="pcard-body">
+            {/*
+              * EVERY ONE OF THESE OPENS ITS OWN LIST.
+              *
+              * They used to call `onGo('time')` / `onGo('attendance')` - which
+              * leaves the dashboard for another tab, unfiltered, where the six
+              * people behind the figure are not shown at all. Dinesh asked for
+              * the obvious: *"ye open karne se hali inki list mile esa karo"*.
+              *
+              * The roll call below already has a chip per list, so this sets
+              * that chip and brings it into view rather than growing a second
+              * idea of what "the late list" is.
+              */}
             {[
-              ['Late coming', roll.late.length, 'var(--tile-4-ink)', 'time'],
-              ['Early leaving', roll.early.length, 'var(--tile-3-ink)', 'time'],
-              ['Half day', roll.halfDay.length, 'var(--tile-5-ink)', 'attendance'],
-              ['Overtime', roll.overtime.length, 'var(--tile-2-ink)', 'time'],
-              ['Short hours', roll.short.length, 'var(--tile-6-ink)', 'time'],
-              ['Out of uniform', roll.outOfUniform.length, 'var(--tile-1-ink)', 'attendance'],
-            ].map(([label, n, colour, to]) => (
-              <button key={label} className="qs-row" onClick={() => onGo(to)}>
+              ['Late coming', roll.late.length, 'var(--tile-4-ink)', 'late'],
+              ['Early leaving', roll.early.length, 'var(--tile-3-ink)', 'early'],
+              ['Half day', roll.halfDay.length, 'var(--tile-5-ink)', 'halfDay'],
+              ['Overtime', roll.overtime.length, 'var(--tile-2-ink)', 'overtime'],
+              ['Short hours', roll.short.length, 'var(--tile-6-ink)', 'short'],
+              ['Out of uniform', roll.outOfUniform.length, 'var(--tile-1-ink)', 'uniform'],
+            ].map(([label, n, colour, key]) => (
+              <button
+                key={label}
+                className="qs-row"
+                onClick={() => openRoll(key)}
+                title={n ? `Show the ${n} of them` : 'Nobody on this list today'}
+              >
                 <span className="qs-ico" style={{ background: colour }}>
                   <Glyph name="clock" size={14} />
                 </span>
@@ -2054,6 +2102,12 @@ export default function Dashboard({
             : `${listed.length} of ${needsLooking.length} on this list.`}{' '}
           Late after {roll.startsAt} + {roll.grace}m, early before {roll.endsAt}, a full day{' '}
           {roll.dayHours}h.
+          {/* Said only when it is true, because on most days it is not - and
+              stating one pair of times as though it applied to everybody is
+              what made a shift look as if it did nothing. */}
+          {roll.ownShift
+            ? ` ${roll.ownShift} ${roll.ownShift === 1 ? 'person is' : 'people are'} judged against their own shift instead.`
+            : ''}
         </p>
 
         {/*

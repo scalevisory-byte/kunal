@@ -153,6 +153,8 @@ export const HELP = [
       '**Each row carries every reason that applies to that person**, so one line can say somebody was late AND short of hours. Two separate strips of names never could.',
       '**Why** and **Allowed?** are typed straight into the row and saved **on the day itself**, so they show on the grid, on the absent/present report and on that person\u2019s own record. Neither moves a rupee.',
       '**At work** is a chip too, with everybody\u2019s times and hours \u2014 not a separate list of bare names.',
+      '**Quick stats, above the roll call, opens each list too.** Press *Early leaving* or *Overtime* there and the table below narrows to exactly those people, with their times — it no longer sends you to another tab.',
+      '**Late and early follow each person’s own shift.** Somebody on a 2pm–11pm shift is not late at 2:05, and the line under the table says how many people are judged on their own hours rather than the office’s.',
     ],
     note: 'OUT OF UNIFORM 0 IS NOT “EVERYBODY IN UNIFORM”. Nobody is out of uniform until somebody walks the floor and says so; the uniform check under the table says how many were looked at.',
   },

@@ -2251,6 +2251,34 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Quick stats opens its list, and overtime finally has one (v2.21.0)
+
+Dinesh: *"early going bhi check karo"*, then, with a crop of the Quick stats card,
+*"ye open karne se hali inki list mile esa karo"*.
+
+**Early going was already right after v2.20.0** and was checked rather than asserted: three
+people on one day — HARISH on the office day leaving 17:00, KIRAN on his own 14:00–23:00
+leaving 21:00, ALIFAYA on overtime to 20:00. *Early leaving 2* gave exactly the first two,
+KIRAN at **2h early against his own finish** (against the office 18:30 he would not have been
+early at all, so his presence on that list IS the proof the shift is honoured).
+
+- **Every Quick stats row now opens its list.** They called `onGo('time')` /
+  `onGo('attendance')` — which leaves the dashboard for a tab with **no filter on it**, where
+  the people behind the figure are not shown at all. A figure with a chevron on it has to lead
+  to its names. `openRoll(key)` sets the roll call's existing chip and scrolls it into view,
+  **inside a `requestAnimationFrame`** so the scroll measures the page after the chip applied.
+  No second idea of what "the late list" is.
+- **`roll.overtime` had been counted since this page was built and put on NO list** —
+  *"Overtime 3"* with nowhere saying which three, the one figure on the card with nothing
+  behind it. It is a `note(..., 'overtime')` at rank 4 and a chip beside Short hours now.
+- **The footnote stated one office day for everybody** — *"early before 18:30"* printed under
+  a table listing somebody judged against 23:00, which is exactly what made a shift look as if
+  it did nothing. `out.ownShift` counts them and the line says so, **only when there are any**.
+- Tests pin all three, with the Quick stats one **proved by putting `onGo('time')` back**.
+- **Test slice trap:** `dash.indexOf('roll-call')` found `openRoll`'s own `querySelector`
+  hundreds of lines ABOVE the card, so the slice was backwards and empty and the assertion
+  failed against correct code. The end of a slice is searched from the start of the slice.
+
 ## A shift of their own, on the screens as well as the payslip (v2.20.0)
 
 HR, through Dinesh, with the Employees screen showing the shift column filled in: *"shift

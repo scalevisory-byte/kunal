@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.20.0';
+export const VERSION = '2.21.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.21.0',
+    date: '24 Nov 2026',
+    title: 'Quick stats opens the list of people behind each figure',
+    items: [
+      '**Every row on Quick stats now shows WHO.** Late coming, Early leaving, Half day, Overtime, Short hours, Out of uniform \u2014 clicking one opens that list in the roll call below, with their in and out times beside each name. They used to jump to another tab with no filter on it, where the people behind the figure were not shown at all.',
+      '**Overtime has a list for the first time.** It was counted from the day this page was built and put on no list anywhere \u2014 the one figure on the card with nothing behind it. It is now a chip on the roll call like the rest, saying how much and when they left.',
+      '**Early going was checked properly**, as asked: somebody on a 2pm\u201311pm shift leaving at 9pm is **2h early**, judged against their own finish and not the office\u2019s 6:30. Driven on three people \u2014 one on the office day, one on an evening shift, one on overtime \u2014 and each landed on the right list.',
+      'The line under the roll call no longer states one pair of office times as though it applied to everybody; it says how many people are judged against a shift of their own.',
+      '**No figure moved.** These are lists, not deductions.',
+    ],
+  },
   {
     version: '2.20.0',
     date: '24 Nov 2026',
