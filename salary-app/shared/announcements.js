@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * THE NOTICEBOARD.
  *
@@ -34,7 +35,7 @@ const day = (v) => (v ? String(v).slice(0, 10) : '');
  * in the future is a notice written in advance - it is not on the board yet,
  * and showing it early is how staff turn up to a picnic a week early.
  */
-export function isLive(a = {}, today = new Date().toISOString().slice(0, 10)) {
+export function isLive(a = {}, today = todayIso()) {
   const from = day(a.from_on);
   const until = day(a.until_on);
   if (from && from > today) return false;

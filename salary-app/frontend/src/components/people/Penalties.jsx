@@ -3,6 +3,7 @@ import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /*
  * Fines, losses and damage recovered from somebody's salary.
@@ -21,7 +22,7 @@ import { onStaff } from '../../onStaff.js';
  * out without first saying what it would do to that month's pay.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 const BLANK = {
   employee_id: '',

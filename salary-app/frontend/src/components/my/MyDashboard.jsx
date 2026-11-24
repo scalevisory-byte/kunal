@@ -7,6 +7,7 @@ import { recordSummary } from '../../../../shared/myRecord.js';
 import { kindIcon } from '../../../../shared/announcements.js';
 import { hoursForEmployee } from '../../../../shared/lateEarly.js';
 import PunchNow from '../PunchNow.jsx';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * WHAT ONE PERSON SEES WHEN THEY SIGN IN.
@@ -47,7 +48,7 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
      Today and Working hours cards beside the button are now out of date. */
   const [tick, setTick] = useState(0);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   /*
    * `/me/months` calls it `period_id`, not `id` - the list is of a person's
    * MONTHS, and `id` on one of those rows would be ambiguous. Reading `id`

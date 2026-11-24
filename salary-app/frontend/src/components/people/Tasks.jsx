@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /**
  * Work given to somebody, with a date it is wanted by.

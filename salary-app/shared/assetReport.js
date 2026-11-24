@@ -1,4 +1,5 @@
 import { groupLabel, groupOf } from './assetGroups.js';
+import { todayIso } from './today.js';
 /**
  * The asset reports: the register, who holds what, and a slip to sign.
  *
@@ -110,7 +111,7 @@ export function handoverSlip({ employee, handovers = [], company, dated } = {}) 
     company: company || handovers[0]?.company_name || '',
     employee: employee?.name || handovers[0]?.employee_name || '',
     code: employee?.code || '',
-    dated: dated || new Date().toISOString().slice(0, 10),
+    dated: dated || todayIso(),
     items: out.map((h) => ({
       code: h.code || '',
       what: `${h.kind || ''} ${h.label || ''}`.trim(),

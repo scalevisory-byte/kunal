@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * WHERE THE MONTH HAS GOT TO.
@@ -61,7 +62,7 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
   };
 
   const approve = () =>
-    run(() => api.post(`/periods/${period.id}/approve`, { today: new Date().toISOString().slice(0, 10) }));
+    run(() => api.post(`/periods/${period.id}/approve`, { today: todayIso() }));
 
   /*
    * APPROVING OVER A CRITICAL FLAG IS A DECISION SOMEBODY SIGNS FOR.
@@ -86,7 +87,7 @@ export default function PayrollWorkflow({ workflow, period, isAdmin, onError, on
     if (!String(reason || '').trim() || reason.trim().length < 5) return;
     run(() => api.post(`/periods/${period.id}/approve`, {
       override_reason: reason.trim(),
-      today: new Date().toISOString().slice(0, 10),
+      today: todayIso(),
     }));
   };
 

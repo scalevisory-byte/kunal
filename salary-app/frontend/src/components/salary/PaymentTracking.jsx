@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 import { col, num, printReport } from '../../printReport.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * WHO HAS BEEN PAID, AND WHAT WITH.
@@ -25,7 +26,7 @@ const STATUSES = [
   ['hold', 'Hold'],
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 export default function PaymentTracking({ period, rows, locked, onError, onChanged, onOpenEmployee }) {
   const [bucket, setBucket] = useState('all');

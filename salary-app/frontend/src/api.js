@@ -1,3 +1,4 @@
+import { todayIso } from '../../shared/today.js';
 /**
  * The single-file build has no server behind it, so every call is answered by
  * localStore.js instead of fetch. The components never know which one they are
@@ -254,7 +255,7 @@ export async function downloadBackup() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `salary-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `salary-backup-${todayIso()}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();

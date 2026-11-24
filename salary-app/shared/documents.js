@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * The documents an employee record is expected to carry.
  *
@@ -34,7 +35,7 @@ export const KYC_KINDS = DOCUMENT_KINDS.filter((k) => k.kyc).map((k) => k.key);
  * driving licence filed under "something else". Anything past its date is
  * named rather than quietly counted as present.
  */
-export function documentStatus(documents = [], { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function documentStatus(documents = [], { today = todayIso() } = {}) {
   const byKind = new Map();
   for (const doc of documents) {
     if (!byKind.has(doc.kind)) byKind.set(doc.kind, []);
@@ -72,7 +73,7 @@ export function documentStatus(documents = [], { today = new Date().toISOString(
 }
 
 /** What one document's state is, in a word. */
-export function documentState(doc = {}, { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function documentState(doc = {}, { today = todayIso() } = {}) {
   if (doc.expires_on && doc.expires_on < today) return { key: 'expired', label: 'Expired', tone: 'bad' };
   if (doc.verified === 0 || doc.verified === false) return { key: 'rejected', label: 'Rejected', tone: 'bad' };
   if (doc.verified === 1 || doc.verified === true) return { key: 'verified', label: 'Verified', tone: 'ok' };

@@ -79,6 +79,7 @@ import {
   vacancyBroadcast,
   waLink,
 } from '../../shared/hiringMessages.js';
+import { todayIso } from '../../shared/today.js';
 import { CSV_COLUMNS as HIRING_CSV, toCsv as hiringCsv } from '../../shared/hiringCsv.js';
 
 /**
@@ -984,7 +985,7 @@ const MASTER_KINDS = ['category', 'type', 'brand', 'vendor'];
 /** Only a vendor has these; the other three keep them null. */
 const VENDOR_FIELDS = ['contact_person', 'phone', 'email', 'address', 'gstin'];
 
-const dayNow = () => new Date().toISOString().slice(0, 10);
+const dayNow = () => todayIso();
 const stampNow = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 const nameOf = (employeeId) => employeeOf(Number(employeeId))?.name || `#${employeeId}`;
@@ -1173,7 +1174,7 @@ function daysUntilDay(date) {
   if (!date) return null;
   const then = new Date(date);
   if (Number.isNaN(then.getTime())) return null;
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = new Date(todayIso());
   return Math.round((then - today) / 86400000);
 }
 

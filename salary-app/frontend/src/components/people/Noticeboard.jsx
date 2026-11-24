@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, STANDALONE } from '../../api.js';
 import { KINDS, isLive, kindIcon, validate } from '../../../../shared/announcements.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * THE NOTICEBOARD the staff portal reads.
@@ -20,7 +21,7 @@ export default function Noticeboard({ companies = [], onError }) {
   const [form, setForm] = useState(BLANK);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
 
   const load = async () => {
     try {

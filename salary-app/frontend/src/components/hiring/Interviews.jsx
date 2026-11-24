@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import ProcessSteps from './ProcessSteps.jsx';
+import { todayIso } from '../../../../shared/today.js';
 
 
 /** The review statuses, in the office's words. */
@@ -71,7 +72,7 @@ export default function Interviews({ interviews, onOpen, onForm, onEvaluate, onR
     }
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
 
   /**
    * THE INTERVIEW SCHEDULE.

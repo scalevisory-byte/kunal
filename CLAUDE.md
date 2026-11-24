@@ -2251,6 +2251,88 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The salary sheet audited, and the date the whole app was writing (v2.23.0)
+
+Dinesh: *"salary sheet tab ka bhi check karo sab theek he ya nahi"*. Audited by
+**recomputing independently and comparing**, not by looking: a varied month seeded over
+twenty people (seven salary levels, PF/ESI, additions, deductions, 280 marks across
+A/HF/CL/PL/UL/SP/AD and clock times), then every rendered cell scraped out of a real browser
+and matched against `calculateRow` run separately in Node.
+
+**The arithmetic is sound and that is now measured, not asserted.** 273 cells, zero
+mismatches; every row balances `earned − deductions = net` to the rupee; the footer equals
+the sum of the rendered rows in all twelve money columns and tracks a typed cell live (a
+−300 in OT min moved gross, net and the footer by exactly ₹556 = 300 × the person's own
+minute rate). PT is the sheet's own `IF(gross>12000,200,0)` — strictly greater, charged on
+the gross after Add/Deduct. Monthly summary and Payment tracking agree with the sheet. The
+drift bar and the hours bar both read correctly. At 1280px the 38-column table is 1884px in
+a frame that really scrolls, with the name column sticky, so a net is never read without a
+name beside it. No console error on any sub-tab.
+
+**Four "findings" were my own harness, and each is worth remembering:**
+`calculateRow(row, period, attendance)` takes three **positional** arguments — passing
+`{ period, attendance }` as one object silently computed every row at 26 present / 0 absent
+and produced 104 false mismatches. The `PL` column is **CL+SL+PL** by design (it says so in
+the header's own tooltip). `OT ₹` is an `EditableCell` whose computed figure is the
+**placeholder**, so reading `input.value` shows blank on a cell plainly displaying −556. And
+the review API's exception carries `name`/`detail`/`amount`, not `employee_name`/`message`.
+**Read the shape before reporting a disagreement.**
+
+### THE ONE REAL DEFECT — `shared/today.js`
+
+`new Date().toISOString().slice(0, 10)` is the **UTC** date. IST is 5½ hours ahead, so from
+midnight to 05:30 it returns **yesterday** — and that expression was written out in
+**seventy-two places** across the server, the dashboard and the offline build, as the
+default for every date nobody is shown.
+
+- **The one the audit found:** marking a salary row **paid** stamps `payment_date` silently.
+  At 00:30 on 1 December a November salary was stamped **30 November** — the wrong month,
+  which is the one a reconciliation reads. The comment beside it said the date "can be typed
+  over"; **nobody types over a date they were never shown.**
+- The same shape on a penalty's told-on date, a claim's spent-on date, an appraisal, an asset
+  handover, a document's verified-on date, an acknowledgement, a leave credit, a new joiner's
+  joining date, an invitation's expiry.
+- **The app was already showing the LOCAL date**, through `todayLong()` — so the header said
+  24 November while everything it wrote said the 23rd. One day, two answers, which is exactly
+  what made it invisible.
+- **NO FIGURE MOVED.** Nothing in the calculation reads a date like this, and `monthForAuto`
+  already took the month off `getMonth()`/`getFullYear()`, so the scheduled punch pull could
+  never write into the wrong month — that was checked first, because it was the one that could
+  have cost a day's pay.
+
+`todayIso` / `isoOf` / `isoPlusDays` are now the one answer, read by the server, the browser
+and the single-file build — the same reasoning as `localStamp` and `shiftTimesFor`. **A hole
+in the new helper was caught by its own test:** `new Date(null)` is the epoch, so `isoOf(null)`
+returned `1970-01-01` — a missing date reading as a real one, which on a record is worse than
+a blank.
+
+**Four UTC sites were deliberately NOT changed, each for its own reason**, and that
+discrimination is the point: `digest.js`'s `shift()` and the daily report's `prevIso` are
+pure UTC calendar arithmetic on a given y/m/d (`Date.UTC` in, `getUTC*` out — self-consistent);
+`attendanceSelf.js` keys `punch_events.day` in UTC **on purpose** since v2.19.0, where the
+readers compensate with `localStamp`, and making new rows local would put two conventions in
+one column; and for an IST night shift a 01:00 punch landing on the previous day's row is
+arguably right. **A date read out of a spreadsheet is also left alone** —
+`assetImport.js`, `employeeSheet.js` and `monthlyStatus.js` turn an Excel serial into a Date
+at UTC midnight and render it the same way, so reading them as local would move every
+imported date back a day. The test names those three and **asserts they still need their
+exemption**, so the list cannot go stale silently.
+
+**`backend/test/localDate.test.js` runs under `TZ=Asia/Kolkata` and asserts the zone first** —
+in UTC the two answers are the same string, which is also why the whole suite stayed green
+through a 72-site change and why that greenness is the proof of safety rather than of
+correctness. It sweeps every file under `frontend/src`, `backend/src` and `shared` and refuses
+the pattern, building the regex from parts so the sweep cannot match itself. Proved by putting
+the bug back: 2 of 9 fail and the failure names the file. Driven end to end in a browser with
+the clock faked to 00:30 IST on 1 December — the stored `payment_date` came back **2026-12-01**.
+
+**Two process notes:** inserting an import mechanically into 46 files put it **inside** a
+multi-line import in three of them, whose closing `} from` sat past the eightieth line — the
+error is *"Unexpected reserved word"* at module load, with no file named. And checking those
+files with `node --check` from the wrong directory reported *"SYNTAX FAIL"* on twenty-five
+perfectly good files, because the paths did not exist; the honest check was loading each
+module.
+
 ### The salary the month pays, the hours it charges, a shorter roll call (v2.22.0)
 
 Three messages off his live screens. `shared/salaryDrift.js` is new.

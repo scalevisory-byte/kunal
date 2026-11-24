@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api, download } from '../../api.js';
 import { col, num, printReport } from '../../printReport.js';
 import { rupees } from '../../format.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * ONE PERSON'S ASSET LEDGER — read like a party ledger in Tally.
@@ -36,7 +37,7 @@ const TABS = [
   ['service', 'Maintenance history'],
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 export default function AssetLedger({ employeeId, name, onClose, onError, onReload, onOpenEmployee }) {
   const [ledger, setLedger] = useState(null);

@@ -23,6 +23,7 @@ import {
   replyToTicket,
   setTaskStatus,
 } from '../people.js';
+import { todayIso } from '../../../shared/today.js';
 
 export const punchRouter = Router();
 
@@ -79,7 +80,7 @@ const rateLimit = (max, bucket) => (req, res, next) => {
   next();
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /** Everything the phone page needs: who they are, and what to offer next. */
 punchRouter.get('/:token', (req, res) => {

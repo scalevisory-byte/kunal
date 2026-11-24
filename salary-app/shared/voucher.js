@@ -1,4 +1,5 @@
 import { inWords } from './amountWords.js';
+import { todayIso } from './today.js';
 
 /**
  * The purchase voucher for an asset.
@@ -16,7 +17,7 @@ import { inWords } from './amountWords.js';
 
 /** April to March, written the way every Indian invoice writes it. */
 export function financialYear(date) {
-  const d = new Date(`${String(date || '').slice(0, 10) || new Date().toISOString().slice(0, 10)}T00:00:00`);
+  const d = new Date(`${String(date || '').slice(0, 10) || todayIso()}T00:00:00`);
   const year = Number.isFinite(d.getTime()) ? d.getFullYear() : new Date().getFullYear();
   const month = Number.isFinite(d.getTime()) ? d.getMonth() + 1 : new Date().getMonth() + 1;
   const start = month >= 4 ? year : year - 1;
@@ -45,7 +46,7 @@ export function voucherNo(asset = {}) {
  */
 export function voucher(asset = {}, { today } = {}) {
   const cost = Math.round(Number(asset.purchase_cost) || 0);
-  const date = today || new Date().toISOString().slice(0, 10);
+  const date = today || todayIso();
 
   const missing = [];
   if (!asset.code) missing.push('an asset code');

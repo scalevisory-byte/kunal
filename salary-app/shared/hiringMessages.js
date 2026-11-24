@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * The words that go out to a candidate, in one place.
  *
@@ -204,7 +205,7 @@ export function testInvite({ candidate, vacancy, url } = {}) {
 
 /** The hiring day as one message that reads on a phone. */
 export function hiringDigest({ interviews = [], tasks = [], newApplications = 0 } = {}) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const overdue = tasks.filter((t) => t.due_on && t.due_on < today);
   return lines(
     '*Hiring today*',

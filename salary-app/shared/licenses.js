@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * SOFTWARE LICENCES - what we are licensed to run, on how many machines,
  * and when it has to be paid again.
@@ -87,7 +88,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const day = (v) => String(v ?? '').slice(0, 10);
 
 /** Days from today until a date. Negative is the past; null for no date. */
-export function daysUntil(date, today = new Date().toISOString().slice(0, 10)) {
+export function daysUntil(date, today = todayIso()) {
   if (!date) return null;
   const then = new Date(`${day(date)}T00:00:00Z`);
   const now = new Date(`${day(today)}T00:00:00Z`);
@@ -140,7 +141,7 @@ export function seatUse(license = {}, seats = []) {
  * is enough notice to raise a purchase order and not so much that everything
  * is always amber.
  */
-export function licenseStatus(license = {}, today = new Date().toISOString().slice(0, 10), { soon = 30 } = {}) {
+export function licenseStatus(license = {}, today = todayIso(), { soon = 30 } = {}) {
   const term = cleanTerm(license.term);
   const expires = day(license.expires_on) || null;
   const days = daysUntil(expires, today);
@@ -212,7 +213,7 @@ export function annualCost(license = {}) {
  * Everything that reads a licence goes through this, so a tile, a row and an
  * export cannot come to three different conclusions about the same licence.
  */
-export function dressLicense(license = {}, seats = [], today = new Date().toISOString().slice(0, 10), options = {}) {
+export function dressLicense(license = {}, seats = [], today = todayIso(), options = {}) {
   const status = licenseStatus(license, today, options);
   const use = seatUse(license, seats);
   /*
@@ -247,7 +248,7 @@ export function dressLicense(license = {}, seats = [], today = new Date().toISOS
  * key recorded needs somebody to find the invoice, and eleven installs on a
  * ten-seat licence needs a decision.
  */
-export function licenseAlerts(rows = [], today = new Date().toISOString().slice(0, 10), { soon = 30 } = {}) {
+export function licenseAlerts(rows = [], today = todayIso(), { soon = 30 } = {}) {
   const expired = [];
   const expiring = [];
   const over = [];
@@ -416,7 +417,7 @@ export function seatProblem(input = {}) {
  * never applied on its own. A renewal is a payment somebody made on a date,
  * and this app has never guessed one of those.
  */
-export function suggestRenewal(license = {}, today = new Date().toISOString().slice(0, 10)) {
+export function suggestRenewal(license = {}, today = todayIso()) {
   const months = Math.round(num(license.renew_every_months)) || 12;
   // From the day it expires, if that has not passed; otherwise from today,
   // because backdating a renewal into a lapsed period would say the office was

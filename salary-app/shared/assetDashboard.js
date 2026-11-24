@@ -1,4 +1,5 @@
 import { assetStatus, daysTo, financialYear, overdueBy } from './assetStatus.js';
+import { todayIso } from './today.js';
 
 /**
  * The asset dashboard: six figures, six alerts.
@@ -17,7 +18,7 @@ export function assetDashboard({
   services = [],
   verifications = [],
   round = null,
-  today = new Date().toISOString().slice(0, 10),
+  today = todayIso(),
   soon = 30,
 } = {}) {
   const withStatus = assets.map((a) => ({ ...a, status: assetStatus(a) }));
@@ -259,7 +260,7 @@ export function matchesFilter(asset, filter = {}) {
    * Registered card was fixed for once already.
    */
   if (filter.warranty === 'expired') {
-    const left = daysTo(asset.warranty_until, filter.today || new Date().toISOString().slice(0, 10));
+    const left = daysTo(asset.warranty_until, filter.today || todayIso());
     if (left === null || left >= 0) return false;
   }
   if (filter.service_due && !(filter.service_due_ids || []).includes(asset.id)) return false;

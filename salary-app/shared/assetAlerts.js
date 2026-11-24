@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * WARRANTIES AND AMCs RUNNING OUT.
  *
@@ -38,7 +39,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const day = (v) => String(v ?? '').slice(0, 10);
 
 /** Days until a date. Negative is the past; null for no date at all. */
-export function daysUntil(date, today = new Date().toISOString().slice(0, 10)) {
+export function daysUntil(date, today = todayIso()) {
   if (!date) return null;
   const then = new Date(`${day(date)}T00:00:00Z`);
   const now = new Date(`${day(today)}T00:00:00Z`);
@@ -88,7 +89,7 @@ function split(assets, field, today, { soon = 30, recent = RECENT_DAYS } = {}) {
  * @param today  ISO date
  * @param soon   how many days ahead counts as "coming up" (30)
  */
-export function assetAlerts(assets = [], today = new Date().toISOString().slice(0, 10), { soon = 30 } = {}) {
+export function assetAlerts(assets = [], today = todayIso(), { soon = 30 } = {}) {
   const rows = live(assets);
   const warranty = split(rows, 'warranty_until', today, { soon });
   const amc = split(rows, 'amc_until', today, { soon });

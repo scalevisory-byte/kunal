@@ -21,6 +21,7 @@ import PaymentTracking from './salary/PaymentTracking.jsx';
 import MonthlySummary from './salary/MonthlySummary.jsx';
 import EmployeeStatement from './salary/EmployeeStatement.jsx';
 import { api } from '../api.js';
+import { todayIso } from '../../../shared/today.js';
 
 /**
  * The calculation sheet. Typing in a cell recalculates the row immediately with
@@ -128,7 +129,7 @@ export default function SalarySheet({
    */
   const loadReview = () => {
     if (!period) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIso();
     /*
      * THE COMPANY FILTER HAS TO REACH THIS TOO. The register shows one
      * company's rows; without this the headline counted every company's

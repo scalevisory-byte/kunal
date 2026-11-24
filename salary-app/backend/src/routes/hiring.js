@@ -93,6 +93,7 @@ import {
   updateTask,
   updateVacancy,
 } from '../hiring.js';
+import { todayIso } from '../../../shared/today.js';
 import { deleteDocumentFile, documentLink, uploadDocument } from '../documents.js';
 import { config } from '../config.js';
 import { logoFile } from '../companyLogos.js';
@@ -158,7 +159,7 @@ hiringRouter.get('/overview', (req, res) => {
 
 /** The hiring day as one message, with a link to the office's own number. */
 hiringRouter.get('/digest', (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const interviews = listInterviews({ upcoming: true }).filter(
     (i) => String(i.at).slice(0, 10) === today
   );

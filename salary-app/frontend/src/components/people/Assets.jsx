@@ -18,9 +18,10 @@ import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
 const KINDS = ['Laptop', 'Desktop', 'Mobile', 'SIM card', 'ID card', 'Access card', 'Vehicle', 'Tools', 'Furniture', 'Other'];
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /**
  * The asset register: laptops, ID cards, SIMs, tools.

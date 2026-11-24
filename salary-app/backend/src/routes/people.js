@@ -83,6 +83,7 @@ import {
   ownershipCsv,
   servicesCsv,
 } from '../../../shared/maintenance.js';
+import { todayIso } from '../../../shared/today.js';
 import {
   ASSET_KINDS,
   CLAIM_KINDS,
@@ -1552,7 +1553,7 @@ peopleRouter.post('/tickets/:id/reopen', (req, res) => {
  */
 peopleRouter.get('/daily-report', (req, res) => {
   const periods = listPeriods();
-  const date = String(req.query.day || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const date = String(req.query.day || todayIso()).slice(0, 10);
   const [year, month, dayOfMonth] = date.split('-').map(Number);
   const period =
     periods.find((p) => p.year === year && p.month === month) ||
@@ -1687,7 +1688,7 @@ peopleRouter.get('/digest', (req, res) => {
     // Same scoping: a login with no asset register is not told what is out of
     // warranty on it.
     asset_dates: may(req.actor, 'assets') ? assetAlerts(listAssets({})) : null,
-    today: new Date().toISOString().slice(0, 10),
+    today: todayIso(),
   });
 
   if (req.query.format === 'text') {

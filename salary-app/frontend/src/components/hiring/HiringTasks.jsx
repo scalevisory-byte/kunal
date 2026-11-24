@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../api.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /** The office's own list. Scheduling an interview adds one of these by itself. */
 export default function Followups({ followups, digest, onReload, onOpen, onError, onToast }) {
@@ -7,7 +8,7 @@ export default function Followups({ followups, digest, onReload, onOpen, onError
   const [title, setTitle] = useState('');
   const [due, setDue] = useState('');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const shown = followups.filter((f) => (filter ? f.status === filter : true));
 
   const add = async (e) => {

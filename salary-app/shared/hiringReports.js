@@ -25,6 +25,7 @@
  */
 
 import { offerStatusMeta } from './offer.js';
+import { isoOf } from './today.js';
 
 /* ---------------- what can be asked for ---------------- */
 
@@ -329,6 +330,4 @@ export const asGrid = (report, rows = []) => ({
 
 /** A file name somebody can find again: Interview-schedule-2026-11-15.csv */
 export const reportFileName = (key, on = new Date()) =>
-  `${(reportMeta(key)?.label || 'Report').replace(/[^A-Za-z0-9]+/g, '-')}-${
-    on.toISOString().slice(0, 10)
-  }.csv`;
+  `${(reportMeta(key)?.label || 'Report').replace(/[^A-Za-z0-9]+/g, '-')}-${isoOf(on)}.csv`;

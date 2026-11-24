@@ -3,6 +3,7 @@ import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
 import AssetLedger from './AssetLedger.jsx';
 import { col, num, printReport } from '../../printReport.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * THE WHOLE REGISTER AS ONE DOCUMENT — "total asset ka register".
@@ -209,7 +210,7 @@ export default function AssetStatement({ companies = [], onError }) {
       <div className="card">
         <h3>Asset register{companyId ? ` — ${companies.find((c) => String(c.id) === String(companyId))?.name || ''}` : ''}</h3>
         <p className="muted small">
-          {new Date().toISOString().slice(0, 10)} · every figure is <strong>what it cost to buy</strong>.
+          {todayIso()} · every figure is <strong>what it cost to buy</strong>.
           There is no depreciation in this app, so this is a register at cost and not a book value.
         </p>
 

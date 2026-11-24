@@ -49,6 +49,7 @@ import {
   validatePenalty,
   wageCheck,
 } from '../../shared/penalties.js';
+import { todayIso } from '../../shared/today.js';
 
 // The trail itself lives in db.js, because the payroll write paths there write
 // to it too and db.js cannot import this file without a cycle.
@@ -605,7 +606,7 @@ export const deleteMaster = (id) => {
 };
 
 /** Today, as the app writes dates everywhere: YYYY-MM-DD. */
-const dayNow = () => new Date().toISOString().slice(0, 10);
+const dayNow = () => todayIso();
 
 /*
  * Columns the People redesign asked for that no table had. Each is nullable
@@ -669,7 +670,7 @@ export const listAnnouncements = ({ company_id, live } = {}) => {
        ORDER BY a.pinned DESC, COALESCE(a.from_on, a.created_at) DESC, a.id DESC`
     )
     .all();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   return rows.filter((a) => {
     if (company_id && a.company_id && Number(a.company_id) !== Number(company_id)) return false;
     if (!live) return true;
@@ -786,7 +787,7 @@ export function createNote(employeeId, input = {}) {
   const kind = NOTE_KINDS.includes(input.kind) ? input.kind : 'note';
   const subject = String(input.subject || '').trim();
   if (!subject) throw new Error('say what it is about in a line');
-  const dated = String(input.dated || '').trim() || new Date().toISOString().slice(0, 10);
+  const dated = String(input.dated || '').trim() || todayIso();
   const info = db
     .prepare(
       `INSERT INTO employee_notes (employee_id, kind, severity, category, dated, subject, detail, issued_by, acknowledged_on)
@@ -906,7 +907,7 @@ function withIncrement(row) {
 export function createAppraisal(employeeId, input = {}) {
   const employee = getEmployee(employeeId);
   if (!employee) throw new Error('employee not found');
-  const reviewed = String(input.reviewed_on || '').trim() || new Date().toISOString().slice(0, 10);
+  const reviewed = String(input.reviewed_on || '').trim() || todayIso();
   // The salary it is measured against is what they are on now, unless somebody
   // says otherwise - so an increment can never be measured off a stale figure.
   const from = input.from_salary === undefined ? Number(employee.monthly_salary) || 0 : Number(input.from_salary) || 0;
@@ -1126,7 +1127,7 @@ function daysUntil(date) {
   if (!date) return null;
   const then = new Date(date);
   if (Number.isNaN(then.getTime())) return null;
-  const today = new Date(new Date().toISOString().slice(0, 10));
+  const today = new Date(todayIso());
   return Math.round((then - today) / (24 * 60 * 60 * 1000));
 }
 
@@ -2458,7 +2459,7 @@ export function createClaim(employeeId, input = {}) {
     .run({
       employee_id: employee.id,
       kind: input.kind || 'Other',
-      spent_on: String(input.spent_on || '').trim() || new Date().toISOString().slice(0, 10),
+      spent_on: String(input.spent_on || '').trim() || todayIso(),
       amount,
       detail: input.detail || null,
     });
@@ -2786,7 +2787,7 @@ export function markSettled(employeeId, { amount, settled_on, by } = {}) {
   if (existing.settled_on) throw new Error('this settlement has already been paid');
   db.prepare(
     `UPDATE employee_exits SET settled_on = ?, settled_amount = ? WHERE employee_id = ?`
-  ).run(settled_on || new Date().toISOString().slice(0, 10), Number(amount) || 0, Number(employeeId));
+  ).run(settled_on || todayIso(), Number(amount) || 0, Number(employeeId));
   audit({
     who: by,
     action: 'settled',

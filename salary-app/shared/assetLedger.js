@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * ONE PERSON'S ASSET LEDGER — everything they have ever been given.
  *
@@ -48,7 +49,7 @@ export function daysBetween(from, to) {
  * @param assets     register rows currently standing against them
  * @param today      ISO date, for how long something has been out
  */
-export function assetLedger({ employee, handovers = [], assets = [], today = new Date().toISOString().slice(0, 10) } = {}) {
+export function assetLedger({ employee, handovers = [], assets = [], today = todayIso() } = {}) {
   const lines = handovers
     .filter((h) => !employee || Number(h.employee_id) === Number(employee.id))
     .map((h) => ({
@@ -260,7 +261,7 @@ const sameDayish = (a, b) => {
  * @param services service rows for those assets
  * @param from/to  the window, as ISO dates; anything before `from` is opening
  */
-export function ledgerTransactions({ lines = [], others = [], services = [], from = '', to = '', today = new Date().toISOString().slice(0, 10) } = {}) {
+export function ledgerTransactions({ lines = [], others = [], services = [], from = '', to = '', today = todayIso() } = {}) {
   const events = [];
 
   const otherFor = (assetId) => others.filter((o) => Number(o.asset_id) === Number(assetId));

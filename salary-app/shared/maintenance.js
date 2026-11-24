@@ -34,6 +34,7 @@ export const SERVICE_KINDS = [
 ];
 
 import { assetAlerts } from './assetAlerts.js';
+import { todayIso } from './today.js';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const round0 = (n) => Math.round(num(n));
@@ -41,7 +42,7 @@ const round0 = (n) => Math.round(num(n));
 const DAY = 24 * 60 * 60 * 1000;
 
 /** Days from today until a date. Negative is in the past; null for no date. */
-export function daysUntil(date, today = new Date().toISOString().slice(0, 10)) {
+export function daysUntil(date, today = todayIso()) {
   if (!date) return null;
   const then = new Date(date);
   const now = new Date(today);
@@ -78,7 +79,7 @@ export function looksDuplicate(candidate, existing = []) {
  * @param asset    the register row (purchase cost, warranty, AMC)
  * @param services its service rows
  */
-export function ownership(asset = {}, services = [], today = new Date().toISOString().slice(0, 10)) {
+export function ownership(asset = {}, services = [], today = todayIso()) {
   const purchase = round0(asset.purchase_cost);
   const service = services.reduce((sum, s) => sum + num(s.cost), 0);
 
@@ -123,7 +124,7 @@ export function ownership(asset = {}, services = [], today = new Date().toISOStr
  * Four lists rather than one count, because "the AMC ran out in March" and
  * "a service is due next week" need different things doing about them.
  */
-export function maintenanceAlerts(rows = [], today = new Date().toISOString().slice(0, 10)) {
+export function maintenanceAlerts(rows = [], today = todayIso()) {
   const overdue = [];
   const soon = [];
 

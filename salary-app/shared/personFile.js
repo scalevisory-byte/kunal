@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * One person's whole picture, assembled from records that already exist.
  *
@@ -14,7 +15,7 @@
  */
 
 /** What still wants doing for this person, worst first. */
-export function pendingFor(file = {}, { today = new Date().toISOString().slice(0, 10) } = {}) {
+export function pendingFor(file = {}, { today = todayIso() } = {}) {
   const {
     employee = {},
     notes = [],
@@ -172,7 +173,7 @@ export function summaryFor(file = {}) {
  * Read off the master and the exit, never stored: a second copy of "is this
  * person still here" is how two screens end up disagreeing.
  */
-export function statusOf(employee = {}, exit = null, today = new Date().toISOString().slice(0, 10)) {
+export function statusOf(employee = {}, exit = null, today = todayIso()) {
   if (employee.active === 0 || employee.left_on) return { key: 'left', label: 'Left' };
   if (exit && !exit.settled_on) return { key: 'leaving', label: 'Serving notice' };
   if (employee.probation_until && employee.probation_until >= today) {
@@ -182,7 +183,7 @@ export function statusOf(employee = {}, exit = null, today = new Date().toISOStr
 }
 
 /** How long they have been here, said the way a person would say it. */
-export function serviceOf(joinedOn, today = new Date().toISOString().slice(0, 10)) {
+export function serviceOf(joinedOn, today = todayIso()) {
   if (!joinedOn) return '';
   const from = new Date(`${String(joinedOn).slice(0, 10)}T00:00:00Z`);
   const to = new Date(`${String(today).slice(0, 10)}T00:00:00Z`);

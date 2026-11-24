@@ -3,6 +3,7 @@ import { deleteDocumentFile } from './documents.js';
 import { duplicatesOf } from '../../shared/employeeMaster.js';
 import { isOpen, masterFieldsFrom, progress, whatIsMissing } from '../../shared/onboardingFlow.js';
 import { makeToken, readToken } from './tokens.js';
+import { isoPlusDays, todayIso } from '../../shared/today.js';
 
 /**
  * INVITING SOMEBODY TO FILL IN THEIR OWN RECORD.
@@ -132,8 +133,7 @@ export function listInvitations({ status, company_id } = {}) {
 
 /** 30 days by default: long enough to be useful, short enough to expire. */
 const DEFAULT_DAYS = 30;
-const inDays = (days) =>
-  new Date(Date.now() + Math.max(1, days) * 86400000).toISOString().slice(0, 10);
+const inDays = (days) => isoPlusDays(Math.max(1, days));
 
 /**
  * Make one.
@@ -220,7 +220,7 @@ export function invitationFromToken(token) {
   if (!payload?.i) return null;
   const invitation = row(payload.i);
   if (!invitation) return null;
-  if (invitation.expires_on && invitation.expires_on < new Date().toISOString().slice(0, 10)) {
+  if (invitation.expires_on && invitation.expires_on < todayIso()) {
     return null;
   }
   if (!isOpen(invitation.status)) return null;

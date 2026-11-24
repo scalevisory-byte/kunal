@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * THE EMPLOYEE MASTER: what a joining form actually asks.
  *
@@ -401,7 +402,7 @@ export function completeness(employee = {}) {
  * to a question that already has one, and the two would disagree the first
  * time somebody set a leaving date without changing the status.
  */
-export function lifecycleOf(employee = {}, today = new Date().toISOString().slice(0, 10)) {
+export function lifecycleOf(employee = {}, today = todayIso()) {
   if (employee.is_draft) return { key: 'draft', label: 'Draft', why: 'not finished — not on any payroll' };
   if (employee.active === 0 || employee.left_on) {
     return {

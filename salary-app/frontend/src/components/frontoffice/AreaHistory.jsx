@@ -3,6 +3,7 @@ import { api } from '../../api.js';
 import { HK_STATUSES, areaHistory, hkLabel } from '../../../../shared/frontOffice.js';
 import { col, printReport } from '../../printReport.js';
 import { toCsv } from '../../../../shared/statutory.js';
+import { isoPlusDays, todayIso } from '../../../../shared/today.js';
 
 /**
  * ONE AREA, DOWN THE DAYS.
@@ -18,12 +19,8 @@ import { toCsv } from '../../../../shared/statutory.js';
  * a dash rather than nought, because nought would read as "every day was
  * walked".
  */
-const today = () => new Date().toISOString().slice(0, 10);
-const daysBack = (n) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
+const today = () => todayIso();
+const daysBack = (n) => isoPlusDays(-n);
 
 /* A CSV straight from the browser - these rows are already on screen, so
    there is nothing for the server to build. */

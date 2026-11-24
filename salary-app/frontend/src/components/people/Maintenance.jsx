@@ -4,8 +4,9 @@ import { api, download } from '../../api.js';
 import ScrollFrame from '../ScrollFrame.jsx';
 import { SERVICE_KINDS } from '../../../../shared/maintenance.js';
 import { rupees } from '../../format.js';
+import { todayIso } from '../../../../shared/today.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /**
  * What has been done to each asset, what it cost, and what is due.

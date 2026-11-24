@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 const KIND_LABEL = { warning: 'Warning', appreciation: 'Appreciation', note: 'Note' };
 

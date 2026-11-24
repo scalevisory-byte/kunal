@@ -3,9 +3,10 @@ import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
 const KINDS = ['Travel', 'Food', 'Petrol', 'Lodging', 'Phone', 'Other'];
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /**
  * Expense claims: travel, food, petrol.

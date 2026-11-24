@@ -9,8 +9,9 @@ import AssetLedger from './AssetLedger.jsx';
 import ExitClearance from './ExitClearance.jsx';
 import { onStaff } from '../../onStaff.js';
 import { loadCompanyLogos, logoFor } from '../../companyLogos.js';
+import { todayIso } from '../../../../shared/today.js';
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 /**
  * Leaving: the resignation, the notice, and the full and final.

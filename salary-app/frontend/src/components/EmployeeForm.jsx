@@ -9,6 +9,7 @@ import {
 } from '../../../shared/employeeMaster.js';
 import { employeeCodeProblem, tidyEmployeeCode } from '../../../shared/employeeCode.js';
 import { rupees } from '../format.js';
+import { todayIso } from '../../../shared/today.js';
 
 /**
  * ADDING SOMEBODY, PROPERLY.
@@ -61,7 +62,7 @@ export default function EmployeeForm({
     payment_mode: 'Bank',
     nationality: 'Indian',
     perm_same: true,
-    joined_on: new Date().toISOString().slice(0, 10),
+    joined_on: todayIso(),
   }));
   const [tab, setTab] = useState(SECTIONS[0].key);
   const [branches, setBranches] = useState([]);

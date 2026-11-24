@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * THE COMPANY'S HOLIDAYS, as they apply to this person.
@@ -34,7 +35,7 @@ export default function MyHolidays({ onError }) {
 
   if (holidays === null) return <p className="muted small">Loading…</p>;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   const ahead = holidays.filter((h) => h.date >= today);
   const past = holidays.filter((h) => h.date < today).reverse();
 

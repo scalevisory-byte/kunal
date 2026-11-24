@@ -20,6 +20,7 @@
 
 import { isOpen, kindLabel } from './attendanceRequests.js';
 import { leaveLine } from './leaveRegister.js';
+import { todayIso } from './today.js';
 
 const NO_DEPARTMENT = 'No department set';
 
@@ -170,7 +171,7 @@ export const bucketOf = (d) =>
  * "nothing was ever applied for" are different months.
  */
 export function applicationStatus(requests = [], { today, managedIds } = {}) {
-  const now = String(today || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const now = String(today || todayIso()).slice(0, 10);
   const managed = managedIds instanceof Set ? managedIds : null;
 
   const lines = requests.map((r) => {

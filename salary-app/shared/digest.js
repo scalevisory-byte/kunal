@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * The day's digest: everything waiting on somebody, as text.
  *
@@ -84,7 +85,7 @@ export function digest(input = {}) {
     asset_dates: assetDates = null,
     /** How far ahead to look. A month, because that is the notice people need. */
     ahead = 30,
-    today = new Date().toISOString().slice(0, 10),
+    today = todayIso(),
   } = input;
 
   const lines = [];

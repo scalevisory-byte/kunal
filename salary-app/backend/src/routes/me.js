@@ -65,6 +65,7 @@ import {
   selfForm,
   selfProgress,
 } from '../../../shared/selfRecord.js';
+import { todayIso } from '../../../shared/today.js';
 
 /**
  * The staff side: one person, their own records, and nothing else.
@@ -734,7 +735,6 @@ meRouter.delete('/documents/:id', (req, res) => {
  * disagree, and this one is about pay.
  */
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
 
 /** What the button needs: whether punching is on, today's punches, and which way round. */
 meRouter.get('/punch', (req, res) => {
@@ -893,7 +893,7 @@ meRouter.post('/notes/:id/acknowledge', (req, res) => {
   if (note.acknowledged_on) return res.json({ note });
   const me = getEmployee(req.employeeId);
   const updated = updateNote(note.id, {
-    acknowledged_on: new Date().toISOString().slice(0, 10),
+    acknowledged_on: todayIso(),
     by: me?.name || 'employee',
   });
   res.json({ note: updated });
@@ -914,7 +914,7 @@ meRouter.get('/announcements', (req, res) => {
   res.json({
     announcements: announcementsFor(listAnnouncements({}), {
       companyId: employee.company_id,
-      today: new Date().toISOString().slice(0, 10),
+      today: todayIso(),
     }),
   });
 });

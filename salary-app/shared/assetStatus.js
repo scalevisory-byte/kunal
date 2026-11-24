@@ -1,3 +1,4 @@
+import { todayIso } from './today.js';
 /**
  * What state an asset is in.
  *
@@ -86,7 +87,7 @@ export function allocationProblem(asset = {}) {
  * expected date is not late - it is open-ended, which is how most of them
  * are, and calling those overdue would make the alert useless.
  */
-export function overdueBy(handover = {}, today = new Date().toISOString().slice(0, 10)) {
+export function overdueBy(handover = {}, today = todayIso()) {
   if (!handover.expected_return_on || handover.returned_on) return 0;
   const due = String(handover.expected_return_on).slice(0, 10);
   if (due >= today) return 0;
@@ -96,7 +97,7 @@ export function overdueBy(handover = {}, today = new Date().toISOString().slice(
 }
 
 /** Days until a date. Negative means it has passed; null means no date. */
-export function daysTo(date, today = new Date().toISOString().slice(0, 10)) {
+export function daysTo(date, today = todayIso()) {
   if (!date) return null;
   const then = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
   const now = new Date(`${String(today).slice(0, 10)}T00:00:00Z`);

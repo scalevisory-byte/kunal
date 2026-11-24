@@ -23,6 +23,7 @@ import { buildPayroll } from '../payroll.js';
 import { listHolidays, listPeriods, getPeriod } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
+import { todayIso } from '../../../shared/today.js';
 
 export const leaveRouter = Router();
 
@@ -212,7 +213,7 @@ leaveRouter.post('/credits', (req, res) => {
     const employee = getEmployee(Number(body.employee_id));
     if (!employee) return res.status(404).json({ error: 'not found' });
     const code = String(body.code || '').toUpperCase();
-    const on_date = String(body.on_date || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const on_date = String(body.on_date || '').slice(0, 10) || todayIso();
     /* A credit's year IS its date - there is no year column - so the year
        being drawn on is the one the entry is dated into. */
     refuseOverdraw({
@@ -397,7 +398,7 @@ leaveRouter.post('/encash', (req, res) => {
         }
         return given;
       }
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayIso();
       return Number(today.slice(0, 4)) === year ? today : `${year}-12-31`;
     })();
 

@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.22.0';
+export const VERSION = '2.23.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.23.0',
+    date: '24 Nov 2026',
+    title: 'Every date the app writes is today\u2019s date here',
+    items: [
+      '**A date nobody typed was being written one day behind, for five and a half hours every night.** Found while checking the salary sheet over. Marking a row **paid** stamps the payment date by itself \u2014 and that date was worked out in UTC, which is five and a half hours behind India. So between midnight and half past five in the morning everything the app dated by itself was dated YESTERDAY. At half past midnight on 1 December, a November salary was stamped **30 November**: the wrong month, which is the one a bank reconciliation reads.',
+      'It was the same in seventy-two places \u2014 a penalty\u2019s told-on date, a claim\u2019s spent-on date, an appraisal, an asset handover, a document\u2019s verified-on date, an acknowledgement, a leave credit, a new joiner\u2019s joining date, an invitation\u2019s expiry. All of them now read the clock on the machine the app runs on, from one place, so they cannot drift apart again.',
+      'The date in the page header was already right, which is what made it hard to see: the screen said 24 November while every record it wrote said the 23rd.',
+      '**No figure moved and no salary changed.** Nothing in the calculation reads a date like this, and the automatic punch pull already took the month off the local clock, so attendance could never have landed in the wrong month. What was wrong is the date ON the record \u2014 which is what somebody is answering when they are asked three months later when the money went out.',
+      'A date read out of a spreadsheet is deliberately left exactly as it was: those are read at UTC midnight and written back the same way, and \u201cfixing\u201d them would move every imported date back a day.',
+    ],
+  },
   {
     version: '2.22.0',
     date: '24 Nov 2026',

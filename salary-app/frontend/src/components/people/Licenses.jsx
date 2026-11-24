@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/licenses.js';
 import Glyph from '../../icons.jsx';
 import { onStaff } from '../../onStaff.js';
+import { todayIso } from '../../../../shared/today.js';
 
 /**
  * SOFTWARE LICENCES.
@@ -36,7 +37,7 @@ import { onStaff } from '../../onStaff.js';
  *   licence is the fact this register exists to surface.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayIso();
 
 const BLANK = {
   name: '',

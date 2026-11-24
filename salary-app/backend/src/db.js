@@ -9,6 +9,7 @@ import {
 import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
 import { config } from './config.js';
 import { log } from './logger.js';
+import { todayIso } from '../../shared/today.js';
 
 /**
  * Today, by the clock on this machine rather than in UTC.
@@ -1508,7 +1509,7 @@ export function verifyDocument(id, { verified, note, by } = {}) {
   ).run(
     verified === null || verified === undefined ? null : verified ? 1 : 0,
     verified === null || verified === undefined ? null : by || null,
-    verified === null || verified === undefined ? null : new Date().toISOString().slice(0, 10),
+    verified === null || verified === undefined ? null : todayIso(),
     note || null,
     Number(id)
   );
@@ -2515,7 +2516,7 @@ export function addLeaveCredit(input = {}, by) {
       employee_id: employee.id,
       code,
       kind: input.kind || 'adjustment',
-      on_date: input.on_date || new Date().toISOString().slice(0, 10),
+      on_date: input.on_date || todayIso(),
       days: Math.abs(days),
       note: input.note || null,
       reference: input.reference || null,
