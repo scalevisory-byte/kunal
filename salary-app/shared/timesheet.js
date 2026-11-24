@@ -492,6 +492,21 @@ export function minutesForMark(
    */
   if (PAID_BY_THE_DAY.has(mark)) return 0;
 
+  /*
+   * AND THE CLOCK IS NOT READ AT ALL ON A ROUND-THE-CLOCK DUTY.
+   *
+   * Dinesh: *"kuch log 24 hours ofc me rehte he / unki punching kese hogi"*.
+   * They do not go home, so the reader gives one punch and nothing after it.
+   * Twenty-four hours against a nine-hour day is FIFTEEN HOURS of overtime
+   * every single day - near-double pay nobody decided - and the shortfall
+   * rule above already lets the day past because DD owes no nine hours.
+   *
+   * So the day is worth exactly one day, like P, and the hours say nothing.
+   * To pay somebody more for a night on the premises, the office types it:
+   * their OT min cell or the Add box, with the figure in front of them.
+   */
+  if (HOURS_NOT_READ.has(mark)) return 0;
+
   return judged.minutes;
 }
 
@@ -507,6 +522,20 @@ export function minutesForMark(
  * `sundayDuty` imports this module and the two must not import each other.
  */
 export const PAID_BY_THE_DAY = new Set(['S', 'SP', 'HP', 'PH']);
+
+/**
+ * Marks whose clock hours are not read in either direction.
+ *
+ *   DD    round-the-clock duty - they never leave, so there is no departure
+ *         to measure and a 24-hour day would read as 15 hours of overtime
+ *
+ * DELIBERATELY A SECOND SET AND NOT AN ADDITION TO THE ONE ABOVE, because
+ * the reason differs and the reason is the whole point. PAID_BY_THE_DAY is
+ * paid by the Sunday register, so reading the clock as well pays the same
+ * work twice. This one is paid by the month's salary exactly like a present
+ * day; what is wrong here is that the clock cannot describe the day at all.
+ */
+export const HOURS_NOT_READ = new Set(['DD']);
 
 /** Everything typed on one person's month, added up. */
 export function monthTotals(daysWithTimes = [], options = {}) {

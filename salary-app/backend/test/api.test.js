@@ -1027,6 +1027,79 @@ test('a work-from-home request cannot smuggle in a different mark', async () => 
   assert.equal(mine.attendance[30]?.code, 'WH');
 });
 
+/*
+ * WORKING OUT OF THE OFFICE, end to end through the real routes.
+ *
+ * Dinesh: *"Kuch log out of office se kam karte he"*. The OD mark and the GPS
+ * exemption already existed; what was missing is that nobody could ASK, so a
+ * field day happened only if the office remembered to type it.
+ *
+ * Deliberately a separate test from the work-from-home one above rather than a
+ * parameter on it: the two write DIFFERENT marks and must be seen to.
+ */
+test('somebody can apply for a day out of the office, and only an approval writes it', async () => {
+  const netNow = async () => {
+    const pay = (await api('GET', `/api/periods/${periodId}/payroll`)).body;
+    return Math.round(pay.rows.find((r) => r.employee_id === employeeId).net_salary);
+  };
+  const paidBefore = await netNow();
+
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 16,
+    to_day: 17,
+    kind: 'official_duty',
+    reason: 'Two days at the client in Surat',
+  });
+  assert.equal(raised.status, 201);
+  assert.equal(raised.body.status, 'pending');
+
+  // Asking is not getting - the rule the whole queue is built on.
+  const pending = (await api('GET', `/api/periods/${periodId}/attendance`)).body
+    .employees.find((e) => e.employee_id === employeeId);
+  assert.notEqual(pending.attendance[16]?.code, 'OD', 'a pending request wrote on the grid');
+  assert.equal(await netNow(), paidBefore, 'a pending request moved the pay');
+
+  const decided = await api('POST', `/api/attendance/requests/${raised.body.id}/decide`, {
+    approve: true,
+    by: 'Dinesh',
+  });
+  assert.equal(decided.status, 200);
+  assert.equal(decided.body.status, 'approved');
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body
+    .employees.find((e) => e.employee_id === employeeId);
+  for (const day of [16, 17]) {
+    assert.equal(grid.attendance[day]?.code, 'OD', `day ${day} should be official duty`);
+    assert.equal(grid.attendance[day]?.approved, true);
+    assert.match(String(grid.attendance[day]?.reason || ''), /Surat/);
+  }
+  assert.notEqual(grid.attendance[18]?.code, 'OD', 'the day after is untouched');
+
+  /*
+   * AND A DAY ON THE COMPANY'S BUSINESS IS PAID IN FULL. Two days that were
+   * blank before, and the pay has not moved - exactly as two Present days
+   * would have left it.
+   */
+  assert.equal(await netNow(), paidBefore, 'a day out of the office cost somebody money');
+});
+
+test('an out-of-office request cannot smuggle in a different mark either', async () => {
+  const raised = await open('POST', `/api/punch/${punchToken}/requests`, {
+    period_id: periodId,
+    day: 23,
+    kind: 'official_duty',
+    code: 'A', // a stale form, or somebody poking at the API
+    reason: 'bank run on the 23rd',
+  });
+  assert.equal(raised.status, 201);
+  await api('POST', `/api/attendance/requests/${raised.body.id}/decide`, { approve: true, by: 'Dinesh' });
+
+  const grid = (await api('GET', `/api/periods/${periodId}/attendance`)).body
+    .employees.find((e) => e.employee_id === employeeId);
+  assert.equal(grid.attendance[23]?.code, 'OD', 'an absence reached the grid through a field-day request');
+});
+
 test('the rate limits do not interfere with each other', async () => {
   /*
    * Each route has its own bucket per link per minute. It used to be one bucket

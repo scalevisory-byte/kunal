@@ -2251,6 +2251,71 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Three kinds of people the office fence does not fit (v2.28.0)
+
+Dinesh: *"Kuch log work from home karte he / Kuch log out of office se kam karte he / Kuch log
+24 hours ofc me rehte he / Unki punching kese hogi"*. **Inspected before answering, and the
+honest state was one done, one half, one missing.**
+
+- **Work from home: already whole.** `WH`, the `remote` request kind, fence exempt, paid in
+  full, no uniform question, never judged late.
+- **Out of office: HALF.** The `OD` mark existed, `REMOTE_MARKS` already carried **both** WH
+  and OD (the note in this file saying `{WH}` only was stale), and `officialDuty.test.js`
+  covered the pay, the fence and the uniform. What was missing is the same half WH had been
+  missing: **nobody could ASK.** A field day happened only if the office typed it, so until
+  they did, the punch from a client's office sat on the things-to-check list — which is how a
+  list of things to check stops being read.
+- **24 hours in the office: missing, and not expressible.** `MAX_DAY_MINUTES` is 16 hours, so
+  a longer shift is treated as a typo and falls back to the month's day; `shiftLength` returns
+  null for `09:00 → 09:00`. The day went down as `P`, which owes nine hours that the clock
+  cannot measure on somebody who never leaves.
+
+**Asked which way the 24-hour people should be paid, Dinesh left it open** ("no preference"),
+so the safest reading was taken and stated to him: **one full day, hours not read, and NO
+automatic overtime.** 24 hours against a nine-hour day is fifteen hours of overtime every
+single day — near-double pay nobody decided. Paying more is the Add box or their own OT min
+cell, with the figure in front of you. Same family as *an unreturned asset is named, never
+deducted*.
+
+- **`official_duty` request kind** — the mirror of `remote`: `needs: 'none'`, `writes: 'OD'`
+  on the KIND, `span: true`. So a stale form carrying `code: 'A'` still marks OD and **cannot
+  write an absence** (tested end to end through the real punch-link and decide routes), and a
+  three-day trip is one request and one decision. **Kept apart from WH on purpose** — both are
+  paid in full, but a day at a client's office is not a day at home.
+- **`DD` "24-hour duty"**, the fifteenth mark: `absent: 0, paid: true`, so it is worth exactly
+  what `P` is worth. Verified over a whole month: gross, net, PT, absent days, present days and
+  final payable all identical to a `P` month.
+- **`HOURS_NOT_READ` in `shared/timesheet.js` is a SECOND set beside `PAID_BY_THE_DAY`, and
+  that is deliberate: the reason differs and the reason is the point.** `PAID_BY_THE_DAY`
+  (S/SP/HP/PH) is paid off the Sunday register, so reading the clock as well pays twice. `DD`
+  is paid by the monthly salary like a present day; what is wrong there is that the clock
+  cannot describe the day at all. Measured on a real 15-hour day: marked `P` it pays **₹1,278**
+  of overtime, marked `DD` it pays nothing — and the clock times stay on the record.
+- Everything else falls out of **not** adding it: not in `HOURS_EXPECTED` (adds nothing to the
+  monthly target either way), not in `FULL_DAY_MARKS` (never late or early), not in
+  `WORKED_MARKS` (never chased on Missing punch, where one punch and no departure would fire
+  every morning), not in `PUNCH_MAY_SET`/`AUTO_MARKS` (a reader cannot turn a chosen duty back
+  into a plain `P`). A test asserts the invariant that **any mark whose clock is not read must
+  also not be judged late**, so a sixteenth mark cannot land half-wired.
+- **The guard that caught it working:** `gridColumns.test.js` — *"a new one fails here until it
+  has a column"* — failed on the first run, exactly as designed, because `DD` was counted in no
+  column on the grid.
+- **A real drift found on the way:** the **Present** column was summed BY HAND in two places —
+  the grid row and the printed muster — so a fifth mark had to be remembered twice. That is
+  precisely how v2.24.0's paid-leave figure came to differ between two screens while a comment
+  promised it could not. `daysPresent(counts)` in `shared/calc.js` is now the one answer and
+  both read it; the old `interface.test.js` assertion pinned the hand-written sum and was
+  **rewritten to state the rule** rather than patched.
+- Help: `work-from-home` was **amended and widened** to cover both kinds rather than growing a
+  second near-duplicate topic (the v1.81 call), findable on `out of office`, `client visit`,
+  `bahar se kaam`, `official duty`. `round-the-clock` is genuinely a different question (a mark
+  the office types, about pay and the clock) and is its own topic, findable on `24 hours`,
+  `guard`, `raat bhar`, `office me rehte`, `night duty`, carrying the no-automatic-overtime
+  note.
+- **Harness note:** the attendance write route is **`POST /periods/:id/attendance`**, not PUT —
+  a PUT returned something non-fatal and wrote nothing, so a first run reported a 15-hour day
+  as 0 minutes under BOTH marks and looked like a pass. Check the status, not just the shape.
+
 ### The hours bar was netting what it deducts against what it pays (v2.27.0)
 
 Dinesh, off his live v2.26.0 sheet: *"5 lac wala solve nahi hua"* and *"ot wala minus amount

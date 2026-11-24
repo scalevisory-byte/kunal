@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.27.0';
+export const VERSION = '2.28.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.28.0',
+    date: '24 Nov 2026',
+    title: 'Working from home, working away, and the people who never leave',
+    items: [
+      '**Anybody can now apply for a day out of the office** \u2014 a client visit, a bank run, a day at a supplier. It writes the Official Duty mark, which is paid in full exactly like a present day and which the GPS fence already allowed. The mark and the fence have been there a while; what was missing is that only somebody in the office could type it, so until they did, a punch from a client\u2019s office sat on the list of things to check. A trip of several days is one application and one decision.',
+      '**Working from home and working out of office stay separate**, deliberately. Both are paid in full, but a day at home is not a day at a client\u2019s office, and the month\u2019s record should be able to say which it was.',
+      '**A new mark for the people who stay 24 hours \u2014 \u201c24-hour duty\u201d.** They never go home, so the door reader gives one punch and nothing after it, and the day used to go down as Present, which owes nine hours the clock cannot measure. The day is now worth **exactly one full day, no more and no less**, and the clock is not read on it in either direction.',
+      '**Why 24-hour duty pays no automatic overtime:** twenty-four hours against a nine-hour day is fifteen hours of overtime every single day, which is close to double pay and is a decision, not a sum. To pay somebody for a night on the premises, type it into their OT min cell or the Add box, with the figure in front of you.',
+      '**Nothing already paid can move.** Both marks are paid like a present day and nothing on any existing month carries the new one. Checked over a whole month: a 24-hour-duty month and a Present month come out identical on gross, net, PT, absent days and payable days.',
+      'Small fix found on the way: the **Present column** on the attendance grid and on the printed muster each worked their own total out by hand. They now read one figure, so a new mark cannot be counted on one screen and missed on the other.',
+    ],
+  },
   {
     version: '2.27.0',
     date: '24 Nov 2026',

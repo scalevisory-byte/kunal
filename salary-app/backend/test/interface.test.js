@@ -2865,9 +2865,23 @@ test('the summary columns are the ones he listed, counted off the same marks', (
   for (const head of ['>P<', '>Absent<', '>WO<', '>PL<', '>LWP<', '>HD<', '>Sun<', '>Hours<']) {
     assert.ok(att.includes(head), `the ${head} column is missing`);
   }
-  // Present includes work from home and official duty - all three are days
-  // somebody was at work.
-  assert.match(att, /counts\.P \|\| 0\) \+ \(counts\.WH \|\| 0\) \+ \(counts\.OD \|\| 0\)/);
+  /*
+   * PRESENT COUNTS EVERY DAY SOMEBODY WAS AT WORK - here, at home, out on
+   * the company's business, or on a round-the-clock duty.
+   *
+   * This assertion used to pin the sum written out by hand. It was written
+   * out TWICE - the grid row and the printed muster - which is how v2.24.0's
+   * paid-leave figure came to differ between two screens while a comment
+   * promised it could not, so adding a fifth mark meant remembering both.
+   * `daysPresent` in shared/calc.js is the one answer and the rule asserted
+   * here is that neither screen works it out for itself.
+   */
+  assert.match(att, /daysPresent\(l\.counts\)/, 'the printed muster does not read the shared helper');
+  assert.match(att, /daysPresent\(counts\)/, 'the grid row does not read the shared helper');
+  assert.ok(
+    !/counts\.P \|\| 0\) \+ \(counts\.WH/.test(att),
+    'the present-days list is written out by hand again'
+  );
   // Hours are what was CLOCKED, not the OT/LT column, which is a different
   // question and already has its own column beside it.
   assert.match(att, /monthTotals\(Object\.values\(merged\)/);

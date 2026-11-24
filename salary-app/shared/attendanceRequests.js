@@ -92,6 +92,37 @@ export const REQUEST_KINDS = [
     writes: 'WH',
     span: true,
   },
+  /*
+   * OUT OF THE OFFICE ON THE COMPANY'S BUSINESS.
+   *
+   * Dinesh: *"kuch log out of office se kam karte he"*. The OD mark has
+   * existed for a while and the GPS fence already lets an OD day through
+   * (REMOTE_MARKS carries WH and OD), so a client visit is paid in full and
+   * is not flagged as a punch away from the office. What was missing is the
+   * same half that was missing for Work From Home: NOBODY COULD ASK. A field
+   * day only became OD if somebody in the office remembered to type it, and
+   * until they did, the punch from the client's office sat on the list of
+   * things to check - which is how a list of things to check stops being read.
+   *
+   * Built as the mirror of `remote` and for the same reasons: it `needs`
+   * nothing, because the mark is always OD and a picker would only be a
+   * chance to choose the wrong one; `writes` sits on the KIND, so a request
+   * arriving with some other code on it still marks the day OD and cannot
+   * write an absence. It spans, because a three-day trip is one request and
+   * one decision.
+   *
+   * It is NOT the same as Work From Home, and the two are kept apart on
+   * purpose: both are paid in full, but a day at a client's office is not a
+   * day at home, and the office wants to be able to tell them apart later.
+   */
+  {
+    key: 'official_duty',
+    label: 'Working out of office',
+    hint: 'a client visit, a bank run, a day at a supplier',
+    needs: 'none',
+    writes: 'OD',
+    span: true,
+  },
 ];
 
 /** The shortest and longest a few hours off can sensibly be. */

@@ -96,6 +96,27 @@ export const ATTENDANCE_CODES = {
    * treats them differently.
    */
   OD: { label: 'Official Duty', absent: 0, sunday: 0, paid: true },
+  /*
+   * ROUND-THE-CLOCK DUTY - the people who do not go home.
+   *
+   * Dinesh: *"kuch log 24 hours ofc me rehte he / unki punching kese hogi"*.
+   * A door-lock reader gives them ONE punch and then nothing, because they
+   * never leave, and there was no mark that said so: the day went down as P,
+   * where nine hours are owed and the clock cannot describe what happened.
+   *
+   * IT IS PAID EXACTLY LIKE A PRESENT DAY - one full day, no more and no
+   * less - so NO EXISTING MONTH CAN MOVE: nothing carries this code yet and
+   * none of the fourteen above changes.
+   *
+   * WHAT IT CHANGES IS THAT THE CLOCK IS NOT READ ON IT, in either
+   * direction (see HOURS_NOT_READ in timesheet.js). Twenty-four hours
+   * against a nine-hour day is fifteen hours of overtime EVERY SINGLE DAY,
+   * which is near-double pay nobody decided; and a single punch with no
+   * departure would otherwise be chased every morning as a missing one.
+   * Paying more than the day is a decision with a figure in front of you -
+   * the Add box, or their own OT min cell - never an arithmetic accident.
+   */
+  DD: { label: '24-hour duty', absent: 0, sunday: 0, paid: true },
   S: { label: 'Weekly off', absent: 0, sunday: 0, paid: true },
   AD: { label: 'Absent (2 days)', absent: 2, sunday: 0, paid: false },
 };
@@ -216,6 +237,24 @@ export function countMarks(attendance = {}) {
  */
 export const paidLeaveDays = (counts = {}) =>
   (counts.PL || 0) + (counts.CL || 0) + (counts.SL || 0);
+
+/**
+ * DAYS THE PERSON WAS AT WORK - at this desk or somewhere else for us.
+ *
+ *   P    here
+ *   WH   working from home
+ *   OD   out on the company's business
+ *   DD   round-the-clock duty, never went home
+ *
+ * All four are paid a full day and none of them is an absence, so the grid's
+ * P column and the printed muster's P column must count the same four.
+ *
+ * It is a function and not a list written out twice, for the reason v2.24.0
+ * recorded: the paid-leave sum WAS written out twice and the two screens came
+ * to disagree about one person, while a comment promised they could not.
+ */
+export const daysPresent = (counts = {}) =>
+  (counts.P || 0) + (counts.WH || 0) + (counts.OD || 0) + (counts.DD || 0);
 
 /**
  * Short hours and overtime added up across the month, in minutes.

@@ -89,7 +89,7 @@ test('a paid holiday has a column', () => {
  * invisible in the grid's own month figures.
  */
 const COLUMN_FOR = {
-  P: 'P', WH: 'P', OD: 'P',
+  P: 'P', WH: 'P', OD: 'P', DD: 'P',
   A: 'Absent', AD: 'Absent',
   UL: 'LWP',          /* and Absent, since it costs a day */
   HF: 'HD',           /* and Absent, at half a day */

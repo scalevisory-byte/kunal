@@ -5,6 +5,7 @@ import {
   CODE_ALIASES,
   countMarks,
   minutesFromAttendance,
+  daysPresent,
   paidLeaveDays,
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
@@ -180,7 +181,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
          * one of them that costs a day's pay. A muster that is signed must
          * say what the screen it came from says.
          */
-        num('P', (l) => tally(l, 'P', 'WH', 'OD') || ''),
+        num('P', (l) => daysPresent(l.counts) || ''),
         num('A', (l) => tally(l, 'A', 'AD') || ''),
         num('HF', (l) => tally(l, 'HF') || ''),
         num('WO', (l) => tally(l, 'S') || ''),
@@ -692,7 +693,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                       </td>
                     );
                   })}
-                  <td className="num">{(counts.P || 0) + (counts.WH || 0) + (counts.OD || 0) || '-'}</td>
+                  <td className="num">{daysPresent(counts) || '-'}</td>
                   <td className="num strong">{days(absentDaysFromAttendance(merged))}</td>
                   <td className="num">{counts.S || '-'}</td>
                   <td className="num">{counts.PH || '-'}</td>
