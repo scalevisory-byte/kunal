@@ -4,6 +4,7 @@ import { LEAVE_TYPES, calculateRow, totalRows } from '../../../shared/calc.js';
 import { statutoryReport } from '../../../shared/statutory.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { attendancePercent } from '../../../shared/attendanceReport.js';
+import { onStaffThatDay } from '../../../shared/onStaff.js';
 import {
   formatDuration,
   isEarlyOut,
@@ -346,9 +347,28 @@ export default function Dashboard({
         atWork: [], outOfUniform: [], uniformProper: 0, uniformChecked: 0,
         // People judged against a shift of their own rather than the office day.
         ownShift: 0,
+        /*
+         * WHO IS NOT ON THIS DAY'S ROLL, and why.
+         *
+         * Somebody who left mid-month stays on the month's payroll - they are
+         * owed for the part they worked - and so was listed here as absent
+         * every morning for the rest of it. Dinesh: *"isme left wale bhi aa
+         * rahe he absent me"*: seventeen under Absent, where HR's own message
+         * had ten.
+         *
+         * Kept, with the reason, rather than dropped: a list that silently
+         * got shorter reads as people going missing. Nothing here touches
+         * what their last month pays.
+         */
+        gone: [],
       };
 
       for (const row of rows) {
+        const staff = onStaffThatDay(row, { year: period.year, month: period.month, day: shownDay });
+        if (!staff.on) {
+          out.gone.push({ id: row.employee_id, employee_name: row.employee_name, why: staff.why });
+          continue;
+        }
         const entry = row.attendance?.[shownDay];
         const times = typeof entry === 'object' && entry ? entry : {};
         const code = (typeof entry === 'object' ? entry?.code : entry) || '';
@@ -440,7 +460,9 @@ export default function Dashboard({
        * a test, because a bucket added later and not shown is precisely the
        * fault this is here to stop.
        */
-      out.people = rows.length;
+      /* On the staff THAT day - somebody who had left is in no bucket, so
+         counting them here would break the sum the test below asserts. */
+      out.people = rows.length - out.gone.length;
       out.accounted =
         out.present.length + out.absent.length + out.leave.length + out.halfDay.length +
         out.holiday.length + out.sunday.length + out.unmarked.length;
@@ -495,6 +517,10 @@ export default function Dashboard({
         const counts = {};
         let marked = 0;
         for (const row of rows) {
+          /* The same rule the roll call uses for its one day, so a bar and
+             the card under it still cannot disagree: somebody who had left,
+             or had not joined yet, is not in that day's count. */
+          if (!onStaffThatDay(row, { year: period.year, month: period.month, day }).on) continue;
           const entry = row.attendance?.[day];
           const code = (typeof entry === 'object' ? entry?.code : entry) || '';
           if (!code) continue;
@@ -2140,6 +2166,25 @@ export default function Dashboard({
             ? ` ${roll.ownShift} ${roll.ownShift === 1 ? 'person is' : 'people are'} judged against their own shift instead.`
             : ''}
         </p>
+        {/*
+          * WHO THIS DAY'S LIST LEFT OUT, said out loud. They are still on the
+          * month's salary sheet - a part month is owed - so a name that is
+          * there and not here would otherwise read as somebody going missing.
+          */}
+        {roll.gone.length ? (
+          <p
+            className="muted small"
+            title={roll.gone.map((g) => `${g.employee_name} - ${g.why}`).join('\n')}
+          >
+            {roll.gone.length} not on this day&rsquo;s roll - not on the staff that day:{' '}
+            {roll.gone.slice(0, 6).map((g) => g.employee_name).join(', ')}
+            {roll.gone.length > 6 ? ` and ${roll.gone.length - 6} more` : ''}. They stay on the
+            month&rsquo;s salary sheet, where their part month is worked out.
+            {roll.gone.some((g) => /no leaving date/.test(g.why))
+              ? ' Some have no leaving date on their record - put it in under Employees so this is not a guess.'
+              : ''}
+          </p>
+        ) : null}
 
         {/*
           * The Present fold is gone: "At work" is a chip on the table above,

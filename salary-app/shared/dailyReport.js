@@ -55,6 +55,7 @@
 import { ATTENDANCE_CODES } from './calc.js';
 import { FULL_DAY_MARKS, shiftTimesFor } from './lateEarly.js';
 import { isEarlyOut, isLateIn, lateByMinutes, formatDuration } from './timesheet.js';
+import { onStaffThatDay } from './onStaff.js';
 
 /** Who was at work, so there was a uniform to see. */
 export const WORKED_MARKS = new Set(['P', 'HF', 'SP', 'HP']);
@@ -154,8 +155,19 @@ const bullets = (list, each = withReason) => list.map((row) => `  • ${each(row
  * days out of the same rows, and two copies of this mapping is how the hours
  * and the attendance would come to disagree about what a mark is.
  */
-const peopleFor = (rows, day) =>
-  rows.map((row) => {
+/*
+ * ONLY WHO WAS ON THE STAFF THAT DAY.
+ *
+ * Somebody who left mid-month stays on the month's payroll, so this message
+ * went on listing them as absent every day until the month closed - and HR
+ * was deleting the names by hand before posting it. `when` is the month the
+ * day belongs to; with no month to name the day by, nobody is left out, which
+ * is what this always did.
+ */
+const peopleFor = (rows, day, when = {}) =>
+  rows
+    .filter((row) => onStaffThatDay(row, { year: when.year, month: when.month, day }).on)
+    .map((row) => {
     const entry = (row.attendance || {})[day] || {};
     const code = String(entry.code || entry.mark || '').toUpperCase();
     return {
@@ -216,7 +228,14 @@ export function dailyReport({
   hoursDate = '',
 } = {}) {
   const which = normaliseShape(shape);
-  const people = peopleFor(rows, day);
+  /* The month the day belongs to - off the period, else off the heading's
+     own date - so a leaving date can be compared with it. */
+  const when = period?.year && period?.month
+    ? { year: period.year, month: period.month }
+    : /^\d{4}-\d{2}/.test(String(date))
+      ? { year: Number(String(date).slice(0, 4)), month: Number(String(date).slice(5, 7)) }
+      : {};
+  const people = peopleFor(rows, day, when);
 
   const marked = people.filter((p) => p.code);
   const nothingMarked = people.length > 0 && marked.length === 0;
@@ -224,7 +243,10 @@ export function dailyReport({
   const absent = people.filter((p) => ['A', 'AD', 'UL'].includes(p.code));
   const onLeave = people.filter((p) => ['CL', 'SL', 'PL'].includes(p.code));
   const halfDay = people.filter((p) => p.code === 'HF');
-  const present = people.filter((p) => ['P', 'WH', 'SP', 'HP'].includes(p.code));
+  /* At work in any form. OD (out on the company's business) and DD (a
+     round-the-clock duty) were in NO line of this message - not present, not
+     absent, not on leave - so the figures did not add up to the staff. */
+  const present = people.filter((p) => ['P', 'WH', 'OD', 'DD', 'SP', 'HP'].includes(p.code));
   const notMarked = people.filter((p) => !p.code);
 
   /*
@@ -280,7 +302,7 @@ export function dailyReport({
   const hoursInAnotherMonth = wantsYesterday && !(Number.isFinite(askedDay) && askedDay >= 1);
   const hoursFromDay = which === 'morning' || hoursInAnotherMonth ? null : askedDay;
   const hoursOn = hoursFromDay === day ? date : hoursDate;
-  const hoursPeople = hoursFromDay === null ? [] : peopleFor(rows, hoursFromDay);
+  const hoursPeople = hoursFromDay === null ? [] : peopleFor(rows, hoursFromDay, when);
   const { short, overtime, open } = hoursOf(hoursPeople);
 
   /* ---- the text, in the shape the office already sends ---- */
@@ -436,6 +458,9 @@ export function dailyReport({
     text: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
     counts: {
       people: people.length,
+      /* On the month's payroll and not on the staff that day - left, or not
+         joined yet. Counted so a screen can say who the message left out. */
+      not_on_staff: rows.length - people.length,
       present: present.length,
       absent: absent.length,
       leave: onLeave.length,

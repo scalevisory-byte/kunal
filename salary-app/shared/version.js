@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.28.0';
+export const VERSION = '2.29.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.29.0',
+    date: '25 Nov 2026',
+    title: 'People who have left are no longer listed as absent',
+    items: [
+      '**The roll call was listing everybody who had left as absent, every morning, for the rest of the month.** Somebody who leaves mid-month stays on that month\u2019s salary sheet \u2014 they are owed for the part they worked \u2014 and the roll call never looked at the leaving date. So the absent count and the attendance percentage were both wrong, and the real absences were buried among people nobody was expecting. They are now off the roll from the day after their last working day.',
+      '**The same goes for somebody who has not joined yet** \u2014 nobody is absent before their first day.',
+      '**The daily WhatsApp message follows the same rule**, so the names no longer have to be deleted by hand before it is posted. The day-by-day attendance trend does too.',
+      '**The list says who it left out.** A line under the table names them and why, because a list that quietly got shorter reads as people going missing.',
+      '**Marked as left with no leaving date?** They stay on the roll up to the last day the month shows them at work or on leave, and come off after. The line under the table says that is a guess \u2014 put the date on their record under Employees and it stops being one.',
+      '**Nothing anybody is paid has changed.** This decides who is LISTED on a day, never what a month pays: whatever is marked on a leaver\u2019s days still prices their last month exactly as before.',
+      'Small fix found on the way: in the daily message, somebody on **Official Duty** or a **24-hour duty** was in no line at all \u2014 not present, not absent, not on leave. They count as present now.',
+    ],
+  },
   {
     version: '2.28.0',
     date: '24 Nov 2026',

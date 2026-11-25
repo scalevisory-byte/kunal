@@ -2251,6 +2251,53 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### People who have left were listed as absent (v2.29.0) — `shared/onStaff.js`
+
+Dinesh, off the live roll call with seventeen names under Absent where HR's own WhatsApp
+message listed ten: *"isme left wale bhi aa rahe he absent me"*.
+
+**The cause, found by reading rather than guessing:** `listPayrollRows` has carried
+`joined_on`, `left_on` and `active` on every row all along, and **the roll call never read any
+of them.** Somebody who leaves mid-month stays on that month's payroll deliberately — they are
+owed for the part they worked, so `syncPayrollRows` keeps a touched row — and so was listed as
+absent every morning for the rest of the month. The absent count and the attendance % were
+wrong with them, and HR had been deleting the names by hand before posting the daily message.
+
+- **`onStaffThatDay(person, { year, month, day })` is the one rule**, read by the roll call,
+  the day-by-day trend and `shared/dailyReport.js`. Three rules in order: before `joined_on`
+  they are not on the staff yet; **after `left_on` they are gone, and the last working day
+  itself is still a working day**; a leaving date in the future (serving notice) changes
+  nothing until it passes.
+- **Marked as left with NO date** (`active = 0`, no `left_on`) is the awkward case and is very
+  likely the one on his live data. *"Gone, date not known"* must not read as absent every day,
+  and must not erase the days they demonstrably worked. So they are on the roll up to
+  **`lastSeenDay`** — the last day carrying `ON_STAFF_EVIDENCE` (at work in any form, or leave
+  that was theirs to take) or a clock-in — and off it after. **It is an inference and says
+  so**: `why` reads *"left, no leaving date on record"* and the line under the table asks for
+  the date. An absence, the weekly off and a paid holiday are **not** evidence: the absence is
+  the thing in question, and S/PH are filled across the whole grid in one press.
+- **Only an explicit `active` of 0/false counts.** A row with no `active` field at all is not
+  somebody who left — every old fixture is one of those.
+- **IT DECIDES WHO IS LISTED, NEVER WHAT ANYBODY IS PAID.** Nothing in it is an input to
+  `calculateRow`, and there is a test that `calc.js` does not import it. Whatever is marked on
+  a leaver's days still prices their last month exactly as before — **an absence marked after
+  the leaving date still comes off, which is how a part month comes out right**, so those marks
+  must not be "tidied up".
+- **`roll.gone` is kept and SAID**, not dropped: a line under the table names who the day left
+  out and why. A list that quietly got shorter reads as people going missing.
+- `out.people` is now `rows.length - out.gone.length`. The test that pinned
+  `out.people = rows.length` — precisely the bug — was **rewritten to state the rule**: the
+  skip happens BEFORE the if/else chain, so buckets + gone still add up by construction.
+- **Found on the way:** the daily message's present list was `P/WH/SP/HP`, so somebody on
+  **OD** or the new **DD** was in no line of it at all. Both count as present now.
+- Driven in a browser: Absent **3 → 1**, the genuine absentee still listed, both leavers named
+  in the line under the table, **no net figure moved**, and the daily message carried neither.
+- **Harness notes:** `GET /people/daily-report` takes `?day=` as an **ISO date**; `?day=25`
+  is a 500 ("Invalid time value"), which is a wart worth a 400 some day. The roll call's chips
+  are `.roll-chips .chip` and its table is `table.roll-table`.
+- **Not changed, and worth knowing:** month-level figures (days lost on the absent/present
+  report, the muster) still count those marks, because they mirror the pay.
+
 ### Three kinds of people the office fence does not fit (v2.28.0)
 
 Dinesh: *"Kuch log work from home karte he / Kuch log out of office se kam karte he / Kuch log

@@ -146,7 +146,10 @@ export const HELP = [
     id: 'roll-call',
     title: 'The morning roll call \u2014 who is absent, late, or out of uniform',
     tab: 'dashboard',
-    keywords: ['roll call', 'absent list', 'late coming', 'uniform', 'morning', 'hajri', 'gair hajar', 'list'],
+    keywords: [
+      'roll call', 'absent list', 'late coming', 'uniform', 'morning', 'hajri', 'gair hajar', 'list',
+      'left', 'left employee', 'resigned', 'chhod gaya', 'left wale', 'leaver', 'not joined',
+    ],
     lines: [
       '**One table, narrowed by the chips.** Press **Absent** and it is the absent list; press **Late coming** and it is the late list, worst first, with how many times this month.',
       '**A chip with 0 still presses** \u2014 it answers the question out loud: “nobody was absent on this day”.',
@@ -154,9 +157,11 @@ export const HELP = [
       '**Why** and **Allowed?** are typed straight into the row and saved **on the day itself**, so they show on the grid, on the absent/present report and on that person\u2019s own record. Neither moves a rupee.',
       '**At work** is a chip too, with everybody\u2019s times and hours \u2014 not a separate list of bare names.',
       '**Quick stats, above the roll call, opens each list too.** Press *Early leaving* or *Overtime* there and the table below narrows to exactly those people, with their times — it no longer sends you to another tab.',
+      '**Somebody who has left is not on the roll after their last day**, and somebody who has not joined yet is not on it before their first. They stay on the month’s salary sheet — a part month is owed — but they are not listed as absent, they are not in the absent count or the attendance percentage, and they do not go out in the daily WhatsApp message. The line under the table names who was left out and why.',
+      '**Marked as left with no leaving date?** They are kept on the roll up to the last day the month shows them at work or on leave, and off it after — and the line under the table says it is a guess. Put the date on their record under Employees and it stops being one.',
       '**Late and early follow each person’s own shift.** Somebody on a 2pm–11pm shift is not late at 2:05, and the line under the table says how many people are judged on their own hours rather than the office’s.',
     ],
-    note: 'OUT OF UNIFORM 0 IS NOT “EVERYBODY IN UNIFORM”. Nobody is out of uniform until somebody walks the floor and says so; the uniform check under the table says how many were looked at.',
+    note: 'OUT OF UNIFORM 0 IS NOT “EVERYBODY IN UNIFORM”. Nobody is out of uniform until somebody walks the floor and says so; the uniform check under the table says how many were looked at.\n\nLEAVING SOMEBODY OFF THE ROLL CHANGES NOTHING THEY ARE PAID. Whatever is marked on their days still prices their last month exactly as before — an absence marked after the leaving date still comes off, which is how a part month comes out right.',
   },
   {
     id: 'attendance-grid',

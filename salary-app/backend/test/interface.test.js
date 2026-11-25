@@ -615,7 +615,18 @@ test('every person on the roll call lands in a figure somebody can see', () => {
    * later and not drawn is exactly the fault this is here to stop.
    */
   assert.match(d, /out\.accounted =/);
-  assert.match(d, /out\.people = rows\.length;/);
+  /*
+   * THE HEADCOUNT IS WHO WAS ON THE STAFF THAT DAY, not the month's payroll.
+   * This used to pin `out.people = rows.length`, which is exactly what listed
+   * somebody who had left as absent every morning for the rest of the month.
+   * The sum still holds by construction: everybody is either left out BEFORE
+   * the if/else chain (and kept in `gone`, with the reason) or lands in
+   * exactly one bucket.
+   */
+  assert.match(d, /out\.people = rows\.length - out\.gone\.length;/);
+  const loop = d.slice(d.indexOf('for (const row of rows) {'), d.indexOf('if (!code) out.unmarked.push(person);'));
+  assert.match(loop, /onStaffThatDay\(row,/, 'the roll call never asks whether they were on the staff that day');
+  assert.match(loop, /out\.gone\.push\(/, 'somebody left out of the day is dropped without a word');
 
   // The day's attendance comes from the report's own function, so this figure
   // and Reports cannot disagree.
