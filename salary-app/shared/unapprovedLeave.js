@@ -46,6 +46,32 @@ export function standingOf(entry = {}) {
   return 'undecided';
 }
 
+/**
+ * Where one day stands under the double rule, or null when the rule does not
+ * look at it at all.
+ *
+ * A plain absence is looked at whatever its standing. UNPAID LEAVE IS LOOKED
+ * AT ONLY WHEN SOMEBODY REFUSED IT: a UL with no decision is leave the office
+ * itself recorded as unpaid - and it is what the sandwich tool writes - so
+ * treating it as "taken without approval" would double a docked Sunday.
+ * `backend/src/db.js` asks the same question in SQL; a test holds the two
+ * together.
+ */
+export function doubleStanding(entry = {}) {
+  const code = String(entry.code || '').toUpperCase();
+  const standing = standingOf(entry);
+  if (code === 'A') return standing;
+  if (code === 'UL') return standing === 'undecided' ? null : standing;
+  return null;
+}
+
+/** Would the automatic rule double this day? (Dates and people are the caller's.) */
+export const autoDoubles = (entry) => ['refused', 'undecided'].includes(doubleStanding(entry));
+
+/** A day the automatic rule turned into AD, as opposed to one typed that way. */
+export const wasAutoDoubled = (entry = {}) =>
+  String(entry.code || '').toUpperCase() === DOUBLE_MARK && Boolean(entry.doubled_from);
+
 const nameOf = (row) => row.employee_name || row.name || '';
 
 /**
@@ -62,6 +88,8 @@ export function unapprovedLeave(rows = [], period = {}, { countUndecided = false
     undecided: 0,
     approved: 0,
     already: 0,
+    // Of those, how many the automatic rule did rather than a person.
+    auto: 0,
     days: 0,
     extra_days: 0,
     amount: 0,
@@ -77,9 +105,13 @@ export function unapprovedLeave(rows = [], period = {}, { countUndecided = false
       const code = String(entry?.code || '').toUpperCase();
       if (code === DOUBLE_MARK) {
         out.already += 1;
+        if (entry.doubled_from) out.auto += 1;
         continue;
       }
       if (!SINGLE_ABSENCE.has(code)) continue;
+      // Unpaid leave nobody has decided is the office's own record of a
+      // leave, not one taken without asking. See doubleStanding.
+      if (doubleStanding(entry) === null) continue;
       if (upTo && day > upTo) continue;
       // Somebody who had left by then was not absent without leave - they
       // were gone. Those marks price their last month and are not this rule's.
@@ -146,4 +178,34 @@ export function entriesToDouble(report) {
     for (const d of person.days) entries.push({ employee_id: person.employee_id, day: d.day, code: DOUBLE_MARK });
   }
   return entries;
+}
+
+/**
+ * What the automatic rule has done in a month, person by person, priced.
+ *
+ * The price is "what would this person take home if those days were single
+ * again" less what they take home now - the payslip function both times, so
+ * the figure on the Leave tab is the figure that would come back on an
+ * approval.
+ */
+export function autoDoubledReport(rows = [], period = {}) {
+  const out = { people: [], days: 0, amount: 0 };
+  for (const row of rows) {
+    const attendance = row.attendance || {};
+    const days = Object.entries(attendance)
+      .filter(([, entry]) => wasAutoDoubled(entry))
+      .map(([day, entry]) => ({ day: Number(day), was: entry.doubled_from, reason: entry.reason || '', standing: standingOf(entry) }))
+      .sort((a, b) => a.day - b.day);
+    if (!days.length) continue;
+    const single = { ...attendance };
+    for (const d of days) single[d.day] = { ...attendance[d.day], code: d.was };
+    const now = calculateRow(row, period, attendance);
+    const then = calculateRow(row, period, single);
+    const amount = Math.round((Number(then.net_salary) || 0) - (Number(now.net_salary) || 0));
+    out.people.push({ employee_id: row.employee_id, employee_name: nameOf(row), days, amount });
+    out.days += days.length;
+    out.amount += amount;
+  }
+  out.people.sort((a, b) => b.days.length - a.days.length || a.employee_name.localeCompare(b.employee_name));
+  return out;
 }

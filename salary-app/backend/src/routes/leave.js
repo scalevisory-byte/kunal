@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { applyAutoDouble, autoDoubleRule, autoDoubledIn, setAutoDoubleRule } from '../db.js';
+import { requireAbility } from '../auth.js';
 import {
   addLeaveCredit,
   getSetting,
@@ -421,6 +423,31 @@ const BONUS_KEY = 'leave_bonus_rule';
  * it - the next person running the month would get a different answer and
  * neither could say which was right.
  */
+/*
+ * Leave without approval costs double, automatically. Reading it is anybody
+ * with the Leave tab; switching it is a Manager or an Admin, because it is a
+ * rule that takes money and the people it is applied to are HR's own
+ * colleagues.
+ */
+leaveRouter.get('/auto-double', (req, res) => {
+  const periodId = Number(req.query.period_id) || null;
+  res.json({
+    rule: autoDoubleRule(),
+    doubled: periodId ? autoDoubledIn(periodId) : [],
+    held: periodId ? applyAutoDouble(periodId).held : [],
+  });
+});
+
+leaveRouter.put('/auto-double', requireAbility('approve'), (req, res) => {
+  const by = req.actor?.name || 'office';
+  const rule = setAutoDoubleRule({ on: Boolean(req.body?.on), from: req.body?.from }, by);
+  // Settled at once on the month they are looking at, so the screen that
+  // switched it on shows what that did rather than a promise.
+  const periodId = Number(req.body?.period_id) || null;
+  const did = periodId ? applyAutoDouble(periodId) : { doubled: 0, restored: 0, held: [] };
+  res.json({ rule, did, doubled: periodId ? autoDoubledIn(periodId) : [] });
+});
+
 leaveRouter.get('/bonus/rule', (_req, res) =>
   res.json({ rule: normaliseRule(getSetting(BONUS_KEY) || {}) })
 );

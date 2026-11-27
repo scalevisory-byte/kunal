@@ -335,6 +335,16 @@ if (!attendanceColumns.has('reason')) {
   db.exec(`ALTER TABLE attendance ADD COLUMN approved INTEGER`);
   log.info('Migrated attendance table: added the absence reason and whether it was approved.');
 }
+if (!attendanceColumns.has('doubled_from')) {
+  /*
+   * What the day was marked BEFORE the double-deduction rule turned it into
+   * AD. It is the only thing that tells an absence the rule doubled from one
+   * somebody typed as AD by hand - and so the only thing that lets an
+   * approval put the day back to single. Null on every existing row.
+   */
+  db.exec(`ALTER TABLE attendance ADD COLUMN doubled_from TEXT`);
+  log.info('Migrated attendance table: added doubled_from, for the automatic double deduction.');
+}
 if (!attendanceColumns.has('uniform')) {
   // Nullable, so every day already marked reads as "nobody looked" rather
   // than as a uniform failure nobody recorded.
@@ -2373,6 +2383,209 @@ export function setSetting(key, value, by) {
   return getSetting(key);
 }
 
+/* ================================================================= *
+ * Leave taken without approval costs double - automatically
+ * ================================================================= */
+
+/**
+ * Dinesh, having seen the priced tool: "double deduction automatic kar do".
+ *
+ * THE RULE. An absence nobody approved costs two days. In marks: a plain A
+ * that is not approved - refused, or simply not decided - becomes AD. An
+ * approval puts it back to A. Unpaid leave (UL) is doubled only when somebody
+ * marked it NOT approved: a UL with no decision is leave the office itself
+ * recorded as unpaid, and it is also what the sandwich tool writes, so
+ * doubling it would turn a docked Sunday into two.
+ *
+ * ONE SETTING, WITH A DATE ON IT. `{ on, from }` - the rule looks only at
+ * absences dated on or after `from`. Nothing before that day is touched by
+ * the rule, ever: those are offered, priced, on the Leave tab, where pressing
+ * the button is somebody's decision. A rule that reached back would re-price
+ * days the office had already looked at.
+ *
+ * WHAT IT WILL NOT DO, each for a reason that has cost money here before:
+ *   - a day that has not happened (an absence typed ahead is a plan, not a
+ *     leave taken);
+ *   - a day outside the person's time on the staff;
+ *   - a locked month;
+ *   - SOMEBODY WITH NO SIGN OF EVER BEING AT WORK THIS MONTH. A machine
+ *     report writes A for everybody it has never enrolled - thirty-four
+ *     people in one of his files - and doubling those would double a mistake.
+ *     They are held and named instead.
+ *
+ * IT IS REVERSIBLE while the month is open, which is what makes "automatic"
+ * safe: the Approved tick on the roll call, or in the day's menu, puts the
+ * day back to single on the next write. `doubled_from` remembers what it was.
+ *
+ * No arithmetic of its own. AD has always cost two days in `calculateRow`.
+ */
+export const AUTO_DOUBLE_KEY = 'double_unapproved';
+const AT_WORK_MARKS = ['P', 'HF', 'WH', 'OD', 'DD', 'SP', 'HP', 'CL', 'SL', 'PL'];
+
+export function autoDoubleRule() {
+  const stored = getSetting(AUTO_DOUBLE_KEY, null) || {};
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(stored.from || '')) ? stored.from : '';
+  // On with no date would reach back over every open month. It is not "on".
+  return { on: Boolean(stored.on) && Boolean(from), from, by: stored.by || '', since: stored.since || '' };
+}
+
+export function setAutoDoubleRule({ on, from }, by) {
+  const today = todayIso();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? from : today;
+  const rule = on ? { on: true, from: date, by: by || '', since: today } : { on: false, by: by || '', since: today };
+  setSetting(AUTO_DOUBLE_KEY, rule, by);
+  return autoDoubleRule();
+}
+
+/**
+ * On an install that is being UPDATED, the rule starts on from that day,
+ * because it was asked for on a running payroll. On a database with nothing
+ * in it, it starts off: nobody there has asked for anything yet.
+ */
+export function ensureAutoDoubleRule({ today = todayIso() } = {}) {
+  if (getSetting(AUTO_DOUBLE_KEY, null)) return autoDoubleRule();
+  const running = db.prepare(`SELECT 1 FROM periods LIMIT 1`).get();
+  const rule = running
+    ? { on: true, from: today, by: 'the v2.32.0 update', since: today }
+    : { on: false, by: '', since: today };
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, by_whom) VALUES (?, ?, ?)`).run(
+    AUTO_DOUBLE_KEY,
+    JSON.stringify(rule),
+    rule.by || null
+  );
+  if (running) log.info(`Leave without approval now costs double automatically, from ${today}.`);
+  return autoDoubleRule();
+}
+
+/**
+ * Settle one month against the rule. Returns what it did and what it held.
+ *
+ * Three passes, in this order:
+ *   1. a `doubled_from` left on a day that is no longer AD is cleared - the
+ *      office changed the mark, and the memory of the old one is now wrong;
+ *   2. a day the rule doubled that has since been APPROVED goes back to what
+ *      it was. This runs even with the rule switched off: an approval is the
+ *      office's own statement about that day;
+ *   3. unapproved absences the rule covers become AD.
+ */
+export function applyAutoDouble(periodId, { today = todayIso() } = {}) {
+  const out = { doubled: 0, restored: 0, held: [] };
+  const period = db.prepare(`SELECT id, year, month, locked FROM periods WHERE id = ?`).get(Number(periodId));
+  if (!period || period.locked) return out;
+  const pad = (n) => String(n).padStart(2, '0');
+  const isoOfDay = (day) => `${period.year}-${pad(period.month)}-${pad(day)}`;
+  const monthLabel = `${MONTH_NAMES[period.month - 1] || period.month} ${period.year}`;
+
+  return db.transaction(() => {
+    db.prepare(
+      `UPDATE attendance SET doubled_from = NULL
+       WHERE period_id = ? AND doubled_from IS NOT NULL AND code <> 'AD'`
+    ).run(period.id);
+
+    const back = db
+      .prepare(
+        `SELECT a.employee_id, a.day, a.doubled_from, e.name
+         FROM attendance a JOIN employees e ON e.id = a.employee_id
+         WHERE a.period_id = ? AND a.code = 'AD' AND a.doubled_from IS NOT NULL AND a.approved = 1`
+      )
+      .all(period.id);
+    const restore = db.prepare(
+      `UPDATE attendance SET code = ?, doubled_from = NULL WHERE period_id = ? AND employee_id = ? AND day = ?`
+    );
+    for (const row of back) {
+      restore.run(row.doubled_from, period.id, row.employee_id, row.day);
+      audit({
+        who: 'the double-deduction rule',
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: row.employee_id,
+        label: `${row.name}, ${monthLabel} day ${row.day}`,
+        field: 'code',
+        from_value: 'AD',
+        to_value: `${row.doubled_from} (approved, so single)`,
+      });
+      out.restored += 1;
+    }
+
+    const rule = autoDoubleRule();
+    if (!rule.on) return out;
+
+    const due = db
+      .prepare(
+        `SELECT a.employee_id, a.day, a.code, e.name, e.joined_on, e.left_on, e.active
+         FROM attendance a JOIN employees e ON e.id = a.employee_id
+         WHERE a.period_id = ?
+           AND ((a.code = 'A' AND (a.approved IS NULL OR a.approved = 0))
+             OR (a.code = 'UL' AND a.approved = 0))
+         ORDER BY a.employee_id, a.day`
+      )
+      .all(period.id);
+    if (!due.length) return out;
+
+    const seenAtWork = db.prepare(
+      `SELECT 1 FROM attendance
+       WHERE period_id = ? AND employee_id = ?
+         AND (code IN (${AT_WORK_MARKS.map(() => '?').join(', ')}) OR COALESCE(in_time, '') <> '')
+       LIMIT 1`
+    );
+    const atWork = new Map();
+    const double = db.prepare(
+      `UPDATE attendance SET code = 'AD', doubled_from = ? WHERE period_id = ? AND employee_id = ? AND day = ?`
+    );
+    const held = new Map();
+    for (const row of due) {
+      const iso = isoOfDay(row.day);
+      if (iso < rule.from || iso > today) continue;
+      if (row.joined_on && iso < row.joined_on) continue;
+      if (row.left_on && iso > row.left_on) continue;
+      // Marked as gone with no date: nobody can say this was leave taken.
+      if (row.active === 0 && !row.left_on) continue;
+      if (!atWork.has(row.employee_id)) {
+        atWork.set(row.employee_id, Boolean(seenAtWork.get(period.id, row.employee_id, ...AT_WORK_MARKS)));
+      }
+      if (!atWork.get(row.employee_id)) {
+        const line = held.get(row.employee_id) || { employee_id: row.employee_id, employee_name: row.name, days: [] };
+        line.days.push(row.day);
+        held.set(row.employee_id, line);
+        continue;
+      }
+      double.run(row.code, period.id, row.employee_id, row.day);
+      audit({
+        who: 'the double-deduction rule',
+        action: 'changed',
+        entity: 'attendance',
+        entity_id: row.employee_id,
+        label: `${row.name}, ${monthLabel} day ${row.day}`,
+        field: 'code',
+        from_value: row.code,
+        to_value: 'AD (not approved, so double)',
+      });
+      out.doubled += 1;
+    }
+    out.held = [...held.values()];
+    return out;
+  })();
+}
+
+/** What the rule has done in a month, for the screen that reports it. */
+export function autoDoubledIn(periodId) {
+  const rows = db
+    .prepare(
+      `SELECT a.employee_id, a.day, a.doubled_from, a.reason, a.approved, e.name
+       FROM attendance a JOIN employees e ON e.id = a.employee_id
+       WHERE a.period_id = ? AND a.code = 'AD' AND a.doubled_from IS NOT NULL
+       ORDER BY e.name, a.day`
+    )
+    .all(Number(periodId));
+  const people = new Map();
+  for (const row of rows) {
+    const line = people.get(row.employee_id) || { employee_id: row.employee_id, employee_name: row.name, days: [] };
+    line.days.push({ day: row.day, was: row.doubled_from, reason: row.reason || '' });
+    people.set(row.employee_id, line);
+  }
+  return [...people.values()];
+}
+
 export const listBonusPayments = (periodId, kind = 'leave') =>
   db
     .prepare(
@@ -2766,7 +2979,7 @@ export function listAttendance(periodId, { company_id } = {}) {
     .prepare(
       `SELECT a.employee_id, a.day, a.code, a.minutes,
               a.in_time, a.lunch_out, a.lunch_in, a.out_time,
-              a.reason, a.approved, a.uniform
+              a.reason, a.approved, a.uniform, a.doubled_from
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
@@ -2790,12 +3003,14 @@ export function attendanceByEmployee(periodId, opts) {
       // "nobody looked at the uniform" is not "turned up wrong".
       approved: row.approved === null || row.approved === undefined ? null : Boolean(row.approved),
       uniform: row.uniform === null || row.uniform === undefined ? null : Boolean(row.uniform),
+      // Set only on a day the double-deduction rule turned into AD.
+      ...(row.doubled_from ? { doubled_from: row.doubled_from } : {}),
     };
   }
   return map;
 }
 
-export const setAttendance = db.transaction((periodId, entries) => {
+const writeAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
     `INSERT INTO attendance
        (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time,
@@ -3122,6 +3337,21 @@ export const setAttendance = db.transaction((periodId, entries) => {
   return entries.length;
 });
 
+/**
+ * Every write to attendance goes through here, whatever raised it: the grid,
+ * an approval, a punch import, a festival, a phone punch.
+ *
+ * Which is why the double-deduction rule is settled HERE and nowhere else. An
+ * absence typed on the grid, one written by an import and one left behind by
+ * a cancelled leave must all come out the same, and a rule applied on some of
+ * the doors is a rule people learn to walk round.
+ */
+export function setAttendance(periodId, entries) {
+  const written = writeAttendance(periodId, entries);
+  applyAutoDouble(periodId);
+  return written;
+}
+
 export function clearAttendance(periodId, employeeId) {
   const sql = employeeId
     ? `DELETE FROM attendance WHERE period_id = ? AND employee_id = ?`
@@ -3129,3 +3359,6 @@ export function clearAttendance(periodId, employeeId) {
   const args = employeeId ? [periodId, employeeId] : [periodId];
   return db.prepare(sql).run(...args).changes;
 }
+
+// Last, once every table it reads exists.
+ensureAutoDoubleRule();

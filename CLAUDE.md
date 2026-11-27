@@ -2251,6 +2251,70 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Leave without approval doubles by itself (v2.32.0)
+
+Dinesh, having been told the double deduction was a button: *"double deduction automatic kar
+do"*. `autoDoubleRule` / `applyAutoDouble` / `ensureAutoDoubleRule` in `backend/src/db.js`,
+`attendance.doubled_from`, `GET`/`PUT /api/leave/auto-double`, the block at the top of
+`UnapprovedLeave.jsx`. **This overturns v2.31's "a TOOL, not a setting" by his instruction** —
+the tool stays for the days the rule does not cover.
+
+- **THE RULE.** A plain `A` that is not approved — refused **or simply undecided** — becomes
+  `AD`. Undecided has to count, or "automatic" would still need a click per absence; the
+  office's way to say no is the Approved tick. **`UL` is doubled only when REFUSED**: an
+  undecided UL is leave the office itself recorded, **and it is what the sandwich tool
+  writes** — doubling it would turn a docked Sunday into two. `doubleStanding` in
+  `shared/unapprovedLeave.js` is the same question in JS; the priced tool now follows it too.
+- **ONE PLACE.** `setAttendance` is now a wrapper: `writeAttendance` (the old transaction)
+  then `applyAutoDouble(periodId)`. Every door — grid, approval, import, festival, phone
+  punch — goes through it, so the rule cannot be walked round. `buildPayroll`'s sync branch
+  calls it too, which is the only thing that catches **a day typed ahead that has now
+  arrived**. `sync:false` and a locked month write nothing (tested).
+- **A SETTING WITH A DATE ON IT** (`settings.double_unapproved = { on, from }`). The rule
+  looks only at absences dated on or after `from`; *on* with no date is not on. **Nothing
+  before `from` is ever touched** — those stay on the panel's button.
+- **HOW IT CAME ON, and the reason for the odd-looking shape:** `ensureAutoDoubleRule` runs
+  last in `db.js`. A database that already has a month → on from that day, by "the v2.32.0
+  update", because he asked for it on a running payroll and his database cannot be reached
+  from here. **An empty database → off.** Flipping the default on for everybody would have
+  doubled every `A` in every existing test fixture; deriving it from "is this an install
+  being updated" keeps the suite honest and still does what he asked. A second call never
+  moves the date.
+- **`doubled_from` is what makes "automatic" safe.** It remembers the mark the rule replaced,
+  so an approval restores `A` (or `UL`) on the next write — and it is the only thing that
+  tells a rule-made AD from one typed by hand, which an approval must NOT undo. Cleared
+  whenever the day stops being AD (the office changed the mark; that is their decision).
+  Restoring runs **even with the rule switched off**: an approval is the office's statement.
+- **WHAT IT WILL NOT DO**, each with a test: a day after today; a day outside the person's
+  time on the staff; an inactive person with no leaving date; a locked month; and **somebody
+  with no sign of being at work all month** (`AT_WORK_MARKS` or a clock-in) — held and NAMED
+  on the panel. That last guard is the 34-never-enrolled people from his own machine file: a
+  report writes `A` for all of them, and doubling that doubles a mistake. The day they are
+  seen at work, their earlier absences double.
+- **Sandwich:** `AD` joined `DEFAULT_TRIGGERS`/`LEAVE_TRIGGERS`, or switching this rule on
+  would have quietly switched that finder off.
+- **A sentence on the roll call was now false.** *"…saved on the day itself and change
+  nobody's pay"* — the Allowed tick now decides one day or two. Rewritten, the help line with
+  it, and the interface test that pinned the old wording **rewritten to state the rule**.
+- Switching is `requireAbility('approve')` (Manager/Admin); reading is anybody with Leave.
+  Each double and each restore is an audit line by *"the double-deduction rule"*.
+- `autoDoubledReport` prices what an approval would give back with `calculateRow` both ways —
+  the panel itself still imports no `calculateRow` (tested).
+- Server only. The single file has no settings table and keeps the button.
+
+**THE DEFECT THE BROWSER RUN FOUND, and it predates this release:** the attendance day menu
+is ~1,500px tall on a `position: fixed` backdrop with no scroll of its own, so it was centred
+with **both ends cut off**. Measured at 1440×1000: the **Allowed** button sat at 1,074px —
+below the screen, unreachable — and it is the one control that undoes a double. `.picker`
+now has `max-height: calc(100vh - 2rem); overflow-y: auto` (`.day-marker` already had its
+own). Checked at 1440×1000, 1366×700 and 414×800 with a real click. **Playwright's
+"element is outside of the viewport" on a visible, enabled button is a real bug, not a
+flake** — the first instinct was to click it through `evaluate`, which would have hidden it.
+
+Driven on existing data: restart → *"now costs double automatically, from 2026-11-27"*; an
+absence today → `AD`, ₹1,000 more than single; Allowed → `A`, reason kept, ₹1,000 back; off;
+on from the 1st → the two earlier absences doubled, the approved one untouched.
+
 ### The office's list of twenty (v2.31.0)
 
 Dinesh sent twenty points in one message. Each was **inspected first**; several already

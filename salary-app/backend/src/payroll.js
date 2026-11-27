@@ -8,6 +8,7 @@ import {
   postPenaltyRecoveries,
   postRepayments,
   syncPayrollRows,
+  applyAutoDouble,
 } from './db.js';
 
 /**
@@ -25,6 +26,13 @@ export function buildPayroll(periodId, { company_id, sync = true } = {}) {
     // And so does a penalty, which is the whole of what "like a loan" means:
     // recording one is no longer a note somebody has to act on every month.
     postPenaltyRecoveries(periodId);
+    /*
+     * And the double-deduction rule is settled. Most of it happens on the
+     * write that marks the absence; what only a READ can catch is a day that
+     * was typed ahead and has now arrived. Skipped, like everything else in
+     * this block, with sync:false and in a locked month.
+     */
+    applyAutoDouble(periodId);
   }
 
   const attendance = attendanceByEmployee(periodId);

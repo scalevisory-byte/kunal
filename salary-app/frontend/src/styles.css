@@ -995,7 +995,15 @@ td.mark { padding: 0.1rem !important; }
   padding: 1rem;
   z-index: 70;
 }
-.picker { width: min(21rem, 100%); padding: 0.8rem; }
+/*
+ * THE DAY MENU SCROLLS INSIDE ITSELF. It has grown to about 1,500px - the
+ * clock block, fifteen marks, the minutes, why, allowed, uniform - and the
+ * backdrop is fixed, so on a laptop the card was centred with BOTH ends cut
+ * off and no way to reach them: measured, the Allowed button sat at 1,074px
+ * in a 1,000px window. That is the tick that puts a doubled absence back to
+ * one day, so it has to be reachable on every screen.
+ */
+.picker { width: min(21rem, 100%); padding: 0.8rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
 .day-marker { width: min(30rem, 100%); max-height: 88vh; overflow: auto; }
 .range-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .range-row .field { flex: 1 1 7rem; }
@@ -6398,3 +6406,10 @@ select.nature-pick.unsaid { color: var(--warn); }
 .vf-waiting { margin-left: 0.4rem; font-size: 0.68rem; }
 .sunday-approval { white-space: nowrap; }
 .sunday-approval .pill + button, .sunday-approval .pill + .pill { margin-left: 0.35rem; }
+
+/* The automatic double-deduction rule's own block on Leave -> Without approval. */
+.auto-double { border: 1px solid var(--line); border-radius: 8px; padding: 0.7rem 0.9rem; margin: 0.6rem 0 1rem; }
+.auto-double.on { border-left: 3px solid var(--warn); }
+.auto-double .row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.auto-double .row .grow { flex: 1; }
+.auto-double-earlier { margin: 0.4rem 0 0.2rem; font-size: 0.9rem; }

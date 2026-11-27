@@ -28,10 +28,10 @@ import { ATTENDANCE_CODES } from './calc.js';
 import { isWeeklyOff, policyFor } from './weeklyOff.js';
 
 /** Marks that count as the bread of the sandwich. */
-export const DEFAULT_TRIGGERS = ['A', 'UL'];
+export const DEFAULT_TRIGGERS = ['A', 'UL', 'AD'];
 
 /** The harsher reading: paid leave either side also closes the sandwich. */
-export const LEAVE_TRIGGERS = ['A', 'UL', 'CL', 'SL', 'PL'];
+export const LEAVE_TRIGGERS = ['A', 'UL', 'AD', 'CL', 'SL', 'PL'];
 
 /** Marks that mean the day was already off - the filling. */
 const OFF_MARKS = new Set(['S', 'PH']);

@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.31.0';
+export const VERSION = '2.32.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.32.0',
+    date: '27 Nov 2026',
+    title: 'Leave without approval costs double — automatically',
+    items: [
+      '**An absence nobody approved is now marked double by itself.** As soon as a day is marked Absent with no approval on it, it becomes **AD** — absent, two days. One day off costs two, two cost four. No button.',
+      '**It is on from the day this update was installed**, because it was asked for on a running payroll. Absences before that day are not touched: they are still listed under Leave → Without approval, with the button that doubles them when you press it.',
+      '**To keep an absence single, tick Approved.** On the roll call or in the day’s menu, with the reason — that is the proof for a sudden leave. The day goes back to one at once, and the day’s menu says so on a day the rule doubled.',
+      '**Leave → Without approval shows what the rule has done**: who was doubled this month, on which days, and what an approval would give back. The switch is there too — Manager or Admin only.',
+      '**Unpaid leave is doubled only when it is marked not approved.** One the office simply recorded as unpaid is left alone.',
+      '**Somebody with no sign of being at work all month is held back and named, not doubled.** A punch-machine report marks everybody it never enrolled as absent every day; doubling those would double a mistake.',
+      'It never touches a day that has not happened yet, a locked month, or a day after somebody’s last working day.',
+      'The roll call’s footnote used to say the Allowed tick changes nobody’s pay. With this rule it does, so the line now says what it costs.',
+    ],
+  },
   {
     version: '2.31.0',
     date: '27 Nov 2026',

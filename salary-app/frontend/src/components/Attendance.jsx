@@ -1339,6 +1339,17 @@ function DayPicker({
                   : 'nobody has decided'}
             </span>
           </div>
+          {/*
+            * A day the double-deduction rule marked. Said where the tick
+            * that undoes it is, because "why does this say two days" is
+            * asked by somebody looking at exactly this menu.
+            */}
+          {entry.doubled_from ? (
+            <p className="warn small">
+              Marked <strong>double</strong> by the rule: this absence was not approved. Tick{' '}
+              <strong>Allowed</strong> below and it goes back to one day.
+            </p>
+          ) : null}
           <input
             placeholder="rang in — fever"
             value={entry.reason || ''}

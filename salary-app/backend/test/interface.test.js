@@ -820,7 +820,16 @@ test('the dashboard says what it is counting, and says it shortly', () => {
    * the page is judging against.
    */
   const d = src('components/Dashboard.jsx');
-  assert.match(d, /are saved on the day itself and\s*\n\s*change nobody's pay\./);
+  /*
+   * REWRITTEN FOR v2.32. The line used to end "and change nobody's pay",
+   * which stopped being true the day the double-deduction rule became
+   * automatic: whether an absence is allowed now decides one day or two. A
+   * sentence on a payroll screen that says a tick is free when it is not is
+   * worse than no sentence.
+   */
+  assert.match(d, /are saved on the day itself\./);
+  assert.match(d, /one that is <strong>not<\/strong> allowed costs two/);
+  assert.ok(!/change nobody's pay/.test(d), 'the roll call still says the tick moves no money');
   assert.ok(
     !/live on the day itself, not on\s*\n\s*this screen/.test(d),
     'the six-line explanation is back'

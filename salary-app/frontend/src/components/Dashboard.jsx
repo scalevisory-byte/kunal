@@ -2138,11 +2138,13 @@ export default function Dashboard({
               title={
                 "The same two boxes are in the day's menu on the Attendance grid, and an " +
                 'approved leave application fills them in by itself. An allowed absence is ' +
-                'still an absence; paid time off is Casual, Sick or Privilege leave.'
+                'still an absence; paid time off is Casual, Sick or Privilege leave. With the ' +
+                'double-deduction rule on, an absence that is not allowed is marked AD - two days.'
               }
             >
-              <strong>Why</strong> and <strong>Allowed?</strong> are saved on the day itself and
-              change nobody's pay.{saving > 0 ? ' Saving…' : ''}
+              <strong>Why</strong> and <strong>Allowed?</strong> are saved on the day itself. An allowed
+              absence still costs its one day; where the double-deduction rule is on (Leave → Without
+              approval), one that is <strong>not</strong> allowed costs two.{saving > 0 ? ' Saving…' : ''}
             </p>
         </>
         {/*

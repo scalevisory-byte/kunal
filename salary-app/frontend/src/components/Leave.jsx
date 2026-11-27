@@ -294,7 +294,7 @@ export default function Leave({
       <section className="stack">
         <LeaveTabs view={view} setView={setView} />
         {period && payrollRows.length ? (
-          <UnapprovedLeave period={period} rows={payrollRows} onSave={onSaveAttendance} locked={locked} onGo={onGo} />
+          <UnapprovedLeave period={period} rows={payrollRows} onSave={onSaveAttendance} locked={locked} onGo={onGo} onReload={onReload} />
         ) : (
           <p className="muted small">Open a month to look for leave taken without approval.</p>
         )}
