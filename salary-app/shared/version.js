@@ -20,10 +20,28 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.32.0';
+export const VERSION = '2.33.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.33.0',
+    date: '27 Nov 2026',
+    title: 'The Task & Approval Desk, inside the HRMS',
+    items: [
+      '**A new tab: Task desk** — in the staff portal, **Tasks & approvals**. It is the desk the office ran on a Google Sheet, now inside the HRMS: give work, follow it up on one thread, and send a spend or a decision up for approval.',
+      '**Tasks.** New task → who it is for, due date, priority, details. Each task has a conversation; every line can move it — Pending, In Progress, Waiting, Done. A task for **Myself** is a personal reminder that nobody else can see, not even the office.',
+      '**Approvals.** Request approval → who should decide, an amount if there is one, the reason. They Approve, Reject or Ask a question; answering the question hands it back to them. Decided once, by the person it was sent to.',
+      '**The desk page** shows six figures — my open tasks, given by me, waiting for my approval, my requests, overdue, and no update in 2+ days — and each one opens its list. Then **Board** (four columns), **Departments** (workload by department and by person, for GM and above) and a search across everything.',
+      '**No separate user list.** Everybody on the staff list and every office login is already on the desk. Ranks — MD, CEO, GM, SM, HOD, Staff — are worked out to begin with (Admin login = MD, Manager login = GM, anybody with a team = HOD) and an Admin sets them properly under **People & ranks**.',
+      '**Who can give work to whom:** yourself, your own team, and from HOD upward anybody at your rank or below. A request for approval goes to your manager or anybody above you.',
+      '**The number on the tab is what is waiting on you**, and the staff portal says it in a line at the top of every page. Nothing is emailed or sent — this app has no channel to send on — so that count is how somebody learns there is work for them.',
+      '**These are the same tasks as People → Tasks.** Nothing was copied: tasks already there are on the desk of the person they were for, and a task ticked off from the old list or a punch link shows on its thread.',
+      '**An approval here pays nobody.** It is a decision on record. An expense is still paid from People → Claims.',
+      'If an office login belongs to somebody who is also on the staff list, tie the two together under People & ranks — otherwise that person is on the desk twice.',
+      'Needs the server, like every login: the single-file copy says so.',
+    ],
+  },
   {
     version: '2.32.0',
     date: '27 Nov 2026',

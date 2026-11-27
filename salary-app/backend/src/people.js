@@ -3262,6 +3262,75 @@ addColumns('tickets', [
   ['priority', `TEXT NOT NULL DEFAULT 'normal'`],
 ]);
 
+/*
+ * THE TASK DESK IS THESE SAME ROWS, NOT A SECOND LIST.
+ *
+ * Dinesh sent the Task & Approval Desk his office ran on a Google Sheet and
+ * asked for it here. People > Tasks already held work given to staff, so the
+ * desk is built ONTO this table: two task lists is how one of them comes to
+ * be wrong. What it needed that the table did not have:
+ *
+ *   stage         open is one of three - pending, progress, waiting. The old
+ *                 open / done / dropped is untouched, so every reader of
+ *                 status still gets the answer it always got.
+ *   by_key        WHO gave it, as a person the desk knows ('e:12' an employee,
+ *                 'u:3' an office login). assigned_by stays: it is a name
+ *                 somebody typed, and a typed name cannot be matched.
+ *   assignee_key  who it is for, the same way. employee_id stays and is still
+ *                 filled in for an employee, so the punch link and the person
+ *                 file find their tasks exactly as before. Null on an old row
+ *                 means "the employee in employee_id".
+ *   updated_at    the last time anybody said anything, for "no word in two
+ *                 days".
+ *   done_at       when, to the minute. done_on is a date and stays.
+ */
+addColumns('staff_tasks', [
+  ['stage', `TEXT NOT NULL DEFAULT 'pending'`],
+  ['by_key', 'TEXT'],
+  ['assignee_key', 'TEXT'],
+  ['updated_at', 'TEXT'],
+  ['done_at', 'TEXT'],
+]);
+
+db.exec(`
+  -- The conversation under a task or an approval. Append-only: what was said
+  -- and what it changed is the record, so nothing here is edited or deleted.
+  -- It lives beside staff_tasks because the old routes write to it too - a
+  -- task ticked off from the punch link has to show on the thread.
+  CREATE TABLE IF NOT EXISTS desk_updates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ref_type    TEXT NOT NULL,              -- task | approval
+    ref_id      INTEGER NOT NULL,
+    by_key      TEXT,
+    by_name     TEXT,
+    body        TEXT NOT NULL,
+    -- The status this line moved the thing to, when it moved it.
+    status      TEXT,
+    -- 1 for a line the app wrote ("Task given to ..."), not a person.
+    system      INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_desk_updates_ref ON desk_updates(ref_type, ref_id, id);
+`);
+
+/** One line on a thread. The only writer, so the shape cannot drift. */
+export function addDeskUpdate({ ref_type, ref_id, by_key = null, by_name = null, body, status = null, system = false }) {
+  const at = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO desk_updates (ref_type, ref_id, by_key, by_name, body, status, system, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(ref_type, ref_id, by_key, by_name, String(body), status, system ? 1 : 0, at);
+  return at;
+}
+
+/*
+ * A reminder somebody set for themselves. by_key and the assignee are the
+ * same person, and it is nobody else's business - so it stays off every list
+ * that is not their own: the office's flat list, the digest, a manager's view.
+ */
+const NOT_PERSONAL = `NOT (t.by_key IS NOT NULL
+  AND t.by_key = COALESCE(t.assignee_key, 'e:' || t.employee_id))`;
+
 export const TASK_PRIORITIES = ['low', 'normal', 'high'];
 export const TICKET_CATEGORIES = [
   'Salary',
@@ -3294,6 +3363,10 @@ export function listTasks({ employee_id, status, limit = 300 } = {}) {
   if (employee_id) {
     where.push('t.employee_id = ?');
     params.push(Number(employee_id));
+  } else {
+    // Asked for one person's tasks, their own reminders are theirs to see.
+    // Asked for everybody's, they are not the office's to read.
+    where.push(NOT_PERSONAL);
   }
   if (status) {
     where.push('t.status = ?');
@@ -3328,10 +3401,11 @@ export function createTask(input = {}) {
   if (input.employee_id && !employee) throw new Error('employee not found');
   const info = db
     .prepare(
-      `INSERT INTO staff_tasks (employee_id, title, detail, assigned_by, due_on, priority)
-       VALUES (@employee_id, @title, @detail, @assigned_by, @due_on, @priority)`
+      `INSERT INTO staff_tasks (employee_id, title, detail, assigned_by, due_on, priority, updated_at)
+       VALUES (@employee_id, @title, @detail, @assigned_by, @due_on, @priority, @updated_at)`
     )
     .run({
+      updated_at: new Date().toISOString(),
       employee_id: employee?.id || null,
       title,
       detail: input.detail || null,
@@ -3378,6 +3452,33 @@ export function setTaskStatus(id, { status, note, by } = {}) {
   db.prepare(
     `UPDATE staff_tasks SET status = ?, done_on = ?, done_note = ? WHERE id = ?`
   ).run(status, status === 'open' ? null : note?.date || dayNow(), note?.text || note || null, id);
+  /*
+   * The same task is on the desk, so this door has to leave it as the desk's
+   * own would: reopened means pending again, and the thread carries the turn.
+   * Without the line, a task ticked off from a phone would simply read "Done"
+   * on the desk with nothing saying who said so.
+   */
+  if (status !== task.status) {
+    const at = addDeskUpdate({
+      ref_type: 'task',
+      ref_id: id,
+      by_name: by || null,
+      body:
+        status === 'done'
+          ? `Marked done${typeof note === 'string' && note ? ` — ${note}` : ''}`
+          : status === 'dropped'
+            ? 'Dropped'
+            : 'Reopened',
+      status: status === 'done' ? 'Done' : status === 'dropped' ? 'Dropped' : 'Pending',
+      system: true,
+    });
+    db.prepare(`UPDATE staff_tasks SET stage = ?, updated_at = ?, done_at = ? WHERE id = ?`).run(
+      status === 'open' ? 'pending' : task.stage || 'pending',
+      at,
+      status === 'done' ? at : null,
+      id
+    );
+  }
   audit({
     who: by,
     action: status === 'done' ? 'done' : status === 'dropped' ? 'dropped' : 'reopened',

@@ -2251,6 +2251,81 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The Task & Approval Desk (v2.33.0)
+
+Dinesh sent two HTML files — `BookNFly_Task_Desk_Demo.html` and `Index_4_1.html`, the same
+Google Apps Script web app with and without a demo shim — and said *"ye bhi add karo"*. It is
+the desk his office ran on a Google Sheet: work given to somebody and talked through on one
+thread; a spend or a decision sent UP for Approve / Reject / Query. `shared/taskDesk.js`,
+`backend/src/desk.js`, `backend/src/routes/desk.js`, `frontend/src/components/desk/TaskDesk.jsx`.
+
+- **IT IS BUILT ONTO `staff_tasks`, NOT BESIDE IT.** People → Tasks already held work given to
+  staff, and the punch link, the person file, the digest and the single-file build all read it.
+  A second task table would have been two lists by the second fix. So the table gained `stage`
+  (pending / progress / waiting — a refinement of `open`; the old open / done / dropped is
+  untouched and every old reader gets the answer it always got), `by_key`, `assignee_key`,
+  `updated_at`, `done_at`. `employee_id` is still filled in for an employee, so the old doors
+  find their tasks exactly as before. There are tests both ways: a task made in the old list is
+  on the desk of the person it was for, and a task ticked off through the old route shows on
+  the desk's thread (`setTaskStatus` now writes the line).
+- **THERE IS NO USER LIST.** His desk had a Users sheet. Here a desk person is somebody the HRMS
+  already knows: **`e:12`** an employee, **`u:3`** an office login that is not one. The key comes
+  off the LOGIN (`deskMe(req.actor)`), never a URL or a body — there is a test sending `by`,
+  `by_key` and `employee_id` of somebody else.
+- **The same human can be an office login AND an employee**, which would put them on the desk
+  twice — work given to one never seen by the other. `desk_links` ties a login to its employee
+  (People & ranks, Admin only); tying **moves** everything the login had onto the employee in
+  one transaction, untying does **not** move it back. One person, one office login (UNIQUE).
+- **Ranks are his five plus one**: MD 1, CEO 2, GM 3, SM 4, HOD 5, and **Staff 6**, because his
+  sheet listed only senior people and here every employee can sign in. `desk_ranks` holds a rank
+  somebody SET; no row means it is **worked out** (`defaultLevel`: Admin login → MD, Manager →
+  GM, other office logins → SM, anybody with reports → HOD, else Staff) and the screen marks it
+  as a guess. So the desk works the day it is installed, not after 86 ranks are typed.
+- **Who gives work to whom** (`canAssign`): yourself (a personal reminder), anybody who reports
+  to you, and from HOD upward anybody at your rank or below — his rule. **What was added is the
+  line his desk never needed: one member of staff cannot hand work to another**, or every one
+  of 86 logins could assign to the other 85.
+- **Requests go UP** (`approversFor`): anybody above, and your own manager whatever the ranks
+  say — manager first. Nobody approves their own; the top has an empty list and the form says so.
+- **A personal reminder is nobody else's**: off the office's flat list (`NOT_PERSONAL` in
+  `listTasks`), off the Departments tally, and a 404 — not a 403 — to a manager or the MD.
+- **Words are required on every update**, even one that only moves the status: "Waiting" with
+  nothing said is the update that gets chased. **Putting a task back to Pending, including
+  reopening a done one, is for whoever gave it** — the doer does not un-finish their own.
+- **An approval is decided once, by the person it was sent to** — not by the MD, who can see
+  it. A Query needs its question; the asker answering puts it back to Pending, and that is the
+  only status a comment can change.
+- **AN APPROVAL PAYS NOBODY.** It is a decision on record; `desk_approvals.amount` is read by
+  nothing. There is an API test that an approved ₹45,000 leaves the requester's net unmoved.
+  Money still reaches a payslip only through People → Claims into a named month. Said on the
+  screen, the form and in help.
+- **NOTHING IS SENT.** His desk emailed people and took replies by mail; this app has no channel
+  (see `shared/digest.js`). So `waitingOn` — a task not picked up, a request to decide, a
+  question on your request; deliberately NOT "everything open" — is the count on the office tab
+  (`.desk-count`) and a line at the top of every portal page, re-asked every minute. The forms
+  say "nothing is emailed" rather than promising a mail.
+- **`/api/desk` is mounted behind `requireAuth` ALONE.** Every other router is the office's
+  (needs `read`) or a staff login's own (`/api/me`). The desk is neither: one screen, one door,
+  and what somebody sees is decided by who they are on it. Mounting it with the office routers
+  would lock every employee out. The office tab has **no area** for the same reason — narrowing
+  a login to Front office must not take its desk away.
+- **ONE COMPONENT, BOTH SIDES.** `App.jsx` (tab `desk`, "Task desk") and `MyPage.jsx` (tab
+  `desk`, "Tasks & approvals") render the same `TaskDesk.jsx`. All its classes are `.desk-*`
+  with their own rules — the v2.18.0 lesson, a class that only has a rule under one wrapper.
+- `PERSON_FIELDS` is the whole of what the directory carries, with a test that no salary, PAN,
+  bank account or phone is on it and that 48000 appears nowhere in a staff login's payload.
+- **Signed in with the shared key there is no login to name**: the desk knows them as "Office"
+  (`u:0`, MD), says so in a banner, and nobody can give them work. Make a real admin login.
+- Proved by putting four rules back: no `canAssign` check, personal tasks on the office list,
+  anybody deciding, identity from the body — 1, 1, 1 and 3 of the 24 tests fail.
+- **Found by driving it:** an avatar for "You" read **Y** (the initials came off the word, not
+  the person); a textarea takes the browser's monospace unless given `font: inherit`; and seven
+  views plus two buttons on one row pushed *Request approval* onto a line of its own at 1440px
+  — the top bar is two rows now, views above, actions below.
+- **Not built, on purpose:** email in or out; drag-and-drop on the Board (a card opens the
+  thread, which is where a move needs its words anyway); the daily reminder for personal tasks.
+- Needs the server. The single file says so on the tab.
+
 ### Leave without approval doubles by itself (v2.32.0)
 
 Dinesh, having been told the double deduction was a button: *"double deduction automatic kar

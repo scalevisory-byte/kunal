@@ -18,6 +18,7 @@ import {
   requireWriteForChanges,
 } from './auth.js';
 import { meRouter } from './routes/me.js';
+import { deskRouter } from './routes/desk.js';
 import { getCandidate, getCandidateDocument } from './hiring.js';
 import { getDocument } from './db.js';
 import { documentFile, documentLinkValid } from './documents.js';
@@ -226,6 +227,15 @@ export function createServer() {
    * that role carries no `read`.
    */
   app.use('/api/me', requireAuth, meRouter);
+
+  /*
+   * The Task & Approval Desk. Behind requireAuth and NOTHING else, on
+   * purpose: an office login and a staff login use the same desk, and what
+   * each may see is decided by who they are on it (routes/desk.js), not by
+   * `read`. Putting it with the office routers below would lock every
+   * employee out of their own tasks.
+   */
+  app.use('/api/desk', requireAuth, deskRouter);
 
   /*
    * WHICH PART OF THE APP, as well as what kind of action.

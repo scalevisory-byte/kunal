@@ -22,6 +22,8 @@ import { WEEKDAYS, monthWeeks } from '../../../shared/monthGrid.js';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
 import MyAssets from './my/MyAssets.jsx';
+import TaskDesk from './desk/TaskDesk.jsx';
+import { waitingSentence } from '../../../shared/taskDesk.js';
 import MyProfileForm from './my/MyProfileForm.jsx';
 import MyRecord from './my/MyRecord.jsx';
 import MyNotices from './my/MyNotices.jsx';
@@ -70,6 +72,9 @@ const TABS = [
   ['holidays', 'Holidays', '\u2600'],
   ['documents', 'Documents', '\u25a4'],
   ['assets', 'My assets', '\u25a3'],
+  // The same desk the office uses, drawn from the same component - what
+  // somebody sees on it is decided by who they are, not which side they are on.
+  ['desk', 'Tasks & approvals', '\u2611'],
 ];
 
 export default function MyPage({ me, onError, onSignOut }) {
@@ -83,6 +88,9 @@ export default function MyPage({ me, onError, onSignOut }) {
   const [manages, setManages] = useState(0);
   // How many of their team's requests are waiting on THEM, right now.
   const [teamWaiting, setTeamWaiting] = useState(0);
+  // What is waiting on them on the task desk - asked every minute, because
+  // nothing is sent and this is how they find out.
+  const [deskWaiting, setDeskWaiting] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
@@ -102,10 +110,15 @@ export default function MyPage({ me, onError, onSignOut }) {
 
   // The team tab exists only for somebody who actually manages people. An
   // empty "My team" on a hundred and fifteen logins is noise on all of them.
+  // The count rides on the label, as My team's does: nothing is sent, so the
+  // rail is where somebody sees there is work or a request waiting on them.
+  const counted = TABS.map((t) =>
+    t[0] === 'desk' && deskWaiting?.total > 0 ? [t[0], `${t[1]} (${deskWaiting.total})`, t[2]] : t
+  );
   const tabs =
     manages > 0
-      ? [...TABS, ['team', teamWaiting ? `My team (${teamWaiting})` : 'My team', '\u25c6']]
-      : TABS;
+      ? [...counted, ['team', teamWaiting ? `My team (${teamWaiting})` : 'My team', '\u25c6']]
+      : counted;
 
   /*
    * A manager is TOLD, not left to find out. The count is asked for again
@@ -113,6 +126,21 @@ export default function MyPage({ me, onError, onSignOut }) {
    * is on their screen at ten - it used to wait until they happened to open
    * My team.
    */
+  useEffect(() => {
+    let alive = true;
+    const ask = () =>
+      api
+        .get('/desk/waiting')
+        .then((got) => alive && setDeskWaiting(got || null))
+        .catch(() => {});
+    ask();
+    const timer = setInterval(ask, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [tab]);
+
   useEffect(() => {
     if (!manages) return undefined;
     let alive = true;
@@ -251,6 +279,12 @@ export default function MyPage({ me, onError, onSignOut }) {
               <span>Open My team →</span>
             </button>
           ) : null}
+          {deskWaiting?.total > 0 && tab !== 'desk' ? (
+            <button className="team-waiting" onClick={() => go('desk')}>
+              <strong>Waiting on you: {waitingSentence(deskWaiting)}</strong>
+              <span>Open Tasks &amp; approvals →</span>
+            </button>
+          ) : null}
           {tab === 'dash' && (
             <MyDashboard employee={employee} months={months} onGo={go} onError={onError} />
           )}
@@ -263,6 +297,9 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'holidays' && <MyHolidays onError={onError} />}
           {tab === 'documents' && <MyDocuments onError={onError} />}
           {tab === 'assets' && <MyAssets onError={onError} />}
+          {tab === 'desk' && (
+            <TaskDesk onError={onError} onCount={(n) => setDeskWaiting((w) => ({ ...(w || {}), total: n }))} />
+          )}
           {tab === 'team' && <MyTeam onError={onError} />}
         </main>
       </div>

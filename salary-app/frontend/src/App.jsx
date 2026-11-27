@@ -9,6 +9,7 @@ import HolidayDetail from './components/HolidayDetail.jsx';
 import Apply from './components/hiring/Apply.jsx';
 import Hiring from './components/hiring/Hiring.jsx';
 import FrontOffice from './components/FrontOffice.jsx';
+import TaskDesk from './components/desk/TaskDesk.jsx';
 import Jobs from './components/hiring/Jobs.jsx';
 import PunchPage from './components/PunchPage.jsx';
 import SitTest from './components/hiring/SitTest.jsx';
@@ -93,6 +94,16 @@ const TABS = [
   ['hiring', 'Hiring', 'hiring', 'hiring'],
   ['people', 'People', 'person', 'people'],
   ['frontoffice', 'Front office', 'frontdesk', 'frontoffice'],
+  /*
+   * THE TASK & APPROVAL DESK is a tab of its own and belongs to no area.
+   *
+   * Dinesh sent the desk his office ran on a Google Sheet and said "ye bhi
+   * add karo". An area is something a login is given or not; the desk is
+   * everybody's own - their tasks, their requests - so narrowing a login to
+   * Front office must not take its desk away. What somebody SEES on it is
+   * decided by their rank on the desk, on the server.
+   */
+  ['desk', 'Task desk', 'desk', ''],
   ['reports', 'Reports', 'reports', 'reports'],
   ['admin', 'Admin', 'admin', ''],
 ];
@@ -294,6 +305,28 @@ function Shell() {
    * a WhatsApp or email channel to send through.
    */
   const [waiting, setWaiting] = useState({ office: 0, with_manager: 0 });
+  /*
+   * What is waiting on THIS login on the task desk: work given to them and
+   * not picked up, a request to decide, a question on a request of theirs.
+   * The desk it replaces emailed people; this app has no channel, so the
+   * count on the tab is how somebody learns there is something for them.
+   */
+  const [deskWaiting, setDeskWaiting] = useState(0);
+  useEffect(() => {
+    if (STANDALONE || !authed || me?.role === 'employee') return undefined;
+    let alive = true;
+    const ask = () =>
+      api
+        .get('/desk/waiting')
+        .then((got) => alive && setDeskWaiting(got?.total || 0))
+        .catch(() => {});
+    ask();
+    const timer = setInterval(ask, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [authed, me?.role, tab]);
   useEffect(() => {
     if (STANDALONE || !authed || me?.role === 'employee') return undefined;
     let alive = true;
@@ -793,6 +826,9 @@ function Shell() {
             >
               <Glyph name={icon} size={16} />
               <span>{label}</span>
+              {key === 'desk' && deskWaiting > 0 ? (
+                <span className="desk-count" title={`${deskWaiting} waiting on you`}>{deskWaiting}</span>
+              ) : null}
             </button>
           ))}
           {/*
@@ -1349,6 +1385,15 @@ function Shell() {
           * courier in and out. Dinesh sent the single-file tool he had made
           * for this and said "need this all feature in this".
           */}
+        {tab === 'desk' &&
+          (STANDALONE ? (
+            <p className="banner">
+              The task desk needs the server: a task is given by one login and seen by another, and this single file has
+              no logins. Open the HRMS on the office address to use it.
+            </p>
+          ) : (
+            <TaskDesk onError={handle} onCount={setDeskWaiting} />
+          ))}
         {tab === 'frontoffice' && (
           <FrontOffice
             onError={handle}

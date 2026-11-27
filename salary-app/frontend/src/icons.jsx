@@ -39,6 +39,8 @@ export const GLYPHS = {
   asset: 'M3.5 7.8 12 3.5l8.5 4.3v8.4L12 20.5l-8.5-4.3V7.8ZM3.5 7.8 12 12.1l8.5-4.3M12 12.1v8.4',
   /* A reception bell on its counter, for the front desk. */
   frontdesk: 'M3.5 19.5h17M5 16.5h14M6.8 16.5a5.2 5.2 0 0 1 10.4 0M12 11.3V9.2M10.4 9.2h3.2',
+  /* A clipboard with a tick on it: work handed over, and signed off. */
+  desk: 'M8.5 4.5h7M9 3h6v3H9zM6.5 5H5.5a1 1 0 0 0-1 1v13.5a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-1M8.5 13.2l2.3 2.3 4.7-4.9',
   reports: 'M4 20h16M7.5 20v-7M12 20V6M16.5 20v-10',
   admin: 'M12 3.5 4.5 6.5v5c0 4.6 3.1 7.9 7.5 9 4.4-1.1 7.5-4.4 7.5-9v-5L12 3.5ZM9.3 12.2l2 2 3.6-4',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.3 9.3a2.8 2.8 0 1 1 3.4 3.3c-.5.1-.7.5-.7 1v.6M12 17.4v.1',
