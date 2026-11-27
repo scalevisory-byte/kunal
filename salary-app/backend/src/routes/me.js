@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { leaveBalanceFor, withLeaveContext } from '../leaveBalance.js';
 import { requireSelf } from '../auth.js';
+import { pendingValues, proposeChanges, recentlyRefused } from '../profileChanges.js';
 import { logoDataUri } from '../companyLogos.js';
 import fs from 'node:fs';
 import {
@@ -36,6 +38,10 @@ import {
   getTicket,
   replyToTicket,
   listAssets,
+  ASSET_KINDS,
+  declareAsset,
+  listAssetClaims,
+  withdrawAssetClaim,
   listAnnouncements,
   listNotes,
   getNote,
@@ -60,6 +66,7 @@ import {
 import {
   FILLABLE_NAMES,
   OFFICE_SET,
+  ONCE_ONLY,
   applySelf,
   mayUpload,
   selfForm,
@@ -129,6 +136,16 @@ meRouter.get('/', (req, res) => {
   res.json({
     employee: mine(employee),
     manages: directReports(listEmployees({ active: true }), req.employeeId).length,
+    /* How many of their team's requests are waiting on THEM - for the line at
+       the top of the page. A manager who only finds out by opening a tab is a
+       manager who finds out on Friday. */
+    team_waiting: (() => {
+      const ids = new Set(
+        directReports(listEmployees({ active: true }), req.employeeId).map((r) => Number(r.id))
+      );
+      if (!ids.size) return 0;
+      return listRequests({ status: 'pending' }).filter((r) => ids.has(Number(r.employee_id))).length;
+    })(),
   });
 });
 
@@ -265,6 +282,9 @@ meRouter.get('/leave', (req, res) => {
       PL: employee?.pl_quota || 0,
     },
     taken: found?.taken || { CL: 0, SL: 0, PL: 0, UL: 0 },
+    /* The ledger's own balance - the same figure their manager and the office
+       see beside the Approve button, so all three read one number. */
+    balance: leaveBalanceFor(employee, year),
   });
 });
 
@@ -286,7 +306,8 @@ meRouter.get('/report', (req, res) => {
 /* ---------------- the things they can raise ---------------- */
 
 meRouter.get('/requests', (req, res) =>
-  res.json({ requests: listRequests({ employee_id: req.employeeId }) })
+  // With whose move it is, so "waiting" can say WHO it is waiting on.
+  res.json({ requests: withLeaveContext(listRequests({ employee_id: req.employeeId })) })
 );
 
 /**
@@ -384,7 +405,9 @@ meRouter.get('/team', (req, res) => {
   const requests = listRequests({}).filter((r) => ids.has(Number(r.employee_id)));
   res.json({
     // Name, code, what they do. Not what they are paid.
-    team: reports.map(forTeam),
+    /* ...and their leave balance: a manager asked to spare somebody for five
+       days has to be able to see they have two. Leave only. */
+    team: reports.map((r) => ({ ...forTeam(r), leave: leaveBalanceFor(r) })),
     // Only what is still theirs to answer. One they have already backed is
     // with the office now, and counting it would read as work undone.
     waiting: requests.filter((r) => r.status === 'pending').length,
@@ -396,7 +419,9 @@ meRouter.get('/team', (req, res) => {
 meRouter.get('/team/requests', (req, res) => {
   const ids = new Set(myReports(req).map((r) => Number(r.id)));
   const requests = listRequests({}).filter((r) => ids.has(Number(r.employee_id)));
-  res.json({ requests });
+  /* With the balance of the leave being asked for, and how many days it
+     takes - the figure a decision about leave is taken on. */
+  res.json({ requests: withLeaveContext(requests) });
 });
 
 /**
@@ -591,15 +616,31 @@ const profileOf = (employee) => {
 meRouter.get('/profile', (req, res) => {
   const employee = getEmployee(req.employeeId);
   if (!employee) return res.status(404).json({ error: 'not found' });
-  res.json({
-    employee: profileOf(employee),
+  res.json(profileAnswer(employee));
+});
+
+/*
+ * The record as they see it: what is on it, plus what they have sent and HR
+ * has not yet let through. `waiting` names those boxes, because a box that
+ * shows their value and is NOT on the record has to say so.
+ */
+const profileAnswer = (employee, extra = {}) => {
+  const waiting = pendingValues(employee.id);
+  const seen = { ...employee, ...waiting };
+  return {
+    employee: profileOf(seen),
     /* The form's shape travels, so the page renders a list rather than
        carrying its own copy of what an employee is. */
     sections: selfForm(),
     office_set: OFFICE_SET,
-    progress: selfProgress(employee),
-  });
-});
+    progress: selfProgress(seen),
+    waiting: Object.keys(waiting),
+    /* Which once-only numbers are really ON the record, and so locked. */
+    on_record: ONCE_ONLY.filter((f) => String(employee[f] ?? '').trim()),
+    turned_down: recentlyRefused(employee.id),
+    ...extra,
+  };
+};
 
 /**
  * What they typed about themselves.
@@ -618,25 +659,20 @@ meRouter.get('/profile', (req, res) => {
 meRouter.patch('/profile', selfLimit(60, 'profile'), (req, res) => {
   const employee = getEmployee(req.employeeId);
   if (!employee) return res.status(404).json({ error: 'not found' });
-
-  const { patch, refused } = applySelf(employee, req.body || {});
-  if (!Object.keys(patch).length) {
-    return res.status(400).json({
-      error: refused[0]?.why || 'there was nothing on that form that is yours to change',
-      refused,
-    });
-  }
   try {
-    const updated = updateEmployee(req.employeeId, {
-      ...patch,
-      by: employee.name,
-      history_note: 'Filled in by the employee from their own login',
-    });
-    res.json({
-      employee: profileOf(updated),
-      progress: selfProgress(updated),
-      refused,
-    });
+    /*
+     * SENT TO HR, NOT WRITTEN. What they typed waits for the office to let it
+     * through - "profile approve karne ka right HR ke paas". The record is
+     * untouched by this call, and the answer says so.
+     */
+    const result = proposeChanges(req.employeeId, req.body || {});
+    if (!result.touched) {
+      return res.status(400).json({
+        error: result.refused[0]?.why || 'there was nothing on that form that is yours to change',
+        refused: result.refused,
+      });
+    }
+    res.json(profileAnswer(employee, { refused: result.refused, sent: result.waiting, withdrawn: result.withdrawn }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -786,9 +822,40 @@ meRouter.post('/punch', selfLimit(20, 'punch'), (req, res) => {
 });
 
 /** What they are holding, so a handover slip is not a surprise. */
+const FOR_HOLDER = ['id', 'code', 'kind', 'label', 'identifier', 'brand', 'model', 'issued_on', 'condition'];
+const forHolder = (asset) => Object.fromEntries(FOR_HOLDER.map((key) => [key, asset[key] ?? null]));
+const CLAIM_FIELDS = ['id', 'kind', 'label', 'identifier', 'note', 'status', 'asset_code', 'decision_note', 'decided_at', 'created_at'];
+const forClaimant = (claim) => Object.fromEntries(CLAIM_FIELDS.map((key) => [key, claim[key] ?? null]));
+
+/*
+ * What the register says they hold, and what they have told the office they
+ * hold. Two lists, because they are two different statements: the first is
+ * the company's record, the second is theirs and is waiting to be checked.
+ * What it cost, who sold it and the invoice are the office's - not sent.
+ */
 meRouter.get('/assets', (req, res) =>
-  res.json({ assets: listAssets({ employee_id: req.employeeId, out: true }) })
+  res.json({
+    assets: listAssets({ employee_id: req.employeeId, out: true }).map(forHolder),
+    declared: listAssetClaims({ employee_id: req.employeeId }).map(forClaimant),
+    kinds: ASSET_KINDS,
+  })
 );
+
+meRouter.post('/assets/declare', selfLimit(10, 'asset-declare'), (req, res) => {
+  try {
+    res.status(201).json(forClaimant(declareAsset(req.employeeId, req.body || {})));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+meRouter.delete('/assets/declared/:id', (req, res) => {
+  try {
+    res.json(withdrawAssetClaim(Number(req.params.id), req.employeeId));
+  } catch (err) {
+    res.status(/not found/.test(err.message) ? 404 : 400).json({ error: err.message });
+  }
+});
 
 /**
  * THE COMPANY'S HOLIDAYS, as they apply to THIS person.

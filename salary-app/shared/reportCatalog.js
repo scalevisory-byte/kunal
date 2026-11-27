@@ -131,7 +131,7 @@ export const REPORTS = [
   R('leave-month', 'Monthly leave register', 'leave', 'ready',
     { filters: ['month', 'company', 'department', 'employee'], at: 'panel:leave' }),
   R('leave-balance', 'Employee leave balance', 'leave', 'ready',
-    { filters: ['company', 'employee'], at: 'file:leave' }),
+    { filters: ['company', 'department'], at: 'panel:leave-balance' }),
   R('leave-status', 'Leave application status', 'leave', 'ready',
     { filters: ['month', 'company', 'employee'], at: 'panel:leave-status' }),
   R('leave-lop', 'Unpaid leave / LOP', 'leave', 'ready',
@@ -160,6 +160,11 @@ export const REPORTS = [
     { note: 'Nothing tracks what has actually been paid. The dashboard names due dates as a reminder only.' }),
 
   /* ---- E. Employees ---- */
+  /* "auto appraisal list for proper in uniform whole month, discipline, time,
+     attendance, target" - the month's own records against five criteria. It
+     raises no appraisal and rates nobody; it is what to read before one. */
+  R('appraisal-sheet', 'Monthly appraisal sheet', 'employee', 'ready',
+    { filters: ['month', 'company', 'department'], at: 'panel:appraisal-sheet' }),
   R('employee-contacts', 'Staff contact list', 'employee', 'ready',
     { filters: ['company', 'department', 'search'], at: 'panel:employee-contacts' }),
   R('employee-master', 'Employee master register', 'employee', 'ready',

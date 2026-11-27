@@ -281,6 +281,36 @@ function Shell() {
       return '';
     }
   });
+  /*
+   * APPLICATIONS WAITING, ON EVERY TAB.
+   *
+   * Dinesh: *"employee leave apply karta he to uska sahi se notification uske
+   * reporting manager ko or hr ko nahi ja raha"*. For the office the only
+   * sign was one line on the dashboard - so somebody working on the salary
+   * sheet all morning never saw that a leave had come in. This is a count in
+   * the bar that is on every screen, asked for again every minute.
+   *
+   * It is a count in the app, not a message sent anywhere: nothing here has
+   * a WhatsApp or email channel to send through.
+   */
+  const [waiting, setWaiting] = useState({ office: 0, with_manager: 0 });
+  useEffect(() => {
+    if (STANDALONE || !authed || me?.role === 'employee') return undefined;
+    let alive = true;
+    const ask = () =>
+      api
+        .get('/attendance/requests/waiting')
+        .then((got) => alive && setWaiting({ office: got?.office || 0, with_manager: got?.with_manager || 0 }))
+        // Somebody whose rights do not reach attendance simply has no count.
+        .catch(() => {});
+    ask();
+    const timer = setInterval(ask, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [authed, me?.role, tab]);
+
   const markNewsRead = () => {
     setSeenVersion(VERSION);
     try {
@@ -840,6 +870,23 @@ function Shell() {
           * every page load.
           */}
         <span className="who-strip">
+          {waiting.office + waiting.with_manager > 0 ? (
+            <button
+              className={`who-waiting${waiting.office ? ' due' : ''}`}
+              title={
+                `${waiting.office} waiting for the office to decide` +
+                (waiting.with_manager ? ` · ${waiting.with_manager} still with a reporting manager` : '')
+              }
+              onClick={() => {
+                setTab('reports');
+                setFocusOn('approvals');
+              }}
+            >
+              {waiting.office
+                ? `${waiting.office} to approve`
+                : `${waiting.with_manager} with managers`}
+            </button>
+          ) : null}
           <button
             className="who-bell"
             title={newsFor(seenVersion)}
@@ -1113,6 +1160,8 @@ function Shell() {
               locked={locked}
               onPatchRow={patchRow}
               onSaveAttendance={saveAttendance}
+              onReload={() => loadPayroll(periodId)}
+              abilities={me?.abilities || []}
             />
           </div>
         )}
@@ -1174,6 +1223,8 @@ function Shell() {
                 locked={locked}
                 onPatchRow={patchRow}
                 onSaveAttendance={saveAttendance}
+                onReload={() => loadPayroll(periodId)}
+                abilities={me?.abilities || []}
               />
             </details>
 

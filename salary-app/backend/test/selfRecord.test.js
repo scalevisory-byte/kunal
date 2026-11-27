@@ -221,41 +221,120 @@ test('the form comes back with its own shape and what is still wanted', async ()
   assert.ok(got.body.progress.missing.includes('UAN'));
 });
 
-test('they fill in their own record, and it lands on the master', async () => {
-  const saved = await staff('PATCH', '/api/me/profile', {
-    dob: '1994-07-11',
-    gender: 'Male',
-    father_name: 'Suresh Shah',
-    address_line1: '14 Alkapuri',
-    city: 'Vadodara',
-    uan: '100200300400',
-    esic_no: '3100123456',
-    bank_name: 'YES BANK',
-    bank_account: '92991900011940',
-    ifsc: 'YESB0000929',
-    emergency_name: 'Meena Shah',
-    emergency_phone: '9876500000',
-    marital_status: 'Married',
-    phone: '9327003358',
-  });
+/*
+ * REWRITTEN FOR v2.31, not patched. These three used to assert that what an
+ * employee typed landed on the master at once. Dinesh then asked for "profile
+ * approve karne ka right HR ke paas", so the rule is now the leave queue's:
+ * what they send never writes the record; HR's approval does.
+ */
+const FILLED = {
+  dob: '1994-07-11',
+  gender: 'Male',
+  father_name: 'Suresh Shah',
+  father_occupation: 'Retired teacher',
+  address_line1: '14 Alkapuri',
+  city: 'Vadodara',
+  uan: '100200300400',
+  esic_no: '3100123456',
+  bank_name: 'YES BANK',
+  bank_account: '92991900011940',
+  ifsc: 'YESB0000929',
+  emergency_name: 'Meena Shah',
+  emergency_phone: '9876500000',
+  marital_status: 'Married',
+  phone: '9327003358',
+};
+
+test('they fill in their own record, and it WAITS for HR - the master has not moved', async () => {
+  const saved = await staff('PATCH', '/api/me/profile', FILLED);
   assert.equal(saved.status, 200);
+  // Their own page shows what they typed...
   assert.equal(saved.body.employee.uan, '100200300400');
   assert.deepEqual(saved.body.refused, []);
+  // ...and says which boxes are not on the record yet.
+  assert.deepEqual([...saved.body.waiting].sort(), Object.keys(FILLED).sort());
+  assert.ok(!saved.body.on_record.includes('uan'), 'a UAN that is only waiting is not locked');
 
-  // The office sees the same record.
+  // THE RULE: the office's record is exactly what it was.
   const office = (await admin('GET', `/api/employees/${amit.id}`)).body;
-  assert.equal(office.uan, '100200300400');
+  assert.ok(!office.uan, 'the UAN reached the record without anybody approving it');
+  assert.ok(!office.bank_account);
+  assert.ok(!office.dob);
+  const record = (await admin('GET', `/api/employees/${amit.id}/record`)).body;
+  assert.ok(!record.history.some((r) => r.field === 'uan'), 'nothing is on the history yet either');
+
+  // It is on HR's list instead, one block for the person.
+  const queue = (await admin('GET', '/api/employees/profile-changes')).body;
+  assert.equal(queue.waiting.people, 1);
+  assert.equal(queue.people[0].employee_name, 'Amit Shah');
+  assert.equal(queue.people[0].changes.length, Object.keys(FILLED).length);
+  const uan = queue.people[0].changes.find((c) => c.field === 'uan');
+  assert.equal(uan.label, 'UAN');
+  assert.equal(uan.to, '100200300400');
+
+  // Typing a box again replaces what is waiting; it does not queue a second.
+  await staff('PATCH', '/api/me/profile', { city: 'Surat' });
+  const again = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes;
+  assert.equal(again.filter((c) => c.field === 'city').length, 1);
+  assert.equal(again.find((c) => c.field === 'city').to, 'Surat');
+  // A UAN that is only waiting can still be corrected by them.
+  const fixed = await staff('PATCH', '/api/me/profile', { uan: '100200300401' });
+  assert.equal(fixed.status, 200);
+  // And typing the record's own value back withdraws it.
+  const back = await staff('PATCH', '/api/me/profile', { marital_status: '' });
+  assert.deepEqual(back.body.withdrawn, ['marital_status']);
+  assert.ok(!back.body.waiting.includes('marital_status'));
+});
+
+test('a staff login cannot approve anything, their own included', async () => {
+  const queue = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes;
+  const tried = await staff('POST', '/api/employees/profile-changes/decide', { ids: queue.map((c) => c.id), approve: true });
+  assert.equal(tried.status, 403);
+  assert.equal((await staff('GET', '/api/employees/profile-changes')).status, 403);
+});
+
+test('HR turns one down with a reason they read, and approves the rest onto the master', async () => {
+  let queue = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes;
+  const phone = queue.find((c) => c.field === 'phone');
+
+  // No reason, no refusal.
+  assert.equal((await admin('POST', '/api/employees/profile-changes/decide', { ids: [phone.id], approve: false })).status, 400);
+  const no = await admin('POST', '/api/employees/profile-changes/decide', { ids: [phone.id], approve: false, note: 'That is the office landline' });
+  assert.equal(no.body.rejected, 1);
+  const mine = (await staff('GET', '/api/me/profile')).body;
+  assert.equal(mine.turned_down[0].label, 'Mobile');
+  assert.match(mine.turned_down[0].note, /landline/);
+  assert.notEqual(mine.employee.phone, '9327003358', 'a refused value is not shown as theirs');
+
+  queue = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes;
+  const yes = await admin('POST', '/api/employees/profile-changes/decide', { ids: queue.map((c) => c.id), approve: true });
+  assert.equal(yes.body.approved, queue.length);
+  assert.deepEqual(yes.body.held, []);
+
+  // NOW it is the record.
+  const office = (await admin('GET', `/api/employees/${amit.id}`)).body;
+  assert.equal(office.uan, '100200300401');
   assert.equal(office.bank_account, '92991900011940');
   assert.equal(office.dob, '1994-07-11');
+  assert.equal(office.city, 'Surat');
+  assert.equal(office.father_occupation, 'Retired teacher');
+  assert.notEqual(office.phone, '9327003358');
 
-  // And it is on the change history, by name, because a bank account moving
-  // the week before payday has to be something somebody can look back at.
-  const record = (await admin('GET', `/api/employees/${amit.id}/record`)).body;
-  const rows = record.history;
+  // On the history by name: who typed it and who let it through.
+  const rows = (await admin('GET', `/api/employees/${amit.id}/record`)).body.history;
   const bank = rows.find((r) => r.field === 'bank_account');
   assert.ok(bank, 'the bank account change was not recorded');
   assert.match(String(bank.note || ''), /employee/i);
+  assert.match(String(bank.note || ''), /approved by/i);
   assert.ok(rows.some((r) => r.field === 'uan'), 'the UAN was not recorded');
+
+  // Decided once.
+  assert.equal((await admin('POST', '/api/employees/profile-changes/decide', { ids: [queue[0].id], approve: true })).status, 400);
+  assert.equal((await admin('GET', '/api/employees/profile-changes')).body.waiting.changes, 0);
+  // And their own page now shows the UAN as on the record, so locked.
+  const after = (await staff('GET', '/api/me/profile')).body;
+  assert.ok(after.on_record.includes('uan'));
+  assert.deepEqual(after.waiting, []);
 });
 
 test('a statutory number already on the record is the office’s to correct', async () => {
@@ -267,10 +346,25 @@ test('a statutory number already on the record is the office’s to correct', as
   const office = (await admin('GET', `/api/employees/${amit.id}`)).body;
   assert.equal(office.pan, 'ABCDE1234F', 'the PAN moved');
 
-  // A blank one they supply themselves still goes in.
+  // A blank one they supply themselves is accepted - and waits like the rest.
   const yes = await staff('PATCH', '/api/me/profile', { aadhaar: '123412341234' });
   assert.equal(yes.status, 200);
   assert.equal(yes.body.employee.aadhaar, '123412341234');
+  assert.deepEqual(yes.body.waiting, ['aadhaar']);
+
+  /*
+   * The office types a DIFFERENT Aadhaar onto the record meanwhile. Approving
+   * theirs must not overwrite it: two sources now disagree about one number,
+   * and that is settled with the card.
+   */
+  await admin('PATCH', `/api/employees/${amit.id}`, { aadhaar: '999988887777' });
+  const change = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes[0];
+  const held = await admin('POST', '/api/employees/profile-changes/decide', { ids: [change.id], approve: true });
+  assert.equal(held.body.approved, 0);
+  assert.equal(held.body.held.length, 1);
+  assert.match(held.body.held[0].why, /already says 999988887777/);
+  assert.equal((await admin('GET', `/api/employees/${amit.id}`)).body.aadhaar, '999988887777');
+  await admin('POST', '/api/employees/profile-changes/decide', { ids: [change.id], approve: false, note: 'Checked against the card' });
 });
 
 test('a salary sent on that form is refused by name, and nothing moves', async () => {
@@ -293,16 +387,22 @@ test('a salary sent on that form is refused by name, and nothing moves', async (
     tried.body.refused.map((r) => r.field).sort(),
     ['active', 'basic', 'company_id', 'joined_on', 'monthly_salary']
   );
+  // A refused field is not even on HR's list: there is nothing to approve.
+  const queue = (await admin('GET', '/api/employees/profile-changes')).body.people[0].changes;
+  assert.deepEqual(queue.map((c) => c.field), ['blood_group']);
+  await admin('POST', '/api/employees/profile-changes/decide', { ids: queue.map((c) => c.id), approve: true });
 
   const office = (await admin('GET', `/api/employees/${amit.id}`)).body;
   assert.equal(Number(office.monthly_salary), 26000);
   assert.equal(office.joined_on, '2024-04-01');
   assert.equal(Number(office.active), 1);
+  assert.equal(office.blood_group, 'B+');
 
   const after = (await admin('GET', `/api/periods/${periodId}/payroll`)).body;
   const mineAfter = after.rows.find((r) => r.employee_id === amit.id);
   // THE CLAIM THE WHOLE THING RESTS ON: filling in your own record cannot
-  // move a rupee. Not one field on the list is an input to calculateRow.
+  // move a rupee - sent, waiting or approved. Not one field on the list is an
+  // input to calculateRow.
   assert.equal(mineAfter.gross_salary, mineBefore.gross_salary);
   assert.equal(mineAfter.net_salary, mineBefore.net_salary);
   assert.equal(mineAfter.final_payable, mineBefore.final_payable);

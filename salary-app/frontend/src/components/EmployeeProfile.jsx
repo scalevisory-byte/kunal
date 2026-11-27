@@ -91,7 +91,11 @@ const SECTIONS = [
     title: 'Family',
     fields: [
       ['father_name', "Father's name", 'text'],
+      ['father_occupation', "Father's work", 'text'],
+      ['father_company', "Father's company / employer", 'text'],
       ['mother_name', "Mother's name", 'text'],
+      ['mother_occupation', "Mother's work", 'text'],
+      ['mother_company', "Mother's company / employer", 'text'],
       ['spouse_name', "Spouse's name", 'text', 'leave empty if unmarried'],
     ],
   },

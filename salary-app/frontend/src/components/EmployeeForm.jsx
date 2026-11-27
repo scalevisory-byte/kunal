@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { needsTidying, tidyName } from '../../../shared/properName.js';
 import { api } from '../api.js';
 import {
   SECTIONS,
@@ -454,6 +455,18 @@ function Field({ f, value, starred, problem, companies, branches, employees, onC
             placeholder={f.placeholder || ''}
             value={v}
             onChange={(e) => onChange(e.target.value)}
+            /* ONE FORMAT FOR A NAME. Dinesh: "Name in single format, case
+               letter sab ke sahi karne he". ANSHIKA GUPTA and mahek gotawala
+               both become the same shape as they are typed - on leaving the
+               box, where the person typing can see it and put it back. A name
+               already in mixed case (McDonald, D'Souza) is left alone: nobody
+               knows better than whoever typed it. Everybody already on the
+               list is put right in one press: Employees -> Tidy names. */
+            onBlur={
+              f.field === 'name'
+                ? (e) => needsTidying(e.target.value) && onChange(tidyName(e.target.value))
+                : undefined
+            }
           />
         );
     }

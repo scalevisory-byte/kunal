@@ -10,6 +10,8 @@ import {
   sundaysFromAttendance,
 } from '../../../shared/calc.js';
 import { days, daysInMonth, isSunday, weekday } from '../format.js';
+import { leftLabel } from '../../../shared/onStaff.js';
+import { todayIso } from '../../../shared/today.js';
 import {
   formatDuration,
   dayGrace,
@@ -630,9 +632,12 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                     >
                       {row.employee_name}
                     </button>
-                    {row.active === 0 ? (
-                      <span className="muted small" title="No longer on the staff list — still here because this month owes them something">
-                        {' '}· left
+                    {leftLabel(row, todayIso()) ? (
+                      <span
+                        className="pill left-tag"
+                        title="They have left. They stay on this month because it owes them for the days they worked — days after the leaving date are paid unless they are marked absent."
+                      >
+                        {leftLabel(row, todayIso())}
                       </span>
                     ) : null}
                   </td>

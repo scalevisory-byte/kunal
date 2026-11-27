@@ -7,6 +7,8 @@ import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../..
 import { isOut, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
 import { groupLabel, groupOf, groupTally, setOwnGroups } from '../../../../shared/assetGroups.js';
+import { NATURES, matchesNature, natureLabel, natureOf, natureTally } from '../../../../shared/assetNature.js';
+import AssetClaims from './AssetClaims.jsx';
 import { assetAlerts, nameSome } from '../../../../shared/assetAlerts.js';
 import { rupees } from '../../format.js';
 import AssetHistory from './AssetHistory.jsx';
@@ -52,6 +54,32 @@ const today = () => todayIso();
  *   **A refusal puts the old value back** and says so, rather than leaving
  *   what was typed sitting in a cell that was never saved.
  */
+/**
+ * Fixed or movable, on the row.
+ *
+ * A select dressed as text. The first option hands the answer back to the
+ * kind, and says what the kind would answer - so "decide from the kind" is
+ * never a blind choice. A guess wears a question mark until somebody says.
+ */
+function NaturePick({ asset, onSave }) {
+  const { nature, guessed } = natureOf(asset);
+  const fromKind = natureOf({ kind: asset.kind, label: asset.label }).nature;
+  if (STANDALONE) return <span>{natureLabel(nature) || 'not said'}</span>;
+  return (
+    <select
+      className={`nature-pick${guessed ? ' guessed' : ''}${nature ? '' : ' unsaid'}`}
+      value={asset.nature || ''}
+      title={guessed ? 'Worked out from the kind - nobody has said' : nature ? 'Somebody said so' : 'Not said'}
+      onChange={(e) => onSave(asset, 'nature', e.target.value).catch(() => {})}
+    >
+      <option value="">{fromKind ? `${natureLabel(fromKind)} ?` : 'not said'}</option>
+      {NATURES.map(([key, label]) => (
+        <option key={key} value={key}>{label}</option>
+      ))}
+    </select>
+  );
+}
+
 function SheetCell({ asset, field, type = 'text', align, list, placeholder, onSave }) {
   const stored = asset[field] === null || asset[field] === undefined ? '' : String(asset[field]);
   const [draft, setDraft] = useState(stored);
@@ -175,7 +203,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    * was clicked - which is no use to somebody who is already standing on the
    * register. Held here, applied in `shown` with everything else.
    */
-  const [pick, setPick] = useState({ company_id: '', department: '', kind: '' });
+  const [pick, setPick] = useState({ company_id: '', department: '', kind: '', employee_id: '' });
+  /*
+   * Fixed / Movable - "different group", one level above Computer and
+   * Furniture. '' is everything; 'unsaid' is the pile nobody has decided.
+   */
+  const [nature, setNature] = useState('');
   const [codes, setCodes] = useState(false);
   const [exporting, setExporting] = useState(false);
   /*
@@ -365,6 +398,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
        * narrowing by it cannot disagree with what the row says it is.
        */
       if (group && groupOf(a.kind, a.label) !== group) return false;
+      if (!matchesNature(a, nature)) return false;
+      /* One person's things: who HAS it now, never who once had it. */
+      if (pick.employee_id && !(isOut(a) && Number(a.employee_id) === Number(pick.employee_id))) return false;
       /* The dashboard's own filter, applied by the dashboard's own code. */
       if (narrowed && !matchesFilter(a, narrowed)) return false;
       /* An alert line that was clicked: exactly the assets it counted. */
@@ -380,7 +416,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [assets, filter, query, narrowed, group, dateFocus, pick]);
+  }, [assets, filter, query, narrowed, group, nature, dateFocus, pick]);
 
   /*
    * What the dropdowns offer: what the register actually holds, not a master
@@ -427,10 +463,66 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-    return groupTally(base);
+    return groupTally(base.filter((a) => matchesNature(a, nature)));
     /* `masters` is in here because the office's own categories decide what
        the groups ARE - adding one has to redraw these buttons. */
-  }, [assets, filter, query, narrowed, masters]);
+  }, [assets, filter, query, narrowed, masters, nature]);
+
+  /*
+   * Fixed / Movable / not said, counted the same way and for the same
+   * reason: before its own filter, after every other one.
+   */
+  const natures = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return natureTally(
+      assets.filter((a) => {
+        if (filter === 'out' && !isOut(a)) return false;
+        if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
+        if (filter === 'gone' && !a.written_off_on) return false;
+        if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+        if (narrowed && !matchesFilter(a, narrowed)) return false;
+        if (group && groupOf(a.kind, a.label) !== group) return false;
+        if (!q) return true;
+        return [a.code, a.old_code, a.label, a.identifier, a.employee_name, a.vendor, a.branch_name]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+      })
+    );
+  }, [assets, filter, query, narrowed, group, masters]);
+
+  /* Who is holding something, for the "whose" dropdown: only people who are. */
+  const holders = useMemo(() => {
+    const seen = new Map();
+    for (const a of assets) {
+      if (!isOut(a) || !a.employee_id) continue;
+      const row = seen.get(a.employee_id) || { id: a.employee_id, name: a.employee_name || '', count: 0 };
+      row.count += 1;
+      seen.set(a.employee_id, row);
+    }
+    return [...seen.values()].sort((x, y) => x.name.localeCompare(y.name));
+  }, [assets]);
+
+  /**
+   * Fixed or movable for everything on screen (or everything ticked).
+   *
+   * It writes the ids it was SHOWN, and it says the count before it acts -
+   * a thousand imported rows are settled a kind at a time, not a cell at a
+   * time, and not by a second run of a filter that could have moved.
+   */
+  const setNatureFor = (value) => {
+    const picked = shown.filter((a) => ticked.has(a.id));
+    const rows = picked.length ? picked : shown;
+    if (!rows.length) return;
+    const word = value ? natureLabel(value).toLowerCase() : 'decided from the kind again';
+    if (
+      !window.confirm(
+        `Mark ${rows.length} asset${rows.length === 1 ? '' : 's'} ${picked.length ? '(the ticked ones)' : '(everything on screen)'} as ${word}?\n\n` +
+          'This only changes which group they are listed under. Nothing is issued, moved or revalued.'
+      )
+    )
+      return;
+    act(() => api.post('/people/assets/nature', { ids: rows.map((a) => a.id), nature: value }));
+  };
 
   /*
    * The code the next asset would get, for the form to show.
@@ -483,7 +575,13 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
 
   const add = () =>
     act(async () => {
-      await api.post('/people/assets', draft);
+      await api.post('/people/assets', {
+        ...draft,
+        // Added FOR somebody: it goes out in their name today, and that is a
+        // handover on the log like any other.
+        employee_id: draft.employee_id ? Number(draft.employee_id) : undefined,
+        issued_on: draft.employee_id ? today() : undefined,
+      });
       setDraft({ ...draft, label: '', identifier: '', purchase_cost: '', invoice_no: '', code: '' });
       setAdding(false);
     });
@@ -589,6 +687,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         col('What it is', (a) => a.label || ''),
         col('Serial', (a) => a.identifier || ''),
         col('Group', (a) => groupLabel(groupOf(a.kind, a.label))),
+        col('Fixed / movable', (a) => natureLabel(natureOf(a).nature) || 'not said'),
         col('Company', (a) => a.company_name || ''),
         col('Where it is', (a) => (isOut(a) ? a.employee_name || 'with staff' : a.location || 'in the office')),
         col('Bought', (a) => String(a.purchase_date || '').slice(0, 10)),
@@ -875,10 +974,37 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             ))}
           </select>
         )}
+        {/*
+          * EMPLOYEE-WISE. "asset add karne ka option employee wise": pick the
+          * person and the register is their things, and the Add button beside
+          * it adds one straight into their name.
+          */}
+        {holders.length > 0 && (
+          <select
+            value={pick.employee_id}
+            onChange={(e) => setPick({ ...pick, employee_id: e.target.value })}
+            title="Only what this person is holding now"
+          >
+            <option value="">Anybody’s</option>
+            {holders.map((h) => (
+              <option key={h.id} value={h.id}>{h.name} ({h.count})</option>
+            ))}
+          </select>
+        )}
         {/* Same weight as on the dashboard, so the way in looks the same on
             both screens. */}
-        <button className={adding ? 'ghost' : undefined} onClick={() => setAdding(!adding)}>
-          {adding ? 'Cancel' : 'Add an asset'}
+        <button
+          className={adding ? 'ghost' : undefined}
+          onClick={() => {
+            if (!adding && pick.employee_id) setDraft((d) => ({ ...d, employee_id: String(pick.employee_id) }));
+            setAdding(!adding);
+          }}
+        >
+          {adding
+            ? 'Cancel'
+            : pick.employee_id
+              ? `Add an asset for ${holders.find((h) => String(h.id) === String(pick.employee_id))?.name || 'them'}`
+              : 'Add an asset'}
         </button>
         <button className="ghost" onClick={() => setImporting((v) => !v)}>
           {importing ? 'Cancel' : 'Import from Excel'}
@@ -982,6 +1108,50 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         * Shown only once there is more than one group to choose between: a
         * register of four laptops does not need a filter saying "Computer 4".
         */}
+      {assets.length > 0 && (
+        <div className="sub-tabs toolbar group-chips nature-chips">
+          <button className={nature ? undefined : 'active'} onClick={() => setNature('')}>
+            Fixed and movable
+          </button>
+          {NATURES.map(([key, label, why]) => (
+            <button
+              key={key}
+              className={nature === key ? 'active' : undefined}
+              onClick={() => setNature(nature === key ? '' : key)}
+              title={why}
+            >
+              {label} <span className="muted">{natures[key]}</span>
+            </button>
+          ))}
+          {natures.unsaid > 0 && (
+            <button
+              className={nature === 'unsaid' ? 'active' : undefined}
+              onClick={() => setNature(nature === 'unsaid' ? '' : 'unsaid')}
+              title="Nobody has said, and the kind does not say either"
+            >
+              Not said <span className="muted">{natures.unsaid}</span>
+            </button>
+          )}
+          {/* The bulk answer, only once the list has been narrowed to
+              something - marking the whole register in one press is never
+              what anybody means. */}
+          {(nature || group || pick.kind || ticked.size > 0) && shown.length > 0 && !STANDALONE ? (
+            <span className="nature-bulk muted small">
+              Mark {ticked.size ? `${shown.filter((a) => ticked.has(a.id)).length} ticked` : `these ${shown.length}`} as{' '}
+              <button className="link" onClick={() => setNatureFor('fixed')}>fixed</button>
+              {' · '}
+              <button className="link" onClick={() => setNatureFor('movable')}>movable</button>
+            </span>
+          ) : null}
+        </div>
+      )}
+      {natures.guessed > 0 && nature && nature !== 'unsaid' ? (
+        <p className="muted small">
+          A <em>?</em> beside the word means it was worked out from the kind and nobody has said. Change it
+          on the row, or mark the whole list above.
+        </p>
+      ) : null}
+
       {groups.length > 1 && (
         <div className="sub-tabs toolbar group-chips">
           <button className={group ? undefined : 'active'} onClick={() => setGroup('')}>
@@ -1090,6 +1260,31 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                       </option>
                     ))
                   ))}
+              </select>
+            </label>
+            <label>
+              Fixed or movable
+              <select value={draft.nature || ''} onChange={(e) => setDraft({ ...draft, nature: e.target.value })}>
+                <option value="">
+                  {natureOf({ kind: draft.kind, label: draft.label }).nature
+                    ? `From the kind — ${natureLabel(natureOf({ kind: draft.kind, label: draft.label }).nature)}`
+                    : 'Not said'}
+                </option>
+                {NATURES.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Give it to
+              <select
+                value={draft.employee_id || ''}
+                onChange={(e) => setDraft({ ...draft, employee_id: e.target.value })}
+              >
+                <option value="">Nobody — it stays in the office</option>
+                {onStaff(employees).map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
               </select>
             </label>
             <label>
@@ -1315,6 +1510,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         </div>
       )}
 
+      {!STANDALONE && <AssetClaims assets={assets} companies={companies} onDone={load} />}
       {said && <p className="error">{said}</p>}
 
       {/*
@@ -1411,7 +1607,11 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     */}
                   <td className="kind-cell">
                     <SheetCell asset={asset} field="kind" list="asset-kind-list" onSave={saveCell} placeholder="Laptop" />
-                    <div className="muted small">{groupLabel(groupOf(asset.kind, asset.label))}</div>
+                    <div className="muted small">
+                      {groupLabel(groupOf(asset.kind, asset.label))}
+                      {' · '}
+                      <NaturePick asset={asset} onSave={saveCell} />
+                    </div>
                   </td>
                   <td className="sticky-name">
                     <SheetCell asset={asset} field="label" onSave={saveCell} placeholder="Dell Latitude 3420" />

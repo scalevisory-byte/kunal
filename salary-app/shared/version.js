@@ -20,10 +20,31 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.30.1';
+export const VERSION = '2.31.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.31.0',
+    date: '27 Nov 2026',
+    title: 'Leave through the manager, HR’s approvals, and the office’s list of twenty',
+    items: [
+      '**Leave now goes manager first, then the office.** Where somebody’s reporting manager has a login, the office cannot approve their leave until the manager has backed it — the request reads “waiting for ALPESH SHAH”. Nobody is stuck: somebody with no manager, or whose manager has no login, is decided by the office as before.',
+      '**The leave balance is shown at every step** — to the employee when they apply, to their manager beside the request (“Casual leave: 7 left · this takes 2 · 5 after”), and to the office on the approvals list. A manager also sees what each of their people has left.',
+      '**The manager and the office are told.** A manager’s own page opens with “2 requests from your team are waiting for you”; the office sees a count in the top bar. Nothing is sent by WhatsApp or email — it is on the screen, and re-checked every minute.',
+      '**Leave is 7 days at a time at most.** A longer application is refused with the reason.',
+      '**Leave taken without approval: one day costs two** — Leave → **Without approval**. It lists every absence marked “not approved”, says what doubling takes from each person, and does it on a press (1 day → 2 deducted, 2 → 4). An absence with proof stays single: tick it Approved on the roll call. **Nothing doubles by itself**, and an absence nobody has decided is named, not counted, unless you tick it.',
+      '**Reports → Employee leave balance** is a full report now: due, taken and left for each kind, with print and Excel.',
+      '**People who have left are off the month.** Somebody who left before the month began no longer shows on the attendance grid or the salary sheet. Somebody who left during it stays, tagged “left 12 Nov”, and the sheet’s *Things to check* names any day paid after their last one.',
+      '**What an employee fills in about themselves now waits for HR.** It used to go straight onto the record. Now Employees opens with “3 people have filled in their own record” — what the record says, what they typed — and one button approves a person’s changes; a refusal carries a reason they read on their own page.',
+      '**Employees can say what company assets they hold** — a new **My assets** page on their login. It is told to the office, not added: Assets shows it for the office to tie to an existing asset, add, or turn down.',
+      '**Assets are Fixed or Movable**, with their own buttons and counts on the register. The kind gives a starting answer (marked “?”); change it on the row, or mark a whole list at once. An asset can be added straight into somebody’s name, and the register can be narrowed to one person.',
+      '**Sunday pay needs a manager’s approval before it is marked Paid.** Only a Manager or Admin login can approve it; HR prepares and pays. An approval is of an amount — if the figure changes afterwards it has to be approved again. Anything already marked Paid is untouched.',
+      '**Appraisals say what they are for** — salary increment, target achieved, good work, promotion, yearly review. And **Reports → Monthly appraisal sheet** lays the month out against five things: uniform, discipline, time, attendance and target. It rates nobody and changes no pay.',
+      '**Employee master:** father’s and mother’s occupation and where they work; the HOD box is gone (the reporting manager is the one that approves leave); a name is tidied to proper capitals as it is typed. **Employees → Tidy names** still fixes everybody already on the list.',
+      'Documents an employee uploads were already unchecked until HR looks; the dashboard now counts them and opens the register on exactly those.',
+    ],
+  },
   {
     version: '2.30.1',
     date: '27 Nov 2026',

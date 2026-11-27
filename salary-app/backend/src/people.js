@@ -1,3 +1,5 @@
+import { APPRAISAL_KIND_KEYS } from '../../shared/appraisal.js';
+import { tidyNature } from '../../shared/assetNature.js';
 import {
   audit,
   db,
@@ -157,6 +159,32 @@ db.exec(`
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_assets_employee ON assets(employee_id, returned_on);
+
+  /*
+   * What an employee SAYS they are holding.
+   *
+   * Dinesh: "employee ke paas kitni asset hai wo add kar sake". They can -
+   * here, and only here. A declaration never touches the register: it waits
+   * for the office, who either tie it to an asset already on the register,
+   * add it as a new one, or turn it down with a reason. The register is what
+   * a handover slip and a full-and-final are worked from, and a row anybody
+   * could put on it from a phone is a row nobody could rely on.
+   */
+  CREATE TABLE IF NOT EXISTS asset_claims (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id   INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    kind          TEXT NOT NULL DEFAULT 'Other',
+    label         TEXT NOT NULL,
+    identifier    TEXT,
+    note          TEXT,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    asset_id      INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    decided_by    TEXT,
+    decided_at    TEXT,
+    decision_note TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_asset_claims_status ON asset_claims(status, employee_id);
 
   /*
    * Every handover, not just the current one.
@@ -410,6 +438,13 @@ const ASSET_COLUMNS = [
   ['state', 'TEXT'],
   ['state_note', 'TEXT'],
   ['state_since', 'TEXT'],
+
+  /*
+   * Fixed or movable - what somebody SAID, never a guess. Null means "decide
+   * from the kind", which shared/assetNature.js does every time it is asked,
+   * so a kind corrected later corrects this with it.
+   */
+  ['nature', 'TEXT'],
 ];
 
 const assetColumns = () => db.prepare(`PRAGMA table_info(assets)`).all().map((c) => c.name);
@@ -618,6 +653,9 @@ addColumns('appraisals', [
   // When the next review is due. Without it "appraisal due" cannot be a
   // reminder, only a thing somebody remembers.
   ['next_review_on', 'TEXT'],
+  /* What the appraisal is FOR - an increment, a target met, good work. Without
+     it every appraisal read as a pay rise. See shared/appraisal.js. */
+  ['kind', 'TEXT'],
 ]);
 addColumns('employee_notes', [
   /*
@@ -913,12 +951,14 @@ export function createAppraisal(employeeId, input = {}) {
   const from = input.from_salary === undefined ? Number(employee.monthly_salary) || 0 : Number(input.from_salary) || 0;
   const to = input.to_salary === undefined || input.to_salary === '' ? null : Number(input.to_salary);
   if (to !== null && !(to >= 0)) throw new Error('the new salary must be a number');
+  const kind = String(input.kind || '').trim() || null;
+  if (kind && !APPRAISAL_KIND_KEYS.includes(kind)) throw new Error('pick what this appraisal is for');
   const info = db
     .prepare(
       `INSERT INTO appraisals (employee_id, cycle, reviewed_on, reviewed_by, rating, summary,
-                               from_salary, to_salary, effective_from, next_review_on)
+                               from_salary, to_salary, effective_from, next_review_on, kind)
        VALUES (@employee_id, @cycle, @reviewed_on, @reviewed_by, @rating, @summary,
-               @from_salary, @to_salary, @effective_from, @next_review_on)`
+               @from_salary, @to_salary, @effective_from, @next_review_on, @kind)`
     )
     .run({
       employee_id: employee.id,
@@ -931,6 +971,7 @@ export function createAppraisal(employeeId, input = {}) {
       to_salary: to,
       effective_from: input.effective_from || null,
       next_review_on: input.next_review_on || null,
+      kind,
     });
   audit({
     who: input.by,
@@ -952,7 +993,8 @@ export function updateAppraisal(id, patch = {}) {
   }
   const fields = [];
   const values = [];
-  for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary', 'from_salary', 'to_salary', 'effective_from', 'next_review_on']) {
+  if (patch.kind && !APPRAISAL_KIND_KEYS.includes(patch.kind)) throw new Error('pick what this appraisal is for');
+  for (const key of ['cycle', 'reviewed_on', 'reviewed_by', 'rating', 'summary', 'from_salary', 'to_salary', 'effective_from', 'next_review_on', 'kind']) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(patch[key] === '' ? null : patch[key]);
@@ -1495,13 +1537,13 @@ export function createAsset(input = {}) {
                            amc_until, amc_vendor, amc_cost,
                            employee_id, issued_on, returned_on, condition, note,
                            brand, model, description, department, location, floor_room,
-                           warranty_from, warranty_provider, purchase_remarks)
+                           warranty_from, warranty_provider, purchase_remarks, nature)
        VALUES (@code, @old_code, @company_id, @branch_id, @kind, @label, @identifier, @purchase_cost,
                @purchase_date, @vendor, @invoice_no, @warranty_until,
                @amc_until, @amc_vendor, @amc_cost,
                @employee_id, @issued_on, @returned_on, @condition, @note,
                @brand, @model, @description, @department, @location, @floor_room,
-               @warranty_from, @warranty_provider, @purchase_remarks)`
+               @warranty_from, @warranty_provider, @purchase_remarks, @nature)`
   );
 
   const values = {
@@ -1526,6 +1568,7 @@ export function createAsset(input = {}) {
       warranty_from: input.warranty_from || null,
       warranty_provider: input.warranty_provider || null,
       purchase_remarks: input.purchase_remarks || null,
+      nature: tidyNature(input.nature),
       amc_until: input.amc_until || null,
       amc_vendor: input.amc_vendor || null,
       amc_cost: input.amc_cost === undefined || input.amc_cost === '' ? null : Number(input.amc_cost) || 0,
@@ -1608,6 +1651,7 @@ const ASSET_FIELDS = [
   'warranty_provider',
   'purchase_remarks',
   'state_note',
+  'nature',
 ];
 
 export function updateAsset(id, patch = {}) {
@@ -1629,7 +1673,10 @@ export function updateAsset(id, patch = {}) {
   for (const key of ASSET_FIELDS) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
-    values.push(patch[key] === '' ? null : patch[key]);
+    // Fixed or movable is one of two words or nothing - anything else is a
+    // typo, and a typo stored here would put the asset under neither chip.
+    if (key === 'nature') values.push(tidyNature(patch.nature));
+    else values.push(patch[key] === '' ? null : patch[key]);
   }
   if (!fields.length) return before;
   db.prepare(`UPDATE assets SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
@@ -1647,6 +1694,194 @@ export function updateAsset(id, patch = {}) {
     });
   }
   return after;
+}
+
+/**
+ * Fixed or movable, for several assets at once.
+ *
+ * A thousand imported rows are not set one cell at a time. The register
+ * narrows to a kind, and this writes the answer onto exactly the rows it was
+ * handed - the ids, not a second run of the filter that could have moved.
+ */
+export function setAssetNature(ids = [], nature, { by } = {}) {
+  const value = tidyNature(nature);
+  const list = [...new Set((ids || []).map(Number).filter(Boolean))];
+  if (!list.length) throw new Error('nothing was picked');
+  const set = db.prepare(`UPDATE assets SET nature = ? WHERE id = ?`);
+  let changed = 0;
+  db.transaction(() => {
+    for (const id of list) changed += set.run(value, id).changes;
+  })();
+  audit({
+    who: by,
+    action: 'updated',
+    entity: 'assets',
+    label: `${changed} asset${changed === 1 ? '' : 's'}`,
+    to_value: value || 'decided from the kind',
+  });
+  return { changed, nature: value };
+}
+
+/* ---------------- what staff say they hold ---------------- */
+
+const CLAIM_SELECT = `
+  SELECT c.*, e.name AS employee_name, e.code AS employee_code, e.company_id AS employee_company_id,
+         co.name AS company_name, a.code AS asset_code, a.label AS asset_label
+  FROM asset_claims c
+  JOIN employees e ON e.id = c.employee_id
+  LEFT JOIN companies co ON co.id = e.company_id
+  LEFT JOIN assets a ON a.id = c.asset_id`;
+
+export const getAssetClaim = (id) => db.prepare(`${CLAIM_SELECT} WHERE c.id = ?`).get(Number(id));
+
+export function listAssetClaims({ status, employee_id } = {}) {
+  const where = [];
+  const params = [];
+  if (status) {
+    where.push('c.status = ?');
+    params.push(status);
+  }
+  if (employee_id) {
+    where.push('c.employee_id = ?');
+    params.push(Number(employee_id));
+  }
+  return db
+    .prepare(
+      `${CLAIM_SELECT} ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       ORDER BY (c.status = 'pending') DESC, c.created_at DESC, c.id DESC`
+    )
+    .all(...params);
+}
+
+const sameText = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+
+/** An employee says they hold something. Nothing on the register moves. */
+export function declareAsset(employeeId, input = {}) {
+  const employee = getEmployee(employeeId);
+  if (!employee) throw new Error('employee not found');
+  const label = String(input.label || '').trim();
+  if (!label) throw new Error('say what it is - "Dell laptop", "Jio SIM"');
+  if (label.length > 120) throw new Error('keep the name short - the detail goes in the note');
+  const identifier = String(input.identifier || '').trim() || null;
+  const kind = String(input.kind || '').trim() || 'Other';
+
+  // Already on the register in their name: there is nothing to tell the office.
+  if (identifier) {
+    const held = db
+      .prepare(
+        `SELECT code, label FROM assets
+         WHERE employee_id = ? AND returned_on IS NULL AND written_off_on IS NULL
+           AND LOWER(TRIM(identifier)) = LOWER(?)`
+      )
+      .get(employee.id, identifier);
+    if (held) throw new Error(`${held.code || held.label} is already on the register in your name`);
+  }
+  // Told twice: one waiting declaration is enough.
+  const waiting = listAssetClaims({ status: 'pending', employee_id: employee.id }).find((c) =>
+    identifier && c.identifier ? sameText(c.identifier, identifier) : sameText(c.label, label) && sameText(c.kind, kind)
+  );
+  if (waiting) throw new Error('you have already told the office about this one - it is waiting with them');
+
+  const info = db
+    .prepare(
+      `INSERT INTO asset_claims (employee_id, kind, label, identifier, note)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(employee.id, kind, label, identifier, String(input.note || '').trim() || null);
+  return getAssetClaim(info.lastInsertRowid);
+}
+
+/** They may take back one nobody has looked at yet - never a decided one. */
+export function withdrawAssetClaim(id, employeeId) {
+  const claim = getAssetClaim(id);
+  if (!claim || claim.employee_id !== Number(employeeId)) throw new Error('not found');
+  if (claim.status !== 'pending') throw new Error('the office has already dealt with this one');
+  db.prepare(`DELETE FROM asset_claims WHERE id = ?`).run(claim.id);
+  return { ok: true };
+}
+
+/**
+ * The office decides, and only then does the register move.
+ *
+ *   match   - it IS this asset already on the register: issue that one to them
+ *   add     - it is not on the register: add it, in their name
+ *   dismiss - it is not the company's, or they do not have it: a reason
+ *
+ * Decided once. Something out with SOMEBODY ELSE is refused by name rather
+ * than quietly passed across - two people saying they hold one laptop is a
+ * thing to find out about, not to settle by whoever was typed last.
+ */
+export function decideAssetClaim(id, { action, asset_id, note, by, company_id, nature } = {}) {
+  const claim = getAssetClaim(id);
+  if (!claim) throw new Error('not found');
+  if (claim.status !== 'pending') throw new Error('this one has already been dealt with');
+  const reason = String(note || '').trim();
+  const close = (status, assetId) =>
+    db
+      .prepare(
+        `UPDATE asset_claims
+         SET status = ?, asset_id = ?, decided_by = ?, decided_at = datetime('now'), decision_note = ?
+         WHERE id = ?`
+      )
+      .run(status, assetId || null, by || null, reason || null, claim.id);
+
+  if (action === 'dismiss') {
+    if (!reason) throw new Error('say why - they will read it');
+    close('dismissed', null);
+    return getAssetClaim(claim.id);
+  }
+
+  if (action === 'match') {
+    const asset = getAsset(Number(asset_id));
+    if (!asset) throw new Error('pick the asset it is');
+    if (asset.written_off_on) throw new Error(`${asset.code || asset.label} is written off`);
+    const out = asset.employee_id && !asset.returned_on;
+    if (out && asset.employee_id !== claim.employee_id) {
+      throw new Error(
+        `${asset.code || asset.label} is on the register with ${asset.employee_name || 'somebody else'} - take it back from them first, or pick another`
+      );
+    }
+    db.transaction(() => {
+      if (!out) issueAsset(asset.id, { employee_id: claim.employee_id, by, note: 'declared by the employee' });
+      close('matched', asset.id);
+    })();
+    return getAssetClaim(claim.id);
+  }
+
+  if (action === 'add') {
+    let made;
+    /*
+     * A serial already on the register means it is NOT a new asset - it is
+     * that one, and the answer is to tie the declaration to it. Adding a
+     * second row for one laptop is how a stock take comes out one over.
+     */
+    if (claim.identifier) {
+      const twin = db
+        .prepare(`SELECT code, label FROM assets WHERE identifier = ? COLLATE NOCASE LIMIT 1`)
+        .get(claim.identifier);
+      if (twin) {
+        throw new Error(
+          `Serial ${claim.identifier} is already on ${twin.code || twin.label} - tie this to that asset instead of adding a second`
+        );
+      }
+    }
+    db.transaction(() => {
+      made = createAsset({
+        company_id: Number(company_id) || claim.employee_company_id || null,
+        kind: claim.kind,
+        label: claim.label,
+        identifier: claim.identifier,
+        nature,
+        employee_id: claim.employee_id,
+        note: claim.note,
+        by,
+      });
+      close('added', made.id);
+    })();
+    return getAssetClaim(claim.id);
+  }
+
+  throw new Error('match it, add it or dismiss it');
 }
 
 /* ---------------- handovers, and their history ---------------- */

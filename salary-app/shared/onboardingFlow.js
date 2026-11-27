@@ -66,6 +66,7 @@ export const EMPLOYEE_SECTIONS = ['basic', 'address', 'emergency', 'statutory', 
 export const THEIRS_TO_FILL = [
   'name', 'gender', 'dob', 'blood_group', 'marital_status', 'nationality', 'religion',
   'phone', 'phone_alt', 'email', 'father_name', 'mother_name', 'spouse_name',
+  'father_occupation', 'father_company', 'mother_occupation', 'mother_company',
   'address_line1', 'address_line2', 'city', 'state', 'pincode',
   'perm_same', 'perm_line1', 'perm_line2', 'perm_city', 'perm_state', 'perm_pincode',
   'emergency_name', 'emergency_relation', 'emergency_phone', 'emergency_phone_alt',

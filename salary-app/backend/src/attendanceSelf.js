@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { judgePunch, localStamp, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
 import {
+  MANAGER_FIRST_KINDS,
   canCancel,
   canDecide,
   daysOf,
@@ -296,6 +297,30 @@ export const listRequests = ({ status, employee_id, period_id } = {}) => {
     .all(params);
 };
 
+/**
+ * The reporting manager, and whether they are able to decide anything.
+ *
+ * "Manager first" is only a rule where there IS a manager who can press the
+ * button: somebody still on the staff, with a login of their own. Without
+ * that test a leave would wait for ever on a manager who left, or on one who
+ * was never given a login - and nobody would be told why.
+ *
+ * Prepared on first use, not at load: the logins table belongs to another
+ * module and may not exist yet when this one is imported.
+ */
+let managerRowFor = null;
+export function managerOf(employeeId) {
+  managerRowFor ||= db.prepare(
+    `SELECT m.id, m.name,
+            EXISTS (SELECT 1 FROM users u WHERE u.employee_id = m.id AND u.active = 1) AS has_login
+       FROM employees e JOIN employees m ON m.id = e.reports_to_id
+      WHERE e.id = ? AND m.active = 1`
+  );
+  const row = managerRowFor.get(Number(employeeId));
+  if (!row) return { name: '', can_act: false };
+  return { id: row.id, name: row.name, can_act: Boolean(row.has_login) };
+}
+
 export const getRequest = (id) =>
   db.prepare(`SELECT * FROM attendance_requests WHERE id = ?`).get(id) || null;
 
@@ -343,6 +368,26 @@ export function decideRequest(id, { approve, by = 'office', note: req_note, asMa
   const period = request ? getPeriod(request.period_id) : null;
   const may = canDecide(request, { periodLocked: !!period?.locked, asManager });
   if (!may.ok) throw new Error(may.reason);
+
+  /*
+   * MANAGER FIRST, THEN THE OFFICE - for leave.
+   *
+   * The office used to be able to finish a pending leave outright, which was
+   * right when the manager's step was optional. It is not optional any more:
+   * the person who knows whether somebody can be spared says so first. What
+   * the office may still do alone is REFUSE (a no costs nothing and needs no
+   * second opinion), and approve where there is no manager who can act - a
+   * manager who has left, or one with no login, would otherwise hold a leave
+   * for ever.
+   */
+  if (!asManager && approve && request.status === 'pending' && MANAGER_FIRST_KINDS.has(request.kind)) {
+    const manager = managerOf(request.employee_id);
+    if (manager.can_act) {
+      throw new Error(
+        `${manager.name} has to approve this first — it reaches the office once their reporting manager has backed it`
+      );
+    }
+  }
 
   /*
    * A MANAGER ONLY RECOMMENDS.

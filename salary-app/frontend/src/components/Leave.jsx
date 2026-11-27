@@ -8,6 +8,7 @@ import LeaveBonus from './LeaveBonus.jsx';
 import { LEAVE_TYPES } from '../../../shared/calc.js';
 import { days } from '../format.js';
 import SandwichLeave from './SandwichLeave.jsx';
+import UnapprovedLeave from './UnapprovedLeave.jsx';
 import WeeklyOff from './WeeklyOff.jsx';
 
 /**
@@ -288,6 +289,19 @@ export default function Leave({
     );
   }
 
+  if (view === 'unapproved') {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        {period && payrollRows.length ? (
+          <UnapprovedLeave period={period} rows={payrollRows} onSave={onSaveAttendance} locked={locked} onGo={onGo} />
+        ) : (
+          <p className="muted small">Open a month to look for leave taken without approval.</p>
+        )}
+      </section>
+    );
+  }
+
   if (view === 'sandwich') {
     return (
       <section className="stack">
@@ -500,6 +514,7 @@ function LeaveTabs({ view, setView }) {
         ['yearend', 'Year end'],
         ['bonus', 'Bonus'],
         ['weekly', 'The day off'],
+        ['unapproved', 'Without approval'],
         ['sandwich', 'Sandwich leave'],
       ].map(([key, label]) => (
         <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>

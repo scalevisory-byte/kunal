@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { profileChangesWaiting } from '../profileChanges.js';
 import { may } from '../../../shared/rights.js';
 import { requireArea } from '../auth.js';
 import { digest } from '../../../shared/digest.js';
@@ -110,6 +111,9 @@ import {
   fullAndFinal,
   getTicket,
   issueAsset,
+  setAssetNature,
+  listAssetClaims,
+  decideAssetClaim,
   listAllAppraisals,
   listAllNotes,
   listAppraisals,
@@ -893,6 +897,31 @@ peopleRouter.get('/assets/:id/history', (req, res) => {
   res.json(found);
 });
 
+/*
+ * Fixed or movable for several at once. Declared BEFORE /assets/:id so the
+ * word is not read as an id.
+ */
+peopleRouter.post('/assets/nature', (req, res) => {
+  try {
+    res.json(setAssetNature(req.body?.ids, req.body?.nature, { by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+/* What staff say they are holding, waiting for the office to decide. */
+peopleRouter.get('/assets/claims', (req, res) =>
+  res.json({ claims: listAssetClaims({ status: req.query.status || undefined }) })
+);
+
+peopleRouter.post('/assets/claims/:id/decide', (req, res) => {
+  try {
+    res.json(decideAssetClaim(Number(req.params.id), { ...req.body, by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
 peopleRouter.post('/assets', (req, res) => {
   try {
     res.status(201).json(createAsset({ ...req.body, by: who(req) }));
@@ -1657,9 +1686,13 @@ peopleRouter.get('/digest', (req, res) => {
    */
   const staff = listEmployees({});
   const byEmployee = new Map(staff.map((e) => [e.id, e]));
-  const documents = staff
-    .flatMap((e) => listDocuments(e.id).map((d) => ({ ...d, employee_name: e.name })))
-    .filter((d) => d.expires_on);
+  const allDocuments = staff.flatMap((e) => listDocuments(e.id).map((d) => ({ ...d, employee_id: e.id, employee_name: e.name })));
+  const documents = allDocuments.filter((d) => d.expires_on);
+  // Uploaded and nobody has looked: null is "not checked", which is neither
+  // verified nor rejected. Only people still on the staff.
+  const unchecked = allDocuments.filter(
+    (d) => (d.verified === null || d.verified === undefined) && byEmployee.get(d.employee_id)?.active !== 0
+  );
 
   const built = digest({
     period: payroll?.period || null,
@@ -1688,6 +1721,12 @@ peopleRouter.get('/digest', (req, res) => {
     // Same scoping: a login with no asset register is not told what is out of
     // warranty on it.
     asset_dates: may(req.actor, 'assets') ? assetAlerts(listAssets({})) : null,
+    // The same scoping again: a login with no Employees tab is not told who
+    // has filled in what, and one with no asset register is not told what
+    // staff say they hold.
+    profile_changes: may(req.actor, 'employees') ? profileChangesWaiting() : null,
+    unchecked_documents: may(req.actor, 'employees') ? unchecked : [],
+    asset_claims: may(req.actor, 'assets') ? listAssetClaims({ status: 'pending' }) : [],
     today: todayIso(),
   });
 

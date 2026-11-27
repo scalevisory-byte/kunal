@@ -298,6 +298,29 @@ test('the Sunday register records its own payment, apart from the salary', async
   assert.deepEqual(row.sunday_days, [5, 19], 'the register knows which dates');
   assert.equal(row.sunday_status, null, 'nothing paid yet');
 
+  /*
+   * REWRITTEN FOR v2.31: "sunday ka payment with approval of only manager".
+   * The Paid tick used to go straight through. It now needs an approval of
+   * the figure the row carries, and the refusal says so.
+   */
+  const early = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_status: 'paid' });
+  assert.equal(early.status, 409);
+  assert.match(early.body.error, /has not been approved/);
+  // How it is paid can still be chosen while it waits.
+  assert.equal((await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_mode: 'Cash' })).status, 200);
+
+  const ok = await api('POST', `/api/periods/${periodId}/sunday/approve`, { row_ids: [rowId] });
+  assert.equal(ok.body.approved, 1);
+  assert.equal(ok.body.amount, Math.round(row.sunday_salary));
+
+  // AN APPROVAL IS OF AN AMOUNT: a third Sunday added afterwards is not what
+  // was approved, and the tick is refused again, naming both figures.
+  await api('POST', `/api/periods/${periodId}/attendance`, { entries: [{ employee_id: employeeId, day: 12, code: 'SP' }] });
+  const stale = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_status: 'paid' });
+  assert.equal(stale.status, 409);
+  assert.match(stale.body.error, /was approved for \d+ and is now \d+/);
+  await api('POST', `/api/periods/${periodId}/attendance`, { entries: [{ employee_id: employeeId, day: 12, code: '' }] });
+
   // Words must survive the round trip - these are not numeric columns.
   const saved = await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, {
     sunday_status: 'paid',
@@ -305,6 +328,10 @@ test('the Sunday register records its own payment, apart from the salary', async
   });
   assert.equal(saved.body.sunday_status, 'paid');
   assert.equal(saved.body.sunday_mode, 'Cash');
+  // Paid on the strength of it: the approval cannot be pulled out from under.
+  const pull = await api('POST', `/api/periods/${periodId}/sunday/unapprove`, { row_ids: [rowId] });
+  assert.equal(pull.status, 400);
+  assert.match(pull.body.error, /already marked paid/);
 
   ({ body } = await api('GET', `/api/periods/${periodId}/payroll`));
   row = body.rows[0];
@@ -321,6 +348,7 @@ test('the Sunday register records its own payment, apart from the salary', async
     entries: [5, 19].map((day) => ({ employee_id: employeeId, day, code: '' })),
   });
   await api('PATCH', `/api/periods/${periodId}/rows/${rowId}`, { sunday_status: '', sunday_mode: '' });
+  await api('POST', `/api/periods/${periodId}/sunday/unapprove`, { row_ids: [rowId] });
 });
 
 test('a festival is a paid holiday for one religion and a working day for the rest', async () => {

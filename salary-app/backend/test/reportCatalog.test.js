@@ -95,7 +95,13 @@ test('every category in the specification carries exactly what it asked for', ()
        chiaye with deopartmmet role". The employee export carries forty
        columns including salaries, so this is deliberately its own report
        rather than another column on that one. */
-    employee: ['employee-contacts'],
+    employee: [
+      'employee-contacts',
+      /* "auto appraisal list for proper in uniform whole month, discipline,
+         time, attendance, target". The month's own records laid against five
+         criteria - it raises no appraisal and rates nobody. */
+      'appraisal-sheet',
+    ],
   };
   for (const [key, count] of Object.entries(spec)) {
     const extras = beyondSpec[key] || [];

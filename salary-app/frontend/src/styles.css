@@ -6344,3 +6344,57 @@ table.sheet.hide-hours .hrs-col { display: none; }
 .hours-decide.hours-hidden { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
 .hours-decide.hours-hidden > span { flex: 1 1 18rem; min-width: 0; }
 .off-day-catchup.quiet { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.6rem; }
+
+/* "left 12 Nov" beside a name on the month that still owes them. */
+.pill.left-tag { margin-left: 0.4rem; font-size: 0.66rem; padding: 0.02rem 0.4rem; color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+
+/* Applications waiting, in the bar that is on every tab. Gold when the office
+   itself has something to decide; quiet while it is still a manager's move. */
+.who-waiting { border: 1px solid rgba(255, 255, 255, 0.35); background: transparent; color: rgba(255, 255, 255, 0.85); border-radius: 999px; padding: 0.12rem 0.6rem; font-size: 0.74rem; cursor: pointer; white-space: nowrap; }
+.who-waiting.due { background: var(--gold); border-color: var(--gold); color: #1b2430; font-weight: 600; }
+/* The staff portal's own version: a manager is told at the top of every page. */
+.team-waiting { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; width: 100%; text-align: left; margin-bottom: 0.7rem; padding: 0.55rem 0.8rem; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; background: var(--surface); cursor: pointer; font-size: 0.86rem; }
+.team-waiting span { color: var(--brand); white-space: nowrap; font-size: 0.8rem; }
+.figure .n.bad { color: var(--bad); }
+
+/* The monthly appraisal sheet: yes, no and not-known are three colours. */
+table.sheet.appraisal-sheet td { white-space: normal; vertical-align: top; }
+table.sheet.appraisal-sheet td.ap-yes b { color: var(--good); }
+table.sheet.appraisal-sheet td.ap-no { color: var(--bad); }
+table.sheet.appraisal-sheet td.ap-unknown { color: var(--muted); }
+
+/* ----------------------------------------------------------------------
+ * Fixed / movable on the asset register, and what staff say they hold.
+ * -------------------------------------------------------------------- */
+.nature-chips .nature-bulk { margin-left: 0.5rem; white-space: nowrap; }
+/* A select dressed as the text it sits in: no box until it is being used. */
+select.nature-pick {
+  width: auto;
+  min-width: 0;
+  padding: 0 1rem 0 0;
+  border: 0;
+  background-color: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+select.nature-pick:focus { outline: 1px solid var(--accent); }
+select.nature-pick.guessed { font-style: italic; }
+select.nature-pick.unsaid { color: var(--warn); }
+.asset-claims { border-left: 3px solid var(--warn); }
+.asset-claims td.claim-decide { white-space: nowrap; }
+.asset-claims td.claim-decide input { width: 11rem; }
+.pill.ok { color: var(--ok, #1a7f4b); border-color: color-mix(in srgb, var(--ok, #1a7f4b) 40%, var(--line)); }
+.pill.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+
+/* ----------------------------------------------------------------------
+ * What staff filled in, waiting for HR (Employees tab), and the marker on
+ * their own form.
+ * -------------------------------------------------------------------- */
+.profile-approvals { border-left: 3px solid var(--warn); }
+.profile-approvals details.fold + details.fold { margin-top: 0.6rem; }
+.profile-approvals td.pa-decide { white-space: nowrap; text-align: right; }
+.profile-approvals td.pa-decide input { width: 13rem; margin-right: 0.4rem; }
+.vf-waiting { margin-left: 0.4rem; font-size: 0.68rem; }
+.sunday-approval { white-space: nowrap; }
+.sunday-approval .pill + button, .sunday-approval .pill + .pill { margin-left: 0.35rem; }

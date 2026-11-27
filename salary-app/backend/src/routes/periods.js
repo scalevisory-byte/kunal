@@ -1,4 +1,5 @@
 import { may } from '../../../shared/rights.js';
+import { approveSundayPay, assertSundayPayable, withdrawSundayApproval } from '../sundayApproval.js';
 import { requireArea } from '../auth.js';
 import { Router } from 'express';
 import { requireAbility, requireApproval } from '../auth.js';
@@ -262,6 +263,27 @@ periodsRouter.post('/:id/sync', (req, res) => {
   res.json({ added: syncPayrollRows(period.id) });
 });
 
+/*
+ * Approving Sunday pay, and taking an approval back. `approve` is the ability
+ * the Manager and Admin roles carry and HR, Accounts and Operator do not -
+ * "with approval of only manager".
+ */
+periodsRouter.post('/:id/sunday/approve', requireAbility('approve'), (req, res) => {
+  try {
+    res.json(approveSundayPay(Number(req.params.id), req.body?.row_ids, { by: req.actor?.name || 'manager' }));
+  } catch (err) {
+    res.status(/not found/.test(err.message) ? 404 : /locked/.test(err.message) ? 409 : 400).json({ error: err.message });
+  }
+});
+
+periodsRouter.post('/:id/sunday/unapprove', requireAbility('approve'), (req, res) => {
+  try {
+    res.json(withdrawSundayApproval(Number(req.params.id), req.body?.row_ids, { by: req.actor?.name || 'manager' }));
+  } catch (err) {
+    res.status(/not found/.test(err.message) ? 404 : /locked/.test(err.message) ? 409 : 400).json({ error: err.message });
+  }
+});
+
 periodsRouter.patch('/:id/rows/:rowId', (req, res) => {
   const period = getPeriod(Number(req.params.id));
   if (!period) return res.status(404).json({ error: 'period not found' });
@@ -269,6 +291,17 @@ periodsRouter.patch('/:id/rows/:rowId', (req, res) => {
   // Whose change this was, for the audit trail. The signed-in user wins over
   // anything the body claims.
   const by = req.actor?.via === 'session' ? req.actor.name : req.body?.by || req.actor?.name || null;
+  /*
+   * Sunday pay cannot be ticked Paid until a manager has approved the figure
+   * it carries. Checked here, on the one route that moves the tick.
+   */
+  if (req.body?.sunday_status === 'paid') {
+    try {
+      assertSundayPayable(period.id, Number(req.params.rowId));
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message });
+    }
+  }
   const row = updatePayrollRow(Number(req.params.rowId), { ...(req.body || {}), by });
   if (!row) return res.status(404).json({ error: 'row not found' });
   res.json(row);

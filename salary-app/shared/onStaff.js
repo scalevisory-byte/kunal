@@ -147,3 +147,87 @@ export function staffOn(rows = [], when = {}) {
   }
   return { staff, gone };
 }
+
+/* ---------------------------------------------------------------------------
+ * A LEAVER, SEEN FROM THE MONTH
+ *
+ * Dinesh: *"Exit employee ka still attendance and salary register me dikh
+ * raha he"*. Two different people were behind that sentence, and they want
+ * opposite answers:
+ *
+ *   left BEFORE the month began  - should not be on that month at all. They
+ *                                  were only there because a punch import or
+ *                                  "Mark everyone Present" had written marks
+ *                                  onto their row, and a row with marks was
+ *                                  never cleared away. (The server does the
+ *                                  clearing - see `strandedRows` in db.js.)
+ *   left DURING the month        - MUST stay: they are owed for the days they
+ *                                  worked. What was missing is anything on
+ *                                  the row saying so.
+ *
+ * And a third, who is neither: marked as left with NO leaving date. Nobody
+ * can say which month they stop belonging to, so they stay and are named,
+ * with the one thing that settles it - the date.
+ * ------------------------------------------------------------------------ */
+
+const inactive = (person = {}) => person.active === 0 || person.active === false || person.active === '0';
+
+/**
+ * How a person's leaving bears on one month.
+ *   { left: 'during', day }   the last working day, in this month
+ *   { left: 'before' }        gone before the 1st
+ *   { left: 'undated' }       marked as left, no date on record
+ *   { left: '' }              on the staff, or leaving later
+ */
+export function leaverIn(person = {}, period = {}) {
+  const date = String(person.left_on || '').slice(0, 10);
+  const first = isoDay(period, 1);
+  if (date && first) {
+    const last = isoDay(period, new Date(Date.UTC(Number(period.year), Number(period.month), 0)).getUTCDate());
+    if (date < first) return { left: 'before', on: date };
+    if (date <= last) return { left: 'during', on: date, day: Number(date.slice(8, 10)) };
+    return { left: '', on: date };
+  }
+  if (!date && inactive(person)) return { left: 'undated' };
+  return { left: '' };
+}
+
+/**
+ * Days after the last working day that are still being PAID.
+ *
+ * The sheet pays 26 days less what is marked absent, so a day nobody marked
+ * after somebody left is a day they are paid for. This counts them and takes
+ * nothing off: stopping somebody's month is done by marking those days, where
+ * it can be seen and undone - never by a rule that quietly cuts a final
+ * salary. A day already costing a day (A, UL, AD) or carrying leave or an off
+ * is somebody's decision and is not counted.
+ */
+export function paidAfterLeaving(person = {}, period = {}, attendance = {}) {
+  const seen = leaverIn(person, period);
+  if (seen.left !== 'during') return { days: [], from: null };
+  const last = new Date(Date.UTC(Number(period.year), Number(period.month), 0)).getUTCDate();
+  const days = [];
+  for (let day = seen.day + 1; day <= last; day += 1) {
+    const entry = attendance[day];
+    const code = String((entry && typeof entry === 'object' ? entry.code : entry) || '').trim().toUpperCase();
+    if (code === '' || code === 'P') days.push(day);
+  }
+  return { days, from: seen.day + 1 };
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * The few words that go beside a leaver's name on a month's rows: "left 12
+ * Nov", or "left, no date" - and nothing at all for somebody still here or
+ * only serving notice. One wording for the salary sheet and the grid.
+ */
+export function leftLabel(person = {}, today = '') {
+  const date = String(person.left_on || '').slice(0, 10);
+  if (date) {
+    if (today && date > String(today).slice(0, 10)) return '';
+    const [, m, d] = date.split('-').map(Number);
+    return m >= 1 && m <= 12 && d ? `left ${d} ${MONTHS_SHORT[m - 1]}` : 'left';
+  }
+  return inactive(person) ? 'left, no date' : '';
+}

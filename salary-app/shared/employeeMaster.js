@@ -66,7 +66,14 @@ export const SECTIONS = [
       ['phone_alt', 'Alternate mobile', 'tel'],
       ['email', 'Personal email', 'email'],
       ['father_name', "Father's name", 'text', { hint: 'the PF Form 2 asks for it' }],
+      /* Dinesh: "Mother / father working detail / job company name". What
+         each parent does and where - asked by the office for its own record,
+         and an input to nothing: not one of these reaches a calculation. */
+      ['father_occupation', "Father's work", 'text', { placeholder: 'e.g. business, service, retired' }],
+      ['father_company', "Father's company / employer", 'text'],
       ['mother_name', "Mother's name", 'text'],
+      ['mother_occupation', "Mother's work", 'text', { placeholder: 'e.g. homemaker, teacher' }],
+      ['mother_company', "Mother's company / employer", 'text'],
       ['spouse_name', "Spouse's name", 'text', { hint: 'leave empty if unmarried' }],
     ],
   },
@@ -83,8 +90,12 @@ export const SECTIONS = [
       ['employment_type', 'Employment type', 'select', { options: ['', ...EMPLOYMENT_TYPES] }],
       ['joined_on', 'Date of joining', 'date', { required: true }],
       ['probation_until', 'Probation until', 'date', { hint: 'leave empty if not on probation' }],
-      ['reports_to_id', 'Reporting manager', 'employee'],
-      ['hod_id', 'Head of department', 'employee', { hint: 'only if it is somebody else' }],
+      /* ONE line of reporting. There was a second box here - Head of
+         department - and Dinesh: "Reporting manager rakhna hai, HOD hata do".
+         Two people to name is two answers to "who approves their leave"; the
+         reporting manager is the one every approval in the app follows. The
+         column stays, so nothing already typed is thrown away. */
+      ['reports_to_id', 'Reporting manager', 'employee', { hint: 'approves their leave before the office does' }],
       ['work_location', 'Work location', 'text', { hint: 'if they do not sit at the branch address' }],
       ['shift_in', 'Shift starts', 'text', { hint: "leave empty for the office's usual day" }],
       ['shift_out', 'Shift ends', 'text', { placeholder: '06:00 for a night shift' }],

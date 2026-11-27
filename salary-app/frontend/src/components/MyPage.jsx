@@ -7,6 +7,7 @@ import { formatDuration } from '../../../shared/timesheet.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import {
   STATUS_LABEL,
+  balanceLine,
   describe as describeRequest,
   describeMinutes,
   isOpen,
@@ -20,6 +21,7 @@ import MyDashboard from './my/MyDashboard.jsx';
 import { WEEKDAYS, monthWeeks } from '../../../shared/monthGrid.js';
 import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
+import MyAssets from './my/MyAssets.jsx';
 import MyProfileForm from './my/MyProfileForm.jsx';
 import MyRecord from './my/MyRecord.jsx';
 import MyNotices from './my/MyNotices.jsx';
@@ -67,6 +69,7 @@ const TABS = [
   ['me', 'My profile', '\u25cf'],
   ['holidays', 'Holidays', '\u2600'],
   ['documents', 'Documents', '\u25a4'],
+  ['assets', 'My assets', '\u25a3'],
 ];
 
 export default function MyPage({ me, onError, onSignOut }) {
@@ -78,6 +81,8 @@ export default function MyPage({ me, onError, onSignOut }) {
   // How many people report to them. A count, not the list - the page only has
   // to decide whether to offer the tab.
   const [manages, setManages] = useState(0);
+  // How many of their team's requests are waiting on THEM, right now.
+  const [teamWaiting, setTeamWaiting] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
@@ -87,6 +92,7 @@ export default function MyPage({ me, onError, onSignOut }) {
         const [who, mine] = await Promise.all([api.get('/me'), api.get('/me/months')]);
         setEmployee(who.employee);
         setManages(who.manages || 0);
+        setTeamWaiting(who.team_waiting || 0);
         setMonths(mine.months);
       } catch (err) {
         onError(err);
@@ -96,7 +102,32 @@ export default function MyPage({ me, onError, onSignOut }) {
 
   // The team tab exists only for somebody who actually manages people. An
   // empty "My team" on a hundred and fifteen logins is noise on all of them.
-  const tabs = manages > 0 ? [...TABS, ['team', 'My team', '\u25c6']] : TABS;
+  const tabs =
+    manages > 0
+      ? [...TABS, ['team', teamWaiting ? `My team (${teamWaiting})` : 'My team', '\u25c6']]
+      : TABS;
+
+  /*
+   * A manager is TOLD, not left to find out. The count is asked for again
+   * every minute and whenever they change tab, so an application made at ten
+   * is on their screen at ten - it used to wait until they happened to open
+   * My team.
+   */
+  useEffect(() => {
+    if (!manages) return undefined;
+    let alive = true;
+    const ask = () =>
+      api
+        .get('/me/team')
+        .then((got) => alive && setTeamWaiting(got?.waiting || 0))
+        .catch(() => {});
+    const timer = setInterval(ask, 60000);
+    if (tab !== 'team') ask();
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [manages, tab]);
 
   /* Going somewhere closes the drawer, so a tap on a phone does not leave
      the rail sitting over the page it just opened. */
@@ -211,6 +242,15 @@ export default function MyPage({ me, onError, onSignOut }) {
         )}
 
         <main className="my-body">
+          {teamWaiting > 0 && tab !== 'team' ? (
+            <button className="team-waiting" onClick={() => go('team')}>
+              <strong>
+                {teamWaiting} request{teamWaiting === 1 ? '' : 's'} from your team{' '}
+                {teamWaiting === 1 ? 'is' : 'are'} waiting for you
+              </strong>
+              <span>Open My team →</span>
+            </button>
+          ) : null}
           {tab === 'dash' && (
             <MyDashboard employee={employee} months={months} onGo={go} onError={onError} />
           )}
@@ -222,6 +262,7 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'record' && <MyRecord onError={onError} />}
           {tab === 'holidays' && <MyHolidays onError={onError} />}
           {tab === 'documents' && <MyDocuments onError={onError} />}
+          {tab === 'assets' && <MyAssets onError={onError} />}
           {tab === 'team' && <MyTeam onError={onError} />}
         </main>
       </div>
@@ -895,9 +936,15 @@ useEffect(() => {
             {['CL', 'SL', 'PL'].map((code) => {
               const quota = leave.quotas?.[code] || 0;
               const taken = leave.taken?.[code] || 0;
+              /* The ledger's figure where there is one - the SAME number
+                 their manager and the office see beside the Approve button.
+                 It is not clamped: somebody who has taken more than they had
+                 should see that, not a comfortable nought. */
+              const fromLedger = leave.balance?.types?.find((t) => t.code === code);
+              const left = fromLedger && fromLedger.left !== null ? fromLedger.left : quota - taken;
               return (
                 <div className="figure" key={code}>
-                  <span className="n">{days(Math.max(quota - taken, 0))}</span>
+                  <span className={`n${left < 0 ? ' bad' : ''}`}>{days(left)}</span>
                   <span className="k">
                     {ATTENDANCE_CODES[code]?.label || code} left
                     <span className="muted"> of {days(quota)}</span>
@@ -1042,7 +1089,17 @@ useEffect(() => {
                   </button>
                 ) : null}
                 <span className={`pf-status ${r.status === 'approved' ? '' : r.status}`}>
-                  {r.cancelled_at ? 'cancelled' : r.status}
+                  {/* "pending" never said WHO it was pending with, so nobody
+                      knew whom to ask. */}
+                  {r.cancelled_at
+                    ? 'cancelled'
+                    : r.status === 'pending'
+                      ? r.needs_manager
+                        ? `with ${r.manager_name}`
+                        : 'with the office'
+                      : r.status === 'recommended'
+                        ? 'manager approved · with the office'
+                        : r.status}
                 </span>
               </div>
             ))}
@@ -1203,6 +1260,13 @@ function MyTeam({ onError }) {
                     {kindLabel(r.kind)} · {describeRequest(r)}
                   </div>
                   {r.reason ? <div className="small">“{r.reason}”</div> : null}
+                  {/* Their balance, before the button: sparing somebody for
+                      five days who has two is a different decision. */}
+                  {balanceLine(r.leave_balance) ? (
+                    <div className={`small ${balanceLine(r.leave_balance).over ? 'warn' : 'muted'}`}>
+                      {balanceLine(r.leave_balance).text}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="row">
                   <button
@@ -1262,13 +1326,24 @@ function MyTeam({ onError }) {
                     — {[p.designation, p.department].filter(Boolean).join(' · ')}
                   </span>
                 ) : null}
+                {/* Leave left, type by type. Unpaid leave has no balance, so
+                    it is not listed as if it had one. */}
+                {p.leave?.types?.some((t) => t.paid) ? (
+                  <div className="muted small">
+                    Leave left:{' '}
+                    {p.leave.types
+                      .filter((t) => t.paid)
+                      .map((t) => `${t.code} ${t.left}`)
+                      .join(' · ')}
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
         <p className="muted small">
-          You can see who reports to you and what they have asked for. Pay, payslips and records
-          stay with the office.
+          You can see who reports to you, their leave balance and what they have asked for. Pay,
+          payslips and records stay with the office.
         </p>
       </div>
 

@@ -3,6 +3,7 @@ import { calculateRow, paidLeaveDays, totalRows } from '../../../shared/calc.js'
 import { col, num, printReport, printSlips } from '../printReport.js';
 import { slipFor } from './Payslip.jsx';
 import { days, rupees, rupees2 } from '../format.js';
+import { leftLabel } from '../../../shared/onStaff.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import {
   CLEAR_HOURS_PATCH,
@@ -1025,6 +1026,16 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
         <button className="link" onClick={() => onOpen(row)} title="Open this employee's salary statement">
           {row.employee_name}
         </button>
+        {/* Somebody who left stays on the month that owes them - and the row
+            has to say so, or it reads as a name that should not be there. */}
+        {leftLabel(row, todayIso()) ? (
+          <span
+            className="pill left-tag"
+            title="They have left. They are on this month because it owes them for the days they worked — days after the leaving date are paid unless they are marked absent."
+          >
+            {leftLabel(row, todayIso())}
+          </span>
+        ) : null}
         {row.error && <span className="pill error-pill" title={row.error}>save failed</span>}
       </td>
       <td className="num muted">{days(calc.working_days)}</td>

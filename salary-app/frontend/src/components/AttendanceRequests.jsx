@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, STANDALONE } from '../api.js';
 import {
+  balanceLine,
   STATUS_LABEL,
   describe as describeRequest,
   isOpen,
@@ -178,6 +179,13 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                     <td className="small">
                       {kindLabel(r.kind)}
                       <div className="muted small">{describeRequest(r)}</div>
+                      {/* What a decision about leave is taken on, beside the
+                          button that takes it. */}
+                      {balanceLine(r.leave_balance) ? (
+                        <div className={`small ${balanceLine(r.leave_balance).over ? 'warn' : 'muted'}`}>
+                          {balanceLine(r.leave_balance).text}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="small">{r.reason}</td>
                     <td className="small muted">{when(r.created_at)}</td>
@@ -187,6 +195,13 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                           who backed it as well as who confirmed it. */}
                       {r.recommended_by ? (
                         <div className="muted small">backed by {r.recommended_by}</div>
+                      ) : null}
+                      {/* Said, because otherwise it reads as the office
+                          skipping a step: their manager cannot press anything. */}
+                      {isOpen(r) && r.status === 'pending' && r.manager_cannot_act ? (
+                        <div className="muted small">
+                          {r.manager_name} has no login, so the office decides
+                        </div>
                       ) : null}
                       {r.decided_by ? <div className="muted small">by {r.decided_by}</div> : null}
                       {r.cancelled_by ? (
@@ -202,7 +217,16 @@ export default function AttendanceRequests({ period, onReload, onError }) {
                       ) : null}
                     </td>
                     <td className="right decide">
-                      {isOpen(r) ? (
+                      {isOpen(r) && r.needs_manager ? (
+                        /* Manager first. The office may still refuse it - a
+                           no costs nothing - but cannot grant it yet. */
+                        <>
+                          <span className="muted small">waiting for {r.manager_name}</span>{' '}
+                          <button className="tiny" disabled={busy === r.id} onClick={() => decide(r, false)}>
+                            Reject
+                          </button>
+                        </>
+                      ) : isOpen(r) ? (
                         <>
                           <button className="tiny primary" disabled={busy === r.id} onClick={() => decide(r, true)}>
                             Approve

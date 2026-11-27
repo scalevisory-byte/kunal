@@ -24,7 +24,34 @@ import { STANDALONE, api } from '../api.js';
  * so it gets its own list - who worked which Sundays, at what day rate, for how
  * much - with its own paid/unpaid tracking.
  */
-export default function SundayRegister({ period, rows, onPatchRow, onSaveAttendance, locked }) {
+/*
+ * Is this row approved FOR THE FIGURE IT CARRIES NOW? An approval is of an
+ * amount: a Sunday added or a figure typed over afterwards is not what the
+ * manager agreed to. The server asks the same question before it lets the
+ * Paid tick through (backend/src/sundayApproval.js).
+ */
+const approvalOf = (row) => {
+  const amount = Math.round(Number(row.sunday_salary) || 0);
+  if (!row.sunday_approved_at) return { approved: false, stale: false, amount };
+  const was = Math.round(Number(row.sunday_approved_amount) || 0);
+  return { approved: was === amount, stale: was !== amount, amount, was, by: row.sunday_approved_by || '' };
+};
+
+export default function SundayRegister({
+  period,
+  rows,
+  onPatchRow,
+  onSaveAttendance,
+  onReload,
+  locked,
+  // What this login may do. Only `approve` - the Manager and Admin roles -
+  // can approve Sunday pay. Undefined means the single-file build, which has
+  // no logins and so nobody to ask: there the tick works as it always did.
+  abilities,
+}) {
+  const needsApproval = !STANDALONE;
+  const mayApprove = needsApproval && (abilities || []).includes('approve');
+  const [approvalSaid, setApprovalSaid] = useState('');
   const [query, setQuery] = useState('');
   const [hidePaid, setHidePaid] = useState(false);
 
@@ -296,6 +323,39 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
     { count: 0, amount: 0 }
   );
   const unpaid = worked.filter((r) => r.sunday_status !== 'paid');
+  /* Owed something, not paid, and not approved for the figure it carries. */
+  const toApprove = needsApproval
+    ? unpaid.filter((r) => r.sunday_salary > 0 && !approvalOf(r).approved)
+    : [];
+
+  const approve = async (list) => {
+    const amount = list.reduce((sum, r) => sum + Math.round(r.sunday_salary), 0);
+    if (
+      list.length > 1 &&
+      !window.confirm(
+        `Approve Sunday pay for ${list.length} people — ${rupees(amount)} in all?\n\n` +
+          'This approves the figures on screen now. Nobody is paid by it: each one is still ticked Paid when the money goes out.'
+      )
+    )
+      return;
+    try {
+      await api.post(`/periods/${period.id}/sunday/approve`, { row_ids: list.map((r) => r.id) });
+      setApprovalSaid('');
+      await onReload?.();
+    } catch (err) {
+      setApprovalSaid(err.message);
+    }
+  };
+
+  const unapprove = async (row) => {
+    try {
+      await api.post(`/periods/${period.id}/sunday/unapprove`, { row_ids: [row.id] });
+      setApprovalSaid('');
+      await onReload?.();
+    } catch (err) {
+      setApprovalSaid(err.message);
+    }
+  };
 
   // Rows whose count was typed in rather than marked have no dates to show.
   const undated = worked.filter((r) => !(r.sunday_days || []).length);
@@ -320,6 +380,29 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
           {unpaid.length > 0 && ` · ${rupees(unpaid.reduce((s, r) => s + r.sunday_salary, 0))} still to pay`}
         </span>
       </div>
+
+      {/*
+        * APPROVED BEFORE IT IS PAID. Said above the table, with the button
+        * for the person who can press it and the reason for the person who
+        * cannot - a greyed-out Paid tick with no explanation reads as a fault.
+        */}
+      {needsApproval && toApprove.length > 0 && (
+        <p className="banner">
+          <strong>
+            {toApprove.length} {toApprove.length === 1 ? 'person’s' : 'people’s'} Sunday pay is waiting for
+            a manager’s approval
+          </strong>{' '}
+          — {rupees(toApprove.reduce((s, r) => s + r.sunday_salary, 0))}. It cannot be marked Paid until then.{' '}
+          {mayApprove ? (
+            <button onClick={() => approve(toApprove)} disabled={locked}>
+              Approve {toApprove.length === 1 ? 'it' : `all ${toApprove.length}`}
+            </button>
+          ) : (
+            <span className="muted">Only a Manager or Admin login can approve it.</span>
+          )}
+        </p>
+      )}
+      {approvalSaid && <p className="error">{approvalSaid}</p>}
 
       {stuckOt.length > 0 && (
         <p className="banner">
@@ -520,6 +603,7 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
               </th>
               <th title="Salary ÷ working days">Day rate</th>
               <th title="Days × day rate, unless a number is typed over it">Amount</th>
+              {needsApproval && <th title="A manager approves the figure before it can be paid">Approved</th>}
               <th>Paid by</th>
               <th>Status</th>
             </tr>
@@ -561,6 +645,42 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
                 <td>
                   <SundayAmount row={row} locked={locked} onPatchRow={onPatchRow} />
                 </td>
+                {needsApproval && (
+                  <td className="sunday-approval">
+                    {(() => {
+                      const state = approvalOf(row);
+                      if (state.amount <= 0) return <span className="muted">—</span>;
+                      if (state.approved) {
+                        return (
+                          <>
+                            <span className="pill ok" title={`Approved for ${rupees(state.amount)}`}>
+                              ✓ {state.by || 'approved'}
+                            </span>
+                            {mayApprove && row.sunday_status !== 'paid' && !locked ? (
+                              <button className="link small" onClick={() => unapprove(row)}>undo</button>
+                            ) : null}
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          {state.stale ? (
+                            <span className="pill warning" title="The figure changed after it was approved">
+                              was {rupees(state.was)}
+                            </span>
+                          ) : null}
+                          {mayApprove ? (
+                            <button className="small" disabled={locked} onClick={() => approve([row])}>
+                              Approve{state.stale ? ' again' : ''}
+                            </button>
+                          ) : (
+                            <span className="muted small">waiting for manager</span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </td>
+                )}
                 <td>
                   <select
                     value={row.sunday_mode || ''}
@@ -581,14 +701,26 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
                     onChange={(e) => onPatchRow(row.id, { sunday_status: e.target.value })}
                   >
                     <option value="pending">Pending</option>
-                    <option value="paid">Paid</option>
+                    <option
+                      value="paid"
+                      disabled={
+                        needsApproval &&
+                        row.sunday_status !== 'paid' &&
+                        row.sunday_salary > 0 &&
+                        !approvalOf(row).approved
+                      }
+                    >
+                      {needsApproval && row.sunday_status !== 'paid' && row.sunday_salary > 0 && !approvalOf(row).approved
+                        ? 'Paid (needs approval)'
+                        : 'Paid'}
+                    </option>
                   </select>
                 </td>
               </tr>
             ))}
             {!worked.length && (
               <tr>
-                <td colSpan={dates.length + 8} className="empty">
+                <td colSpan={dates.length + (needsApproval ? 9 : 8)} className="empty">
                   Nobody is on the Sunday register this month yet. Somebody who clocks{' '}
                   {sundayHours} hours on their day off is put here by the punch import; anybody
                   else is added by marking the day <strong>SP</strong> (Sunday Present) or{' '}
@@ -606,7 +738,7 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
                 <td />
                 <td />
                 <td className="grand">{rupees(totals.amount)}</td>
-                <td colSpan={2} />
+                <td colSpan={needsApproval ? 3 : 2} />
               </tr>
             </tfoot>
           )}

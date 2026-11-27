@@ -24,6 +24,7 @@ import { listHolidays, listPeriods, getPeriod } from '../db.js';
 import { listRequests } from '../attendanceSelf.js';
 import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { todayIso } from '../../../shared/today.js';
+import { LEAVE_CODES, TYPES, byCode, quotasOf } from '../leaveBalance.js';
 
 export const leaveRouter = Router();
 
@@ -36,27 +37,8 @@ export const leaveRouter = Router();
  * appears here, on the ledger and in the balance register without another
  * line of code.
  */
-const LEAVE_CODES = ['CL', 'SL', 'PL', 'UL'];
-const TYPES = LEAVE_CODES.map((code) => ({
-  code,
-  label: ATTENDANCE_CODES[code]?.label || code,
-  /* Whether it costs pay. UL is leave without pay, so its "balance" is a
-     count of what was taken, not an entitlement anybody has. */
-  paid: !ATTENDANCE_CODES[code]?.absent,
-}));
-
-const quotasOf = (employee) => ({
-  CL: employee?.cl_quota || 0,
-  SL: employee?.sl_quota || 0,
-  PL: employee?.pl_quota || 0,
-  UL: 0,
-});
-
-const byCode = (rows) => {
-  const out = {};
-  for (const r of rows) (out[r.code] ||= []).push(r);
-  return out;
-};
+/* One definition of the leave types and of whose quota is whose, shared with
+   the balance shown beside every Approve button - see ../leaveBalance.js. */
 
 /** The leave register for a calendar year. Unchanged: other screens read it. */
 leaveRouter.get('/', (req, res) => {

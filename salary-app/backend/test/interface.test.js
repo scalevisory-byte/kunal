@@ -2390,7 +2390,9 @@ test('a Category added under Lists becomes a group, in the browser and on the se
   // Both places the lists arrive: the first load, and an add on the Lists tab.
   assert.equal(assets.match(/setOwnGroups\(/g).length, 2);
   // The buttons are redrawn when the categories change.
-  assert.match(assets, /\[assets, filter, query, narrowed, masters\]/);
+  // (`nature` joined the list in v2.31: the Fixed / Movable chip narrows
+  // what the group buttons count, so it has to redraw them too.)
+  assert.match(assets, /\[assets, filter, query, narrowed, masters, nature\]/);
   // And the way in sits where somebody is already looking at the groups.
   assert.match(assets, /\+ group/);
   assert.match(assets, /Groups come from Lists → Categories/);

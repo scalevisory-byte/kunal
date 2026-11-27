@@ -15,9 +15,12 @@ import { col, printReport } from '../printReport.js';
  */
 const TONE = { verified: 'ok', rejected: 'bad', expired: 'bad', missing: 'bad', unchecked: 'muted' };
 
-export default function DocumentRegister({ companyId, onGo, onError }) {
+export default function DocumentRegister({ companyId, onGo, onError, startOn = '' }) {
   const [data, setData] = useState(null);
-  const [only, setOnly] = useState('');
+  const [only, setOnly] = useState(startOn);
+  useEffect(() => {
+    if (startOn) setOnly(startOn);
+  }, [startOn]);
   const [find, setFind] = useState('');
 
   useEffect(() => {

@@ -414,6 +414,8 @@ for (const column of [
   'father_name', 'mother_name', 'spouse_name', 'marital_status',
   'phone_alt', 'emergency_name', 'emergency_phone', 'emergency_relation',
   'blood_group',
+  // What each parent does and where. The office's own record; an input to nothing.
+  'father_occupation', 'father_company', 'mother_occupation', 'mother_company',
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
@@ -680,6 +682,33 @@ for (const column of ['cancelled_by', 'cancelled_at', 'cancel_reason', 'cancel_r
 if (!db.prepare(`PRAGMA table_info(attendance_requests)`).all().some((c) => c.name === 'minutes')) {
   db.exec(`ALTER TABLE attendance_requests ADD COLUMN minutes INTEGER`);
   log.info('Migrated attendance_requests: added minutes, so a few hours off can be asked for.');
+}
+
+/*
+ * Whether somebody met their target this month - the one appraisal criterion
+ * nothing in the app can measure, so the office ticks it. Three-state: null is
+ * "nobody has said", which is not "not met". An input to no calculation.
+ */
+if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === 'target_met')) {
+  db.exec(`ALTER TABLE payroll_rows ADD COLUMN target_met INTEGER`);
+  log.info('Migrated payroll_rows: added target_met, for the monthly appraisal sheet.');
+}
+
+/*
+ * Sunday pay is approved before it is paid - "sunday ka payment with approval
+ * of only manager". Who, when, and FOR HOW MUCH: an approval is of an amount,
+ * so a figure typed over it afterwards is not what was approved. Written only
+ * by sundayApproval.js, never through the ordinary row patch.
+ */
+for (const [column, type] of [
+  ['sunday_approved_by', 'TEXT'],
+  ['sunday_approved_at', 'TEXT'],
+  ['sunday_approved_amount', 'REAL'],
+]) {
+  if (!db.prepare(`PRAGMA table_info(payroll_rows)`).all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE payroll_rows ADD COLUMN ${column} ${type}`);
+    log.info(`Migrated payroll_rows: added ${column}, for approving Sunday pay.`);
+  }
 }
 
 for (const column of ['sunday_status', 'sunday_mode']) {
@@ -1021,7 +1050,11 @@ const EMPLOYEE_FIELDS = [
   'gender',
   'marital_status',
   'father_name',
+  'father_occupation',
+  'father_company',
   'mother_name',
+  'mother_occupation',
+  'mother_company',
   'spouse_name',
   'blood_group',
   'phone',
@@ -1200,7 +1233,11 @@ export function createEmployee(input) {
     phone: input.phone || null,
     marital_status: input.marital_status || null,
     father_name: input.father_name || null,
+    father_occupation: input.father_occupation || null,
+    father_company: input.father_company || null,
     mother_name: input.mother_name || null,
+    mother_occupation: input.mother_occupation || null,
+    mother_company: input.mother_company || null,
     spouse_name: input.spouse_name || null,
     blood_group: input.blood_group || null,
     phone_alt: input.phone_alt || null,
@@ -1815,6 +1852,8 @@ const PAYROLL_FIELDS = [
   /* When it was paid and what it was paid as. See the migration above. */
   'payment_date',
   'payment_ref',
+  /* Ticked on the appraisal sheet. Not money: nothing in calc.js reads it. */
+  'target_met',
 ];
 
 /** The ones that hold words. Everything else in PAYROLL_FIELDS is a number. */
@@ -1917,15 +1956,32 @@ const strandedRows = db.prepare(`
     JOIN employees e ON e.id = r.employee_id
    WHERE r.period_id = @period_id
      AND e.active = 0
-     AND (e.left_on IS NULL OR e.left_on < @starts)
      AND r.status = 'pending'
      AND COALESCE(r.sunday_status, 'pending') = 'pending'
      AND r.addition = 0 AND r.deduction = 0 AND r.adjustment = 0
      AND COALESCE(r.remark, '') = '' AND COALESCE(r.adjustment_note, '') = ''
      AND ${UNTOUCHED_OVERRIDES.map((c) => `r.${c} IS NULL`).join(' AND ')}
-     AND NOT EXISTS (
-       SELECT 1 FROM attendance a
-        WHERE a.period_id = r.period_id AND a.employee_id = r.employee_id
+     AND (
+       /*
+        * GONE BEFORE THE MONTH BEGAN: off it, whatever is on the grid.
+        *
+        * This used to need the grid to be empty as well - and a leaver's row
+        * is almost never empty, because the punch import and Mark everyone
+        * Present write onto every row on screen. So somebody who left in
+        * October sat on November's salary sheet being paid a full month.
+        * Marks on days after somebody has left are not a reason to keep them;
+        * money typed on the row (checked above) still is.
+        */
+       (e.left_on IS NOT NULL AND e.left_on <> '' AND e.left_on < @starts)
+       OR (
+         /* No date on record: nobody can say which month they stop belonging
+            to, so only an untouched grid clears them, as it always did. */
+         (e.left_on IS NULL OR e.left_on = '')
+         AND NOT EXISTS (
+           SELECT 1 FROM attendance a
+            WHERE a.period_id = r.period_id AND a.employee_id = r.employee_id
+         )
+       )
      )
 `);
 

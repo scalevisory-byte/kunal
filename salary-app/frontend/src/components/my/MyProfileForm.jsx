@@ -25,7 +25,7 @@ const filled = (v) => v !== undefined && v !== null && String(v).trim() !== '';
 const missingAny = (progress, names) => names.some((n) => progress.missing.includes(n));
 
 /** One box, by what kind of field it is. The kinds come from the master. */
-function Field({ field, value, locked, onSave }) {
+function Field({ field, value, locked, waiting, onSave }) {
   const { field: name, label, kind, options, hint, placeholder } = field;
   const common = {
     key: `${name}-${value ?? ''}`,
@@ -39,6 +39,9 @@ function Field({ field, value, locked, onSave }) {
       <span className="vf-label">
         {label}
         {locked && <span className="muted small"> · set</span>}
+        {/* On their page, NOT on the record yet. A box that shows their own
+            value has to say which of the two it is. */}
+        {waiting && <span className="pill warning vf-waiting">waiting for HR</span>}
       </span>
       {kind === 'select' ? (
         <select {...common} onChange={(e) => onSave(name, e.target.value)}>
@@ -84,7 +87,7 @@ export default function MyProfileForm({ onError }) {
 
   if (!data) return <p className="loading">…</p>;
 
-  const { employee, sections, office_set: officeSet, progress } = data;
+  const { employee, sections, office_set: officeSet, progress, waiting = [], on_record: onRecord = [], turned_down: turnedDown = [] } = data;
 
   const say = (text) => {
     setSaid(text);
@@ -106,7 +109,7 @@ export default function MyProfileForm({ onError }) {
     if (ONCE_ONLY.includes(name) && String(value ?? '').trim()) {
       const label = sections.flatMap((s) => s.fields).find((f) => f.field === name)?.label || name;
       const ok = window.confirm(
-        `Save your ${label} as ${value}?\n\nCheck it against the card. Once it is on your record only the office can change it.`
+        `Send your ${label} as ${value}?\n\nCheck it against the card. Once HR has approved it onto your record only the office can change it.`
       );
       if (!ok) {
         await load();
@@ -116,8 +119,8 @@ export default function MyProfileForm({ onError }) {
     setRefused(null);
     try {
       const next = await api.patch('/me/profile', { [name]: value });
-      setData((d) => ({ ...d, employee: next.employee, progress: next.progress }));
-      say('Saved.');
+      setData((d) => ({ ...d, ...next }));
+      say(next.withdrawn?.length ? 'Taken back.' : 'Sent to HR — it goes onto your record when they approve it.');
     } catch (err) {
       /*
        * A refusal is shown as a sentence, not swallowed. The server answers
@@ -155,6 +158,28 @@ export default function MyProfileForm({ onError }) {
           </p>
         )}
         {refused && <p className="warn">{refused}</p>}
+        {/*
+          * WHAT THEY TYPED IS NOT THE RECORD YET. Said at the top, in a
+          * sentence, because "I filled in my UAN" is exactly what somebody
+          * will tell the office the day the PF return still has no number.
+          */}
+        {waiting.length > 0 && (
+          <p className="banner">
+            <strong>
+              {waiting.length} thing{waiting.length === 1 ? '' : 's'} you filled in {waiting.length === 1 ? 'is' : 'are'} waiting for HR.
+            </strong>{' '}
+            They go onto your record when HR approves them. Until then you can still correct them here.
+          </p>
+        )}
+        {turnedDown.length > 0 && (
+          <div className="stack-tight">
+            {turnedDown.map((t) => (
+              <p className="warn small" key={t.field}>
+                HR did not accept your {t.label}{t.value ? ` (${t.value})` : ''}: {t.note}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       {sections.map((section) => (
@@ -169,7 +194,8 @@ export default function MyProfileForm({ onError }) {
                 value={employee[f.field]}
                 /* Fill a blank; a number already on the record is the
                    office's to correct, because they can see the card. */
-                locked={ONCE_ONLY.includes(f.field) && filled(employee[f.field])}
+                locked={ONCE_ONLY.includes(f.field) && onRecord.includes(f.field)}
+                waiting={waiting.includes(f.field)}
                 onSave={save}
               />
             ))}
@@ -200,8 +226,8 @@ export default function MyProfileForm({ onError }) {
       </div>
 
       <p className="muted small">
-        {said || SELF_DECLARATION} Every change is saved with your name and the date, so the office
-        can see what you corrected and when.
+        {said || SELF_DECLARATION} What you fill in goes to HR first; once approved it is saved on your
+        record with your name and the date.
       </p>
     </div>
   );

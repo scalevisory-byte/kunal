@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { APPRAISAL_KINDS, appraisalKindLabel } from '../../../../shared/appraisal.js';
 import { col, num, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { rupees } from '../../format.js';
@@ -30,6 +31,7 @@ export default function Appraisals({ employees, onError, onReload, only = null }
     cycle: '',
     reviewed_on: today(),
     reviewed_by: '',
+    kind: 'increment',
     rating: '',
     to_salary: '',
     effective_from: '',
@@ -85,6 +87,7 @@ export default function Appraisals({ employees, onError, onReload, only = null }
         col('Reviewed', (r) => r.reviewed_on || ''),
         col('Employee', (r) => r.employee_name),
         col('Cycle', (r) => r.cycle || ''),
+        col('For', (r) => appraisalKindLabel(r.kind)),
         col('Rating', (r) => r.rating || ''),
         num('Was on', (r) => rupees(r.from_salary)),
         num('Proposed', (r) => (r.to_salary ? rupees(r.to_salary) : '—')),
@@ -184,6 +187,18 @@ export default function Appraisals({ employees, onError, onReload, only = null }
                 ))}
               </select>
             </label>
+            {/* WHAT IT IS FOR. An appraisal is a review; a pay rise is one
+                thing it can be for, and until this box existed every one of
+                them read as a pay rise. */}
+            <label>
+              What it is for
+              <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
+                {APPRAISAL_KINDS.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <span className="hint">{APPRAISAL_KINDS.find(([k]) => k === draft.kind)?.[2]}</span>
+            </label>
             <label>
               Cycle
               <input
@@ -265,6 +280,7 @@ export default function Appraisals({ employees, onError, onReload, only = null }
               <th>Reviewed</th>
               <th>Who</th>
               <th>Cycle</th>
+              <th>For</th>
               <th>Rating</th>
               <th className="num">From</th>
               <th className="num">To</th>
@@ -279,6 +295,7 @@ export default function Appraisals({ employees, onError, onReload, only = null }
                 <td>{row.reviewed_on}</td>
                 <td className="sticky-name">{row.employee_name}</td>
                 <td>{row.cycle || '—'}</td>
+                <td>{appraisalKindLabel(row.kind) || '—'}</td>
                 <td>{row.rating || '—'}</td>
                 <td className="num">{rupees(row.from_salary)}</td>
                 <td className="num">{row.to_salary ? rupees(row.to_salary) : '—'}</td>

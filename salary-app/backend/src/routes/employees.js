@@ -24,6 +24,7 @@ import { deleteDocumentFile, documentFile, documentLink, uploadDocument } from '
 import { documentStatus } from '../../../shared/documents.js';
 import { punchLink } from './punch.js';
 import { config } from '../config.js';
+import { decideProfileChanges, listProfileChanges, profileChangesWaiting } from '../profileChanges.js';
 import { buildPayroll } from '../payroll.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 import ExcelJS from 'exceljs';
@@ -160,6 +161,29 @@ employeesRouter.get('/', (req, res) => {
  * again - which is the right way round, because a gap in the series is a
  * question nobody can answer afterwards.
  */
+/*
+ * What staff typed about themselves, waiting for HR. Declared before /:id so
+ * the words are not read as an id. Changing anything here needs `write`, which
+ * is HR, Manager and Admin - the mount in server.js refuses the rest.
+ */
+employeesRouter.get('/profile-changes', (req, res) =>
+  res.json({ people: listProfileChanges({ company_id: req.query.company_id }), waiting: profileChangesWaiting() })
+);
+
+employeesRouter.post('/profile-changes/decide', (req, res) => {
+  try {
+    res.json(
+      decideProfileChanges(req.body?.ids, {
+        approve: Boolean(req.body?.approve),
+        note: req.body?.note,
+        by: req.actor?.name || 'office',
+      })
+    );
+  } catch (err) {
+    res.status(/not found/.test(err.message) ? 404 : 400).json({ error: err.message });
+  }
+});
+
 employeesRouter.get('/next-code', (req, res) => {
   const companyId = Number(req.query.company_id);
   const company = listCompanies().find((c) => c.id === companyId);

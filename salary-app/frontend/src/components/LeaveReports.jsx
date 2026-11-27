@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { days, rupees } from '../format.js';
 import { col, num, printReport } from '../printReport.js';
@@ -326,6 +326,177 @@ function Fig({ label, value, strong }) {
     <div className="stat plain">
       <span className={`value${strong ? ' strong' : ''}`}>{value}</span>
       <span className="label">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * EVERYBODY'S LEAVE BALANCE, ON ONE PAGE.
+ *
+ * Dinesh: *"Leave balance report complete"*. It existed as a CSV download and
+ * nothing else - no screen, so nobody could look a figure up without opening a
+ * spreadsheet. This is the same `/leave/balances` the Leave tab reads, laid
+ * out as a report: for each paid leave type what they started the year with,
+ * what was added, what was taken and what is left, plus unpaid leave taken.
+ *
+ * It assembles. Every figure is the ledger's own, so this page, the Leave tab,
+ * the employee's portal and the line beside an Approve button are one number.
+ */
+export function LeaveBalanceReport({ period, companyId, department }) {
+  const year = period?.year || new Date().getFullYear();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [onlyOver, setOnlyOver] = useState(false);
+
+  useEffect(() => {
+    setError('');
+    setData(null);
+    api
+      .get(`/leave/balances?year=${year}${companyId ? `&company_id=${companyId}` : ''}`)
+      .then(setData)
+      .catch((err) => setError(err.message));
+  }, [year, companyId]);
+
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <p className="muted small">Loading…</p>;
+
+  const paid = (data.types || []).filter((t) => t.paid);
+  const q = query.trim().toLowerCase();
+  const rows = (data.rows || []).filter(
+    (r) =>
+      (!department || String(r.department || '') === String(department)) &&
+      (!q || r.name.toLowerCase().includes(q) || String(r.code || '').toLowerCase().includes(q)) &&
+      (!onlyOver || paid.some((t) => r.types[t.code]?.over))
+  );
+  const of = (r, code, key) => Number(r.types[code]?.[key]) || 0;
+  const sum = (code, key) => rows.reduce((n, r) => n + of(r, code, key), 0);
+  const overdrawn = rows.filter((r) => paid.some((t) => r.types[t.code]?.over)).length;
+  /* Nobody has been given anything: every Left reads nought, which looks like
+     lost data and is really a job nobody has done. Said once, plainly. */
+  const nothingSet = rows.length > 0 && rows.every((r) => paid.every((t) => !of(r, t.code, 'opening') && !of(r, t.code, 'credited')));
+
+  const flat = rows.map((r) => {
+    const out = { Code: r.code, Employee: r.name, Company: r.company_name, Department: r.department || '' };
+    for (const t of paid) {
+      out[`${t.code} due`] = of(r, t.code, 'opening') + of(r, t.code, 'credited');
+      out[`${t.code} taken`] = of(r, t.code, 'availed');
+      out[`${t.code} left`] = of(r, t.code, 'balance');
+    }
+    out['Unpaid taken'] = of(r, 'UL', 'availed');
+    return out;
+  });
+  const heads = Object.keys(flat[0] || { Code: '', Employee: '', Company: '', Department: '' });
+
+  const print = () =>
+    printReport({
+      title: 'Employee leave balance',
+      subtitle: String(year),
+      meta: [
+        `${rows.length} ${rows.length === 1 ? 'person' : 'people'}` +
+          (overdrawn ? ` · ${overdrawn} have taken more than they had` : ''),
+        'Due is what they started the year with plus anything added since. Unpaid leave has no balance: it is docked as it is taken.',
+      ],
+      landscape: true,
+      columns: heads.map((h) => (['Code', 'Employee', 'Company', 'Department'].includes(h) ? col(h, (r) => r[h]) : num(h, (r) => days(r[h]), '6%'))),
+      rows: flat,
+      totals: {
+        label: `Total (${rows.length})`,
+        ...Object.fromEntries(
+          heads.filter((h) => !['Code', 'Employee', 'Company', 'Department'].includes(h)).map((h) => [h, days(flat.reduce((n, r) => n + (Number(r[h]) || 0), 0))])
+        ),
+      },
+    });
+
+  return (
+    <div>
+      <div className="toolbar">
+        <input className="search" placeholder="Search a name or code" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <label className="check">
+          <input type="checkbox" checked={onlyOver} onChange={(e) => setOnlyOver(e.target.checked)} />
+          Only people who have taken more than they had
+        </label>
+        <span className="grow" />
+        <button className="ghost" onClick={print} disabled={!rows.length}>Print</button>
+        <button className="ghost" onClick={() => saveCsv(`Leave-balance-${year}.csv`, heads.map((h) => [h, h]), flat)} disabled={!rows.length}>
+          Excel (CSV)
+        </button>
+      </div>
+
+      {nothingSet ? (
+        <p className="banner">
+          <strong>Nobody on this list has been given a leave entitlement</strong>, so every “left”
+          reads nought. The days TAKEN are right — they come off the attendance grid. Set the
+          entitlements under <strong>Leave → Balances</strong> and this report fills in.
+        </p>
+      ) : null}
+
+      <table className="sheet">
+        <thead>
+          <tr>
+            <th rowSpan={2}>Employee</th>
+            <th rowSpan={2}>Company / department</th>
+            {paid.map((t) => (
+              <th key={t.code} colSpan={3}>{t.label}</th>
+            ))}
+            <th rowSpan={2} title="Unpaid leave has no balance - each day is docked as it is taken">Unpaid taken</th>
+          </tr>
+          <tr>
+            {paid.map((t) => (
+              <Fragment key={t.code}>
+                <th title="What they started the year with, plus anything added since">Due</th>
+                <th>Taken</th>
+                <th>Left</th>
+              </Fragment>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.employee_id}>
+              <td>
+                {r.name}
+                <div className="muted small">{r.code}</div>
+              </td>
+              <td className="muted small">{[r.company_name, r.department].filter(Boolean).join(' · ')}</td>
+              {paid.map((t) => (
+                <Fragment key={t.code}>
+                  <td className="num muted">{days(of(r, t.code, 'opening') + of(r, t.code, 'credited'))}</td>
+                  <td className="num">{days(of(r, t.code, 'availed'))}</td>
+                  {/* Never clamped: somebody who has taken more than they had
+                      should read as that, not as a comfortable nought. */}
+                  <td className={`num strong${r.types[t.code]?.over ? ' deduct' : ''}`}>{days(of(r, t.code, 'balance'))}</td>
+                </Fragment>
+              ))}
+              <td className="num">{days(of(r, 'UL', 'availed'))}</td>
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr><td colSpan={3 + paid.length * 3} className="empty">Nobody matches.</td></tr>
+          )}
+        </tbody>
+        {rows.length > 0 && (
+          <tfoot>
+            <tr>
+              <td>Total ({rows.length})</td>
+              <td />
+              {paid.map((t) => (
+                <Fragment key={t.code}>
+                  <td className="num">{days(sum(t.code, 'opening') + sum(t.code, 'credited'))}</td>
+                  <td className="num">{days(sum(t.code, 'availed'))}</td>
+                  <td className="num">{days(sum(t.code, 'balance'))}</td>
+                </Fragment>
+              ))}
+              <td className="num">{days(sum('UL', 'availed'))}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+      <p className="muted small">
+        The same figures as <strong>Leave → Balances</strong>, the employee’s own portal and the
+        line beside every Approve button. A figure in red has gone below nought: they have taken
+        more than they had, which is somebody’s decision to make, not a sum to hide.
+      </p>
     </div>
   );
 }

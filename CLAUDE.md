@@ -2251,6 +2251,98 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### The office's list of twenty (v2.31.0)
+
+Dinesh sent twenty points in one message. Each was **inspected first**; several already
+existed and were said so rather than rebuilt (item 13, employee fills own record — v1.81;
+document verification — v1.72; Tidy names). What was built, and the rule each hangs on:
+
+- **Leavers off the month** (`shared/onStaff.js` `leaverIn` / `paidAfterLeaving` /
+  `leftLabel`, `strandedRows` in `db.js`). *"Exit employee still attendance and salary
+  register me dikh raha he"*. The cause: a stranded row was only cleared when it had **no
+  attendance at all**, and "Mark everyone Present" gives everybody attendance. Now somebody
+  whose `left_on` is **before the month starts** is off it whatever is on the grid — unless
+  money is typed on the row. Left **during** the month: stays, tagged `left 12 Nov`, and
+  `payrollExceptions` names `paid_after_leaving` (P or blank after the last day, priced) and
+  `left_no_date`. **Undated leavers stay and are named** — the app cannot guess a date.
+- **Leave: manager first, then the office** (`MANAGER_FIRST_KINDS`, `managerOf` in
+  `attendanceSelf.js`, `backend/src/leaveBalance.js`). The office's approve of a `pending`
+  leave is **refused by name** while the person's manager *can act* (active, with an active
+  login). **Nobody is stuck:** no manager, or a manager with no login → the office decides,
+  and the row says which. The office may still **reject** at once (a no costs nothing).
+  `MAX_LEAVE_DAYS = 7`. **One ledger sum feeds all three screens** (`withLeaveContext`):
+  employee, manager, office each see left / taking / after. "Notification" is **on screen** —
+  a `.team-waiting` banner on the manager's portal, a `.who-waiting` count in the office
+  header, both re-asked every minute. **Nothing is sent**: there is still no channel.
+- **Leave without approval costs double — a TOOL** (`shared/unapprovedLeave.js`, Leave →
+  *Without approval*). Three piles: **refused** (`approved === false`) is offered;
+  **undecided** (null) is *named and left alone* unless ticked — null is not a refusal;
+  **approved** stays single and is counted so the office sees the rule looked. It writes the
+  existing **AD** mark and only the mark, so the reason and the decision survive; priced by
+  `calculateRow` (net now − net with those days at AD), never multiplied out. Skips days
+  after somebody left and days that have not happened. Proof for a sudden leave **is** the
+  Approved tick with a reason — no new upload was invented.
+- **What an employee fills in waits for HR** (`backend/src/profileChanges.js`,
+  `ProfileApprovals.jsx`). *"profile approve karne ka right HR ke paas"*. **This reversed
+  v1.81's write-through** — the three API tests that pinned it were REWRITTEN to state the
+  new rule. `PATCH /me/profile` now calls `proposeChanges`; the record is untouched.
+  One waiting change per field (partial unique index); typing the record's own value back
+  withdraws it. `applySelf` is asked against the **RECORD**, so a UAN that is only waiting
+  can still be corrected. Their page shows an overlay (`waiting`, `on_record`,
+  `turned_down`) so a box showing their value says it is not on the record yet. Approval
+  goes through `updateEmployee` with a note naming who typed and who approved. **A
+  once-only number already on the record with a different value is HELD, not overwritten.**
+  Bank and phone now wait too — deliberate, since a bank account is the one worth checking.
+- **Assets: Fixed / Movable** (`shared/assetNature.js`, `assets.nature`). Stored value is
+  what somebody SAID and always wins; otherwise the **kind** gives a starting answer marked
+  `?`; an unknown kind gets **none** ("not said" is a pile somebody can clear; a wrong guess
+  is one nobody looks at again). Every asset is under exactly one of three chips. Bulk set
+  writes the **ids it was shown**. It is deliberately one level above `assetGroups` —
+  Desktop and Laptop are both "Computer".
+- **Employee-wise assets:** the Add form has **Give it to** (createAsset already logged the
+  handover), the filter bar has **Anybody's** (holders only), and the Add button becomes
+  *Add an asset for X*.
+- **Staff declare what they hold** (`asset_claims`, `MyAssets.jsx`, `AssetClaims.jsx`).
+  **A declaration never touches the register**; match / add / dismiss does. Matching an
+  asset that is out with **somebody else** is refused by name. A serial already on the
+  register cannot be *added* — it is that asset. `/api/me/assets` sends `forHolder` fields
+  only: no cost, vendor or invoice. **The portal never had an assets page at all** — the
+  route existed since the staff login and nothing rendered it.
+- **Sunday pay needs a manager's approval** (`backend/src/sundayApproval.js`,
+  `sunday_approved_by/at/amount`). `approve` ability = Manager and Admin; HR prepares and
+  pays. **An approval is of an AMOUNT** — computed by `buildPayroll(…, {sync:false})`; a
+  changed figure makes it stale and the Paid tick is refused naming both figures. The three
+  columns are **not in `PAYROLL_FIELDS`**, so the row patch cannot forge one (tested).
+  Nothing already paid is touched. Standalone: no logins, so no approval step at all.
+- **Appraisals** (`shared/appraisal.js`, `AppraisalSheet.jsx`): `appraisals.kind` dropdown;
+  the monthly sheet scores uniform / discipline / time / attendance / target as
+  **true / false / null**. `payroll_rows.target_met` is a tick, in no calculation.
+  **Found by driving it:** seven hours on a Sunday read as "left early" — `PAID_BY_THE_DAY`
+  marks are not judged against weekday hours.
+- **Employee master:** four parent-work fields (also fillable by the employee); `hod_id`
+  off the form, column kept; a name is tidied on blur.
+- **Digest:** three new lines (own-record changes, unchecked documents, declared assets),
+  each scoped by `may(req.actor, …)` and each opening the screen that can act.
+
+**Answered, not built:** *which role sets the reporting manager* — none special; any office
+login that can edit employees (Admin, Manager, HR; Accounts/Operator if Employees is
+ticked). It is in the `roles` help topic.
+
+**Traps met, worth remembering:**
+- **A Python-inserted `import` landed INSIDE a multi-line import** (again) — "Unexpected
+  reserved word" at load, no file named. Insert before the first line, not after it.
+- **Vite does not catch an undefined JSX identifier.** `<ProfileApprovals>` and `STANDALONE`
+  were used with no import and the build passed; only the browser would have thrown. Grep
+  the import after adding a component by script.
+- **`.scroll-x` has no rule** — invented class, ninth time; the portal's My assets ran 52px
+  wide on a phone until it used `.table-wrap`.
+- **A driver script that imports `backend/src/*.js` opens the DEFAULT `data/salary.db`** and
+  migrates it. Drive through HTTP only.
+- **Playwright auto-dismisses `window.confirm`**: a manager's Approve "did nothing" until
+  the script accepted dialogs.
+- Slicing a route out by `index('});\n')` cuts at `json({ … });` — count braces or match the
+  whole handler.
+
 ### Front desk: the visitor's mobile is optional (v2.30.1)
 
 Dinesh: *"front desk se compausory mobiel num hata do"*. `createVisitor` in

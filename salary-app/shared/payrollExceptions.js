@@ -37,6 +37,9 @@
  */
 
 import { isWeeklyOff, policyFor } from './weeklyOff.js';
+import { leaverIn, paidAfterLeaving } from './onStaff.js';
+
+const ordinal = (d) => (d % 10 === 1 && d !== 11 ? 'st' : d % 10 === 2 && d !== 12 ? 'nd' : d % 10 === 3 && d !== 13 ? 'rd' : 'th');
 
 const n = (v) => Number(v) || 0;
 const money = (v) => `₹${Math.round(n(v)).toLocaleString('en-IN')}`;
@@ -70,6 +73,8 @@ export const EXCEPTION_KINDS = [
   ['esi_over_limit', 'ESI deducted above the wage limit', 'warning'],
   ['big_deduction', 'Deductions are more than half the gross', 'warning'],
   ['no_bank_details', 'Bank transfer with no account or IFSC', 'warning'],
+  ['paid_after_leaving', 'Paid for days after they left', 'warning'],
+  ['left_no_date', 'Marked as left with no leaving date', 'warning'],
   ['on_hold', 'This row is on hold', 'info'],
   ['awaiting_approval', 'The month is waiting for approval', 'info'],
 ];
@@ -277,6 +282,35 @@ export function payrollExceptions(rows = [], { period = {}, today = '', holidays
       say(entry, 'negative_net', 'Deductions come to more than the earnings. Verify the loan, penalty and deduction figures.', net);
     } else if (!net && n(row.salary)) {
       say(entry, 'zero_net', 'Nothing is payable this month. Verify the salary setup and the attendance.', 0);
+    }
+
+    /*
+     * SOMEBODY WHO LEFT PART WAY THROUGH. The sheet pays 26 days less what is
+     * marked absent, so every unmarked day after their last one is paid. It
+     * is said here and nothing is taken off: a final salary is cut by marking
+     * the days, where it can be seen, not by a rule.
+     */
+    const leaver = leaverIn({ ...employee, ...row }, period);
+    if (leaver.left === 'during') {
+      const after = paidAfterLeaving({ ...employee, ...row }, period, row.attendance || {});
+      if (after.days.length) {
+        say(
+          entry,
+          'paid_after_leaving',
+          `Last working day was the ${leaver.day}${ordinal(leaver.day)}, but ${after.days.length} day(s) after it are ` +
+            `not marked absent, so they are being paid. On the attendance grid use "A date range…" on their row ` +
+            `to mark them Absent if the month should stop there.`,
+          n(calc.per_day) * after.days.length
+        );
+      }
+    } else if (leaver.left === 'undated') {
+      say(
+        entry,
+        'left_no_date',
+        'They are marked as left but there is no leaving date, so nobody can say which month they stop ' +
+          'belonging to and they stay on this one. Put the date on their record under Employees.',
+        null
+      );
     }
 
     const absent = n(calc.absent_days);

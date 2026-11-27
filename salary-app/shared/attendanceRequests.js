@@ -218,6 +218,25 @@ export function daysOf(request = {}) {
  * Is this request even askable? Shape only — whether it is *right* is the
  * office's call, which is the whole point.
  */
+/**
+ * How many days of leave may be asked for in one go.
+ *
+ * Dinesh: *"7 days se jyada ek sath leave nahi le sakte"*. It is a rule about
+ * APPLYING: the office marking the grid is not stopped by it, because a long
+ * illness is still an absence that has to be recorded somewhere.
+ */
+export const MAX_LEAVE_DAYS = 7;
+
+/**
+ * The kinds that wait for the reporting manager before the office may approve.
+ *
+ * Dinesh: *"leave ke liye pehle reporting manager leave approve karega after
+ * that hr approve karega to hi leave milega"*. Time off, in whole days or in
+ * hours. A missing punch or a correction is a record being put right and has
+ * never needed a manager; working from home and official duty are days WORKED.
+ */
+export const MANAGER_FIRST_KINDS = new Set(['leave', 'short_leave']);
+
 export function validateRequest(request = {}) {
   const problems = [];
   const kind = String(request.kind || '');
@@ -232,6 +251,12 @@ export function validateRequest(request = {}) {
     if (!Number.isInteger(to) || to < 1 || to > 31) problems.push('the last day is not a date');
     else if (!spans(kind)) problems.push(`a ${kindLabel(kind).toLowerCase()} request covers one day`);
     else if (to < day) problems.push('the last day is before the first');
+    else if (kind === 'leave' && to - day + 1 > MAX_LEAVE_DAYS) {
+      problems.push(
+        `leave can be applied for ${MAX_LEAVE_DAYS} days at a time at most — this is ${to - day + 1}. ` +
+          `Talk to the office about a longer absence`
+      );
+    }
   }
 
   const needs = needsOf(kind);
@@ -407,3 +432,29 @@ export const STATUS_LABEL = {
   withdrawn: 'withdrawn',
   cancelled: 'cancelled after approval',
 };
+
+/**
+ * The leave balance, in the words a decision is taken on.
+ *
+ * One sentence for the office's queue, the manager's page and the employee's
+ * own list, so three people looking at one application read one figure.
+ * `over` is true when it asks for more than there is - said, never refused:
+ * the office can still grant it, and it is their call to.
+ */
+export function balanceLine(balance) {
+  if (!balance) return null;
+  const days = (n) => `${n} day${Number(n) === 1 ? '' : 's'}`;
+  if (!balance.paid || balance.left === null || balance.left === undefined) {
+    return {
+      over: false,
+      text: `${balance.label}: no balance to run down — ${days(balance.taking)}, each docked as it is taken`,
+    };
+  }
+  const over = balance.after < 0;
+  return {
+    over,
+    text: over
+      ? `${balance.label}: ${days(balance.left)} left, this asks for ${balance.taking} — ${days(-balance.after)} more than they have`
+      : `${balance.label}: ${days(balance.left)} left · this takes ${balance.taking} · ${days(balance.after)} after`,
+  };
+}

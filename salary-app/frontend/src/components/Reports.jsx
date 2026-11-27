@@ -15,7 +15,8 @@ import BizcompassImport from './BizcompassImport.jsx';
 import PunchDevices from './PunchDevices.jsx';
 import Statutory from './Statutory.jsx';
 import LeaveRegister from './LeaveRegister.jsx';
-import { LeaveApplications, LeaveByDepartment } from './LeaveReports.jsx';
+import { LeaveApplications, LeaveBalanceReport, LeaveByDepartment } from './LeaveReports.jsx';
+import AppraisalSheet from './AppraisalSheet.jsx';
 import { DeductionStatement, SalaryByDepartment } from './PayReports.jsx';
 import MissingPunch from './MissingPunch.jsx';
 import PunchIdReport from './PunchIdReport.jsx';
@@ -108,6 +109,16 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     if (focus !== 'approvals') return;
     setOpenCategory('attendance');
     setOpenId('attendance-approvals');
+    onFocused?.();
+  }, [focus, onFocused]);
+  /* "N documents not checked yet" on the dashboard opens the register that
+     can check them, already narrowed to those. */
+  const [docsOnly, setDocsOnly] = useState('');
+  useEffect(() => {
+    if (focus !== 'documents') return;
+    setOpenCategory('employee');
+    setOpenId('employee-documents');
+    setDocsOnly('unchecked');
     onFocused?.();
   }, [focus, onFocused]);
   const [file, setFile] = useState(null);
@@ -244,10 +255,19 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
     'leave-by-department': () => (
       <LeaveByDepartment period={period} companyId={filters.company_id || null} />
     ),
+    'appraisal-sheet': () => (shown ? <AppraisalSheet payroll={shown} onReload={onReload} onGo={onGo} /> : null),
+    'leave-balance': () => (
+      <LeaveBalanceReport
+        period={period}
+        companyId={filters.company_id || null}
+        department={filters.department || null}
+      />
+    ),
     'leave-month': () => (shown ? <LeaveRegister payroll={shown} /> : null),
     'leave-lop': () => (shown ? <LeaveRegister payroll={shown} /> : null),
     'employee-documents': () => (
       <DocumentRegister
+        startOn={docsOnly}
         companyId={filters.company_id || null}
         onGo={onGo}
         onError={(m) => setError(m)}

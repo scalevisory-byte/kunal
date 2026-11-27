@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { STANDALONE } from '../api.js';
+import ProfileApprovals from './ProfileApprovals.jsx';
 import { col, num, printReport } from '../printReport.js';
 import { bankDetailsMissing, openOnboarding } from '../../../shared/onboarding.js';
 import EmployeeReport from './EmployeeReport.jsx';
@@ -427,6 +429,15 @@ export default function Employees({
           <option key={name} value={name} />
         ))}
       </datalist>
+
+      {/*
+        * WHAT STAFF FILLED IN, WAITING FOR HR - first thing on the tab, and
+        * only while there is something. Until it is approved, a UAN somebody
+        * typed from their phone is on no return.
+        */}
+      {!STANDALONE && (
+        <ProfileApprovals companyId={companyId} onDone={onReload} onOpen={(id) => setProfileFor(id)} />
+      )}
 
       <div className="card">
         <div className="toolbar">

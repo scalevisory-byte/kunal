@@ -83,6 +83,15 @@ export function digest(input = {}) {
      * dashboard cannot have a different opinion about one laptop.
      */
     asset_dates: assetDates = null,
+    /*
+     * Three things staff do from their own login that wait for the office:
+     * a record they filled in, a paper they uploaded, an asset they say they
+     * hold. Each arrives already counted, so this module names them and
+     * decides nothing.
+     */
+    profile_changes: profileChanges = null,
+    unchecked_documents: uncheckedDocuments = [],
+    asset_claims: assetClaims = [],
     /** How far ahead to look. A month, because that is the notice people need. */
     ahead = 30,
     today = todayIso(),
@@ -128,6 +137,41 @@ export function digest(input = {}) {
       // the only screen that can approve one is in Reports.
       'reports',
       'approvals'
+    );
+  }
+
+  if (profileChanges?.changes) {
+    add(
+      `• ${plural(profileChanges.people, 'person', 'people')} filled in their own record — ${plural(
+        profileChanges.changes,
+        'change'
+      )} waiting for HR: ${names(profileChanges.names || [])}`,
+      1,
+      'queue',
+      'employees'
+    );
+  }
+
+  if (uncheckedDocuments.length) {
+    add(
+      `• ${plural(uncheckedDocuments.length, 'document')} uploaded and not checked yet: ${names(
+        [...new Set(uncheckedDocuments.map((d) => d.employee_name))]
+      )}`,
+      1,
+      'queue',
+      'reports',
+      'documents'
+    );
+  }
+
+  if (assetClaims.length) {
+    add(
+      `• ${plural(assetClaims.length, 'asset')} staff say they are holding, waiting to be checked: ${names(
+        [...new Set(assetClaims.map((c) => c.employee_name))]
+      )}`,
+      1,
+      'queue',
+      'assets'
     );
   }
 
