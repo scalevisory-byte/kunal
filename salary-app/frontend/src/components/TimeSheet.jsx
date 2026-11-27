@@ -19,6 +19,7 @@ import { shiftOfMonth, writeStandardTimes } from '../standardTimes.js';
 import LatePolicy from './LatePolicy.jsx';
 import MonthlyHours from './MonthlyHours.jsx';
 import { fillTimesFor, hasOwnShift, hoursForEmployee, shiftLengthProblem } from '../../../shared/lateEarly.js';
+import { OFF_DAY_MAY_BECOME, SUNDAY_MARKS, offDayVerdict, ownWeeklyOff } from '../../../shared/sundayDuty.js';
 import TimeCalendar from './TimeCalendar.jsx';
 import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import ScrollFrame from './ScrollFrame.jsx';
@@ -192,7 +193,17 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         });
         const current = String(row?.attendance?.[d]?.code || '').toUpperCase();
         // Only a mark that says nothing in particular gives way to the clock.
-        const code = worked.code && AUTO_MARKS.has(current) ? worked.code : current;
+        /* Their own weekly off is judged as one: six hours on it is a Sunday
+           worked (SP, on the Sunday register), anything less is still the day
+           off. Typed here it used to come out P or HF like any Tuesday - and
+           HF docks half a day from somebody who came in on their day off. */
+        const onOwnOff =
+          !!row && !!merged.in_time && OFF_DAY_MAY_BECOME.has(current) && ownWeeklyOff(row, period, d);
+        const code = onOwnOff
+          ? offDayVerdict(merged, period).code
+          : worked.code && AUTO_MARKS.has(current)
+            ? worked.code
+            : current;
         return {
           employee_id: employeeId,
           day: d,
@@ -238,8 +249,21 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
     if (locked) return;
     const next = { ...draft };
     let filled = 0;
+    let daysOff = 0;
     for (const { row, day: d } of targets) {
       if (onlyBlank && hasTimes(entryOf(row, d))) continue;
+      /*
+       * NEVER ONTO SOMEBODY'S OWN DAY OFF.
+       *
+       * Times on a weekly off now mean something: six hours there is a Sunday
+       * worked and goes on the Sunday register for a day's pay. The usual
+       * timings are nine hours, so one press on a Sunday would have put the
+       * whole office on the register. Nobody is "usually" in on their day off.
+       */
+      if (ownWeeklyOff(row, period, d) && !SUNDAY_MARKS.has(String(entryOf(row, d)?.code || '').toUpperCase())) {
+        daysOff++;
+        continue;
+      }
       /*
        * THEIR OWN SHIFT, NOT THE OFFICE'S, when they have one.
        *
@@ -253,7 +277,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
       filled++;
     }
     if (!filled) {
-      setStatus('Every day on screen already has times');
+      setStatus(
+        daysOff
+          ? 'Nothing to fill - a day off is left alone, and every other day already has times'
+          : 'Every day on screen already has times'
+      );
       setTimeout(() => setStatus(''), 2500);
       return;
     }

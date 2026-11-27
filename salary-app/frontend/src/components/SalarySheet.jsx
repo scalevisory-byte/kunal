@@ -11,6 +11,7 @@ import {
   hasTypedHours,
   hoursDecision,
   hoursMinutesOf,
+  hoursMoney,
 } from '../../../shared/hoursDecision.js';
 import { salaryDrift, takeMasterPatch } from '../../../shared/salaryDrift.js';
 import { payslipFileName, payslipHtml } from '../../../shared/payslipPage.js';
@@ -124,6 +125,34 @@ export default function SalarySheet({
 }) {
   const [query, setQuery] = useState('');
   const [dense, setDense] = useState(true);
+  /*
+   * THE HOURS COLUMNS CAN BE PUT AWAY.
+   *
+   * HR, with a crop of Month hrs / OT min / OT Rs: *"ye salary sheet me se hi
+   * remove nai kr skte ?"*. On a month paid from the days alone those three
+   * columns are information, and a column of +119s and -50s reads as a column
+   * of deductions to whoever is checking the sheet.
+   *
+   * Hidden, not removed: nothing about the calculation changes, the Excel and
+   * the payslip are untouched, and the choice is this browser's. And HIDING A
+   * COLUMN MUST NOT HIDE MONEY - whatever the hours are worth in the net is
+   * still said, in one line, with the way back beside it.
+   */
+  const [hideHours, setHideHours] = useState(() => {
+    try {
+      return localStorage.getItem('salary-sheet-hide-hours') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const chooseHours = (hide) => {
+    setHideHours(hide);
+    try {
+      localStorage.setItem('salary-sheet-hide-hours', hide ? '1' : '0');
+    } catch {
+      /* a private window throws on even touching it; the choice still holds for this visit */
+    }
+  };
   const [sending, setSending] = useState(false);
   const [view, setView] = useState('sheet');
   const [review, setReview] = useState(null);
@@ -189,6 +218,7 @@ export default function SalarySheet({
    * search narrow it like everything else on this screen.
    */
   const decision = useMemo(() => hoursDecision(calcs, { period }), [calcs, period]);
+  const hoursInNet = useMemo(() => hoursMoney(calcs), [calcs]);
 
   /*
    * WHERE THE MONTH AND THE RECORD DISAGREE ABOUT SOMEBODY'S SALARY.
@@ -521,6 +551,10 @@ export default function SalarySheet({
           <input type="checkbox" checked={dense} onChange={(e) => setDense(e.target.checked)} />
           Compact
         </label>
+        <label className="check" title="Month hrs, OT min and OT ₹. Hiding them changes nothing that is paid.">
+          <input type="checkbox" checked={!hideHours} onChange={(e) => chooseHours(!e.target.checked)} />
+          Hours columns
+        </label>
         {/*
           * Hand the month out without putting anything on the internet.
           *
@@ -610,7 +644,28 @@ export default function SalarySheet({
         </div>
       ) : null}
 
-      {decision.anything ? (
+      {hideHours ? (
+        <div className="row gap wrap hours-decide hours-hidden">
+          <span>
+            The hours columns are hidden.{' '}
+            {decision.charging ? null : hoursInNet.any ? (
+              <strong>
+                {chargedPhrase(hoursInNet, inRupees)} for hours is still in the net below &mdash;
+                hiding the columns does not take it out.
+              </strong>
+            ) : (
+              <>Nothing is charged or paid for hours on this sheet.</>
+            )}
+          </span>
+          <button type="button" className="ghost" onClick={() => chooseHours(false)}>
+            Show them
+          </button>
+        </div>
+      ) : null}
+
+      {/* Hidden with the columns - unless the month's RULE is charging, when
+          this bar is the only place that says so and holds the way to stop. */}
+      {decision.anything && (!hideHours || decision.charging) ? (
         <div className="row gap wrap hours-decide">
           <strong>The month&rsquo;s hours</strong>
           {/*
@@ -685,7 +740,7 @@ export default function SalarySheet({
       ) : null}
 
       <ScrollFrame className={dense ? 'dense' : ''}>
-        <table className="sheet numbered">
+        <table className={`sheet numbered${hideHours ? ' hide-hours' : ''}`}>
           <thead>
             {/*
               * The grouped band from his mock-up. It is labels only: not one
@@ -697,7 +752,7 @@ export default function SalarySheet({
               <th className="sticky-name" />
               <th colSpan={6}>Attendance</th>
               <th colSpan={5}>Salary calculation</th>
-              <th colSpan={3}>Hours</th>
+              <th colSpan={3} className="hrs-col">Hours</th>
               <th colSpan={3}>Add / deduct</th>
               <th colSpan={3}>Statutory</th>
               <th colSpan={2}>Recoveries</th>
@@ -725,11 +780,11 @@ export default function SalarySheet({
                 * nobody's pay - it is here so the office can SEE it and
                 * decide, which is exactly what the box beside it is for.
                 */}
-              <th title="What the clock came to this month: hours worked against hours due. On the 'only the days' rule this is information, not a charge - type a figure into OT min beside it if you want it to count.">
+              <th className="hrs-col" title="What the clock came to this month: hours worked against hours due. On the 'only the days' rule this is information, not a charge - type a figure into OT min beside it if you want it to count.">
                 Month hrs
               </th>
-              <th title="What is actually charged or paid for hours. Blank uses the month's rule; type a number and that number is used instead, whatever the rule says.">OT min</th>
-              <th title="Auto = minutes x per-minute rate. Type an amount to override it.">OT ₹</th>
+              <th className="hrs-col" title="What is actually charged or paid for hours. Blank uses the month's rule; type a number and that number is used instead, whatever the rule says.">OT min</th>
+              <th className="hrs-col" title="Auto = minutes x per-minute rate. Type an amount to override it.">OT ₹</th>
               <th title="Anything extra to pay this month - an incentive, arrears, a reimbursement">Add</th>
               <th title="Anything to take off - a breakage, a fine, a recovery. Enter it as a positive number.">Deduct</th>
               <th title="ROUND(after absent + OT + adjust)">Gross</th>
@@ -797,9 +852,9 @@ export default function SalarySheet({
                 {/* After absent, Month hrs, OT min - three now that the
                     month's own hours are shown beside the typed figure. */}
                 <td />
-                <td />
-                <td />
-                <td>{rupees(totals.ot_salary)}</td>
+                <td className="hrs-col" />
+                <td className="hrs-col" />
+                <td className="hrs-col">{rupees(totals.ot_salary)}</td>
                 <td>{rupees(totals.addition)}</td>
                 <td>{rupees(totals.deduction)}</td>
                 <td>{rupees(totals.gross_salary)}</td>
@@ -1007,7 +1062,7 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
           number could not say. Never 0, which would read as "they did their
           hours exactly". */}
       <td
-        className="num muted"
+        className="num muted hrs-col"
         title={
           calc.monthly_hours_judged
             ? `${formatDuration(calc.monthly_hours_worked)} worked against ${formatDuration(
@@ -1041,7 +1096,7 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
           </button>
         )}
       </td>
-      <td className={calc.ot_minutes < 0 ? 'deduct-cell' : undefined}>
+      <td className={`hrs-col${calc.ot_minutes < 0 ? ' deduct-cell' : ''}`}>
         <EditableCell
           row={row}
           field="ot_minutes_override"
@@ -1050,7 +1105,7 @@ function Row({ row, serial, period, locked, onPatchRow, onPayslip, onOpen }) {
           auto={calc.ot_minutes ? `${calc.ot_minutes > 0 ? '+' : ''}${calc.ot_minutes}` : '0'}
         />
       </td>
-      <td className={calc.ot_salary < 0 ? 'deduct-cell' : undefined}>
+      <td className={`hrs-col${calc.ot_salary < 0 ? ' deduct-cell' : ''}`}>
         <EditableCell
           row={row}
           field="ot_amount_override"

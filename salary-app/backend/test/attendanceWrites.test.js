@@ -251,7 +251,15 @@ test('a caller that works the minutes out itself is left alone', async () => {
 
 test('the same hours pay the same money whichever route wrote them', async () => {
   const hours = { in_time: '09:52', out_time: '18:20' }; // 32 minutes short
-  const days = [20, 21, 22];
+  /*
+   * Three WORKING days. This used to be 20, 21 and 22 - and the 22nd of
+   * November 2026 is a Sunday. Clock times arriving with no mark on
+   * somebody's own day off are judged by the six-hour line now (SP or the day
+   * off, never a short working day), so a Sunday in this list was testing a
+   * different rule from the one the test is about. A mark the caller NAMES is
+   * still the caller's, which is why route 1 never noticed.
+   */
+  const days = [19, 20, 21];
 
   // 1. Typed on the Time tab — times plus the minutes it worked out.
   await api('POST', `/api/periods/${periodId}/attendance`, {

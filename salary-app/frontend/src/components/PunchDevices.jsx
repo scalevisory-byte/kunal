@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { offDaySentence } from '../../../shared/sundayDuty.js';
 import { STANDALONE, api } from '../api.js';
 import { LUNCH_RULES } from '../../../shared/lunchGap.js';
 
@@ -376,6 +377,9 @@ export default function PunchDevices({ period, onReload, onGo }) {
                 {preview.collected?.toLocaleString('en-IN')} punches for this month,{' '}
                 {preview.matchedPeople} people matched, {preview.days?.length || 0} days.
                 {preview.keptMarks ? ` ${preview.keptMarks} marks somebody set were kept.` : ''}
+                {offDaySentence(preview.offDays, preview.sundayHours)
+                  ? ` Days off somebody clocked in on: ${offDaySentence(preview.offDays, preview.sundayHours)}`
+                  : ''}
                 {/* The same sentence the spool panel says, because the two
                     ends in one `applyPunches` and must not read as two rules. */}
                 {preview.summary?.lunchFound ? (

@@ -7,6 +7,7 @@ import {
   timesToDay,
 } from '../../shared/timesheet.js';
 import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
+import { OFF_DAY_MAY_BECOME, offDayVerdict, ownWeeklyOff } from '../../shared/sundayDuty.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { todayIso } from '../../shared/today.js';
@@ -1071,7 +1072,7 @@ export function listEmployees({ company_id, branch_id, active } = {}) {
   }
   return db
     .prepare(
-      `SELECT e.*, c.name AS company_name, b.name AS branch_name,
+      `SELECT e.*, c.name AS company_name, c.weekly_off AS company_weekly_off, b.name AS branch_name,
               -- Whether there is a face to show, not the file itself. The
               -- picture is fetched per employee from its own route; asking the
               -- list for it would mean a photograph of everybody down the wire
@@ -2765,7 +2766,8 @@ export const setAttendance = db.transaction((periodId, entries) => {
        A named column list goes stale the moment a column is added - the same
        trap as `listPayrollRows` and the salary breakup. */
     .prepare(
-      `SELECT hours_per_day, lunch_paid, shift_in, shift_out, day_grace_minutes
+      `SELECT hours_per_day, lunch_paid, shift_in, shift_out, day_grace_minutes,
+              year, month
        FROM periods WHERE id = ?`
     )
     .get(periodId);
@@ -2793,6 +2795,27 @@ export const setAttendance = db.transaction((periodId, entries) => {
       shiftHours.set(id, hoursForEmployee(employee || {}, { period: month || {} }));
     }
     return shiftHours.get(id);
+  };
+  /*
+   * ...and WHICH DAY IS THEIR DAY OFF. Clock times arriving on somebody's own
+   * weekly off are not a working day cut short - six hours on it is a Sunday
+   * worked (SP, on the Sunday register) and anything less is still the day
+   * off. Looked up once per person, like the shift.
+   */
+  const offPolicy = new Map();
+  const isOwnOff = (id, day) => {
+    if (!offPolicy.has(id)) {
+      offPolicy.set(
+        id,
+        db
+          .prepare(
+            `SELECT e.weekly_off, c.weekly_off AS company_weekly_off
+             FROM employees e JOIN companies c ON c.id = e.company_id WHERE e.id = ?`
+          )
+          .get(id) || {}
+      );
+    }
+    return ownWeeklyOff(offPolicy.get(id), month || {}, day);
   };
   // ...and whether the lunch break comes off it. Off by default, so no month
   // already paid moves; see the column's note above.
@@ -2913,7 +2936,12 @@ export const setAttendance = db.transaction((periodId, entries) => {
        * followed. And a day punched in but never out is marked Present with no
        * minutes: somebody was here, and nothing invents a departure.
        */
-      if (!('code' in entry) && AUTO_MARKS.has(code)) {
+      if (!('code' in entry) && times.in_time && OFF_DAY_MAY_BECOME.has(code) && isOwnOff(employeeId, day)) {
+        /* Their own weekly off: judged by the six-hour line, never as a short
+           working day. A phone punch on a Sunday used to come out P or HF -
+           and HF docks half a day from somebody who came in on their day off. */
+        code = offDayVerdict(times, month || {}).code;
+      } else if (!('code' in entry) && AUTO_MARKS.has(code)) {
         if (judged.code) code = judged.code;
         else if (times.in_time) code = 'P';
       }

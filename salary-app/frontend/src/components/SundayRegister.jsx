@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { calculateRow, sundayDaysFromAttendance } from '../../../shared/calc.js';
 import {
   clearSundayOvertime,
+  offDayEntries,
+  offDaysNotOnRegister,
+  priceOffDays,
   shortSundays,
   sundayAmountIf,
   sundayDutyFor,
@@ -10,6 +13,7 @@ import {
 } from '../../../shared/sundayDuty.js';
 import { formatDuration } from '../../../shared/timesheet.js';
 import { days, daysInMonth, isSunday, rupees, rupees2, weekday } from '../format.js';
+import { STANDALONE, api } from '../api.js';
 
 /**
  * The Sunday register - the "May Sunday" / "June sunday" tabs of the workbook.
@@ -157,6 +161,136 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
     }
   };
 
+  /*
+   * WEEKLY OFFS SOMEBODY CLOCKED IN ON, THAT ARE NOT ON THIS REGISTER.
+   *
+   * HR: "ama sunday present show nathi thatu / count alag thi nathi krtu".
+   * The punch import never wrote SP - a Sunday came out P, HF or stayed S - so
+   * nobody the readers saw ever reached this page. The import is fixed from
+   * here on, but a fix to the write path does not reach back, so the days
+   * already on the grid are found and offered. Three piles, because they are
+   * three different questions: six hours done is the rule's to answer; under
+   * six and "no out time" are somebody's judgement.
+   */
+  /*
+   * The month's own punch record, so a day can say whether a person clocked
+   * it or somebody filled the usual timings onto it. One request for the whole
+   * month. Until it answers nothing is offered - a list that briefly counted
+   * every filled Sunday as worked is the very thing this guards against.
+   */
+  const [punchRecord, setPunchRecord] = useState(STANDALONE ? { known: false } : null);
+  useEffect(() => {
+    if (STANDALONE) return undefined;
+    let alive = true;
+    const month = `${period.year}-${String(period.month).padStart(2, '0')}`;
+    api
+      .get(`/punches/month?month=${month}`)
+      .then((got) => alive && setPunchRecord({ known: true, punches: got?.punches || {} }))
+      .catch(() => alive && setPunchRecord({ known: false }));
+    return () => {
+      alive = false;
+    };
+  }, [period.id, period.year, period.month]);
+  const catchUp = useMemo(
+    () =>
+      punchRecord
+        ? offDaysNotOnRegister(computed, period, { punches: punchRecord.known ? punchRecord.punches : null })
+        : { lines: [], clocked: [], typed: [], full: [], short: [], unknown: [], docked: [] },
+    [computed, period, punchRecord]
+  );
+  const [showCatchUp, setShowCatchUp] = useState(false);
+  const rowOf = (line) => computed.find((r) => r.id === line.row_id);
+  const priceOf = (lines, code) => {
+    const byRow = new Map();
+    for (const l of lines) {
+      if (!byRow.has(l.row_id)) byRow.set(l.row_id, {});
+      byRow.get(l.row_id)[l.day] = code;
+    }
+    let sunday = 0;
+    let net = 0;
+    for (const [rowId, marks] of byRow) {
+      const row = computed.find((r) => r.id === rowId);
+      if (!row) continue;
+      const moved = priceOffDays(row, period, marks);
+      sunday += moved.sunday;
+      net += moved.net;
+    }
+    return { sunday, net, people: byRow.size };
+  };
+  const fullPrice = useMemo(() => priceOf(catchUp.full, 'SP'), [catchUp, computed, period]);
+  // Days an import marked half day or absent on a day nobody was due: back to
+  // the day off, which is what they are until somebody says otherwise.
+  const toRest = catchUp.clocked.filter((l) => l.full !== true && l.code !== 'S');
+  const restPrice = useMemo(() => priceOf(toRest, 'S'), [catchUp, computed, period]);
+
+  const dayLabel = (d) => `${weekday(period.year, period.month, d)} ${d}`;
+  /*
+   * WHY the month's own salary moves, when it does - and it is not always the
+   * same reason. A day marked half day or absent was docking pay. A day marked
+   * Present on a month that charges hours was being counted as a working day
+   * that owed its nine hours; as a day off it owes none. Saying the first when
+   * it was the second is a confirmation that explains the wrong thing.
+   */
+  const netLine = (net, lines = []) => {
+    if (!net) return `\n\nThe month's own salary does not move.`;
+    const docked = lines.filter((l) => l.code === 'HF' || l.code === 'A').length;
+    const why = docked
+      ? `${docked} of these days ${docked === 1 ? 'was' : 'were'} marked half day or absent, ` +
+        `which was docking pay for a day nobody was due to work`
+      : `this month charges for hours, and these days stop being counted as working days ` +
+        `that owed their ${days(period.hours_per_day)} hours`;
+    return net > 0
+      ? `\n\nIt also puts ${rupees(net)} back into the month's salary: ${why}.`
+      : `\n\nIt also takes ${rupees(-net)} off the month's salary: ${why}.`;
+  };
+
+  const putOnRegister = async (lines) => {
+    if (!lines.length) return;
+    const price = priceOf(lines, 'SP');
+    const names = [...new Set(lines.map((l) => l.employee_name))];
+    if (
+      !window.confirm(
+        `Put ${lines.length} day(s) off worked on the Sunday register for ${names.length} ` +
+          `${names.length === 1 ? 'person' : 'people'} — ${names.slice(0, 4).join(', ')}` +
+          `${names.length > 4 ? ' and others' : ''}?\n\n` +
+          `It adds ${rupees(price.sunday)} to this register, at each person's own day rate. ` +
+          `That is paid from here and ticked off here - it does not go into the month's net.` +
+          netLine(price.net, lines) +
+          `\n\nThe clock times stay exactly as they are.`
+      )
+    )
+      return;
+    setBusy('catchup');
+    try {
+      await onSaveAttendance(offDayEntries(lines, 'SP'));
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const backToDayOff = async () => {
+    if (!toRest.length) return;
+    const docked = toRest.filter((l) => l.code === 'HF' || l.code === 'A').length;
+    if (
+      !window.confirm(
+        `Mark ${toRest.length} day(s) as the weekly off (S)?\n\n` +
+          `These are days off somebody clocked in on for under ${sundayHours} hours, or with no ` +
+          `out time, that an import marked as an ordinary working day` +
+          (docked ? ` - ${docked} of them as a half day or an absence, which is docking pay` : '') +
+          `.` +
+          netLine(restPrice.net, toRest) +
+          `\n\nNobody goes on the Sunday register by this. The clock times stay.`
+      )
+    )
+      return;
+    setBusy('catchup');
+    try {
+      await onSaveAttendance(offDayEntries(toRest, 'S'));
+    } finally {
+      setBusy('');
+    }
+  };
+
   const totals = worked.reduce(
     (acc, r) => ({ count: acc.count + r.sundays_worked, amount: acc.amount + r.sunday_salary }),
     { count: 0, amount: 0 }
@@ -215,6 +349,157 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
             </button>
           )}
         </p>
+      )}
+
+      {catchUp.lines.length > 0 && (
+        <div
+          className={
+            /* A banner only while there is something to DO. Short Sundays
+               already resting as the day off would otherwise sit here as a
+               warning all month, and a warning that never clears stops being
+               read. */
+            catchUp.full.length || toRest.length ? 'banner off-day-catchup' : 'off-day-catchup quiet'
+          }
+        >
+          <p>
+            {catchUp.full.length === 0 && toRest.length === 0 && catchUp.clocked.length > 0 ? (
+              <>
+                {catchUp.clocked.length} day(s) off somebody clocked in on{' '}
+                {catchUp.clocked.length === 1 ? 'is' : 'are'} left as the day off, not on this
+                register.
+              </>
+            ) : catchUp.clocked.length > 0 ? (
+              <>
+                <strong>
+                  {catchUp.clocked.length} day(s) off somebody clocked in on{' '}
+                  {catchUp.clocked.length === 1 ? 'is' : 'are'} not on this register.
+                </strong>{' '}
+                The punch import used to write a Sunday as an ordinary day, so it never reached
+                here.
+              </>
+            ) : (
+              <strong>Nobody clocked in on a day off that is not already on this register.</strong>
+            )}
+            {catchUp.full.length > 0 && (
+              <>
+                {' '}
+                <strong>{catchUp.full.length}</strong> carried the {sundayHours} hours (
+                {fullPrice.people} {fullPrice.people === 1 ? 'person' : 'people'},{' '}
+                <strong>{rupees(fullPrice.sunday)}</strong> at their day rates).
+              </>
+            )}
+            {catchUp.short.length > 0 && (
+              <>
+                {' '}
+                {catchUp.short.length} {catchUp.short.length === 1 ? 'was' : 'were'} under{' '}
+                {sundayHours} hours.
+              </>
+            )}
+            {catchUp.unknown.length > 0 && (
+              <>
+                {' '}
+                {catchUp.unknown.length} {catchUp.unknown.length === 1 ? 'has' : 'have'} no out
+                time, so the hours are not known.
+              </>
+            )}
+            {catchUp.docked.length > 0 && (
+              <>
+                {' '}
+                <strong>
+                  {catchUp.docked.length} {catchUp.docked.length === 1 ? 'is' : 'are'} marked half
+                  day or absent
+                </strong>
+                , which is taking pay off somebody for coming in on their day off.
+              </>
+            )}
+            {catchUp.typed.length > 0 && (
+              <>
+                {' '}
+                <span className="muted">
+                  {catchUp.typed.length} more day(s) off carry clock times{' '}
+                  {punchRecord?.known
+                    ? 'with no punch on record behind them'
+                    : 'that are exactly the usual timings'}{' '}
+                  &mdash; typed or filled in, not clocked &mdash; so they are not offered here.
+                  Count one by name below if it really was worked.
+                </span>
+              </>
+            )}
+          </p>
+          <p className="off-day-actions">
+            {!locked && catchUp.full.length > 0 && (
+              <button onClick={() => putOnRegister(catchUp.full)} disabled={busy === 'catchup'}>
+                {busy === 'catchup'
+                  ? 'Saving…'
+                  : `Put the ${catchUp.full.length} on the register`}
+              </button>
+            )}
+            {!locked && toRest.length > 0 && (
+              <button className="ghost" onClick={backToDayOff} disabled={busy === 'catchup'}>
+                Mark the other {toRest.length} as the day off
+              </button>
+            )}
+            <button className="ghost" onClick={() => setShowCatchUp((v) => !v)}>
+              {showCatchUp ? 'Hide the days' : 'Show the days'}
+            </button>
+          </p>
+          {showCatchUp && (
+            <table className="sheet off-day-list">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Day</th>
+                  <th>Marked</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th>Worked</th>
+                  <th>By the {sundayHours}-hour line</th>
+                  <th>Where the times came from</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {[...catchUp.clocked, ...catchUp.typed].map((l) => (
+                  <tr key={`${l.row_id}:${l.day}`}>
+                    <td>{l.employee_name}</td>
+                    <td>{dayLabel(l.day)}</td>
+                    <td>{l.code || 'blank'}</td>
+                    <td className="num">{l.in_time || '—'}</td>
+                    <td className="num">{l.out_time || '—'}</td>
+                    <td className="num">{l.worked === null ? '—' : formatDuration(l.worked)}</td>
+                    <td>
+                      {l.full === true
+                        ? 'done'
+                        : l.full === false
+                          ? `${formatDuration(l.short)} under`
+                          : 'not known - no out time'}
+                    </td>
+                    <td className={l.clocked ? undefined : 'muted'}>
+                      {l.punched === true
+                        ? 'punched'
+                        : l.punched === false
+                          ? 'no punch on record'
+                          : l.looksFilled
+                            ? 'the usual timings, filled in'
+                            : 'typed'}
+                    </td>
+                    <td>
+                      {!locked && rowOf(l) && (
+                        <button
+                          className="ghost tiny"
+                          onClick={() => putOnRegister([l])}
+                          disabled={busy === 'catchup'}
+                        >
+                          count it
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
 
       <div className="table-wrap">
@@ -304,9 +589,10 @@ export default function SundayRegister({ period, rows, onPatchRow, onSaveAttenda
             {!worked.length && (
               <tr>
                 <td colSpan={dates.length + 8} className="empty">
-                  Nobody has worked a Sunday this month yet. Mark a day <strong>SP</strong> (Sunday
-                  Present) or <strong>HP</strong> (Holiday Present) on the attendance grid and they
-                  will appear here.
+                  Nobody is on the Sunday register this month yet. Somebody who clocks{' '}
+                  {sundayHours} hours on their day off is put here by the punch import; anybody
+                  else is added by marking the day <strong>SP</strong> (Sunday Present) or{' '}
+                  <strong>HP</strong> (Holiday Present) on the attendance grid.
                 </td>
               </tr>
             )}

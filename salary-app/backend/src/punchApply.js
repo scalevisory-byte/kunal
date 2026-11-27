@@ -9,6 +9,7 @@
  */
 import { PUNCH_MAPPING, protectDecided, punchRows } from '../../shared/bizcompassLogs.js';
 import { punchesToMarks } from '../../shared/punches.js';
+import { settleOffDays, sundayHoursFor } from '../../shared/sundayDuty.js';
 import { listAttendance, listEmployees, setAttendance } from './db.js';
 import { buildPayroll } from './payroll.js';
 
@@ -48,7 +49,38 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
     if (row.code) had.set(`${row.employee_id}:${row.day}`, row.code);
     if (row.lunch_out || row.lunch_in) hadLunch.add(`${row.employee_id}:${row.day}`);
   }
-  const guarded = protectDecided(result.entries, (id, day) => had.get(`${id}:${day}`) || '');
+  /*
+   * A WEEKLY OFF IS JUDGED AS A WEEKLY OFF, before the guard below.
+   *
+   * `punchesToMarks` knows nothing about a day off: it wrote P or HF onto a
+   * blank Sunday - HF docks half a day from somebody who came in on their day
+   * off - and a Sunday already marked S kept its S. Nothing but a person ever
+   * produced SP, which is the only mark the Sunday register reads, so with the
+   * readers feeding the grid nobody reached it. Six hours done is SP; anything
+   * less, or not yet known, is the day off with the times kept.
+   */
+  const byId = new Map(employees.map((e) => [e.id, e]));
+  const offDays = settleOffDays(result.entries, {
+    period,
+    personOf: (id) => byId.get(id),
+    stored: (id, day) => had.get(`${id}:${day}`) || '',
+  });
+  /* The importer counted those days as present, half day, short or over
+     before anybody asked what day it was. They are none of those now, and a
+     dry run that says "12 half days" when it will write none is a dry run
+     nobody can check against the grid. */
+  const summary = {
+    ...result.summary,
+    present: Math.max(0, (result.summary.present || 0) - offDays.summary.wasPresent),
+    halfDay: Math.max(0, (result.summary.halfDay || 0) - offDays.summary.wasHalfDay),
+    shortHours: Math.max(0, (result.summary.shortHours || 0) - offDays.summary.wasShort),
+    overtime: Math.max(0, (result.summary.overtime || 0) - offDays.summary.wasOver),
+  };
+  const guarded = protectDecided(offDays.entries, (id, day) =>
+    // What the off-day rule decided goes through whole: it only ever decided
+    // a day whose mark it is allowed to replace.
+    offDays.settled.has(`${id}:${day}`) ? '' : had.get(`${id}:${day}`) || ''
+  );
 
   /*
    * A LUNCH SOMEBODY TYPED IS NEVER REPLACED BY ONE WE WORKED OUT.
@@ -76,11 +108,15 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
 
   return {
     ...result,
+    summary,
     // A month is a couple of thousand entries; the screen needs the shape.
     entries: undefined,
     unknownIds: mapped.unknown,
     matchedPeople: mapped.matched.length,
     keptMarks: guarded.protected.length,
+    // Weekly offs somebody clocked in on, by the six-hour line.
+    offDays: offDays.summary,
+    sundayHours: sundayHoursFor(period),
     lunchKept,
     period: { month: period.month, year: period.year },
     dryRun,

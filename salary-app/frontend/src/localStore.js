@@ -39,6 +39,7 @@ import {
   timesToDay,
 } from '../../shared/timesheet.js';
 import { DEFAULT_POLICY_FOR_NEW_MONTHS, hoursForEmployee, normalisePolicy } from '../../shared/lateEarly.js';
+import { OFF_DAY_MAY_BECOME, offDayVerdict, ownWeeklyOff } from '../../shared/sundayDuty.js';
 import { ALL_STAGES, MATCH_BANDS, REJECTED, STAGES } from '../../shared/stages.js';
 import {
   PENALTY_KINDS,
@@ -2070,7 +2071,20 @@ export async function handle(method, path, body) {
               rules: { graceMinutes: dayGrace(period || {}) },
             });
             minutes = judged.minutes;
-            if (!('code' in entry) && AUTO_TIME_MARKS.has(code)) {
+            const who = db.employees.find((e) => e.id === employeeId) || {};
+            const theirOff = ownWeeklyOff(
+              {
+                weekly_off: who.weekly_off,
+                company_weekly_off: (db.companies || []).find((c) => c.id === who.company_id)?.weekly_off,
+              },
+              period || {},
+              day
+            );
+            if (!('code' in entry) && times.in_time && OFF_DAY_MAY_BECOME.has(code) && theirOff) {
+              // Their own weekly off: the six-hour line, word for word the
+              // server's rule in `setAttendance`.
+              code = offDayVerdict(times, period || {}).code;
+            } else if (!('code' in entry) && AUTO_TIME_MARKS.has(code)) {
               if (judged.code) code = judged.code;
               else if (times.in_time) code = 'P';
             }

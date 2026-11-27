@@ -20,10 +20,27 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.29.0';
+export const VERSION = '2.30.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.30.0',
+    date: '27 Nov 2026',
+    title: 'Sunday working reaches the Sunday register by itself',
+    items: [
+      '**Somebody who came in on a Sunday was never showing on the Sunday tab.** The punch import did not know what a day off was: a punch on a Sunday was written as an ordinary Present day, and a Sunday already marked as the weekly off simply stayed that way. The Sunday register only lists days marked **SP**, and nothing but a person ever wrote one — so with the readers feeding the grid, nobody reached it and Sundays were not counted apart.',
+      '**Six hours on your own day off is now written SP and goes on the register** — a day’s Sunday pay at that person’s own day rate, settled and ticked off on the Sunday tab, never in the month’s net. That is the office’s own line: six hours earns the full Sunday.',
+      '**Under six hours, or no out punch yet, the day stays the weekly off** with the times kept. The evening’s pull turns it into a Sunday worked once the out punch arrives.',
+      '**This was costing people money, and it stops:** three hours on a Sunday used to be written as a **half day**, which took half a day’s salary off somebody for coming in on their day off. It is the weekly off now, and costs nothing.',
+      '**Sundays already on the grid are offered at the top of the Sunday tab**, because a fix to the import does not reach back. It says how many carried the six hours, for how many people and what it comes to, and one button puts them on the register. Days under six hours are listed apart, to be counted by name if they should be.',
+      '**Only a day with a real punch behind it is offered.** A Sunday that “Fill the usual timings” had been pressed on carries nine hours for the whole office; those are listed as filled in and never added by the button. The Fill button now leaves a day off alone as well.',
+      '**It is the person’s own day off that counts** — their own if they have one, else the company’s, else Sunday.',
+      '**A mark somebody chose is still theirs.** Leave, a holiday, and an SP the office set are never changed by a punch. To not pay a clocked Sunday, type 0 into its Amount on the register.',
+      '**The Hours columns on the salary sheet can be hidden** — untick **Hours columns** beside Compact and Month hrs, OT min and OT ₹ go away on that computer. Nothing that is paid changes; if hours money is in the net, a line above the sheet still says how much and for how many people, and a month whose rule charges hours keeps its bar and its button to stop.',
+      'Also corrected: the Sunday register judged the six hours with lunch always taken out, so on a month whose break is inside the paid day a Sunday of exactly six hours read as short.',
+    ],
+  },
   {
     version: '2.29.0',
     date: '25 Nov 2026',

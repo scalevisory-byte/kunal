@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { offDaySentence } from '../../../shared/sundayDuty.js';
 import { STANDALONE, api } from '../api.js';
 import { LUNCH_RULES } from '../../../shared/lunchGap.js';
 import { formatDuration } from '../../../shared/timesheet.js';
@@ -235,6 +236,12 @@ export default function BizcompassImport({ period, onReload, onGo }) {
               </>
             ) : null}
           </p>
+          {offDaySentence(preview.offDays, preview.sundayHours) ? (
+            <p className="muted small">
+              <strong>Days off somebody clocked in on:</strong>{' '}
+              {offDaySentence(preview.offDays, preview.sundayHours)}
+            </p>
+          ) : null}
 
           {/*
             * THE LUNCH BREAK, FOUND IN THE DAY'S OWN PUNCHES.

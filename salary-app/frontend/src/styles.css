@@ -6328,3 +6328,19 @@ table.sheet.roll-table th.sticky-name {
  * corrected on the other screen.
  */
 .hours-decide.drift-bar { border-left: 3px solid var(--warn); }
+
+/* Sunday register: days off somebody clocked in on that never reached it.
+   A banner because it is something to act on, with its own list underneath. */
+.off-day-catchup p { margin: 0; }
+.off-day-catchup .off-day-actions { margin-top: 0.45rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.off-day-catchup table.off-day-list { margin-top: 0.55rem; width: auto; }
+.off-day-catchup table.off-day-list td,
+.off-day-catchup table.off-day-list th { padding: 0.2rem 0.6rem; white-space: nowrap; }
+
+/* Salary sheet: the Hours group (Month hrs / OT min / OT Rs) put away. The
+   cells stay in the DOM so every column keeps its place; only this table hides
+   them, and the line above it says what they held. */
+table.sheet.hide-hours .hrs-col { display: none; }
+.hours-decide.hours-hidden { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.hours-decide.hours-hidden > span { flex: 1 1 18rem; min-width: 0; }
+.off-day-catchup.quiet { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.6rem; }

@@ -178,7 +178,19 @@ test('the bar is its own class, not a reuse of the toolbar', () => {
 test('a locked month offers no decision to take', () => {
   const sheet = src('components/SalarySheet.jsx');
   const bar = sheet.slice(sheet.indexOf('hours-decide'), sheet.indexOf('<ScrollFrame'));
-  const buttons = bar.match(/<button[\s\S]*?>/g) || [];
+  /*
+   * Every button that DECIDES something. "Show them" - bringing the hidden
+   * Hours columns back - is not a decision about the month: it changes what
+   * this screen shows and nothing that is stored, so a locked month must still
+   * be able to press it. Locking a month must never lock somebody out of
+   * LOOKING at it.
+   */
+  // Read to the closing tag's first line: an arrow function's `=>` ends a
+  // naive `<button ...>` match before the handler it is looking for.
+  const all = [...bar.matchAll(/<button/g)].map((m) => bar.slice(m.index, bar.indexOf('\n', bar.indexOf('>', m.index))));
+  const view = all.filter((b) => /chooseHours\(/.test(b));
+  assert.equal(view.length, 1, 'exactly one view-only button, and it is named here');
+  const buttons = all.filter((b) => !/chooseHours\(/.test(b));
   assert.ok(buttons.length >= 2, 'the bar has buttons to check');
   for (const b of buttons) assert.match(b, /disabled=\{locked\}/, `not disabled when locked: ${b}`);
 });

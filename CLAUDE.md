@@ -2251,6 +2251,81 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Sunday working reaches the Sunday register by itself (v2.30.0)
+
+HR Manager, forwarded by Dinesh off the live Sunday tab: *"ama sunday present show nathi
+thatu / count alag thi nathi krtu"*, and the day before, with a crop of Month hrs / OT min /
+OT ₹: *"ye salary sheet me se hi remove nai kr skte ?"*.
+
+**Root cause, found by reading the import rather than the register: nothing but a person ever
+wrote `SP`.** `punchesToMarks` has no idea what a weekly off is, so a punch on a blank Sunday
+was written `P` — or **`HF`, which docks half a day from somebody who came in on their day
+off** — and a Sunday already marked `S` kept its `S`, because `protectDecided` lets a punch
+set only blank/P/A/HF. The Sunday register lists `SP`/`HP` only. With the readers feeding the
+grid, nobody reached it.
+
+- **`shared/sundayDuty.js` holds the one rule**, by Dinesh's own line (*"Sunday ki full day ki
+  salary lene k liye minimum 6 hours complete karne he"*): on the person's OWN weekly off
+  (`ownWeeklyOff` — their policy, else the company's, else Sunday), six hours done → `SP`;
+  under six, or no out time → `S` with the times kept, **minutes always 0**.
+  `OFF_DAY_MAY_BECOME = {'', P, A, HF, S}`. **`S` has to be in it** or the rule cannot work on
+  a live feed: the first punch of a Sunday arrives with no departure and is written `S`, and
+  the evening's pull must be able to lift that to `SP`. `SP`/`HP`/`PH`/leave are never touched.
+- **Four write paths ask it, with a test naming each**: `applyPunches` (`settleOffDays`, run
+  BEFORE `protectDecided`, whose `stored` lookup answers `''` for exactly the keys it settled),
+  `setAttendance`'s auto-mark branch (a phone punch, an approved missing punch),
+  `localStore.js`, and the Time tab's `queueSave`. **A mark the caller NAMES is still the
+  caller's** — the grid and the Sunday tab's own buttons are decisions.
+- The import's dry run says it in one sentence (`offDaySentence`, read by both panels), and
+  the summary's present/half-day/short/over counts are corrected for those days — a dry run
+  reporting half days it will not write cannot be checked against the grid.
+- **The office's "no" is the Amount on the register (type 0)**, not marking the day `S` again:
+  with the pull on a timer, the same punches would lift it straight back. Said in help.
+- **A fix to the write path never reaches back**, so the Sunday tab offers what is already on
+  the grid: `offDaysNotOnRegister` in three piles (six hours done / under / not known),
+  priced with `priceOffDays` — **off `calculateRow`, never multiplied out**.
+- **THE TRAP THE BROWSER RUN FOUND: times on a day are not proof anybody was there.** The
+  seeded month had "Fill the usual timings" pressed on two Sundays — 09:30–18:30 for the whole
+  office — and the first version listed every one as "9h, done" and offered them all in one
+  press. His own live data very likely has this (v1.91's screenshot: 86 of 86 Present on a
+  Sunday, 774h = 86 × 9h). So a line carries `clocked`: with the month's punch record
+  (`GET /punches/month`, one request) a day is clocked only if **a punch is on record**;
+  without one (the single file) times **exactly equal to the person's usual in and out** are
+  a fill. Unclocked lines are listed as *typed* and **never offered in bulk** — "count it" by
+  name only. Nothing is offered until the punch record has answered.
+- **`fillStandard` on the Time tab now skips a person's own day off** (unless already SP/HP):
+  nine hours of usual timings on a Sunday would otherwise put the whole office on the register.
+- **The confirmation explained the wrong thing at first.** P→SP moved the month's net by +473
+  and the message blamed "days marked half day or absent" — none were. The real reason was the
+  month's hours rule: a `P` Sunday is a working day that owes nine hours, a day off owes none.
+  `netLine` now says which of the two it is.
+- A banner only while there is something to DO; short Sundays already resting as `S` are a
+  quiet line, because a warning that never clears stops being read.
+- **Found on the way:** `sundayDutyFor` called `readTimes(times)` with no `deductLunch`, so on
+  a month whose break is inside the paid day a Sunday of exactly six hours read as short. The
+  same miss as the Time tab (v2.0.0) and the dashboard (v2.9.0) — **fourth screen**.
+- **`periods.sunday_hours` IS NOT A COLUMN.** `sundayHoursFor` reads it off the period object
+  and falls back to 6, and the earlier note here saying it is "held per period" was wrong —
+  selecting it in `setAttendance` was a 500 on every attendance write, caught by the first
+  API test. If the line ever needs to be configurable, it needs a migration first.
+- Two tests encoded the old world and were **rewritten to state the rule**:
+  `attendanceWrites` used days 20–22 as "three working days" and the 22nd of November 2026 is
+  a Sunday; and "a locked month offers no decision" now exempts the one view-only button.
+
+**The Hours columns can be hidden** (`hideHours` in `SalarySheet.jsx`, a tick beside Compact,
+remembered in localStorage inside try/catch). One class on that one table
+(`table.sheet.hide-hours .hrs-col`) — the ten cells stay in the DOM so no column moves, and
+the Excel, the print and the payslip are untouched. **Hiding a column must not hide money:**
+`hoursMoney(calcs)` reads `ot_salary` off every row — it has to, because `hoursDecision` only
+counts money where the month's RULE charges, and a figure typed into OT min on a days-only
+month is money too — and the line above the sheet names it with the shared `chargedPhrase`.
+A month whose rule charges **keeps its bar**, since that bar holds the button to stop.
+Driven: 28 columns → 25, net 3,82,646 both ways, still hidden after a reload.
+
+**What HR's first question was really about** (*"ot min ot kyu aarha hai wo salary me + bhi ho
+rha hai"*): their November is still on `monthly_late`, so overtime IS paid. Hiding the columns
+does not change that; pressing **Only show them, don't charge** on the bar does (v2.27.0).
+
 ### People who have left were listed as absent (v2.29.0) — `shared/onStaff.js`
 
 Dinesh, off the live roll call with seventeen names under Absent where HR's own WhatsApp

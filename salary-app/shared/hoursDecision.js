@@ -192,3 +192,31 @@ export function chargedPhrase(decision = {}, money = (n) => String(n)) {
   }
   return parts.join(' and ');
 }
+
+/**
+ * What the hours are worth in the net RIGHT NOW, whatever the month's rule.
+ *
+ * HR: *"ye salary sheet me se hi remove nai kr skte ?"* - the Hours columns
+ * can be hidden, and the moment they can be hidden something else has to be
+ * able to say what they held. `hoursDecision` only counts money on a month
+ * whose RULE charges; a figure typed into OT min on a days-only month is money
+ * too. This reads `ot_salary`, the payslip's own figure, off every row - in
+ * the shape `chargedPhrase` already phrases, so the hidden line and the bar
+ * cannot word one fact two ways.
+ */
+export function hoursMoney(calcs = []) {
+  const out = { chargedDeducted: 0, chargedDeductedPeople: 0, chargedPaid: 0, chargedPaidPeople: 0, any: false };
+  for (const item of calcs) {
+    const paid = Number((item && item.calc ? item.calc : item)?.ot_salary) || 0;
+    if (!paid) continue;
+    out.any = true;
+    if (paid < 0) {
+      out.chargedDeducted += -paid;
+      out.chargedDeductedPeople += 1;
+    } else {
+      out.chargedPaid += paid;
+      out.chargedPaidPeople += 1;
+    }
+  }
+  return out;
+}

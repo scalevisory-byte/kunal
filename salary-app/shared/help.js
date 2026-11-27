@@ -784,16 +784,22 @@ export const HELP = [
      * down; the register is where the Sunday money is handed over from.
      */
     tab: 'sunday',
-    keywords: ['sunday', 'SP', 'HP', 'holiday working', 'register', 'ravivar', 'extra day'],
+    keywords: [
+      'sunday', 'SP', 'HP', 'holiday working', 'register', 'ravivar', 'extra day',
+      'sunday present', 'sunday nathi', 'sunday show nathi', 'sunday count', 'sunday alag',
+      'sunday nahi dikh raha', 'weekly off worked', 'day off worked',
+    ],
     lines: [
       'The **Sunday** tab. It is both things at once: which Sundays each person worked, and what that comes to in money. (The same register is also a fold at the bottom of **Attendance**, where somebody marking the grid is already standing.)',
-      'Mark the day **SP** (worked the off day) or **HP** (worked the holiday) and the person appears there with their day rate and what they are owed.',
+      '**Somebody who clocks six hours on their own day off is put on the register by the punch import** — the day is written **SP**. Under six hours, or with no out time yet, the day stays the weekly off (**S**) with the times kept, and the evening’s pull settles it once the out punch arrives. It is their OWN day off that counts: for a driver off on Thursdays, it is the Thursday.',
+      '**Days already on the grid are offered at the top of the tab.** An import before this used to write a Sunday as an ordinary day, so nobody the readers saw ever reached the register. The line names how many carried the six hours and what that comes to, and one button puts them on. Days under six hours are listed apart and added one by one, by name, if they should count.',
+      'Anybody else is added by hand: mark the day **SP** (worked the off day) or **HP** (worked the holiday) and the person appears with their day rate and what they are owed.',
       'Each row: a ✓ per date worked, the **hours** the clock says for those days, the **day rate** (salary ÷ 26), the **amount**, who paid it and whether it is done.',
       'It is paid and ticked off separately from the month’s salary, with its own status — the salary sheet’s net payable does not include a rupee of it.',
       'It exports as its own sheet in the workbook and as its own CSV.',
       '**A Sunday’s duty is six hours, and six hours on it earns the whole day’s pay.** The register shows what the clock says each of those days carried, and folds out the ones under six hours by name.',
     ],
-    note: 'Nothing on the short-Sundays list has been deducted — every one of them is still paid a full day, because somebody whose second punch never registered has done the day. And a Sunday with no clock times reads as a dash: that is NOT KNOWN, not nought hours. Sunday pay is settled entirely apart: it is NOT added into the salary sheet’s net, and PT is not charged on it. The statutory wage register is the one exception — it adds it in, because a muster roll that left out wages actually paid would understate them.',
+    note: 'TIMES ON A DAY ARE NOT PROOF ANYBODY WAS THERE. Only a day with a real punch behind it is offered for the register in bulk. A Sunday that “Fill the usual timings” was pressed on carries nine hours for the whole office and not one of them worked — those are listed as typed or filled in and are never added by the button, and the Fill button itself now leaves a day off alone. To NOT pay a clocked Sunday, type 0 into its Amount on the register: marking the day S again will not hold, because the next pull reads the same punches.\n\nNothing on the short-Sundays list has been deducted — every one of them is still paid a full day, because somebody whose second punch never registered has done the day. And a Sunday with no clock times reads as a dash: that is NOT KNOWN, not nought hours. Sunday pay is settled entirely apart: it is NOT added into the salary sheet’s net, and PT is not charged on it. The statutory wage register is the one exception — it adds it in, because a muster roll that left out wages actually paid would understate them.',
   },
   {
     id: 'festivals',
@@ -837,6 +843,7 @@ export const HELP = [
     keywords: [
       'salary', 'gross', 'net', 'calculation', 'how', 'pagar', 'hisab', 'payable',
       'wrong salary', 'galat', 'zyada', '5 lac', 'different salary', 'record se alag',
+      'hide hours', 'hours column', 'ot column', 'ot min remove', 'ot hatao', 'remove ot',
     ],
     lines: [
       '**If a row pays a different salary from the employee record, a line at the top says so**, names both figures and offers to bring the record’s across. A month keeps the salary it was given, so correcting a mistyped salary on the record does not reach a month that already has the row — and sometimes a month is meant to pay something else, which is why nothing changes by itself.',
@@ -845,6 +852,7 @@ export const HELP = [
       'PT is charged on **the month’s gross**, not the master salary — so somebody whose absences pull them under the slab pays none.',
       'Net = gross − PF − ESI − PT − loan instalment.',
       'Any figure can be typed over; it then shows with a ✎ and the audit trail records it by name and column.',
+      '**The three Hours columns can be hidden** — untick **Hours columns** beside Compact. Month hrs, OT min and OT ₹ go away on this computer until you tick it again. It changes nothing that is paid: if hours money is in the net, a line above the sheet still says how much and for how many people.',
     ],
     note:
       'IF A FIGURE ON THE SHEET LOOKS WRONG, THE ANSWER IS USUALLY A BAR AT THE TOP. The salary bar names a row paying something different from the record; the hours bar says what the month\u2019s hours are deducting and paying. NEITHER CHANGES ANYTHING UNTIL ITS BUTTON IS PRESSED \u2014 deliberately, because a month is sometimes meant to pay something else and nothing should rewrite a figure already paid.\n\nSunday pay is not in the net. The sheet ends at Net payable.',
