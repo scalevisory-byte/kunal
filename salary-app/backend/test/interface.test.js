@@ -495,14 +495,19 @@ test('the register agrees with the dashboard that opens it', () => {
 
   // 1. `?written_off=true` means INCLUDE them, not only them - so the Written
   //    off chip fetched the whole register and narrowed it by nothing.
-  assert.match(a, /filter === 'gone' && !a\.written_off_on/);
+  //    v2.36.0, rewritten to state the rule: the chip is "off the register" -
+  //    written off OR disposed - because a disposed laptop had been sitting
+  //    under "in the office".
+  assert.match(a, /filter === 'gone' && onRegister\(a\)/);
 
   // 2. 'available' mapped to 'in', which no filter knows about.
   assert.match(a, /f\.status === 'available' \? 'office'/);
   assert.ok(!/f\.status === 'available' \? 'in'/.test(a), "'available' maps to a filter nothing reads again");
 
   // 3. "Under maintenance" had no filter at all and fell through to Everything.
-  assert.match(a, /filter === 'maintenance' && assetStatus\(a\) !== 'maintenance'/);
+  //    v2.36.0: one rule for the three stored states, so Damaged and Missing
+  //    are chips too.
+  assert.match(a, /\['maintenance', 'damaged', 'missing'\]\.includes\(filter\) && assetStatus\(a\) !== filter/);
   assert.match(a, /\['maintenance', 'Being repaired'\]/);
 
   // ...and Registered counts what is ON the register. "Bought, in all" still

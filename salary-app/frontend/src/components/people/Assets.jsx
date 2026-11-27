@@ -5,6 +5,7 @@ import AssetMasters from './AssetMasters.jsx';
 import AssetPrefixes, { Renumber } from './AssetPrefixes.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
 import { isOut, registerTotals, whereItIs } from '../../../../shared/assetReport.js';
+import { onRegister } from '../../../../shared/assetStatus.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
 import { groupLabel, groupOf, groupTally, setOwnGroups } from '../../../../shared/assetGroups.js';
 import { NATURES, matchesNature, natureLabel, natureOf, natureTally } from '../../../../shared/assetNature.js';
@@ -366,8 +367,8 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return assets.filter((a) => {
-      if (filter === 'out' && !isOut(a)) return false;
-      if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
+      if (filter === 'out' && assetStatus(a) !== 'assigned') return false;
+      if (filter === 'office' && assetStatus(a) !== 'available') return false;
       /*
        * `?written_off=true` means "INCLUDE the written-off ones", not "only
        * them" - so this filter was fetching the whole register and narrowing
@@ -376,8 +377,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
        * The dashboard's written-off card opens this same filter, so its count
        * and this list disagreed by the size of the register.
        */
-      if (filter === 'gone' && !a.written_off_on) return false;
-      if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+      if (filter === 'gone' && onRegister(a)) return false;
+      // Off the register (written off OR disposed) shows only under its own chip.
+      if (filter !== 'gone' && !onRegister(a)) return false;
+      if (['maintenance', 'damaged', 'missing'].includes(filter) && assetStatus(a) !== filter) return false;
       /*
        * The group is WORKED OUT from the kind, never read off a column - so
        * narrowing by it cannot disagree with what the row says it is.
@@ -408,7 +411,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     // On the Written off view everything listed IS written off, which the
     // live count leaves out - so count what is listed.
     if (filter === 'gone') return { ...t, count: shown.length, narrowed: false };
-    return { ...t, narrowed: shown.length !== assets.filter((a) => !a.written_off_on).length };
+    return { ...t, narrowed: shown.length !== assets.filter(onRegister).length };
   }, [shown, assets, filter]);
 
   /*
@@ -444,10 +447,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = assets.filter((a) => {
-      if (filter === 'out' && !isOut(a)) return false;
-      if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
-      if (filter === 'gone' && !a.written_off_on) return false;
-      if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+      if (filter === 'out' && assetStatus(a) !== 'assigned') return false;
+      if (filter === 'office' && assetStatus(a) !== 'available') return false;
+      if (filter === 'gone' && onRegister(a)) return false;
+      // Off the register (written off OR disposed) shows only under its own chip.
+      if (filter !== 'gone' && !onRegister(a)) return false;
+      if (['maintenance', 'damaged', 'missing'].includes(filter) && assetStatus(a) !== filter) return false;
       if (narrowed && !matchesFilter(a, narrowed)) return false;
       if (!q) return true;
       // The old code too: his stickers still read BNF-Assets-2456, and
@@ -469,10 +474,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     const q = query.trim().toLowerCase();
     return natureTally(
       assets.filter((a) => {
-        if (filter === 'out' && !isOut(a)) return false;
-        if (filter === 'office' && (isOut(a) || a.written_off_on)) return false;
-        if (filter === 'gone' && !a.written_off_on) return false;
-        if (filter === 'maintenance' && assetStatus(a) !== 'maintenance') return false;
+        if (filter === 'out' && assetStatus(a) !== 'assigned') return false;
+        if (filter === 'office' && assetStatus(a) !== 'available') return false;
+        if (filter === 'gone' && onRegister(a)) return false;
+      // Off the register (written off OR disposed) shows only under its own chip.
+      if (filter !== 'gone' && !onRegister(a)) return false;
+        if (['maintenance', 'damaged', 'missing'].includes(filter) && assetStatus(a) !== filter) return false;
         if (narrowed && !matchesFilter(a, narrowed)) return false;
         if (group && groupOf(a.kind, a.label) !== group) return false;
         if (!q) return true;
@@ -663,7 +670,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     const narrowed = [
       filter === 'out' && 'out with staff',
       filter === 'office' && 'in the office',
-      filter === 'gone' && 'written off',
+      filter === 'gone' && 'written off or disposed',
       filter === 'maintenance' && 'away being repaired',
       group && groupLabel(group),
       query.trim() && `matching “${query.trim()}”`,
@@ -732,9 +739,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
              */
             setFilter(
               f.status === 'assigned' ? 'out'
-                : f.status === 'written_off' ? 'gone'
+                : f.status === 'written_off' || f.status === 'disposed' ? 'gone'
                   : f.status === 'available' ? 'office'
-                    : f.status === 'maintenance' ? 'maintenance'
+                    : ['maintenance', 'damaged', 'missing'].includes(f.status) ? f.status
                       : 'all'
             );
             setView('register');
@@ -825,12 +832,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         <div className="figure">
           <span className="k">{shownTotals.narrowed ? 'Listed below' : 'On the register'}</span>
           <span className="n">{shownTotals.count}</span>
-          <span className="muted small">not written off{shownTotals.narrowed ? ` · ${totals.count || 0} on the whole register` : ''}</span>
+          <span className="muted small">not written off or disposed{shownTotals.narrowed ? ` · ${totals.count || 0} on the whole register` : ''}</span>
         </div>
         <div className="figure">
           <span className="k">Out with staff</span>
           <span className="n">{shownTotals.out}</span>
-          <span className="muted small">somebody is named as holding it</span>
+          <span className="muted small">
+            issued and in use{shownTotals.held > shownTotals.out ? ` · ${shownTotals.held - shownTotals.out} more held but being repaired, damaged or missing` : ''}
+          </span>
         </div>
         <div className="figure">
           <span className="k">Worth, out with staff</span>
@@ -838,11 +847,22 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           <span className="muted small">what those cost to buy</span>
         </div>
         <div className="figure">
-          <span className="k">Bought, in all</span>
+          <span className="k">Cost, on the register</span>
           <span className="n">{rupees(shownTotals.cost)}</span>
-          <span className="muted small">purchase cost — no depreciation</span>
+          <span className="muted small">what these cost to buy — no depreciation</span>
         </div>
       </div>
+      {/* How the first figure is made up, so two screens can be checked
+          against each other line by line (v2.36.0 - they disagreed by four). */}
+      {filter !== 'gone' ? (
+        <p className="muted small asset-sum">
+          {shownTotals.out} out with staff + {shownTotals.in_office} in the office
+          {shownTotals.maintenance ? ` + ${shownTotals.maintenance} being repaired` : ''}
+          {shownTotals.damaged ? ` + ${shownTotals.damaged} damaged` : ''}
+          {shownTotals.missing ? ` + ${shownTotals.missing} missing` : ''} = <b>{shownTotals.count}</b>
+          {totals.disposed ? ` · ${totals.disposed} disposed, under Written off / disposed` : ''}
+        </p>
+      ) : null}
 
       {/*
         * WARRANTY AND AMC, AS A TABLE.
@@ -921,8 +941,12 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
 
       <div className="toolbar">
         <div className="sub-tabs toolbar">
-          {[['all', 'Everything'], ['out', 'Out with staff'], ['office', 'In the office'],
-            ['maintenance', 'Being repaired'], ['gone', 'Written off']].map(
+          {[['all', 'On the register'], ['out', 'Out with staff'], ['office', 'In the office'],
+            ['maintenance', 'Being repaired'],
+            // Only offered when there is one: an empty chip is a question nobody asked.
+            ...(totals.damaged || filter === 'damaged' ? [['damaged', 'Damaged']] : []),
+            ...(totals.missing || filter === 'missing' ? [['missing', 'Missing']] : []),
+            ['gone', 'Written off / disposed']].map(
             ([key, text]) => (
               <button key={key} className={filter === key ? 'active' : undefined} onClick={() => setFilter(key)}>
                 {text}

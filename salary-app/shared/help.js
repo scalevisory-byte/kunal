@@ -1428,10 +1428,12 @@ export const HELP = [
       'code', 'prefix', 'number', 'barcode', 'sticker', 'department', 'number banana', 'patti', 'label', 'description sticker',
       'transfer', 'hand over', 'staff wise', 'employee wise', 'person', 'kiske paas',
       'dena', 'badalna', 'transfer karna', 'fixed', 'movable', 'moveable', 'fixed asset', 'declare', 'staff ne bataya',
+      'count', 'total', 'mismatch', 'figures', 'reconcile', 'disposed', 'damaged', 'missing', 'hisab',
     ],
     lines: [
       'Every asset gets a code like `BPL-LAP-014`, a printable barcode label, purchase details, warranty and an AMC.',
       '**Stickers come in two kinds.** *Labels* print a QR a phone can scan; **Description stickers** print a plain strip — the code in large type, what it is, the serial and the company, no QR — for a chair, a cabinet or a router that a person reads rather than scans. Both print the ticked rows, or everything on screen.',
+      '**How the figures add up** (Assets \u2192 Dashboard): each asset is counted in exactly ONE line \u2014 out with staff, in the office, being repaired, damaged, missing \u2014 and off the register, written off or disposed. Something held by a person AND marked damaged counts as damaged; the person is still named. The panel lists any record that pulls two ways and changes none of them.',
       '**Fixed or Movable** — the buttons above the groups. Fixed stays where it is put (furniture, AC, desktop, CCTV); movable goes with a person (laptop, phone, SIM, vehicle). The kind gives a starting answer, shown with a **?**; change it on the row, or narrow the list and use *mark these as fixed / movable*.',
       '**Employee-wise:** pick a name in the *Anybody’s* box to see only what that person holds; the Add button then adds an asset straight into their name.',
       '**What staff say they hold** appears at the top of the register when somebody has told the office from their own login. Tie it to an asset already here, add it, or turn it down with a reason.',

@@ -2251,6 +2251,34 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Assets: one count for every screen (v2.36.0) — `docs/ASSETS-AUDIT.md`
+
+Dinesh sent a 23-phase "Assets module" brief whose first instruction was *audit before
+building*, and whose rules were: do not hardcode a figure, do not edit a historical record to
+make numbers match, do not touch payroll/attendance. The availability table is in
+`salary-app/docs/ASSETS-AUDIT.md`.
+
+- **THE MISMATCH (363 vs 359 "with staff"):** `registerTotals.out` was `isOut` — anybody
+  holding it, whatever its state — while the dashboard counted `assetStatus === 'assigned'`.
+  A laptop with somebody AND under maintenance/damaged/missing was "with staff" on one screen
+  and not the other. **`assetCounts()` in `shared/assetStatus.js` is now the one count**:
+  every asset in exactly one of the seven statuses, `live = assigned + available +
+  maintenance + damaged + missing`, `gone = written_off + disposed`, `check` proves the sum.
+  `held` (in somebody's name, any live state) is kept as its OWN figure and named as such.
+  `registerTotals` reads it; `assetDashboard` returns `counts` and `oddities`.
+- **Disposed was "in the office".** `state = 'disposed'` without `written_off_on` passed every
+  register filter and the cost total. `onRegister()` is the one test; the register's chips are
+  statuses now (`out` = assigned, `office` = available, `gone` = written off OR disposed,
+  Damaged/Missing chips when non-empty), and every non-gone view hides off-register rows.
+- **`assetOddities()` NAMES, NEVER CHANGES**: held + a stored state; written off/disposed still
+  in a name; disposed not written off; a state left on a written-off asset; no purchase cost.
+  There is a test that the input is byte-identical after.
+- Assets → Dashboard → **How the figures add up**: the lines with count and cost, the check, and
+  the oddities behind a toggle. The register's strip ends with the sum in words.
+- **Not built, and asked:** approvals for buy / write-off / dispose (proposal in the doc, using
+  the `approve` ability); a branch-transfer slip. Depreciation stays out on purpose.
+- Two `interface.test.js` assertions pinned the old chip code and were rewritten to state the rule.
+
 ### Reminders, a raise celebrated, and the long list (v2.35.0)
 
 Dinesh sent ~20 screenshots in one message. Highlights and the rules they hang on:

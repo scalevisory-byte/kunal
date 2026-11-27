@@ -1,4 +1,4 @@
-import { assetStatus, daysTo, financialYear, overdueBy } from './assetStatus.js';
+import { assetCounts, assetOddities, assetStatus, daysTo, financialYear, overdueBy } from './assetStatus.js';
 import { todayIso } from './today.js';
 
 /**
@@ -216,7 +216,21 @@ export function assetDashboard({
     'bad'
   );
 
-  return { cards, spent, out_value: outValue, alerts, counted: withStatus.length };
+  /*
+   * v2.36.0: the whole register in one sum, from the count every asset screen
+   * reads, and the records whose two facts pull different ways - NAMED, never
+   * changed, because a historical record is not edited to make a figure match.
+   */
+  const counts = assetCounts(assets);
+  return {
+    cards,
+    spent,
+    out_value: outValue,
+    alerts,
+    counted: withStatus.length,
+    counts,
+    oddities: assetOddities(assets),
+  };
 }
 
 /** The financial years anything was bought in, newest first. */

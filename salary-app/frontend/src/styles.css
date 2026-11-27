@@ -6626,3 +6626,10 @@ label.linkish { cursor: pointer; color: var(--brand); text-decoration: underline
 .my-task-list { list-style: none; margin: 0.35rem 0 0.5rem; padding: 0; display: grid; gap: 0.2rem; font-size: 0.85rem; }
 .my-task-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .my-task-list li.late .my-task-title { color: var(--bad, #b91c1c); font-weight: 600; }
+.asset-sum { margin: -0.25rem 0 0.75rem; font-variant-numeric: tabular-nums; }
+/* v2.36.0 - the asset dashboard's "how the figures add up". */
+.row-between { display: flex; flex-direction: row; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.row-between h3 { margin: 0; }
+table.sheet.asset-sum-table { width: auto; min-width: min(28rem, 100%); margin: 0.6rem 0; }
+table.sheet.asset-sum-table tr.total td { font-weight: 700; border-top: 1px solid var(--line); }
+.oddity .num { font-weight: 700; }

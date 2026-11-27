@@ -216,6 +216,8 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onAdd
             ) : null}
           </div>
 
+          {data.counts ? <HowItAddsUp counts={data.counts} oddities={data.oddities || []} onGo={go} /> : null}
+
           <div className="card">
             <h3>Needs attention</h3>
             {!data.alerts.length ? (
@@ -263,4 +265,89 @@ function name(row) {
   if (row.code && row.label) return `${row.code} ${row.label}`;
   if (row.employee_name) return `${row.code || row.label || 'one'} — ${row.employee_name}`;
   return row.code || row.label || '';
+}
+
+/*
+ * HOW THE FIGURES ADD UP.
+ *
+ * Dinesh's brief: reconcile the totals, and do not hardcode or bend a record
+ * to make them meet. So this is the sum, from the one count every asset
+ * screen reads (shared/assetStatus.js assetCounts), with the check shown; and
+ * underneath, the records worth a person's look because two facts on them
+ * pull different ways. Each is still counted in exactly one place above.
+ */
+function HowItAddsUp({ counts, oddities, onGo }) {
+  const [open, setOpen] = useState(false);
+  const b = counts.by;
+  const rows = [
+    ['Out with staff', b.assigned, { status: 'assigned' }],
+    ['In the office', b.available, { status: 'available' }],
+    ['Being repaired', b.maintenance, { status: 'maintenance' }],
+    ['Damaged', b.damaged, { status: 'damaged' }],
+    ['Missing', b.missing, { status: 'missing' }],
+  ];
+  const offRows = [
+    ['Written off', b.written_off, { status: 'written_off' }],
+    ['Disposed', b.disposed, { status: 'disposed' }],
+  ];
+  const line = ([label, n, filter]) => (
+    <tr key={label}>
+      <td>{label}</td>
+      <td className="num">
+        {n ? <button className="link" onClick={() => onGo(filter)}>{n}</button> : 0}
+      </td>
+      <td className="num">{rupees(counts.cost.by[filter.status] || 0)}</td>
+    </tr>
+  );
+  return (
+    <div className="card">
+      <div className="row-between">
+        <h3>How the figures add up</h3>
+        <span className={`pill ${counts.check ? 'ok' : 'bad'}`}>
+          {counts.check ? `${counts.live} + ${counts.gone} = ${counts.total} — adds up` : 'does not add up'}
+        </span>
+      </div>
+      <table className="sheet asset-sum-table">
+        <thead>
+          <tr><th>On the register</th><th className="num">Assets</th><th className="num">Cost</th></tr>
+        </thead>
+        <tbody>
+          {rows.map(line)}
+          <tr className="total"><td>On the register</td><td className="num">{counts.live}</td><td className="num">{rupees(counts.cost.live)}</td></tr>
+          {offRows.map(line)}
+          <tr className="total"><td>Ever bought</td><td className="num">{counts.total}</td><td className="num">{rupees(counts.cost.all)}</td></tr>
+        </tbody>
+      </table>
+      <p className="muted small">
+        Every asset is in exactly one line. <strong>{counts.held}</strong> are in somebody&rsquo;s name — that
+        is the out-with-staff line plus any held one that is being repaired, damaged or missing, which are
+        counted on their own line. Cost is what it cost to buy; there is no depreciation.
+      </p>
+      {oddities.length ? (
+        <>
+          <button className="ghost small" onClick={() => setOpen((v) => !v)}>
+            {open ? 'Hide' : 'Show'} {oddities.reduce((n, g) => n + g.rows.length, 0)} records worth a look
+          </button>
+          {open ? (
+            <div className="lines">
+              {oddities.map((g) => (
+                <div key={g.key} className="oddity">
+                  <span className="what">
+                    <strong>{g.label}</strong> <span className="num">{g.rows.length}</span>
+                    <span className="muted small"> — {g.why}</span>
+                    <br />
+                    <span className="small">
+                      {g.rows.slice(0, 8).map((r) => `${r.code}${r.employee_name ? ` (${r.employee_name})` : ''}`).join(', ')}
+                      {g.rows.length > 8 ? ` and ${g.rows.length - 8} more` : ''}
+                    </span>
+                  </span>
+                </div>
+              ))}
+              <p className="muted small">Nothing here is changed for you. Open the asset and correct what is wrong; the figures follow.</p>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
 }

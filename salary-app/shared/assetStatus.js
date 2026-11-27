@@ -119,3 +119,126 @@ export function financialYear(date) {
   const start = month >= 4 ? year : year - 1;
   return `${start}-${String((start + 1) % 100).padStart(2, '0')}`;
 }
+
+/**
+ * Still on the register: not written off, not disposed of.
+ *
+ * One answer, because three screens had three. The register counted a
+ * disposed laptop as "in the office", the dashboard did not; the register's
+ * cost figure included it, the dashboard's did not.
+ */
+export const onRegister = (asset = {}) => {
+  const status = assetStatus(asset);
+  return status !== 'written_off' && status !== 'disposed';
+};
+
+/**
+ * EVERY COUNT ON EVERY ASSET SCREEN COMES FROM HERE.
+ *
+ * Dinesh's live register read "with staff 359" on one screen and 363 on
+ * another, beside 603 available and 2 under maintenance. The cause: the
+ * register counted anybody HOLDING something, whatever its state, while the
+ * dashboard counted only status Assigned. A laptop out with somebody and away
+ * for repair was in both "with staff" and "under maintenance" on one screen,
+ * and only in the second on the other.
+ *
+ * So each asset is in exactly ONE status (assetStatus, above), and:
+ *
+ *   on the register = assigned + available + maintenance + damaged + missing
+ *   off it          = written off + disposed
+ *   ever bought     = on the register + off it
+ *
+ * `check` proves the sums add up; a screen that shows it can never be off by
+ * four without saying so. `held` is a separate figure on purpose - somebody
+ * holding a damaged laptop is still holding it - and it is named as that, not
+ * as "with staff", so the two questions cannot be confused again.
+ *
+ * Money is "what it cost", never a value: there is no depreciation here.
+ */
+export function assetCounts(assets = []) {
+  const by = Object.fromEntries(ASSET_STATUSES.map(([key]) => [key, 0]));
+  const cost = Object.fromEntries(ASSET_STATUSES.map(([key]) => [key, 0]));
+  let held = 0;
+  let heldCost = 0;
+  for (const asset of assets) {
+    const status = assetStatus(asset);
+    const price = Number(asset.purchase_cost) || 0;
+    by[status] += 1;
+    cost[status] += price;
+    if (asset.employee_id && !asset.returned_on && onRegister(asset)) {
+      held += 1;
+      heldCost += price;
+    }
+  }
+  const live = by.assigned + by.available + by.maintenance + by.damaged + by.missing;
+  const gone = by.written_off + by.disposed;
+  const liveCost = cost.assigned + cost.available + cost.maintenance + cost.damaged + cost.missing;
+  const allCost = liveCost + cost.written_off + cost.disposed;
+  return {
+    total: assets.length,
+    live,
+    gone,
+    by,
+    held,
+    cost: { all: allCost, live: liveCost, gone: allCost - liveCost, by: cost, held: heldCost },
+    check: live + gone === assets.length,
+  };
+}
+
+/**
+ * Records worth a person's look because two facts on them pull different ways.
+ *
+ * NAMED, NEVER CHANGED. The brief is explicit, and so is the rule here: a
+ * historical record is not edited to make a figure come out. Each of these is
+ * counted in exactly one status already - the list only says why somebody
+ * might expect it elsewhere.
+ */
+export function assetOddities(assets = []) {
+  const name = (a) => ({ id: a.id, code: a.code || '', label: a.label || '', employee_name: a.employee_name || '', status: assetStatus(a) });
+  const heldWithState = [];
+  const heldWhenGone = [];
+  const disposedNotWrittenOff = [];
+  const stateOnWrittenOff = [];
+  const noCost = [];
+  for (const a of assets) {
+    const status = assetStatus(a);
+    const held = Boolean(a.employee_id && !a.returned_on);
+    if (held && ['maintenance', 'damaged', 'missing'].includes(status)) heldWithState.push(name(a));
+    if (held && (status === 'written_off' || status === 'disposed')) heldWhenGone.push(name(a));
+    if (a.state === 'disposed' && !a.written_off_on) disposedNotWrittenOff.push(name(a));
+    if (a.written_off_on && STATE_KEYS.includes(a.state) && a.state !== 'disposed') stateOnWrittenOff.push(name(a));
+    if (onRegister(a) && !(Number(a.purchase_cost) > 0)) noCost.push(name(a));
+  }
+  return [
+    {
+      key: 'held_with_state',
+      label: 'Held by somebody AND marked under maintenance, damaged or missing',
+      why: 'Counted under that state, not under "with staff". The holder is still named on the row.',
+      rows: heldWithState,
+    },
+    {
+      key: 'held_when_gone',
+      label: 'Written off or disposed while still in somebody’s name',
+      why: 'Off the register, but no return was ever recorded. Record the return if it came back.',
+      rows: heldWhenGone,
+    },
+    {
+      key: 'disposed_not_written_off',
+      label: 'Marked disposed but not written off',
+      why: 'Off the register either way. Writing it off records the date and why.',
+      rows: disposedNotWrittenOff,
+    },
+    {
+      key: 'state_on_written_off',
+      label: 'Written off and still carrying a repair/damaged/missing mark',
+      why: 'Written off wins; the old mark changes nothing.',
+      rows: stateOnWrittenOff,
+    },
+    {
+      key: 'no_cost',
+      label: 'On the register with no purchase cost',
+      why: 'Every money figure leaves these out, so totals read low until a cost is typed in.',
+      rows: noCost,
+    },
+  ].filter((group) => group.rows.length);
+}

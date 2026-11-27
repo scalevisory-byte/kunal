@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.35.0';
+export const VERSION = '2.36.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.36.0',
+    date: '28 Nov 2026',
+    title: 'Assets: every screen counts the same way',
+    items: [
+      '**The register and the dashboard now give the same figures.** The register counted anybody *holding* an asset as \u201cwith staff\u201d, even one away for repair or marked damaged; the dashboard did not. That is why one said 363 and the other 359. Now each asset is in exactly one line: with staff, in the office, being repaired, damaged, or missing.',
+      '**Assets \u2192 Dashboard \u2192 How the figures add up**: every line with its count and cost, the total, and a check that it adds up. Under it, the records worth a look \u2014 for example something held by somebody and marked damaged, or marked disposed but never written off. **Nothing is changed for you**; open the asset and correct it, and the figures follow.',
+      '**A disposed asset is no longer shown as \u201cin the office\u201d.** It is under *Written off / disposed*, and out of the cost total.',
+      'The register\u2019s figures say what they count, and end with the sum: *359 out with staff + 603 in the office + 2 being repaired \u2026 = 968*. *Damaged* and *Missing* are chips when there are any.',
+      'Nothing was rewritten in the database, and no payroll or attendance figure moves.',
+    ],
+  },
   {
     version: '2.35.0',
     date: '28 Nov 2026',

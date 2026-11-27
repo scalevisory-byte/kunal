@@ -1,4 +1,5 @@
 import { groupLabel, groupOf } from './assetGroups.js';
+import { assetCounts, onRegister } from './assetStatus.js';
 import { todayIso } from './today.js';
 /**
  * The asset reports: the register, who holds what, and a slip to sign.
@@ -37,10 +38,12 @@ export const REGISTER_COLUMNS = [
   ['Why', (a) => a.written_off_why || ''],
 ];
 
+/** Somebody holds it. NOT the same as "with staff" - see registerTotals. */
 export const isOut = (a) => Boolean(a.employee_id && !a.returned_on);
 
 export const whereItIs = (a) => {
   if (a.written_off_on) return 'written off';
+  if (a.state === 'disposed') return 'disposed';
   if (isOut(a)) return a.employee_name || 'with somebody';
   return 'in the office';
 };
@@ -83,15 +86,28 @@ export const handoverCsv = (handovers = []) => toCsv(HANDOVER_COLUMNS, handovers
  * knowing: an asset in the office is somewhere you can look.
  */
 export function registerTotals(assets = []) {
-  const live = assets.filter((a) => !a.written_off_on);
-  const out = live.filter(isOut);
+  /*
+   * v2.36.0: read off assetCounts, the one count every asset screen uses.
+   * `out` used to be "anybody holding it", so a laptop with somebody and away
+   * for repair was counted as out here and as under maintenance on the
+   * dashboard - 363 here, 359 there. `out` is now status Assigned; `held` is
+   * the old "anybody holding it", kept and named for what it is.
+   */
+  const c = assetCounts(assets);
+  const live = assets.filter(onRegister);
   return {
-    count: live.length,
-    written_off: assets.length - live.length,
-    out: out.length,
-    in_office: live.length - out.length,
-    cost: live.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0),
-    out_value: out.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0),
+    count: c.live,
+    written_off: c.by.written_off,
+    disposed: c.by.disposed,
+    out: c.by.assigned,
+    in_office: c.by.available,
+    maintenance: c.by.maintenance,
+    damaged: c.by.damaged,
+    missing: c.by.missing,
+    held: c.held,
+    cost: c.cost.live,
+    out_value: c.cost.by.assigned,
+    check: c.check,
     // Warranties worth a look: expired, or inside a month.
     warranty_soon: live.filter((a) => a.warranty_left_days !== null && a.warranty_left_days >= 0 && a.warranty_left_days <= 30),
     warranty_gone: live.filter((a) => a.warranty_left_days !== null && a.warranty_left_days < 0),
