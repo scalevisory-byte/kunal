@@ -6545,3 +6545,84 @@ button.desk-note:hover { background: var(--brand-soft); }
   .desk-who-name { max-width: 7rem; }
   .desk-bubble { max-width: 100%; }
 }
+
+/* A box round the fields that belong together on the joining form - each
+   parent, each address (EmployeeForm.jsx `groupsOf`). */
+.ef-box { border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.75rem 0.7rem; margin: 0 0 0.75rem; min-width: 0; }
+.ef-box > legend { font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 0 0.35rem; }
+.ef-box .ef-grid { margin: 0; }
+.ef-grid input:disabled { background: var(--line-soft); color: var(--muted); }
+
+/* The loans register fills its card (it was a 974px table in a 1,600px one). */
+table.sheet.loans-table { width: 100%; }
+
+/*
+ * "Who stands out" - eight ranked lists. Dinesh: "who stand wala screen still
+ * proper banavo". Three to a row left the last two lists alone on a row of
+ * their own, half the height of the others. Four to a row is two even rows of
+ * four, and each list is boxed so it reads as its own thing rather than as a
+ * column of a long page.
+ */
+@media (min-width: 1100px) {
+  .so-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.7rem; }
+}
+.so-rank { border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.65rem 0.4rem; min-width: 0; background: var(--surface); }
+.so-rank h4 { margin-top: 0; }
+
+/* The asset register's four figures, each with what it counts under it. */
+.asset-figures .figure .small { display: block; margin-top: 0.1rem; }
+/* Warranty and AMC as a table: the row's urgency on its left edge. */
+table.sheet.warranty-table { width: 100%; }
+table.sheet.warranty-table td { white-space: normal; vertical-align: top; }
+table.sheet.warranty-table tr.warranty-bad td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+table.sheet.warranty-table tr.warranty-warn td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+
+/* A notice's date and its optional time, side by side in one field. */
+.nb-when { display: flex; gap: 0.35rem; }
+.nb-when input[type='date'] { flex: 1 1 auto; min-width: 0; }
+.nb-when input[type='time'] { flex: 0 0 7rem; }
+label.linkish { cursor: pointer; color: var(--brand); text-decoration: underline; }
+
+/* The staff portal's helpdesk thread. */
+.my-tickets > li { padding: 0.45rem 0; border-bottom: 1px solid var(--line-soft); }
+.my-ticket { margin: 0.4rem 0 0.2rem; padding-left: 0.6rem; border-left: 2px solid var(--line); }
+.my-reply { margin: 0.35rem 0; white-space: pre-wrap; }
+.my-reply.office { color: var(--text); }
+.my-ticket-reply { display: flex; gap: 0.4rem; align-items: flex-end; }
+.my-ticket-reply textarea { flex: 1 1 auto; font: inherit; }
+
+/* v2.35.0 - the office's "staff are waiting" reminder. */
+.modal.request-reminder { width: min(34rem, 100%); }
+.rr-head { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem; }
+.rr-head h3 { margin: 0; }
+.rr-list { list-style: none; margin: 0.75rem 0; padding: 0; display: grid; gap: 0.35rem; }
+.rr-list .pa-row { width: 100%; }
+.rr-open { margin-left: auto; color: var(--accent, #1d4ed8); white-space: nowrap; font-size: 0.85rem; }
+.rr-actions { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
+
+/* v2.35.0 - the raise celebration on the staff portal. */
+.celebrate-backdrop { overflow: hidden; }
+.modal.celebrate { width: min(26rem, 100%); text-align: center; position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; }
+.modal.celebrate .celebrate-figures { align-self: stretch; }
+.modal.celebrate h2 { margin: 0.25rem 0 0.4rem; }
+.celebrate-burst { font-size: 3rem; line-height: 1; animation: celebrate-pop 0.6s ease-out both; }
+.celebrate-lead { margin: 0 0 0.9rem; }
+.celebrate-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0 0 0.75rem; }
+.celebrate-figures div { border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.4rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.celebrate-figures b { font-size: 1.35rem; font-variant-numeric: tabular-nums; color: var(--good, #15803d); }
+.celebrate-figures div + div b { color: inherit; }
+.celebrate-figures em { font-style: normal; font-size: 0.8rem; color: var(--muted); }
+.modal.celebrate .primary { margin-top: 0.5rem; min-width: 9rem; }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+.confetti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; opacity: 0.9;
+  animation: confetti-fall 3.2s linear infinite; }
+@keyframes confetti-fall { to { top: 105vh; transform: rotate(540deg) translateX(30px); } }
+@keyframes celebrate-pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .confetti i, .celebrate-burst { animation: none; }
+  .confetti { display: none; }
+}
+.my-task-list { list-style: none; margin: 0.35rem 0 0.5rem; padding: 0; display: grid; gap: 0.2rem; font-size: 0.85rem; }
+.my-task-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-task-list li.late .my-task-title { color: var(--bad, #b91c1c); font-weight: 600; }

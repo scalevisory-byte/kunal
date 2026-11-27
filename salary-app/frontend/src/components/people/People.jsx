@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE } from '../../api.js';
 import { serviceOf, statusOf } from '../../../../shared/personFile.js';
 import PersonFile from './PersonFile.jsx';
@@ -6,7 +6,6 @@ import Records from './Records.jsx';
 import Appraisals from './Appraisals.jsx';
 import Claims from './Claims.jsx';
 import Penalties from './Penalties.jsx';
-import Tasks from './Tasks.jsx';
 import Helpdesk from './Helpdesk.jsx';
 import Noticeboard from './Noticeboard.jsx';
 import Leaving from './Leaving.jsx';
@@ -38,7 +37,9 @@ const PANELS = [
   ['appraisals', 'Appraisals'],
   ['claims', 'Claims'],
   ['penalties', 'Penalties'],
-  ['tasks', 'Tasks'],
+  /* Tasks moved to the Task desk tab (v2.35.0): Dinesh, "task desk already
+     banaya he to yaha pe need nahi". The desk holds these same rows, with the
+     thread and the statuses, so a second list here was two answers. */
   ['helpdesk', 'Helpdesk'],
   ['noticeboard', 'Noticeboard'],
   ['leaving', 'Leaving'],
@@ -55,9 +56,18 @@ const STATUSES = [
 ];
 
 export default function People({
-  employees, companies, period, me, companyId = null, onError, onReload,
+  employees, companies, period, me, companyId = null, onError, onReload, focus = null, onFocused,
 }) {
   const [panel, setPanel] = useState('records');
+  /* A reminder line ("2 expense claims to approve") names the panel that can
+     act on it, so arriving here lands on that panel, not on the first one. */
+  useEffect(() => {
+    if (focus && PANELS.some(([key]) => key === focus)) {
+      setPanel(focus);
+      onFocused?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
   const [picked, setPicked] = useState(null);
   const [query, setQuery] = useState('');
   const [department, setDepartment] = useState('');
@@ -193,7 +203,6 @@ export default function People({
       {panel === 'appraisals' && <Appraisals {...props} />}
       {panel === 'claims' && <Claims {...props} />}
       {panel === 'penalties' && <Penalties {...props} />}
-      {panel === 'tasks' && <Tasks {...props} />}
       {panel === 'helpdesk' && <Helpdesk {...props} />}
       {panel === 'noticeboard' && <Noticeboard companies={companies} onError={onError} />}
       {panel === 'leaving' && <Leaving {...props} />}

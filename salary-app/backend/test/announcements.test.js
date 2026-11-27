@@ -47,10 +47,12 @@ test('what one person sees: pinned first, then newest, and nothing of the office
   assert.deepEqual(seen.map((a) => a.title), ['Pinned', 'Newest', 'Old']);
 
   /* A whitelist, like every other staff payload. `posted_by` travels because
-     "who put this up" is a fair question; nothing else about the office. */
+     "who put this up" is a fair question; nothing else about the office.
+     v2.35.0: the two labels carry the time a notice goes up and comes down,
+     which is the office's own words about the notice, not about the office. */
   assert.deepEqual(
     Object.keys(seen[0]).sort(),
-    ['body', 'from_on', 'id', 'kind', 'pinned', 'posted_by', 'title', 'until_on']
+    ['body', 'from_label', 'from_on', 'id', 'kind', 'pinned', 'posted_by', 'title', 'until_label', 'until_on']
   );
   assert.ok(!JSON.stringify(seen).includes('company_id'));
 });

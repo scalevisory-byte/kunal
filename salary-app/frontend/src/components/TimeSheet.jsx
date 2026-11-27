@@ -93,6 +93,8 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
    */
   const [standard, setStandard] = useState(() => shiftOfMonth(period));
   const [showStandard, setShowStandard] = useState(false);
+  // The own-shift and lunch notes under the strip, folded by default.
+  const [showNotes, setShowNotes] = useState(false);
   const [status, setStatus] = useState('');
   const saveTimer = useRef(null);
 
@@ -870,6 +872,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             />
             Lunch is inside the day
           </label>
+          {(ownShifts > 0 || lunchEffect.days > 0) && usual.minutes === 0 ? (
+            <button className="ghost tiny" onClick={() => setShowNotes((v) => !v)}>
+              {showNotes ? 'hide how this works' : 'how this works'}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -894,7 +901,13 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
         * about 1.66 lakh a month across 114 people, out of a mismatch nothing
         * on screen had ever stated.
         */}
-      {(ownShifts > 0 || usual.minutes !== 0 || lunchEffect.days > 0) && (
+      {/*
+        * Second pass, same complaint (*"ye part bhaut jyada space kha rah a
+        * he"*): the own-shift and lunch lines are information, not a warning,
+        * so they live behind "how this works" now. Only the mismatch - which
+        * costs money - still prints on its own.
+        */}
+      {(usual.minutes !== 0 || (showNotes && (ownShifts > 0 || lunchEffect.days > 0))) && (
         <p className="time-notes muted small">
           {ownShifts > 0 ? (
             <>

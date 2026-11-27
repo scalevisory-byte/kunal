@@ -3,6 +3,8 @@ import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
 import {
   LICENSE_KINDS,
+  fieldWords,
+  isAgreement,
   LICENSE_TERMS,
   statusLabel,
   termNote,
@@ -99,6 +101,8 @@ export default function Licenses({ employees = [], companies = [], companyId, on
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState(BLANK);
+  // The form's words follow the kind: a rent agreement has a landlord, not a publisher.
+  const words = fieldWords(draft.kind);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(null);     // the licence whose page is open
   const [said, setSaid] = useState('');
@@ -187,9 +191,27 @@ export default function Licenses({ employees = [], companies = [], companyId, on
           onChange={(e) => setQuery(e.target.value)}
           style={{ maxWidth: '18rem' }}
         />
-        <button className="primary" onClick={() => setAdding((v) => !v)}>
+        <button
+          className="primary"
+          onClick={() => {
+            setDraft(BLANK);
+            setAdding((v) => !v);
+          }}
+        >
           {adding ? 'Close' : 'Add a licence'}
         </button>
+        {/* The way in for the two that are not software: a button that names
+            them, because nobody looks for a rent agreement under "licence". */}
+        {!adding ? (
+          <>
+            <button className="ghost" onClick={() => { setDraft({ ...BLANK, kind: 'Rent agreement', term: 'subscription', renew_every_months: '11' }); setAdding(true); }}>
+              Add a rent agreement
+            </button>
+            <button className="ghost" onClick={() => { setDraft({ ...BLANK, kind: 'Insurance policy', term: 'subscription', renew_every_months: '12' }); setAdding(true); }}>
+              Add an insurance policy
+            </button>
+          </>
+        ) : null}
         <span className="push-right">
           <button className="ghost" onClick={() => download('/people/licenses.csv', 'software-licences.csv')}>
             Register (CSV)
@@ -291,7 +313,7 @@ export default function Licenses({ employees = [], companies = [], companyId, on
       {/* ---------------- adding one ---------------- */}
       {adding && (
         <div className="card">
-          <h3>Add a licence</h3>
+          <h3>{isAgreement(draft.kind) ? `Add a ${draft.kind.toLowerCase()}` : 'Add a licence'}</h3>
           <p className="muted small">
             Only the <strong>name</strong> is needed. Everything else is something somebody has to go
             and find, and what is missing is said on the row — a form that will not save until the
@@ -299,8 +321,8 @@ export default function Licenses({ employees = [], companies = [], companyId, on
           </p>
           <div className="form-grid">
             <label>
-              Software
-              <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Tally Prime Silver" />
+              {words.name}
+              <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={words.namePlaceholder} />
             </label>
             <label>
               Kind
@@ -311,13 +333,15 @@ export default function Licenses({ employees = [], companies = [], companyId, on
               </select>
             </label>
             <label>
-              Publisher
-              <input value={draft.publisher} onChange={(e) => setDraft({ ...draft, publisher: e.target.value })} placeholder="Tally Solutions" />
+              {words.publisher}
+              <input value={draft.publisher} onChange={(e) => setDraft({ ...draft, publisher: e.target.value })} placeholder={words.publisherPlaceholder} />
             </label>
-            <label>
-              Version
-              <input value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} placeholder="5.0" />
-            </label>
+            {words.secret ? (
+              <label>
+                Version
+                <input value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} placeholder="5.0" />
+              </label>
+            ) : null}
             <label>
               Company
               <select value={draft.company_id} onChange={(e) => setDraft({ ...draft, company_id: e.target.value })}>
@@ -339,6 +363,7 @@ export default function Licenses({ employees = [], companies = [], companyId, on
                 ))}
               </select>
             </label>
+            {words.secret ? (<>
             <label>
               Licence key
               <input
@@ -363,12 +388,13 @@ export default function Licenses({ employees = [], companies = [], companyId, on
                 placeholder="blank = nobody counting"
               />
             </label>
+            </>) : null}
             <label>
               Bought on
               <input type="date" value={draft.purchased_on} onChange={(e) => setDraft({ ...draft, purchased_on: e.target.value })} />
             </label>
             <label>
-              Runs until
+              {words.expires}
               <input
                 type="date"
                 value={draft.expires_on}
@@ -377,11 +403,11 @@ export default function Licenses({ employees = [], companies = [], companyId, on
               />
             </label>
             <label>
-              Cost
+              {words.cost}
               <input value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} placeholder="22500" />
             </label>
             <label>
-              Renewed every (months)
+              {words.renew}
               <input
                 value={draft.renew_every_months}
                 onChange={(e) => setDraft({ ...draft, renew_every_months: e.target.value })}
@@ -389,11 +415,11 @@ export default function Licenses({ employees = [], companies = [], companyId, on
               />
             </label>
             <label>
-              Vendor
+              {words.vendor}
               <input value={draft.vendor} onChange={(e) => setDraft({ ...draft, vendor: e.target.value })} />
             </label>
             <label>
-              Invoice
+              {words.invoice}
               <input value={draft.invoice_no} onChange={(e) => setDraft({ ...draft, invoice_no: e.target.value })} />
             </label>
             <label>

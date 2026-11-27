@@ -438,6 +438,8 @@ for (const column of [
   'blood_group',
   // What each parent does and where. The office's own record; an input to nothing.
   'father_occupation', 'father_company', 'mother_occupation', 'mother_company',
+  // Each parent's mobile, and the office's own email and mobile for them.
+  'father_phone', 'mother_phone', 'office_email', 'office_phone',
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
@@ -1074,6 +1076,10 @@ const EMPLOYEE_FIELDS = [
   'father_name',
   'father_occupation',
   'father_company',
+  'father_phone',
+  'mother_phone',
+  'office_email',
+  'office_phone',
   'mother_name',
   'mother_occupation',
   'mother_company',
@@ -1257,6 +1263,10 @@ export function createEmployee(input) {
     father_name: input.father_name || null,
     father_occupation: input.father_occupation || null,
     father_company: input.father_company || null,
+    father_phone: input.father_phone || null,
+    mother_phone: input.mother_phone || null,
+    office_email: input.office_email || null,
+    office_phone: input.office_phone || null,
     mother_name: input.mother_name || null,
     mother_occupation: input.mother_occupation || null,
     mother_company: input.mother_company || null,

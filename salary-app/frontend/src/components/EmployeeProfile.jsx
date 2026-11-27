@@ -7,6 +7,7 @@ import EmployeeRecord, { Reporting } from './EmployeeRecord.jsx';
 import AssetLedger from './people/AssetLedger.jsx';
 import EmployeePhoto from './EmployeePhoto.jsx';
 import { EMPLOYMENT_TYPES, MASKED } from '../../../shared/employeeMaster.js';
+import { RELIGIONS } from '../../../shared/festivals.js';
 
 /**
  * One employee's full record.
@@ -31,6 +32,9 @@ const SECTIONS = [
       ['department', 'Department', 'text'],
       ['employment_type', 'Employment type', 'select', '', ['', ...EMPLOYMENT_TYPES]],
       ['work_location', 'Work location', 'text', 'if they do not sit at the branch address'],
+      // The office's own email and mobile for them, apart from their personal ones.
+      ['office_email', 'Office email', 'email'],
+      ['office_phone', 'Office mobile', 'tel'],
       ['joined_on', 'Joined on', 'date'],
       ['left_on', 'Left on', 'date', 'leave empty while they are still with you'],
       // Only for somebody who does not work the office's usual day. A night
@@ -54,6 +58,7 @@ const SECTIONS = [
       ],
       ['blood_group', 'Blood group', 'text', 'e.g. B+'],
       ['nationality', 'Nationality', 'text', 'Indian'],
+      ['religion', 'Religion', 'select', 'decides which festivals are a paid holiday', ['', ...RELIGIONS]],
       ['phone', 'Mobile', 'tel'],
       ['phone_alt', 'Second mobile', 'tel', 'a brother, a landline - somewhere else to try'],
       ['email', 'Email', 'email'],
@@ -91,9 +96,11 @@ const SECTIONS = [
     title: 'Family',
     fields: [
       ['father_name', "Father's name", 'text'],
+      ['father_phone', "Father's mobile", 'tel'],
       ['father_occupation', "Father's work", 'text'],
       ['father_company', "Father's company / employer", 'text'],
       ['mother_name', "Mother's name", 'text'],
+      ['mother_phone', "Mother's mobile", 'tel'],
       ['mother_occupation', "Mother's work", 'text'],
       ['mother_company', "Mother's company / employer", 'text'],
       ['spouse_name', "Spouse's name", 'text', 'leave empty if unmarried'],
@@ -288,7 +295,8 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
               commit(field, e.target.value);
             }}
           >
-            {options.map((o) => (
+            {/* A value on the record that is not on the list is kept, not wiped. */}
+            {(value && !options.includes(value) ? [...options, value] : options).map((o) => (
               <option key={o} value={o}>{o || '—'}</option>
             ))}
           </select>

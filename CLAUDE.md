@@ -2251,6 +2251,59 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Reminders, a raise celebrated, and the long list (v2.35.0)
+
+Dinesh sent ~20 screenshots in one message. Highlights and the rules they hang on:
+
+- **The office's hourly reminder** (`shared/requestReminder.js`, `RequestReminder.jsx`).
+  Reads `/api/people/digest` every five minutes and pops a box for lines marked
+  **`staff: true`** — the six things staff wait on the office for (attendance requests,
+  their own record, uploads, declared assets, claims, helpdesk questions). A licence or an
+  overdue job is the office's own business and does NOT pop. `reminderDue`: nothing waiting →
+  never; never put away → now; **a line not in the last signature → now** (a new leave must not
+  wait out somebody else's hour); an hour since put away → now. **One fewer is not news** —
+  deciding something does not throw the box back up. Put-away time is localStorage (per desk,
+  a convenience). It approves nothing; each line opens its screen, and People now honours a
+  `focus` (claims / helpdesk).
+- **The raise celebration** (`shared/celebration.js`, `Celebration.jsx`, `GET /api/me/celebration`).
+  Only an **applied** rise, only a real rise, only within **60 days**, newest first, in
+  `CELEBRATION_FIELDS` only — never the reviewer's summary or rating. Shown once per appraisal
+  id per device. CSS-only confetti, still under `prefers-reduced-motion`.
+- **My tasks card** on the employee dashboard reads the same `GET /desk` the tab draws, and
+  changes nothing (a test refuses api.post in it). People → Tasks was removed — the desk holds
+  the same `staff_tasks` rows.
+- **Helpdesk on the portal** (`my/MyHelpdesk.jsx`) — the `/api/me/tickets` routes had existed
+  since staff logins and nothing rendered them.
+- **Claim vouchers** (`backend/src/claimVouchers.js`): files on disk under
+  `DATA_DIR/claim-vouchers`, `voucher_file` stripped from every response (`has_voucher`).
+- **Notices carry a time** (`joinWhen`/`whenLabel` in `shared/announcements.js`); `isLive`
+  honours it on the day.
+- **Issued by** on warnings/appreciations is a select: the person's reporting manager, then
+  anybody somebody reports to, then the rest.
+- **Joining form**: religion is `RELIGIONS` from `shared/festivals.js`; **`FORM_REQUIRES`
+  (phone, phone_alt, email) is checked by the FORM only** — `createEmployee` still wants only a
+  name and a company, because the spreadsheet import, hiring handover and bulk add reach it too.
+  Father/mother boxes with their own mobiles (`father_phone`, `mother_phone`), present/permanent
+  address groups with *same as present* mirroring, `office_email`/`office_phone` on the record.
+- **Assets: description stickers** (`labelSheet(..., { as: 'patti' })`) — code, what it is,
+  serial, company, no QR. **AND THE QR SHEET HAD BEEN THROWING since it moved into shared/:**
+  its note called `assetLink(req, ...)`, which only exists in the route file. Every "Labels for
+  N" press was a 500. Base link is now derived from the caller's `linkFor`. Tested.
+- **Rent agreements and insurance policies** are `LICENSE_KINDS` on the License register,
+  deliberately not a second register — "runs out on a date and has to be renewed" is exactly
+  what it models. `fieldWords(kind)` renames the boxes (Landlord / Rent / Agreement ends;
+  Insurer / Premium / Policy number) and hides key/seats/version; the digest gives each kind its
+  own line (`renewalNoun`), "insurance policies" not "policys".
+- Compaction: Time tab notes behind *how this works* (**the timing-mismatch sentence never
+  folds**), the day menu shows ten everyday marks (`EVERYDAY_MARKS`) with the rest one click
+  away, warranty/AMC as a table, asset figures computed from the rows shown with captions.
+- Answered, not built: **Sunday approval** is the `approve` ability = Manager and Admin roles
+  (Admin → Logins). People who work at another site punch from the portal (`PUNCH_ENABLED`) and
+  ask for *Working out of office* (OD); the missing-out rule only acts when the machine has an
+  arrival.
+- Test traps: the toolbar-grouping test measured a fixed 2,000 characters; it now measures to
+  the group's own `</span>`.
+
 ### No out punch is a half day (v2.34.0) — `shared/missingOut.js`
 
 Dinesh, looking at AJEETKUMAR's 27 Nov (in 10:29, no out): *"agar punch missing he to half

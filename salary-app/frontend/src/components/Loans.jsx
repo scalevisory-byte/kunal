@@ -276,7 +276,7 @@ export default function Loans({ period, employees, onReload }) {
         </div>
 
         <div className="table-wrap">
-          <table className="sheet">
+          <table className="sheet loans-table">
             <thead>
               <tr>
                 <th className="sticky-name">Employee</th>

@@ -33,6 +33,16 @@ export const BUDDHIST = 'Buddhist';
 export const PARSI = 'Parsi';
 
 /**
+ * The religions a person can be given on their record, as a fixed list.
+ *
+ * Dinesh: *"religion me drop ka option do"*. A typed box let the same faith
+ * arrive as "Hindu", "hindu " and "Hidnu", and a festival applies to exactly
+ * the spelling it carries - so a typo quietly left somebody off a paid
+ * holiday. "Other" is there so nobody is forced into a wrong answer.
+ */
+export const RELIGIONS = [HINDU, MUSLIM, JAIN, CHRISTIAN, SIKH, BUDDHIST, PARSI, 'Other'];
+
+/**
  * name      what it is called here
  * aliases   the other spellings people type
  * religions who it is a holiday for; empty means the whole office

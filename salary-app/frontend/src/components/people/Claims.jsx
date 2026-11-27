@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { col, num, printReport } from '../../printReport.js';
-import { api } from '../../api.js';
+import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
@@ -22,6 +22,9 @@ export default function Claims({ employees, period, onError, onReload, only = nu
   const [claims, setClaims] = useState([]);
   const [status, setStatus] = useState('');
   const [adding, setAdding] = useState(false);
+  // The bill behind it, chosen on the form and attached once the claim exists.
+  const [voucher, setVoucher] = useState(null);
+  const [fileKey, setFileKey] = useState(0);
   /*
    * On one person's file the picker is already answered - there is nobody
    * else on the screen to choose. It is still a picker in the Everyone view.
@@ -53,10 +56,27 @@ export default function Claims({ employees, period, onError, onReload, only = nu
   const save = async () => {
     if (!draft.employee_id || !(Number(draft.amount) > 0)) return;
     try {
-      await api.post('/people/claims', draft);
+      const made = await api.post('/people/claims', draft);
+      // A file needs a row to hang on, so it goes on once the claim is made.
+      if (voucher && made?.id) await attach(made, voucher, { quiet: true });
       setDraft({ ...draft, amount: '', detail: '' });
+      setVoucher(null);
+      setFileKey((k) => k + 1);
       setAdding(false);
       load();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  /* The bill behind a claim - a petrol slip, a hotel invoice. Dinesh:
+     "yaha pe voucher attach karne ka option do". */
+  const attach = async (claim, file, { quiet = false } = {}) => {
+    const form = new FormData();
+    form.append('file', file);
+    try {
+      await api.upload(`/people/claims/${claim.id}/voucher`, form);
+      if (!quiet) load();
     } catch (err) {
       onError(err);
     }
@@ -229,6 +249,17 @@ export default function Claims({ employees, period, onError, onReload, only = nu
               onChange={(e) => setDraft({ ...draft, detail: e.target.value })}
             />
           </label>
+          {!STANDALONE ? (
+            <label className="block">
+              Voucher <span className="muted small">— the bill or receipt, a PDF or a photo (optional)</span>
+              <input
+                key={fileKey}
+                type="file"
+                accept="application/pdf,image/*"
+                onChange={(e) => setVoucher(e.target.files?.[0] || null)}
+              />
+            </label>
+          ) : null}
           <button onClick={save} disabled={!draft.employee_id || !(Number(draft.amount) > 0)}>
             Raise it
           </button>
@@ -246,6 +277,7 @@ export default function Claims({ employees, period, onError, onReload, only = nu
               <th>On</th>
               <th className="num">How much</th>
               <th>What for</th>
+              <th>Voucher</th>
               <th>Where it stands</th>
               <th />
             </tr>
@@ -260,6 +292,30 @@ export default function Claims({ employees, period, onError, onReload, only = nu
                 <td>
                   {claim.detail || '—'}
                   {claim.decision_note && <div className="muted small">{claim.decision_note}</div>}
+                </td>
+                <td>
+                  {claim.has_voucher ? (
+                    <button
+                      className="link"
+                      onClick={() =>
+                        download(`/people/claims/${claim.id}/voucher`, claim.voucher_name || 'voucher').catch(onError)
+                      }
+                    >
+                      📎 {claim.voucher_name || 'voucher'}
+                    </button>
+                  ) : STANDALONE ? (
+                    <span className="muted small">—</span>
+                  ) : (
+                    <label className="linkish small">
+                      attach
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => e.target.files?.[0] && attach(claim, e.target.files[0])}
+                      />
+                    </label>
+                  )}
                 </td>
                 <td>
                   <span className={`pill ${claim.status}`}>{claim.status}</span>

@@ -1,4 +1,5 @@
 import { todayIso } from './today.js';
+import { RELIGIONS } from './festivals.js';
 /**
  * THE EMPLOYEE MASTER: what a joining form actually asks.
  *
@@ -61,20 +62,31 @@ export const SECTIONS = [
       ['blood_group', 'Blood group', 'select', { options: BLOOD_GROUPS }],
       ['marital_status', 'Marital status', 'select', { options: MARITAL_STATUSES }],
       ['nationality', 'Nationality', 'text', { placeholder: 'Indian' }],
-      ['religion', 'Religion', 'text', { hint: 'decides which festivals are a paid holiday' }],
+      ['religion', 'Religion', 'select', {
+        options: ['', ...RELIGIONS],
+        hint: 'decides which festivals are a paid holiday',
+      }],
       ['phone', 'Mobile', 'tel', { required: true }],
-      ['phone_alt', 'Alternate mobile', 'tel'],
-      ['email', 'Personal email', 'email'],
-      ['father_name', "Father's name", 'text', { hint: 'the PF Form 2 asks for it' }],
-      /* Dinesh: "Mother / father working detail / job company name". What
-         each parent does and where - asked by the office for its own record,
-         and an input to nothing: not one of these reaches a calculation. */
-      ['father_occupation', "Father's work", 'text', { placeholder: 'e.g. business, service, retired' }],
-      ['father_company', "Father's company / employer", 'text'],
-      ['mother_name', "Mother's name", 'text'],
-      ['mother_occupation', "Mother's work", 'text', { placeholder: 'e.g. homemaker, teacher' }],
-      ['mother_company', "Mother's company / employer", 'text'],
+      ['phone_alt', 'Alternate mobile', 'tel', { required: true }],
+      ['email', 'Personal email', 'email', { required: true }],
       ['spouse_name', "Spouse's name", 'text', { hint: 'leave empty if unmarried' }],
+      /*
+       * EACH PARENT IN A BOX OF THEIR OWN, with their mobile.
+       *
+       * Dinesh: "father mother wala proper box banavo / unke bhi mobile num
+       * k sath". Six boxes in a row of a five-column grid read as one long
+       * list where "Mother's work" sat under "Father's company". `group` puts
+       * each parent's lines together; the form draws the box, nothing else
+       * reads it. The father's name is still what PF Form 2 asks for.
+       */
+      ['father_name', "Father's name", 'text', { group: 'Father', hint: 'the PF Form 2 asks for it' }],
+      ['father_phone', "Father's mobile", 'tel', { group: 'Father' }],
+      ['father_occupation', "Father's work", 'text', { group: 'Father', placeholder: 'e.g. business, service, retired' }],
+      ['father_company', "Father's company / employer", 'text', { group: 'Father' }],
+      ['mother_name', "Mother's name", 'text', { group: 'Mother' }],
+      ['mother_phone', "Mother's mobile", 'tel', { group: 'Mother' }],
+      ['mother_occupation', "Mother's work", 'text', { group: 'Mother', placeholder: 'e.g. homemaker, teacher' }],
+      ['mother_company', "Mother's company / employer", 'text', { group: 'Mother' }],
     ],
   },
   {
@@ -97,6 +109,11 @@ export const SECTIONS = [
          column stays, so nothing already typed is thrown away. */
       ['reports_to_id', 'Reporting manager', 'employee', { hint: 'approves their leave before the office does' }],
       ['work_location', 'Work location', 'text', { hint: 'if they do not sit at the branch address' }],
+      /* The office's own way to reach them, kept apart from their personal
+         number and email: Dinesh, "employee ka office email and mobile num
+         kaha add karna he" - there was nowhere. */
+      ['office_email', 'Office email', 'email'],
+      ['office_phone', 'Office mobile', 'tel'],
       ['shift_in', 'Shift starts', 'text', { hint: "leave empty for the office's usual day" }],
       ['shift_out', 'Shift ends', 'text', { placeholder: '06:00 for a night shift' }],
     ],
@@ -106,17 +123,26 @@ export const SECTIONS = [
     title: 'Address details',
     why: 'Where they live. Present is where to reach them; permanent is what the forms ask.',
     fields: [
-      ['address_line1', 'Address line 1', 'text'],
-      ['address_line2', 'Address line 2', 'text'],
-      ['city', 'City', 'text'],
-      ['state', 'State', 'text'],
-      ['pincode', 'PIN code', 'text'],
-      ['perm_same', 'Permanent address is the same', 'checkbox'],
-      ['perm_line1', 'Permanent line 1', 'text', { unless: 'perm_same' }],
-      ['perm_line2', 'Permanent line 2', 'text', { unless: 'perm_same' }],
-      ['perm_city', 'Permanent city', 'text', { unless: 'perm_same' }],
-      ['perm_state', 'Permanent state', 'text', { unless: 'perm_same' }],
-      ['perm_pincode', 'Permanent PIN code', 'text', { unless: 'perm_same' }],
+      /*
+       * BOTH ADDRESSES ON SCREEN, always.
+       *
+       * Dinesh: "address me present address peremnet address dono dalo". The
+       * permanent one used to VANISH while "same" was ticked, which read as a
+       * form with no permanent address at all. Now both boxes show; ticked,
+       * the permanent one carries the present address greyed (`mirror`), and
+       * the completeness figure still does not count five blanks for it.
+       */
+      ['address_line1', 'Address line 1', 'text', { group: 'Present address' }],
+      ['address_line2', 'Address line 2', 'text', { group: 'Present address' }],
+      ['city', 'City', 'text', { group: 'Present address' }],
+      ['state', 'State', 'text', { group: 'Present address' }],
+      ['pincode', 'PIN code', 'text', { group: 'Present address' }],
+      ['perm_same', 'Permanent address is the same as present', 'checkbox', { group: 'Permanent address' }],
+      ['perm_line1', 'Permanent line 1', 'text', { unless: 'perm_same', mirror: 'address_line1', group: 'Permanent address' }],
+      ['perm_line2', 'Permanent line 2', 'text', { unless: 'perm_same', mirror: 'address_line2', group: 'Permanent address' }],
+      ['perm_city', 'Permanent city', 'text', { unless: 'perm_same', mirror: 'city', group: 'Permanent address' }],
+      ['perm_state', 'Permanent state', 'text', { unless: 'perm_same', mirror: 'state', group: 'Permanent address' }],
+      ['perm_pincode', 'Permanent PIN code', 'text', { unless: 'perm_same', mirror: 'pincode', group: 'Permanent address' }],
     ],
   },
   {
@@ -221,7 +247,25 @@ export const ALL_FIELDS = SECTIONS.flatMap((s) =>
 export const REFUSED_WITHOUT = ['name', 'company_id'];
 
 /** Starred on the form: what a FINISHED record has. Not what a save needs. */
-export const STARRED = ['name', 'company_id', 'joined_on', 'monthly_salary', 'phone'];
+export const STARRED = ['name', 'company_id', 'joined_on', 'monthly_salary', 'phone', 'phone_alt', 'email'];
+
+/**
+ * WHAT THIS FORM WILL NOT SAVE WITHOUT, on a full save (a draft is exempt).
+ *
+ * Dinesh: "alternate mobile num / personal mail compulsory". Refused HERE,
+ * on the joining form, and deliberately NOT on the server: the staff
+ * spreadsheet import, the hiring handover and the bulk add all create
+ * employees too, and a rule on one door of several is a surprise
+ * (REFUSED_WITHOUT above). The joining form is where somebody is sitting in
+ * front of the new joiner and can ask.
+ */
+export const FORM_REQUIRES = ['phone', 'phone_alt', 'email'];
+
+export function formMissing(employee = {}) {
+  return FORM_REQUIRES.filter((f) => !String(employee[f] ?? '').trim()).map(
+    (f) => ALL_FIELDS.find((x) => x.field === f)?.label || f
+  );
+}
 
 export function missingRequired(employee = {}) {
   return REFUSED_WITHOUT.filter((f) => {

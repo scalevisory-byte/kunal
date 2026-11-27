@@ -48,7 +48,9 @@ import {
   updateNote,
   listPenalties,
   listRecoveries,
+  listAppraisals,
 } from '../people.js';
+import { celebrationFor } from '../../../shared/celebration.js';
 import { employeeReport } from '../../../shared/employeeReport.js';
 import { attendanceStatement } from '../../../shared/attendanceStatement.js';
 import { punchesByDay } from '../devices.js';
@@ -919,6 +921,15 @@ meRouter.get('/holidays', (req, res) => {
  * The employee id comes off the LOGIN, as everything in this file does, and
  * both lists travel through a whitelist rather than a strip.
  */
+/**
+ * A raise to celebrate, if there is one: the newest APPLIED rise in the last
+ * sixty days, in the fewest fields (shared/celebration.js). The employee id
+ * comes off the login like every other /me route.
+ */
+meRouter.get('/celebration', (req, res) => {
+  res.json({ celebration: celebrationFor(listAppraisals(req.employeeId), { today: todayIso() }) });
+});
+
 meRouter.get('/record', (req, res) => {
   const notes = visibleNotes(listNotes(req.employeeId));
   const penalties = visiblePenalties(

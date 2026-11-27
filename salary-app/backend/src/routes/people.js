@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Router } from 'express';
 import { profileChangesWaiting } from '../profileChanges.js';
 import { may } from '../../../shared/rights.js';
@@ -39,6 +40,7 @@ import {
 const assetSheet = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 import { deletePhotoFile, photoLink, uploadAssetPhoto } from '../assetPhotos.js';
 import { deleteDocFile, docLink, uploadAssetDoc } from '../assetDocs.js';
+import { removeVoucher, uploadVoucher, voucherPath } from '../claimVouchers.js';
 
 /*
  * What a sticker's QR actually carries: a link to that asset, so scanning it
@@ -97,6 +99,8 @@ import {
   closeTicket,
   createAppraisal,
   createAsset,
+  claimVoucherFile,
+  setClaimVoucher,
   createClaim,
   createNote,
   createTask,
@@ -1255,10 +1259,43 @@ peopleRouter.post('/claims/:id/pay', (req, res) => {
 
 peopleRouter.delete('/claims/:id', (req, res) => {
   try {
-    res.json({ deleted: deleteClaim(Number(req.params.id), who(req)) });
+    // The voucher goes with the claim: a file nothing points at is a file
+    // nobody will ever clear up.
+    const voucher = claimVoucherFile(Number(req.params.id));
+    const deleted = deleteClaim(Number(req.params.id), who(req));
+    if (deleted && voucher?.voucher_file) removeVoucher(voucher.voucher_file);
+    res.json({ deleted });
   } catch (err) {
     bad(res, err);
   }
+});
+
+/*
+ * The voucher - the bill behind the claim. Attaching a second replaces the
+ * first, and the first file is removed from disk once the new one is on the
+ * row, so a failed upload never leaves the claim with nothing.
+ */
+peopleRouter.post('/claims/:id/voucher', uploadVoucher, (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'choose the file to attach' });
+  try {
+    const { replaced, claim } = setClaimVoucher(
+      Number(req.params.id),
+      { file: req.file.filename, name: req.file.originalname },
+      who(req)
+    );
+    if (replaced) removeVoucher(replaced);
+    res.status(201).json(claim);
+  } catch (err) {
+    removeVoucher(req.file.filename);
+    res.status(err.message === 'not found' ? 404 : 400).json({ error: err.message });
+  }
+});
+
+peopleRouter.get('/claims/:id/voucher', (req, res) => {
+  const voucher = claimVoucherFile(Number(req.params.id));
+  const full = voucher?.voucher_file ? voucherPath(voucher.voucher_file) : null;
+  if (!full) return res.status(404).json({ error: 'no voucher attached to this claim' });
+  res.download(full, voucher.voucher_name || path.basename(full));
 });
 
 /* ---------------- penalties: fines, losses, damage ---------------- */

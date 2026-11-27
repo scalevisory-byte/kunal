@@ -32,6 +32,7 @@ import AssetsTab from './components/AssetsTab.jsx';
 import Licenses from './components/people/Licenses.jsx';
 import Glyph from './icons.jsx';
 import Help, { WhatsNew } from './components/Help.jsx';
+import RequestReminder from './components/RequestReminder.jsx';
 import { VERSION, hasNews } from '../../shared/version.js';
 import { THEMES, applyTheme, readTheme, writeTheme } from '../../shared/theme.js';
 
@@ -882,6 +883,14 @@ function Shell() {
         />
       ) : null}
       {newsOpen && <WhatsNew onClose={() => setNewsOpen(false)} seen={seenVersion} />}
+      {!STANDALONE && authed && me?.role !== 'employee' ? (
+        <RequestReminder
+          onGo={(toTab, what) => {
+            setTab(toTab);
+            if (typeof what === 'string') setFocusOn(what);
+          }}
+        />
+      ) : null}
 
       {/* Tapping the page behind the menu closes it, as it should. */}
       <div className="side-scrim" onClick={() => setNavOpen(false)} />
@@ -1446,6 +1455,8 @@ function Shell() {
             me={me}
             onError={handle}
             onReload={loadAll}
+            focus={focusOn}
+            onFocused={() => setFocusOn(null)}
           />
         )}
 

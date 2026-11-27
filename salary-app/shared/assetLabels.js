@@ -46,18 +46,36 @@ export function labelSvg(asset, { qr, as = 'qr', heightMm, sizeMm, link } = {}) 
   return svg ? { svg } : { problem: 'that code cannot be made into a QR', status: 400 };
 }
 
-/** A sheet of stickers, because nobody labels one asset at a time. */
+/**
+ * A sheet of stickers, because nobody labels one asset at a time.
+ *
+ * `as: 'patti'` is the plain description strip - no QR, no barcode, just the
+ * code in large type and what the thing is (Dinesh, v2.35.0: *"qr code ki
+ * jagah pe normal description wala sticker bhi option do, patti jesa"*).
+ * Some things are labelled for the person looking at them, not a scanner:
+ * a chair, a cabinet, a router on a shelf.
+ */
 export function labelSheet(assets = [], { qr, mm = 18, as, linkFor } = {}) {
   const size = Number(mm) || 18;
+  const patti = String(as) === 'patti';
   const cells = assets
     .map((a) => {
+      const what = [a.kind, a.label].filter(Boolean).join(' — ');
+      if (patti) {
+        const extra = [a.identifier ? `S/N ${a.identifier}` : '', a.company_name || ''].filter(Boolean).join(' · ');
+        return (
+          `<div class="patti"><div class="code">${esc(a.code)}</div>` +
+          `<div class="what">${esc(what)}</div>` +
+          (extra ? `<div class="who">${esc(extra)}</div>` : '') +
+          `</div>`
+        );
+      }
       const svg =
         qrSvg(String(as) === 'text' ? a.code : (linkFor ? linkFor(a) : a.code), {
           qr,
           sizeMm: size,
           ecc: 'Q',
         }) || '';
-      const what = [a.kind, a.label].filter(Boolean).join(' — ');
       return (
         `<div class="sticker">${svg}` +
         `<div class="code">${esc(a.code)}</div>` +
@@ -67,31 +85,53 @@ export function labelSheet(assets = [], { qr, mm = 18, as, linkFor } = {}) {
     })
     .join('');
 
+  /*
+   * The note used to call assetLink(req, ...) - a function that lives in the
+   * server's route file and was never in scope here - so every sheet of
+   * labels threw "assetLink is not defined" from the day this moved into
+   * shared/. The base is now worked out from the caller's own linkFor, and
+   * where there is no link (the single file) the sentence does not mention one.
+   */
+  const sample = linkFor ? String(linkFor({ code: 'CODE' }) || '') : '';
+  const base = /\/CODE$/.test(sample) ? sample.replace(/\/CODE$/, '') : '';
+  const note = patti
+    ? 'The dashed lines are a cutting guide and do not print dark. These carry no code to scan — they are for the person looking at the thing.'
+    : base
+      ? `The dashed lines are a cutting guide and do not print dark. Scanning one with a phone opens that asset — ${esc(base)} — and asks for a sign-in first, because an asset register is not public.`
+      : 'The dashed lines are a cutting guide and do not print dark. Each QR carries the asset code.';
+
   return (
     `<!doctype html><html><head><meta charset="utf-8"><title>Asset labels</title><style>
       body { font: 11px/1.3 system-ui, sans-serif; margin: 8mm; }
       h1 { font-size: 14px; margin: 0 0 6mm; }
       .sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
       .sticker {
-        width: ${(mm + 14).toFixed(0)}mm;
+        width: ${(size + 14).toFixed(0)}mm;
         border: 0.2mm dashed #bbb;
         padding: 2mm;
         text-align: center;
         page-break-inside: avoid;
       }
       .sticker svg { display: block; margin: 0 auto; }
+      .patti {
+        width: 64mm;
+        min-height: 16mm;
+        border: 0.2mm dashed #bbb;
+        padding: 2mm 3mm;
+        page-break-inside: avoid;
+        display: flex; flex-direction: column; justify-content: center;
+      }
+      .patti .code { font-size: 15px; letter-spacing: 0.5px; margin: 0 0 0.8mm; }
+      .patti .what { font-size: 11px; color: #111; white-space: normal; }
       .code { font-family: monospace; font-weight: 700; margin-top: 1mm; }
       .what, .who { color: #555; font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      @media print { body { margin: 5mm; } h1, .note { display: none; } .sticker { border-color: #eee; } }
+      @media print { body { margin: 5mm; } h1, .note { display: none; } .sticker, .patti { border-color: #eee; } }
     </style></head><body>
-      <h1>${assets.length} label${assets.length === 1 ? '' : 's'} — print this page</h1>
-      <p class="note">The dashed lines are a cutting guide and do not print dark. Scanning one
-      with a phone opens that asset — ${esc(assetLink(req, 'CODE').replace('/CODE', ''))} — and
-      asks for a sign-in first, because an asset register is not public.</p>
+      <h1>${assets.length} ${patti ? 'description sticker' : 'label'}${assets.length === 1 ? '' : 's'} — print this page</h1>
+      <p class="note">${note}</p>
       <div class="sheet">${cells}</div>
     </body></html>`
   );
-
 }
 
 /** The asset voucher, to print and file. */

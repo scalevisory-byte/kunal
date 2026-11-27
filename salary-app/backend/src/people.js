@@ -2632,7 +2632,31 @@ export function assetHistory(id) {
  * expense claims
  * ================================================================= */
 
+/** A claim as it may leave the server: whether there is a voucher, never where. */
+export const forOfficeClaim = (row) => {
+  if (!row) return row;
+  const { voucher_file, ...rest } = row;
+  return { ...rest, has_voucher: Boolean(voucher_file) };
+};
+
+/** The stored file of a claim's voucher, for the route that sends it. Server only. */
+export const claimVoucherFile = (id) =>
+  db.prepare(`SELECT voucher_file, voucher_name FROM expense_claims WHERE id = ?`).get(Number(id)) || null;
+
+export function setClaimVoucher(id, { file, name }, by) {
+  const before = db.prepare(`SELECT id, voucher_file FROM expense_claims WHERE id = ?`).get(Number(id));
+  if (!before) throw new Error('not found');
+  db.prepare(`UPDATE expense_claims SET voucher_file = ?, voucher_name = ? WHERE id = ?`).run(
+    file,
+    String(name || '').slice(0, 120) || 'voucher',
+    before.id
+  );
+  audit({ who: by, action: 'attached', entity: 'expense_claims', entity_id: before.id, label: 'voucher', note: name || '' });
+  return { replaced: before.voucher_file || null, claim: getClaim(before.id) };
+}
+
 export const getClaim = (id) =>
+  forOfficeClaim(
   db
     .prepare(
       /*
@@ -2649,7 +2673,9 @@ export const getClaim = (id) =>
        LEFT JOIN periods p ON p.id = x.paid_period_id
        WHERE x.id = ?`
     )
-    .get(id) || null;
+    .get(id)
+  ) || null;
+
 
 export function listClaims({ employee_id, status, limit = 300 } = {}) {
   const where = [];
@@ -2678,7 +2704,8 @@ export function listClaims({ employee_id, status, limit = 300 } = {}) {
                 x.spent_on DESC, x.id DESC
        LIMIT ?`
     )
-    .all(...params, Math.min(1000, Number(limit) || 300));
+    .all(...params, Math.min(1000, Number(limit) || 300))
+    .map(forOfficeClaim);
 }
 
 export function createClaim(employeeId, input = {}) {
@@ -3254,6 +3281,14 @@ addColumns('asset_handovers', [
   // A slip nobody signed is a slip that settles nothing.
   ['acknowledged_on', 'TEXT'],
   ['acknowledged_by', 'TEXT'],
+]);
+
+addColumns('expense_claims', [
+  // The bill behind the claim. The generated file name on disk - never the
+  // name it was uploaded as, and never sent to a browser (see forOfficeClaim).
+  ['voucher_file', 'TEXT'],
+  // What it was called when it was attached, for the screen to say.
+  ['voucher_name', 'TEXT'],
 ]);
 
 addColumns('tickets', [

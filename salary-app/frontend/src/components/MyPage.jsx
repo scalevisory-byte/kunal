@@ -23,6 +23,7 @@ import MyHolidays from './my/MyHolidays.jsx';
 import MyDocuments from './my/MyDocuments.jsx';
 import MyAssets from './my/MyAssets.jsx';
 import TaskDesk from './desk/TaskDesk.jsx';
+import MyHelpdesk from './my/MyHelpdesk.jsx';
 import { waitingSentence } from '../../../shared/taskDesk.js';
 import MyProfileForm from './my/MyProfileForm.jsx';
 import MyRecord from './my/MyRecord.jsx';
@@ -75,6 +76,8 @@ const TABS = [
   // The same desk the office uses, drawn from the same component - what
   // somebody sees on it is decided by who they are, not which side they are on.
   ['desk', 'Tasks & approvals', '\u2611'],
+  // Asking the office something. The routes existed; the page did not.
+  ['help-desk', 'Helpdesk', '\u2709'],
 ];
 
 export default function MyPage({ me, onError, onSignOut }) {
@@ -297,6 +300,7 @@ export default function MyPage({ me, onError, onSignOut }) {
           {tab === 'holidays' && <MyHolidays onError={onError} />}
           {tab === 'documents' && <MyDocuments onError={onError} />}
           {tab === 'assets' && <MyAssets onError={onError} />}
+          {tab === 'help-desk' && <MyHelpdesk onError={onError} />}
           {tab === 'desk' && (
             <TaskDesk onError={onError} onCount={(n) => setDeskWaiting((w) => ({ ...(w || {}), total: n }))} />
           )}

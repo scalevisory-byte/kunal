@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, STANDALONE } from '../../api.js';
-import { KINDS, isLive, kindIcon, validate } from '../../../../shared/announcements.js';
+import { KINDS, isLive, joinWhen, kindIcon, validate, whenLabel } from '../../../../shared/announcements.js';
 import { todayIso } from '../../../../shared/today.js';
 
 /**
@@ -14,7 +14,11 @@ import { todayIso } from '../../../../shared/today.js';
  * they sign in. No message goes out, nobody is notified, and the panel says
  * so rather than letting somebody assume an announcement reached a phone.
  */
-const BLANK = { kind: 'notice', title: '', body: '', company_id: '', from_on: '', until_on: '', pinned: false };
+const BLANK = {
+  kind: 'notice', title: '', body: '', company_id: '', from_on: '', until_on: '', pinned: false,
+  // The optional time of day, kept apart on the form and joined on save.
+  from_time: '', until_time: '',
+};
 
 export default function Noticeboard({ companies = [], onError }) {
   const [list, setList] = useState(null);
@@ -35,13 +39,19 @@ export default function Noticeboard({ companies = [], onError }) {
   useEffect(() => { load(); }, []);
 
   const save = async () => {
-    const { ok, problems } = validate(form);
+    const { from_time, until_time, ...rest } = form;
+    const notice = {
+      ...rest,
+      from_on: joinWhen(form.from_on, from_time),
+      until_on: joinWhen(form.until_on, until_time),
+    };
+    const { ok, problems } = validate(notice);
     if (!ok) return setProblem(problems.join('; '));
     setProblem('');
     setBusy(true);
     try {
       await api.post('/people/announcements', {
-        ...form,
+        ...notice,
         company_id: form.company_id ? Number(form.company_id) : null,
       });
       setForm(BLANK);
@@ -116,21 +126,39 @@ export default function Noticeboard({ companies = [], onError }) {
           </label>
           <label>
             Goes up
-            <input
-              type="date"
-              value={form.from_on}
-              onChange={(e) => setForm({ ...form, from_on: e.target.value })}
-            />
-            <span className="muted small">leave empty for straight away</span>
+            <span className="nb-when">
+              <input
+                type="date"
+                value={form.from_on}
+                onChange={(e) => setForm({ ...form, from_on: e.target.value })}
+              />
+              <input
+                type="time"
+                value={form.from_time}
+                disabled={!form.from_on}
+                title="optional — a time on that day"
+                onChange={(e) => setForm({ ...form, from_time: e.target.value })}
+              />
+            </span>
+            <span className="muted small">leave empty for straight away · time is optional</span>
           </label>
           <label>
             Comes down
-            <input
-              type="date"
-              value={form.until_on}
-              onChange={(e) => setForm({ ...form, until_on: e.target.value })}
-            />
-            <span className="muted small">leave empty to take it down by hand</span>
+            <span className="nb-when">
+              <input
+                type="date"
+                value={form.until_on}
+                onChange={(e) => setForm({ ...form, until_on: e.target.value })}
+              />
+              <input
+                type="time"
+                value={form.until_time}
+                disabled={!form.until_on}
+                title="optional — a time on that day"
+                onChange={(e) => setForm({ ...form, until_time: e.target.value })}
+              />
+            </span>
+            <span className="muted small">leave empty to take it down by hand · time is optional</span>
           </label>
           <label className="wide-field">
             The notice
@@ -180,8 +208,8 @@ export default function Noticeboard({ companies = [], onError }) {
                     {a.body ? <div className="muted small">{a.body}</div> : null}
                   </td>
                   <td className="small">{a.company_name || 'Everybody'}</td>
-                  <td className="small">{a.from_on || 'straight away'}</td>
-                  <td className="small">{a.until_on || 'by hand'}</td>
+                  <td className="small">{whenLabel(a.from_on) || 'straight away'}</td>
+                  <td className="small">{whenLabel(a.until_on) || 'by hand'}</td>
                   <td className="small">
                     {/* Whether it is actually ON the board today, which is a
                         different question from whether it exists. */}

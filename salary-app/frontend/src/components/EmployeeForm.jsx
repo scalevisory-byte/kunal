@@ -6,6 +6,7 @@ import {
   STARRED,
   completeness,
   fieldApplies,
+  formMissing,
   missingRequired,
 } from '../../../shared/employeeMaster.js';
 import { employeeCodeProblem, tidyEmployeeCode } from '../../../shared/employeeCode.js';
@@ -139,6 +140,14 @@ export default function EmployeeForm({
       setTab(missing.includes('Company') ? 'employment' : 'basic');
       return;
     }
+    // The joining form's own demands, on a full save only: a draft is a form
+    // somebody has not finished, which is what a draft is for.
+    const asked = asDraft ? [] : formMissing(form);
+    if (asked.length) {
+      setError(`${asked.join(', ')} — needed before the employee is saved. Save draft keeps what you have.`);
+      setTab('basic');
+      return;
+    }
     if (clash && !asDraft) {
       setError(`${clash.code} is already ${clash.name}'s code. Change it before saving.`);
       setTab('employment');
@@ -261,15 +270,26 @@ export default function EmployeeForm({
             </p>
           </div>
         ) : (
-          <div className="form-grid ef-grid">
-            {section.fields
+          /*
+           * Fields that share a `group` are drawn in a box of their own - each
+           * parent, each address - and the rest in the plain grid. A mirrored
+           * field (the permanent address while "same" is ticked) is still
+           * drawn, greyed, carrying the present address: a box that vanishes
+           * reads as a form without it.
+           */
+          groupsOf(
+            section.fields
               .map(([field, label, kind, opts = {}]) => ({ ...opts, field, label, kind }))
-              .filter((f) => fieldApplies(f, form))
-              .map((f) => (
+              .filter((f) => fieldApplies(f, form) || f.mirror)
+          ).map(({ group, fields }) => {
+            const boxes = fields.map((f) => {
+              const mirrored = Boolean(f.mirror && form.perm_same);
+              return (
                 <Field
                   key={f.field}
                   f={f}
-                  value={form[f.field]}
+                  value={mirrored ? form[f.mirror] : form[f.field]}
+                  disabled={mirrored}
                   starred={STARRED.includes(f.field)}
                   problem={problems[f.field]}
                   companies={companies}
@@ -285,8 +305,17 @@ export default function EmployeeForm({
                     set(f.field, v);
                   }}
                 />
-              ))}
-          </div>
+              );
+            });
+            return group ? (
+              <fieldset className="ef-box" key={group}>
+                <legend>{group}</legend>
+                <div className="form-grid ef-grid">{boxes}</div>
+              </fieldset>
+            ) : (
+              <div className="form-grid ef-grid" key={`plain-${fields[0].field}`}>{boxes}</div>
+            );
+          })
         )}
 
         {/* What this tab is still short of, said once rather than as a red
@@ -333,7 +362,7 @@ export default function EmployeeForm({
         </button>
         <span className="grow" />
         <span className="muted small">
-          Only a name and a company are needed. The rest is chased by the joining checklist.
+          A full save needs a name, a company, both mobiles and the personal email. Save draft needs only a name and a company.
         </span>
       </footer>
     </div>
@@ -342,7 +371,18 @@ export default function EmployeeForm({
 
 /* ---------------- one box ---------------- */
 
-function Field({ f, value, starred, problem, companies, branches, employees, onChange }) {
+/** Consecutive fields with one `group` become one box; the rest stay plain. */
+function groupsOf(fields) {
+  const out = [];
+  for (const f of fields) {
+    const last = out[out.length - 1];
+    if (last && last.group === (f.group || '')) last.fields.push(f);
+    else out.push({ group: f.group || '', fields: [f] });
+  }
+  return out;
+}
+
+function Field({ f, value, disabled = false, starred, problem, companies, branches, employees, onChange }) {
   const v = value === undefined || value === null ? '' : value;
   /*
    * THE TEXT AND THE STAR MUST BE ONE ELEMENT.
@@ -404,14 +444,19 @@ function Field({ f, value, starred, problem, companies, branches, employees, onC
               ))}
           </select>
         );
-      case 'select':
+      case 'select': {
+        /* A value already on the record that is not on the list (a religion
+           typed before it became a list) is kept as an option, not wiped. */
+        const options = f.options || [];
+        const all = v && !options.includes(v) ? [...options, v] : options;
         return (
           <select value={v} onChange={(e) => onChange(e.target.value)}>
-            {(f.options || []).map((o) => (
+            {all.map((o) => (
               <option key={o} value={o}>{o === '' ? 'Not said' : o}</option>
             ))}
           </select>
         );
+      }
       case 'master':
         /* Typed, with what the office already uses as suggestions - a fixed
            list would mean a new designation needs a developer. */
@@ -454,6 +499,8 @@ function Field({ f, value, starred, problem, companies, branches, employees, onC
             type={f.kind === 'date' ? 'date' : f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : 'text'}
             placeholder={f.placeholder || ''}
             value={v}
+            disabled={disabled}
+            title={disabled ? 'the same as the present address — untick to type a different one' : undefined}
             onChange={(e) => onChange(e.target.value)}
             /* ONE FORMAT FOR A NAME. Dinesh: "Name in single format, case
                letter sab ke sahi karne he". ANSHIKA GUPTA and mahek gotawala

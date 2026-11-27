@@ -1,4 +1,5 @@
 import { todayIso } from './today.js';
+import { renewalNoun } from './licenses.js';
 /**
  * The day's digest: everything waiting on somebody, as text.
  *
@@ -115,9 +116,23 @@ export function digest(input = {}) {
    * Reports. One line telling the office somebody applied for leave, and it
    * opened the wrong tab.
    */
-  const add = (line, n = 1, kind = 'queue', go = 'people', focus = null) => {
+  /*
+   * `staff` marks a line that is somebody on the staff WAITING on the office:
+   * a request, a filled-in record, an upload, a declared asset, a claim, a
+   * question. Those are what the office's hourly reminder is about (Dinesh:
+   * "koi employee kuch request kare... action na lo tab tak every hour
+   * popup"); a job past its date or a licence running out is the office's own
+   * business and does not pop up over somebody's work.
+   */
+  const add = (line, n = 1, kind = 'queue', go = 'people', focus = null, staff = false) => {
     lines.push(line);
-    items.push({ kind, text: line.replace(/^•\s*/, ''), go, ...(focus ? { focus } : {}) });
+    items.push({
+      kind,
+      text: line.replace(/^•\s*/, ''),
+      go,
+      ...(focus ? { focus } : {}),
+      ...(staff ? { staff: true } : {}),
+    });
     count += n;
   };
 
@@ -136,7 +151,8 @@ export function digest(input = {}) {
       // Leave applications, corrections and work-from-home all land here, and
       // the only screen that can approve one is in Reports.
       'reports',
-      'approvals'
+      'approvals',
+      true
     );
   }
 
@@ -148,7 +164,9 @@ export function digest(input = {}) {
       )} waiting for HR: ${names(profileChanges.names || [])}`,
       1,
       'queue',
-      'employees'
+      'employees',
+      null,
+      true
     );
   }
 
@@ -160,7 +178,8 @@ export function digest(input = {}) {
       1,
       'queue',
       'reports',
-      'documents'
+      'documents',
+      true
     );
   }
 
@@ -171,7 +190,9 @@ export function digest(input = {}) {
       )}`,
       1,
       'queue',
-      'assets'
+      'assets',
+      null,
+      true
     );
   }
 
@@ -181,7 +202,12 @@ export function digest(input = {}) {
     add(
       `• ${plural(pendingClaims.length, 'expense claim')} to approve, ₹${Math.round(
         total
-      ).toLocaleString('en-IN')}: ${names(pendingClaims.map((c) => c.employee_name))}`
+      ).toLocaleString('en-IN')}: ${names(pendingClaims.map((c) => c.employee_name))}`,
+      1,
+      'queue',
+      'people',
+      'claims',
+      true
     );
   }
 
@@ -197,18 +223,25 @@ export function digest(input = {}) {
 
   const waiting = tickets.filter((t) => t.waiting);
   if (waiting.length) {
-    add(`• ${plural(waiting.length, 'question')} from staff unanswered: ${names(waiting.map((t) => t.employee_name))}`);
+    add(
+      `• ${plural(waiting.length, 'question')} from staff unanswered: ${names(waiting.map((t) => t.employee_name))}`,
+      1,
+      'queue',
+      'people',
+      'helpdesk',
+      true
+    );
   }
 
   /* --- work --- */
 
   const overdue = tasks.filter((t) => t.status === 'open' && t.due_on && t.due_on < today);
   if (overdue.length) {
-    add(`• ${plural(overdue.length, 'job')} past its date: ${names(overdue.map((t) => t.title))}`);
+    add(`• ${plural(overdue.length, 'job')} past its date: ${names(overdue.map((t) => t.title))}`, 1, 'queue', 'desk');
   }
   const dueToday = tasks.filter((t) => t.status === 'open' && t.due_on === today);
   if (dueToday.length) {
-    add(`• ${plural(dueToday.length, 'job')} wanted today: ${names(dueToday.map((t) => t.title))}`);
+    add(`• ${plural(dueToday.length, 'job')} wanted today: ${names(dueToday.map((t) => t.title))}`, 1, 'queue', 'desk');
   }
 
   /* --- dates nobody remembers --- */
@@ -272,21 +305,29 @@ export function digest(input = {}) {
    * given, NOT worked out here - a second opinion on what counts as expiring
    * is how two screens come to disagree.
    */
+  /*
+   * v2.35.0: a rent agreement and an insurance policy live on the same
+   * register, so each kind gets its own line in its own words - "1 insurance
+   * policy to renew" says what to do; "1 software licence" for a car
+   * insurance would send somebody to the wrong desk.
+   */
+  const byNoun = (list) => {
+    const out = new Map();
+    for (const l of list) {
+      const noun = renewalNoun(l.kind);
+      if (!out.has(noun)) out.set(noun, []);
+      out.get(noun).push(l);
+    }
+    return [...out.entries()];
+  };
   const lapsed = licenses.filter((l) => !l.cancelled_on && l.status === 'expired');
-  if (lapsed.length) {
-    add(
-      `• ${plural(lapsed.length, 'software licence')} expired: ${names(lapsed.map((l) => l.name))}`,
-      1,
-      'dates',
-      'license'
-    );
+  for (const [noun, list] of byNoun(lapsed)) {
+    add(`• ${plural(list.length, noun, noun.endsWith('y') ? `${noun.slice(0, -1)}ies` : `${noun}s`)} expired: ${names(list.map((l) => l.name))}`, 1, 'dates', 'license');
   }
   const renewing = licenses.filter((l) => !l.cancelled_on && l.status === 'expiring');
-  if (renewing.length) {
+  for (const [noun, list] of byNoun(renewing)) {
     add(
-      `• ${plural(renewing.length, 'software licence')} to renew: ${names(
-        renewing.map((l) => `${l.name} (${l.expires_on})`)
-      )}`,
+      `• ${plural(list.length, noun, noun.endsWith('y') ? `${noun.slice(0, -1)}ies` : `${noun}s`)} to renew: ${names(list.map((l) => `${l.name} (${l.expires_on})`))}`,
       1,
       'dates',
       'license'

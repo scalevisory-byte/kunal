@@ -66,8 +66,8 @@ export default function MyNotices({ onError }) {
                   {n.body ? <p className="small">{n.body}</p> : null}
                   <p className="muted small">
                     {kindLabel(n.kind)}
-                    {n.from_on ? ` · from ${n.from_on}` : ''}
-                    {n.until_on ? ` · until ${n.until_on}` : ''}
+                    {n.from_on ? ` · from ${n.from_label || n.from_on}` : ''}
+                    {n.until_on ? ` · until ${n.until_label || n.until_on}` : ''}
                     {n.posted_by ? ` · put up by ${n.posted_by}` : ''}
                   </p>
                 </div>

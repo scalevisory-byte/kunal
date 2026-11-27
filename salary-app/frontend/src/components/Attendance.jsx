@@ -1141,12 +1141,25 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
 }
 
 /** The menu for one day: the mark by name, then that day's short hours. */
+/*
+ * THE MARKS A DAY IS USUALLY GIVEN, shown at once in the day menu.
+ *
+ * Dinesh, at the menu: *"ye option bahut jyada he, isko kam karne he"* -
+ * sixteen buttons for a choice that is nearly always P, A or a leave. The
+ * rest (a holiday, Sunday or holiday worked, 24-hour duty, absent-double)
+ * are one press away under "More marks", and a day already carrying one of
+ * them still shows it. Nothing is removed: every mark is still one press.
+ */
+const EVERYDAY_MARKS = new Set(['P', 'A', 'HF', 'CL', 'SL', 'PL', 'UL', 'WH', 'OD', 'S']);
+
 function DayPicker({
   codes, picker, period, entry, perMinute, row, hoursPerDay = 9, deductLunch = true,
   onChange, onClose,
 }) {
   const [custom, setCustom] = useState('');
   const [punches, setPunches] = useState(null);
+  // The rarer marks fold away (see EVERYDAY_MARKS); the day's own mark is always shown.
+  const [allMarks, setAllMarks] = useState(false);
   const date = new Date(period.year, period.month - 1, picker.day);
   const rate = Number(perMinute) || 0;
   const cost = (mins) => Math.round(Math.abs(mins) * rate);
@@ -1311,7 +1324,9 @@ function DayPicker({
         </div>
 
         <ul className="picker-list">
-          {Object.entries(codes).map(([code, meta]) => (
+          {Object.entries(codes)
+            .filter(([code]) => allMarks || EVERYDAY_MARKS.has(code) || entry.code === code)
+            .map(([code, meta]) => (
             <li key={code}>
               <button
                 type="button"
@@ -1341,6 +1356,21 @@ function DayPicker({
               <span className="picker-effect">—</span>
             </button>
           </li>
+          {Object.keys(codes).some((c) => !EVERYDAY_MARKS.has(c) && c !== entry.code) ? (
+            <li>
+              <button type="button" className="clear picker-more" onClick={() => setAllMarks((v) => !v)}>
+                <span className="brush">{allMarks ? '−' : '+'}</span>
+                <span className="picker-label">
+                  {allMarks
+                    ? 'Fewer marks'
+                    : `More marks — ${Object.keys(codes)
+                        .filter((c) => !EVERYDAY_MARKS.has(c) && c !== entry.code)
+                        .join(', ')}`}
+                </span>
+                <span className="picker-effect" />
+              </button>
+            </li>
+          ) : null}
         </ul>
 
         {/*

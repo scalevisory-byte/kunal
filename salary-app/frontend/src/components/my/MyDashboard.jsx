@@ -7,6 +7,8 @@ import { recordSummary } from '../../../../shared/myRecord.js';
 import { kindIcon } from '../../../../shared/announcements.js';
 import { hoursForEmployee } from '../../../../shared/lateEarly.js';
 import PunchNow from '../PunchNow.jsx';
+import Celebration from './Celebration.jsx';
+import { isClosed, isOverdue } from '../../../../shared/taskDesk.js';
 import { todayIso } from '../../../../shared/today.js';
 
 /**
@@ -162,6 +164,7 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
       {/* FIRST, because this is what somebody opens the portal at half past
           nine to do. Everything below is a report on a day already worked. */}
       <MyPunch onPunched={() => setTick((n) => n + 1)} />
+      <Celebration name={employee?.name} />
 
       <div className="my-cards">
         <article className={`my-card tone-${stateTone}`}>
@@ -202,6 +205,8 @@ export default function MyDashboard({ employee, months, onGo, onError }) {
           </p>
           <button className="my-link" onClick={() => onGo('leave')}>Apply for leave &rarr;</button>
         </article>
+
+        <MyTasksCard onGo={onGo} />
 
         <article className="my-card">
           <header><span className="my-ico">&#8377;</span><h3>My salary</h3></header>
@@ -458,5 +463,68 @@ function MyPunch({ onPunched }) {
         heading="Punched today"
       />
     </section>
+  );
+}
+
+/*
+ * THE TASK DESK, ON THE EMPLOYEE'S DASHBOARD.
+ *
+ * Dinesh: *"task wala employee dashboard me bhi do"*. The desk was a tab on
+ * the portal; somebody who opens the dashboard and nothing else never saw
+ * the work given to them. This card reads the SAME /desk bootstrap the tab
+ * draws from - work given to them that is not finished, the overdue first -
+ * so the card and the tab cannot disagree, and the tab is one tap away.
+ * Nothing on the card changes a task: an update needs its words, and the
+ * words are written on the desk.
+ */
+function MyTasksCard({ onGo }) {
+  const [desk, setDesk] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .get('/desk')
+      .then((got) => alive && setDesk(got))
+      .catch(() => alive && setDesk({ tasks: [], me: null }));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const today = desk?.today || todayIso();
+  const mine = (desk?.tasks || [])
+    .filter((t) => desk?.me && t.to === desk.me.key && !isClosed(t))
+    .sort((a, b) => {
+      const ao = isOverdue(a, today) ? 0 : 1;
+      const bo = isOverdue(b, today) ? 0 : 1;
+      if (ao !== bo) return ao - bo;
+      return String(a.due_on || '9999').localeCompare(String(b.due_on || '9999'));
+    });
+  const overdue = mine.filter((t) => isOverdue(t, today)).length;
+  const toDecide = desk?.waiting?.approvals || 0;
+  return (
+    <article className={`my-card${overdue ? ' tone-bad' : ''}`}>
+      <header><span className="my-ico">&#9745;</span><h3>My tasks</h3></header>
+      <strong className="my-big">{desk ? mine.length : '—'}</strong>
+      <p className="muted small">
+        {!desk
+          ? 'Loading…'
+          : mine.length
+            ? `open${overdue ? ` · ${overdue} past its date` : ''}${toDecide ? ` · ${toDecide} approval${toDecide === 1 ? '' : 's'} to decide` : ''}`
+            : toDecide
+              ? `Nothing open · ${toDecide} approval${toDecide === 1 ? '' : 's'} to decide`
+              : 'Nothing given to you is open'}
+      </p>
+      {mine.length ? (
+        <ul className="my-task-list">
+          {mine.slice(0, 3).map((t) => (
+            <li key={t.id} className={isOverdue(t, today) ? 'late' : undefined}>
+              <span className="my-task-title">{t.title}</span>
+              {t.due_on ? <span className="muted small"> · due {t.due_on.slice(8, 10)}/{t.due_on.slice(5, 7)}</span> : null}
+            </li>
+          ))}
+          {mine.length > 3 ? <li className="muted small">and {mine.length - 3} more</li> : null}
+        </ul>
+      ) : null}
+      <button className="my-link" onClick={() => onGo('desk')}>Tasks &amp; approvals &rarr;</button>
+    </article>
   );
 }

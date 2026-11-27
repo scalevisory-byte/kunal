@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
@@ -34,6 +34,22 @@ export default function Records({ employees, onError, only = null }) {
     detail: '',
     issued_by: '',
   });
+
+  /* Who can be named as having issued it: the person's own manager, then
+     anybody somebody reports to, then the rest - never the person themselves. */
+  const issuers = useMemo(() => {
+    const staff = onStaff(employees);
+    const subject = staff.find((e) => String(e.id) === String(draft.employee_id));
+    const managerIds = new Set(staff.map((e) => e.reports_to_id).filter(Boolean).map(String));
+    const manager = subject?.reports_to_id
+      ? staff.find((e) => String(e.id) === String(subject.reports_to_id)) || null
+      : null;
+    const notThem = (e) => String(e.id) !== String(draft.employee_id) && e.id !== manager?.id;
+    const seniors = staff.filter((e) => notThem(e) && managerIds.has(String(e.id)));
+    const others = staff.filter((e) => notThem(e) && !managerIds.has(String(e.id)));
+    const all = new Set([manager?.name, ...seniors.map((e) => e.name), ...others.map((e) => e.name)].filter(Boolean));
+    return { manager, seniors, others, all };
+  }, [employees, draft.employee_id]);
 
   const load = async (filter = kind) => {
     try {
@@ -141,12 +157,45 @@ export default function Records({ employees, onError, only = null }) {
             </label>
             <label>
               Issued by
-              <input
-                type="text"
+              {/*
+                * WHO GAVE IT, PICKED RATHER THAN TYPED.
+                *
+                * Dinesh: "issue by uske reporting manager ya senior drop down
+                * banavo". Their own reporting manager first, then everybody
+                * who manages anybody, then the rest of the staff. Still stored
+                * as the name, as it always was, so every record already on
+                * file reads the same.
+                */}
+              <select
                 value={draft.issued_by}
-                placeholder="who gave it"
                 onChange={(e) => setDraft({ ...draft, issued_by: e.target.value })}
-              />
+              >
+                <option value="">Pick who gave it</option>
+                {issuers.manager ? (
+                  <optgroup label="Their reporting manager">
+                    <option value={issuers.manager.name}>{issuers.manager.name}</option>
+                  </optgroup>
+                ) : null}
+                {issuers.seniors.length ? (
+                  <optgroup label="Managers and seniors">
+                    {issuers.seniors.map((e) => (
+                      <option key={e.id} value={e.name}>
+                        {e.name}{e.designation ? ` — ${e.designation}` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {issuers.others.length ? (
+                  <optgroup label="Everybody else">
+                    {issuers.others.map((e) => (
+                      <option key={e.id} value={e.name}>{e.name}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {draft.issued_by && !issuers.all.has(draft.issued_by) ? (
+                  <option value={draft.issued_by}>{draft.issued_by}</option>
+                ) : null}
+              </select>
             </label>
           </div>
           <label className="block">

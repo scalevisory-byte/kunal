@@ -278,8 +278,14 @@ test('a long toolbar wraps in groups, never one orphan', () => {
    * rather than what it says. The rule being kept is the grouping: the ways
    * out wrap as one block, never one orphan on its own line.
    */
-  for (const text of ['labelSheet', 'Register (CSV)', 'Handovers (CSV)']) {
-    assert.ok(group.slice(0, 2000).includes(text), `${text} is outside the group again`);
+  /*
+   * v2.35.0: measured to the group's own closing tag rather than a fixed
+   * 2,000 characters - the description-sticker button joined the group and
+   * pushed the last one past an arbitrary count while the grouping held.
+   */
+  const block = group.slice(0, group.indexOf('</span>'));
+  for (const text of ['labelSheet', "labelSheet('patti')", 'Register (CSV)', 'Handovers (CSV)']) {
+    assert.ok(block.includes(text), `${text} is outside the group again`);
   }
 });
 
@@ -1130,7 +1136,14 @@ test("the office's usual timings add up to the day, and say so", () => {
    * paragraph appears only when there is something to say, and the mismatch
    * is marked when it does.
    */
-  assert.match(tab, /\{\(ownShifts > 0 \|\| usual\.minutes !== 0 \|\| lunchEffect\.days > 0\) && \(/);
+  /*
+   * v2.35.0, rewritten to state the rule: the explaining notes (own shifts,
+   * lunch) now fold behind "how this works", because Dinesh said the top of
+   * the Time tab ate the screen. What may NEVER fold is the mismatch: when
+   * the usual timings do not add up to the day, the paragraph prints
+   * whether or not anybody opened the notes.
+   */
+  assert.match(tab, /\{\(usual\.minutes !== 0 \|\| \(showNotes && \(ownShifts > 0 \|\| lunchEffect\.days > 0\)\)\) && \(/);
   assert.match(tab, /\{usual\.minutes !== 0 \? \(/);
   assert.match(tab, /<span className="warn-text">/);
   assert.match(tab, /className="time-notes muted small"/);
@@ -1414,7 +1427,9 @@ test('the line saying staff are waiting opens the queue that can decide', () => 
    * the approvals queue lives in Reports. So the one line telling the office
    * somebody had applied for leave opened a tab that does not hold it.
    */
-  assert.match(digest, /const add = \(line, n = 1, kind = 'queue', go = 'people', focus = null\)/);
+  // v2.35.0: the signature gained `staff`, which marks the lines the office's
+  // hourly reminder is about; `go` and `focus` still lead it.
+  assert.match(digest, /const add = \(line, n = 1, kind = 'queue', go = 'people', focus = null, staff = false\)/);
   assert.match(digest, /attendance request[\s\S]{0,320}'reports',\s*\n\s*'approvals'/);
 
   // The dashboard follows what the line says instead of always saying People.

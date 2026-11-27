@@ -126,14 +126,19 @@ export default function MonthlyHours({ period, rows, locked, onPatch }) {
           <em>{on ? 'deducted' : 'would be deducted'}</em>
         </span>
         {unknown > 0 && (
-          <span>
+          /* The figure carries its own explanation on hover. Dinesh: "ye part
+             bahut jyada space kha raha he" - the sentence under the strip only
+             said the same thing as this figure, on a line of its own. */
+          <span
+            title={`${unknown} ${unknown === 1 ? 'person has' : 'people have'} no clock times this month, so nothing is judged for them — not known is not "did no hours". Type the times on this tab or import the punch file.`}
+          >
             <b>{unknown}</b>
             <em>with no clock times</em>
           </span>
         )}
       </div>
 
-      {unknown > 0 && (
+      {open && unknown > 0 && (
         <p className="muted small">
           {unknown} {unknown === 1 ? 'person has' : 'people have'} no clock times this month, so
           nothing is judged for them &mdash; not known is not &ldquo;did no hours&rdquo;. Type the

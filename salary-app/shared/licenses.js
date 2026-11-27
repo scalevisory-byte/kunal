@@ -53,8 +53,78 @@ export const LICENSE_KINDS = [
   'Hosting',
   'SSL certificate',
   'Email',
+  /*
+   * Not software, and kept here on purpose (Dinesh, v2.35.0: *"rent agreements
+   * add karne ka, insurance reminder ka option do"*). What this register
+   * really holds is "something paid for that runs out on a date and has to be
+   * renewed" - a rent agreement and an insurance policy are exactly that, and
+   * the renewal rules (no date is not expired, the dashboard reminder a month
+   * ahead) are the ones they need. A second register would be a second idea
+   * of "expiring". The form changes its words for them: landlord, rent,
+   * policy number.
+   */
+  'Rent agreement',
+  'Insurance policy',
   'Other',
 ];
+
+export const AGREEMENT_KINDS = ['Rent agreement', 'Insurance policy'];
+export const isAgreement = (kind) => AGREEMENT_KINDS.includes(String(kind || ''));
+
+/** The noun a reminder line uses for it. */
+export function renewalNoun(kind) {
+  if (kind === 'Rent agreement') return 'rent agreement';
+  if (kind === 'Insurance policy') return 'insurance policy';
+  return 'software licence';
+}
+
+/**
+ * What each box on the form is called for this kind. The columns are the
+ * same; only the words change, so a rent agreement does not ask for a
+ * "publisher" or a "licence key".
+ */
+export function fieldWords(kind) {
+  if (kind === 'Rent agreement') {
+    return {
+      name: 'Premises',
+      namePlaceholder: 'Alkapuri office, 2nd floor',
+      publisher: 'Landlord',
+      publisherPlaceholder: 'Owner’s name',
+      cost: 'Rent (a month)',
+      expires: 'Agreement ends',
+      renew: 'Renewed every (months)',
+      invoice: 'Agreement no. / registration',
+      vendor: 'Broker',
+      secret: false,
+    };
+  }
+  if (kind === 'Insurance policy') {
+    return {
+      name: 'What is insured',
+      namePlaceholder: 'Office contents, GJ-06 car, staff health',
+      publisher: 'Insurer',
+      publisherPlaceholder: 'New India Assurance',
+      cost: 'Premium',
+      expires: 'Policy expires',
+      renew: 'Renewed every (months)',
+      invoice: 'Policy number',
+      vendor: 'Agent',
+      secret: false,
+    };
+  }
+  return {
+    name: 'Software',
+    namePlaceholder: 'Tally Prime Silver',
+    publisher: 'Publisher',
+    publisherPlaceholder: 'Tally Solutions',
+    cost: 'Cost',
+    expires: 'Runs until',
+    renew: 'Renewed every (months)',
+    invoice: 'Invoice',
+    vendor: 'Vendor',
+    secret: true,
+  };
+}
 
 /**
  * How it is held. The key, what to call it, and what it means for renewal.

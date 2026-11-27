@@ -20,10 +20,29 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.34.0';
+export const VERSION = '2.35.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.35.0',
+    date: '28 Nov 2026',
+    title: 'Reminders that come to you, a party for a raise, and a long list of fixes',
+    items: [
+      '**When staff are waiting on the office, a box comes up** — a leave application, a filled-in record, an upload, a claim, a question. It comes back **every hour until each one is dealt with**, and straight away when something new arrives. Each line opens the screen that can act on it.',
+      '**An increment applied to somebody\u2019s salary is celebrated on their own dashboard** — a 🎉 with the rise and the new salary, once.',
+      '**My tasks** is now a card on the employee\u2019s dashboard. People \u2192 Tasks is gone; the Task desk tab holds the same tasks.',
+      '**Helpdesk** is now on the staff portal: staff ask the office from their own login and read the answer there.',
+      '**Claims take a voucher** — attach the bill when the claim is made, or later from its row.',
+      '**Notices can carry a time**, not just a date: up at 10 am, down at 5 pm.',
+      '**Warnings and appreciations: Issued by** is a list — the person\u2019s own reporting manager first, then the seniors.',
+      '**The joining form**: religion is a list; alternate mobile and personal email are needed to save; father and mother each have a box with their own mobile; present and permanent addresses are separate, with *same as present*. Office email and office mobile are on the record.',
+      '**Assets**: *Description stickers* — a plain strip with the code and what it is, no QR. And **the sheet of QR labels works again** — it had stopped opening at all.',
+      '**Rent agreements and insurance policies** go on the License tab with their own words, and the dashboard reminds you a month before they run out.',
+      '**Warranty and AMC** are a list, one row each, not one long line. The four figures above the asset register now say what they are counting.',
+      '**Smaller screens**: the Time tab\u2019s explanation folds behind *how this works*; the day menu shows the ten everyday marks with the rest one click away; Loans fills the width.',
+    ],
+  },
   {
     version: '2.34.0',
     date: '28 Nov 2026',

@@ -4,7 +4,7 @@ import AssetDashboard from './AssetDashboard.jsx';
 import AssetMasters from './AssetMasters.jsx';
 import AssetPrefixes, { Renumber } from './AssetPrefixes.jsx';
 import { ASSET_STATES, allocationProblem, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
-import { isOut, whereItIs } from '../../../../shared/assetReport.js';
+import { isOut, registerTotals, whereItIs } from '../../../../shared/assetReport.js';
 import { matchesFilter } from '../../../../shared/assetDashboard.js';
 import { groupLabel, groupOf, groupTally, setOwnGroups } from '../../../../shared/assetGroups.js';
 import { NATURES, matchesNature, natureLabel, natureOf, natureTally } from '../../../../shared/assetNature.js';
@@ -140,21 +140,6 @@ function SheetCell({ asset, field, type = 'text', align, list, placeholder, onSa
  * narrows the register to exactly the assets the line counted — held as ids,
  * so the list and the figure cannot disagree.
  */
-function AlertLine({ tone, assets, onOpen, label, lead, tail, field = 'warranty_until' }) {
-  return (
-    <p className={`lic-alert ${tone}`}>
-      <button
-        className="link"
-        onClick={() => onOpen({ label, ids: new Set(assets.map((a) => a.id)) })}
-        title="Show these on the register"
-      >
-        <strong>{lead}</strong>
-      </button>{' '}
-      — {nameSome(assets, 5, field)}
-      {tail ? ` ${tail}` : '.'}
-    </p>
-  );
-}
 
 export default function Assets({ employees, companies, scanned, onScanned, onError }) {
   const [assets, setAssets] = useState([]);
@@ -417,6 +402,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [assets, filter, query, narrowed, group, nature, dateFocus, pick]);
+  // The figures above the list, counted off the list itself (see the note there).
+  const shownTotals = useMemo(() => {
+    const t = registerTotals(shown);
+    // On the Written off view everything listed IS written off, which the
+    // live count leaves out - so count what is listed.
+    if (filter === 'gone') return { ...t, count: shown.length, narrowed: false };
+    return { ...t, narrowed: shown.length !== assets.filter((a) => !a.written_off_on).length };
+  }, [shown, assets, filter]);
 
   /*
    * What the dropdowns offer: what the register actually holds, not a master
@@ -707,10 +700,10 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     });
   };
 
-  const labelSheet = () => {
+  const labelSheet = (as = '') => {
     const ids = forLabels().map((a) => a.id).join(',');
     if (!ids) return;
-    openPage(`/people/assets/labels.html?ids=${ids}`).catch(onError);
+    openPage(`/people/assets/labels.html?ids=${ids}${as ? `&as=${as}` : ''}`).catch(onError);
   };
 
   /*
@@ -819,108 +812,101 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     <section className="stack">
       <Tabs view={view} setView={setView} />
 
-      <div className="figures">
+      {/*
+        * WHERE THE FOUR FIGURES COME FROM, said under each one.
+        *
+        * Dinesh: *"figures kaha se aa rahe nahi pata chal raha"*. They were
+        * worked out over the WHOLE register while the list below was narrowed
+        * by every chip and dropdown on the page, so 968 sat above a list of 64
+        * and nothing said why. They are counted off the list below now, and
+        * each says what it counts.
+        */}
+      <div className="figures asset-figures">
         <div className="figure">
-          <span className="k">On the register</span>
-          <span className="n">{totals.count || 0}</span>
+          <span className="k">{shownTotals.narrowed ? 'Listed below' : 'On the register'}</span>
+          <span className="n">{shownTotals.count}</span>
+          <span className="muted small">not written off{shownTotals.narrowed ? ` · ${totals.count || 0} on the whole register` : ''}</span>
         </div>
         <div className="figure">
           <span className="k">Out with staff</span>
-          <span className="n">{totals.out || 0}</span>
+          <span className="n">{shownTotals.out}</span>
+          <span className="muted small">somebody is named as holding it</span>
         </div>
         <div className="figure">
-          <span className="k">Worth, out of the building</span>
-          <span className="n">{rupees(totals.out_value || 0)}</span>
+          <span className="k">Worth, out with staff</span>
+          <span className="n">{rupees(shownTotals.out_value)}</span>
+          <span className="muted small">what those cost to buy</span>
         </div>
         <div className="figure">
           <span className="k">Bought, in all</span>
-          <span className="n">{rupees(totals.cost || 0)}</span>
+          <span className="n">{rupees(shownTotals.cost)}</span>
+          <span className="muted small">purchase cost — no depreciation</span>
         </div>
       </div>
 
+      {/*
+        * WARRANTY AND AMC, AS A TABLE.
+        *
+        * Dinesh: *"warranty wala proper list dikhao, ek line me mat dikhavo"*.
+        * It was five sentences with the codes run together after a dash. One
+        * row per kind of date now: how many, the first few with their date,
+        * and a button that lists exactly those on the register below.
+        */}
       {(dates.count > 0 || dates.warranty_long_gone.length > 0 || dates.no_warranty_date.length > 0) && (
         <div className="card">
-          {dates.warranty_just_gone.length > 0 && (
-            <AlertLine
-              tone="bad"
-              assets={dates.warranty_just_gone}
-              onOpen={setDateFocus}
-              label="out of warranty"
-              lead={`${dates.warranty_just_gone.length} ${
-                dates.warranty_just_gone.length === 1 ? 'warranty has' : 'warranties have'
-              } just run out`}
-              tail={`— within the last ${dates.recent_days} days, so extending cover or putting it on an AMC is still a live decision.`}
-            />
-          )}
-          {dates.warranty_soon.length > 0 && (
-            <AlertLine
-              tone="warn"
-              assets={dates.warranty_soon}
-              onOpen={setDateFocus}
-              label="warranty running out"
-              lead={`${dates.warranty_soon.length} ${
-                dates.warranty_soon.length === 1 ? 'warranty runs' : 'warranties run'
-              } out within ${dates.soon} days`}
-            />
-          )}
-          {dates.amc_just_gone.length > 0 && (
-            <AlertLine
-              tone="bad"
-              assets={dates.amc_just_gone}
-              onOpen={setDateFocus}
-              field="amc_until"
-              label="AMC lapsed"
-              lead={`${dates.amc_just_gone.length} AMC${dates.amc_just_gone.length === 1 ? ' has' : 's have'} lapsed`}
-              tail="— a contract, not a warranty: that is money committed for the year and nobody is covered until it is renewed."
-            />
-          )}
-          {dates.amc_soon.length > 0 && (
-            <AlertLine
-              tone="warn"
-              assets={dates.amc_soon}
-              onOpen={setDateFocus}
-              field="amc_until"
-              label="AMC due"
-              lead={`${dates.amc_soon.length} AMC${dates.amc_soon.length === 1 ? '' : 's'} to renew within ${dates.soon} days`}
-            />
-          )}
-
-          {/*
-            * The two that are NOT deadlines, and are said quietly so they do
-            * not drown the ones that are.
-            */}
-          {dates.warranty_long_gone.length > 0 && (
-            <p className="lic-alert muted small">
-              <button
-                className="link"
-                onClick={() =>
-                  setDateFocus({
-                    label: `out of warranty for more than ${dates.recent_days} days`,
-                    ids: new Set(dates.warranty_long_gone.map((a) => a.id)),
-                  })
-                }
-              >
-                {dates.warranty_long_gone.length} out of warranty for longer
-              </button>{' '}
-              — old kit, not news; it is here to be counted rather than chased.
-            </p>
-          )}
-          {dates.no_warranty_date.length > 0 && (
-            <p className="lic-alert muted small">
-              <button
-                className="link"
-                onClick={() =>
-                  setDateFocus({
-                    label: 'with no warranty date recorded',
-                    ids: new Set(dates.no_warranty_date.map((a) => a.id)),
-                  })
-                }
-              >
-                {dates.no_warranty_date.length} with no warranty date recorded
-              </button>{' '}
-              — <strong>not the same as expired</strong>: nobody has said. The invoice has it.
-            </p>
-          )}
+          <h3>Warranty and AMC</h3>
+          <div className="table-wrap">
+            <table className="sheet warranty-table">
+              <thead>
+                <tr>
+                  <th>What</th>
+                  <th className="num">Assets</th>
+                  <th>Which — first few, with the date</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['bad', dates.warranty_just_gone, 'warranty_until', 'out of warranty',
+                    `Warranty ran out in the last ${dates.recent_days} days`,
+                    'extending cover or an AMC is still a live decision'],
+                  ['warn', dates.warranty_soon, 'warranty_until', 'warranty running out',
+                    `Warranty runs out within ${dates.soon} days`, ''],
+                  ['bad', dates.amc_just_gone, 'amc_until', 'AMC lapsed', 'AMC has lapsed',
+                    'nobody is covered until it is renewed'],
+                  ['warn', dates.amc_soon, 'amc_until', 'AMC due', `AMC to renew within ${dates.soon} days`, ''],
+                  ['', dates.warranty_long_gone, 'warranty_until',
+                    `out of warranty for more than ${dates.recent_days} days`,
+                    'Out of warranty for longer', 'old kit — counted, not chased'],
+                  ['', dates.no_warranty_date, 'warranty_until', 'with no warranty date recorded',
+                    'No warranty date recorded', 'not the same as expired — the invoice has it'],
+                ]
+                  .filter(([, list]) => list.length > 0)
+                  .map(([tone, list, field, label, what, why]) => (
+                    <tr key={label} className={tone ? `warranty-${tone}` : undefined}>
+                      <td>
+                        <strong>{what}</strong>
+                        {why ? <div className="muted small">{why}</div> : null}
+                      </td>
+                      <td className="num">{list.length}</td>
+                      <td className="small">
+                        {field && list[0]?.[field] !== undefined && label !== 'with no warranty date recorded'
+                          ? nameSome(list, 5, field)
+                          : nameSome(list, 5)}
+                      </td>
+                      <td>
+                        <button
+                          className="ghost tiny"
+                          onClick={() => setDateFocus({ label, ids: new Set(list.map((a) => a.id)) })}
+                        >
+                          list them
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -1039,7 +1025,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           </button>
           <button
             className="ghost"
-            onClick={labelSheet}
+            onClick={() => labelSheet()}
             disabled={!shown.some((a) => a.code)}
             title={
               ticked.size
@@ -1048,6 +1034,16 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             }
           >
             {ticked.size ? `Labels for ${forLabels().length} ticked` : `Labels for ${shown.filter((a) => a.code).length}`}
+          </button>
+          {/* The plain strip: code and description, no QR (Dinesh: "patti
+              jesa"). Same rows as the QR sheet beside it. */}
+          <button
+            className="ghost"
+            onClick={() => labelSheet('patti')}
+            disabled={!shown.some((a) => a.code)}
+            title="A page of plain stickers - the code and what it is, no QR - for the same rows"
+          >
+            Description stickers
           </button>
           {/* The report somebody picks the columns for. The two fixed CSVs
               stay: they are one click when the usual columns will do. */}
