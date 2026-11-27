@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.33.0';
+export const VERSION = '2.34.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.34.0',
+    date: '28 Nov 2026',
+    title: 'No out punch is a half day — automatically',
+    items: [
+      '**A day with an in punch and no out punch is now marked HF (half day) by itself**, when the punch-machine import runs. It is only done once the day is over — somebody still at their desk is never marked half.',
+      '**This costs half a day\u2019s pay** — that is the point of it. **Type the out time** (in the day\u2019s menu or on the Time tab) and the day goes back to a full day, worked out from the hours.',
+      '**A mark somebody set is never overwritten.** Pick any mark for that day and it stays, through every later import.',
+      '**Days already on the grid are not touched.** Only days the import writes from now on get the rule, so no month already paid moves.',
+      'The day menu says in amber when the rule marked the day, beside the Out box.',
+      'Phone punches and times typed by hand are not judged by this rule — only the punch machine\u2019s import.',
+    ],
+  },
   {
     version: '2.33.0',
     date: '27 Nov 2026',

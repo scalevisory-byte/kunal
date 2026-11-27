@@ -11,6 +11,7 @@ import { OFF_DAY_MAY_BECOME, offDayVerdict, ownWeeklyOff } from '../../shared/su
 import { config } from './config.js';
 import { log } from './logger.js';
 import { todayIso } from '../../shared/today.js';
+import { MISSING_OUT_CODE, MISSING_OUT_KEY, missingOutRule } from '../../shared/missingOut.js';
 
 /**
  * Today, by the clock on this machine rather than in UTC.
@@ -350,6 +351,17 @@ if (!attendanceColumns.has('uniform')) {
   // than as a uniform failure nobody recorded.
   db.exec(`ALTER TABLE attendance ADD COLUMN uniform INTEGER`);
   log.info('Migrated attendance table: added the uniform check.');
+}
+if (!attendanceColumns.has('missing_out')) {
+  /*
+   * 1 where the missing-out rule wrote this day's half-day mark and nobody has
+   * changed it since; null for everything else. NULL on every existing row,
+   * so no day already on the grid reads as the rule's doing. Set by the rule,
+   * cleared by any person who names a mark, which is what makes a manual
+   * change stick. See shared/missingOut.js.
+   */
+  db.exec(`ALTER TABLE attendance ADD COLUMN missing_out INTEGER`);
+  log.info('Migrated attendance table: added missing_out, for the no-out-punch half day.');
 }
 
 // ot_minutes was NOT NULL DEFAULT 0 and named without the _override suffix. It
@@ -2429,6 +2441,20 @@ export function autoDoubleRule() {
   return { on: Boolean(stored.on) && Boolean(from), from, by: stored.by || '', since: stored.since || '' };
 }
 
+/**
+ * The no-out-punch half day (shared/missingOut.js). Stored like the other
+ * payroll rules, on the server, because a rule that decides pay must not live
+ * in one person's browser. Nothing stored means on.
+ */
+export function missingOutSetting() {
+  return missingOutRule(getSetting(MISSING_OUT_KEY, null));
+}
+
+export function setMissingOutSetting({ on }, by) {
+  setSetting(MISSING_OUT_KEY, { on: Boolean(on), by: by || '', since: todayIso() }, by);
+  return missingOutSetting();
+}
+
 export function setAutoDoubleRule({ on, from }, by) {
   const today = todayIso();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? from : today;
@@ -2979,7 +3005,7 @@ export function listAttendance(periodId, { company_id } = {}) {
     .prepare(
       `SELECT a.employee_id, a.day, a.code, a.minutes,
               a.in_time, a.lunch_out, a.lunch_in, a.out_time,
-              a.reason, a.approved, a.uniform, a.doubled_from
+              a.reason, a.approved, a.uniform, a.doubled_from, a.missing_out
        FROM attendance a JOIN employees e ON e.id = a.employee_id
        WHERE a.period_id = ? ${filter}`
     )
@@ -3005,6 +3031,8 @@ export function attendanceByEmployee(periodId, opts) {
       uniform: row.uniform === null || row.uniform === undefined ? null : Boolean(row.uniform),
       // Set only on a day the double-deduction rule turned into AD.
       ...(row.doubled_from ? { doubled_from: row.doubled_from } : {}),
+      // Only when the no-out-punch rule wrote the mark, so the day menu can say so.
+      ...(row.missing_out === 1 ? { missing_out: 1 } : {}),
     };
   }
   return map;
@@ -3014,18 +3042,20 @@ const writeAttendance = db.transaction((periodId, entries) => {
   const upsert = db.prepare(
     `INSERT INTO attendance
        (period_id, employee_id, day, code, minutes, in_time, lunch_out, lunch_in, out_time,
-        reason, approved, uniform)
+        reason, approved, uniform, missing_out)
      VALUES (@period_id, @employee_id, @day, @code, @minutes,
-             @in_time, @lunch_out, @lunch_in, @out_time, @reason, @approved, @uniform)
+             @in_time, @lunch_out, @lunch_in, @out_time, @reason, @approved, @uniform,
+             @missing_out)
      ON CONFLICT(period_id, employee_id, day)
      DO UPDATE SET code = excluded.code, minutes = excluded.minutes,
                    in_time = excluded.in_time, lunch_out = excluded.lunch_out,
                    lunch_in = excluded.lunch_in, out_time = excluded.out_time,
                    reason = excluded.reason, approved = excluded.approved,
-                   uniform = excluded.uniform`
+                   uniform = excluded.uniform, missing_out = excluded.missing_out`
   );
   const existing = db.prepare(
-    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved, uniform
+    `SELECT code, minutes, in_time, lunch_out, lunch_in, out_time, reason, approved, uniform,
+            missing_out
      FROM attendance
      WHERE period_id = ? AND employee_id = ? AND day = ?`
   );
@@ -3144,6 +3174,20 @@ const writeAttendance = db.transaction((periodId, entries) => {
     let minutes = 'minutes' in entry ? Number(entry.minutes) || 0 : Number(stored?.minutes) || 0;
 
     /*
+     * A HALF DAY THE MISSING-OUT RULE WROTE IS PUT BACK WHEN THE OUT TIME COMES.
+     *
+     * The rule set HF on a day with no departure. The moment a departure is
+     * typed (or the machine has one) that half day is a guess that is no
+     * longer needed, so the day goes back to what its hours say - and the
+     * minutes are worked out again, because the ones on the day were judged
+     * as a half day and must not be kept. Only for a day the rule wrote, and
+     * only when nobody named a mark in this write.
+     */
+    const restoring =
+      stored?.missing_out === 1 && Boolean(times.out_time) && !('code' in entry) && code === MISSING_OUT_CODE;
+    if (restoring) code = 'P';
+
+    /*
      * The reason somebody was not at work, and whether it was allowed.
      *
      * Same per-field rule as the times: only an entry that NAMES one touches
@@ -3193,7 +3237,7 @@ const writeAttendance = db.transaction((periodId, entries) => {
      * A caller that DOES name minutes (the grid, the biometric importer) is
      * left alone: it has already applied the rule and may have its own.
      */
-    if (anyTime && !('minutes' in entry)) {
+    if (anyTime && (restoring || !('minutes' in entry))) {
       const judged = timesToDay(times, {
         hoursPerDay: hoursFor(employeeId),
         deductLunch,
@@ -3247,6 +3291,18 @@ const writeAttendance = db.transaction((periodId, entries) => {
         graceMinutes: grace,
       });
     }
+
+    /*
+     * Whether the rule wrote this mark. An entry that names a mark is somebody's
+     * decision unless the importer says otherwise: the importer names it
+     * explicitly (1 for the rule, null for an ordinary punch), so a human
+     * correction is the only thing that arrives as a bare code.
+     */
+    let missingOut;
+    if (restoring) missingOut = null;
+    else if ('missing_out' in entry) missingOut = Number(entry.missing_out) === 1 ? 1 : null;
+    else if ('code' in entry) missingOut = 0;
+    else missingOut = stored?.missing_out === 1 ? 1 : stored?.missing_out === 0 ? 0 : null;
 
     // A day with no mark, no minutes and no times has nothing left to record.
     const was = stored?.code || '';
@@ -3328,6 +3384,7 @@ const writeAttendance = db.transaction((periodId, entries) => {
         reason,
         approved,
         uniform,
+        missing_out: missingOut,
       });
     } else {
       remove.run(periodId, employeeId, day);

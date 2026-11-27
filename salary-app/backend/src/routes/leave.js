@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { applyAutoDouble, autoDoubleRule, autoDoubledIn, setAutoDoubleRule } from '../db.js';
+import { applyAutoDouble, autoDoubleRule, autoDoubledIn, missingOutSetting, setAutoDoubleRule, setMissingOutSetting } from '../db.js';
 import { requireAbility } from '../auth.js';
 import {
   addLeaveCredit,
@@ -446,6 +446,18 @@ leaveRouter.put('/auto-double', requireAbility('approve'), (req, res) => {
   const periodId = Number(req.body?.period_id) || null;
   const did = periodId ? applyAutoDouble(periodId) : { doubled: 0, restored: 0, held: [] };
   res.json({ rule, did, doubled: periodId ? autoDoubledIn(periodId) : [] });
+});
+
+/*
+ * The no-out-punch half day. It is a PAY rule, so it is switched by the same
+ * people who can approve a day's marks. Reading it is open to anybody with the
+ * attendance screen, because the grid shows the reason on a day.
+ */
+leaveRouter.get('/missing-out', (_req, res) => res.json({ rule: missingOutSetting() }));
+
+leaveRouter.put('/missing-out', requireAbility('approve'), (req, res) => {
+  const rule = setMissingOutSetting({ on: Boolean(req.body?.on) }, req.actor?.name || 'office');
+  res.json({ rule });
 });
 
 leaveRouter.get('/bonus/rule', (_req, res) =>

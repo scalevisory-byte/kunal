@@ -642,6 +642,7 @@ export const HELP = [
       'forgot punch', 'punch bhul', 'add time', 'missing punch', 'in out add',
       'time add karna', 'hajri time', 'correction', 'punch missing', 'manually',
       'manual entry', 'haath se', 'punch nahi hua', 'time dalna', 'log karna',
+      'out punch nahi', 'half day automatic', 'no out', 'out missing',
     ],
     lines: [
       '**Click the day on the Attendance grid.** The four clock times are at the top of the menu \u2014 In, Lunch out, Lunch in, Out \u2014 and you can type straight into them.',
@@ -650,6 +651,8 @@ export const HELP = [
       '**Reports \u2192 Missing punch** is the list of them \u2014 every day at work with no in or no out \u2014 and **clicking the name there opens that person\u2019s month on the Time tab**, with the four boxes already on the day. Before, it named the day and left you to go and find it.',
       'The **Time** tab does the same thing for a whole day across everybody, or one person down the month.',
       'An employee can also raise it themselves from their own login, and the office approves it in Reports \u2192 Attendance corrections.',
+      '**A day with an in punch and no out punch is a half day (HF) by itself.** The punch import marks it once the day is over \u2014 never while somebody may still be at their desk. The day menu says so in amber. **Type the out time and it goes back to a full day**; pick any mark and that mark stays, even through the next import.',
+      'It never overwrites a mark somebody set, and it does not touch days that were already on the grid before the rule came in. It is switched by a Manager or Admin (`PUT /api/leave/missing-out`), and is on.',
     ],
     note: 'THE DAY\u2019S HOURS ARE RE-WORKED THE MOMENT A TIME CHANGES. You do not have to touch the OT/short figure as well \u2014 and you should not, unless you mean to override the clock, in which case the register marks it as typed.',
   },

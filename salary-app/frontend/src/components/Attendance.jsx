@@ -288,6 +288,19 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
     const row = rows.find((r) => r.employee_id === employeeId);
     const current = row ? entryOf(row, day) : { code: '', minutes: 0 };
     const entry = { ...current, ...patch };
+    /*
+     * THE NO-OUT-PUNCH HALF DAY IS THE RULE'S, ANY EDIT HERE IS A PERSON'S.
+     *
+     * The day arrives from the server carrying `missing_out: 1`, and this menu
+     * sends the whole entry back - so leaving the flag on would tell the server
+     * the rule had written a mark a person just picked, and the next import
+     * would be free to change it again. Dropped on every edit. And typing the
+     * departure onto the rule's half day is the answer to it: the day goes
+     * back to a full one, its minutes worked out as a present day.
+     */
+    const ruleHalf = Number(current.missing_out) === 1;
+    delete entry.missing_out;
+    if (ruleHalf && !('code' in patch) && patch.out_time) entry.code = 'P';
     entry.code = String(entry.code || '').trim().toUpperCase();
     if (entry.code && !codes[entry.code]) return; // ignore anything not in the legend
     /*
@@ -1228,10 +1241,24 @@ function DayPicker({
             ))}
           </div>
 
+          {/*
+            * A half day the no-out-punch rule wrote (shared/missingOut.js).
+            * Said here, beside the OUT box, because typing the departure is
+            * what undoes it - and picking any mark below overrules it for good.
+            */}
+          {Number(entry.missing_out) === 1 ? (
+            <p className="warn small">
+              Marked <strong>half day</strong> automatically: there is no out punch. Type the out time
+              above and the day goes back to what its hours say — or pick a mark below, and that stays.
+            </p>
+          ) : null}
+
           {read.worked === null ? (
             <p className="muted small">
               {read.warning
-                ? `${read.warning} — so the hours are not known, and nothing is charged for them.`
+                ? `${read.warning} — so the hours are not known${
+                    Number(entry.missing_out) === 1 ? '' : ', and nothing is charged for them'
+                  }.`
                 : 'No clock times on this day, so the hours are not known. A dash is not nought hours.'}
             </p>
           ) : (

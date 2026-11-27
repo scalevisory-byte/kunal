@@ -2251,6 +2251,40 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### No out punch is a half day (v2.34.0) — `shared/missingOut.js`
+
+Dinesh, looking at AJEETKUMAR's 27 Nov (in 10:29, no out): *"agar punch missing he to half
+day lag jaye automatic"*, and when told v2.2.0 had deliberately made it P: *"auto lagavio /
+agar uske bad manually change karna he to kar denge"*. **This overturns v2.2.0's "not known
+is not half a day" by his instruction**, so it is a setting (`settings.missing_out_half_day`,
+on when nothing is stored, `PUT /api/leave/missing-out` behind `approve`).
+
+- **Only the punch-machine import applies it** (`punchesToMarks({ missingOutHalfDay })`, set by
+  `applyPunches` from the setting). Default `false` in the shared function, so every other
+  caller — the offline file, the Excel import, the tests — keeps the old P. Phone punches and
+  times typed by hand are not judged by it.
+- **Never a day still running**: `dayNotFinished` is checked first, so 10:29 at 11:00 stays P.
+  Minutes stay 0 (a half day is paid at half; a shortfall on top would charge twice).
+- **`attendance.missing_out` is three-state, and that is what makes "change it by hand" stick.**
+  1 = the rule wrote this mark; 0 = a person named a mark; null = an ordinary punch, or a row
+  from before the column. The importer always names it (1 or null); any write that names a
+  `code` without naming `missing_out` is a person's, and gets 0.
+- **The rule may only write over a blank day or a day it wrote itself.** A person's mark, and
+  every P already on the grid before this release (flag null), keeps its mark and only the
+  times land — `missingOutKept` counts them. So no month already paid can move.
+- **A typed departure undoes it** in `writeAttendance`: a stored rule-HF, an `out_time` arriving,
+  no `code` named → back to P and the minutes **re-judged from the times** (`restoring` forces
+  the judge branch even if minutes were sent, because those were judged as a half day).
+- **TWO TRAPS FOUND ON THE WAY.** (1) Protecting a person's mark by stripping `code` and
+  `minutes` from the import entry let `writeAttendance`'s auto-mark turn a stored **A into P**
+  — `A` is in `AUTO_MARKS`. The kept entry now carries the stored code and minutes back.
+  (2) The grid's `setEntry` sends the WHOLE entry, so the server's `missing_out: 1` rode back on
+  every edit and a person's pick would have read as the rule's. `setEntry` drops it, and typing
+  an out time onto a rule-HF sets P on the client too.
+- The day menu says it in amber beside the Out box; `attendanceByEmployee` carries
+  `missing_out: 1` only when set. Summary gains `missingOut` only when the rule ran, so a summary
+  pinned by an old test is unchanged.
+
 ### The Task & Approval Desk (v2.33.0)
 
 Dinesh sent two HTML files — `BookNFly_Task_Desk_Demo.html` and `Index_4_1.html`, the same

@@ -14,6 +14,7 @@ import { ATTENDANCE_CODES } from './calc.js';
 import { findLunchGap } from './lunchGap.js';
 import { hoursForEmployee } from './lateEarly.js';
 import { dayNotFinished, departureTime, formatTime, TIME_RULES } from './timesheet.js';
+import { MISSING_OUT_CODE } from './missingOut.js';
 
 /* ---------------- reading whatever was uploaded ---------------- */
 
@@ -173,6 +174,13 @@ const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 export function punchesToMarks({
   rows, mapping, rules, employees, period, deductLunch = true,
   findLunch = true, lunchRules, now = new Date(),
+  /*
+   * A day with an arrival and no departure, on a day that has finished, is
+   * HF instead of P when this is on. Off unless the caller asks, so every
+   * existing caller keeps the behaviour it was built and tested on; the
+   * server switches it on from the rule in shared/missingOut.js.
+   */
+  missingOutHalfDay = false,
 }) {
   const hoursPerDay = Number(period.hours_per_day) || 9;
   // The half-day line follows the configured day - half of the month's hours -
@@ -301,6 +309,9 @@ export function punchesToMarks({
 
     let code;
     let minutes = 0;
+    // Set only where THIS rule decided the mark, so the write can tell it
+    // apart from a mark somebody else put there.
+    let byMissingOut = false;
 
     /*
      * THE DEPARTURE IS DECIDED FIRST, AND THE MARK FOLLOWS IT.
@@ -353,6 +364,19 @@ export function punchesToMarks({
     if (seen.in === null) {
       code = settings.absentCode;
       summary.absent++;
+    } else if (!outText && !unfinished && missingOutHalfDay) {
+      /*
+       * A departure that is missing on a day that has finished. The rule
+       * decides the mark from the MISSING departure - it does not guess one.
+       * Minutes stay at 0: a half day is already paid at half, so charging a
+       * shortfall on top would be the double charge the half-day line exists
+       * to prevent.
+       */
+      code = MISSING_OUT_CODE;
+      byMissingOut = true;
+      summary.halfDay++;
+      // Only reported when the rule is on, so a summary from before it is unchanged.
+      summary.missingOut = (summary.missingOut || 0) + 1;
     } else if (!outText) {
       /*
        * Nothing to measure: one punch only, or the last punch was the return
@@ -418,6 +442,10 @@ export function punchesToMarks({
        * cannot contradict each other.
        */
       out_time: outText,
+      // 1 where this rule wrote the mark, null otherwise. Null rather than
+      // omitted: a punch that is NOT the rule's must clear a stale flag from an
+      // earlier import, the same reason out_time is sent as ''.
+      missing_out: byMissingOut ? 1 : null,
       // Only when the sheet named those columns. `setAttendance` merges per
       // field, so leaving them out keeps whatever is already on the day.
       ...(seen.lunchOut === null ? {} : { lunch_out: formatTime(seen.lunchOut) }),

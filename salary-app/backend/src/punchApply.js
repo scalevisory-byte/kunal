@@ -10,7 +10,8 @@
 import { PUNCH_MAPPING, protectDecided, punchRows } from '../../shared/bizcompassLogs.js';
 import { punchesToMarks } from '../../shared/punches.js';
 import { settleOffDays, sundayHoursFor } from '../../shared/sundayDuty.js';
-import { listAttendance, listEmployees, setAttendance } from './db.js';
+import { listAttendance, listEmployees, missingOutSetting, setAttendance } from './db.js';
+import { MISSING_OUT_CODE, wroteByRule } from '../../shared/missingOut.js';
 import { buildPayroll } from './payroll.js';
 
 /**
@@ -27,12 +28,16 @@ export function periodFor(periodId) {
 export function applyPunches(period, punches, { dryRun = true } = {}) {
   const employees = listEmployees();
   const mapped = punchRows(punches, employees);
+  // Read per import, not per day: the setting can be switched between two
+  // pulls and the next one must follow it.
+  const missingOut = missingOutSetting();
   const result = punchesToMarks({
     rows: mapped.rows,
     mapping: PUNCH_MAPPING,
     employees,
     period,
     deductLunch: period.lunch_paid !== 1,
+    missingOutHalfDay: missingOut.on,
   });
 
   /*
@@ -45,9 +50,14 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
    */
   const had = new Map();
   const hadLunch = new Set();
+  // Days whose mark the missing-out rule wrote, and nobody has changed since.
+  const byRule = new Set();
+  const hadMinutes = new Map();
   for (const row of listAttendance(period.id)) {
     if (row.code) had.set(`${row.employee_id}:${row.day}`, row.code);
+    hadMinutes.set(`${row.employee_id}:${row.day}`, Number(row.minutes) || 0);
     if (row.lunch_out || row.lunch_in) hadLunch.add(`${row.employee_id}:${row.day}`);
+    if (wroteByRule(row)) byRule.add(`${row.employee_id}:${row.day}`);
   }
   /*
    * A WEEKLY OFF IS JUDGED AS A WEEKLY OFF, before the guard below.
@@ -75,8 +85,37 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
     halfDay: Math.max(0, (result.summary.halfDay || 0) - offDays.summary.wasHalfDay),
     shortHours: Math.max(0, (result.summary.shortHours || 0) - offDays.summary.wasShort),
     overtime: Math.max(0, (result.summary.overtime || 0) - offDays.summary.wasOver),
+    ...(result.summary.missingOut ? { missingOut: result.summary.missingOut } : {}),
   };
-  const guarded = protectDecided(offDays.entries, (id, day) =>
+  /*
+   * THE MISSING-OUT HALF DAY NEVER OVERWRITES A MARK SOMEBODY SET.
+   *
+   * A day the rule has NOT written before (or one a person set by hand) keeps
+   * its mark, and only the clock times land. Only a blank day, or one the rule
+   * itself wrote and nobody has touched since, may become HF. That way the
+   * rule cannot quietly change a month that was paid on P before it existed.
+   * A rule-written mark on a day that is now complete is put back to P by the
+   * write itself (see writeAttendance), not here.
+   */
+  const missingOutKept = [];
+  const settled = offDays.entries.map((entry) => {
+    if (entry.missing_out !== 1) return entry;
+    const key = `${entry.employee_id}:${entry.day}`;
+    if (entry.code !== MISSING_OUT_CODE) return { ...entry, missing_out: null };
+    const was = offDays.settled.has(key) ? '' : had.get(key) || '';
+    if (!was || byRule.has(key)) return entry;
+    /*
+     * Somebody's own mark: keep it, write the times, and say so. The stored
+     * mark AND its minutes go back in with the entry. Leaving the code out
+     * would let the write treat the day as blank, and an A on an automatic-mark
+     * day would come back as P - the same trap as the Sunday settle path.
+     */
+    const { code, minutes, missing_out, ...times } = entry;
+    missingOutKept.push({ employee_id: entry.employee_id, day: entry.day, code: was });
+    return { ...times, code: was, minutes: hadMinutes.get(key) ?? 0, missing_out: null };
+  });
+
+  const guarded = protectDecided(settled, (id, day) =>
     // What the off-day rule decided goes through whole: it only ever decided
     // a day whose mark it is allowed to replace.
     offDays.settled.has(`${id}:${day}`) ? '' : had.get(`${id}:${day}`) || ''
@@ -114,6 +153,9 @@ export function applyPunches(period, punches, { dryRun = true } = {}) {
     unknownIds: mapped.unknown,
     matchedPeople: mapped.matched.length,
     keptMarks: guarded.protected.length,
+    // Days the missing-out rule would have set, left alone because a person
+    // had already set a mark on them.
+    missingOutKept: missingOutKept.length,
     // Weekly offs somebody clocked in on, by the six-hour line.
     offDays: offDays.summary,
     sundayHours: sundayHoursFor(period),
