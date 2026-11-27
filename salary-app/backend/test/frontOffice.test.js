@@ -148,10 +148,9 @@ test('a visitor needs a name; a courier entry needs a company or a from/to', asy
 
 test('signing a visitor out records a time; it is never filled in by itself', async () => {
   /*
-   * A visitor now needs a purpose and a real mobile number - a register
-   * whose numbers cannot be rung is a register nobody can use after the
-   * fact. visitorRegister.test.js covers the refusals; this one is about
-   * the out time.
+   * A visitor needs a name and a purpose; the mobile is optional, though
+   * one that is typed must be real. visitorRegister.test.js covers the
+   * refusals; this one is about the out time.
    */
   const visitor = (await api('POST', '/api/front-office/visitors', {
     day: DAY, name: 'Amit Trivedi', company: 'HDFC', purpose: 'KYC',

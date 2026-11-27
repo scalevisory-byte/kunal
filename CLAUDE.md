@@ -2251,6 +2251,27 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Front desk: the visitor's mobile is optional (v2.30.1)
+
+Dinesh: *"front desk se compausory mobiel num hata do"*. `createVisitor` in
+`backend/src/frontOffice.js` refused without a ten-digit number, so a courier boy or a walk-in
+who would not give one left the desk stuck at the form — and the way round a required box is a
+made-up number, which is worse than a blank.
+
+- **Optional, but never wrong.** Blank is stored as `null` ("not taken"); a number that IS
+  typed must still pass `isMobile`, and the refusal says *"correct it, or leave it blank"*.
+  The form judges only a number that has been typed and carries no star.
+- **The double sign-in check had to change with it**, because it matched on mobile + name.
+  With a number it is unchanged. With none there is only the name, and two people can share
+  one — so a visit with no mobile clashes only with another that ALSO has none, under the same
+  name **from the same company**. That still catches a second press of the button (the
+  identical form), while another Ramesh from another courier signs in normally. There is no
+  "add anyway" on this screen, so a name-only match would have had no way round it.
+- The test titled *"a visitor needs a name, a purpose and a real mobile number"* was
+  **rewritten to state the new rule**, not patched.
+- **Harness note:** the sign-in button is **Add visitor**; a `/Sign in|Register/` locator
+  resolved to *Print the register* and waited thirty seconds on a disabled button.
+
 ### Sunday working reaches the Sunday register by itself (v2.30.0)
 
 HR Manager, forwarded by Dinesh off the live Sunday tab: *"ama sunday present show nathi

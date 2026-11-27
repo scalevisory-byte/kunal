@@ -80,7 +80,11 @@ export default function VisitorDesk({ day, employees = [], companyId, onError, o
   const problems = [];
   if (!String(form.name || '').trim()) problems.push('a name');
   if (!String(form.purpose || '').trim()) problems.push('the purpose');
-  if (!isMobile(form.mobile)) problems.push('a 10-digit mobile');
+  /* Optional - but a number that IS typed has to be a real one. Blank says
+     "not taken"; a wrong number says something false. */
+  if (String(form.mobile || '').trim() && !isMobile(form.mobile)) {
+    problems.push('a 10-digit mobile (or leave it blank)');
+  }
 
   const signIn = async () => {
     setBusy(true);
@@ -210,9 +214,10 @@ export default function VisitorDesk({ day, employees = [], companyId, onError, o
             </select>
           </label>
           <label className="field">
-            Mobile *
+            Mobile
             <input
               inputMode="numeric"
+              placeholder="optional"
               value={form.mobile ?? ''}
               onChange={(e) => set('mobile', e.target.value)}
               onBlur={(e) => set('mobile', cleanMobile(e.target.value))}

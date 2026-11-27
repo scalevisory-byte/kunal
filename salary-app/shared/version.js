@@ -20,10 +20,20 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.30.0';
+export const VERSION = '2.30.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.30.1',
+    date: '27 Nov 2026',
+    title: 'Front desk: a visitor can be signed in without a mobile number',
+    items: [
+      '**The mobile number is no longer compulsory on the visitor register.** A courier boy, a walk-in, somebody who will not give one — the desk was stuck at the form with the visitor standing there. A name and a purpose are all that is needed now; they still get a pass.',
+      '**A number that IS typed must still be a real 10-digit one.** A blank says “not taken”; a wrong number says something false, and the register is no use afterwards if its numbers cannot be rung.',
+      'Pressing the button twice is still caught for somebody with no number — by the name and the company they came from — while another person of the same name from somewhere else signs in normally.',
+    ],
+  },
   {
     version: '2.30.0',
     date: '27 Nov 2026',

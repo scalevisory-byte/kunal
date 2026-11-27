@@ -81,14 +81,74 @@ test('two visitors registered at the same moment cannot share a number', async (
 
 /* ---------------- what the desk may not do ---------------- */
 
-test('a visitor needs a name, a purpose and a real mobile number', async () => {
+test('a visitor needs a name and a purpose; the mobile is optional but never a wrong one', async () => {
   assert.equal((await api('POST', '/api/front-office/visitors', { day: DAY })).status, 400);
   assert.equal((await sign({ purpose: '' })).status, 400);
-  assert.equal((await sign({ mobile: '12345' })).status, 400);
+
+  /*
+   * This test used to say "and a real mobile number". Dinesh: "front desk se
+   * compulsory mobile num hata do" - a courier boy or a walk-in who will not
+   * give one left the desk stuck at the form, and the way round a required
+   * box is a made-up number, which is worse than a blank.
+   */
+  const none = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'Walk In', purpose: 'Enquiry',
+  });
+  assert.equal(none.status, 201, 'no mobile at all is a visitor like any other');
+  assert.equal(none.body.mobile, null, 'blank is stored as nothing, never as an empty number');
+  assert.match(none.body.pass_no, /^VIS-/, 'and they still get a pass');
+  const spaces = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'Only Spaces', purpose: 'Enquiry', mobile: '   ',
+  });
+  assert.equal(spaces.status, 201);
+  assert.equal(spaces.body.mobile, null);
+
+  // What has NOT changed: a number that is typed must be a real one.
+  const wrong = await sign({ mobile: '12345' });
+  assert.equal(wrong.status, 400);
+  assert.match(wrong.body.error, /leave it blank/, 'the refusal says the way out');
   // +91 and a leading zero are how people type it, so they are taken off.
   assert.equal(cleanMobile('+91 98980 11223'), '9898011223');
   assert.ok(isMobile('09898011223'));
   assert.ok(!isMobile('1234567890'), 'an Indian mobile does not start with 1');
+});
+
+test('with no number, a second press is still caught - and a namesake is not', async () => {
+  const first = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'Ramesh', company: 'DTDC', purpose: 'Parcel',
+  });
+  assert.equal(first.status, 201);
+  // The same form sent twice: the accident the check exists for.
+  const again = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'ramesh', company: 'dtdc', purpose: 'Parcel',
+  });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.visitor.pass_no, first.body.pass_no);
+
+  // Another Ramesh, from somewhere else, is another person.
+  const other = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'Ramesh', company: 'Blue Dart', purpose: 'Parcel',
+  });
+  assert.equal(other.status, 201);
+  // ...and so is a Ramesh who did give a number.
+  const numbered = await api('POST', '/api/front-office/visitors', {
+    day: DAY, name: 'Ramesh', company: 'DTDC', purpose: 'Parcel', mobile: '9898044556',
+  });
+  assert.equal(numbered.status, 201);
+
+  // A number can be cleared afterwards, and a wrong one still cannot be typed in.
+  const cleared = await api('PATCH', `/api/front-office/visitors/${numbered.body.id}`, { mobile: '' });
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.body.mobile, null);
+  const bad = await api('PATCH', `/api/front-office/visitors/${numbered.body.id}`, { mobile: '99' });
+  assert.equal(bad.status, 400);
+});
+
+test('the sign-in form does not ask for a mobile it does not need', async () => {
+  const fs = await import('node:fs');
+  const desk = fs.readFileSync(new URL('../../frontend/src/components/frontoffice/VisitorDesk.jsx', import.meta.url), 'utf8');
+  assert.ok(!/Mobile \*/.test(desk), 'no required star on the box');
+  assert.match(desk, /String\(form\.mobile \|\| ''\)\.trim\(\) && !isMobile\(form\.mobile\)/, 'only a number that is typed is judged');
 });
 
 test('the same person cannot be signed in twice while still inside', async () => {

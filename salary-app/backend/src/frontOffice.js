@@ -459,12 +459,20 @@ export const addVisitor = db.transaction((input = {}) => {
   if (!purpose) refuse('what are they here for? the purpose is needed');
 
   /*
-   * TEN DIGITS, and the register says so rather than storing whatever was
-   * typed. A visitor book whose numbers cannot be rung is a visitor book
-   * nobody can use after the fact.
+   * THE MOBILE NUMBER IS OPTIONAL. Dinesh: "front desk se compulsory mobile
+   * num hata do" - a courier boy, a walk-in, somebody who will not give one:
+   * the desk was stuck at the form with a visitor standing in front of it,
+   * and the way round that is a made-up number, which is worse than none.
+   *
+   * What has NOT changed: a number that IS typed must be a real ten-digit
+   * one. A blank says "not taken"; 12345 says something false, and a visitor
+   * book whose numbers cannot be rung is no use after the fact.
    */
-  const mobile = cleanMobile(input.mobile);
-  if (!isMobile(mobile)) refuse('a 10-digit mobile number is needed');
+  const typedMobile = clean(input.mobile);
+  const mobile = typedMobile ? cleanMobile(typedMobile) : null;
+  if (mobile !== null && !isMobile(mobile)) {
+    refuse('that mobile number is not 10 digits - correct it, or leave it blank');
+  }
 
   const type = clean(input.visitor_type);
   if (type && !VISITOR_TYPES.includes(type)) refuse(`a visitor type must be one of: ${VISITOR_TYPES.join(', ')}`);
@@ -479,13 +487,28 @@ export const addVisitor = db.transaction((input = {}) => {
    * up again after lunch. Refused by name and number while the first visit
    * is still open; once they have been signed out they can come back in.
    */
-  const open = db
-    .prepare(
-      `SELECT * FROM fo_visitors
-        WHERE day = ? AND mobile = ? AND lower(name) = lower(?)
-          AND out_time IS NULL AND archived_at IS NULL`
-    )
-    .get(day, mobile, name);
+  /*
+   * With no number there is only the name to go on, and two different people
+   * can share one - so a visit with no mobile only clashes with another that
+   * ALSO has none, under the same name from the same company. That still
+   * catches the second press of the button, which sends the identical form.
+   */
+  const open = mobile
+    ? db
+        .prepare(
+          `SELECT * FROM fo_visitors
+            WHERE day = ? AND mobile = ? AND lower(name) = lower(?)
+              AND out_time IS NULL AND archived_at IS NULL`
+        )
+        .get(day, mobile, name)
+    : db
+        .prepare(
+          `SELECT * FROM fo_visitors
+            WHERE day = ? AND (mobile IS NULL OR mobile = '') AND lower(name) = lower(?)
+              AND lower(COALESCE(company, '')) = lower(?)
+              AND out_time IS NULL AND archived_at IS NULL`
+        )
+        .get(day, name, clean(input.company) || '');
   if (open) {
     const err = new Error(`${name} is already signed in today and has not been signed out (${open.pass_no || 'no pass'}).`);
     err.status = 409;
@@ -557,7 +580,7 @@ export function updateVisitor(id, patch = {}, { by } = {}) {
     let value = clean(patch[key]);
     if (key === 'mobile' && value) {
       value = cleanMobile(value);
-      if (!isMobile(value)) refuse('a 10-digit mobile number is needed');
+      if (!isMobile(value)) refuse('that mobile number is not 10 digits - correct it, or leave it blank');
     }
     if (key === 'visitor_type' && value && !VISITOR_TYPES.includes(value)) {
       refuse(`a visitor type must be one of: ${VISITOR_TYPES.join(', ')}`);
