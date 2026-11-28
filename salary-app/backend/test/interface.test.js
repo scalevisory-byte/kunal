@@ -1123,7 +1123,9 @@ test("the office's usual timings add up to the day, and say so", () => {
     }
   }
   assert.match(tab, /SHORT of the/);
-  assert.match(tab, /every day filled this way is docked/);
+  // v2.37.0: the fill button is gone, so the sentence is about a day worked
+  // on these timings - the mismatch is still stated before it costs anything.
+  assert.match(tab, /a day worked on exactly these timings is docked/);
   assert.match(tab, /OVER the/);
   /*
    * The redesign moved this sentence out of the toolbar it used to wrap
@@ -3016,8 +3018,10 @@ test('the Time tab is one filter bar and one settings strip, not four toolbars',
 
   // Every feature the brief lists is still on the page.
   for (const feature of [
+    // v2.37.0: "Fill the usual timings" was removed at Dinesh's request (pressed
+    // by mistake, "no useful"); its undo stands in its place.
     'One day, everybody', 'One person, whole month', 'Import from Excel',
-    'Fill the usual timings', 'Lunch is inside the day', 'Search employee or company',
+    'Undo the usual timings', 'Lunch is inside the day', 'Search employee or company',
   ]) {
     assert.ok(tab.includes(feature), `"${feature}" has gone`);
   }

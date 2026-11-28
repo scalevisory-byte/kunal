@@ -42,3 +42,39 @@ export function missingOutRule(stored) {
 
 /** Is this mark the one the rule wrote on the day, rather than somebody's own? */
 export const wroteByRule = (row) => Number(row?.missing_out) === 1;
+
+/**
+ * Days already on the grid that the rule WOULD mark today, but never did.
+ *
+ * Dinesh, on v2.36 with AJEETKUMAR's 27th still reading P, in 10:29 and no
+ * out: *"what u done for missing punch"*. The rule only acts on what the
+ * import writes FROM NOW ON, and it never overwrites a mark already stored -
+ * a day imported before the update came in as P and stays P. That is
+ * deliberate (a month already paid must not move by itself), so the days are
+ * offered here instead, named, for the office to press.
+ *
+ * A candidate is a day that has FINISHED (`lastDay` - before today in the
+ * current month, the whole month for a past one), carries an arrival and no
+ * departure, reads P or nothing, was not written by the rule already, and
+ * that no person has decided: not marked by hand since the column existed,
+ * and with no allowed/refused decision on it.
+ */
+export function missingOutCandidates(rows = [], { entryOf, lastDay }) {
+  const out = [];
+  for (const row of rows) {
+    for (let day = 1; day <= lastDay; day += 1) {
+      const e = entryOf(row, day) || {};
+      if (!e.in_time || e.out_time) continue;
+      if (!['', 'P'].includes(String(e.code || ''))) continue;
+      if (Number(e.missing_out) === 1 || e.marked_by_hand) continue;
+      if (e.approved === true || e.approved === false) continue;
+      out.push({
+        employee_id: row.employee_id,
+        name: row.employee_name || row.name || '',
+        day,
+        in_time: e.in_time,
+      });
+    }
+  }
+  return out;
+}

@@ -216,7 +216,7 @@ export const HELP = [
       'The **Time** tab takes four times a day: in, lunch out, lunch in, out. Type them however you like — `9:30`, `930`, `9.30`, `6pm`, `18:30` all read.',
       'out − in − lunch is compared with the day’s expected hours, and the difference becomes that day’s short hours or overtime.',
       '**The usual day** is the strip under the filter bar: start, finish, lunch, and what they add up to. If that sum goes **red** the timings are short of the day the month is paid on, and every day filled that way is docked the difference — a wrong default cannot quietly dock everybody any more.',
-      '**Fill the usual timings** writes them onto the days that have nothing on them. It never overwrites a day somebody has already typed.',
+      '**There is no button to fill the usual timings any more** (it was pressed by mistake once too often). Times come from the punches or are typed day by day. If a fill from before is still on screen, **Undo the usual timings** takes it back — the times only, on days with no punch behind them. Every time box has a **clock** beside it to pick from instead of typing.',
       '**Somebody on a different shift gets THEIR hours, not the office’s.** Set them on the employee record — Employees, open the name, *Shift starts* and *Shift ends*. The strip says how many people on screen have their own before you press Fill. A night shift is filled with no lunch break, because the office’s break falls outside it.',
       '**One day, everybody**, **One person, whole month** or **One person, calendar** — the pill at the top left. Day mode has the day stepper and a search; the other two have a person picker.',
       '**The calendar** lays that person\u2019s month out as weeks, so every date is on one screen and a pattern shows \u2014 every Tuesday late, a whole week short. Each square carries the mark, in \u2192 out, the hours and the \u00b1. **Click a date and every punch of that day opens above the calendar**, because twelve door openings do not fit in a square. Nothing is hidden; it is one click away instead of all at once.',
@@ -412,7 +412,7 @@ export const HELP = [
     ],
     lines: [
       '**Shift starts / Shift ends** are columns on the Employees table, and on each person\u2019s record. Blank means the office\u2019s usual day, set on the Time tab.',
-      'Their shift decides **when** they are late or early, **what \u201cFill the usual timings\u201d writes** on their days, and **how long their day is** \u2014 so short hours and overtime are judged against their own hours, not the office\u2019s nine.',
+      'Their shift decides **when** they are late or early, **what their usual day is** on their days, and **how long their day is** \u2014 so short hours and overtime are judged against their own hours, not the office\u2019s nine.',
       'Their hourly rate follows it too: an hour missing from a six-hour day is worth a sixth of that day.',
       'A night shift that crosses midnight is read correctly \u2014 22:00 to 06:00 is eight hours.',
       '**Leaving it at the usual 09:30–18:30 means “no shift of their own”**, and the office day applies — including a start the office changes later. Type a different time to give somebody a shift.',
@@ -650,6 +650,7 @@ export const HELP = [
     lines: [
       '**Click the day on the Attendance grid.** The four clock times are at the top of the menu \u2014 In, Lunch out, Lunch in, Out \u2014 and you can type straight into them.',
       'Type it however you like: `930`, `9.30`, `9`, `6pm` and `18:30` are all read.',
+      '**A day with an in punch and no out punch, imported before the half-day rule existed, stays P.** The Attendance tab offers *No out punch: N days \u2192 half day* for those \u2014 finished days only, never one somebody already marked by hand.',
       'The sum underneath updates as you type, so you can see what the day comes to before you close the menu.',
       '**Reports \u2192 Missing punch** is the list of them \u2014 every day at work with no in or no out \u2014 and **clicking the name there opens that person\u2019s month on the Time tab**, with the four boxes already on the day. Before, it named the day and left you to go and find it.',
       'The **Time** tab does the same thing for a whole day across everybody, or one person down the month.',

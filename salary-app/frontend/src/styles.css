@@ -6633,3 +6633,17 @@ label.linkish { cursor: pointer; color: var(--brand); text-decoration: underline
 table.sheet.asset-sum-table { width: auto; min-width: min(28rem, 100%); margin: 0.6rem 0; }
 table.sheet.asset-sum-table tr.total td { font-weight: 700; border-top: 1px solid var(--line); }
 .oddity .num { font-weight: 700; }
+/* v2.37.0 - a yes/no on the employee record ("Not paid through this payroll"). */
+.flag-field { display: flex; flex-direction: row; align-items: flex-start; gap: 0.5rem; }
+.flag-field input[type='checkbox'] { all: revert; width: 16px; height: 16px; margin-top: 0.15rem; flex: 0 0 auto; }
+/* v2.37.0 - the hours worked on each Sunday, under its tick. */
+.sun-hrs { display: block; font-size: 0.72rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sun-hrs.short { color: var(--warn, #b45309); }
+/* v2.37.0 - a clock beside every typed time. The native picker is kept in
+   the page (showPicker needs it rendered) but takes no room and no clicks. */
+.time-pick { display: inline-flex; align-items: center; gap: 0.15rem; position: relative; width: 100%; }
+.time-pick .time-input { flex: 1 1 auto; min-width: 0; }
+.time-pick-native { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+button.time-pick-btn { flex: none; border: none; background: none; padding: 0 0.15rem; font-size: 0.8rem; line-height: 1; opacity: 0.45; cursor: pointer; }
+button.time-pick-btn:hover, .time-pick:focus-within button.time-pick-btn { opacity: 1; }
+button.time-pick-btn:disabled { display: none; }

@@ -496,7 +496,7 @@ function Field({ f, value, disabled = false, starred, problem, companies, branch
       default:
         return (
           <input
-            type={f.kind === 'date' ? 'date' : f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : 'text'}
+            type={f.kind === 'date' ? 'date' : f.kind === 'time' ? 'time' : f.kind === 'tel' ? 'tel' : f.kind === 'email' ? 'email' : 'text'}
             placeholder={f.placeholder || ''}
             value={v}
             disabled={disabled}

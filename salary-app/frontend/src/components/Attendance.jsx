@@ -1,3 +1,4 @@
+import { missingOutCandidates } from '../../../shared/missingOut.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   absentDaysFromAttendance,
@@ -226,7 +227,20 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
     saveTimer.current = setTimeout(async () => {
       const entries = Object.entries(next).map(([key, entry]) => {
         const [employee_id, day] = key.split(':');
-        return { employee_id: Number(employee_id), day: Number(day), ...entry };
+        /*
+         * The stored "the rule wrote this" flag must never ride back on a
+         * save. Spread with a new mark - a date range, a day marker - it
+         * would tell the server the RULE chose that leave, and the next
+         * punch import could overwrite it. Only the missing-out sweep below
+         * says so, on purpose, with `rule_half_day`.
+         */
+        const { missing_out: _flag, marked_by_hand: _hand, rule_half_day: rule, ...rest } = entry;
+        return {
+          employee_id: Number(employee_id),
+          day: Number(day),
+          ...rest,
+          ...(rule ? { missing_out: 1 } : {}),
+        };
       });
       if (!entries.length) return;
       setStatus('Saving…');
@@ -469,6 +483,45 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
     queueSave(next);
   };
 
+  /*
+   * DAYS WITH NO OUT PUNCH THAT THE RULE NEVER REACHED (v2.37.0).
+   *
+   * The half-day rule acts on what the import writes from now on and never
+   * overwrites a stored mark, so a day imported before the update reads P with
+   * an arrival and no departure for good. Offered here, named and counted, for
+   * the office to press - never done by itself, because those days may already
+   * have been looked at. Only finished days: today is still running.
+   */
+  const lastFinished = todayDay ? todayDay - 1 : total;
+  const noOutDays = useMemo(
+    () => (locked ? [] : missingOutCandidates(filtered, { entryOf, lastDay: lastFinished })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtered, draft, lastFinished, locked]
+  );
+  const halfDayNoOut = () => {
+    if (!noOutDays.length) return;
+    const people = [...new Set(noOutDays.map((d) => d.name))];
+    const sample = noOutDays
+      .slice(0, 8)
+      .map((d) => `${d.name} — ${d.day} ${monthName}, in ${d.in_time}`)
+      .join('\n');
+    const ok = window.confirm(
+      `Mark ${noOutDays.length} day${noOutDays.length === 1 ? '' : 's'} with no out punch as HALF DAY ` +
+        `(${people.length} ${people.length === 1 ? 'person' : 'people'})?\n\n${sample}` +
+        (noOutDays.length > 8 ? `\n…and ${noOutDays.length - 8} more` : '') +
+        '\n\nEach costs half a day\u2019s pay. Typing the real out time on a day later puts it back to Present ' +
+        'and works the hours out. Days somebody already marked by hand, or allowed/refused, are not touched.'
+    );
+    if (!ok) return;
+    const next = { ...draft };
+    for (const d of noOutDays) {
+      const row = filtered.find((r) => r.employee_id === d.employee_id);
+      next[`${d.employee_id}:${d.day}`] = { ...entryOf(row, d.day), code: 'HF', minutes: 0, rule_half_day: true };
+    }
+    setDraft(next);
+    queueSave(next);
+  };
+
   return (
     /* A month across the page: thirty-one columns want landscape paper. */
     <section className="attendance-page">
@@ -500,6 +553,15 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
         <button className="primary" disabled={locked} onClick={markEveryonePresent}>
           Mark everyone Present
         </button>
+        {noOutDays.length ? (
+          <button
+            className="danger"
+            onClick={halfDayNoOut}
+            title="Days that have finished with an in punch and no out punch, imported before the half-day rule existed"
+          >
+            No out punch: {noOutDays.length} day{noOutDays.length === 1 ? '' : 's'} → half day
+          </button>
+        ) : null}
         {/*
           * The way in to the importers, put where somebody marking attendance
           * is already standing. They live behind a fold on the Reports tab,
@@ -767,6 +829,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
             row={row}
             hoursPerDay={hoursForEmployee(row, { period })}
             deductLunch={!period.lunch_paid}
+            stillToday={picker.day >= todayDay && todayDay > 0}
             onChange={(patch) => setEntry(picker.employeeId, picker.day, patch)}
             onClose={() => setPicker(null)}
           />
@@ -1154,7 +1217,7 @@ const EVERYDAY_MARKS = new Set(['P', 'A', 'HF', 'CL', 'SL', 'PL', 'UL', 'WH', 'O
 
 function DayPicker({
   codes, picker, period, entry, perMinute, row, hoursPerDay = 9, deductLunch = true,
-  onChange, onClose,
+  stillToday = false, onChange, onClose,
 }) {
   const [custom, setCustom] = useState('');
   const [punches, setPunches] = useState(null);
@@ -1263,6 +1326,14 @@ function DayPicker({
             <p className="warn small">
               Marked <strong>half day</strong> automatically: there is no out punch. Type the out time
               above and the day goes back to what its hours say — or pick a mark below, and that stays.
+            </p>
+          ) : !stillToday && entry.in_time && !entry.out_time && ['', 'P'].includes(entry.code || '') ? (
+            /* A day imported before the half-day rule, or marked by hand: the
+               rule does not reach back, so say what to do instead. */
+            <p className="warn small">
+              <strong>No out punch.</strong> Type the out time if you know it, or pick{' '}
+              <strong>Half Day</strong> below. The automatic half day only marks days the punch
+              machine brings in from v2.34 on.
             </p>
           ) : null}
 

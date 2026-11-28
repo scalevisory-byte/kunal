@@ -69,7 +69,6 @@ export const SECTIONS = [
       ['phone', 'Mobile', 'tel', { required: true }],
       ['phone_alt', 'Alternate mobile', 'tel', { required: true }],
       ['email', 'Personal email', 'email', { required: true }],
-      ['spouse_name', "Spouse's name", 'text', { hint: 'leave empty if unmarried' }],
       /*
        * EACH PARENT IN A BOX OF THEIR OWN, with their mobile.
        *
@@ -87,6 +86,12 @@ export const SECTIONS = [
       ['mother_phone', "Mother's mobile", 'tel', { group: 'Mother' }],
       ['mother_occupation', "Mother's work", 'text', { group: 'Mother', placeholder: 'e.g. homemaker, teacher' }],
       ['mother_company', "Mother's company / employer", 'text', { group: 'Mother' }],
+      /* The spouse in a box of their own too (v2.37.0, Dinesh: "if spouse
+         available add her work details and mobile num also"). */
+      ['spouse_name', "Spouse's name", 'text', { group: 'Spouse', hint: 'leave empty if unmarried' }],
+      ['spouse_phone', "Spouse's mobile", 'tel', { group: 'Spouse' }],
+      ['spouse_occupation', "Spouse's work", 'text', { group: 'Spouse', placeholder: 'e.g. service, business, homemaker' }],
+      ['spouse_company', "Spouse's company / employer", 'text', { group: 'Spouse' }],
     ],
   },
   {
@@ -114,8 +119,8 @@ export const SECTIONS = [
          kaha add karna he" - there was nowhere. */
       ['office_email', 'Office email', 'email'],
       ['office_phone', 'Office mobile', 'tel'],
-      ['shift_in', 'Shift starts', 'text', { hint: "leave empty for the office's usual day" }],
-      ['shift_out', 'Shift ends', 'text', { placeholder: '06:00 for a night shift' }],
+      ['shift_in', 'Shift starts', 'time', { hint: "leave empty for the office's usual day" }],
+      ['shift_out', 'Shift ends', 'time', { hint: 'e.g. 06:00 for a night shift' }],
     ],
   },
   {
@@ -164,6 +169,9 @@ export const SECTIONS = [
     pay: true,
     fields: [
       ['monthly_salary', 'Monthly salary', 'money', { required: true }],
+      ['not_on_payroll', 'Not paid through this payroll', 'checkbox', {
+        hint: 'the owner, or an account like Front Office that exists for a login — kept off the salary sheet and the attendance grid',
+      }],
       ['payment_mode', 'Pay by', 'select', { options: ['Bank', 'Cash', 'Gpay', 'Cheque'] }],
       ['basic', 'Basic', 'money', { hint: 'optional — it changes nothing about the total' }],
       ['hra', 'HRA', 'money'],

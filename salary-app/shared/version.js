@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.36.0';
+export const VERSION = '2.37.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.37.0',
+    date: '28 Nov 2026',
+    title: 'Owner and shared accounts off the payroll, the missing-punch catch-up, a clock on every time box',
+    items: [
+      '**\u201cNot paid through this payroll\u201d** on the employee record (Employment) and the joining form. Tick it for the owner, or an account like *Front Office Management* that exists for a login: it comes off the open month\u2019s salary sheet and attendance grid, and off the \u201cno salary set\u201d check. The record stays \u2014 logins, the task desk and assets still work. A row with money already typed on it is not taken off.',
+      '**Days with no out punch that the half-day rule never reached** \u2014 imported before v2.34 \u2014 are offered on the Attendance tab: *No out punch: N days \u2192 half day*. One press, named first; days somebody already marked by hand are left alone. The day menu says what to do on one of those days too.',
+      '**Fill the usual timings is removed.** If it was pressed, **Undo the usual timings** on the Time tab clears what it wrote \u2014 only times exactly the usual ones with no punch behind them. The mark stays.',
+      '**A clock beside every time box** \u2014 Time tab, the day menu, the usual day, shift start and end, the employee\u2019s correction form. Typing 930 still works.',
+      '**Sunday tab: the hours worked under each \u2713**, not only the month\u2019s total. A Sunday with no times says so.',
+      '**Spouse** has a box of their own on the joining form and the record: name, mobile, work and company.',
+      'Fixed: a grid edit could carry the half-day rule\u2019s own flag onto a leave mark the office chose, letting a later punch import overwrite it.',
+    ],
+  },
   {
     version: '2.36.0',
     date: '28 Nov 2026',

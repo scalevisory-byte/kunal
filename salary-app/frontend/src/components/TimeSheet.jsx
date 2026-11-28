@@ -25,6 +25,7 @@ import { punchTimes, showPunches } from '../../../shared/punchLog.js';
 import ScrollFrame from './ScrollFrame.jsx';
 import PunchImport from './PunchImport.jsx';
 import { STANDALONE, api } from '../api.js';
+import { usualFillDays } from '../../../shared/usualFill.js';
 
 /**
  * The Time tab - in, lunch out, lunch in, out, and the hours they come to.
@@ -247,49 +248,15 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
   };
 
   /** The usual timings, onto every blank day on screen. */
-  const fillStandard = (targets, onlyBlank = true) => {
-    if (locked) return;
-    const next = { ...draft };
-    let filled = 0;
-    let daysOff = 0;
-    for (const { row, day: d } of targets) {
-      if (onlyBlank && hasTimes(entryOf(row, d))) continue;
-      /*
-       * NEVER ONTO SOMEBODY'S OWN DAY OFF.
-       *
-       * Times on a weekly off now mean something: six hours there is a Sunday
-       * worked and goes on the Sunday register for a day's pay. The usual
-       * timings are nine hours, so one press on a Sunday would have put the
-       * whole office on the register. Nobody is "usually" in on their day off.
-       */
-      if (ownWeeklyOff(row, period, d) && !SUNDAY_MARKS.has(String(entryOf(row, d)?.code || '').toUpperCase())) {
-        daysOff++;
-        continue;
-      }
-      /*
-       * THEIR OWN SHIFT, NOT THE OFFICE'S, when they have one.
-       *
-       * Dinesh: *"timing shift har staff ki alag alag ho sakti he"*. Shifts
-       * were already held per person and already used to judge late and
-       * early - but this wrote the office's one day onto everybody, so one
-       * click put 09:00-18:00 on somebody who works nights. Somebody with no
-       * shift of their own still gets the office day, exactly as before.
-       */
-      next[`${row.employee_id}:${d}`] = fillTimesFor(row, standard);
-      filled++;
-    }
-    if (!filled) {
-      setStatus(
-        daysOff
-          ? 'Nothing to fill - a day off is left alone, and every other day already has times'
-          : 'Every day on screen already has times'
-      );
-      setTimeout(() => setStatus(''), 2500);
-      return;
-    }
-    setDraft(next);
-    queueSave(next);
-  };
+  /*
+   * "FILL THE USUAL TIMINGS" IS GONE (v2.37.0).
+   *
+   * Dinesh pressed it by mistake on a Saturday morning and every person not
+   * yet punched read 09:30 -> 18:30, nine hours of a day nobody had worked:
+   * *"need to revoke / remove this option also / no useful"*. Times come from
+   * the punches, or are typed day by day. What it wrote can be taken back
+   * below (usualFillDays) - the times only; the mark is left as it is.
+   */
 
   const clearDay = (row, d) => setTimes(row.employee_id, d, Object.fromEntries(TIME_FIELDS.map((f) => [f, ''])));
 
@@ -348,6 +315,57 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
             sunday: isSunday(period.year, period.month, d),
           }))
         : [];
+
+  /*
+   * WHAT "FILL THE USUAL TIMINGS" WROTE, and taking it back (v2.37.0).
+   * The month's punch record decides it: times exactly the person's usual
+   * ones with no punch behind them. Nothing is offered until the record has
+   * answered, so a real 09:30 arrival is never cleared on a guess.
+   */
+  const [punchRecord, setPunchRecord] = useState(STANDALONE ? { known: false } : null);
+  useEffect(() => {
+    if (STANDALONE) return undefined;
+    let alive = true;
+    const month = `${period.year}-${String(period.month).padStart(2, '0')}`;
+    api
+      .get(`/punches/month?month=${month}`)
+      .then((got) => alive && setPunchRecord({ known: true, punches: got?.punches || {} }))
+      .catch(() => alive && setPunchRecord({ known: false }));
+    return () => {
+      alive = false;
+    };
+  }, [period.id, period.year, period.month]);
+  const usualFilled = useMemo(
+    () =>
+      punchRecord
+        ? usualFillDays(lines.map(({ row, day: d }) => ({ row, day: d })), {
+            standard,
+            entryOf,
+            punches: punchRecord.known ? punchRecord.punches : null,
+          })
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lines, standard, punchRecord, draft]
+  );
+  const undoUsualFill = () => {
+    if (locked || !usualFilled.length) return;
+    const names = usualFilled
+      .slice(0, 10)
+      .map(({ row, day: d }) => (view === 'day' ? row.employee_name : `${d} ${MONTHS[period.month - 1]}`))
+      .join(', ');
+    const ok = window.confirm(
+      `Clear the usual timings from ${usualFilled.length} day${usualFilled.length === 1 ? '' : 's'}?\n\n` +
+        `${names}${usualFilled.length > 10 ? ` and ${usualFilled.length - 10} more` : ''}\n\n` +
+        'Only the in, lunch and out times are cleared. The mark on the day (P, A…) is left as it is, ' +
+        'and real punches arriving later fill the times in again.'
+    );
+    if (!ok) return;
+    const blank = Object.fromEntries(TIME_FIELDS.map((f) => [f, '']));
+    const next = { ...draft };
+    for (const { row, day: d } of usualFilled) next[`${row.employee_id}:${d}`] = { ...blank };
+    setDraft(next);
+    queueSave(next);
+  };
 
   /*
    * DAYS ALREADY STORED WITH ONE PUNCH IN BOTH COLUMNS.
@@ -780,26 +798,19 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           </button>
         </div>
 
-        <div className="ts-block">
-          <button
-            disabled={locked || !lines.length}
-            onClick={() => fillStandard(lines.map(({ row, day: d }) => ({ row, day: d })))}
-          >
-            Fill the usual timings
-          </button>
-          <span className="muted small">
-            onto the days that have nothing on them
-            {ownShifts > 0 ? (
-              <>
-                {' · '}
-                <strong>
-                  {ownShifts} {ownShifts === 1 ? 'person works' : 'people work'} their own shift
-                </strong>
-                {' and get theirs'}
-              </>
-            ) : null}
-          </span>
-        </div>
+        {/* The undo for the button that used to be here. Only while there
+            is something it wrote, on the days on screen. */}
+        {usualFilled.length > 0 && !locked ? (
+          <div className="ts-block">
+            <button className="danger" onClick={undoUsualFill}>
+              Undo the usual timings — {usualFilled.length} day{usualFilled.length === 1 ? '' : 's'}
+            </button>
+            <span className="muted small">
+              times exactly the usual ones
+              {punchRecord?.known ? ' with no punch behind them' : ' (no punch record here, so check the list)'}
+            </span>
+          </div>
+        ) : null}
 
         {/* Its own block: dropped between the Fill button and its caption, it
             read as though "onto the days that have nothing on them" belonged
@@ -912,18 +923,16 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           {ownShifts > 0 ? (
             <>
               <strong>{ownShifts}</strong> of the {lines.length} on screen have their own shift times
-              on their record, so <strong>Fill the usual timings</strong> writes each of those
-              people <em>their</em> hours and everybody else the office day below. A shift that
-              crosses midnight is filled without a lunch break, because the office&rsquo;s does not
-              fall inside it.{' '}
+              on their record, so they are judged late, early and short against <em>their</em>
+              hours and everybody else against the office day.{' '}
             </>
           ) : null}
           {usual.minutes !== 0 ? (
             <>
               <span className="warn-text">
                 {usual.minutes < 0
-                  ? `These timings are ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so every day filled this way is docked ${formatDuration(-usual.minutes)}.`
-                  : `These timings are ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so every day filled this way is paid that as overtime.`}
+                  ? `These timings are ${formatDuration(-usual.minutes)} SHORT of the ${formatDuration(usual.expected)} day, so a day worked on exactly these timings is docked ${formatDuration(-usual.minutes)}.`
+                  : `These timings are ${formatDuration(usual.minutes)} OVER the ${formatDuration(usual.expected)} day, so a day worked on exactly these timings is paid that as overtime.`}
               </span>{' '}
               {lunchPaid
                 ? 'Lunch times are recorded and NOT taken off the hours \u2014 the break sits inside the day.'
@@ -954,8 +963,8 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           </strong>
           <p className="small" style={{ margin: '0.35rem 0' }}>
             People work <strong>{formatDuration(usual.worked)}</strong> on these timings, and the
-            month is paid on a <strong>{formatDuration(usual.expected)}</strong> day — so every day
-            filled this way is{' '}
+            month is paid on a <strong>{formatDuration(usual.expected)}</strong> day — so a day
+            worked on exactly these timings is{' '}
             {usual.minutes < 0
               ? `docked ${formatDuration(-usual.minutes)}`
               : `paid ${formatDuration(usual.minutes)} of overtime`}
@@ -1005,9 +1014,11 @@ export default function TimeSheet({ period, rows, onSave, onPatchPeriod, locked,
           {TIME_FIELDS.map((field) => (
             <label key={field}>
               {TIME_LABELS[field]}
+              {/* A clock to pick from (v2.37.0). The office's day is stored as
+                  HH:MM, which is what a time picker reads and writes. */}
               <input
-                value={standard[field]}
-                placeholder="09:30"
+                type="time"
+                value={standard[field] || ''}
                 onChange={(e) => setStandard({ ...standard, [field]: e.target.value })}
                 onBlur={(e) => setStandard(writeStandardTimes({ ...standard, [field]: e.target.value }))}
               />
@@ -1341,6 +1352,25 @@ function TimeRow({
 export function TimeInput({ value, disabled, label, onCommit }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
+  /*
+   * A CLOCK TO PICK FROM, beside the box (v2.37.0, Dinesh: "give option for
+   * select time, jaha pe bhi time dalna he"). Typing 930 stays - it is the
+   * fastest way down eighty rows - and the clock opens the browser's own time
+   * picker for anybody who would rather choose. Both end in the same commit,
+   * so a picked time and a typed one are stored identically.
+   */
+  const picker = useRef(null);
+  const parsedValue = parseTime(value);
+  const openPicker = () => {
+    const el = picker.current;
+    if (!el || disabled) return;
+    try {
+      if (typeof el.showPicker === 'function') el.showPicker();
+      else el.focus();
+    } catch {
+      el.focus();
+    }
+  };
 
   useEffect(() => {
     if (!focused) setDraft(value);
@@ -1362,6 +1392,7 @@ export function TimeInput({ value, disabled, label, onCommit }) {
   };
 
   return (
+    <span className="time-pick">
     <input
       className="cell-input time-input"
       inputMode="numeric"
@@ -1384,5 +1415,31 @@ export function TimeInput({ value, disabled, label, onCommit }) {
         }
       }}
     />
+    <input
+      ref={picker}
+      type="time"
+      className="time-pick-native"
+      tabIndex={-1}
+      aria-hidden="true"
+      disabled={disabled}
+      value={parsedValue === null ? '' : formatTime(parsedValue)}
+      onChange={(e) => {
+        const picked = e.target.value;
+        if (!picked) return;
+        setDraft(picked);
+        if (picked !== (value || '')) onCommit(picked);
+      }}
+    />
+    <button
+      type="button"
+      className="time-pick-btn"
+      disabled={disabled}
+      title={`Pick ${String(label || 'the time').toLowerCase()} from a clock`}
+      aria-label={`Pick ${label || 'time'} from a clock`}
+      onClick={openPicker}
+    >
+      {'\u{1F552}'}
+    </button>
+    </span>
   );
 }

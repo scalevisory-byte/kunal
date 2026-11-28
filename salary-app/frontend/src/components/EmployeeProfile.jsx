@@ -37,11 +37,14 @@ const SECTIONS = [
       ['office_phone', 'Office mobile', 'tel'],
       ['joined_on', 'Joined on', 'date'],
       ['left_on', 'Left on', 'date', 'leave empty while they are still with you'],
+      // v2.37.0: the owner, or an account like Front Office that exists for a
+      // login - on the staff list, on no salary sheet.
+      ['not_on_payroll', 'Not paid through this payroll', 'flag', 'ticked: kept off the salary sheet and the attendance grid from the open month on'],
       // Only for somebody who does not work the office's usual day. A night
       // shift judged against 09:30 would read as late every single day, and
       // under the late/early concession that would cost them money.
-      ['shift_in', 'Shift starts', 'text', "leave empty for the office's usual day"],
-      ['shift_out', 'Shift ends', 'text', 'e.g. 06:00 for a night shift'],
+      ['shift_in', 'Shift starts', 'time', "leave empty for the office's usual day"],
+      ['shift_out', 'Shift ends', 'time', 'e.g. 06:00 for a night shift'],
     ],
   },
   {
@@ -104,6 +107,9 @@ const SECTIONS = [
       ['mother_occupation', "Mother's work", 'text'],
       ['mother_company', "Mother's company / employer", 'text'],
       ['spouse_name', "Spouse's name", 'text', 'leave empty if unmarried'],
+      ['spouse_phone', "Spouse's mobile", 'tel'],
+      ['spouse_occupation', "Spouse's work", 'text'],
+      ['spouse_company', "Spouse's company / employer", 'text'],
     ],
   },
   {
@@ -287,6 +293,19 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
               </option>
             ))}
           </select>
+        ) : kind === 'flag' ? (
+          <span className="flag-field">
+            <input
+              type="checkbox"
+              checked={Boolean(Number(value))}
+              onChange={(e) => {
+                const on = e.target.checked ? 1 : 0;
+                setDraft({ ...draft, [field]: on });
+                commit(field, on);
+              }}
+            />
+            <span className="muted small">{hint}</span>
+          </span>
         ) : kind === 'select' ? (
           <select
             value={value}
@@ -302,7 +321,7 @@ export default function EmployeeProfile({ employee, companies, employees: allEmp
           </select>
         ) : (
           <input
-            type={kind === 'date' ? 'date' : 'text'}
+            type={kind === 'date' ? 'date' : kind === 'time' ? 'time' : 'text'}
             inputMode={kind === 'tel' ? 'tel' : undefined}
             placeholder={kind === 'date' ? undefined : hint}
             value={value}

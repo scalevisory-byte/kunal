@@ -440,6 +440,8 @@ for (const column of [
   'father_occupation', 'father_company', 'mother_occupation', 'mother_company',
   // Each parent's mobile, and the office's own email and mobile for them.
   'father_phone', 'mother_phone', 'office_email', 'office_phone',
+  // The spouse's mobile and work, beside the parents' (v2.37.0).
+  'spouse_phone', 'spouse_occupation', 'spouse_company',
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
     db.exec(`ALTER TABLE employees ADD COLUMN ${column} TEXT`);
@@ -850,6 +852,11 @@ for (const [column, sql] of [
   /* A record somebody started and has not finished. It stays OFF every
      payroll until it is saved properly, which is the whole point of it. */
   ['is_draft', 'INTEGER NOT NULL DEFAULT 0'],
+  /* v2.37.0: on the staff list but NOT paid through this payroll - the
+     owner, or an account like "Front Office Management" that exists for a
+     login and is nobody's salary. Kept off every month that is not locked,
+     and off the "no salary set" check, which was flagging them as critical. */
+  ['not_on_payroll', 'INTEGER NOT NULL DEFAULT 0'],
   ['hod_id', 'INTEGER REFERENCES employees(id) ON DELETE SET NULL'],
 ]) {
   if (!db.prepare(`PRAGMA table_info(employees)`).all().some((c) => c.name === column)) {
@@ -1054,6 +1061,7 @@ const EMPLOYEE_FIELDS = [
   'emergency_phone_alt',
   'emergency_address',
   'is_draft',
+  'not_on_payroll',
   'pf_mode',
   'esi_mode',
   'shift_in',
@@ -1084,6 +1092,9 @@ const EMPLOYEE_FIELDS = [
   'mother_occupation',
   'mother_company',
   'spouse_name',
+  'spouse_phone',
+  'spouse_occupation',
+  'spouse_company',
   'blood_group',
   'phone',
   'phone_alt',
@@ -1271,6 +1282,9 @@ export function createEmployee(input) {
     mother_occupation: input.mother_occupation || null,
     mother_company: input.mother_company || null,
     spouse_name: input.spouse_name || null,
+    spouse_phone: input.spouse_phone || null,
+    spouse_occupation: input.spouse_occupation || null,
+    spouse_company: input.spouse_company || null,
     blood_group: input.blood_group || null,
     phone_alt: input.phone_alt || null,
     email: input.email || null,
@@ -1313,6 +1327,7 @@ export function createEmployee(input) {
     /* A record somebody started and has not finished. It is off every
        payroll until it is saved properly. */
     is_draft: input.is_draft ? 1 : 0,
+    not_on_payroll: input.not_on_payroll ? 1 : 0,
     // 'none' means PF (or ESI) does not apply to this person at all: nothing
     // is deducted and they are left off the register. 'fixed' stays the
     // default, so an existing row and a new one behave exactly as before.
@@ -1377,6 +1392,7 @@ export const TRACKED_FIELDS = {
   pf_mode: 'PF',
   esi_mode: 'ESI',
   active: 'Status',
+  not_on_payroll: 'Not on the payroll',
   left_on: 'Left on',
   joined_on: 'Joining date',
   /*
@@ -1493,6 +1509,7 @@ export function updateEmployee(id, patch) {
     if (!(key in patch)) continue;
     let value = patch[key];
     if (key === 'active') value = value ? 1 : 0;
+    if (key === 'not_on_payroll') value = value && value !== '0' && value !== 'false' ? 1 : 0;
     if (key === 'reports_to_id') value = Number(value) || null;
     if (value === '') value = null;
     fields.push(`${key} = ?`);
@@ -1987,13 +2004,18 @@ const strandedRows = db.prepare(`
   SELECT r.id, r.employee_id FROM payroll_rows r
     JOIN employees e ON e.id = r.employee_id
    WHERE r.period_id = @period_id
-     AND e.active = 0
+     AND (e.active = 0 OR COALESCE(e.not_on_payroll, 0) = 1)
      AND r.status = 'pending'
      AND COALESCE(r.sunday_status, 'pending') = 'pending'
      AND r.addition = 0 AND r.deduction = 0 AND r.adjustment = 0
      AND COALESCE(r.remark, '') = '' AND COALESCE(r.adjustment_note, '') = ''
      AND ${UNTOUCHED_OVERRIDES.map((c) => `r.${c} IS NULL`).join(' AND ')}
      AND (
+       /* NOT ON THE PAYROLL (owner, a shared account): off it, whatever is
+          on the grid - nobody's salary is on this row. Money typed on it
+          (checked above) still keeps it. */
+       COALESCE(e.not_on_payroll, 0) = 1
+       OR
        /*
         * GONE BEFORE THE MONTH BEGAN: off it, whatever is on the grid.
         *
@@ -2054,7 +2076,9 @@ export const syncPayrollRows = db.transaction((periodId) => {
    * is meant to avoid.
    */
   const employees = db
-    .prepare(`SELECT * FROM employees WHERE active = 1 AND COALESCE(is_draft, 0) = 0`)
+    .prepare(
+      `SELECT * FROM employees WHERE active = 1 AND COALESCE(is_draft, 0) = 0 AND COALESCE(not_on_payroll, 0) = 0`
+    )
     .all();
   const existing = new Set(
     db.prepare(`SELECT employee_id FROM payroll_rows WHERE period_id = ?`).all(periodId).map((r) => r.employee_id)
@@ -3043,6 +3067,10 @@ export function attendanceByEmployee(periodId, opts) {
       ...(row.doubled_from ? { doubled_from: row.doubled_from } : {}),
       // Only when the no-out-punch rule wrote the mark, so the day menu can say so.
       ...(row.missing_out === 1 ? { missing_out: 1 } : {}),
+      // A person named this mark (v2.37.0). Read by the missing-out sweep so
+      // it never offers a day somebody already decided; not a column, so a
+      // write that carries it back changes nothing.
+      ...(row.missing_out === 0 ? { marked_by_hand: 1 } : {}),
     };
   }
   return map;

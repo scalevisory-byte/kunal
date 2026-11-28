@@ -886,6 +886,14 @@ export default function Employees({
                         it is a real row, and it is on no payroll at all -
                         reading it as an ordinary employee is how somebody
                         wonders in December why there is no payslip. */}
+                    {emp.not_on_payroll ? (
+                      <span
+                        className="pill"
+                        title="Not paid through this payroll — the owner or a shared account. On no salary sheet; untick it on their record to put them back."
+                      >
+                        not on payroll
+                      </span>
+                    ) : null}
                     {emp.is_draft ? (
                       <span
                         className="pill draft"

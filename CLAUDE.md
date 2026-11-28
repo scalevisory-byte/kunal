@@ -2251,6 +2251,43 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Off the payroll, the no-out catch-up, no more "Fill" (v2.37.0)
+
+Five messages off his live v2.36 screens.
+
+- **`employees.not_on_payroll`** — *"what for front office management and owner account"*:
+  both sat on the salary sheet as critical "no salary set". The record stays (logins, desk,
+  assets); `syncPayrollRows` skips it and `strandedRows` takes an untouched row off an
+  unlocked month **whatever is on the grid** (money typed on the row still keeps it). Tracked
+  in `employee_history`. A `flag` field kind on the record, a checkbox on the form, a pill on
+  the list. Offline `syncRows` mirrors it (and now skips drafts too, which it never did).
+- **Missing punch catch-up** — *"what u done for missing punch"*, AJEETKUMAR's 27th still P.
+  The v2.34 rule only acts on new imports and never overwrites a stored mark, so days imported
+  before it stay P **by design**. `missingOutCandidates` (`shared/missingOut.js`) offers them:
+  finished days, arrival and no departure, P or blank, not already the rule's, not marked by
+  hand, no allowed/refused decision. Button on the Attendance toolbar, confirm names them,
+  writes `HF` with `rule_half_day` → `missing_out: 1`, so a typed out time still restores P.
+  `attendanceByEmployee` now carries `marked_by_hand: 1` for `missing_out === 0`.
+- **THE BUG FOUND ON THE WAY:** the grid's `queueSave` spread the stored entry, so a date range
+  or day marker replacing a rule-HF with CL sent `missing_out: 1` back — the next import would
+  have treated the office's leave as the rule's and overwritten it. `queueSave` now strips
+  `missing_out`/`marked_by_hand` and only `rule_half_day` sets the flag.
+- **"Fill the usual timings" is gone** — pressed by mistake on a Saturday morning, *"no
+  useful"*. `shared/usualFill.js` `usualFillDays` finds what it wrote (times exactly the
+  person's usual ones via `fillTimesFor`, **and no punch on record** from `/punches/month`)
+  and **Undo the usual timings** clears the times only; the mark stays. Nothing is offered
+  until the punch record answers. The time-mismatch sentence now says "a day worked on
+  exactly these timings", and three tests that pinned the button were rewritten to state that
+  it is gone.
+- **A clock beside every time box** — `TimeInput` keeps typed `930` and adds a button that
+  calls `showPicker()` on a hidden `type="time"`; shift fields (form + record), the usual-day
+  editor and the punch-link correction form are native `type="time"`. **A `\u{...}` escape
+  written as JSX TEXT is a syntax error** ("Syntax error F") — it has to be `{'\u{1F552}'}`.
+- **Sunday tab**: hours under each tick (`.sun-hrs`), "no times" for an unclocked Sunday.
+- **Spouse box**: `spouse_phone`, `spouse_occupation`, `spouse_company` beside the parents'.
+- **Asked, not built:** *"need only 2 leaves, casual and sick, both unpaid"* — moves money on
+  every CL/SL day, so put to Dinesh first (which months, and what happens to PL).
+
 ### Assets: one count for every screen (v2.36.0) — `docs/ASSETS-AUDIT.md`
 
 Dinesh sent a 23-phase "Assets module" brief whose first instruction was *audit before

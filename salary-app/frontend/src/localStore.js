@@ -310,7 +310,11 @@ function syncRows(periodId) {
     const starts = `${period.year}-${String(period.month).padStart(2, '0')}-01`;
     const gone = new Set(
       db.employees
-        .filter((e) => !e.active && (!e.left_on || String(e.left_on).slice(0, 10) < starts))
+        .filter(
+          (e) =>
+            e.not_on_payroll ||
+            (!e.active && (!e.left_on || String(e.left_on).slice(0, 10) < starts))
+        )
         .map((e) => e.id)
     );
     db.payroll_rows = db.payroll_rows.filter((r) => {
@@ -323,7 +327,9 @@ function syncRows(periodId) {
         r.absent_days_override == null && r.sundays_override == null &&
         r.ot_minutes_override == null && r.ot_amount_override == null &&
         r.sunday_salary_override == null &&
-        !db.attendance.some((a) => a.period_id === periodId && a.employee_id === r.employee_id);
+        // Not on the payroll: the grid is no reason to keep the row.
+        (db.employees.find((e) => e.id === r.employee_id)?.not_on_payroll ||
+          !db.attendance.some((a) => a.period_id === periodId && a.employee_id === r.employee_id));
       return !untouched;
     });
   }
@@ -333,7 +339,7 @@ function syncRows(periodId) {
   );
   let added = 0;
   for (const emp of db.employees) {
-    if (!emp.active) continue;
+    if (!emp.active || emp.not_on_payroll || emp.is_draft) continue;
     if (have.has(emp.id)) {
       const row = db.payroll_rows.find((r) => r.period_id === periodId && r.employee_id === emp.id);
       if (row && !row.salary) row.salary = emp.monthly_salary;
@@ -1448,7 +1454,7 @@ const ROW_FIELDS = [
 const EMPLOYEE_FIELDS = [
   'company_id', 'code', 'device_code', 'name', 'designation', 'religion', 'department',
   'dob', 'gender', 'marital_status', 'blood_group',
-  'father_name', 'mother_name', 'spouse_name',
+  'father_name', 'mother_name', 'spouse_name', 'spouse_phone', 'spouse_occupation', 'spouse_company',
   'phone', 'phone_alt', 'email', 'address',
   'emergency_name', 'emergency_phone', 'emergency_relation',
   'pan', 'aadhaar', 'uan', 'esic_no', 'pf_no',
@@ -1460,6 +1466,8 @@ const EMPLOYEE_FIELDS = [
   // When probation ends. Informational; the reminder needs the date.
   'probation_until',
   'active', 'sort_order',
+  // Owner / a shared account: kept off every month's payroll.
+  'not_on_payroll', 'is_draft',
 ];
 
 /** Answers an /api path the way the server would. */

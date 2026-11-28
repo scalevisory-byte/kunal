@@ -439,11 +439,11 @@ function RequestForm({ token, periods, onDone, onError }) {
         <>
           <label className="field">
             In at
-            <input placeholder="09:30" value={form.in_time} onChange={(e) => setForm({ ...form, in_time: e.target.value })} />
+            <input type="time" value={form.in_time} onChange={(e) => setForm({ ...form, in_time: e.target.value })} />
           </label>
           <label className="field">
             Out at
-            <input placeholder="18:30" value={form.out_time} onChange={(e) => setForm({ ...form, out_time: e.target.value })} />
+            <input type="time" value={form.out_time} onChange={(e) => setForm({ ...form, out_time: e.target.value })} />
           </label>
         </>
       ) : null}

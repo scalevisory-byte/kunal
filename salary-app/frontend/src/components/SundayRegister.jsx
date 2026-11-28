@@ -629,6 +629,14 @@ export default function SundayRegister({
                       }
                     >
                       {on ? (seen && seen.full === false ? '✓!' : '✓') : ''}
+                      {/* The hours that Sunday, under its tick (Dinesh: "how
+                          many hour work on sunday"). A day nobody clocked
+                          says so - not known is not nought hours. */}
+                      {on ? (
+                        <span className={`sun-hrs${seen && seen.full === false ? ' short' : ''}`}>
+                          {seen && seen.worked !== null ? formatDuration(seen.worked) : 'no times'}
+                        </span>
+                      ) : null}
                     </td>
                   );
                 })}

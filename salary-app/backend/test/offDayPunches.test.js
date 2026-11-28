@@ -365,12 +365,14 @@ test('every path that sets a mark from the clock asks the one rule', () => {
   assert.match(bare(read('../src/punchApply.js')), /settleOffDays\(/, 'the import, before the guard');
 });
 
-test('"Fill the usual timings" never writes onto somebody’s day off', () => {
+test('nothing on the Time tab fills the usual timings any more (v2.37.0)', () => {
+  /* Rewritten to state the new rule. The button that could put nine hours on
+     a whole office's Sunday is gone: Dinesh pressed it by mistake on a
+     Saturday morning and asked for it removed. What remains is its undo. */
   const tab = bare(read('../../frontend/src/components/TimeSheet.jsx'));
-  const fill = tab.slice(tab.indexOf('const fillStandard'), tab.indexOf('const clearDay'));
-  // Nine hours of usual timings on a Sunday would put the whole office on the
-  // register in one press.
-  assert.match(fill, /ownWeeklyOff\(row, period, d\)[\s\S]*?continue;/);
+  assert.ok(!/const fillStandard/.test(tab), 'no fill function');
+  assert.ok(!/Fill the usual timings/.test(tab), 'no fill button');
+  assert.match(tab, /usualFillDays\(/, 'the undo is there');
 });
 
 test('the Sunday tab offers the days already on the grid, and both import panels say the same sentence', () => {
