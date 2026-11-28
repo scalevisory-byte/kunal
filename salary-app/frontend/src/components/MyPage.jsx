@@ -972,6 +972,37 @@ useEffect(() => {
         <h3>What you have left this year</h3>
         {!leave ? (
           <p className="loading">…</p>
+        ) : leave.balance?.yearly ? (
+          /*
+           * ONE BALANCE: casual and sick leave together, against the year's
+           * limit. Both are unpaid - each day costs a day's salary - and once
+           * the limit is used no more leave can be applied for.
+           */
+          <>
+            <div className="figures">
+              <div className="figure">
+                <span className={`n${leave.balance.yearly.left < 0 ? ' bad' : ''}`}>
+                  {days(leave.balance.yearly.left)}
+                </span>
+                <span className="k">
+                  days of leave left <span className="muted">of {leave.balance.yearly.limit}</span>
+                </span>
+              </div>
+              <div className="figure">
+                <span className="n">{days(leave.balance.yearly.CL)}</span>
+                <span className="k">Casual leave taken</span>
+              </div>
+              <div className="figure">
+                <span className="n">{days(leave.balance.yearly.SL)}</span>
+                <span className="k">Sick leave taken</span>
+              </div>
+            </div>
+            <p className="muted small">
+              Casual and sick leave are both unpaid — each day comes off that month's salary. You can
+              take {leave.balance.yearly.limit} days in the year between them; after that, no more
+              leave can be applied for.
+            </p>
+          </>
         ) : (
           <div className="figures">
             {['CL', 'SL', 'PL'].map((code) => {
@@ -1018,7 +1049,7 @@ useEffect(() => {
           <label className="vf-field">
             <span className="vf-label">Which kind</span>
             <select value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })}>
-              {['CL', 'SL', 'PL', 'UL'].map((c) => (
+              {(leave?.balance?.yearly ? ['CL', 'SL'] : ['CL', 'SL', 'PL', 'UL']).map((c) => (
                 <option key={c} value={c}>{ATTENDANCE_CODES[c]?.label || c}</option>
               ))}
               <option value="HOURS">A few hours off</option>
@@ -1369,7 +1400,12 @@ function MyTeam({ onError }) {
                 ) : null}
                 {/* Leave left, type by type. Unpaid leave has no balance, so
                     it is not listed as if it had one. */}
-                {p.leave?.types?.some((t) => t.paid) ? (
+                {p.leave?.yearly ? (
+                  <div className={`muted small${p.leave.yearly.over ? ' warn' : ''}`}>
+                    Leave this year: {p.leave.yearly.used} of {p.leave.yearly.limit} used ·{' '}
+                    {p.leave.yearly.left} left
+                  </div>
+                ) : p.leave?.types?.some((t) => t.paid) ? (
                   <div className="muted small">
                     Leave left:{' '}
                     {p.leave.types

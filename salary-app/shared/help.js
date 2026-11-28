@@ -560,15 +560,16 @@ export const HELP = [
   {
     id: 'leave-balance',
     staff: true,
-    title: 'Leave balances and quotas',
+    title: 'Leave balances and the yearly limit',
     tab: 'leave',
-    keywords: ['quota', 'balance', 'CL', 'SL', 'PL', 'left', 'bachi', 'kitni chutti'],
+    keywords: ['quota', 'balance', 'CL', 'SL', 'PL', 'left', 'bachi', 'kitni chutti', '20 leave', 'limit', 'unpaid', 'casual', 'sick', 'bina pagar'],
     lines: [
-      'Each employee has a yearly quota for casual, sick and privilege leave, set on their record.',
-      'What has been taken is counted from the marks across the year’s months, so it cannot drift from the sheet.',
-      'A negative balance is flagged rather than blocked.',
-      'Unpaid leave has no quota — it was taken anyway, and it was docked.',
+      'Only **casual (CL)** and **sick (SL)** leave are given, and **both are unpaid**: each day costs a day’s salary, like unpaid leave. Privilege leave is no longer offered.',
+      'The two together may come to **20 days in a calendar year** (the limit is on Leave → Balances). Once it is used, an application is refused — by the employee’s own page, the punch link and the approval alike.',
+      'What has been taken is counted from the CL and SL marks on the grid, so it cannot drift from the sheet.',
+      'The rule is held per month (Settings → “Casual and sick leave are unpaid”). It started with November 2026; earlier months keep paying CL as they did.',
     ],
+    note: 'The office marking the grid is not refused past the limit — somebody off sick on their twenty-first day is still off, and the grid must be able to say so. It shows on the register instead. A PL already on a day keeps its mark and stays paid.',
   },
   {
     id: 'loan-settlement',

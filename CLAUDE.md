@@ -2251,6 +2251,40 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Only casual and sick leave, both unpaid, 20 a year (v2.38.0)
+
+Dinesh: *"need only 2 leaves / casual leave / sick leave / both are unpaid"*. Asked, he
+answered: from **November too**, **PL out of new use**, and *"20 unpaid leave me se kitni le
+li he / after 20 leave complete in year they are not eligible to take any leave"*.
+
+- **A RULE OF THE MONTH, `periods.leave_unpaid`, never a change to `ATTENDANCE_CODES`.**
+  Changing the code list would re-price every month already paid the next time anybody opened
+  it. `markFor(code, period)` / `codesFor(period)` in `shared/calc.js` give CL and SL
+  `absent: 1, paid: false` and a "(unpaid)" label on such a month; `absentDaysFromAttendance`
+  takes the period, and `calculateRow` and `earnedSoFar` pass it. Column default 0.
+- **`settings.leave_policy` = `{ on, from: 'YYYY-MM', yearly_limit }`.** `ensureLeavePolicy`
+  (end of db.js, beside `ensureAutoDoubleRule`): a database with months → on from the current
+  month, and every **unlocked** month from then switched to 1; an empty database → off, which
+  is what keeps every older test fixture paying CL. `createPeriod` opens a month on the rule
+  when `leavePolicyCovers`. Settings has a per-month checkbox (confirm first).
+- **PL is RETIRED, not deleted**: `codesFor` flags it `retired`, and the grid's `offered()`
+  hides a retired mark everywhere except on a day that already carries it. A test refuses any
+  `Object.entries(codes).map` in Attendance.jsx. The offline build keeps new months at 0 (no
+  settings table there); the Settings checkbox works offline.
+- **One yearly balance, CL+SL together** (`shared/leavePolicy.js`, `unpaidLeaveUsed` in
+  db.js counting only months with `leave_unpaid = 1` — an October CL was paid leave and is not
+  part of the twenty). `leaveLimitFor` in attendanceSelf.js refuses an application past it
+  (pending/recommended ones count against what is left) and **re-checks on approval**; PL is
+  refused by name. **The office marking the grid is NOT refused** — somebody off sick on day 21
+  is still off; the register shows it.
+- `LeaveYearly.jsx` replaces the three-quota table while the rule is on; MyPage, the manager's
+  team list and the approval queue (`withLeaveContext`, `leave_balance.yearly`) read one figure.
+- **Harness slip worth remembering:** a `useMemo` added to App.jsx after its early returns
+  threw React #310 (hooks order) on load. `codesFor` is cheap — it is a plain call now.
+- Not touched on purpose: encashment, year-end carry-forward and the leave bonus still read
+  the old per-type ledger; with CL/SL unpaid there is nothing to encash or carry. Say so if
+  Dinesh asks.
+
 ### Off the payroll, the no-out catch-up, no more "Fill" (v2.37.0)
 
 Five messages off his live v2.36 screens.

@@ -146,7 +146,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
         merged,
         counts: countMarks(merged),
         minutes: minutesFromAttendance(merged),
-        absent: absentDaysFromAttendance(merged),
+        absent: absentDaysFromAttendance(merged, period),
       };
     });
     const tally = (line, ...codes) => codes.reduce((sum, c) => sum + (line.counts[c] || 0), 0);
@@ -774,7 +774,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                     );
                   })}
                   <td className="num">{daysPresent(counts) || '-'}</td>
-                  <td className="num strong">{days(absentDaysFromAttendance(merged))}</td>
+                  <td className="num strong">{days(absentDaysFromAttendance(merged, period))}</td>
                   <td className="num">{counts.S || '-'}</td>
                   <td className="num">{counts.PH || '-'}</td>
                   <td className="num">{paidLeaveDays(counts) || '-'}</td>
@@ -797,7 +797,7 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
                       }}
                     >
                       <option value="">Fill blanks…</option>
-                      {Object.entries(codes).map(([code, meta]) => (
+                      {Object.entries(offered(codes)).map(([code, meta]) => (
                         <option key={code} value={code}>{meta.label}</option>
                       ))}
                       <option value="__range">A date range…</option>
@@ -889,12 +889,12 @@ export default function Attendance({ period, rows, codes, onSave, locked, onGo }
           <strong>What each mark does to the salary</strong>
           <span className="muted small legend-key">
             {' '}
-            — {Object.entries(codes).map(([code, meta]) => `${code} ${String(meta.label).toLowerCase()}`).join(' · ')}
+            — {Object.entries(offered(codes)).map(([code, meta]) => `${code} ${String(meta.label).toLowerCase()}`).join(' · ')}
           </span>
         </summary>
         <div className="legend">
         <ul>
-          {Object.entries(codes).map(([code, meta]) => (
+          {Object.entries(offered(codes)).map(([code, meta]) => (
             <li key={code}>
               <span className={`brush code-${code}`}>{code}</span>
               <span>
@@ -1013,7 +1013,7 @@ function RangeMarker({ codes, row, period, entryOf, onApply, onClose }) {
           <label className="field">
             Mark as
             <select value={code} onChange={(e) => setCode(e.target.value)}>
-              {Object.entries(codes).map(([value, meta]) => (
+              {Object.entries(offered(codes)).map(([value, meta]) => (
                 <option key={value} value={value}>
                   {meta.label}
                   {meta.absent > 0 ? ` (−${meta.absent} day${meta.absent === 1 ? '' : 's'})` : ''}
@@ -1118,7 +1118,7 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
         <label className="field">
           Mark
           <select value={code} onChange={(e) => setCode(e.target.value)}>
-            {Object.entries(codes).map(([value, meta]) => (
+            {Object.entries(offered(codes)).map(([value, meta]) => (
               <option key={value} value={value}>
                 {meta.label}
                 {meta.absent > 0 ? ` (−${meta.absent} day${meta.absent === 1 ? '' : 's'})` : ''}
@@ -1214,6 +1214,10 @@ function DayMarker({ codes, day, period, rows, entryOf, onApply, onClose }) {
  * them still shows it. Nothing is removed: every mark is still one press.
  */
 const EVERYDAY_MARKS = new Set(['P', 'A', 'HF', 'CL', 'SL', 'PL', 'UL', 'WH', 'OD', 'S']);
+/* A retired mark (PL, once casual and sick leave are unpaid) is offered only
+   where it is already the day's mark - a day carrying it has to stay readable. */
+const offered = (codes, current) =>
+  Object.fromEntries(Object.entries(codes).filter(([code, meta]) => !meta?.retired || code === current));
 
 function DayPicker({
   codes, picker, period, entry, perMinute, row, hoursPerDay = 9, deductLunch = true,
@@ -1395,7 +1399,7 @@ function DayPicker({
         </div>
 
         <ul className="picker-list">
-          {Object.entries(codes)
+          {Object.entries(offered(codes, entry.code))
             .filter(([code]) => allMarks || EVERYDAY_MARKS.has(code) || entry.code === code)
             .map(([code, meta]) => (
             <li key={code}>
@@ -1427,14 +1431,14 @@ function DayPicker({
               <span className="picker-effect">—</span>
             </button>
           </li>
-          {Object.keys(codes).some((c) => !EVERYDAY_MARKS.has(c) && c !== entry.code) ? (
+          {Object.keys(offered(codes, entry.code)).some((c) => !EVERYDAY_MARKS.has(c) && c !== entry.code) ? (
             <li>
               <button type="button" className="clear picker-more" onClick={() => setAllMarks((v) => !v)}>
                 <span className="brush">{allMarks ? '−' : '+'}</span>
                 <span className="picker-label">
                   {allMarks
                     ? 'Fewer marks'
-                    : `More marks — ${Object.keys(codes)
+                    : `More marks — ${Object.keys(offered(codes, entry.code))
                         .filter((c) => !EVERYDAY_MARKS.has(c) && c !== entry.code)
                         .join(', ')}`}
                 </span>

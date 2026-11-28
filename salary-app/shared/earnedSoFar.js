@@ -27,7 +27,7 @@
  * Dependency-free, like the rest of shared/.
  */
 
-import { ATTENDANCE_CODES } from './calc.js';
+import { ATTENDANCE_CODES, markFor } from './calc.js';
 
 const codeOf = (entry) =>
   String((entry && typeof entry === 'object' ? entry.code : entry) || '').toUpperCase();
@@ -67,7 +67,7 @@ export function earnedSoFar({ period, attendance = {}, calc = {}, upto } = {}) {
       continue;
     }
 
-    const absent = Number(ATTENDANCE_CODES[code]?.absent) || 0;
+    const absent = Number(markFor(code, period)?.absent) || 0;
     if (absent) {
       lost += absent;
       // A half day is half worked and half lost.

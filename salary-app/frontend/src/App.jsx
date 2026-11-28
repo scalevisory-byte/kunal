@@ -1,3 +1,4 @@
+import { codesFor } from '../../shared/calc.js';
 import { useCallback, useEffect, useState } from 'react';
 import { AuthError, STANDALONE, api, clearToken } from './api.js';
 import { MONTHS, todayLong } from './format.js';
@@ -691,6 +692,10 @@ function Shell() {
   }
 
   const period = periods.find((p) => p.id === periodId) || null;
+  /* The marks as THIS month prices them: on a month where casual and sick
+     leave are unpaid they read "(unpaid)" and cost a day, and PL is retired
+     from the pickers. One list, read by the grid and every menu on it. */
+  const monthCodes = codesFor(period, codes);
   const locked = !!period?.locked;
 
   /*
@@ -1238,7 +1243,7 @@ function Shell() {
             <Attendance
             period={period}
             rows={visibleRows}
-            codes={codes}
+            codes={monthCodes}
               locked={locked}
               onSave={saveAttendance}
               onGo={(toTab, what) => {

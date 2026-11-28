@@ -3,9 +3,13 @@ import {
   db,
   getEmployee,
   getPeriod,
+  leavePolicy,
   listEmployees,
   setAttendance,
+  unpaidLeaveUsed,
 } from './db.js';
+import { RETIRED_LEAVE_CODES, leaveIsUnpaid } from '../../shared/calc.js';
+import { LIMITED_LEAVE, leaveLimitProblem } from '../../shared/leavePolicy.js';
 import { config } from './config.js';
 import { log } from './logger.js';
 import { judgePunch, localStamp, punchAllowed, punchesToDay } from '../../shared/punchClock.js';
@@ -286,7 +290,7 @@ export const listRequests = ({ status, employee_id, period_id } = {}) => {
     .prepare(
       `SELECT r.*, e.name AS employee_name, e.code AS employee_code, c.name AS company_name,
               e.department, e.reports_to_id, e.company_id,
-              p.label AS period_label, p.year, p.month
+              p.label AS period_label, p.year, p.month, p.leave_unpaid
        FROM attendance_requests r
        JOIN employees e ON e.id = r.employee_id
        JOIN companies c ON c.id = e.company_id
@@ -324,12 +328,56 @@ export function managerOf(employeeId) {
 export const getRequest = (id) =>
   db.prepare(`SELECT * FROM attendance_requests WHERE id = ?`).get(id) || null;
 
+/**
+ * The yearly leave limit, for a leave application on a month whose casual and
+ * sick leave are unpaid (see shared/leavePolicy.js). Null when it fits, or
+ * when the rule does not apply to this request at all.
+ *
+ *   raising   - a new application: PL is refused outright on such a month,
+ *               and what is already waiting counts against what is left;
+ *   approving - the days already on the grid plus this one.
+ */
+export function leaveLimitFor(request, { raising = false, excludeId = null } = {}) {
+  if (request?.kind !== 'leave') return null;
+  const period = getPeriod(Number(request.period_id));
+  if (!leaveIsUnpaid(period)) return null;
+  const code = String(request.code || '').toUpperCase();
+  if (raising && RETIRED_LEAVE_CODES.includes(code)) {
+    return 'privilege leave is no longer given — apply for casual or sick leave';
+  }
+  if (!LIMITED_LEAVE.includes(code)) return null;
+  const policy = leavePolicy();
+  const year = Number(period.year);
+  const line = unpaidLeaveUsed(year, request.employee_id).get(Number(request.employee_id)) || { CL: 0, SL: 0 };
+  const used = (line.CL || 0) + (line.SL || 0);
+  let waiting = 0;
+  if (raising) {
+    const open = db
+      .prepare(
+        `SELECT r.* FROM attendance_requests r JOIN periods p ON p.id = r.period_id
+          WHERE r.employee_id = ? AND r.kind = 'leave' AND r.status IN ('pending', 'recommended')
+            AND r.code IN ('CL', 'SL') AND p.year = ? AND p.leave_unpaid = 1 AND r.id != ?`
+      )
+      .all(Number(request.employee_id), year, Number(excludeId) || 0);
+    waiting = open.reduce((sum, r) => sum + daysOf(r).length, 0);
+  }
+  return leaveLimitProblem({
+    limit: policy.yearly_limit,
+    used,
+    waiting,
+    asking: daysOf(request).length,
+    year,
+  });
+}
+
 export function createRequest(body) {
   // The month's own hours decide what counts as "a whole day or more", so a
   // nine-hour office and an eight-hour one draw the line in different places.
   const hoursPerDay = Number(getPeriod(Number(body.period_id))?.hours_per_day) || 9;
   const { ok, problems } = validateRequest({ ...body, hours_per_day: hoursPerDay });
   if (!ok) throw new Error(problems.join('; '));
+  const limitProblem = leaveLimitFor(body, { raising: true });
+  if (limitProblem) throw new Error(limitProblem);
   const id = db
     .prepare(
       `INSERT INTO attendance_requests
@@ -415,6 +463,10 @@ export function decideRequest(id, { approve, by = 'office', note: req_note, asMa
 
   let note = null;
   if (approve) {
+    // Checked again here: two applications raised the same week can each fit
+    // inside the limit alone and not together.
+    const limitProblem = leaveLimitFor(request, { raising: false, excludeId: request.id });
+    if (limitProblem) throw new Error(limitProblem);
     /*
      * One entry per day the request covers - a fortnight of leave is one
      * decision, and the grid is written in one transaction so a half-approved

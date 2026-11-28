@@ -13,7 +13,8 @@
  */
 import { ATTENDANCE_CODES } from '../../shared/calc.js';
 import { ledgersFor } from '../../shared/leaveLedger.js';
-import { getEmployee, leaveTaken, listLeaveCredits } from './db.js';
+import { getEmployee, leavePolicy, leaveTaken, listLeaveCredits, unpaidLeaveUsed } from './db.js';
+import { LIMITED_LEAVE, yearlyLeave } from '../../shared/leavePolicy.js';
 import { managerOf } from './attendanceSelf.js';
 import { MANAGER_FIRST_KINDS, daysOf } from '../../shared/attendanceRequests.js';
 
@@ -53,8 +54,15 @@ export function leaveBalanceFor(employee, year = new Date().getFullYear()) {
     quotas: quotasOf(employee),
     year,
   });
+  const policy = leavePolicy();
+  const line = unpaidLeaveUsed(year, employee.id).get(employee.id) || { CL: 0, SL: 0 };
   return {
     year,
+    /* The one balance that matters once casual and sick leave are unpaid:
+       the two together against the year's limit. Null while the rule is off. */
+    yearly: policy.on
+      ? { ...line, ...yearlyLeave({ limit: policy.yearly_limit, used: line.CL + line.SL }) }
+      : null,
     types: ledgers.map((l) => {
       const type = TYPES.find((t) => t.code === l.code);
       return {
@@ -85,6 +93,32 @@ export function withLeaveContext(requests = []) {
        whose manager can act. Anything else the office may decide itself. */
     out.needs_manager = r.status === 'pending' && MANAGER_FIRST_KINDS.has(r.kind) && manager.can_act;
     out.manager_cannot_act = Boolean(manager.name) && !manager.can_act;
+
+    /*
+     * On a month where casual and sick leave are unpaid there is ONE balance:
+     * the year's limit, CL and SL together. That is the figure shown beside
+     * an Approve button, so nobody approves past it unawares.
+     */
+    if (r.kind === 'leave' && LIMITED_LEAVE.includes(r.code) && Number(r.leave_unpaid)) {
+      const key = `y:${r.employee_id}:${r.year || ''}`;
+      if (!balances.has(key)) {
+        const line = unpaidLeaveUsed(Number(r.year), r.employee_id).get(r.employee_id) || { CL: 0, SL: 0 };
+        balances.set(key, yearlyLeave({ limit: leavePolicy().yearly_limit, used: line.CL + line.SL }));
+      }
+      const y = balances.get(key);
+      const taking = daysOf(r).length;
+      out.leave_balance = {
+        code: r.code,
+        label: `Leave this year (casual + sick, of ${y.limit})`,
+        paid: true,
+        yearly: true,
+        limit: y.limit,
+        left: y.left,
+        taking,
+        after: r.status === 'approved' ? y.left : y.left - taking,
+      };
+      return out;
+    }
 
     if (r.kind === 'leave' && r.code) {
       const key = `${r.employee_id}:${r.year || ''}`;

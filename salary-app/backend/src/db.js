@@ -549,6 +549,13 @@ const periodLateColumns = [
    * minute. The two are deliberately different figures.
    */
   ['day_grace_minutes', 'INTEGER NOT NULL DEFAULT 15'],
+  /*
+   * CASUAL AND SICK LEAVE COST A DAY ON THIS MONTH (v2.38.0, shared/calc.js
+   * `markFor`). The column default is 0 - what every month already run was
+   * paid on - so adding it cannot move a rupee. Which months carry 1 is
+   * decided once by `ensureLeavePolicy` and by `createPeriod`, never here.
+   */
+  ['leave_unpaid', 'INTEGER NOT NULL DEFAULT 0'],
   ['shift_in', "TEXT NOT NULL DEFAULT '09:30'"],
   ['shift_out', "TEXT NOT NULL DEFAULT '18:30'"],
   /*
@@ -1745,14 +1752,19 @@ export function createPeriod(input) {
       input.day_grace_minutes === undefined
         ? DEFAULT_DAY_GRACE_FOR_NEW_MONTHS
         : Number(input.day_grace_minutes),
+    /* Casual and sick leave unpaid from the month the leave policy names. */
+    leave_unpaid:
+      input.leave_unpaid === undefined
+        ? leavePolicyCovers(leavePolicy(), Number(input.year), Number(input.month)) ? 1 : 0
+        : input.leave_unpaid ? 1 : 0,
   };
   if (!row.year || !row.month) throw new Error('year and month are required');
   if (row.month < 1 || row.month > 12) throw new Error('month must be 1-12');
   if (!row.label) row.label = `${MONTH_NAMES[row.month - 1]} ${row.year}`;
   const info = db
     .prepare(
-      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount, late_policy, day_grace_minutes)
-       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount, @late_policy, @day_grace_minutes)`
+      `INSERT INTO periods (year, month, label, working_days, hours_per_day, pt_threshold, pt_amount, late_policy, day_grace_minutes, leave_unpaid)
+       VALUES (@year, @month, @label, @working_days, @hours_per_day, @pt_threshold, @pt_amount, @late_policy, @day_grace_minutes, @leave_unpaid)`
     )
     .run(row);
   return getPeriod(info.lastInsertRowid);
@@ -1777,6 +1789,7 @@ export function updatePeriod(id, patch) {
     'shift_out',
     'shift_lunch_out',
     'shift_lunch_in',
+    'leave_unpaid',
     'locked',
   ]) {
     if (!(key in patch)) continue;
@@ -1792,7 +1805,7 @@ export function updatePeriod(id, patch) {
       values.push(normalisePolicy(patch[key]));
       continue;
     }
-    values.push(key === 'locked' || key === 'lunch_paid' ? (patch[key] ? 1 : 0) : patch[key]);
+    values.push(key === 'locked' || key === 'lunch_paid' || key === 'leave_unpaid' ? (patch[key] ? 1 : 0) : patch[key]);
   }
   if (!fields.length) return getPeriod(id);
   const before = getPeriod(id);
@@ -2515,6 +2528,112 @@ export function ensureAutoDoubleRule({ today = todayIso() } = {}) {
   );
   if (running) log.info(`Leave without approval now costs double automatically, from ${today}.`);
   return autoDoubleRule();
+}
+
+/*
+ * THE LEAVE POLICY (v2.38.0): only casual and sick leave, both unpaid, and a
+ * yearly limit of days the two may add up to.
+ *
+ * Dinesh: *"need only 2 leaves / casual leave / sick leave / both are
+ * unpaid"*, then, asked from when: November too; PL out of new use; and
+ * *"leave balance is 20 unpaid leave ... after 20 leave complete in year they
+ * are not eligible to take any leave"*.
+ *
+ * `from` is a month, 'YYYY-MM'. A month on or after it opens with
+ * `leave_unpaid = 1`; a month before it keeps whatever it was paid on.
+ */
+export const LEAVE_POLICY_KEY = 'leave_policy';
+export const DEFAULT_YEARLY_LEAVE = 20;
+
+export function leavePolicy() {
+  const stored = getSetting(LEAVE_POLICY_KEY, null) || {};
+  const from = /^\d{4}-\d{2}$/.test(String(stored.from || '')) ? stored.from : '';
+  const limit = Number(stored.yearly_limit);
+  return {
+    on: Boolean(stored.on) && Boolean(from),
+    from,
+    yearly_limit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_YEARLY_LEAVE,
+    by: stored.by || '',
+    since: stored.since || '',
+  };
+}
+
+export const leavePolicyCovers = (policy, year, month) =>
+  Boolean(policy?.on) && `${year}-${String(month).padStart(2, '0')}` >= policy.from;
+
+export function setLeavePolicy({ on, from, yearly_limit }, by) {
+  const now = todayIso();
+  const was = leavePolicy();
+  const month = /^\d{4}-\d{2}$/.test(String(from || '')) ? from : was.from || now.slice(0, 7);
+  const limit = Number(yearly_limit);
+  const rule = {
+    on: Boolean(on),
+    from: month,
+    yearly_limit: Number.isFinite(limit) && limit > 0 ? Math.round(limit) : was.yearly_limit,
+    by: by || '',
+    since: now,
+  };
+  setSetting(LEAVE_POLICY_KEY, rule, by);
+  return leavePolicy();
+}
+
+/**
+ * On an install being UPDATED, the policy comes on from the current month,
+ * and every open month from then on is switched over - November is the one
+ * he named. A locked month is never touched: it has been paid. On an empty
+ * database it starts off; nobody there has asked for anything.
+ */
+export function ensureLeavePolicy({ today = todayIso() } = {}) {
+  if (getSetting(LEAVE_POLICY_KEY, null)) return leavePolicy();
+  const running = db.prepare(`SELECT 1 FROM periods LIMIT 1`).get();
+  const from = today.slice(0, 7);
+  const rule = running
+    ? { on: true, from, yearly_limit: DEFAULT_YEARLY_LEAVE, by: 'the v2.38.0 update', since: today }
+    : { on: false, from: '', yearly_limit: DEFAULT_YEARLY_LEAVE, by: '', since: today };
+  db.prepare(`INSERT OR IGNORE INTO settings (key, value, by_whom) VALUES (?, ?, ?)`).run(
+    LEAVE_POLICY_KEY,
+    JSON.stringify(rule),
+    rule.by || null
+  );
+  if (running) {
+    const moved = db
+      .prepare(
+        `UPDATE periods SET leave_unpaid = 1
+          WHERE locked = 0 AND printf('%04d-%02d', year, month) >= ?`
+      )
+      .run(from).changes;
+    log.info(`Casual and sick leave now cost a day's pay, from ${from} (${moved} open month(s) switched).`);
+  }
+  return leavePolicy();
+}
+
+/**
+ * Casual and sick leave a person has taken in a calendar year, off the grid,
+ * counted ONLY on months that charge it - a CL on October's grid was paid
+ * leave under the old rule and is not part of this year's twenty.
+ */
+export function unpaidLeaveUsed(year, employeeId = null) {
+  const params = [Number(year)];
+  let filter = '';
+  if (employeeId) {
+    filter = 'AND a.employee_id = ?';
+    params.push(Number(employeeId));
+  }
+  const rows = db
+    .prepare(
+      `SELECT a.employee_id, a.code, COUNT(*) AS days
+         FROM attendance a JOIN periods p ON p.id = a.period_id
+        WHERE p.year = ? AND p.leave_unpaid = 1 AND a.code IN ('CL', 'SL') ${filter}
+        GROUP BY a.employee_id, a.code`
+    )
+    .all(...params);
+  const out = new Map();
+  for (const r of rows) {
+    const line = out.get(r.employee_id) || { CL: 0, SL: 0 };
+    line[r.code] = r.days;
+    out.set(r.employee_id, line);
+  }
+  return out;
 }
 
 /**
@@ -3457,3 +3576,4 @@ export function clearAttendance(periodId, employeeId) {
 
 // Last, once every table it reads exists.
 ensureAutoDoubleRule();
+ensureLeavePolicy();

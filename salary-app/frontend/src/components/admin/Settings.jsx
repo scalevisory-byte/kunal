@@ -137,6 +137,31 @@ export default function Settings({ period, locked, onPatch, onGo }) {
             </span>
           </label>
         </div>
+        {/* v2.38.0: casual and sick leave unpaid, held per month like the rest. */}
+        <label className="field inline">
+          <input
+            type="checkbox"
+            checked={!!period.leave_unpaid}
+            disabled={locked}
+            onChange={(e) => {
+              const on = e.target.checked;
+              if (
+                window.confirm(
+                  on
+                    ? `Charge casual and sick leave on ${period.label}? Every CL and SL day this month will cost a day's salary.`
+                    : `Pay casual and sick leave again on ${period.label}? Every CL and SL day this month will stop costing a day.`
+                )
+              )
+                set({ leave_unpaid: on ? 1 : 0 });
+            }}
+          />
+          Casual and sick leave are unpaid
+          <span className="muted small">
+            {period.leave_unpaid
+              ? 'Each CL and SL day costs a day’s salary, like unpaid leave. Privilege leave is not offered.'
+              : 'CL, SL and PL are paid leave on this month.'}
+          </span>
+        </label>
         <p className="muted small">
           <strong>&ldquo;9 hrs including lunch&rdquo;</strong> means this box is ticked: the break is
           recorded on the day but the hours are not reduced by it. Untick it for an office that stops

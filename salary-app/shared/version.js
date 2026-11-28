@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.37.0';
+export const VERSION = '2.38.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.38.0',
+    date: '28 Nov 2026',
+    title: 'Only casual and sick leave, both unpaid, 20 days a year',
+    items: [
+      '**Casual (CL) and sick (SL) leave are now unpaid** \u2014 each day costs a day\u2019s salary, exactly like unpaid leave. **This moves pay**, from **November 2026** (the open month) onwards. October and earlier keep paying CL as they always did. The marks read \u201cCasual Leave (unpaid) \u22121 day\u201d on the grid.',
+      '**Privilege leave (PL) is no longer offered** \u2014 not on the grid\u2019s menus, not on the employee\u2019s leave form, and an application for it is refused. A day already marked PL keeps its mark.',
+      '**One balance: 20 days a year**, casual and sick together. Leave \u2192 Balances shows CL taken, SL taken, used, and left of 20 per person, with a bar. The limit can be changed there.',
+      '**After 20, no more leave can be applied for.** The employee\u2019s page, the punch link and the approval all refuse it and say how many are used. Applications still waiting count too, so three of eight cannot each slip through. The office can still mark the grid; it shows on the register.',
+      'The employee\u2019s own Leave page, their manager\u2019s team list and the office\u2019s approval queue all show the same \u201cX of 20 used\u201d figure.',
+      'Settings \u2192 **Casual and sick leave are unpaid** switches the rule for one month, should a month need to be run the old way.',
+    ],
+  },
   {
     version: '2.37.0',
     date: '28 Nov 2026',

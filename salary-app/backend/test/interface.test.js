@@ -4168,8 +4168,8 @@ test('THE MARK LEGEND IS FOLDED, BUT ITS KEY IS STILL READABLE CLOSED', () => {
   assert.match(jsx, /className="muted small legend-key"/);
   assert.match(
     jsx,
-    /Object\.entries\(codes\)\.map\(\(\[code, meta\]\) => `\$\{code\} \$\{String\(meta\.label\)\.toLowerCase\(\)\}`\)/,
-    'the key is derived from `codes`, never typed out a second time'
+    /Object\.entries\(offered\(codes\)\)\.map\(\(\[code, meta\]\) => `\$\{code\} \$\{String\(meta\.label\)\.toLowerCase\(\)\}`\)/,
+    'the key is derived from `codes` (less a retired mark, v2.38.0), never typed out a second time'
   );
   /* The summary must come before the list, or the key is inside the fold. */
   assert.ok(

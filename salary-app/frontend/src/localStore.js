@@ -1948,10 +1948,12 @@ export async function handle(method, path, body) {
           'shift_out',
           'shift_lunch_out',
           'shift_lunch_in',
+          'leave_unpaid',
           'locked',
         ]) {
           if (key in (body || {}))
-            period[key] = key === 'locked' || key === 'lunch_paid' ? (body[key] ? 1 : 0) : body[key];
+            period[key] =
+              key === 'locked' || key === 'lunch_paid' || key === 'leave_unpaid' ? (body[key] ? 1 : 0) : body[key];
         }
         save();
         return period;

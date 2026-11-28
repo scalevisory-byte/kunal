@@ -161,13 +161,61 @@ export const round0 = (n) => Math.round(num(n));
  * Absent days from a day -> code map, exactly as the sheet's COUNTIF does.
  * Codes that are not in the legend are ignored rather than guessed at.
  */
-export function absentDaysFromAttendance(attendance = {}) {
+export function absentDaysFromAttendance(attendance = {}, period = null) {
   let days = 0;
   for (const entry of Object.values(attendance)) {
-    const mark = ATTENDANCE_CODES[codeOf(entry)];
+    const mark = markFor(codeOf(entry), period);
     if (mark) days += mark.absent;
   }
   return round2(days);
+}
+
+/*
+ * CASUAL AND SICK LEAVE COST A DAY'S PAY - ON A MONTH THAT SAYS SO.
+ *
+ * Dinesh (v2.38.0): *"need only 2 leaves / casual leave / sick leave / both
+ * are unpaid"*, from November. So CL and SL stay as marks - the office still
+ * says WHICH kind of day off it was - but each one costs a day, exactly as UL
+ * does.
+ *
+ * IT IS A RULE OF THE MONTH, `periods.leave_unpaid`, never of the code list.
+ * Changing ATTENDANCE_CODES itself would have re-priced every month already
+ * paid the next time anybody opened it. October keeps paying CL as it always
+ * did; November and every month opened after it charges it. Same shape as
+ * the late policy and the day grace.
+ *
+ * PL is RETIRED from new use: no picker offers it on such a month, no leave
+ * form asks for it. A day already marked PL keeps its mark and its meaning -
+ * nothing rewrites a stored value.
+ */
+export const UNPAID_LEAVE_CODES = ['CL', 'SL'];
+export const RETIRED_LEAVE_CODES = ['PL'];
+
+export const leaveIsUnpaid = (period) => Boolean(Number(period?.leave_unpaid));
+
+/** The mark as THIS month prices it. */
+export function markFor(code, period = null, base = ATTENDANCE_CODES) {
+  const mark = base?.[code];
+  if (!mark) return mark;
+  if (leaveIsUnpaid(period) && UNPAID_LEAVE_CODES.includes(code)) {
+    return { ...mark, absent: 1, paid: false, label: `${mark.label} (unpaid)` };
+  }
+  return mark;
+}
+
+/**
+ * Every mark as this month prices it. A retired mark is still IN the list -
+ * a day carrying it has to be readable - but flagged, so a picker can leave
+ * it out unless it is the mark already on the day.
+ */
+export function codesFor(period = null, base = ATTENDANCE_CODES) {
+  if (!leaveIsUnpaid(period)) return base;
+  const out = {};
+  for (const code of Object.keys(base || {})) {
+    const mark = markFor(code, period, base);
+    out[code] = RETIRED_LEAVE_CODES.includes(code) ? { ...mark, retired: true } : mark;
+  }
+  return out;
 }
 
 /** Sundays/holidays actually worked (column AI), from the SP and HP marks. */
@@ -300,7 +348,7 @@ export function calculateRow(row = {}, period = {}, attendance = {}) {
   // AJ / AI: the sheet lets either the COUNTIF or a typed number win.
   const absentDays = isSet(row.absent_days_override)
     ? num(row.absent_days_override)
-    : absentDaysFromAttendance(attendance);
+    : absentDaysFromAttendance(attendance, period);
   const sundaysWorked = isSet(row.sundays_override)
     ? num(row.sundays_override)
     : sundaysFromAttendance(attendance);

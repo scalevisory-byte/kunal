@@ -13,7 +13,7 @@
  * Dependency-free, so the server and the standalone file build it identically.
  */
 
-import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS, codeOf } from './calc.js';
+import { ATTENDANCE_CODES, STANDARD_WORKING_DAYS, codeOf, codesFor } from './calc.js';
 
 /** Marks that mean the person was at work. */
 const WORKED = ['P', 'SP', 'HP', 'WH', 'OD'];
@@ -240,8 +240,8 @@ export function daywiseCsv(daywise) {
 }
 
 /** What each mark means, printed under the report so it can be read cold. */
-export const legend = () =>
-  Object.entries(ATTENDANCE_CODES).map(([code, meta]) => ({
+export const legend = (period = null) =>
+  Object.entries(codesFor(period)).map(([code, meta]) => ({
     code,
     label: meta.label,
     costs: meta.absent ? `−${meta.absent} day` : meta.sunday ? '+1 day' : 'no change',

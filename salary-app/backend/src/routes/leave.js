@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { leavePolicy, setLeavePolicy, unpaidLeaveUsed } from '../db.js';
+import { yearlyLeave } from '../../../shared/leavePolicy.js';
 import { applyAutoDouble, autoDoubleRule, autoDoubledIn, missingOutSetting, setAutoDoubleRule, setMissingOutSetting } from '../db.js';
 import { requireAbility } from '../auth.js';
 import {
@@ -45,7 +47,27 @@ export const leaveRouter = Router();
 /** The leave register for a calendar year. Unchanged: other screens read it. */
 leaveRouter.get('/', (req, res) => {
   const year = Number(req.query.year) || new Date().getFullYear();
-  res.json({ year, rows: leaveSummary(year) });
+  const policy = leavePolicy();
+  const used = unpaidLeaveUsed(year);
+  const rows = leaveSummary(year).map((row) => {
+    const line = used.get(row.employee_id) || { CL: 0, SL: 0 };
+    return { ...row, yearly: { ...line, ...yearlyLeave({ limit: policy.yearly_limit, used: line.CL + line.SL }) } };
+  });
+  res.json({ year, rows, policy });
+});
+
+/*
+ * The leave policy: casual and sick leave unpaid from a month, and the yearly
+ * limit. Reading is anybody with the Leave tab; changing it is a Manager or
+ * an Admin, because it moves pay. Switching it on reaches the open months
+ * from `from` onwards; switching it off reaches nothing already stored - each
+ * month keeps its own `leave_unpaid`, changed one month at a time in Settings.
+ */
+leaveRouter.get('/policy', (_req, res) => res.json({ policy: leavePolicy() }));
+
+leaveRouter.put('/policy', requireAbility('approve'), (req, res) => {
+  const policy = setLeavePolicy(req.body || {}, req.actor?.name || 'office');
+  res.json({ policy });
 });
 
 /** Which leave types the ledger and the register show. */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../printReport.js';
-import { api } from '../api.js';
+import { STANDALONE, api } from '../api.js';
 import LeaveLedger from './LeaveLedger.jsx';
 import LeaveCalendar from './LeaveCalendar.jsx';
 import LeaveYearEnd from './LeaveYearEnd.jsx';
@@ -10,6 +10,7 @@ import { days } from '../format.js';
 import SandwichLeave from './SandwichLeave.jsx';
 import UnapprovedLeave from './UnapprovedLeave.jsx';
 import WeeklyOff from './WeeklyOff.jsx';
+import LeaveYearly from './LeaveYearly.jsx';
 
 /**
  * The leave register for a calendar year.
@@ -43,6 +44,7 @@ export default function Leave({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [ledgerFor, setLedgerFor] = useState(null);
+  const [policy, setPolicy] = useState(null);
 
   const years = useMemo(() => {
     const set = new Set(periods.map((p) => p.year));
@@ -54,8 +56,9 @@ export default function Leave({
     setLoading(true);
     setError('');
     try {
-      const { rows: list } = await api.get(`/leave?year=${forYear}`);
+      const { rows: list, policy: rule } = await api.get(`/leave?year=${forYear}`);
       setRows(list);
+      setPolicy(rule || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -311,6 +314,44 @@ export default function Leave({
         ) : (
           <p className="muted small">Open a month to look for sandwiched days.</p>
         )}
+      </section>
+    );
+  }
+
+  /*
+   * Once casual and sick leave are unpaid, the register is ONE balance per
+   * person against the yearly limit - not three quotas nobody had set.
+   */
+  if (policy?.on && rows.every((r) => r.yearly)) {
+    return (
+      <section className="stack">
+        <LeaveTabs view={view} setView={setView} />
+        <div className="toolbar">
+          <label className="inline-num">
+            Year
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {error && <p className="error">{error}</p>}
+        <LeaveYearly
+          rows={rows}
+          year={year}
+          policy={policy}
+          loading={loading}
+          canChange={!STANDALONE}
+          onOpen={setLedgerFor}
+          onPolicy={(p) => {
+            setPolicy(p);
+            load(year);
+          }}
+        />
+        {ledgerFor ? (
+          <LeaveLedger employeeId={ledgerFor} year={year} onClose={() => { setLedgerFor(null); load(year); }} />
+        ) : null}
       </section>
     );
   }

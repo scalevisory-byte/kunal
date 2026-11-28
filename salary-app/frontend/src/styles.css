@@ -6647,3 +6647,11 @@ table.sheet.asset-sum-table tr.total td { font-weight: 700; border-top: 1px soli
 button.time-pick-btn { flex: none; border: none; background: none; padding: 0 0.15rem; font-size: 0.8rem; line-height: 1; opacity: 0.45; cursor: pointer; }
 button.time-pick-btn:hover, .time-pick:focus-within button.time-pick-btn { opacity: 1; }
 button.time-pick-btn:disabled { display: none; }
+
+/* v2.38.0 — the year's leave against one limit. */
+table.sheet.leave-yearly th.num, table.sheet.leave-yearly td.num { width: 9%; }
+table.sheet.leave-yearly .leave-bar-col { width: 16%; }
+.leave-bar { display: block; height: 6px; border-radius: 3px; background: var(--line-soft); overflow: hidden; min-width: 80px; }
+.leave-bar i { display: block; height: 100%; background: var(--brand); }
+.leave-bar i.near { background: #f5a623; }
+.leave-bar i.full { background: var(--bad); }
