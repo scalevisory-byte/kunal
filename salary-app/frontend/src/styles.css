@@ -6775,3 +6775,59 @@ th.num .th-sort { justify-content: flex-end; }
 table.sheet.asset-sheet .row-no:nth-child(1) { left: 0; }
 table.sheet.asset-sheet .row-no:nth-child(2) { left: 2.2rem; }
 table.sheet.asset-sheet.numbered .sticky-name { left: 4.4rem; }
+
+/* v2.40.0 — renewal workflow steps. */
+.rw-steps { display: flex; list-style: none; margin: 0 0 0.6rem; padding: 0; gap: 0.3rem; flex-wrap: wrap; }
+.rw-steps li { flex: 1; min-width: 6rem; padding: 0.35rem 0.5rem; border-radius: 6px; background: var(--line-soft); color: var(--muted); font-size: 0.8rem; text-align: center; }
+.rw-steps li.done { background: color-mix(in srgb, #16794f 14%, transparent); color: #16794f; }
+.rw-steps li.now { background: #192c50; color: #fff; font-weight: 600; }
+.rw-card .form-grid label.wide { grid-column: 1 / -1; }
+
+/* v2.40.0 — renewal management. Category colours: software navy, rent
+   orange, insurance green - used only as small markers, never as fills. */
+.rn-sections { flex-wrap: wrap; }
+.rn-sections .rn-count { margin-left: 0.35rem; font-size: 0.72rem; padding: 0 0.35rem; border-radius: 999px; background: var(--line-soft); color: var(--muted); }
+.rn-sections button.active .rn-count { background: rgba(255,255,255,0.2); color: inherit; }
+.rn-kpis { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.ao-kpi.static { cursor: default; }
+.rn-dot, .ao-legend b.cat-software, .ao-legend b.cat-rent, .ao-legend b.cat-insurance { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.ao-list li .rn-dot { margin-right: 0.1rem; }
+.cat-software { background: #192c50 !important; }
+.cat-rent { background: #f5a623 !important; }
+.cat-insurance { background: #16794f !important; }
+.rn-alerts h4 { margin: 0; }
+.rn-alert-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.rn-activity li { grid-template-columns: 1fr auto; }
+.rn-ev-day { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 6px; font-size: 0.78rem; font-weight: 700; background: var(--line-soft); }
+.rn-ev-day.tone-soon, .rn-ev.tone-soon { background: #fdf1dc; color: #9a5b00; }
+.rn-ev-day.tone-overdue, .rn-ev.tone-overdue { background: #fbe7e4; color: #b8402e; }
+.rn-ev-day.tone-upcoming, .rn-ev.tone-upcoming { background: #e6effc; color: #1d4ed8; }
+.rn-ev-day.tone-pending, .rn-ev.tone-pending { background: #efe9fb; color: #6d28d9; }
+.rn-filterbar { flex-wrap: wrap; gap: 0.4rem; }
+.rn-filterbar .search { flex: 1 1 16rem; min-width: 14rem; }
+.rn-filterbar select { width: auto; }
+.rn-under { margin: 0.4rem 0; }
+.rn-under .row { gap: 0.4rem; align-items: center; }
+table.sheet.rn-table { width: 100%; }
+table.sheet.rn-table th { padding: 0; }
+table.sheet.rn-table th:not(:has(.th-sort)) { padding: 0.4rem 0.55rem; }
+.rn-tick { width: 2rem; text-align: center; }
+.rn-register .menu-more-list .check { padding: 0.25rem 0.5rem; white-space: nowrap; }
+.rn-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; padding: 2rem 1rem; }
+.rn-empty p { max-width: 38rem; margin: 0; }
+.rn-empty-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 16px; background: #e8ecf4; color: #192c50; }
+.rn-empty.small-empty { padding: 1.2rem; }
+.rn-empty-actions { flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+.rn-legend { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+.rn-ev { display: block; width: 100%; text-align: left; border: none; border-radius: 4px; padding: 0.1rem 0.35rem; font: inherit; font-size: 0.75rem; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 0.15rem; }
+.rn-legend .rn-ev { display: inline-block; width: auto; cursor: default; }
+.rn-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.rn-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.rn-week .rn-day { min-height: 10rem; }
+.rn-dow { padding: 0.3rem; font-size: 0.75rem; color: var(--muted); text-align: center; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--line-soft); }
+.rn-day { min-height: 5.5rem; padding: 0.25rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+.rn-day.blank { background: var(--line-soft); }
+.rn-day.today { box-shadow: inset 0 0 0 2px #f5a623; }
+.rn-date { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.rn-steps { flex-wrap: wrap; gap: 0.4rem 1.2rem; }
+@media (min-width: 1200px) { .rn-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } }

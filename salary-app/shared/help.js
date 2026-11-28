@@ -1420,6 +1420,20 @@ export const HELP = [
     note: 'THE APP ASSEMBLES IT, IT DOES NOT SEND IT. There is no WhatsApp API for a personal number, and the task assistant already holds the one linked session — a second one risks the number. Two other things it will not do: a day nobody has marked says so instead of listing the whole staff as absent, and somebody with no clock time is left out of Late Coming rather than counted as on time.\n\nAND THE MORNING SHAPE NEVER SAYS \u201cNOBODY WAS SHORT OF HOURS TODAY\u201d. At that hour every day is still inside its grace, so the sum really does come to nothing \u2014 and it would read as a clean day\u2019s work to people who have not finished it. The headings are left out instead, with one line saying where the hours are. The end-of-day message is also only as fresh as the last punch import.\n\nSHORT HOURS READS THE DAY\u2019S OWN FIGURE, never the clock again \u2014 so the message, the roll call and the payslip cannot give three answers, and a figure the office typed over the clock is the one that goes out.',
   },
   {
+    id: 'renewals',
+    title: 'Licences, rent agreements and insurance — what runs out and when',
+    tab: 'license',
+    keywords: ['renewal', 'licence', 'license', 'rent', 'agreement', 'insurance', 'policy', 'expiry', 'kiraya', 'bima', 'subscription', 'reminder'],
+    lines: [
+      'The **License** tab has seven sections: **Overview**, **Licenses & Subscriptions**, **Rent Agreements**, **Insurance Policies**, **Renewal Calendar**, **Reports** and **Settings**.',
+      'The **Overview** shows active contracts, what is due in 30 and 60 days, what has expired, what is waiting for payment, and the annual cost, with alerts that open each record.',
+      '**To renew**: open the record → **Renewal** → type the new amount and end date → **Submit for approval**. A Manager or an Admin approves; then **Paid — mark renewed**. The old term goes into the renewal history first; nothing about it is lost.',
+      '**Reminders** fire at 90, 60, 30 and 7 days, on the day and after — change them under **Settings**. Each is recorded once, and the history is listed there.',
+      '**Reports** gives the monthly and yearly cost by category, vendor and company, worked out from each record’s billing cycle; a rent agreement’s amount is its monthly rent.',
+    ],
+    note: 'Reminders are shown inside the HRMS — nothing is emailed or sent on WhatsApp. Cancelling a record keeps it and its history.',
+  },
+  {
     id: 'asset-purchase-requests',
     title: 'Asking for an asset to be bought — purchase requests',
     tab: 'assets',

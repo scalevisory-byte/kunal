@@ -11,7 +11,9 @@ import {
 } from '../assetRequests.js';
 import { profileChangesWaiting } from '../profileChanges.js';
 import { may } from '../../../shared/rights.js';
-import { requireArea } from '../auth.js';
+import { requireArea, requireAbility as requireAbilityLocal } from '../auth.js';
+import { cleanSteps, renewalOverview } from '../../../shared/renewals.js';
+import { getSetting, setSetting } from '../db.js';
 import { digest } from '../../../shared/digest.js';
 import { dailyReport, normaliseShape } from '../../../shared/dailyReport.js';
 import { buildPayroll } from '../payroll.js';
@@ -207,6 +209,11 @@ import {
   deleteLicense,
   getLicense,
   licenseRegister,
+  licenseActivity,
+  logDueReminders,
+  moveLicenseStage,
+  recentLicenseActivity,
+  reminderHistory,
   listLicenseSeats,
   listLicenses,
   releaseSeat,
@@ -2056,6 +2063,63 @@ peopleRouter.get('/licenses.csv', (req, res) => {
 
 peopleRouter.get('/licenses/seats.csv', (req, res) => {
   res.type('text/csv').attachment('licence-seats.csv').send(seatsCsv(listLicenseSeats({})));
+});
+
+/* ---------------- renewal management (v2.40.0) ---------------- */
+
+const REMINDER_KEY = 'renewal_reminders';
+const reminderRule = () => {
+  const stored = getSetting(REMINDER_KEY, null) || {};
+  return { steps: cleanSteps(stored.steps), by: stored.by || '', since: stored.since || '' };
+};
+
+/*
+ * The Overview, the calendar and the reminders in one read. Reading it also
+ * LOGS the reminders that have come due - once each, by a unique index - so
+ * "shown" has a history and the same 30-day reminder never reads as new twice.
+ */
+peopleRouter.get('/licenses/overview', (req, res) => {
+  const { licenses } = licenseRegister({ company_id: Number(req.query.company_id) || undefined });
+  const rule = reminderRule();
+  const { due, fresh } = logDueReminders(licenses, rule.steps);
+  res.json({
+    overview: renewalOverview(licenses),
+    reminders: due,
+    fresh_reminders: fresh,
+    rule,
+    activity: recentLicenseActivity(12),
+    can_approve: Boolean(req.actor?.abilities?.includes('approve')),
+  });
+});
+
+peopleRouter.get('/licenses/reminders', (_req, res) =>
+  res.json({ rule: reminderRule(), history: reminderHistory(200) })
+);
+
+peopleRouter.put('/licenses/reminders', requireAbilityLocal('approve'), (req, res) => {
+  const steps = cleanSteps(req.body?.steps);
+  if (!steps.length) return res.status(400).json({ error: 'keep at least one reminder step' });
+  setSetting(REMINDER_KEY, { steps, by: who(req), since: todayIso() }, who(req));
+  res.json({ rule: reminderRule() });
+});
+
+peopleRouter.get('/licenses/:id/activity', (req, res) =>
+  res.json({ activity: licenseActivity(Number(req.params.id)) })
+);
+
+peopleRouter.post('/licenses/:id/stage', (req, res) => {
+  try {
+    res.json(
+      moveLicenseStage(Number(req.params.id), {
+        ...(req.body || {}),
+        by: who(req),
+        canApprove: Boolean(req.actor?.abilities?.includes('approve')),
+      })
+    );
+  } catch (err) {
+    const forbidden = /only a Manager/.test(err.message);
+    res.status(forbidden ? 403 : 400).json({ error: err.message });
+  }
 });
 
 peopleRouter.get('/licenses/:id', (req, res) => {

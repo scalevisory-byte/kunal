@@ -2251,6 +2251,36 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Renewal management — the License tab redesigned (v2.40.0)
+
+Dinesh's "License, Rent Agreement, Insurance & Renewal Management" brief. **Audited first:** one
+`licenses` table already held all three (v2.35 kinds), with `license_renewals` as the
+period-by-period history, seats, cancel-and-keep and a key no read returns.
+
+- `frontend/src/components/people/Renewals.jsx` replaces `Licenses` in App.jsx; `LicencePage`
+  is now **exported** from Licenses.jsx and is still the one record page. Seven sections.
+- **New nullable columns on `licenses`** (ALTER in people.js): responsible_id, payment_status,
+  auto_renew, renewal_stage, proposed_cost/until, proposal_note, approved_by/at, starts_on,
+  rent (property_address, security_deposit, lock_in_months, notice_days, escalation_pct),
+  insurance (policy_type, insured_item, coverage_amount). Added to `LICENSE_SELECT` (an
+  explicit column list — the third time a new column was invisible until it was added there)
+  and `LICENSE_FIELDS`. Rent keeps `publisher` = landlord, `cost` = monthly rent; insurance
+  keeps `publisher` = insurer, `invoice_no` = policy number (the v2.35 `fieldWords` mapping).
+- `shared/renewals.js` — `categoryOf` (from the kind, never stored), `STAGE_STEPS` /
+  `stageProblem`, `renewalStatus`, `dueReminders` (the SMALLEST step reached, so one nag per
+  record), `costOf` (rent ×12; others via `annualCost`, no cycle = not guessed), `costSummary`,
+  `renewalOverview`, `calendarEvents`, `financialYear`.
+- Workflow: `moveLicenseStage` + `POST /licenses/:id/stage`; approve needs `approve` (403
+  otherwise). "Mark renewed" is the EXISTING `renewLicense`, which now also clears the stage and
+  sets payment paid — so the old term is a `license_renewals` row before the new expiry lands.
+- Reminders: `settings.renewal_reminders.steps`; `license_reminders` with a UNIQUE (licence,
+  step, expires_on) so `GET /licenses/overview` logs each once (`fresh_reminders`); renewing
+  changes `expires_on` so reminders start afresh. Shown in-app only — said on screen.
+- Fixed paths (`/licenses/overview`, `/reminders`) are registered BEFORE `/licenses/:id`, or
+  Express hands "overview" to the id route.
+- **Not built:** per-record document upload for licences (no store exists for them yet —
+  `assetDocs.js` is the pattern to copy), Excel import, notifications to a named approver.
+
 ### Assets redesign, part one (v2.39.0)
 
 Dinesh sent a 20-section "Complete Asset Management Module Redesign" brief with a mock-up.

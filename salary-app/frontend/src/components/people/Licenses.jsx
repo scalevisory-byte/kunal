@@ -10,6 +10,7 @@ import {
   termNote,
 } from '../../../../shared/licenses.js';
 import Glyph from '../../icons.jsx';
+import { STAGE_LABELS, STAGE_STEPS, categoryOf, stageProblem } from '../../../../shared/renewals.js';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
 
@@ -558,7 +559,7 @@ function Tile({ glyph, label, value, note, onClick }) {
 /* ================================================================= *
  * One licence: its details, its seats, its renewals.
  * ================================================================= */
-function LicencePage({ id, employees, companies, onClose, onChanged, onError }) {
+export function LicencePage({ id, employees, companies, onClose, onChanged, onError, canApprove = false }) {
   const [license, setLicense] = useState(null);
   const [suggested, setSuggested] = useState(null);
   const [key, setKey] = useState(null);         // only once it has been asked for
@@ -586,6 +587,7 @@ function LicencePage({ id, employees, companies, onClose, onChanged, onError }) 
   }, [id]);
 
   if (!license) return null;
+  const category = categoryOf(license);
 
   const patch = async (body) => {
     try {
@@ -916,9 +918,44 @@ function LicencePage({ id, employees, companies, onClose, onChanged, onError }) 
           )}
         </div>
 
+        {/* ---------------- v2.40.0: terms the redesign added ---------------- */}
+        <div className="card">
+          <h3>{category === 'rent' ? 'Agreement terms' : category === 'insurance' ? 'Policy terms' : 'Terms and responsibility'}</h3>
+          <div className="form-grid">
+            {field({
+              name: 'responsible_id',
+              label: 'Responsible person',
+              options: [['', '—'], ...onStaff(employees).map((e) => [String(e.id), e.name])],
+              hint: 'who sees to the renewal',
+            })}
+            {field({ name: 'starts_on', label: category === 'rent' ? 'Agreement start' : category === 'insurance' ? 'Policy start' : 'Start date', type: 'date' })}
+            {field({ name: 'payment_status', label: 'Payment', options: [['', 'Not said'], ['paid', 'Paid'], ['pending', 'Pending'], ['overdue', 'Overdue']] })}
+            {field({ name: 'auto_renew', label: 'Renewal type', options: [['0', 'Manual'], ['1', 'Auto-renews']] })}
+            {category === 'rent' ? (
+              <>
+                {field({ name: 'property_address', label: 'Property address' })}
+                {field({ name: 'security_deposit', label: 'Security deposit (₹)' })}
+                {field({ name: 'lock_in_months', label: 'Lock-in (months)' })}
+                {field({ name: 'notice_days', label: 'Notice period (days)' })}
+                {field({ name: 'escalation_pct', label: 'Rent escalation (% a renewal)' })}
+              </>
+            ) : null}
+            {category === 'insurance' ? (
+              <>
+                {field({ name: 'policy_type', label: 'Policy type', options: [['', '—'], ...['Fire', 'Office package', 'Group health', 'Group term life', 'Vehicle', 'Electronic equipment', 'Public liability', 'Marine / transit', 'Other'].map((t) => [t, t])] })}
+                {field({ name: 'insured_item', label: 'Insured property / asset' })}
+                {field({ name: 'coverage_amount', label: 'Coverage (sum insured, ₹)' })}
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        {/* ---------------- the renewal workflow ---------------- */}
+        <RenewalWorkflow license={license} canApprove={canApprove} onDone={async () => { await load(); await onChanged(); }} onError={onError} />
+
         {/* ---------------- renewals ---------------- */}
         <div className="card">
-          <h3>Renewals</h3>
+          <h3>Renewal history</h3>
           {!license.renewals.length ? (
             <p className="muted small">Nothing recorded yet.</p>
           ) : (
@@ -1054,6 +1091,125 @@ function LicencePage({ id, employees, companies, onClose, onChanged, onError }) 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * THE RENEWAL WORKFLOW (v2.40.0): review -> approval -> payment -> renewed.
+ *
+ * Each step is the server's `moveLicenseStage`; "Mark renewed" is the same
+ * renewal record above, so the old term is in the history before the new one
+ * replaces it. Approving needs a Manager or an Admin.
+ */
+function RenewalWorkflow({ license, canApprove, onDone, onError }) {
+  const [form, setForm] = useState({
+    proposed_cost: license.proposed_cost ?? license.cost ?? '',
+    proposed_until: license.proposed_until || '',
+    note: license.proposal_note || '',
+  });
+  const [busy, setBusy] = useState(false);
+  if (license.cancelled_on) return null;
+  const stage = license.renewal_stage || null;
+  const steps = Object.entries(STAGE_STEPS).filter(([key, s]) => s.from.includes(stage) && (!s.approve || canApprove));
+  const go = async (step) => {
+    const problem = stageProblem(license, step, { canApprove, proposed_until: form.proposed_until, note: form.note });
+    if (problem) return onError(new Error(problem));
+    setBusy(true);
+    try {
+      await api.post(`/people/licenses/${license.id}/stage`, { step, ...form });
+      await onDone();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const markRenewed = async () => {
+    if (!window.confirm(`Mark ${license.name} renewed to ${license.proposed_until} for ${rupees(license.proposed_cost || 0)}? The current term goes into the history first.`)) return;
+    setBusy(true);
+    try {
+      await api.post(`/people/licenses/${license.id}/renew`, {
+        period_from: license.expires_on || '',
+        period_to: license.proposed_until,
+        cost: license.proposed_cost || license.cost || 0,
+        vendor: license.vendor || '',
+        note: license.proposal_note || '',
+      });
+      await onDone();
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const order = ['review', 'pending_approval', 'pending_payment'];
+  return (
+    <div className="card rw-card">
+      <h3>Renewal</h3>
+      <ol className="rw-steps">
+        {['Upcoming', 'Review', 'Approval', 'Payment', 'Renewed'].map((label, i) => {
+          const at = stage ? order.indexOf(stage) + 1 : 0;
+          return (
+            <li key={label} className={i < at ? 'done' : i === at ? 'now' : ''}>
+              {label}
+            </li>
+          );
+        })}
+      </ol>
+      {stage ? (
+        <p className="small">
+          <span className="pill pr-warn">{STAGE_LABELS[stage]}</span>{' '}
+          {license.proposed_until ? `New term to ${license.proposed_until}` : ''}
+          {license.proposed_cost ? ` · ${rupees(license.proposed_cost)}` : ''}
+          {license.approved_by ? ` · approved by ${license.approved_by}` : ''}
+        </p>
+      ) : (
+        <p className="muted small">
+          Currently runs until {license.expires_on || 'no date'}{license.cost ? ` at ${rupees(license.cost)}` : ''}. Start a review to
+          propose the new terms.
+        </p>
+      )}
+      {stage !== 'pending_payment' ? (
+        <div className="form-grid">
+          <label>
+            New amount (₹)
+            <input value={form.proposed_cost} onChange={(e) => setForm({ ...form, proposed_cost: e.target.value })} />
+          </label>
+          <label>
+            New end date
+            <input type="date" value={form.proposed_until} onChange={(e) => setForm({ ...form, proposed_until: e.target.value })} />
+          </label>
+          <label className="wide">
+            Remarks
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="needed to send back or drop" />
+          </label>
+        </div>
+      ) : null}
+      <div className="row">
+        {steps.map(([key, s]) => (
+          <button
+            key={key}
+            disabled={busy}
+            className={key === 'approve' || key === 'submit' ? 'primary' : key === 'withdraw' || key === 'reject' ? 'danger' : undefined}
+            onClick={() => go(key)}
+          >
+            {s.label}
+          </button>
+        ))}
+        {stage === 'pending_payment' ? (
+          <button className="primary" disabled={busy} onClick={markRenewed}>
+            Paid — mark renewed
+          </button>
+        ) : null}
+        {stage === 'pending_approval' && !canApprove ? (
+          <span className="muted small">Waiting for a Manager or an Admin to approve.</span>
+        ) : null}
+      </div>
+      <p className="muted small">
+        Attach the new invoice and the renewed contract under the record's papers. Nothing is sent to anybody: the
+        renewal shows on the Overview and in the reminders.
+      </p>
     </div>
   );
 }

@@ -41,6 +41,7 @@ import {
   seatProblem,
   termLabel,
 } from '../../shared/licenses.js';
+import { STAGE_STEPS, dueReminders, stageProblem } from '../../shared/renewals.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
 import { setOwnGroups } from '../../shared/assetGroups.js';
 import { CLEARANCE_STEPS, cleanState, exitClearance } from '../../shared/exitClearance.js';
@@ -4215,6 +4216,47 @@ db.exec(`
 `);
 
 /*
+ * v2.40.0, the renewal-management redesign. Added, never renamed: every
+ * existing licence, rent agreement and policy keeps its id and its figures.
+ * Blank means "not said" for all of them.
+ */
+{
+  const have = new Set(db.prepare(`PRAGMA table_info(licenses)`).all().map((c) => c.name));
+  for (const [name, type] of [
+    ['responsible_id', 'INTEGER REFERENCES employees(id) ON DELETE SET NULL'],
+    ['payment_status', 'TEXT'],          // paid | pending | overdue
+    ['auto_renew', 'INTEGER'],           // 1 auto, 0 manual, NULL not said
+    ['renewal_stage', 'TEXT'],           // review | pending_approval | pending_payment
+    ['proposed_cost', 'REAL'],
+    ['proposed_until', 'TEXT'],
+    ['proposal_note', 'TEXT'],
+    ['approved_by', 'TEXT'],
+    ['approved_at', 'TEXT'],
+    ['starts_on', 'TEXT'],
+    ['property_address', 'TEXT'],
+    ['security_deposit', 'REAL'],
+    ['lock_in_months', 'INTEGER'],
+    ['notice_days', 'INTEGER'],
+    ['escalation_pct', 'REAL'],
+    ['policy_type', 'TEXT'],
+    ['insured_item', 'TEXT'],
+    ['coverage_amount', 'REAL'],
+  ]) {
+    if (!have.has(name)) db.exec(`ALTER TABLE licenses ADD COLUMN ${name} ${type}`);
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS license_reminders (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      license_id  INTEGER NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+      step        INTEGER NOT NULL,
+      expires_on  TEXT NOT NULL,
+      shown_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS license_reminder_once ON license_reminders(license_id, step, expires_on);
+  `);
+}
+
+/*
  * The columns every read takes.
  *
  * `license_key` is NOT among them, on purpose. What comes back is whether
@@ -4227,6 +4269,11 @@ const LICENSE_SELECT = `
   l.account_email, l.seats, l.purchased_on, l.expires_on, l.cost,
   l.renew_every_months, l.amc_until, l.amc_cost, l.vendor, l.invoice_no,
   l.note, l.cancelled_on, l.cancelled_why, l.created_at,
+  l.responsible_id, l.payment_status, l.auto_renew, l.renewal_stage, l.proposed_cost,
+  l.proposed_until, l.proposal_note, l.approved_by, l.approved_at, l.starts_on,
+  l.property_address, l.security_deposit, l.lock_in_months, l.notice_days, l.escalation_pct,
+  l.policy_type, l.insured_item, l.coverage_amount,
+  (SELECT name FROM employees WHERE id = l.responsible_id) AS responsible_name,
   CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN 1 ELSE 0 END AS has_key,
   CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN substr(l.license_key, -4) ELSE NULL END AS key_tail,
   c.name AS company_name
@@ -4356,6 +4403,9 @@ const LICENSE_FIELDS = [
   'company_id', 'name', 'kind', 'publisher', 'version', 'term', 'account_email',
   'seats', 'purchased_on', 'expires_on', 'cost', 'renew_every_months',
   'amc_until', 'amc_cost', 'vendor', 'invoice_no', 'note',
+  'responsible_id', 'payment_status', 'auto_renew', 'starts_on',
+  'property_address', 'security_deposit', 'lock_in_months', 'notice_days', 'escalation_pct',
+  'policy_type', 'insured_item', 'coverage_amount',
 ];
 
 /** Blank means "not known" for every one of these, never zero and never today. */
@@ -4370,7 +4420,13 @@ const licenseValue = (key, value) => {
   if (value === '' || value === null || value === undefined) {
     return key === 'cost' ? 0 : null;
   }
-  if (key === 'company_id' || key === 'seats' || key === 'renew_every_months') {
+  if (key === 'payment_status') return ['paid', 'pending', 'overdue'].includes(value) ? value : null;
+  if (key === 'auto_renew') return value === true || value === 1 || value === '1' || value === 'auto' ? 1 : 0;
+  if (['security_deposit', 'escalation_pct', 'coverage_amount'].includes(key)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (['company_id', 'seats', 'renew_every_months', 'responsible_id', 'lock_in_months', 'notice_days'].includes(key)) {
     const n = Number(value);
     return Number.isFinite(n) ? Math.round(n) : null;
   }
@@ -4433,7 +4489,7 @@ export function updateLicense(id, patch = {}) {
 
   db.prepare(`UPDATE licenses SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
 
-  for (const field of ['name', 'seats', 'expires_on', 'cost', 'term']) {
+  for (const field of ['name', 'seats', 'expires_on', 'cost', 'term', 'payment_status', 'responsible_id', 'auto_renew', 'security_deposit', 'escalation_pct', 'coverage_amount']) {
     if (!(field in patch)) continue;
     const to = licenseValue(field, patch[field]);
     if (String(before[field] ?? '') === String(to ?? '')) continue;   // not a change.
@@ -4662,9 +4718,11 @@ export function renewLicense(id, input = {}) {
    * has now bought.
    */
   db.prepare(
-    `UPDATE licenses SET expires_on = ?, cost = ?, term = CASE WHEN term = 'trial' THEN 'subscription' ELSE term END
+    `UPDATE licenses SET expires_on = ?, cost = ?, term = CASE WHEN term = 'trial' THEN 'subscription' ELSE term END,
+            renewal_stage = NULL, proposed_cost = NULL, proposed_until = NULL, proposal_note = NULL,
+            payment_status = COALESCE(?, payment_status)
      WHERE id = ?`
-  ).run(to, cost || before.cost || 0, id);
+  ).run(to, cost || before.cost || 0, input.payment_status === 'pending' ? 'pending' : before.renewal_stage ? 'paid' : null, id);
 
   audit({
     who: input.by,
@@ -4679,6 +4737,94 @@ export function renewLicense(id, input = {}) {
   });
   return getLicense(id);
 }
+
+/**
+ * THE RENEWAL WORKFLOW (v2.40.0): upcoming -> review -> approval -> payment ->
+ * renewed, with the new expiry. The steps live in shared/renewals.js; this
+ * writes them. Marking it renewed is the existing `renewLicense`, which is
+ * what keeps every previous period in `license_renewals` - nothing about the
+ * old term is overwritten without the history row being written first.
+ */
+export function moveLicenseStage(id, { step, proposed_cost, proposed_until, note, by, canApprove = false } = {}) {
+  const before = getLicense(id);
+  if (!before) throw new Error('that record is not on the register');
+  const problem = stageProblem(before, step, { canApprove, proposed_until, note });
+  if (problem) throw new Error(problem);
+  const to = STAGE_STEPS[step].to;
+  const sets = ['renewal_stage = ?'];
+  const values = [to];
+  if (step === 'review' || step === 'submit') {
+    if (proposed_cost !== undefined && proposed_cost !== '') {
+      sets.push('proposed_cost = ?');
+      values.push(Number(proposed_cost) || 0);
+    }
+    if (proposed_until) {
+      sets.push('proposed_until = ?');
+      values.push(String(proposed_until).slice(0, 10));
+    }
+    if (note !== undefined) {
+      sets.push('proposal_note = ?');
+      values.push(String(note || '').trim() || null);
+    }
+  }
+  if (step === 'approve') {
+    sets.push('approved_by = ?', `approved_at = datetime('now')`, `payment_status = 'pending'`);
+    values.push(by || null);
+  }
+  if (step === 'reject' || step === 'withdraw') {
+    sets.push('proposed_cost = NULL', 'proposed_until = NULL', 'approved_by = NULL', 'approved_at = NULL');
+  }
+  db.prepare(`UPDATE licenses SET ${sets.join(', ')} WHERE id = ?`).run(...values, id);
+  audit({
+    who: by,
+    action: step,
+    entity: 'licenses',
+    entity_id: id,
+    label: before.name,
+    field: 'renewal stage',
+    from_value: before.renewal_stage || 'none',
+    to_value: to || 'none',
+    note: String(note || '').trim() || null,
+  });
+  return getLicense(id);
+}
+
+/** The trail for one record, newest first - its activity history. */
+export const licenseActivity = (id, limit = 50) =>
+  db
+    .prepare(`SELECT * FROM audit_log WHERE entity = 'licenses' AND entity_id = ? ORDER BY id DESC LIMIT ?`)
+    .all(Number(id), limit);
+
+/** Recent activity across the register, for the Overview. */
+export const recentLicenseActivity = (limit = 12) =>
+  db
+    .prepare(`SELECT * FROM audit_log WHERE entity = 'licenses' AND action != 'key read' ORDER BY id DESC LIMIT ?`)
+    .all(limit);
+
+/**
+ * Reminders that have come due, logged ONCE each (a unique index on licence,
+ * step and the expiry it was for), so the same reminder is never shown as new
+ * twice and a renewed record starts its reminders afresh. "Shown" means put
+ * on the office's screens and the digest - this app has no channel to send
+ * anything outside itself, and does not pretend to.
+ */
+export function logDueReminders(rows, steps, today = dayNow()) {
+  const due = dueReminders(rows, steps, today);
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO license_reminders (license_id, step, expires_on) VALUES (?, ?, ?)`
+  );
+  let fresh = 0;
+  for (const r of due) fresh += insert.run(r.id, r.step, r.expires_on).changes;
+  return { due, fresh };
+}
+
+export const reminderHistory = (limit = 100) =>
+  db
+    .prepare(
+      `SELECT r.*, l.name, l.kind FROM license_reminders r JOIN licenses l ON l.id = r.license_id
+        ORDER BY r.id DESC LIMIT ?`
+    )
+    .all(limit);
 
 /** Everything the License tab needs in one call. */
 export function licenseRegister({ company_id, soon = 30, today } = {}) {

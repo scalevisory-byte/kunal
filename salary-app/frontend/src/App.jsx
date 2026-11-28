@@ -30,7 +30,7 @@ import MyPage from './components/MyPage.jsx';
 import ChangePassword from './components/ChangePassword.jsx';
 import People from './components/people/People.jsx';
 import AssetsTab from './components/AssetsTab.jsx';
-import Licenses from './components/people/Licenses.jsx';
+import Renewals from './components/people/Renewals.jsx';
 import Glyph from './icons.jsx';
 import Help, { WhatsNew } from './components/Help.jsx';
 import RequestReminder from './components/RequestReminder.jsx';
@@ -1479,7 +1479,7 @@ function Shell() {
         )}
 
         {tab === 'license' && (
-          <Licenses
+          <Renewals
             employees={employees}
             companies={companies}
             companyId={companyId}

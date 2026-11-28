@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.39.0';
+export const VERSION = '2.40.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.40.0',
+    date: '28 Nov 2026',
+    title: 'Renewal management: licences, rent agreements and insurance in one place',
+    items: [
+      '**The License tab is now Renewal management**, in seven sections: Overview, Licenses & Subscriptions, Rent Agreements, Insurance Policies, Renewal Calendar, Reports, Settings. Every existing record is there, with its id and history.',
+      '**Overview**: active contracts, due in 30 and 60 days, expired, pending payments and the annual cost; an alert panel (7 days, 30 days, expired, waiting for approval, waiting for payment, auto-renewing); urgent, upcoming, expired and pending-payment lists; cost by category; this month; recent activity.',
+      '**Three registers**, each with its own columns, search, filters (status, category, vendor, payment, auto/manual, responsible person), sorting, pages, column choice, CSV export and **Mark paid** for ticked rows.',
+      '**New fields**: responsible person, payment status, auto or manual renewal, start date; for rent: property address, security deposit, lock-in, notice period, escalation; for insurance: policy type, insured property, coverage.',
+      '**Renewal workflow** on every record: review \u2192 submit for approval \u2192 approve (Manager or Admin) \u2192 paid, mark renewed. The old term goes into the history first.',
+      '**Renewal calendar** with month, week and list views; each entry opens its record. **Reports**: monthly and yearly cost by category, vendor and company, upcoming renewal cost and pending payments, by financial year.',
+      '**Configurable reminders** (Settings): 90, 60, 30, 7 days, the day, after \u2014 each shown once and kept in a history. They appear inside the HRMS; nothing is emailed.',
+    ],
+  },
   {
     version: '2.39.0',
     date: '28 Nov 2026',
