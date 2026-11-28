@@ -278,6 +278,13 @@ export function LeaveBonusRegister({ data, year }) {
   const shown = new Set(data.months_on_record || []);
   const lines = data.lines || [];
   const total = lines.reduce((t, l) => t + (l.eligible ? l.amount : 0), 0);
+  /*
+   * COMPACT ON PURPOSE (v2.49.1): "Why column ko wrap karo, scroll na karna
+   * pade". Twelve month columns leave no room for five more, so the joining
+   * salary and joining date ride under the name, the slab % under the total,
+   * the paid month under the bonus, and the reason wraps. The
+   * whole register fits the screen with no sideways scroll.
+   */
   return (
     <div className="table-wrap lby-register">
       <table className="sheet wide">
@@ -285,52 +292,55 @@ export function LeaveBonusRegister({ data, year }) {
           <tr>
             <th className="row-no">#</th>
             <th>Name</th>
-            <th>Joined</th>
-            <th className="num">Salary</th>
             {MONTH_KEYS.map((m) => (
               <th key={m} className={`num lby-m${shown.has(m) ? '' : ' lby-none'}`}>{MONTHS[m - 1]}</th>
             ))}
-            <th className="num">Leaves</th>
-            <th>Slab</th>
-            <th className="num">Bonus</th>
-            <th>Paid</th>
-            <th>Why</th>
+            <th className="num lby-total">Total</th>
+            <th className="num lby-bonus">Bonus</th>
+            <th className="lby-why">Why</th>
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => (
             <tr key={l.employee_id} className={l.held ? 'lby-held' : undefined}>
               <td className="row-no">{i + 1}</td>
-              <td>
+              <td className="lby-name">
                 {l.name}
-                <div className="muted small">{[l.code, l.department].filter(Boolean).join(' · ')}</div>
+                <div className="muted small">
+                  {[l.salary ? rupees(l.salary) : 'no salary', l.department, l.joined_on ? `joined ${l.joined_on}` : 'no joining date']
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                {/* On a narrow screen the reason column is dropped and the reason rides here. */}
+                <div className="small lby-why-inline">{l.why}</div>
               </td>
-              <td className="small">{l.joined_on || '—'}</td>
-              <td className="num">{l.salary ? rupees(l.salary) : '—'}</td>
               {MONTH_KEYS.map((m) => (
                 <td key={m} className="num lby-m">{fig(l.months?.[m])}</td>
               ))}
-              <td className="num strong">{l.held && !l.leaves ? '—' : l.leaves}</td>
-              <td className="small">{l.held ? '—' : `${l.band} · ${l.pct}%`}</td>
-              <td className="num strong">{l.amount ? rupees(l.amount) : '—'}</td>
-              <td className="small">{l.paid_in ? `${l.paid_in}` : l.eligible ? 'not yet' : ''}</td>
+              <td className="num" title={l.held ? '' : `${l.band} leaves`}>
+                <b>{l.held && !l.leaves ? '—' : l.leaves}</b>
+                {l.held ? null : <div className="muted small">{l.pct}%</div>}
+              </td>
+              <td className="num">
+                <b>{l.amount ? rupees(l.amount) : '—'}</b>
+                {l.paid_in ? <div className="muted small">paid {l.paid_in}</div> : l.eligible ? <div className="muted small">not paid yet</div> : null}
+              </td>
               <td className="small lby-why">{l.why}</td>
             </tr>
           ))}
           {!lines.length && (
-            <tr><td colSpan={21} className="empty">Nobody on the payroll in {year}.</td></tr>
+            <tr><td colSpan={17} className="empty">Nobody on the payroll in {year}.</td></tr>
           )}
         </tbody>
         {lines.length ? (
           <tfoot>
             <tr>
               <td />
-              <td colSpan={3}><b>{lines.filter((l) => l.eligible).length} qualify</b></td>
+              <td><b>{lines.filter((l) => l.eligible).length} qualify</b></td>
               {MONTH_KEYS.map((m) => <td key={m} />)}
               <td />
-              <td />
               <td className="num"><b>{rupees(total)}</b></td>
-              <td colSpan={2} />
+              <td />
             </tr>
           </tfoot>
         ) : null}

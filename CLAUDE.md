@@ -2270,6 +2270,14 @@ rules (NOT applied to everybody regardless of joining date).
   catalogue test's `beyondSpec`.
 - The interface test requires `className="sheet wide"` in `LeaveBonus.jsx`; the register's
   table carries it, inside `.lby-register` (`table-wrap`, so it scrolls in its own frame).
+- **v2.49.1, "Why column ko wrap karo, scroll na karna pade":** fixed table layout, salary/joined
+  under the name, slab % under the total, paid month under the bonus, the reason wraps. Two traps:
+  `table.sheet.wide td:first-child { width: 28% }` made the `#` column 224-318px wide (overridden
+  on `.row-no:first-child`); and under AUTO layout with every other column sized, the slack still
+  pooled in `#`. On a container under 820px (Reports beside its sidebar at 1280px) the reason
+  column is hidden and `.lby-why-inline` shows it under the name - a container query, because the
+  same register sits in two frames of different widths. Measured: table == frame at 1280/1366/1440
+  in both places.
 - The "why" now says where a part year starts AND ends (`to 2026-12-20` for a leaver) - it
   read "97% of the year (from 2026-01-01)" for somebody who simply left in December.
 

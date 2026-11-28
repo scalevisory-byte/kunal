@@ -20,10 +20,19 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.49.0';
+export const VERSION = '2.49.1';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.49.1',
+    date: '28 Nov 2026',
+    title: 'The leave bonus register fits the screen \u2014 no sideways scroll',
+    items: [
+      'The **Why** column wraps instead of running off the edge. Salary and joining date sit under the name, the slab % under the total, and the paid month under the bonus, so all twelve months fit beside them.',
+      'On a narrower screen (Reports on a 1280px laptop) the reason moves under the name rather than squeezing into a column. Checked at 1280, 1366 and 1440px in both Leave \u2192 Bonus and Reports.',
+    ],
+  },
   {
     version: '2.49.0',
     date: '28 Nov 2026',

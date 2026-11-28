@@ -162,3 +162,15 @@ test('only the contract’s yearly bonus is on the screen, and its register is a
   assert.ok(!fs.existsSync(new URL('../../frontend/src/components/LeaveBonusYear.jsx', import.meta.url)), 'one file, not two');
   assert.match(read('frontend/src/components/Reports.jsx'), /'leave-bonus-register': \(\) => <LeaveBonusRegisterReport/);
 });
+
+test('the register fits the screen: fixed columns, the reason wraps, and moves under the name when narrow', () => {
+  const css = fs.readFileSync(new URL('../../frontend/src/styles.css', import.meta.url), 'utf8');
+  const screen = fs.readFileSync(new URL('../../frontend/src/components/LeaveBonus.jsx', import.meta.url), 'utf8');
+  assert.match(css, /\.lby-register \{ container-type: inline-size; \}/);
+  assert.match(css, /\.lby-register table\.sheet \{ width: 100%;[^}]*table-layout: fixed;/);
+  assert.match(css, /td\.lby-why \{ white-space: normal;/);
+  assert.match(css, /@container \(max-width: 820px\)[\s\S]*th\.lby-why, \.lby-register table\.sheet td\.lby-why \{ display: none; \}/);
+  // The serial column must not take the slack (table.sheet.wide gives a first column 28%).
+  assert.match(css, /\.lby-register table\.sheet\.wide td\.row-no:first-child \{ width: 1\.8rem;/);
+  assert.match(screen, /className="small lby-why-inline"/);
+});
