@@ -2251,6 +2251,33 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### People, redesigned (v2.41.0)
+
+Two People briefs (one with a mock-up of a split list + profile). Inspected first: `PersonFile.jsx`
+already WAS the per-person profile with tabs (overview, records, reviews, claims, tasks, helpdesk,
+exit, activity), and every section panel worked. So this is layout, not new data.
+
+- `People.jsx`: header with **+ Add employee** (orange — `button.primary.pp-add`, because plain
+  `.pp-add` loses to `button.primary`), seven figures (total/joined this month, working, serving
+  notice, left, reviews not applied, claims waiting, open tickets — counted from the SAME
+  `/people/claims|tickets|appraisals|exits` lists the panels use), one filter bar (search incl.
+  email/phone, department, designation, location, status, count, Reset), and a paged **staff
+  directory** (`Directory`) that heads Employee Records and appears on any tab once filtered.
+- **PANELS keep their keys** (`records`, `appraisals`, …) with the new labels, so digest/reminder
+  `focus` links still land. A test pins both.
+- **Add employee opens the ONE joining form**: App sets `openEmployee = 'new'` and switches to
+  Employees, whose `openFor` effect now treats `'new'` as `setAdding(true)`. People has no form.
+- **Bug fixed:** the status filter called `statusOf(e)` with no exit, so "Serving notice" never
+  matched anybody. It now passes the person's exit row.
+- Records: empty state, kind-coloured left edge (`.pp-kind-*`), one "Put something on the
+  record" button (the empty state's duplicate was removed). PersonFile header gained the avatar,
+  phone and email.
+- Measured: tabs one row at 1440 (icons hidden under 1600px), no sideways scroll at 1280 or 414
+  (three directory columns hidden on a phone).
+- **Not done from the briefs, deliberately:** a reshaped appraisal form, claim categories, recovery
+  progress bars, ticket priority/assignee, notice scheduling and exit-checklist progress — each is
+  a change to that panel's own data or form and should be asked for panel by panel.
+
 ### Renewal management — the License tab redesigned (v2.40.0)
 
 Dinesh's "License, Rent Agreement, Insurance & Renewal Management" brief. **Audited first:** one

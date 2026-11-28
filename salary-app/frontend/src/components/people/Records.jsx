@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
+import Glyph from '../../icons.jsx';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
 
@@ -110,8 +111,8 @@ export default function Records({ employees, onError, only = null }) {
             )
           )}
         </div>
-        <button className="ghost" onClick={() => setAdding(!adding)}>
-          {adding ? 'Cancel' : 'Put something on the record'}
+        <button className={adding ? 'ghost' : 'primary'} onClick={() => setAdding(!adding)}>
+          {adding ? 'Cancel' : '+ Put something on the record'}
         </button>
       </div>
 
@@ -222,9 +223,16 @@ export default function Records({ employees, onError, only = null }) {
       )}
 
       {!notes.length ? (
-        <p className="muted small">Nothing on the record yet.</p>
+        <div className="pp-empty small-empty">
+          <span className="pp-empty-icon"><Glyph name="sheet" size={24} /></span>
+          <h4>{kind ? `No ${KIND_LABEL[kind].toLowerCase()}s on file` : 'Nothing on the record yet'}</h4>
+          <p className="muted small">
+            Warnings, appreciations and notes put on somebody's file show here, newest first, with who gave
+            them and whether a warning has been seen.
+          </p>
+        </div>
       ) : (
-        <table className="sheet">
+        <table className="sheet pp-timeline">
           <thead>
             <tr>
               <th>Dated</th>
@@ -238,7 +246,7 @@ export default function Records({ employees, onError, only = null }) {
           </thead>
           <tbody>
             {notes.map((note) => (
-              <tr key={note.id}>
+              <tr key={note.id} className={`pp-kind-${note.kind}`}>
                 <td>{note.dated}</td>
                 <td className="sticky-name">{note.employee_name}</td>
                 <td>

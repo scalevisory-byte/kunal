@@ -156,7 +156,10 @@ export default function Employees({
    */
   useEffect(() => {
     if (!openFor) return;
-    setProfileFor(openFor);
+    // 'new' is another tab's "Add employee" (People): the SAME joining form,
+    // never a second one.
+    if (openFor === 'new') setAdding(true);
+    else setProfileFor(openFor);
     onOpened?.();
   }, [openFor, onOpened]);
   // The same people, read two ways: down a list, or up a reporting line.

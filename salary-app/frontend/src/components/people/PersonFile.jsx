@@ -1,3 +1,4 @@
+import { Avatar } from '../EmployeePhoto.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { STANDALONE, api } from '../../api.js';
 import {
@@ -31,13 +32,13 @@ import Leaving from './Leaving.jsx';
 
 const TABS = [
   ['overview', 'Overview'],
-  ['records', 'Warnings & appreciations'],
-  ['appraisals', 'Appraisals'],
+  ['records', 'Warnings, appreciations & notes'],
+  ['appraisals', 'Performance reviews'],
   ['claims', 'Claims'],
   ['tasks', 'Tasks'],
   ['helpdesk', 'Helpdesk'],
-  ['leaving', 'Leaving'],
-  ['activity', 'Activity'],
+  ['leaving', 'Exit'],
+  ['activity', 'All activity'],
 ];
 
 export default function PersonFile({ employee, employees, companies, period, me, onError, onReload, onBack }) {
@@ -130,6 +131,7 @@ export default function PersonFile({ employee, employees, companies, period, me,
       <header className="pf-head">
         <button className="link" onClick={onBack}>← Everyone</button>
         <div className="pf-who">
+          <Avatar employee={employee} size="lg" />
           <h2>{employee.name}</h2>
           <span className={`pf-status ${status.key}`}>{status.label}</span>
         </div>
@@ -140,6 +142,8 @@ export default function PersonFile({ employee, employees, companies, period, me,
           <Fact k="Designation" v={employee.designation} />
           <Fact k="Joined" v={employee.joined_on} extra={serviceOf(employee.joined_on)} />
           <Fact k="Reports to" v={manager?.name} />
+          <Fact k="Phone" v={employee.phone} />
+          <Fact k="Email" v={employee.email || employee.office_email} />
         </dl>
         <p className="muted small">
           Their master details, documents and KYC are on their record under Employees; pay is on

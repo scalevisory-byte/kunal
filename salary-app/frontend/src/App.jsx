@@ -1462,6 +1462,14 @@ function Shell() {
             onReload={loadAll}
             focus={focusOn}
             onFocused={() => setFocusOn(null)}
+            onAddEmployee={() => {
+              setOpenEmployee('new');
+              setTab('employees');
+            }}
+            onOpenRecord={(id) => {
+              setOpenEmployee(id);
+              setTab('employees');
+            }}
           />
         )}
 

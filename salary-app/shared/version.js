@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.40.0';
+export const VERSION = '2.41.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.41.0',
+    date: '28 Nov 2026',
+    title: 'People, redesigned: a staff directory, what needs attention, and clearer sections',
+    items: [
+      '**People opens on the staff directory** \u2014 photo or initials, name and ID, designation, department, company, joining date and status, 25 to a page. Click a row for their file; **Record** opens their master record on Employees.',
+      '**What needs attention, at the top**: total employees (and joined this month), working, serving notice, left, performance reviews not applied, claims waiting and open helpdesk tickets. Each opens its list.',
+      '**One search and filter bar**: name, employee ID, designation, email or phone; department, designation, location and status; a results count and Reset.',
+      '**\u201cServing notice\u201d now finds people with an exit in progress** \u2014 the status filter never counted the exit before.',
+      '**+ Add employee** on People opens the same joining form as Employees.',
+      '**Sections renamed**: Employee Records, Performance Reviews, Claims & Expenses, Disciplinary, Helpdesk, Noticeboard, Exit Management, Reminders, Activity Log. Everything in them is unchanged.',
+      'Warnings, appreciations and notes read as a timeline, each kind marked by colour; a person\u2019s file shows their photo, phone and email at the top.',
+    ],
+  },
   {
     version: '2.40.0',
     date: '28 Nov 2026',
