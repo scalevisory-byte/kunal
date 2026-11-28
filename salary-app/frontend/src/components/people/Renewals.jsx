@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { STANDALONE, api } from '../../api.js';
+import { STANDALONE, api, download } from '../../api.js';
+import { col, printReport } from '../../printReport.js';
 import { rupees } from '../../format.js';
 import Glyph from '../../icons.jsx';
 import { onStaff } from '../../onStaff.js';
@@ -63,7 +64,9 @@ const COLUMNS = {
     ['seats', 'Seats used / bought', (r) => (r.seat_use?.counted ? `${r.seat_use.used} / ${r.seat_use.seats}` : '—'), null, 'num'],
     ['auto', 'Renewal type', (r) => (Number(r.auto_renew) === 1 ? 'Auto' : 'Manual')],
     ['payment', 'Payment', (r) => payLabel[r.payment_status] || '—'],
+    ['documents', 'Documents', (r) => (Number(r.documents) ? `📎 ${r.documents}` : '—'), (r) => Number(r.documents) || 0, 'num'],
     ['responsible', 'Responsible', (r) => r.responsible_name || '—'],
+    ['documents', 'Documents', (r) => (Number(r.documents) ? `📎 ${r.documents}` : '—'), (r) => Number(r.documents) || 0, 'num'],
   ],
   rent: [
     ['name', 'Agreement / premises', (r) => r.name, (r) => r.name],
@@ -78,6 +81,7 @@ const COLUMNS = {
     ['notice', 'Notice', (r) => (r.notice_days ? `${r.notice_days} d` : '—')],
     ['escalation', 'Escalation', (r) => (r.escalation_pct ? `${r.escalation_pct}%` : '—')],
     ['responsible', 'Responsible', (r) => r.responsible_name || '—'],
+    ['documents', 'Documents', (r) => (Number(r.documents) ? `📎 ${r.documents}` : '—'), (r) => Number(r.documents) || 0, 'num'],
   ],
   insurance: [
     ['name', 'Policy', (r) => r.name, (r) => r.name],
@@ -118,6 +122,8 @@ function saveCsv(name, columns, rows) {
 /* ----------------------------- the module ----------------------------- */
 
 export default function Renewals({ employees = [], companies = [], companyId, onError }) {
+  // A record being copied into a new one (Copy as new on its page).
+  const [copyFrom, setCopyFrom] = useState(null);
   const [section, setSection] = useState('overview');
   const [rows, setRows] = useState(null);
   const [data, setData] = useState(null);
@@ -197,12 +203,14 @@ export default function Renewals({ employees = [], companies = [], companyId, on
       {adding ? (
         <AddRecord
           category={adding}
+          from={copyFrom}
           companies={companies}
           employees={employees}
           companyId={companyId}
-          onClose={() => setAdding(null)}
+          onClose={() => { setAdding(null); setCopyFrom(null); }}
           onSaved={async (made) => {
             setAdding(null);
+            setCopyFrom(null);
             await load();
             setOpen(made.id);
           }}
@@ -219,6 +227,11 @@ export default function Renewals({ employees = [], companies = [], companyId, on
           onClose={() => setOpen(null)}
           onChanged={load}
           onError={onError}
+          onCopy={(record) => {
+            setOpen(null);
+            setCopyFrom(record);
+            setAdding(categoryOf(record));
+          }}
         />
       ) : null}
     </section>
@@ -490,16 +503,34 @@ function Register({ category, rows, employees, onOpen, onAdd, onReload, onError 
   const paged = sorted.slice((at - 1) * size, at * size);
   const active = Object.entries(f).filter(([, v]) => v);
 
-  const markPaid = async () => {
-    if (!window.confirm(`Mark ${ticked.size} as paid?`)) return;
+  /* The same PATCH the record page sends, one record at a time, for every
+     ticked row - so no rule is skipped by doing several at once. */
+  const bulk = async (body, question) => {
+    if (!window.confirm(question)) return;
     try {
-      for (const id of ticked) await api.patch(`/people/licenses/${id}`, { payment_status: 'paid' });
+      for (const id of ticked) await api.patch(`/people/licenses/${id}`, body);
       setTicked(new Set());
       await onReload();
     } catch (err) {
       onError(err);
     }
   };
+  const markPaid = () => bulk({ payment_status: 'paid' }, `Mark ${ticked.size} as paid?`);
+  const [importing, setImporting] = useState(false);
+  const printIt = () =>
+    printReport({
+      title: `${CATEGORIES.find((c) => c.key === category)?.label || 'Register'}`,
+      subtitle: [
+        query ? `matching “${query}”` : '',
+        ...Object.entries(f).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`),
+      ].filter(Boolean).join(' · ') || 'everything on the register',
+      meta: [`${sorted.length} ${sorted.length === 1 ? 'record' : 'records'}`],
+      landscape: true,
+      compact: true,
+      columns: [col('#', (_r, i) => i + 1, '3%'), ...visible.map((c) => col(c[1], (r) => c[2](r))), col('Status', (r) => renewalStatus(r).label)],
+      rows: sorted,
+      footer: 'A blank end date means not known — never expired. Cancelled records are not on this list unless the status filter asks for them.',
+    });
 
   const label = CATEGORIES.find((c) => c.key === category);
   return (
@@ -549,8 +580,28 @@ function Register({ category, rows, employees, onOpen, onAdd, onReload, onError 
       <div className="row-between rn-under">
         <span className="muted small">{shown.length} of {rows.filter((r) => !r.cancelled_on).length} {label.label.toLowerCase()}</span>
         <span className="row">
-          {ticked.size ? <button className="small" onClick={markPaid}>Mark {ticked.size} paid</button> : null}
+          {ticked.size ? (
+            <>
+              <button className="small" onClick={markPaid}>Mark {ticked.size} paid</button>
+              <button className="ghost small" onClick={() => bulk({ payment_status: 'pending' }, `Mark ${ticked.size} as payment pending?`)}>Payment pending</button>
+              <select
+                className="rn-bulk-who"
+                value=""
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const person = employees.find((x) => String(x.id) === e.target.value);
+                  bulk({ responsible_id: Number(e.target.value) }, `Make ${person?.name || 'them'} responsible for ${ticked.size}?`);
+                }}
+                aria-label="Set who is responsible for the ticked records"
+              >
+                <option value="">Set responsible…</option>
+                {onStaff(employees).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+            </>
+          ) : null}
           <button className="ghost small" onClick={() => saveCsv(`${category}-register.csv`, visible, sorted)} disabled={!sorted.length}>Export CSV</button>
+          <button className="ghost small" onClick={printIt} disabled={!sorted.length}>Print</button>
+          {!STANDALONE && <button className="ghost small" onClick={() => setImporting(true)}>Import from Excel</button>}
           <details className="menu-more">
             <summary className="ghost">Columns ▾</summary>
             <div className="menu-more-list">
@@ -632,16 +683,143 @@ function Register({ category, rows, employees, onOpen, onAdd, onReload, onError 
         </div>
       ) : null}
       <p className="muted small">
-        Open a record to edit it, renew it (review → approval → payment → renewed), cancel it, or see its history.
-        Cancelling keeps the record; renewing keeps the old term in the history.
+        Open a record to edit it, renew it (review → approval → payment → renewed), cancel it, attach its documents, copy
+        it as a new one, or see its history. Cancelling keeps the record; renewing keeps the old term in the history.
       </p>
+      {importing && (
+        <ImportDialog
+          category={category}
+          onClose={() => setImporting(false)}
+          onDone={async () => {
+            setImporting(false);
+            await onReload();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Bring a register in from Excel or CSV (v2.47.0). Look first, then write -
+ * the second press sends the same file again, so the plan approved is the
+ * plan that runs. Licence keys are never read from a sheet.
+ */
+function ImportDialog({ category, onClose, onDone }) {
+  const [file, setFile] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [problem, setProblem] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [alsoSimilar, setAlsoSimilar] = useState(false);
+  const label = CATEGORIES.find((c) => c.key === category);
+  const send = async (write) => {
+    if (!file) return;
+    setBusy(true);
+    setProblem('');
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      form.set('as', category);
+      form.set('write', String(write));
+      form.set('include_similar', String(alsoSimilar));
+      const got = await api.upload('/people/licenses/import', form);
+      if (write) {
+        window.alert(`${got.wrote} ${got.wrote === 1 ? 'record' : 'records'} added.`);
+        await onDone();
+        return;
+      }
+      setPlan(got);
+    } catch (err) {
+      setProblem(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal wide rn-import" onClick={(e) => e.stopPropagation()}>
+        <div className="late-head">
+          <div>
+            <h3>Import {label?.label?.toLowerCase() || 'records'} from Excel</h3>
+            <p className="muted small">
+              An .xlsx or .csv. Columns are matched on what they are called — Name / Software / Policy, Expiry, Cost,
+              Company, Vendor and the rest. Nothing is written until you have seen what would be.
+            </p>
+          </div>
+          <button className="ghost" onClick={onClose}>Close</button>
+        </div>
+        <div className="row">
+          <input type="file" accept=".xlsx,.csv" onChange={(e) => { setFile(e.target.files?.[0] || null); setPlan(null); }} />
+          <button disabled={!file || busy} onClick={() => send(false)}>{busy && !plan ? 'Reading…' : 'Look first'}</button>
+          <button className="ghost small" onClick={() => download('/people/licenses/import-template.csv', 'licence-import-template.csv')}>
+            Download a blank template
+          </button>
+        </div>
+        <p className="muted small">
+          <strong>Licence keys are not imported</strong>, even if the sheet has a key column — a key is typed on the record,
+          so it is never shown on a screen like this one.
+        </p>
+        {problem && <p className="lic-alert warn">{problem}</p>}
+        {plan && (
+          <>
+            <p>
+              <strong>{plan.create.length}</strong> to add
+              {plan.skipped.length ? <>, <strong>{plan.skipped.length}</strong> left out (named below)</> : ''}. Header found on
+              row {plan.header_row}{plan.sheet ? ` of “${plan.sheet}”` : ''}.
+            </p>
+            {plan.notes.map((n) => <p key={n} className="lic-alert warn">{n}</p>)}
+            {plan.create.length > 0 && (
+              <div className="table-wrap rn-import-list">
+                <table className="sheet">
+                  <thead>
+                    <tr><th>Row</th><th>Name</th><th>Type</th><th>Company</th><th>Ends</th><th className="num">Cost</th></tr>
+                  </thead>
+                  <tbody>
+                    {plan.create.slice(0, 200).map((r) => (
+                      <tr key={r.line}>
+                        <td className="muted small">{r.line}</td>
+                        <td>{r.name}</td>
+                        <td className="small">{r.kind}</td>
+                        <td className="small">{r.company_name || '—'}</td>
+                        <td className="small">{r.expires_on || 'no date'}</td>
+                        <td className="num">{r.cost !== null ? rupees(r.cost) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {plan.similar?.length > 0 && (
+              <div className="lic-alert warn">
+                <strong>{plan.similar.length} look like a record already on the register</strong> — same name and company,
+                a different end date. That is usually the same licence a term later: renew the existing record rather than
+                adding a second one.
+                <ul className="small rn-import-skips">
+                  {plan.similar.map((r) => (
+                    <li key={r.line}>Row {r.line} — {r.name}: ends {r.expires_on || 'no date'}; the one here ends {r.existing_expires_on || 'no date'}</li>
+                  ))}
+                </ul>
+                <label className="check"><input type="checkbox" checked={alsoSimilar} onChange={(e) => setAlsoSimilar(e.target.checked)} /> Add these as separate records anyway</label>
+              </div>
+            )}
+            {plan.skipped.length > 0 && (
+              <ul className="small rn-import-skips">
+                {plan.skipped.map((x) => <li key={x.line}>Row {x.line}{x.name ? ` — ${x.name}` : ''}: {x.why}</li>)}
+              </ul>
+            )}
+            <button className="primary" disabled={busy || !(plan.create.length + (alsoSimilar ? plan.similar?.length || 0 : 0))} onClick={() => send(true)}>
+              {busy ? 'Adding…' : `Add ${plan.create.length + (alsoSimilar ? plan.similar?.length || 0 : 0)}`}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 /* ------------------------------ add a record ------------------------------ */
 
-function AddRecord({ category, companies, employees, companyId, onClose, onSaved, onError }) {
+function AddRecord({ category, from = null, companies, employees, companyId, onClose, onSaved, onError }) {
   const kind = category === 'rent' ? 'Rent agreement' : category === 'insurance' ? 'Insurance policy' : 'Accounting software';
   const [d, setD] = useState({
     kind,
@@ -670,6 +848,24 @@ function AddRecord({ category, companies, employees, companyId, onClose, onSaved
     insured_item: '',
     coverage_amount: '',
     note: '',
+    /*
+     * COPY AS NEW: the same thing again - next year's policy, the same rent
+     * for another branch. What carries over is what is still true; what does
+     * not is what belongs to the old term: no key, no invoice, no end date,
+     * no payment, and it starts the day the old one ended.
+     */
+    ...(from
+      ? (() => {
+          const keep = {};
+          for (const k of ['kind', 'name', 'publisher', 'company_id', 'term', 'cost', 'renew_every_months', 'vendor',
+            'responsible_id', 'auto_renew', 'seats', 'property_address', 'security_deposit', 'lock_in_months',
+            'notice_days', 'escalation_pct', 'policy_type', 'insured_item', 'coverage_amount']) {
+            if (from[k] !== null && from[k] !== undefined) keep[k] = from[k];
+          }
+          const start = from.expires_on || todayIso();
+          return { ...keep, starts_on: start, purchased_on: start, note: `Copied from ${from.name}${from.expires_on ? `, which ended ${from.expires_on}` : ''}.` };
+        })()
+      : {}),
   });
   const [busy, setBusy] = useState(false);
   const words = fieldWords(d.kind);
@@ -695,7 +891,7 @@ function AddRecord({ category, companies, employees, companyId, onClose, onSaved
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal pr-modal" role="dialog" onClick={(e) => e.stopPropagation()}>
         <header className="rr-head">
-          <h3>Add {CATEGORIES.find((c) => c.key === category)?.noun}</h3>
+          <h3>{from ? `New ${CATEGORIES.find((c) => c.key === category)?.noun}, copied from ${from.name}` : `Add ${CATEGORIES.find((c) => c.key === category)?.noun}`}</h3>
           <button className="ghost" onClick={onClose}>×</button>
         </header>
         <div className="vf-grid">

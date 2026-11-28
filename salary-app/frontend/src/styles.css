@@ -7170,3 +7170,16 @@ input.hd-with { width: 9rem; font-size: 0.82rem; padding: 0.15rem 0.4rem; }
 .ap-group .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .ap-rise { margin: 0.4rem 0; padding: 0.45rem 0.7rem; border-radius: 6px; background: #e6f4ec; color: #16794f; font-weight: 600; font-size: 0.88rem; }
 .ap-rise.down { background: #fbe7e4; color: var(--bad); }
+
+/* ---------- Licence documents and import (v2.47.0) ---------- */
+.lic-docs .muted { margin: 0.4rem 0 0; }
+.lic-doc-list { list-style: none; margin: 0 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.lic-doc-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line-soft); }
+.lic-doc-list li > div { flex: 1 1 100%; }
+.lic-doc-valid { font-size: 0.72rem; padding: 0 0.45rem; border-radius: 999px; background: #e6f4ec; color: #16794f; }
+.lic-doc-valid.late { background: #fbe7e4; color: var(--bad); }
+.lic-doc-form { margin: 0.4rem 0; }
+.rn-bulk-who { width: auto; font-size: 0.82rem; }
+.rn-import { max-width: 56rem; }
+.rn-import-list { max-height: 22rem; overflow: auto; margin: 0.5rem 0; }
+.rn-import-skips { margin: 0.4rem 0 0.8rem; padding-left: 1.2rem; color: var(--muted); }

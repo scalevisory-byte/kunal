@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.46.0';
+export const VERSION = '2.47.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.47.0',
+    date: '28 Nov 2026',
+    title: 'License tab: attach the papers, import a list from Excel, copy a record, and more bulk actions',
+    items: [
+      '**Documents on every licence, rent agreement and policy**: the invoice, the signed agreement, the policy schedule, police verification, a claim. Each with its own number, date and valid-until; the register shows how many are attached. Opened through a link that expires, never left lying in a folder.',
+      '**Import from Excel**: bring a list in from an .xlsx or .csv, look at what would be added first, then add it. A blank template is one click. Rows it cannot place are named with the reason, and a row that looks like a record already here a term later is **held back** rather than added twice.',
+      '**Licence keys are never read from a sheet** \u2014 a key column is noticed and ignored, so no key ever shows on a preview screen.',
+      '**Copy as new** fills the Add form from an existing record, starting where the old one ends.',
+      '**More bulk actions**: tick rows to mark them *payment pending* or to give them one **responsible person**, beside *Mark paid*. And **Print** on every register.',
+      'A record with papers attached cannot be deleted \u2014 cancel it instead, which keeps the papers with it.',
+    ],
+  },
   {
     version: '2.46.0',
     date: '28 Nov 2026',

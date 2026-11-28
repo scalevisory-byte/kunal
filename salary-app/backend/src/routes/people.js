@@ -32,7 +32,7 @@ import { config } from '../config.js';
 import ExcelJS from 'exceljs';
 import multer from 'multer';
 import { planAssetImport } from '../../../shared/assetImport.js';
-import { listCompanies, listEmployees } from '../db.js';
+import { db, listCompanies, listEmployees } from '../db.js';
 import { licensesCsv, seatsCsv, suggestRenewal } from '../../../shared/licenses.js';
 import { assetAlerts } from '../../../shared/assetAlerts.js';
 import { assetLedger, ledgerCsv, ledgerTransactions, transactionsCsv } from '../../../shared/assetLedger.js';
@@ -52,6 +52,9 @@ import {
 const assetSheet = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 import { deletePhotoFile, photoLink, uploadAssetPhoto } from '../assetPhotos.js';
 import { deleteDocFile, docLink, uploadAssetDoc } from '../assetDocs.js';
+import { deleteDocFile as deleteLicenseFile, docLink as licenseDocLink, uploadLicenseDoc } from '../licenseDocs.js';
+import { categoryOf, docKindsFor } from '../../../shared/renewals.js';
+import { LICENSE_TEMPLATE_HEADINGS, planLicenseImport } from '../../../shared/licenseImport.js';
 import { removeVoucher, uploadVoucher, voucherPath } from '../claimVouchers.js';
 
 /*
@@ -194,6 +197,10 @@ import {
   waivePenalty,
   reopenTicket,
   routeTicket,
+  addLicenseDoc,
+  deleteLicenseDoc,
+  getLicenseDoc,
+  listLicenseDocs,
   replyToTicket,
   returnAsset,
   returnAssets,
@@ -2105,6 +2112,84 @@ const reminderRule = () => {
  * LOGS the reminders that have come due - once each, by a unique index - so
  * "shown" has a history and the same 30-day reminder never reads as new twice.
  */
+/*
+ * A list of licences, rent agreements or policies out of Excel (v2.47.0).
+ * Dry run, then write - the plan you approve is the plan that runs, because
+ * both calls build it from the same file the same way. Registered before
+ * /licenses/:id, or Express would read "import" as an id.
+ */
+peopleRouter.get('/licenses/import-template.csv', (_req, res) => {
+  const line = LICENSE_TEMPLATE_HEADINGS.map((h) => `"${h}"`).join(',');
+  res.type('text/csv').attachment('licence-import-template.csv').send(`\ufeff${line}\r\n`);
+});
+
+/** A CSV's rows, quotes honoured. Small enough not to need a library. */
+function csvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  const src = String(text || '').replace(/^\ufeff/, '');
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+peopleRouter.post('/licenses/import', assetSheet.single('file'), async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ error: 'no file uploaded' });
+  try {
+    let rows = [];
+    let sheetName = '';
+    let sheets = [];
+    if (/\.csv$/i.test(req.file.originalname || '')) {
+      rows = csvRows(req.file.buffer.toString('utf8'));
+    } else {
+      const wb = new ExcelJS.Workbook();
+      try {
+        await wb.xlsx.load(req.file.buffer);
+      } catch {
+        return res.status(400).json({ error: 'That is not an .xlsx or .csv file. In Excel, Save As "Excel Workbook (.xlsx)" or "CSV".' });
+      }
+      const wanted = String(req.body.sheet || '').trim().toLowerCase();
+      const ws = (wanted && wb.worksheets.find((x) => x.name.trim().toLowerCase() === wanted)) || wb.worksheets[0];
+      if (!ws) return res.status(400).json({ error: 'that file has no sheets' });
+      sheetName = ws.name;
+      sheets = wb.worksheets.map((x) => x.name);
+      ws.eachRow({ includeEmpty: true }, (row) => {
+        const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+        rows.push(values.map((v) => (v && typeof v === 'object' && 'result' in v ? v.result : v && typeof v === 'object' && 'text' in v ? v.text : v)));
+      });
+    }
+    const as = ['software', 'rent', 'insurance'].includes(req.body.as) ? req.body.as : '';
+    const plan = planLicenseImport({ rows, existing: listLicenses({}), companies: listCompanies(), employees: listEmployees({}), as });
+    if (plan.problem) return res.status(400).json(plan);
+    const fallbackCompany = Number(req.body.company_id) || null;
+    if (String(req.body.write) !== 'true') return res.json({ ...plan, sheet: sheetName, sheets, wrote: 0 });
+
+    // Rows that look like a record already here go in only when asked.
+    const rowsToAdd = String(req.body.include_similar) === 'true' ? [...plan.create, ...plan.similar] : plan.create;
+    const made = db.transaction(() =>
+      rowsToAdd.map((rec) => createLicense({ ...rec, company_id: rec.company_id || fallbackCompany, by: who(req) }).id)
+    )();
+    res.json({ ...plan, sheet: sheetName, sheets, wrote: made.length, ids: made });
+  } catch (err) {
+    if (err?.message && !err.status) return bad(res, err);
+    next(err);
+  }
+});
+
 peopleRouter.get('/licenses/overview', (req, res) => {
   const { licenses } = licenseRegister({ company_id: Number(req.query.company_id) || undefined });
   const rule = reminderRule();
@@ -2168,6 +2253,51 @@ peopleRouter.post('/licenses/:id/key', (req, res) => {
   } catch (err) {
     bad(res, err);
   }
+});
+
+/*
+ * A record's paperwork (v2.47.0): the signed agreement, the policy schedule,
+ * the invoice. The file is on disk under DATA_DIR/license-docs; only a
+ * generated name is stored, and it goes out as an expiring signed link -
+ * never the path.
+ */
+const asLicenseDoc = (doc) => {
+  const { file_path: _path, ...rest } = doc;
+  return { ...rest, link: licenseDocLink(doc) };
+};
+
+peopleRouter.get('/licenses/:id/documents', (req, res) => {
+  const record = getLicense(Number(req.params.id));
+  if (!record) return res.status(404).json({ error: 'not found' });
+  res.json({ documents: listLicenseDocs(record.id).map(asLicenseDoc), kinds: docKindsFor(categoryOf(record)) });
+});
+
+peopleRouter.post('/licenses/:id/documents', uploadLicenseDoc, (req, res) => {
+  try {
+    const doc = addLicenseDoc({
+      license_id: Number(req.params.id),
+      file_path: req.file?.filename,
+      file_name: req.file?.originalname,
+      kind: req.body?.kind,
+      number: req.body?.number,
+      dated: req.body?.dated,
+      valid_until: req.body?.valid_until,
+      note: req.body?.note,
+      by: who(req),
+    });
+    res.status(201).json({ document: asLicenseDoc(doc) });
+  } catch (err) {
+    if (req.file?.filename) deleteLicenseFile({ file_path: req.file.filename });
+    bad(res, err);
+  }
+});
+
+peopleRouter.delete('/licenses/:id/documents/:docId', (req, res) => {
+  const doc = getLicenseDoc(Number(req.params.docId));
+  if (!doc || doc.license_id !== Number(req.params.id)) return res.status(404).json({ error: 'not found' });
+  deleteLicenseDoc(doc.id, who(req));
+  deleteLicenseFile(doc);
+  res.status(204).end();
 });
 
 peopleRouter.post('/licenses', (req, res) => {

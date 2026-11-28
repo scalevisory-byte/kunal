@@ -2251,6 +2251,33 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Licence papers and the licence import (v2.47.0)
+
+"start licence documents and import / add more option also". `backend/src/licenseDocs.js`,
+`shared/licenseImport.js`, `license_documents` in `people.js`, `RecordDocuments` in
+`Licenses.jsx`, the import dialog in `Renewals.jsx`.
+
+- **Papers per record**, the `assetDocs.js` shape: on disk under `DATA_DIR/license-docs`,
+  generated name only, `file_path` stripped from every response, read back through an expiring
+  link at `/files/license-doc/:id`. The HMAC signs `lic:`-prefixed payloads, so an asset-doc
+  signature cannot open a licence document or the reverse (tested). Kinds follow the record's
+  category (`docKindsFor` in `shared/renewals.js`) - no police verification on a software
+  licence. `LICENSE_SELECT` carries a `documents` count for the register's paperclip column.
+- **A record with papers attached refuses deletion**, like an asset with handovers. Cancel keeps both.
+- **The import: look first, then write**, `.xlsx` via ExcelJS or `.csv` via a small quoted
+  parser, columns read off the header (`detectLicenseLayout`). **A key column is read only to
+  report it as ignored** - a key never comes back out of this app, and a preview echoing a
+  column of keys would undo that. Tested by asserting the key text is nowhere in the plan.
+- **Three piles besides "add":** skipped with a reason (no name, expires before bought,
+  negative cost, the same as row N / already on the register), and **similar** - same name
+  and company, a different end date, not cancelled - which is almost always the same licence
+  a term later and so a RENEWAL of the existing record. Held back; added only with
+  `include_similar=true`. The twin check reads existing + create + similar, or a row repeated
+  in the sheet lands in "similar" instead of being named against its first copy (found by driving it).
+- **More options:** Copy as new (prefilled, starting the day the old one ends), bulk Payment
+  pending and Set responsible beside Mark paid, Print the register, a blank template download.
+- `routes/people.js` needed `db` imported for the import transaction.
+
 ### People panels (v2.46.0)
 
 The panel-level items v2.41 left. **Audited first, and most of the data already existed**: claims had a

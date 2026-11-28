@@ -6,7 +6,8 @@ import cors from 'cors';
 import { config } from './config.js';
 import { photoFile, photoLinkValid } from './assetPhotos.js';
 import { docFile, docLinkValid } from './assetDocs.js';
-import { getAssetDoc, getAssetPhoto } from './people.js';
+import { docFile as licenseDocFile, docLinkValid as licenseDocLinkValid } from './licenseDocs.js';
+import { getAssetDoc, getAssetPhoto, getLicenseDoc } from './people.js';
 import { log } from './logger.js';
 import {
   hidePay,
@@ -182,6 +183,20 @@ export function createServer() {
     const file = docFile(doc);
     if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
     // The name is user input and this is a header: quotes and newlines out.
+    const safe = String(doc.file_name || 'document').replace(/[^\w.\- ]+/g, '_').slice(0, 80);
+    res.setHeader('content-disposition', `inline; filename="${safe}"`);
+    res.sendFile(file);
+  });
+
+  /* A licence's paperwork, the same way: expiring signature, original name, inline. */
+  app.get('/files/license-doc/:id', (req, res) => {
+    const doc = getLicenseDoc(Number(req.params.id));
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    if (!licenseDocLinkValid(doc, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'This link has expired. Open the record again.' });
+    }
+    const file = licenseDocFile(doc);
+    if (!file) return res.status(410).json({ error: 'the file is missing from disk' });
     const safe = String(doc.file_name || 'document').replace(/[^\w.\- ]+/g, '_').slice(0, 80);
     res.setHeader('content-disposition', `inline; filename="${safe}"`);
     res.sendFile(file);

@@ -1461,6 +1461,19 @@ export const HELP = [
     note: 'Reminders are shown inside the HRMS — nothing is emailed or sent on WhatsApp. Cancelling a record keeps it and its history.',
   },
   {
+    id: 'renewal-papers-import',
+    title: 'Attaching an agreement or policy, and bringing a list in from Excel',
+    tab: 'license',
+    keywords: ['document', 'attach', 'upload', 'agreement copy', 'policy copy', 'invoice', 'import', 'excel', 'sheet', 'template', 'copy', 'kagaz', 'bulk'],
+    lines: [
+      'Open any licence, rent agreement or policy \u2192 **Documents**: pick what it is (invoice, signed agreement, policy schedule, police verification\u2026), a number and dates if it has them, and the file. A PDF or a photo. The register\u2019s \u{1F4CE} column shows how many are attached.',
+      '**Import from Excel** on any of the three registers: choose an .xlsx or .csv, press **Look first**, read what would be added, then **Add**. **Download a blank template** gives the column names it reads.',
+      'A row with the same name and company as a record already here but a **different end date** is held back and named \u2014 it is usually that licence a term later, which is a **renewal** of the existing record, not a second one. Tick *Add these as separate records anyway* only if it really is a second one.',
+      '**Copy as new** on a record opens the Add form filled in from it, starting the day the old one ends. **Tick** several rows to mark them paid, payment pending, or give them one responsible person. **Print** prints the register as shown.',
+    ],
+    note: 'LICENCE KEYS ARE NEVER IMPORTED. A key column in the sheet is noticed and ignored, so a key never appears on a preview screen \u2014 type it on the record. A record with papers attached cannot be deleted; remove the papers or cancel it, which keeps everything.',
+  },
+  {
     id: 'asset-purchase-requests',
     title: 'Asking for an asset to be bought — purchase requests',
     tab: 'assets',

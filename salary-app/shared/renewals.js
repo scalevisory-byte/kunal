@@ -242,3 +242,27 @@ export function calendarEvents(rows = [], year, month) {
   }
   return out.sort((a, b) => a.day - b.day || a.name.localeCompare(b.name));
 }
+
+/**
+ * What paperwork a record can carry (v2.47.0), and which kind of record each
+ * belongs to. A rent agreement has no "licence certificate"; a software
+ * licence has no police verification. Offering every kind on every record is
+ * how somebody files the agreement under "invoice".
+ */
+const ALL = ['software', 'rent', 'insurance'];
+export const LICENSE_DOC_KINDS = [
+  ['agreement', 'Signed agreement', ['rent']],
+  ['policy', 'Policy schedule', ['insurance']],
+  ['certificate', 'Licence certificate / key email', ['software']],
+  ['invoice', 'Invoice / bill', ALL],
+  ['receipt', 'Payment receipt', ALL],
+  ['registration', 'Registration / stamp paper', ['rent']],
+  ['police', 'Police verification', ['rent']],
+  ['claim', 'Claim papers', ['insurance']],
+  ['renewal', 'Renewal letter / quote', ALL],
+  ['other', 'Something else', ALL],
+];
+export const docKindsFor = (category) => LICENSE_DOC_KINDS.filter(([, , cats]) => cats.includes(category));
+export const docKindLabel = (key) => LICENSE_DOC_KINDS.find(([k]) => k === key)?.[1] || 'Document';
+/** A stored kind that does not belong to this record falls back to "other", never refused. */
+export const cleanDocKind = (key, category) => (docKindsFor(category).some(([k]) => k === key) ? key : 'other');

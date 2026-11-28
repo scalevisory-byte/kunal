@@ -43,7 +43,7 @@ import {
   seatProblem,
   termLabel,
 } from '../../shared/licenses.js';
-import { STAGE_STEPS, dueReminders, stageProblem } from '../../shared/renewals.js';
+import { STAGE_STEPS, categoryOf, cleanDocKind, docKindLabel, dueReminders, stageProblem } from '../../shared/renewals.js';
 import { STATE_KEYS, allocationProblem } from '../../shared/assetStatus.js';
 import { setOwnGroups } from '../../shared/assetGroups.js';
 import { CLEARANCE_STEPS, cleanState, exitClearance } from '../../shared/exitClearance.js';
@@ -4343,6 +4343,7 @@ const LICENSE_SELECT = `
   l.policy_type, l.insured_item, l.coverage_amount,
   (SELECT name FROM employees WHERE id = l.responsible_id) AS responsible_name,
   CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN 1 ELSE 0 END AS has_key,
+  (SELECT COUNT(*) FROM license_documents d WHERE d.license_id = l.id) AS documents,
   CASE WHEN l.license_key IS NOT NULL AND TRIM(l.license_key) <> '' THEN substr(l.license_key, -4) ELSE NULL END AS key_tail,
   c.name AS company_name
 `;
@@ -4644,9 +4645,81 @@ export function deleteLicense(id, by) {
       `${before.name} has been handed to ${before.seats_list.length} seat${before.seats_list.length === 1 ? '' : 's'}. Cancel it instead — the row stays and the history with it.`
     );
   }
+  // Paperwork on file is history too: deleting would take the signed
+  // agreement with it. Cancel the record, or remove the documents first.
+  const papers = db.prepare(`SELECT COUNT(*) AS n FROM license_documents WHERE license_id = ?`).get(id).n;
+  if (papers) {
+    throw new Error(`${before.name} has ${papers} document${papers === 1 ? '' : 's'} attached. Cancel it instead, or remove the documents first.`);
+  }
   const gone = db.prepare(`DELETE FROM licenses WHERE id = ?`).run(id).changes > 0;
   if (gone) {
     audit({ who: by, action: 'deleted', entity: 'licenses', entity_id: id, label: before.name });
+  }
+  return gone;
+}
+
+/* ---------------- a record's paperwork (v2.47.0) ---------------- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS license_documents (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    license_id  INTEGER NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'other',
+    file_path   TEXT NOT NULL,
+    file_name   TEXT,
+    number      TEXT,
+    dated       TEXT,
+    valid_until TEXT,
+    note        TEXT,
+    uploaded_by TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_license_docs ON license_documents(license_id, created_at);
+`);
+
+export const listLicenseDocs = (licenseId) =>
+  db
+    .prepare(`SELECT * FROM license_documents WHERE license_id = ? ORDER BY datetime(created_at) DESC, id DESC`)
+    .all(licenseId);
+
+export const getLicenseDoc = (id) => db.prepare(`SELECT * FROM license_documents WHERE id = ?`).get(id);
+
+export function addLicenseDoc({ license_id, file_path, file_name, kind, number, dated, valid_until, note, by }) {
+  const record = getLicense(license_id);
+  if (!record) throw new Error('that record is not on the register');
+  if (!file_path) throw new Error('no file was uploaded');
+  const category = categoryOf(record);
+  const k = cleanDocKind(kind, category);
+  const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+  const info = db
+    .prepare(
+      `INSERT INTO license_documents (license_id, kind, file_path, file_name, number, dated, valid_until, note, uploaded_by)
+       VALUES (@license_id, @kind, @file_path, @file_name, @number, @dated, @valid_until, @note, @by)`
+    )
+    .run({
+      license_id,
+      kind: k,
+      file_path,
+      file_name: file_name || null,
+      // The invoice is the commonest attachment and its number is already
+      // on the record, so it needs nothing typed.
+      number: String(number || '').trim() || (k === 'invoice' || k === 'policy' ? record.invoice_no : null) || null,
+      dated: date(dated),
+      valid_until: date(valid_until),
+      note: String(note || '').trim() || null,
+      by: by || null,
+    });
+  audit({ who: by, action: 'attached', entity: 'licenses', entity_id: license_id, label: record.name, note: file_name || docKindLabel(k) });
+  return getLicenseDoc(info.lastInsertRowid);
+}
+
+export function deleteLicenseDoc(id, by) {
+  const doc = getLicenseDoc(id);
+  if (!doc) return false;
+  const gone = db.prepare(`DELETE FROM license_documents WHERE id = ?`).run(id).changes > 0;
+  if (gone) {
+    const record = getLicense(doc.license_id);
+    audit({ who: by, action: 'document removed', entity: 'licenses', entity_id: doc.license_id, label: record?.name || '', note: doc.file_name || doc.kind });
   }
   return gone;
 }

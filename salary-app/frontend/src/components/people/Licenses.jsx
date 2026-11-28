@@ -10,7 +10,7 @@ import {
   termNote,
 } from '../../../../shared/licenses.js';
 import Glyph from '../../icons.jsx';
-import { STAGE_LABELS, STAGE_STEPS, categoryOf, stageProblem } from '../../../../shared/renewals.js';
+import { STAGE_LABELS, STAGE_STEPS, categoryOf, docKindLabel, stageProblem } from '../../../../shared/renewals.js';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
 
@@ -559,7 +559,7 @@ function Tile({ glyph, label, value, note, onClick }) {
 /* ================================================================= *
  * One licence: its details, its seats, its renewals.
  * ================================================================= */
-export function LicencePage({ id, employees, companies, onClose, onChanged, onError, canApprove = false }) {
+export function LicencePage({ id, employees, companies, onClose, onChanged, onError, canApprove = false, onCopy = null }) {
   const [license, setLicense] = useState(null);
   const [suggested, setSuggested] = useState(null);
   const [key, setKey] = useState(null);         // only once it has been asked for
@@ -733,9 +733,16 @@ export function LicencePage({ id, employees, companies, onClose, onChanged, onEr
               {license.cancelled_on && ` · cancelled ${license.cancelled_on}${license.cancelled_why ? ` (${license.cancelled_why})` : ''}`}
             </p>
           </div>
-          <button className="ghost" onClick={onClose}>
-            Close
-          </button>
+          <span className="row">
+            {onCopy && (
+              <button className="ghost" onClick={() => onCopy(license)} title="Start a new record with the same details — next year's policy, the same rent for another branch">
+                Copy as new
+              </button>
+            )}
+            <button className="ghost" onClick={onClose}>
+              Close
+            </button>
+          </span>
         </div>
 
         {/* ---------------- the key ---------------- */}
@@ -949,6 +956,9 @@ export function LicencePage({ id, employees, companies, onClose, onChanged, onEr
             ) : null}
           </div>
         </div>
+
+        {/* ---------------- the paperwork ---------------- */}
+        <RecordDocuments license={license} onChanged={async () => { await load(); await onChanged(); }} onError={onError} />
 
         {/* ---------------- the renewal workflow ---------------- */}
         <RenewalWorkflow license={license} canApprove={canApprove} onDone={async () => { await load(); await onChanged(); }} onError={onError} />
@@ -1210,6 +1220,143 @@ function RenewalWorkflow({ license, canApprove, onDone, onError }) {
         Attach the new invoice and the renewed contract under the record's papers. Nothing is sent to anybody: the
         renewal shows on the Overview and in the reminders.
       </p>
+    </div>
+  );
+}
+
+/**
+ * A record's paperwork (v2.47.0): the signed agreement, the policy schedule,
+ * the invoice, the receipt. Kinds are offered by what the record is - a rent
+ * agreement has no licence certificate. Files sit on the server behind links
+ * that expire; the single file has nowhere to keep one and says so.
+ */
+function RecordDocuments({ license, onChanged, onError }) {
+  const [docs, setDocs] = useState(null);
+  const [kinds, setKinds] = useState([]);
+  const [draft, setDraft] = useState({ kind: '', number: '', dated: '', valid_until: '', note: '' });
+  const [file, setFile] = useState(null);
+  const [fileKey, setFileKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+
+  const load = async () => {
+    try {
+      const got = await api.get(`/people/licenses/${license.id}/documents`);
+      setDocs(got.documents || []);
+      setKinds(got.kinds || []);
+      setDraft((d) => ({ ...d, kind: d.kind || got.kinds?.[0]?.[0] || 'other' }));
+    } catch (err) {
+      setDocs([]);
+      setProblem(err.message);
+    }
+  };
+  useEffect(() => {
+    if (!STANDALONE) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [license.id]);
+
+  const attach = async () => {
+    if (!file) return;
+    setBusy(true);
+    setProblem('');
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      for (const [k, v] of Object.entries(draft)) if (v) form.set(k, v);
+      await api.upload(`/people/licenses/${license.id}/documents`, form);
+      setFile(null);
+      setFileKey((n) => n + 1);
+      setDraft((d) => ({ ...d, number: '', dated: '', valid_until: '', note: '' }));
+      await load();
+      await onChanged();
+    } catch (err) {
+      setProblem(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (doc) => {
+    if (!window.confirm(`Remove ${doc.file_name || 'this document'}? The file is deleted.`)) return;
+    try {
+      await api.del(`/people/licenses/${license.id}/documents/${doc.id}`);
+      await load();
+      await onChanged();
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  const today = todayIso();
+  return (
+    <div className="card lic-docs">
+      <h3>Documents{docs?.length ? ` — ${docs.length}` : ''}</h3>
+      {STANDALONE ? (
+        <p className="muted small">
+          Attaching the agreement or the policy needs the <strong>server version</strong> — a PDF is a file, and a file
+          cannot live inside this page.
+        </p>
+      ) : (
+        <>
+          {docs && docs.length ? (
+            <ul className="lic-doc-list">
+              {docs.map((d) => (
+                <li key={d.id}>
+                  <a href={d.link?.url} target="_blank" rel="noreferrer">{d.file_name || 'document'}</a>
+                  <span className="muted small">
+                    {' '}
+                    {[docKindLabel(d.kind), d.number, d.dated].filter(Boolean).join(' · ')}
+                  </span>
+                  {d.valid_until ? (
+                    <span className={`lic-doc-valid${d.valid_until < today ? ' late' : ''}`}>
+                      {d.valid_until < today ? `expired ${d.valid_until}` : `valid to ${d.valid_until}`}
+                    </span>
+                  ) : null}
+                  {d.note ? <div className="muted small">{d.note}</div> : null}
+                  <button className="ghost tiny" onClick={() => remove(d)}>remove</button>
+                </li>
+              ))}
+            </ul>
+          ) : docs ? (
+            <p className="muted small">Nothing attached yet.</p>
+          ) : null}
+          <div className="form-grid lic-doc-form">
+            <label>
+              What it is
+              <select value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })}>
+                {kinds.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              </select>
+            </label>
+            <label>
+              Number (optional)
+              <input value={draft.number} placeholder={license.invoice_no || ''} onChange={(e) => setDraft({ ...draft, number: e.target.value })} />
+            </label>
+            <label>
+              Dated
+              <input type="date" value={draft.dated} onChange={(e) => setDraft({ ...draft, dated: e.target.value })} />
+            </label>
+            <label>
+              Valid until (optional)
+              <input type="date" value={draft.valid_until} onChange={(e) => setDraft({ ...draft, valid_until: e.target.value })} />
+            </label>
+          </div>
+          <div className="row">
+            <input key={fileKey} type="file" accept=".pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input
+              placeholder="a note — e.g. signed copy, both parties"
+              value={draft.note}
+              onChange={(e) => setDraft({ ...draft, note: e.target.value })}
+              style={{ flex: '1 1 14rem' }}
+            />
+            <button onClick={attach} disabled={!file || busy}>{busy ? 'Uploading…' : 'Attach it'}</button>
+          </div>
+          <p className="muted small">
+            A PDF or a scan. It is kept on the server and opened through a link that expires; a record with documents
+            attached is cancelled rather than deleted, so the paperwork is never lost with it.
+          </p>
+          {problem ? <p className="lic-alert warn">{problem}</p> : null}
+        </>
+      )}
     </div>
   );
 }
