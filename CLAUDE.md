@@ -2251,6 +2251,27 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Reports, redesigned (v2.43.0)
+
+The "Reports at Your Fingertips" brief. **Layout only — every report panel, filter bar, Download
+and Print is untouched**; `Reports.jsx` replaced the collapsible tree and the empty landing card.
+
+- **`ABOUT` + `aboutOf()` in `shared/reportCatalog.js`** — one line per report for its card; a report
+  with a `note` uses that. A test refuses a report with neither and an ABOUT key that is no report.
+- Sidebar (`.rp-side`, still `.report-tree` for the sticky frame): All / Recently used / Favourites,
+  then the nine categories with counts and icons (`CATEGORY_ICON`). Picking one shows a flat grid;
+  "All" with no search shows the catalogue in sections.
+- **Favourites and recent are localStorage (`reports.favourites`, `reports.recent`), wrapped** — a
+  desk's convenience, not the office's record. Recent is written by an effect on `openId`, so the
+  dashboard's focus links (approvals, documents) count as opened too.
+- **Search matches a card's line only at a word start** — "late" found "calcu*late*d" and
+  "temp*late*" until it did. Name and category still match anywhere.
+- **No date range on the landing**, deliberately: the month is the top picker and ranges live in the
+  reports that accept one. A range there would filter nothing.
+- Traps: `.late-head` is `space-between`, so three children put Download in the middle — `.rp-head`
+  lets the title take the slack. And a `flex-basis: 15rem` sidebar becomes a 15rem HEIGHT once the
+  shell stacks into a column on a phone.
+
 ### Task desk, redesigned (v2.42.0)
 
 The "Booknfly HRMS – Task Desk UI/UX Improvement" brief. **Audited first: the desk already had six

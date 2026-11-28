@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.42.0';
+export const VERSION = '2.43.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.43.0',
+    date: '28 Nov 2026',
+    title: 'Reports, redesigned: a card for every report, favourites, and a category sidebar',
+    items: [
+      '**Every report is a card** with its icon, a line saying what it answers, and whether it is ready \u2014 three across on a laptop, one on a phone.',
+      '**A sidebar of categories** with how many reports each holds, plus **All reports**, **Recently used** and **Favourites**. The search reads the report\u2019s name and its line.',
+      '**Press \u2606 to keep a report under Favourites**; the reports you open land in **Recently used**. Both are remembered on this computer.',
+      '**Unfinished reports are marked**, not hidden: \u201cPartly there\u201d or \u201cNot built yet\u201d, with the reason inside.',
+      'An open report shows where you are \u2014 **All reports \u203a Statutory \u203a Wage register** \u2014 with a star beside its name. Its filters, Download and Print are unchanged.',
+      'There is no date range on the cards page on purpose: the month is chosen at the top, and a report that takes dates has its own range when opened.',
+    ],
+  },
   {
     version: '2.42.0',
     date: '28 Nov 2026',

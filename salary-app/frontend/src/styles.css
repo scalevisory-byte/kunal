@@ -6935,3 +6935,82 @@ button.primary.pp-add:hover:not(:disabled) { background: #e0951a; border-color: 
 :root[data-theme='dark'] .desk-empty-icon { background: var(--brand-soft); color: var(--brand); }
 .desk-form-grid textarea, .desk-reply textarea { padding: 0.45rem 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
 .desk-form-grid textarea:focus, .desk-reply textarea:focus { outline: none; border-color: var(--brand); }
+
+/* ---------- Reports redesign (v2.43.0) ---------- */
+.rp-side { flex-basis: 15rem; }
+.rp-cats { display: flex; flex-direction: column; gap: 1px; }
+.rp-cats button {
+  display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left;
+  border: 0; background: none; border-radius: 6px; padding: 0.42rem 0.55rem;
+  font: inherit; font-size: 0.85rem; color: var(--text); cursor: pointer;
+}
+.rp-cats button span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-cats button em { font-style: normal; font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rp-cats button svg { flex: none; color: var(--muted); }
+.rp-cats button:hover { background: var(--brand-soft); }
+.rp-cats button.on { background: #192c50; color: #fff; }
+.rp-cats button.on svg, .rp-cats button.on em { color: #f5a623; }
+.rp-cats-head { margin: 0.7rem 0.55rem 0.25rem; font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.rp-star-ico { width: 16px; text-align: center; color: #f5a623; flex: none !important; }
+
+.rp-banner {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  background: linear-gradient(120deg, #16264a, #1d3461); color: #fff;
+  border-radius: var(--radius); padding: 1rem 1.2rem;
+}
+.rp-banner h2 { margin: 0 0 0.25rem; color: #fff; font-size: 1.15rem; }
+.rp-banner p { margin: 0; color: #c9d3e6; font-size: 0.84rem; max-width: 46rem; }
+.rp-banner-month { display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 0.1rem; }
+.rp-banner-month strong { color: #f5a623; font-size: 1.05rem; }
+.rp-banner-month .muted { color: #aebad0; }
+.rp-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.rp-shelves { margin: 0; }
+.rp-section h3 { display: flex; align-items: center; gap: 0.4rem; margin: 0.4rem 0 0.5rem; font-size: 0.92rem; }
+.rp-section h3 .muted { font-weight: 400; }
+.rp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: 0.6rem; }
+@media (min-width: 1200px) { .rp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.rp-card { position: relative; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.rp-card:hover { border-color: var(--brand); }
+.rp-card.s-planned { background: var(--line-soft); }
+.rp-card-main {
+  display: flex; gap: 0.7rem; align-items: flex-start; width: 100%; text-align: left;
+  border: 0; background: none; padding: 0.75rem 2.2rem 0.7rem 0.8rem; font: inherit; color: inherit; cursor: pointer;
+}
+.rp-card-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; flex: none; background: #e8ecf4; color: #192c50; }
+.rp-card-icon.c-payroll, .rp-card-icon.c-loans { background: #e6f4ec; color: #16794f; }
+.rp-card-icon.c-attendance { background: #e6effc; color: #1d4ed8; }
+.rp-card-icon.c-leave, .rp-card-icon.c-hiring { background: #fdf1dc; color: #b26b00; }
+.rp-card-icon.c-statutory { background: #fbe7e4; color: #b8402e; }
+.rp-card.s-planned .rp-card-icon { background: var(--surface); color: var(--muted); }
+.rp-card-text { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.rp-card-name { font-weight: 650; font-size: 0.9rem; }
+.rp-card-about { font-size: 0.78rem; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rp-card-foot { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-size: 0.72rem; margin-top: 0.15rem; }
+.rp-ready { color: var(--good); font-weight: 600; }
+.rp-star {
+  position: absolute; top: 0.45rem; right: 0.45rem; border: 0; background: none; cursor: pointer;
+  font-size: 1.05rem; line-height: 1; color: var(--muted); padding: 0.2rem; border-radius: 4px;
+}
+.rp-star:hover { color: #f5a623; background: var(--line-soft); }
+.rp-star.on { color: #f5a623; }
+.rp-star.inline { position: static; margin-left: 0.2rem; }
+.rp-crumbs { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; font-size: 0.85rem; }
+.rp-crumbs .link { font-size: 0.85rem; }
+.rp-empty { padding: 2rem 1rem; text-align: center; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .rp-card-icon { background: var(--brand-soft); color: var(--brand); }
+}
+:root[data-theme='dark'] .rp-card-icon { background: var(--brand-soft); color: var(--brand); }
+@media (max-width: 900px) {
+  /* Stacked into a column, a 15rem flex-basis becomes a 15rem HEIGHT. */
+  .rp-side { max-height: none; flex-basis: auto; }
+  .rp-cats { flex-direction: row; overflow-x: auto; gap: 0.3rem; }
+  .rp-cats button { width: auto; flex: none; border: 1px solid var(--line); }
+  .rp-cats button span { overflow: visible; }
+  .rp-cats-head { display: none; }
+  .rp-banner-month { align-items: flex-start; text-align: left; }
+}
+.rp-head > div:first-child { flex: 1 1 auto; min-width: 0; }
+.rp-head > button { flex: none; }
+.rp-banner > div:first-child { flex: 1 1 26rem; min-width: 0; }
+.rp-banner-month { flex: 0 0 auto; }

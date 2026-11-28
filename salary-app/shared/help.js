@@ -1344,9 +1344,11 @@ export const HELP = [
     id: 'reports',
     title: 'The reports',
     tab: 'reports',
-    keywords: ['report', 'register', 'csv', 'export', 'download', 'muster', 'absent present'],
+    keywords: ['report', 'register', 'csv', 'export', 'download', 'muster', 'absent present', 'favourite', 'favorite', 'star', 'recent', 'recently used'],
     lines: [
-      'Reports are grouped — attendance, payroll, leave, statutory, employees, loans, assets, hiring. Search the list by name.',
+      'Reports open on a grid of cards, grouped by category — attendance, payroll, leave, statutory, employees, loans, assets, hiring, management. The **sidebar** narrows to one category; the **search** finds a report by its name or what it is for.',
+      'Press the **☆** on any card (or beside an open report’s name) to keep it under **Favourites**. **Recently used** lists the last reports you opened, newest first. Both are remembered on this computer only.',
+      'A card marked **Partly there** works but is not yet a report of its own; **Not built yet** is listed so the gap is visible, and says why. Open a report to narrow it by company, department, person or dates — wherever that report takes them — and **← All reports** goes back.',
       'The **absent/present report** comes two ways: a month summary one line per person, and a day-by-day muster.',
       'The **monthly report pack** is the three sheets that actually go out: bank, cash, and Sunday + festival, in the office’s own layout.',
       'A per-employee report shows one person down the months.',

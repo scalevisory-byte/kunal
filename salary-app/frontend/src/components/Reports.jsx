@@ -27,7 +27,8 @@ import LoanSettlement from './LoanSettlement.jsx';
 import ContactList from './ContactList.jsx';
 import DocumentRegister from './DocumentRegister.jsx';
 import ReportFilters from './ReportFilters.jsx';
-import { CATEGORIES, REPORTS, STATUS, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
+import { CATEGORIES, REPORTS, STATUS, aboutOf, catalogueTotals, reportsIn } from '../../../shared/reportCatalog.js';
+import Glyph from '../icons.jsx';
 import { rupees } from '../format.js';
 import { printFromCsv } from '../printCsv.js';
 
@@ -48,6 +49,37 @@ import AttendanceSheet from './AttendanceSheet.jsx';
  * that already produces it, which is why the totals reconcile with payroll by
  * construction rather than by checking.
  */
+/** The icon each category wears, in the sidebar and on its cards. */
+const CATEGORY_ICON = {
+  attendance: 'attendance', payroll: 'rupee', leave: 'leave', statutory: 'sheet', employee: 'employees',
+  loans: 'loans', assets: 'asset', hiring: 'hiring', mis: 'bars',
+};
+
+/*
+ * Favourites and recently used are THIS DESK'S conveniences, kept in the
+ * browser: which reports somebody reaches for is not a fact about the office,
+ * and losing it in a private window costs a click, not a figure. Every touch
+ * is wrapped, because a private window throws on even reading storage.
+ */
+const FAV_KEY = 'reports.favourites';
+const RECENT_KEY = 'reports.recent';
+const RECENT_MAX = 9;
+const readList = (key) => {
+  try {
+    const got = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(got) ? got.filter((id) => REPORTS.some((r) => r.id === id)) : [];
+  } catch {
+    return [];
+  }
+};
+const writeList = (key, list) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    /* a convenience, not a record */
+  }
+};
+
 export default function Reports({ period, payroll, onReload, onGo, employees = [], companies = [], focus, onFocused}) {
   const tools = useRef(null);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -349,81 +381,239 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
   const open = REPORTS.find((r) => r.id === openId) || null;
   const totals = catalogueTotals();
 
+  const [shelf, setShelf] = useState('all'); // all | recent | favourites
+  const [category, setCategory] = useState(''); // '' = every category
+  const [favourites, setFavourites] = useState(() => readList(FAV_KEY));
+  const [recent, setRecent] = useState(() => readList(RECENT_KEY));
+
+  // Whatever opened a report - a card, the sidebar, or a line on another tab
+  // that sent somebody here - it is recently used.
+  useEffect(() => {
+    if (!openId) return;
+    setRecent((list) => {
+      const next = [openId, ...list.filter((id) => id !== openId)].slice(0, RECENT_MAX);
+      writeList(RECENT_KEY, next);
+      return next;
+    });
+  }, [openId]);
+
+  const toggleFavourite = (id) =>
+    setFavourites((list) => {
+      const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+      writeList(FAV_KEY, next);
+      return next;
+    });
+
+  const openReport = (report) => {
+    setOpenId(report.id);
+    setOpenCategory(report.category);
+  };
+  const backToList = () => setOpenId(null);
+  const pickCategory = (key) => {
+    setCategory(key);
+    setShelf('all');
+    setOpenId(null);
+  };
+
   /*
-   * The tree, filtered by the search box. A search looks across every
-   * category at once — somebody who knows a report is called "Wage register"
-   * should not have to know it lives under Statutory.
+   * One search across every category at once - somebody who knows a report
+   * is called "Wage register" should not have to know it lives under
+   * Statutory. It reads the name, the line on the card and the category.
    */
   const hunt = query.trim().toLowerCase();
-  const tree = CATEGORIES.map((category) => ({
-    ...category,
-    rows: reportsIn(category.key).filter(
-      (r) => !hunt || r.name.toLowerCase().includes(hunt) || category.label.toLowerCase().includes(hunt)
-    ),
-  })).filter((c) => c.rows.length > 0);
+  // The name and category match anywhere; the card's line only at the start
+  // of a word - otherwise "late" finds every report whose line says
+  // "calculated" or "template", and the search reads as broken.
+  const atWordStart = hunt ? new RegExp(`\\b${hunt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i') : null;
+  const hits = (r) =>
+    !hunt ||
+    r.name.toLowerCase().includes(hunt) ||
+    atWordStart.test(aboutOf(r)) ||
+    (CATEGORIES.find((c) => c.key === r.category)?.label || '').toLowerCase().includes(hunt);
 
-  const found = tree.reduce((n, c) => n + c.rows.length, 0);
+  const byId = (id) => REPORTS.find((r) => r.id === id);
+  const shelfList =
+    shelf === 'recent' ? recent.map(byId).filter(Boolean) : shelf === 'favourites' ? favourites.map(byId).filter(Boolean) : null;
+  const visible = (shelfList || REPORTS).filter((r) => (!category || r.category === category) && hits(r));
+  // "All" with no search and no category reads as the catalogue, in sections;
+  // anything narrower is one grid, because headings over three cards are noise.
+  const sectioned = !shelfList && !category && !hunt;
+  const countIn = (key) => reportsIn(key).length;
+  const categoryLabel = (key) => CATEGORIES.find((c) => c.key === key)?.label || '';
+
+  const Card = ({ report }) => {
+    const fav = favourites.includes(report.id);
+    return (
+      <div className={`rp-card s-${report.status}`}>
+        <button type="button" className="rp-card-main" onClick={() => openReport(report)}>
+          <span className={`rp-card-icon c-${report.category}`}>
+            <Glyph name={CATEGORY_ICON[report.category] || 'reports'} size={18} />
+          </span>
+          <span className="rp-card-text">
+            <span className="rp-card-name">{report.name}</span>
+            <span className="rp-card-about">{aboutOf(report)}</span>
+            <span className="rp-card-foot">
+              {report.status !== 'ready' ? (
+                <span className={`chip ${STATUS[report.status].tone}`}>{STATUS[report.status].label}</span>
+              ) : (
+                <span className="rp-ready">Ready</span>
+              )}
+              {FILES[report.id] ? <span className="muted">· download</span> : null}
+              {report.at?.startsWith('tab:') && !FILES[report.id] && !PANELS[report.id] ? (
+                <span className="muted">· on the {TAB_LABEL[report.at.slice(4)]} tab</span>
+              ) : null}
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`rp-star${fav ? ' on' : ''}`}
+          aria-pressed={fav}
+          aria-label={fav ? `Remove ${report.name} from favourites` : `Add ${report.name} to favourites`}
+          title={fav ? 'Remove from favourites' : 'Add to favourites'}
+          onClick={() => toggleFavourite(report.id)}
+        >
+          {fav ? '★' : '☆'}
+        </button>
+      </div>
+    );
+  };
+
+  const Grid = ({ list }) => (
+    <div className="rp-grid">
+      {list.map((r) => (
+        <Card key={r.id} report={r} />
+      ))}
+    </div>
+  );
+
+  const emptyShelf =
+    shelf === 'favourites'
+      ? 'No favourites yet. Press the ☆ on any report to keep it here.'
+      : shelf === 'recent'
+        ? 'Nothing opened yet. The reports you open show here, newest first.'
+        : hunt
+          ? `No report called “${query.trim()}”. Try a shorter word — “late”, “PF”, “leave”.`
+          : 'Nothing in this category.';
 
   return (
     <section className="report-shell">
-      {/*
-        * A report tree, the way accounting software has always done it: one
-        * line per report under its heading, the open one marked, and a search
-        * that reaches all of them. The table of chips and notes that was here
-        * before made nine lines of every report and buried the list.
-        */}
-      <aside className="report-tree">
+      <aside className="report-tree rp-side">
         <input
           className="search"
-          placeholder="Find a report"
+          type="search"
+          placeholder="Search reports"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (e.target.value) setOpenId(null);
+          }}
         />
-        {hunt && (
-          <p className="muted small">
-            {found} of {totals.total} {found === 1 ? 'report' : 'reports'}
-          </p>
-        )}
-        {tree.map((category) => (
-          <details key={category.key} open={Boolean(hunt) || category.key === openCategory}>
-            <summary title={category.hint}>{category.label}</summary>
-            <ul>
-              {category.rows.map((report) => (
-                <li key={report.id}>
-                  <button
-                    type="button"
-                    className={`${report.id === openId ? 'on' : ''} s-${report.status}`}
-                    title={report.note || STATUS[report.status].label}
-                    onClick={() => {
-                      setOpenId(report.id);
-                      setOpenCategory(category.key);
-                    }}
-                  >
-                    {report.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ))}
-        {!tree.length && <p className="muted small">Nothing called that.</p>}
+        <nav className="rp-cats" aria-label="Report categories">
+          <button type="button" className={!category && shelf === 'all' && !open ? 'on' : undefined} onClick={() => pickCategory('')}>
+            <Glyph name="reports" size={16} /> <span>All reports</span> <em>{totals.total}</em>
+          </button>
+          <button type="button" className={shelf === 'recent' && !open ? 'on' : undefined} onClick={() => { setShelf('recent'); setCategory(''); setOpenId(null); }}>
+            <Glyph name="clock" size={16} /> <span>Recently used</span> <em>{recent.length}</em>
+          </button>
+          <button type="button" className={shelf === 'favourites' && !open ? 'on' : undefined} onClick={() => { setShelf('favourites'); setCategory(''); setOpenId(null); }}>
+            <span className="rp-star-ico" aria-hidden="true">★</span> <span>Favourites</span> <em>{favourites.length}</em>
+          </button>
+          <p className="rp-cats-head">Categories</p>
+          {CATEGORIES.map((c) => (
+            <button
+              type="button"
+              key={c.key}
+              title={c.hint}
+              className={(open ? open.category === c.key : category === c.key) ? 'on' : undefined}
+              onClick={() => pickCategory(c.key)}
+            >
+              <Glyph name={CATEGORY_ICON[c.key] || 'reports'} size={16} /> <span>{c.label}</span> <em>{countIn(c.key)}</em>
+            </button>
+          ))}
+        </nav>
       </aside>
 
       <div className="report-body stack">
         {!open ? (
-          <div className="card">
-            <h2>Reports</h2>
-            <p className="muted small">
-              Pick one from the list. {totals.total} in all — {totals.ready} ready,{' '}
-              {totals.partial} that work but are not yet a report of their own, and{' '}
-              {totals.planned} still to be built. The ones not finished are listed too, so the
-              gaps are visible rather than hidden.
-            </p>
-            {!period && <p className="muted small">No month is open.</p>}
-          </div>
+          <>
+            <div className="rp-banner">
+              <div>
+                <h2>Reports at your fingertips</h2>
+                <p>
+                  {totals.total} reports — {totals.ready} ready, {totals.partial} that work but are not yet a report of
+                  their own, and {totals.planned} still to be built, marked as such rather than hidden. Open one to
+                  narrow it by company, department, person or dates, wherever that report takes them.
+                </p>
+              </div>
+              <div className="rp-banner-month">
+                <span className="muted small">Month</span>
+                <strong>{period ? period.label : 'none open'}</strong>
+                <span className="muted small">change it at the top</span>
+              </div>
+            </div>
+
+            <div className="rp-bar">
+              <div className="sub-tabs toolbar rp-shelves">
+                {[['all', 'All'], ['recent', 'Recently used'], ['favourites', 'Favourites']].map(([key, label]) => (
+                  <button key={key} className={shelf === key ? 'active' : undefined} onClick={() => setShelf(key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span className="muted small">
+                {category ? `${categoryLabel(category)} · ` : ''}
+                {visible.length} {visible.length === 1 ? 'report' : 'reports'}
+                {category ? (
+                  <>
+                    {' '}
+                    <button className="link" onClick={() => setCategory('')}>show all categories</button>
+                  </>
+                ) : null}
+              </span>
+            </div>
+
+            {!visible.length ? (
+              <p className="empty rp-empty">{emptyShelf}</p>
+            ) : sectioned ? (
+              CATEGORIES.map((c) => {
+                const list = visible.filter((r) => r.category === c.key);
+                if (!list.length) return null;
+                return (
+                  <section key={c.key} className="rp-section">
+                    <h3>
+                      <Glyph name={CATEGORY_ICON[c.key] || 'reports'} size={15} /> {c.label}
+                      <span className="muted small"> — {c.hint}</span>
+                    </h3>
+                    <Grid list={list} />
+                  </section>
+                );
+              })
+            ) : (
+              <Grid list={visible} />
+            )}
+            {!period && <p className="muted small">No month is open, so the month&apos;s reports have nothing to show yet.</p>}
+          </>
         ) : (
+          <>
+            <nav className="rp-crumbs" aria-label="Where you are">
+              <button className="link" onClick={backToList}>← All reports</button>
+              <span aria-hidden="true">›</span>
+              <button className="link" onClick={() => pickCategory(open.category)}>{categoryLabel(open.category)}</button>
+              <span aria-hidden="true">›</span>
+              <strong>{open.name}</strong>
+              <button
+                type="button"
+                className={`rp-star inline${favourites.includes(open.id) ? ' on' : ''}`}
+                aria-pressed={favourites.includes(open.id)}
+                title={favourites.includes(open.id) ? 'Remove from favourites' : 'Add to favourites'}
+                onClick={() => toggleFavourite(open.id)}
+              >
+                {favourites.includes(open.id) ? '★' : '☆'}
+              </button>
+            </nav>
           <div className="card">
-            <div className="late-head">
+            <div className="late-head rp-head">
               <div>
                 <p className="muted small">
                   {CATEGORIES.find((c) => c.key === open.category)?.label}
@@ -501,6 +691,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
               </p>
             )}
           </div>
+          </>
         )}
 
       {error && <p className="error">{error}</p>}

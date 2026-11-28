@@ -243,6 +243,51 @@ export const REPORTS = [
     { filters: ['month', 'company'], note: 'Depends on challan tracking.' }),
 ];
 
+
+/**
+ * One line on each report's card, saying what it answers. A report with a
+ * `note` already has one; these are the rest. A card whose only text is its
+ * category's hint reads as seventy copies of one card.
+ */
+export const ABOUT = {
+  'attendance-register': 'Every person against every day of the month, with present, absent, leave and hours.',
+  'missing-punch': 'Days somebody was at work but the clock has only an arrival, only a departure, or nothing.',
+  'sunday-register': 'Who worked which Sunday, the day rate and the amount — paid apart from the salary.',
+  'attendance-approvals': 'Corrections, leave and remote-work requests waiting for a decision, and what was decided.',
+  'salary-register': 'The month’s salary sheet as a register: earned, every deduction and the net, per person.',
+  'unpaid-salary': 'Whose salary for the month is not marked paid yet, and how much.',
+  deductions: 'Every deduction head — PF, ESI, PT, loans, penalties, the Deduct box — and how many people each touched.',
+  'payroll-by-company': 'Gross, deductions, net and Sunday pay for the month, one line per company.',
+  'leave-month': 'Leave taken this month by each person, by type.',
+  'leave-balance': 'What each person is entitled to, has taken and has left this year.',
+  'leave-status': 'Every leave application, whose move it is now, and for how long.',
+  'leave-lop': 'Unpaid leave and loss of pay for the month, per person.',
+  'leave-by-department': 'Leave taken this month, added up by department, against the headcount.',
+  'pf-register': 'EPF wages, employee and employer shares and EPS, for everybody PF is deducted for.',
+  'esi-register': 'ESI wages and both shares, for everybody under the ESI limit.',
+  'pt-register': 'Professional tax deducted, added up per company.',
+  'wage-register': 'The statutory wage register: everybody paid this month, every earning and deduction.',
+  'appraisal-sheet': 'The month’s scores per person — uniform, discipline, time, attendance and target.',
+  'employee-contacts': 'Name, department, role, mobile and email — nothing private, so it can be printed.',
+  'employee-master': 'Everybody ever on the staff list, with their record’s main fields.',
+  'employee-active': 'Everybody on the staff list today, leavers left out.',
+  'loan-settled': 'Loans recovered in full during the year, and those still running.',
+  'asset-register': 'Every asset with its code, holder, status, cost and warranty.',
+  'asset-handovers': 'Every time an asset changed hands or came back, in date order.',
+  'asset-maintenance': 'Every service and repair, its cost and the next one due.',
+  'asset-cost': 'What each asset has cost to buy and to keep — and which cost more to keep.',
+  'hiring-pipeline': 'Every application and the stage it has reached.',
+  'cost-company': 'Net paid and cost to the company, one line per company.',
+  'cost-department': 'Net paid and cost to the company, one line per department.',
+  'attendance-percent': 'Days attended against days expected, per person, for the month.',
+  'late-summary': 'Who came late this month, how often and by how much in all.',
+  'payroll-comparison': 'This month’s payroll against the months before it.',
+};
+
+/** What a report's card says: its own line, else its note, else its category's hint. */
+export const aboutOf = (report) =>
+  ABOUT[report?.id] || report?.note || CATEGORIES.find((c) => c.key === report?.category)?.hint || '';
+
 export const STATUS = {
   ready: { label: 'Ready', tone: 'have' },
   partial: { label: 'Partly there', tone: 'part' },
