@@ -78,7 +78,11 @@ process.env.SERVE_FRONTEND = 'false';
 delete process.env.APP_PASSWORD;
 
 const { createServer } = await import('../src/server.js');
-const server = createServer().listen(0);
+/* Listening is awaited: a request sent before the socket is bound is
+   refused, which is how this file failed one run in three. */
+const server = await new Promise((resolve) => {
+  const s = createServer().listen(0, '127.0.0.1', () => resolve(s));
+});
 const base = `http://127.0.0.1:${server.address().port}`;
 test.after(() => server.close());
 

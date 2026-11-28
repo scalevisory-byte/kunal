@@ -54,7 +54,7 @@ const TILES = [
   },
 ];
 
-export default function AssetDashboard({ companies, branches = [], onOpen, onAdd, onImport, onError }) {
+export default function AssetDashboard({ companies, branches = [], onOpen, onAdd, onImport, onError, onView, onAsset }) {
   const [filter, setFilter] = useState({ company_id: '', branch_id: '', category: '', year: '' });
   const [data, setData] = useState(null);
 
@@ -166,60 +166,64 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onAdd
       ) : (
         <>
           {/*
-            * THE FOUR FIGURES, as tiles with an icon — Dinesh's mock-up.
+            * v2.39.0: THE NINE FIGURES THE REDESIGN BRIEF NAMES, each a way in.
             *
-            * The rest stay as the hairline row below them. Nine tiles would
-            * be two rows of boxes before a single asset, and the four here
-            * are the ones his own mock put at the top: how many there are,
-            * how many are out, what is out in money, and what the lot cost.
+            * Every count is the one `assetCounts` gives the register, so a
+            * card and the list it opens cannot disagree. "Available" and "In
+            * the office" are ONE figure here, not two: on this register an
+            * asset nobody holds is in the office, and showing both would be
+            * one number printed twice under two names.
             */}
-          <div className="asset-tiles">
-            {TILES.map(({ key, label, icon, from }) => (
-              <button
-                key={key}
-                className="asset-tile"
-                onClick={() => go(from(data).filter)}
-                title={from(data).hint}
-              >
-                <span className="asset-tile-icon">
-                  <Glyph name={icon} size={20} />
-                </span>
-                <span className="asset-tile-text">
-                  <span className="k">{label}</span>
-                  <span className="n">{from(data).shown}</span>
-                </span>
-              </button>
-            ))}
+          <div className="ao-kpis">
+            {(() => {
+              const c = data.counts || { by: {}, cost: {} };
+              const tl = data.overview?.warranty_timeline || {};
+              return [
+                ['box', 'Total assets', c.live ?? card(data, 'all').n, 'On the register', { live: true }, 'navy'],
+                ['person', 'Assigned', c.by?.assigned ?? 0, 'Issued to staff', { status: 'assigned' }, 'blue'],
+                ['building', 'Available', c.by?.available ?? 0, 'In the office, nobody holding it', { status: 'available' }, 'green'],
+                ['wrench', 'Under repair', c.by?.maintenance ?? 0, 'Being serviced', { status: 'maintenance' }, 'orange'],
+                ['alert', 'Damaged', c.by?.damaged ?? 0, 'Needs attention', { status: 'damaged' }, 'red'],
+                ['help', 'Missing', c.by?.missing ?? 0, 'Said missing by somebody', { status: 'missing' }, 'red'],
+                ['calendar', 'Warranty expiring', tl.d30 ?? 0, 'Within 30 days', null, 'orange', 'warranty'],
+                ['rupee', 'Purchase value', rupees(c.cost?.live ?? data.spent), 'Cost of what is on the register', { live: true }, 'navy'],
+                ['bars', 'Repair spend', rupees(data.overview?.repair_cost || 0), `${data.overview?.repairs || 0} service records`, null, 'grey', 'maintenance'],
+              ].map(([icon, label, n, hint, filter, tone, view]) => (
+                <button
+                  key={label}
+                  type="button"
+                  className={`ao-kpi tone-${tone}`}
+                  onClick={() => (view ? onView?.(view) : go(filter))}
+                  title={`${hint} — open the list`}
+                >
+                  <span className="ao-kpi-icon"><Glyph name={icon} size={18} /></span>
+                  <span className="ao-kpi-text">
+                    <span className="k">{label}</span>
+                    <span className="n">{n}</span>
+                    <span className="h">{hint}</span>
+                  </span>
+                </button>
+              ));
+            })()}
           </div>
 
-          <div className="card">
-            <div className="figures">
-              {data.cards.map((c) => (
-                <div className="figure" key={c.key}>
-                  <button className="n" onClick={() => go(c.filter)}>{c.n}</button>
-                  <span className="k">{c.label}</span>
-                </div>
-              ))}
-              <div className="figure">
-                {/* Not a link: "what we have spent" is not a list of rows. */}
-                <span className="n">{rupees(data.spent)}</span>
-                <span className="k">Bought, in all</span>
-              </div>
-            </div>
-            {!data.counted ? (
+          {!data.counted ? (
+            <div className="card">
               <p className="muted small">
                 Nothing on the register yet for this filter.{' '}
                 <button className="link" onClick={() => onAdd?.()}>Add an asset</button>, or{' '}
                 <button className="link" onClick={() => onImport?.()}>import the list</button>{' '}
                 you already keep in Excel.
               </p>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
-          {data.counts ? <HowItAddsUp counts={data.counts} oddities={data.oddities || []} onGo={go} /> : null}
+          {data.overview && data.counted ? (
+            <Overview data={data} go={go} onView={onView} onAsset={onAsset} />
+          ) : null}
 
           <div className="card">
-            <h3>Needs attention</h3>
+            <h3>Smart alerts — needs attention</h3>
             {!data.alerts.length ? (
               <p className="muted small">
                 Nothing waiting — no warranty running out, nothing overdue back, no service due.
@@ -254,6 +258,8 @@ export default function AssetDashboard({ companies, branches = [], onOpen, onAdd
               </p>
             ) : null}
           </div>
+
+          {data.counts ? <HowItAddsUp counts={data.counts} oddities={data.oddities || []} onGo={go} /> : null}
         </>
       )}
     </div>
@@ -349,5 +355,209 @@ function HowItAddsUp({ counts, oddities, onGo }) {
         </>
       ) : null}
     </div>
+  );
+}
+
+/*
+ * v2.39.0: THE OVERVIEW'S BREAKDOWNS AND SHORT LISTS.
+ *
+ * Bars drawn by hand - no charting library, as everywhere else in this app -
+ * and every one off the same live set as the cards. A bar for a company or a
+ * category opens the register narrowed to it; department and location are
+ * free text on an asset, so they open it narrowed the same way the register's
+ * own pickers do.
+ */
+const LIMIT = 7;
+
+function Bars({ title, rows = [], onPick, money = false }) {
+  const top = rows.slice(0, LIMIT);
+  const rest = rows.slice(LIMIT);
+  const restN = rest.reduce((s, r) => s + r.n, 0);
+  const max = Math.max(1, ...top.map((r) => r.n), restN);
+  return (
+    <div className="card ao-chart">
+      <h4>{title}</h4>
+      {!rows.length ? (
+        <p className="muted small">Nothing to show.</p>
+      ) : (
+        <ul className="ao-bars">
+          {top.map((r) => (
+            <li key={r.key}>
+              <button
+                type="button"
+                className="ao-bar-row"
+                disabled={!onPick || r.key === '—'}
+                onClick={() => onPick?.(r)}
+                title={`${r.n} on the register, ${r.assigned} with staff — ${rupees(r.cost)}`}
+              >
+                <span className="ao-bar-label">{r.key === '—' ? 'Not said' : r.key}</span>
+                <span className="ao-bar-track"><i style={{ width: `${(r.n / max) * 100}%` }} /></span>
+                <span className="ao-bar-n">{money ? rupees(r.cost) : r.n}</span>
+              </button>
+            </li>
+          ))}
+          {rest.length ? (
+            <li>
+              <span className="ao-bar-row static">
+                <span className="ao-bar-label muted">{rest.length} more</span>
+                <span className="ao-bar-track"><i className="muted" style={{ width: `${(restN / max) * 100}%` }} /></span>
+                <span className="ao-bar-n">{restN}</span>
+              </span>
+            </li>
+          ) : null}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ListCard({ title, rows = [], empty, onAsset, right, action }) {
+  return (
+    <div className="card ao-list">
+      <div className="row-between">
+        <h4>{title}</h4>
+        {action}
+      </div>
+      {!rows.length ? (
+        <p className="muted small">{empty}</p>
+      ) : (
+        <ul>
+          {rows.map((r, i) => (
+            <li key={`${r.id}-${i}`}>
+              <button type="button" className="link name-link" onClick={() => onAsset?.(r)}>
+                {r.code || `#${r.id}`}
+              </button>
+              <span className="ao-list-what">
+                {r.label}
+                {r.employee_name ? <span className="muted"> · {r.employee_name}</span> : null}
+              </span>
+              <span className="ao-list-right">{right(r)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const shortDate = (iso) =>
+  iso ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+const inDays = (n) => (n === 0 ? 'today' : n < 0 ? `${-n}d late` : `in ${n}d`);
+
+function Overview({ data, go, onView, onAsset }) {
+  const o = data.overview;
+  const by = data.counts?.by || {};
+  const live = data.counts?.live || 0;
+  const share = (n) => (live ? Math.round((n / live) * 100) : 0);
+  const pending = (data.pending?.purchases || 0) + (data.pending?.claims || 0);
+  return (
+    <>
+      <div className="ao-grid">
+        <Bars title="Assets by category" rows={o.by_category} onPick={(r) => go({ category: r.key })} />
+        <Bars title="Assets by company" rows={o.by_company} onPick={(r) => r.company_id && go({ company_id: String(r.company_id) })} />
+        <Bars title="Assets by department" rows={o.by_department} onPick={(r) => go({ department: r.key })} />
+        <Bars title="Assets by location" rows={o.by_location} />
+        <div className="card ao-chart">
+          <h4>Assigned vs available</h4>
+          <div className="ao-split" title={`${by.assigned || 0} with staff, ${by.available || 0} in the office`}>
+            <i className="assigned" style={{ width: `${share(by.assigned || 0)}%` }} />
+            <i className="available" style={{ width: `${share(by.available || 0)}%` }} />
+            <i className="other" style={{ width: `${share((by.maintenance || 0) + (by.damaged || 0) + (by.missing || 0))}%` }} />
+          </div>
+          <ul className="ao-legend">
+            <li><b className="assigned" />With staff <strong>{by.assigned || 0}</strong> <span className="muted">{share(by.assigned || 0)}%</span></li>
+            <li><b className="available" />In the office <strong>{by.available || 0}</strong> <span className="muted">{share(by.available || 0)}%</span></li>
+            <li><b className="other" />Repair, damaged or missing <strong>{(by.maintenance || 0) + (by.damaged || 0) + (by.missing || 0)}</strong></li>
+          </ul>
+        </div>
+        <Bars title="Purchase value by category" rows={[...o.by_category].sort((a, b) => b.cost - a.cost)} money onPick={(r) => go({ category: r.key })} />
+        <div className="card ao-chart">
+          <h4>Warranty expiring</h4>
+          <div className="ao-columns">
+            {[['Next 30 days', o.warranty_timeline.d30], ['Next 60 days', o.warranty_timeline.d60], ['Next 90 days', o.warranty_timeline.d90]].map(([label, n]) => {
+              const max = Math.max(1, o.warranty_timeline.d90);
+              return (
+                <button key={label} type="button" className="ao-col" onClick={() => onView?.('warranty')}>
+                  <span className="ao-col-n">{n}</span>
+                  <span className="ao-col-bar"><i style={{ height: `${(n / max) * 100}%` }} /></span>
+                  <span className="ao-col-label">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="ao-grid lists">
+        <ListCard
+          title="Upcoming warranty expirations"
+          rows={o.upcoming_warranty}
+          empty="Nothing runs out in the next 90 days."
+          onAsset={onAsset}
+          right={(r) => <span className={`pill ${r.left <= 30 ? 'pr-warn' : 'pr-info'}`}>{shortDate(r.until)} · {inDays(r.left)}</span>}
+          action={<button className="link" onClick={() => onView?.('warranty')}>View all →</button>}
+        />
+        <ListCard
+          title="Upcoming maintenance"
+          rows={o.upcoming_service}
+          empty="No service is due — a next service date is only what whoever did the work said."
+          onAsset={onAsset}
+          right={(r) => <span className={`pill ${r.left < 0 ? 'pr-bad' : 'pr-warn'}`}>{r.left < 0 ? 'Overdue' : 'Due'} · {shortDate(r.on)}</span>}
+          action={<button className="link" onClick={() => onView?.('maintenance')}>View all →</button>}
+        />
+        <ListCard
+          title="Recently added"
+          rows={o.recently_added}
+          empty="Nothing added yet."
+          onAsset={onAsset}
+          right={(r) => <span className="muted small">{shortDate(r.on)}</span>}
+        />
+        <ListCard
+          title="Recently assigned"
+          rows={o.recently_assigned}
+          empty="Nothing handed over yet."
+          onAsset={onAsset}
+          right={(r) => <span className="muted small">{shortDate(r.on)}{r.returned_on ? ' · back' : ''}</span>}
+          action={<button className="link" onClick={() => onView?.('slips')}>Assignments →</button>}
+        />
+        <ListCard
+          title="Damaged"
+          rows={o.damaged}
+          empty="Nothing marked damaged."
+          onAsset={onAsset}
+          right={() => <span className="pill pr-bad">Damaged</span>}
+        />
+        <ListCard
+          title="Missing"
+          rows={o.missing}
+          empty="Nothing marked missing. (Not checked in a stock audit is not missing.)"
+          onAsset={onAsset}
+          right={() => <span className="pill pr-bad">Missing</span>}
+        />
+        <div className="card ao-list">
+          <h4>Pending approvals</h4>
+          {!pending ? (
+            <p className="muted small">Nothing waiting for a decision.</p>
+          ) : (
+            <ul>
+              {data.pending.purchases ? (
+                <li>
+                  <button type="button" className="link" onClick={() => onView?.('purchases')}>
+                    {data.pending.purchases} purchase request{data.pending.purchases === 1 ? '' : 's'} waiting for approval →
+                  </button>
+                </li>
+              ) : null}
+              {data.pending.claims ? (
+                <li>
+                  <button type="button" className="link" onClick={() => onView?.('register')}>
+                    {data.pending.claims} asset{data.pending.claims === 1 ? '' : 's'} declared by staff to check →
+                  </button>
+                </li>
+              ) : null}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

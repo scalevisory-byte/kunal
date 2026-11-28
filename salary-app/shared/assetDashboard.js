@@ -222,6 +222,90 @@ export function assetDashboard({
    * changed, because a historical record is not edited to make a figure match.
    */
   const counts = assetCounts(assets);
+
+  /*
+   * v2.39.0, the Overview redesign: breakdowns and the short lists the brief
+   * names. All of it off the same `live` set as the cards - so a chart bar,
+   * a card and the register cannot count different assets.
+   */
+  const breakdown = (keyOf) => {
+    const map = new Map();
+    for (const a of live) {
+      const key = String(keyOf(a) || '').trim() || '—';
+      const line = map.get(key.toLowerCase()) || { key, n: 0, cost: 0, assigned: 0 };
+      line.n += 1;
+      line.cost += Number(a.purchase_cost) || 0;
+      if (a.status === 'assigned') line.assigned += 1;
+      map.set(key.toLowerCase(), line);
+    }
+    return [...map.values()].sort((a, b) => b.n - a.n || a.key.localeCompare(b.key));
+  };
+  const companyName = (a) => a.company_name || '';
+  const byCompany = (() => {
+    const map = new Map();
+    for (const a of live) {
+      const id = a.company_id || 0;
+      const line = map.get(id) || { key: companyName(a) || '—', company_id: a.company_id || null, n: 0, cost: 0, assigned: 0 };
+      line.n += 1;
+      line.cost += Number(a.purchase_cost) || 0;
+      if (a.status === 'assigned') line.assigned += 1;
+      map.set(id, line);
+    }
+    return [...map.values()].sort((a, b) => b.n - a.n);
+  })();
+
+  const warrantyWithin = (days) =>
+    live.filter((a) => {
+      const left = daysTo(a.warranty_until, today);
+      return left !== null && left >= 0 && left <= days;
+    }).length;
+
+  const brief = (a) => ({
+    id: a.id,
+    code: a.code,
+    label: a.label,
+    kind: a.kind,
+    employee_name: a.employee_name || null,
+    status: a.status,
+  });
+
+  const overview = {
+    by_category: breakdown((a) => a.kind),
+    by_company: byCompany,
+    by_department: breakdown((a) => a.department),
+    by_location: breakdown((a) => a.location),
+    warranty_timeline: { d30: warrantyWithin(30), d60: warrantyWithin(60), d90: warrantyWithin(90) },
+    upcoming_warranty: live
+      .map((a) => ({ ...brief(a), until: a.warranty_until, left: daysTo(a.warranty_until, today) }))
+      .filter((a) => a.left !== null && a.left >= 0 && a.left <= 90)
+      .sort((a, b) => a.left - b.left)
+      .slice(0, 6),
+    upcoming_service: [...dueService.values()]
+      .filter((srv) => liveIds.has(srv.asset_id))
+      .map((srv) => {
+        const a = live.find((x) => x.id === srv.asset_id) || {};
+        return { ...brief(a), on: srv.next_service_on, left: daysTo(srv.next_service_on, today) };
+      })
+      .sort((a, b) => (a.left ?? 0) - (b.left ?? 0))
+      .slice(0, 6),
+    recently_added: [...live]
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || b.id - a.id)
+      .slice(0, 6)
+      .map((a) => ({ ...brief(a), on: String(a.created_at || '').slice(0, 10) })),
+    recently_assigned: [...handovers]
+      .filter((h) => h.issued_on)
+      .sort((a, b) => String(b.issued_on).localeCompare(String(a.issued_on)) || (b.id || 0) - (a.id || 0))
+      .slice(0, 6)
+      .map((h) => {
+        const a = withStatus.find((x) => x.id === h.asset_id) || {};
+        return { ...brief(a), employee_name: h.employee_name || a.employee_name || null, on: h.issued_on, returned_on: h.returned_on || null };
+      }),
+    damaged: live.filter((a) => a.status === 'damaged').slice(0, 6).map(brief),
+    missing: live.filter((a) => a.status === 'missing').slice(0, 6).map(brief),
+    repair_cost: services.reduce((sum, srv) => sum + (Number(srv.cost) || 0), 0),
+    repairs: services.length,
+  };
+
   return {
     cards,
     spent,
@@ -230,6 +314,7 @@ export function assetDashboard({
     counted: withStatus.length,
     counts,
     oddities: assetOddities(assets),
+    overview,
   };
 }
 

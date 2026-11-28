@@ -2251,6 +2251,47 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Assets redesign, part one (v2.39.0)
+
+Dinesh sent a 20-section "Complete Asset Management Module Redesign" brief with a mock-up.
+**Audited first: most of its backend already existed** (QR labels + scan-to-asset, handovers
+with acknowledgement, stock take with "not checked ≠ missing", maintenance with the
+duplicate check, documents, photos, history, export with a column picker, import). What was
+missing was layout, a warranty screen, purchase requests, and register sort/page/columns.
+
+- **Nine sections** (`ASSET_SECTIONS` in Assets.jsx), **keys unchanged** so every old screen is
+  the one behind the new name: dashboard→Overview, register→Asset Register, slips→Assignments,
+  stock→Stock Audit, maintenance→Maintenance & Repairs, statement→Reports, masters→Settings,
+  plus new `warranty` and `purchases`. A test pins all nine.
+- **Overview** (`AssetDashboard.jsx` + `overview` in `shared/assetDashboard.js`): nine KPI
+  cards off `assetCounts` (Available and "In office" are ONE figure — on this register nobody
+  holding it means in the office; printing both would be one number under two names), bars by
+  category/company/department/location off the same `live` set, short lists, and
+  `pending: { purchases, claims }` from the route. Hand-drawn bars, no chart library.
+- **Purchase requests** — `shared/purchaseRequest.js` (rules), `backend/src/assetRequests.js`
+  (`asset_requests` + append-only `asset_request_events`), routes under
+  `/api/people/assets/requests` (area-gated like every `/assets` path). draft → submitted →
+  approved/rejected → ordered → received → completed; cancelled from any open step. Approve
+  needs the `approve` ability and **never the requester** (compared on `requested_by_user`);
+  reject/cancel need a note; only a draft is edited or deleted. **An approval registers
+  nothing** — "Register it" opens the normal Add asset form prefilled (cost per unit), so the
+  code series and duplicate-serial check hold. Numbers read off the highest used. Server only.
+- **Warranty & AMC** (`shared/warrantyBuckets.js`, `WarrantyAmc.jsx`): every live asset in one
+  bucket; "no date" is its own pile, never "covered". Alert steps 90/30/7/day/after are computed
+  (`alertStep`) but nothing is SENT — same honest position as the digest.
+- **Register**: sorting (`SORTS`), pages 25/50/100, Status pill (`as-<status>`), Brand/model,
+  Location and Purchase date columns, hide-able columns (`OPTIONAL_ASSET_COLUMNS`, localStorage),
+  secondary actions behind `.menu-more`. Sort/page act on `shown`, so every figure above the list
+  is unchanged. Two sticky `.row-no` columns were both at `left: 0` — fixed with nth-child offsets.
+- **Not done yet (part two):** the asset detail page's tabs and quick actions, the Assignments
+  employee-profile redesign, Stock Audit rounds by location/department, maintenance statuses
+  (scheduled/in progress/waiting for parts — the service record has no status column today),
+  saved custom reports, and a phone QR-scan screen beyond the existing `/asset/<code>` landing.
+- **Test harness trap:** `createServer()` returns the express APP; `app.listen()` returns the
+  http.Server. Awaiting listen on the app and calling `.address()` / `.close()` on it hangs the
+  file for ever. `await new Promise(r => { const s = createServer().listen(0, '127.0.0.1', () => r(s)); })`.
+  Without the await, one run in three got ECONNREFUSED on its first request.
+
 ### Only casual and sick leave, both unpaid, 20 a year (v2.38.0)
 
 Dinesh: *"need only 2 leaves / casual leave / sick leave / both are unpaid"*. Asked, he

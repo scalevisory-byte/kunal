@@ -20,6 +20,8 @@ import AssetExport from './AssetExport.jsx';
 import HandoverSlips from './HandoverSlips.jsx';
 import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
+import WarrantyAmc from './WarrantyAmc.jsx';
+import PurchaseRequests from './PurchaseRequests.jsx';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
 
@@ -405,6 +407,71 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         .some((v) => String(v).toLowerCase().includes(q));
     });
   }, [assets, filter, query, narrowed, group, nature, dateFocus, pick]);
+  /*
+   * v2.39.0: SORT, PAGE AND CHOOSE COLUMNS - on what is already filtered.
+   *
+   * None of it changes WHICH assets are shown, only their order and how many
+   * at a time, so every figure above the list (counted off `shown`) is the
+   * same whichever page is open. The page size and the hidden columns are a
+   * convenience for the person at this desk, kept in this browser only.
+   */
+  const [sort, setSort] = useState({ key: 'code', dir: 1 });
+  const [pageSize, setPageSize] = useState(() => {
+    try {
+      return Number(localStorage.getItem('salary-app-asset-page')) || 50;
+    } catch {
+      return 50;
+    }
+  });
+  const [page, setPage] = useState(1);
+  const [hiddenCols, setHiddenCols] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('salary-app-asset-cols') || '[]'));
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleCol = (key) => {
+    const next = new Set(hiddenCols);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setHiddenCols(next);
+    try {
+      localStorage.setItem('salary-app-asset-cols', JSON.stringify([...next]));
+    } catch {
+      /* a private window: the choice lasts until the page closes */
+    }
+  };
+  const show = (key) => !hiddenCols.has(key);
+  const sorted = useMemo(() => {
+    const value = SORTS[sort.key] || SORTS.code;
+    return [...shown].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      if (x === y) return a.id - b.id;
+      // Blanks last, whichever way round.
+      if (x === null || x === '') return 1;
+      if (y === null || y === '') return -1;
+      return (x > y ? 1 : -1) * sort.dir;
+    });
+  }, [shown, sort]);
+  const pages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  useEffect(() => setPage(1), [shown.length, filter, query, sort, pageSize]);
+  const paged = useMemo(
+    () => sorted.slice((Math.min(page, pages) - 1) * pageSize, Math.min(page, pages) * pageSize),
+    [sorted, page, pages, pageSize]
+  );
+  const offset = (Math.min(page, pages) - 1) * pageSize;
+  const sortBy = (key) => setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: 1 }));
+  const Th = ({ k, children, className }) => (
+    <th className={`sortable${className ? ` ${className}` : ''}`} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="th-sort" onClick={() => sortBy(k)}>
+        {children}
+        <span className="th-arrow">{sort.key === k ? (sort.dir > 0 ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>
+  );
+
   // The figures above the list, counted off the list itself (see the note there).
   const shownTotals = useMemo(() => {
     const t = registerTotals(shown);
@@ -725,6 +792,8 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           companies={companies}
           branches={allBranches}
           onError={onError}
+          onView={setView}
+          onAsset={(a) => setHistory(assets.find((x) => x.id === a.id) || a)}
           onAdd={() => { setImporting(false); setAdding(true); setView('register'); }}
           onImport={() => { setAdding(false); setImporting(true); setView('register'); }}
           onOpen={(f) => {
@@ -747,6 +816,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             setView('register');
           }}
         />
+        {history && (
+          <AssetHistory asset={history} onClose={() => { setHistory(null); load(); }} onError={onError} />
+        )}
       </section>
     );
   }
@@ -801,7 +873,74 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return (
       <section className="stack">
         <Tabs view={view} setView={setView} />
+        {/* Reports: the downloads that lived on the register's toolbar, in
+            one place, above the full statement. */}
+        <div className="card">
+          <h3>Asset reports</h3>
+          <p className="muted small">
+            Each downloads as CSV and opens in Excel. For a register with only the columns you want,
+            use <strong>Export</strong> on the Asset Register — it remembers the columns.
+          </p>
+          <div className="toolbar asset-report-links">
+            <button onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch(onError)}>
+              Asset register
+            </button>
+            <button onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch(onError)}>
+              Handovers, returns and transfers
+            </button>
+            <button onClick={() => download('/people/assets/statement.csv', 'asset-statement.csv').catch(onError)}>
+              Full statement
+            </button>
+            <button onClick={() => setView('maintenance')}>Maintenance cost →</button>
+            <button onClick={() => setView('warranty')}>Warranty expiry →</button>
+            <button onClick={() => setView('stock')}>Stock audit →</button>
+          </div>
+        </div>
         <AssetStatement companies={companies} onError={onError} />
+      </section>
+    );
+  }
+
+  if (view === 'warranty') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <WarrantyAmc assets={assets.filter(onRegister)} onOpen={(a) => setHistory(a)} />
+        {history && (
+          <AssetHistory asset={history} onClose={() => { setHistory(null); load(); }} onError={onError} />
+        )}
+      </section>
+    );
+  }
+
+  if (view === 'purchases') {
+    return (
+      <section className="stack">
+        <Tabs view={view} setView={setView} />
+        <PurchaseRequests
+          companies={companies}
+          employees={employees}
+          onError={onError}
+          onRegister={(r) => {
+            /* Register it: the ordinary Add asset form, filled in with what
+               the request already says. The code series and the checks are
+               the register's own. */
+            setDraft((d) => ({
+              ...d,
+              kind: r.kind || d.kind,
+              label: r.description ? `${r.kind} ${r.description}`.trim() : r.kind || '',
+              company_id: r.company_id ? String(r.company_id) : d.company_id,
+              department: r.department || '',
+              vendor: r.vendor || '',
+              purchase_cost:
+                r.estimated_cost && r.quantity ? String(Math.round(r.estimated_cost / r.quantity)) : '',
+              purchase_remarks: `Purchase request ${r.number}`,
+            }));
+            setImporting(false);
+            setAdding(true);
+            setView('register');
+          }}
+        />
       </section>
     );
   }
@@ -1044,48 +1183,37 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
             * tick boxes, and every cell an input. This builds a document
             * from the rows ON SCREEN, filters and search already applied.
             */}
-          <button className="ghost" onClick={printRegister} disabled={!shown.length}>
-            Print {shown.length}
-          </button>
-          <button
-            className="ghost"
-            onClick={() => labelSheet()}
-            disabled={!shown.some((a) => a.code)}
-            title={
-              ticked.size
-                ? 'A page of QR stickers for the ticked rows'
-                : 'A page of QR stickers for everything on screen — narrow it with the filters or a group first'
-            }
-          >
-            {ticked.size ? `Labels for ${forLabels().length} ticked` : `Labels for ${shown.filter((a) => a.code).length}`}
-          </button>
-          {/* The plain strip: code and description, no QR (Dinesh: "patti
-              jesa"). Same rows as the QR sheet beside it. */}
-          <button
-            className="ghost"
-            onClick={() => labelSheet('patti')}
-            disabled={!shown.some((a) => a.code)}
-            title="A page of plain stickers - the code and what it is, no QR - for the same rows"
-          >
-            Description stickers
-          </button>
-          {/* The report somebody picks the columns for. The two fixed CSVs
-              stay: they are one click when the usual columns will do. */}
+          {/* v2.39.0: one primary way out (Export) and the rest behind one
+              menu, rather than seven buttons in a row. Every action is the
+              one that was here; only where it sits has changed. */}
           <button className={exporting ? 'active' : undefined} onClick={() => setExporting((v) => !v)}>
-            {exporting ? 'Close' : 'Export a report'}
+            {exporting ? 'Close export' : 'Export'}
           </button>
-          <button
-            className="ghost"
-            onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}
-          >
-            Register (CSV)
-          </button>
-          <button
-            className="ghost"
-            onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch((err) => setSaid(err.message))}
-          >
-            Handovers (CSV)
-          </button>
+          <details className="menu-more" onClick={(e) => { if (e.target.closest('button')) e.currentTarget.open = false; }}>
+            <summary className="ghost">More actions ▾</summary>
+            <div className="menu-more-list" role="menu">
+              <button role="menuitem" onClick={printRegister} disabled={!shown.length}>
+                Print the register ({shown.length})
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => labelSheet()}
+                disabled={!shown.some((a) => a.code)}
+                title={ticked.size ? 'A page of QR stickers for the ticked rows' : 'A page of QR stickers for everything this filter shows'}
+              >
+                {ticked.size ? `QR labels for ${forLabels().length} ticked` : `QR labels for ${shown.filter((a) => a.code).length}`}
+              </button>
+              <button role="menuitem" onClick={() => labelSheet('patti')} disabled={!shown.some((a) => a.code)}>
+                Description stickers (no QR)
+              </button>
+              <button role="menuitem" onClick={() => download('/people/assets/register.csv', 'asset-register.csv').catch((err) => setSaid(err.message))}>
+                Register (CSV)
+              </button>
+              <button role="menuitem" onClick={() => download('/people/assets/handovers.csv', 'asset-handovers.csv').catch((err) => setSaid(err.message))}>
+                Handovers (CSV)
+              </button>
+            </div>
+          </details>
         </span>
       </div>
 
@@ -1539,6 +1667,21 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
        * app out at the table's width - which is how a scanned sticker came to
        * open a panel running off the side of the screen.
        */}
+      {/* Show / hide columns. Kept in this browser; nothing about an asset changes. */}
+      {shown.length ? (
+        <details className="asset-cols">
+          <summary>Columns{hiddenCols.size ? ` (${hiddenCols.size} hidden)` : ''}</summary>
+          <div className="asset-cols-list">
+            {OPTIONAL_ASSET_COLUMNS.map(([key, label]) => (
+              <label key={key} className="check">
+                <input type="checkbox" checked={show(key)} onChange={() => toggleCol(key)} />
+                {label}
+              </label>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
       {!shown.length ? (
         <p className="muted small">Nothing here.</p>
       ) : (
@@ -1567,7 +1710,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     decide what "on screen" means. */}
                 <input
                   type="checkbox"
-                  title="Tick everything on screen"
+                  title="Tick every asset this filter shows, on every page"
                   checked={shown.length > 0 && shown.every((a) => ticked.has(a.id))}
                   onChange={(e) =>
                     setTicked(e.target.checked ? new Set(shown.map((a) => a.id)) : new Set())
@@ -1575,21 +1718,25 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                 />
               </th>
               <th className="row-no">#</th>
-              <th>Code</th>
-              <th>Kind</th>
-              <th>What</th>
-              <th>Serial</th>
-              <th>Department</th>
-              <th className="num">Cost</th>
-              <th>Where it is</th>
-              <th>Since</th>
-              <th>Warranty</th>
-              <th>Invoice</th>
-              <th />
+              <Th k="code">Asset code</Th>
+              {show('kind') && <Th k="kind">Category / type</Th>}
+              <Th k="label">Asset name</Th>
+              {show('brand') && <Th k="brand">Brand / model</Th>}
+              {show('serial') && <Th k="serial">Serial no.</Th>}
+              {show('department') && <Th k="department">Department</Th>}
+              {show('location') && <Th k="location">Location</Th>}
+              {show('cost') && <Th k="cost" className="num">Purchase cost</Th>}
+              {show('bought') && <Th k="bought">Purchase date</Th>}
+              <Th k="holder">Assigned to</Th>
+              {show('since') && <Th k="since">Since</Th>}
+              {show('warranty') && <Th k="warranty">Warranty</Th>}
+              <Th k="status">Status</Th>
+              {show('invoice') && <th>Invoice</th>}
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {shown.map((asset, at) => {
+            {paged.map((asset, at) => {
               const out = isOut(asset);
               return (
                 <tr key={asset.id}>
@@ -1605,7 +1752,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                       }}
                     />
                   </td>
-                  <td className="row-no">{at + 1}</td>
+                  <td className="row-no">{offset + at + 1}</td>
                   <td>
                     <button className="link" onClick={() => setHistory(asset)}>
                       {asset.code || '—'}
@@ -1625,34 +1772,53 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     * row's group on the next keystroke-out - it cannot come
                     * to disagree with the cell beside it.
                     */}
-                  <td className="kind-cell">
+                  {show('kind') && <td className="kind-cell">
                     <SheetCell asset={asset} field="kind" list="asset-kind-list" onSave={saveCell} placeholder="Laptop" />
                     <div className="muted small">
                       {groupLabel(groupOf(asset.kind, asset.label))}
                       {' · '}
                       <NaturePick asset={asset} onSave={saveCell} />
                     </div>
-                  </td>
+                  </td>}
                   <td className="sticky-name">
                     <SheetCell asset={asset} field="label" onSave={saveCell} placeholder="Dell Latitude 3420" />
                     {asset.branch_name ? <div className="muted small">{asset.branch_name}</div> : null}
                   </td>
-                  <td>
+                  {show('brand') && (
+                    <td>
+                      <SheetCell asset={asset} field="brand" onSave={saveCell} placeholder="brand" />
+                      <SheetCell asset={asset} field="model" onSave={saveCell} placeholder="model" />
+                    </td>
+                  )}
+                  {show('serial') && <td>
                     <SheetCell asset={asset} field="identifier" onSave={saveCell} placeholder="serial" />
-                  </td>
-                  <td>
+                  </td>}
+                  {show('department') && <td>
                     <SheetCell asset={asset} field="department" list="asset-dept-list" onSave={saveCell} placeholder="—" />
-                  </td>
-                  <td className="num">
+                  </td>}
+                  {show('location') && (
+                    <td>
+                      <SheetCell asset={asset} field="location" onSave={saveCell} placeholder="—" />
+                    </td>
+                  )}
+                  {show('cost') && <td className="num">
                     <SheetCell asset={asset} field="purchase_cost" type="number" align="num" onSave={saveCell} placeholder="0" />
-                  </td>
+                  </td>}
+                  {show('bought') && (
+                    <td>
+                      <SheetCell asset={asset} field="purchase_date" type="date" onSave={saveCell} />
+                    </td>
+                  )}
                   <td>
                     {out ? <strong>{asset.employee_name}</strong> : <span className="muted">{whereItIs(asset)}</span>}
                     {asset.condition && !out && <div className="muted small">{asset.condition}</div>}
                   </td>
-                  <td className="muted small">{out ? asset.issued_on || '—' : asset.returned_on || '—'}</td>
-                  <td className={asset.warranty_left_days < 0 ? 'overdue' : undefined}>
+                  {show('since') && <td className="muted small">{out ? asset.issued_on || '—' : asset.returned_on || '—'}</td>}
+                  {show('warranty') && <td className={asset.warranty_left_days < 0 ? 'overdue' : undefined}>
                     <SheetCell asset={asset} field="warranty_until" type="date" onSave={saveCell} />
+                  </td>}
+                  <td>
+                    <span className={`pill as-${assetStatus(asset)}`}>{statusLabel(assetStatus(asset))}</span>
                   </td>
                   {/*
                     * The paperwork, ON the register.
@@ -1663,7 +1829,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     * the upload as missing when it had been there all along. So
                     * the count is a column, and the column is the way in.
                     */}
-                  <td className="small">
+                  {show('invoice') && <td className="small">
                     <button
                       className="link"
                       title={
@@ -1678,7 +1844,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                     {asset.invoice_no ? (
                       <div className="muted small">{asset.invoice_no}</div>
                     ) : null}
-                  </td>
+                  </td>}
                   <td>
                     {/*
                       * What state it is in, when it is one somebody set. The
@@ -1771,6 +1937,36 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         </div>
       )}
 
+      {shown.length ? (
+        <div className="asset-pager">
+          <span className="muted small">
+            Showing {offset + 1}–{Math.min(offset + pageSize, sorted.length)} of {sorted.length}
+            {ticked.size ? ` · ${ticked.size} ticked` : ''}
+          </span>
+          <span className="grow" />
+          <button className="ghost small" disabled={page <= 1} onClick={() => setPage(1)} aria-label="First page">«</button>
+          <button className="ghost small" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label="Previous page">‹</button>
+          <span className="small">Page {Math.min(page, pages)} of {pages}</span>
+          <button className="ghost small" disabled={page >= pages} onClick={() => setPage((p) => p + 1)} aria-label="Next page">›</button>
+          <button className="ghost small" disabled={page >= pages} onClick={() => setPage(pages)} aria-label="Last page">»</button>
+          <select
+            value={pageSize}
+            aria-label="Rows per page"
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setPageSize(n);
+              try {
+                localStorage.setItem('salary-app-asset-page', String(n));
+              } catch {
+                /* private window */
+              }
+            }}
+          >
+            {[25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+          </select>
+        </div>
+      ) : null}
+
       {notFound && (
         <p className="banner bad">
           Nothing on the register with the code <strong>{notFound}</strong>. The sticker may be
@@ -1797,20 +1993,66 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   );
 }
 
+/* What each sortable column sorts by. Text is compared lower-case. */
+const lower = (v) => (v === null || v === undefined ? '' : String(v).toLowerCase());
+const SORTS = {
+  code: (a) => lower(a.code),
+  kind: (a) => lower(a.kind),
+  label: (a) => lower(a.label),
+  brand: (a) => lower([a.brand, a.model].filter(Boolean).join(' ')),
+  serial: (a) => lower(a.identifier),
+  department: (a) => lower(a.department),
+  location: (a) => lower(a.location),
+  cost: (a) => (a.purchase_cost === null || a.purchase_cost === undefined || a.purchase_cost === '' ? null : Number(a.purchase_cost)),
+  bought: (a) => a.purchase_date || '',
+  holder: (a) => lower(isOut(a) ? a.employee_name : ''),
+  since: (a) => (isOut(a) ? a.issued_on : a.returned_on) || '',
+  warranty: (a) => a.warranty_until || '',
+  status: (a) => assetStatus(a),
+};
+
+/* The columns that may be hidden. Code, name, holder, status and actions
+   always show: without them a row cannot be told apart or acted on. */
+export const OPTIONAL_ASSET_COLUMNS = [
+  ['kind', 'Category / type'],
+  ['brand', 'Brand / model'],
+  ['serial', 'Serial no.'],
+  ['department', 'Department'],
+  ['location', 'Location'],
+  ['cost', 'Purchase cost'],
+  ['bought', 'Purchase date'],
+  ['since', 'Since'],
+  ['warranty', 'Warranty'],
+  ['invoice', 'Invoice'],
+];
+
+export const ASSET_SECTIONS = [
+  ['dashboard', 'Overview'],
+  ['register', 'Asset Register'],
+  ['slips', 'Assignments'],
+  ['stock', 'Stock Audit'],
+  ['maintenance', 'Maintenance & Repairs'],
+  ['warranty', 'Warranty & AMC'],
+  ['purchases', 'Purchase Requests'],
+  ['statement', 'Reports'],
+  ['masters', 'Settings'],
+];
+
 function Tabs({ view, setView }) {
   return (
-    <div className="sub-tabs toolbar">
+    <div className="sub-tabs toolbar asset-sections">
       {/* Maintenance is a fourth view rather than a tab above these three:
           two rows of tabs over one table is one row too many. */}
-      {[
-        ['dashboard', 'Dashboard'],
-        ['register', 'Register'],
-        ['slips', 'Who holds what'],
-        ['statement', 'Full register'],
-        ['stock', 'Stock take'],
-        ['maintenance', 'Maintenance'],
-        ['masters', 'Lists'],
-      ].map(([key, text]) => (
+      {/*
+        * v2.39.0: the nine sections the redesign brief names, in its order.
+        * The keys are the old views, so every screen behind them is the one
+        * that was there - only the way in is renamed:
+        *   Dashboard -> Overview, Register -> Asset Register,
+        *   Who holds what -> Assignments, Stock take -> Stock Audit,
+        *   Maintenance -> Maintenance & Repairs, Full register -> Reports,
+        *   Lists -> Settings; Warranty & AMC and Purchase Requests are new.
+        */}
+      {ASSET_SECTIONS.map(([key, text]) => (
         <button key={key} className={view === key ? 'active' : undefined} onClick={() => setView(key)}>
           {text}
         </button>

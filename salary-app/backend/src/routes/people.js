@@ -1,5 +1,14 @@
 import path from 'node:path';
 import { Router } from 'express';
+import {
+  assetRequestsWaiting,
+  createAssetRequest,
+  deleteAssetRequest,
+  getAssetRequest,
+  listAssetRequests,
+  moveAssetRequest,
+  updateAssetRequest,
+} from '../assetRequests.js';
 import { profileChangesWaiting } from '../profileChanges.js';
 import { may } from '../../../shared/rights.js';
 import { requireArea } from '../auth.js';
@@ -914,6 +923,65 @@ peopleRouter.post('/assets/nature', (req, res) => {
 });
 
 /* What staff say they are holding, waiting for the office to decide. */
+/* ---------------- purchase requests (v2.39.0) ---------------- */
+
+const canApprove = (req) => Boolean(req.actor?.abilities?.includes('approve'));
+
+peopleRouter.get('/assets/requests', (req, res) =>
+  res.json({
+    requests: listAssetRequests({ status: req.query.status || undefined }),
+    can_approve: canApprove(req),
+    me: req.actor?.id ?? null,
+  })
+);
+
+peopleRouter.get('/assets/requests/:id', (req, res) => {
+  const found = getAssetRequest(Number(req.params.id));
+  if (!found) return res.status(404).json({ error: 'not found' });
+  res.json({ request: found, can_approve: canApprove(req), me: req.actor?.id ?? null });
+});
+
+peopleRouter.post('/assets/requests', (req, res) => {
+  try {
+    res.status(201).json(createAssetRequest(req.body || {}, { by: who(req), userId: req.actor?.id }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/assets/requests/:id', (req, res) => {
+  try {
+    res.json(updateAssetRequest(Number(req.params.id), req.body || {}, { by: who(req) }));
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.post('/assets/requests/:id/:step', (req, res) => {
+  try {
+    res.json(
+      moveAssetRequest(Number(req.params.id), req.params.step, {
+        ...(req.body || {}),
+        by: who(req),
+        userId: req.actor?.id,
+        canApprove: canApprove(req),
+      })
+    );
+  } catch (err) {
+    const forbidden = /only a Manager|nobody approves/.test(err.message);
+    res.status(forbidden ? 403 : 400).json({ error: err.message });
+  }
+});
+
+peopleRouter.delete('/assets/requests/:id', (req, res) => {
+  try {
+    deleteAssetRequest(Number(req.params.id));
+    res.json({ ok: true });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
 peopleRouter.get('/assets/claims', (req, res) =>
   res.json({ claims: listAssetClaims({ status: req.query.status || undefined }) })
 );
@@ -1061,6 +1129,11 @@ peopleRouter.get('/assets/dashboard', (req, res) => {
       soon: Number(req.query.soon) || 30,
     }),
     round,
+    /* What is waiting for somebody to decide, for the Overview's list. */
+    pending: {
+      purchases: assetRequestsWaiting(),
+      claims: listAssetClaims({ status: 'pending' }).length,
+    },
     years: purchaseYears(all),
     categories: [...new Set(all.map((a) => a.kind).filter(Boolean))].sort(),
     /*

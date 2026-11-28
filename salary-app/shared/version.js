@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.38.0';
+export const VERSION = '2.39.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.39.0',
+    date: '28 Nov 2026',
+    title: 'Assets redesign, part one: nine sections, a new Overview, purchase requests, warranty & AMC',
+    items: [
+      '**Assets has nine sections**: Overview, Asset Register, Assignments, Stock Audit, Maintenance & Repairs, Warranty & AMC, Purchase Requests, Reports, Settings. Every screen that was there is still there under its new name (Who holds what \u2192 Assignments, Stock take \u2192 Stock Audit, Full register \u2192 Reports, Lists \u2192 Settings).',
+      '**Overview**: nine figures \u2014 total, assigned, available, under repair, damaged, missing, warranty expiring, purchase value, repair spend \u2014 each opening its list. Bars by category, company, department and location, assigned vs available, purchase value by category, the warranty timeline, and short lists: upcoming warranty and maintenance, recently added, recently assigned, damaged, missing and pending approvals. All counted from the register itself.',
+      '**Asset Register**: click a column heading to sort; pages of 25, 50 or 100; a Status column; Brand / model, Location and Purchase date columns; **Columns** to hide what you do not need (remembered on this computer). Print, QR labels, stickers and the CSVs are under **More actions**.',
+      '**Purchase Requests** (new): ask for an asset, a Manager or Admin approves (never their own), then ordered \u2192 received \u2192 registered on the register with the form already filled in. Every step is on its history.',
+      '**Warranty & AMC** (new): every asset in one pile \u2014 expired, 30 / 60 / 90 days, active, no date \u2014 and a list of AMCs with their renewal state.',
+      '**Reports** gathers the asset downloads in one place above the full register.',
+      'Fixed: on the register the tick box and the row number were both pinned at the left edge, so scrolling sideways hid the tick box.',
+    ],
+  },
   {
     version: '2.38.0',
     date: '28 Nov 2026',
