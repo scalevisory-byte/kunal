@@ -620,6 +620,13 @@ leaveRouter.get('/bonus-year/:year', (req, res) => {
     paid: new Set(payments.map((p) => Number(p.employee_id))),
     months_on_record: months,
   });
+  // Where each person's bonus went, for the register's Paid column.
+  const paidIn = new Map(payments.map((p) => [Number(p.employee_id), p]));
+  for (const line of run.lines) {
+    const p = paidIn.get(Number(line.employee_id));
+    line.paid_in = p ? p.period_label : null;
+    line.paid_amount = p ? p.amount : null;
+  }
   res.json({ saved_rule: stored, payments, ...run });
 });
 

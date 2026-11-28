@@ -126,6 +126,11 @@ test('through the API: worked out, paid into one month, never paid twice in a ye
   assert.equal(line(nodate.id).held, true);
   assert.equal(line(blank.id).held, true);
   assert.deepEqual(look.body.months_on_record, [10], 'the screen says how much of the year it has');
+  // The register's month columns: October carries the two CL; a month with
+  // nothing marked is null (not known), never 0.
+  assert.equal(line(old.id).months[10], 2);
+  assert.equal(line(old.id).months[1], null);
+  assert.equal(line(old.id).paid_in, null);
 
   const before = (await call('GET', `/api/periods/${oct}/payroll?sync=false`)).body.rows.find((r) => r.employee_id === old.id);
   const paid = await call('POST', '/api/leave/bonus-year/2026/pay', {
@@ -146,4 +151,14 @@ test('through the API: worked out, paid into one month, never paid twice in a ye
 
   const later = await call('GET', '/api/leave/bonus-year/2026');
   assert.equal(later.body.lines.find((l) => l.employee_id === old.id).already_paid, true);
+  assert.match(later.body.lines.find((l) => l.employee_id === old.id).paid_in, /October/, 'the register says where it was paid');
+});
+
+test('only the contract’s yearly bonus is on the screen, and its register is a report too', () => {
+  const read = (rel) => fs.readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8');
+  const screen = read('frontend/src/components/LeaveBonus.jsx').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/leave\/bonus\/\$\{period/.test(screen), 'the monthly bonus is not fetched on the screen');
+  assert.ok(screen.includes('/leave/bonus-year/'), 'the yearly one is');
+  assert.ok(!fs.existsSync(new URL('../../frontend/src/components/LeaveBonusYear.jsx', import.meta.url)), 'one file, not two');
+  assert.match(read('frontend/src/components/Reports.jsx'), /'leave-bonus-register': \(\) => <LeaveBonusRegisterReport/);
 });

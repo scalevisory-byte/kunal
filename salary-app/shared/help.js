@@ -741,19 +741,16 @@ export const HELP = [
   },
   {
     id: 'leave-bonus',
-    title: 'The leave bonus — the yearly one from the contract, and the monthly one',
+    title: 'The leave bonus — the contract\u2019s yearly bonus, and its register',
     tab: 'leave',
-    keywords: ['bonus', 'incentive', 'attendance bonus', 'chutti nahi li', 'inaam', 'full attendance', 'contract', 'yearly bonus', '20 days', 'paid leave structure', 'slab'],
+    keywords: ['bonus', 'incentive', 'attendance bonus', 'chutti nahi li', 'inaam', 'full attendance', 'contract', 'yearly bonus', '20 days', 'paid leave structure', 'slab', 'register', 'bonus register'],
     lines: [
-      'Leave → **Bonus → Yearly** is the employment contract\u2019s Paid Leave Structure: 20 days\u2019 pay at the monthly salary \u00f7 30 for up to 20 leaves in the calendar year, 75% for 21\u201330, 50% for 31\u201340, nothing past 40. A half day counts half; an absence without approval counts two.',
+      'Leave → **Bonus** is the employment contract\u2019s Paid Leave Structure: 20 days\u2019 pay at the monthly salary \u00f7 30 for up to 20 leaves in the calendar year, 75% for 21\u201330, 50% for 31\u201340, nothing past 40. A half day counts half; an absence without approval counts two.',
+      'The **register** below it lists everybody: their leaves month by month (Jan\u2013Dec), the year\u2019s total, the slab, the bonus, and the month it was paid in. A dash is a month with nothing marked. Print and CSV are beside it; **Reports → Leave → Leave bonus register** shows the same register.',
       'No bonus in the first year of service; after it, pro rata. Pick the month to pay it into and press Pay \u2014 each person is paid once a year, whichever month. Somebody with no joining date, no salary or nothing marked is held and named.',
       'The slabs, the 20 days and the \u00f7 30 can be changed and saved; **Back to the contract\u2019s figures** restores them. The screen warns when the app does not hold all twelve months of the year yet.',
-      'Leave → **Bonus → Monthly** is the other kind: a reward for a month with no leave. Two shapes: all or nothing, or the amount less a cut for each day off.',
-      'Tick which marks cost it — paid leave counts by default, because it is still a day away.',
-      'The rule is saved on the server, so everybody in the office runs the same one.',
-      'Unused leave is a different thing: pay that from **Balances → Encash days**.',
     ],
-    note: 'NOTHING MARKED IS NOT A CLEAN MONTH. Somebody with no marks at all is never eligible — without that, one unfilled grid pays the whole staff. And working it out pays nobody: the money goes on only through the button that names the month, as an addition with a note. The same month cannot be paid twice.',
+    note: 'NOTHING MARKED IS NOT A YEAR WITH NO LEAVE. Somebody with no marks at all is held, never paid \u2014 and leave in months the app does not hold is uncounted, so pay once the year is in. Working it out pays nobody: the money goes on only through the Pay button, which names the month, as an addition with a note on the payslip.'
   },
   {
     id: 'leave-cancel',

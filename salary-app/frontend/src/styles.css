@@ -7214,3 +7214,8 @@ table.sheet.lby-slabs td { vertical-align: middle; }
 input.lby-num { width: 4.5rem; display: inline-block; text-align: right; padding: 0.2rem 0.35rem; }
 table.sheet.lby-table td { white-space: normal; vertical-align: top; }
 table.sheet.lby-table tr.lby-held td { color: var(--muted); }
+/* The leave bonus register (v2.49.0): twelve narrow month columns. */
+.lby-register table.sheet th.lby-m, .lby-register table.sheet td.lby-m { width: 2.6rem; min-width: 2.6rem; text-align: right; padding-left: 0.3rem; padding-right: 0.3rem; }
+.lby-register table.sheet th.lby-none { color: var(--muted); opacity: 0.6; }
+.lby-register table.sheet td.lby-why { white-space: normal; min-width: 14rem; }
+.lby-register table.sheet tr.lby-held td { color: var(--muted); }

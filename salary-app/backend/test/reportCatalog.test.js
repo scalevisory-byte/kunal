@@ -90,7 +90,9 @@ test('every category in the specification carries exactly what it asked for', ()
          record and never a second opinion about attendance. */
       'punch-log',
     ],
-    leave: ['leave-ledger', 'leave-year-end'],
+    /* "Apply only leave bonus formula and make leave bonus register" - the
+       contract's yearly bonus, a person a line, month by month. */
+    leave: ['leave-ledger', 'leave-year-end', 'leave-bonus-register'],
     /* Asked for by name: "staff wise email & mobile number ka list bhi
        chiaye with deopartmmet role". The employee export carries forty
        columns including salaries, so this is deliberately its own report

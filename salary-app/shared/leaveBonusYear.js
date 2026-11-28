@@ -131,10 +131,14 @@ export function serviceShare(employee = {}, year, rule) {
  * @param counts      marks across the year, as countMarks gives them
  * @param marked_days how many days carry any mark at all
  */
-export function yearBonusFor(employee = {}, counts = {}, rule, { year, marked_days = 0 } = {}) {
+export function yearBonusFor(employee = {}, counts = {}, rule, { year, marked_days = 0, by_month = {} } = {}) {
   const r = normaliseYearRule(rule);
   const salary = n(employee.monthly_salary);
   const leaves = daysOff(counts, r);
+  /* The register's month columns: the same count, month by month. A month
+     with nothing marked for them is null - not known, which is not 0. */
+  const months = {};
+  for (let m = 1; m <= 12; m++) months[m] = by_month[m] ? daysOff(by_month[m], r) : null;
   const { pct, band } = slabFor(leaves, r);
   const base = {
     employee_id: employee.id,
@@ -142,8 +146,10 @@ export function yearBonusFor(employee = {}, counts = {}, rule, { year, marked_da
     code: employee.code || '',
     company_name: employee.company_name || '',
     department: employee.department || '',
+    joined_on: employee.joined_on || null,
     salary,
     leaves,
+    months,
     band,
     pct,
     full_bonus: Math.round((r.base_days * salary) / r.divisor),
@@ -157,7 +163,11 @@ export function yearBonusFor(employee = {}, counts = {}, rule, { year, marked_da
   const service = serviceShare(employee, year, r);
   if (service.share === null) return { ...base, held: true, why: service.why };
   const amount = Math.round(base.full_bonus * (pct / 100) * service.share);
-  const shareWords = service.share < 1 ? ` × ${Math.round(service.share * 100)}% of the year (from ${service.from})` : '';
+  const span = [
+    service.from && service.from > `${year}-01-01` ? `from ${service.from}` : '',
+    service.until && service.until < `${year}-12-31` ? `to ${service.until}` : '',
+  ].filter(Boolean).join(' ');
+  const shareWords = service.share < 1 ? ` × ${Math.round(service.share * 100)}% of the year${span ? ` (${span})` : ''}` : '';
   return {
     ...base,
     share: Math.round(service.share * 1000) / 1000,
@@ -176,8 +186,11 @@ export function yearBonusRun(employees = [], marksById = new Map(), rule, { year
   const r = normaliseYearRule(rule);
   const lines = employees
     .map((e) => {
-      const m = marksById.get(Number(e.id)) || { counts: {}, marked_days: 0 };
-      return { ...yearBonusFor(e, m.counts, r, { year, marked_days: m.marked_days }), already_paid: paid.has(Number(e.id)) };
+      const m = marksById.get(Number(e.id)) || { counts: {}, marked_days: 0, by_month: {} };
+      return {
+        ...yearBonusFor(e, m.counts, r, { year, marked_days: m.marked_days, by_month: m.by_month || {} }),
+        already_paid: paid.has(Number(e.id)),
+      };
     })
     .sort((a, b) => b.amount - a.amount || Number(a.held) - Number(b.held) || a.name.localeCompare(b.name));
   const toPay = lines.filter((l) => l.eligible && !l.already_paid);

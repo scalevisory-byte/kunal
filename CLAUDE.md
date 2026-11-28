@@ -2251,6 +2251,28 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Only the contract's bonus, and the leave bonus register (v2.49.0)
+
+Dinesh: *"Apply only leave bonus formula and nake leave bonus register"*. Asked which reading,
+he chose **only the yearly one**: the contract's slabs stay with their first-year and pro-rata
+rules (NOT applied to everybody regardless of joining date).
+
+- `LeaveBonus.jsx` IS the yearly screen now; `LeaveBonusYear.jsx` was deleted (one file - a test
+  asserts it). The monthly bonus's **screen** is gone; its routes, `bonus_payments` rows and
+  `leaveBonusApi.test.js` stay, so anything it paid can still be read and taken back.
+- **The register** (`LeaveBonusRegister`, exported): per person joining date, salary, Jan-Dec
+  leaves, total, slab, bonus, paid-in month, why. `yearMarks()` gained `by_month` (one more
+  GROUP BY on period month) and `yearBonusFor` returns `months` - each the same `daysOff`, so
+  the twelve add up to the total. **A month with nothing marked is `null`, a dash** - not 0.
+  `paid_in` / `paid_amount` are joined on in the route from `bonusPaidAnywhere`.
+- `registerCsv` / `printRegister` (landscape, compact). Reports -> Leave -> **Leave bonus
+  register** (`LeaveBonusRegisterReport`, view only, company filter) - declared in the
+  catalogue test's `beyondSpec`.
+- The interface test requires `className="sheet wide"` in `LeaveBonus.jsx`; the register's
+  table carries it, inside `.lby-register` (`table-wrap`, so it scrolls in its own frame).
+- The "why" now says where a part year starts AND ends (`to 2026-12-20` for a leaver) - it
+  read "97% of the year (from 2026-01-01)" for somebody who simply left in December.
+
 ### Write-off and disposal approvals; the contract's yearly leave bonus (v2.48.0)
 
 "start asset approvals for buy, write-off and dispose" - **buy already had one** (Purchase

@@ -2864,10 +2864,25 @@ export function yearMarks(year) {
     .all(Number(year));
   const byId = new Map();
   for (const r of rows) {
-    const line = byId.get(r.employee_id) || { counts: {}, marked_days: 0 };
+    const line = byId.get(r.employee_id) || { counts: {}, marked_days: 0, by_month: {} };
     line.counts[r.code] = r.days;
     line.marked_days += r.days;
     byId.set(r.employee_id, line);
+  }
+  // The same marks month by month, for the register. Summed, they are the year.
+  const monthly = db
+    .prepare(
+      `SELECT a.employee_id, p.month, a.code, COUNT(*) AS days
+         FROM attendance a JOIN periods p ON p.id = a.period_id
+        WHERE p.year = ? AND a.code IS NOT NULL AND a.code != ''
+        GROUP BY a.employee_id, p.month, a.code`
+    )
+    .all(Number(year));
+  for (const r of monthly) {
+    const line = byId.get(r.employee_id);
+    if (!line) continue;
+    line.by_month[r.month] = line.by_month[r.month] || {};
+    line.by_month[r.month][r.code] = r.days;
   }
   const months = db
     .prepare(

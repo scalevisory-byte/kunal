@@ -20,10 +20,21 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.48.0';
+export const VERSION = '2.49.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.49.0',
+    date: '28 Nov 2026',
+    title: 'Leave bonus: only the contract\u2019s yearly formula, and a leave bonus register',
+    items: [
+      '**Leave \u2192 Bonus now carries only the employment contract\u2019s yearly bonus**: 20 days\u2019 pay at salary \u00f7 30, 100% up to 20 leaves, 75% for 21\u201330, 50% for 31\u201340, nothing past 40. The old monthly \u201cno leave this month\u201d bonus is off the screen; anything it already paid is untouched.',
+      '**The leave bonus register**: one line per person \u2014 joining date, salary, leaves in each month January to December, the year\u2019s total, the slab, the bonus, and the month it was paid in. A dash is a month with nothing marked, never nought. Print (landscape) and CSV.',
+      'The same register is in **Reports \u2192 Leave \u2192 Leave bonus register**, to read and print without the Pay button.',
+      'Somebody who joined or left during the year now says so on their line \u2014 \u201c50% of the year (from 2 Jul)\u201d, \u201c97% of the year (to 20 Dec)\u201d.',
+    ],
+  },
   {
     version: '2.48.0',
     date: '28 Nov 2026',

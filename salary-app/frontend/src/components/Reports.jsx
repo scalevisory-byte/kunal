@@ -8,6 +8,7 @@ import {
   restoreBackup,
 } from '../api.js';
 import AttendanceReport from './AttendanceReport.jsx';
+import { LeaveBonusRegisterReport } from './LeaveBonus.jsx';
 import AttendanceRequests from './AttendanceRequests.jsx';
 import PunchImport from './PunchImport.jsx';
 import MonthlyStatusImport from './MonthlyStatusImport.jsx';
@@ -256,6 +257,7 @@ export default function Reports({ period, payroll, onReload, onGo, employees = [
    * rather than pretending to live here.
    */
   const PANELS = {
+    'leave-bonus-register': () => <LeaveBonusRegisterReport period={period} companyId={filters.company_id || null} />,
     'payroll-by-company': () => <Totals period={period} payroll={shown} grab={grab} />,
     'cost-company': () => <Totals period={period} payroll={shown} grab={grab} />,
     'attendance-register': () => (shown ? <AttendanceReport payroll={shown} /> : null),
