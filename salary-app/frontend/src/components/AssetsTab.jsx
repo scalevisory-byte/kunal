@@ -24,6 +24,8 @@ export default function AssetsTab({
   onScanned,
   onError,
   onReload,
+  focus,
+  onFocused,
 }) {
   return (
     <>
@@ -54,6 +56,8 @@ export default function AssetsTab({
       onScanned={onScanned}
       onError={onError}
       onReload={onReload}
+      focus={focus}
+      onFocused={onFocused}
     />
     </>
   );

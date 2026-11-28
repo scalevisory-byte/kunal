@@ -2847,6 +2847,49 @@ export function payBonus(periodId, lines = [], { by, kind = 'leave', note } = {}
   return { paid, skipped, period };
 }
 
+/**
+ * Every mark of a calendar year, per person, for the yearly leave bonus
+ * (v2.48.0). Counts by code, plus how many days carry any mark at all - so a
+ * year nobody marked can be told from a year with no leave - and which months
+ * of the year the app holds at all.
+ */
+export function yearMarks(year) {
+  const rows = db
+    .prepare(
+      `SELECT a.employee_id, a.code, COUNT(*) AS days
+         FROM attendance a JOIN periods p ON p.id = a.period_id
+        WHERE p.year = ? AND a.code IS NOT NULL AND a.code != ''
+        GROUP BY a.employee_id, a.code`
+    )
+    .all(Number(year));
+  const byId = new Map();
+  for (const r of rows) {
+    const line = byId.get(r.employee_id) || { counts: {}, marked_days: 0 };
+    line.counts[r.code] = r.days;
+    line.marked_days += r.days;
+    byId.set(r.employee_id, line);
+  }
+  const months = db
+    .prepare(
+      `SELECT DISTINCT p.month FROM periods p
+         WHERE p.year = ? AND EXISTS (SELECT 1 FROM attendance a WHERE a.period_id = p.id AND a.code IS NOT NULL AND a.code != '')
+         ORDER BY p.month`
+    )
+    .all(Number(year))
+    .map((r) => r.month);
+  return { byId, months };
+}
+
+/** Who has already been paid a given kind of bonus, in any month. */
+export const bonusPaidAnywhere = (kind) =>
+  db
+    .prepare(
+      `SELECT b.*, e.name AS employee_name, p.label AS period_label
+         FROM bonus_payments b JOIN employees e ON e.id = b.employee_id JOIN periods p ON p.id = b.period_id
+        WHERE b.kind = ? ORDER BY e.name`
+    )
+    .all(kind);
+
 /** Taking one back, when it was paid by mistake. */
 export function unpayBonus(id, by) {
   const row = db.prepare(`SELECT * FROM bonus_payments WHERE id = ?`).get(Number(id));

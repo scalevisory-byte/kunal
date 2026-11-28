@@ -1483,6 +1483,8 @@ function Shell() {
             onScanned={() => setScanned('')}
             onError={handle}
             onReload={loadAll}
+            focus={focusOn}
+            onFocused={() => setFocusOn(null)}
           />
         )}
 

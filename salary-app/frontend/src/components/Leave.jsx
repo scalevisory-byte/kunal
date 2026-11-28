@@ -271,6 +271,7 @@ export default function Leave({
         <LeaveTabs view={view} setView={setView} />
         <LeaveBonus
           period={period}
+          periods={periods}
           companyId={companyId}
           onReload={onReload}
         />

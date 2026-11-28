@@ -7183,3 +7183,34 @@ input.hd-with { width: 9rem; font-size: 0.82rem; padding: 0.15rem 0.4rem; }
 .rn-import { max-width: 56rem; }
 .rn-import-list { max-height: 22rem; overflow: auto; margin: 0.5rem 0; }
 .rn-import-skips { margin: 0.4rem 0 0.8rem; padding-left: 1.2rem; color: var(--muted); }
+
+/* ---- Write-off & disposal approvals (v2.48.0) ---- */
+.wd-notice { margin: 0.4rem 0; padding: 0.45rem 0.7rem; border-left: 3px solid var(--brand); background: var(--brand-soft); }
+.modal.wd-modal { width: min(36rem, 100%); }
+.wd-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin: 0.6rem 0 0.9rem; }
+.wd-choice { display: flex; flex-direction: row; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.wd-choice.on { border-color: var(--brand); background: var(--brand-soft); }
+.wd-choice.off { opacity: 0.55; cursor: not-allowed; }
+.wd-choice input[type="radio"] { width: auto; margin: 0.2rem 0 0; padding: 0; appearance: auto; -webkit-appearance: radio; border: none; background: none; flex: none; }
+.wd-choice span { display: flex; flex-direction: column; gap: 0.15rem; }
+.wd-choice em { font-style: normal; font-size: 0.72rem; color: var(--muted); }
+.wd-effect { margin: 0.7rem 0 0.2rem; }
+.wd-ask { margin: 0.2rem 0; color: var(--warn); }
+.wd-filters { flex-wrap: wrap; gap: 0.4rem; }
+table.sheet.wd-table td { white-space: normal; vertical-align: top; }
+table.sheet.wd-table td.wd-why { max-width: 22rem; }
+table.sheet.wd-table td.wd-decide { white-space: nowrap; }
+@media (max-width: 720px) {
+  .wd-actions { grid-template-columns: minmax(0, 1fr); }
+}
+/* Opened from an asset's page, which is itself an overlay: this one sits above it. */
+.modal-backdrop.wd-over { z-index: 70; }
+.wd-modal textarea { font: inherit; }
+
+/* ---- The yearly leave bonus (v2.48.0) ---- */
+.lby-switch { gap: 0.4rem; flex-wrap: wrap; }
+table.sheet.lby-slabs { width: auto; margin-top: 0.7rem; }
+table.sheet.lby-slabs td { vertical-align: middle; }
+input.lby-num { width: 4.5rem; display: inline-block; text-align: right; padding: 0.2rem 0.35rem; }
+table.sheet.lby-table td { white-space: normal; vertical-align: top; }
+table.sheet.lby-table tr.lby-held td { color: var(--muted); }

@@ -93,6 +93,12 @@ export function digest(input = {}) {
     profile_changes: profileChanges = null,
     unchecked_documents: uncheckedDocuments = [],
     asset_claims: assetClaims = [],
+    /*
+     * Write-offs and disposals waiting for a Manager or an Admin (v2.48.0).
+     * Handed in only to somebody who may decide them - the office's own
+     * business, so not a staff line and not part of the hourly pop-up.
+     */
+    asset_disposals: assetDisposals = [],
     /** How far ahead to look. A month, because that is the notice people need. */
     ahead = 30,
     today = todayIso(),
@@ -193,6 +199,18 @@ export function digest(input = {}) {
       'assets',
       null,
       true
+    );
+  }
+
+  if (assetDisposals.length) {
+    add(
+      `• ${plural(assetDisposals.length, 'asset write-off or disposal', 'asset write-offs or disposals')} waiting for your approval: ${names(
+        assetDisposals.map((d) => `${d.asset_code || d.asset_label} (${d.number})`)
+      )}`,
+      1,
+      'queue',
+      'assets',
+      'disposals'
     );
   }
 

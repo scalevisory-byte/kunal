@@ -1,6 +1,8 @@
 import path from 'node:path';
 import { openWork } from '../../../shared/serviceStatus.js';
 import { Router } from 'express';
+import { decideDisposal, disposalsWaiting, getDisposal, listDisposals, raiseDisposal } from '../assetDisposals.js';
+import { disposalFigures } from '../../../shared/assetDisposal.js';
 import {
   assetRequestsWaiting,
   createAssetRequest,
@@ -998,6 +1000,62 @@ peopleRouter.delete('/assets/requests/:id', (req, res) => {
   }
 });
 
+/* ---------------- write-offs and disposals (v2.48.0) ---------------- */
+
+/*
+ * A request changes nothing; an approval does. Somebody who may approve and
+ * asks is taken at their word - it is done at once and recorded as approved
+ * by them, so the list below is every write-off and disposal, however done.
+ */
+peopleRouter.get('/assets/disposals', (req, res) => {
+  const rows = listDisposals({ status: req.query.status || undefined, asset_id: req.query.asset_id || undefined });
+  const all = req.query.status || req.query.asset_id ? listDisposals({}) : rows;
+  res.json({
+    disposals: rows,
+    figures: disposalFigures(all, { year: req.query.year || undefined }),
+    purchases_waiting: assetRequestsWaiting(),
+    can_approve: canApprove(req),
+    me: req.actor?.id ?? null,
+  });
+});
+
+peopleRouter.get('/assets/disposals/:id', (req, res) => {
+  const found = getDisposal(Number(req.params.id));
+  if (!found) return res.status(404).json({ error: 'not found' });
+  res.json({ disposal: found, can_approve: canApprove(req), me: req.actor?.id ?? null });
+});
+
+peopleRouter.post('/assets/disposals/:id/:decision', (req, res) => {
+  if (!['approve', 'reject', 'cancel'].includes(req.params.decision)) return res.status(404).json({ error: 'not found' });
+  try {
+    res.json(
+      decideDisposal(Number(req.params.id), req.params.decision, {
+        by: who(req),
+        userId: req.actor?.id,
+        canApprove: canApprove(req),
+        note: req.body?.note || '',
+      })
+    );
+  } catch (err) {
+    const forbidden = /only a Manager|nobody approves|only the person who asked/.test(err.message);
+    res.status(forbidden ? 403 : 400).json({ error: err.message });
+  }
+});
+
+/** Ask for a write-off or a disposal of one asset. */
+peopleRouter.post('/assets/:id/disposal', (req, res) => {
+  try {
+    const made = raiseDisposal(Number(req.params.id), req.body || {}, {
+      by: who(req),
+      userId: req.actor?.id,
+      canApprove: canApprove(req),
+    });
+    res.status(made.status === 'pending' ? 202 : 201).json({ disposal: made, asset: getAsset(made.asset_id) });
+  } catch (err) {
+    bad(res, err);
+  }
+});
+
 peopleRouter.get('/assets/claims', (req, res) =>
   res.json({ claims: listAssetClaims({ status: req.query.status || undefined }) })
 );
@@ -1085,10 +1143,25 @@ peopleRouter.post('/assets/:id/return', (req, res) => {
   }
 });
 
+/*
+ * The old way in, kept so nothing that calls it breaks - but it now goes
+ * through the approval like everything else (v2.48.0): somebody who may
+ * approve has it done at once; anybody else has ASKED, and gets 202 with the
+ * asset untouched.
+ */
 peopleRouter.post('/assets/:id/write-off', (req, res) => {
   try {
-    res.json(writeOffAsset(Number(req.params.id), { ...req.body, by: who(req) }));
+    const made = raiseDisposal(
+      Number(req.params.id),
+      { action: 'write_off', reason: req.body?.why ?? req.body?.reason, on_date: req.body?.on || undefined },
+      { by: who(req), userId: req.actor?.id, canApprove: canApprove(req) }
+    );
+    const asset = getAsset(made.asset_id);
+    if (made.status === 'pending') return res.status(202).json({ ...asset, pending: true, disposal: made });
+    res.json({ ...asset, disposal: made });
   } catch (err) {
+    // An asset already written off answers as it always did: the asset, unchanged.
+    if (/already written off/.test(err.message)) return res.json(getAsset(Number(req.params.id)));
     bad(res, err);
   }
 });
@@ -1148,6 +1221,7 @@ peopleRouter.get('/assets/dashboard', (req, res) => {
     /* What is waiting for somebody to decide, for the Overview's list. */
     pending: {
       purchases: assetRequestsWaiting(),
+      disposals: disposalsWaiting(),
       claims: listAssetClaims({ status: 'pending' }).length,
     },
     years: purchaseYears(all),
@@ -1173,6 +1247,12 @@ peopleRouter.get('/assets/dashboard', (req, res) => {
 
 /** Under maintenance, damaged, missing - or back in use. */
 peopleRouter.post('/assets/:id/state', (req, res) => {
+  // Disposing takes it off the books, so it goes through the approval.
+  if (String(req.body?.state || '').trim() === 'disposed') {
+    return res.status(400).json({
+      error: 'Disposing of an asset goes through approval — use Dispose on the asset, which asks a Manager or an Admin.',
+    });
+  }
   try {
     res.json(setAssetState(Number(req.params.id), { ...req.body, by: who(req) }));
   } catch (err) {
@@ -1878,6 +1958,11 @@ peopleRouter.get('/digest', (req, res) => {
     profile_changes: may(req.actor, 'employees') ? profileChangesWaiting() : null,
     unchecked_documents: may(req.actor, 'employees') ? unchecked : [],
     asset_claims: may(req.actor, 'assets') ? listAssetClaims({ status: 'pending' }) : [],
+    // Only to somebody who can decide them, and never their own request.
+    asset_disposals:
+      may(req.actor, 'assets') && canApprove(req)
+        ? listDisposals({ status: 'pending' }).filter((d) => !req.actor?.id || Number(d.raised_by_user) !== Number(req.actor.id))
+        : [],
     today: todayIso(),
   });
 

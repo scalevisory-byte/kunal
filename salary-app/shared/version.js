@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.47.0';
+export const VERSION = '2.48.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.48.0',
+    date: '28 Nov 2026',
+    title: 'Write-offs and disposals need approval; the contract\u2019s yearly leave bonus',
+    items: [
+      '**Writing an asset off or disposing of it now goes to a Manager or an Admin.** Asking changes nothing \u2014 the asset stays on the register, in whoever\u2019s name it is \u2014 until somebody who may approve presses Approve. Nobody approves their own request. A Manager or Admin doing it themselves is done at once and still recorded, so the list is complete.',
+      '**Assets \u2192 Write-off & Disposal** lists every request with its reason, who asked, who decided and when, and the year\u2019s figures: written off, disposed of, money received from sales, and the purchase cost taken off the books. The dashboard tells an approver when one is waiting.',
+      '**Dispose** is its own button: sold, scrapped, donated, returned or exchanged, to whom, and what came back for it. A disposal takes the asset back from its holder and writes it off too.',
+      '**The yearly leave bonus from the employment contract** (Leave \u2192 Bonus \u2192 Yearly): 20 days\u2019 pay at the monthly salary \u00f7 30 for up to 20 leaves in the calendar year, 75% for 21\u201330, 50% for 31\u201340, nothing past 40. No bonus in the first year; pro rata after it. An absence without approval counts two, as the contract says. The slabs are editable and saved for the office.',
+      'The yearly bonus is paid into a month you pick, as an addition with a note on the payslip \u2014 **once a year per person, whichever month it goes into**. Somebody with no joining date, no salary or nothing marked all year is held and named, never guessed.',
+      'Buying already needed approval (Purchase Requests); the Write-off & Disposal screen says how many of those are waiting too.',
+    ],
+  },
   {
     version: '2.47.0',
     date: '28 Nov 2026',

@@ -741,11 +741,14 @@ export const HELP = [
   },
   {
     id: 'leave-bonus',
-    title: 'The leave bonus — for a month nobody took off',
+    title: 'The leave bonus — the yearly one from the contract, and the monthly one',
     tab: 'leave',
-    keywords: ['bonus', 'incentive', 'attendance bonus', 'chutti nahi li', 'inaam', 'full attendance'],
+    keywords: ['bonus', 'incentive', 'attendance bonus', 'chutti nahi li', 'inaam', 'full attendance', 'contract', 'yearly bonus', '20 days', 'paid leave structure', 'slab'],
     lines: [
-      'Leave → **Bonus**. Two shapes: all or nothing, or the amount less a cut for each day off.',
+      'Leave → **Bonus → Yearly** is the employment contract\u2019s Paid Leave Structure: 20 days\u2019 pay at the monthly salary \u00f7 30 for up to 20 leaves in the calendar year, 75% for 21\u201330, 50% for 31\u201340, nothing past 40. A half day counts half; an absence without approval counts two.',
+      'No bonus in the first year of service; after it, pro rata. Pick the month to pay it into and press Pay \u2014 each person is paid once a year, whichever month. Somebody with no joining date, no salary or nothing marked is held and named.',
+      'The slabs, the 20 days and the \u00f7 30 can be changed and saved; **Back to the contract\u2019s figures** restores them. The screen warns when the app does not hold all twelve months of the year yet.',
+      'Leave → **Bonus → Monthly** is the other kind: a reward for a month with no leave. Two shapes: all or nothing, or the amount less a cut for each day off.',
       'Tick which marks cost it — paid leave counts by default, because it is still a day away.',
       'The rule is saved on the server, so everybody in the office runs the same one.',
       'Unused leave is a different thing: pay that from **Balances → Encash days**.',
@@ -1472,6 +1475,19 @@ export const HELP = [
       '**Copy as new** on a record opens the Add form filled in from it, starting the day the old one ends. **Tick** several rows to mark them paid, payment pending, or give them one responsible person. **Print** prints the register as shown.',
     ],
     note: 'LICENCE KEYS ARE NEVER IMPORTED. A key column in the sheet is noticed and ignored, so a key never appears on a preview screen \u2014 type it on the record. A record with papers attached cannot be deleted; remove the papers or cancel it, which keeps everything.',
+  },
+  {
+    id: 'asset-write-off-approval',
+    title: 'Writing off or disposing of an asset — and who approves it',
+    tab: 'assets',
+    keywords: ['write off', 'dispose', 'disposal', 'scrap', 'sold', 'sell', 'approval', 'approve', 'kabad', 'bech diya', 'raddi', 'lost', 'stolen'],
+    lines: [
+      'On the register or the asset\u2019s page press **Write off** (broken beyond repair, lost, stolen) or **Dispose** (sold, scrapped, donated, returned, exchanged). Say why; for a sale, say to whom and how much came back.',
+      'If your login can approve (Manager or Admin) it is done at once and recorded as approved by you. Anybody else\u2019s goes to **Assets \u2192 Write-off & Disposal** as a request, and the register shows *write-off asked*.',
+      'A Manager or Admin opens Write-off & Disposal and presses **Approve** or **Reject** (a rejection needs a reason). The person who asked may **Cancel** it while it waits.',
+      'Approving takes the asset back from whoever holds it, then writes it off \u2014 or marks it disposed and writes it off too. It keeps its code and its history.',
+    ],
+    note: 'A REQUEST CHANGES NOTHING. Until it is approved the asset is exactly where it was \u2014 on the register and in somebody\u2019s name. And nobody approves their own request. Buying is approved separately, under Purchase Requests.',
   },
   {
     id: 'asset-purchase-requests',

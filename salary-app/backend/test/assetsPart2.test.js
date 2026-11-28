@@ -175,7 +175,8 @@ test('the asset page acts through the register’s own handlers, not copies', ()
   }
   for (const action of ['actions.issue', 'actions.back', 'actions.setState', 'actions.writeOff']) assert.ok(page.includes(action), action);
   const register = strip(read('frontend/src/components/people/Assets.jsx'));
-  assert.match(register, /const pageActions = \{ issue, back, setState, writeOff, label, voucher \}/);
+  // v2.48.0 added dispose: still the register's own handler, handed down.
+  assert.match(register, /const pageActions = \{ issue, back, setState, writeOff, dispose, label, voucher \}/);
 });
 
 test('every new class has a rule in styles.css', () => {

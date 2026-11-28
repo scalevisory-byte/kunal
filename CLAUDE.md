@@ -2251,6 +2251,61 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Write-off and disposal approvals; the contract's yearly leave bonus (v2.48.0)
+
+"start asset approvals for buy, write-off and dispose" - **buy already had one** (Purchase
+Requests, v2.39), so this is write-off and dispose. `shared/assetDisposal.js`,
+`backend/src/assetDisposals.js`, `asset_disposals` (DDL in people.js beside the asset tables,
+because `getAsset`/`listAssets` carry `disposal_pending`/`disposal_number` on every row),
+`AssetDisposals.jsx`, `DisposalDialog.jsx`, a tenth asset section `disposals`.
+
+- **A request changes nothing; the approval carries it out** in the same transaction
+  (`carryOut`: a write-off is the existing `writeOffAsset`; a disposal returns it from the
+  holder, sets `state = 'disposed'` with how/to whom/amount in `state_note`, and writes it off
+  too via COALESCE so an earlier write-off date stays). Nobody approves their own
+  (`raised_by_user`). Rejection and cancel need a note; cancel is the raiser or an approver.
+  One open request per asset (partial unique index).
+- **An approver acting is a direct approval** (`direct = 1`, raised and decided by them), not
+  a bypass - so the list is every write-off however done, and a one-admin office is not stuck.
+- **The old routes still work and go through it**: `POST /assets/:id/write-off` is direct for
+  an approver (200, the asset, as before) and a 202 request for anybody else - which kept the
+  `moreRoles` "HR reaches the route" test and every older test green. `POST /assets/:id/state`
+  with `disposed` is refused (400) pointing at Dispose. Operators: 403 on the old route (the
+  TAKES_AWAY gate), allowed to ASK via `/disposal` because asking takes nothing away.
+- **`assetStatus` now ranks `disposed` above `written_off`** - an approved disposal is both,
+  and "sold for 4,000" is the more specific fact. Both are off the register, so no live count moves.
+- Digest line for approvers only (never their own requests), `go: 'assets', focus: 'disposals'`,
+  not a staff line. `focus`/`onFocused` now reach `Assets` through `AssetsTab` - they never
+  did, so the line first landed on Overview.
+- **Bugs found by driving it:** the dialog rendered UNDER the asset page (both z-index 60,
+  page later in the DOM) - `.modal-backdrop.wd-over` is 70; `table-wrap unboxed` let the table
+  widen the page on a phone (638px at 414) - plain `table-wrap`; a textarea's monospace again.
+- Standalone: no logins, so no approvals - the dialog posts to the old direct routes and says so.
+
+**The yearly leave bonus** - Dinesh sent `BOOKNFLY - employment contract.docx` mid-task: *"check
+this also / set leave bonus structure and amount also"*. Its "Paid Leave Structure": total leave
+20; up to 20 leaves the full 20 days' bonus "as per 30 days"; 21-30 75%; 31-40 50%; 41+ nothing.
+Calendar year; first year all leave unpaid; then pro rata. `shared/leaveBonusYear.js`,
+`LeaveBonusYear.jsx` (Leave -> Bonus -> Yearly, beside the old monthly bonus), routes
+`/leave/bonus-year/*`, `yearMarks()` / `bonusPaidAnywhere()` in db.js.
+- bonus = base_days x monthly_salary / divisor x slab% x service share. Leaves counted with the
+  monthly bonus's own `daysOff` (HF half, AD two - the contract's "2 days for every 1").
+  Bands include their top figure (exactly 20 is full); 20.5 is in the 75% band.
+- Pro rata applies to the 20 days, never to the bands. `min_service_months` 12 from `joined_on`.
+- **Held, never guessed:** nothing marked all year, no monthly salary, **no joining date** -
+  and in the test copy that was everybody, which is very likely true of his live data too.
+- Paid with `payBonus(kind = leave_year_YYYY)` into a chosen month; the route first refuses
+  anybody already paid that kind in ANY month (payBonus's own guard is per month only).
+- The screen warns when fewer than 12 months of the year are in the app - leave in missing
+  months is uncounted, which overpays.
+- **Contract terms NOT built, reported to Dinesh instead:** leave request notice (1 day -> 2
+  working days ahead, 2 -> 3, 3+ -> 7); desertion after 3 days' unapproved absence; notice
+  period 45 days (3 months after 2 years) vs the exit default of 30; the Rs 1,35,000 training
+  bond, 12-month minimum service and 3 security cheques; working hours 10-7 with 30 min lunch,
+  48 h/week vs the app's 9 h x 26 target. The contract itself has a joining date (16/11/2026)
+  after its own signing and renewal dates (01/04/2026), a blank Aadhaar, and its annexure calls
+  the net 44,800 "Gross".
+
 ### Licence papers and the licence import (v2.47.0)
 
 "start licence documents and import / add more option also". `backend/src/licenseDocs.js`,

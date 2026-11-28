@@ -52,12 +52,19 @@ export const statusLabel = (key) =>
 /**
  * One asset's status.
  *
- * Order matters and is deliberate: written off beats everything (the thing is
+ * Order matters and is deliberate: disposed, then written off, beat everything (the thing is
  * off the books), then the stored state, then who is holding it. A laptop
  * that is out with somebody AND away being repaired is "under maintenance" -
  * that is the fact that changes what you can do with it today.
  */
 export function assetStatus(asset = {}) {
+  /*
+   * Disposed outranks written off (v2.48.0). An approved disposal writes the
+   * asset off as well, so it is off the books either way - and "sold for
+   * 4,000 to the scrap dealer" is the more specific fact. Both are off the
+   * register, so no count of what is ON it can move.
+   */
+  if (asset.state === 'disposed') return 'disposed';
   if (asset.written_off_on) return 'written_off';
   if (STATE_KEYS.includes(asset.state)) return asset.state;
   if (asset.employee_id && !asset.returned_on) return 'assigned';

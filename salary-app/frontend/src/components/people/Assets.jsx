@@ -22,6 +22,8 @@ import Maintenance from './Maintenance.jsx';
 import StockTake from './StockTake.jsx';
 import WarrantyAmc from './WarrantyAmc.jsx';
 import PurchaseRequests from './PurchaseRequests.jsx';
+import AssetDisposals from './AssetDisposals.jsx';
+import DisposalDialog from './DisposalDialog.jsx';
 import { onStaff } from '../../onStaff.js';
 import { todayIso } from '../../../../shared/today.js';
 
@@ -144,8 +146,11 @@ function SheetCell({ asset, field, type = 'text', align, list, placeholder, onSa
  * so the list and the figure cannot disagree.
  */
 
-export default function Assets({ employees, companies, scanned, onScanned, onError }) {
+export default function Assets({ employees, companies, scanned, onScanned, onError, focus, onFocused }) {
   const [assets, setAssets] = useState([]);
+  /* A write-off or a disposal being asked for (v2.48.0): { asset, action }. */
+  const [disposing, setDisposing] = useState(null);
+  const [notice, setNotice] = useState('');
   const [totals, setTotals] = useState({});
   const [view, setView] = useState('dashboard');
   /*
@@ -669,13 +674,19 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     return act(() => api.post(`/people/assets/${asset.id}/return`, { condition: condition || undefined }));
   };
 
+  /*
+   * v2.48.0: a write-off or a disposal is ASKED for, through one dialog that
+   * says before the press whether it will happen now (an approver) or wait
+   * for a Manager or an Admin (everybody else). It used to be one prompt and
+   * done, for anybody with the Assets right.
+   */
   const writeOff = (asset) => {
-    const why = window.prompt(
-      `Write off ${asset.code} ${asset.label}? It keeps its code and its history, and leaves the register.\n\nWhy?`,
-      ''
-    );
-    if (!why) return;
-    return act(() => api.post(`/people/assets/${asset.id}/write-off`, { why }));
+    setDisposing({ asset, action: 'write_off' });
+    return undefined;
+  };
+  const dispose = (asset) => {
+    setDisposing({ asset, action: 'dispose' });
+    return undefined;
   };
 
   /*
@@ -690,6 +701,8 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    * it was last seen is still worth recording the day somebody notices.
    */
   const setState = (asset, state) => {
+    // Disposing takes it off the books, so it is asked for like a write-off.
+    if (state === 'disposed') return dispose(asset);
     if (state && state !== 'available') {
       const label = statusLabel(state);
       const note = window.prompt(
@@ -722,7 +735,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError);
 
   /* What the asset page may do: the register's own handlers, not copies. */
-  const pageActions = { issue, back, setState, writeOff, label, voucher };
+  const pageActions = { issue, back, setState, writeOff, dispose, label, voucher };
 
   /* A page of them, because nobody labels one asset at a time. */
   /*
@@ -791,10 +804,72 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    * The dashboard opens the register with the filter the card carried, so a
    * figure and the rows behind it can never disagree.
    */
+  /*
+   * The section tabs, plus the write-off / disposal dialog: every view starts
+   * with the tabs, so the dialog is reachable from wherever the asset page or
+   * the register was opened.
+   */
+  const tabs = (
+    <>
+      <Tabs view={view} setView={setView} />
+      {notice ? (
+        <p className="small wd-notice">
+          {notice}{' '}
+          <button className="link" onClick={() => setNotice('')}>dismiss</button>
+        </p>
+      ) : null}
+      {disposing && (
+        <DisposalDialog
+          asset={disposing.asset}
+          action={disposing.action}
+          onClose={() => setDisposing(null)}
+          onDone={(message) => {
+            setDisposing(null);
+            setNotice(message);
+            load();
+          }}
+        />
+      )}
+    </>
+  );
+
+  // The dashboard's "waiting for your approval" line lands on the list.
+  useEffect(() => {
+    if (focus === 'disposals') {
+      setView('disposals');
+      onFocused?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
+
+  const openAssetById = async (id) => {
+    const here = assets.find((a) => a.id === id);
+    if (here) return setHistory(here);
+    try {
+      const body = await api.get('/people/assets?written_off=true');
+      const found = (body.assets || []).find((a) => a.id === id);
+      if (found) setHistory(found);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
+  if (view === 'disposals') {
+    return (
+      <section className="stack">
+        {tabs}
+        <AssetDisposals onError={onError} onOpenAsset={openAssetById} onPurchases={() => setView('purchases')} />
+        {history && (
+          <AssetHistory asset={{ ...(assets.find((a) => a.id === history.id) || history), open: history.open }} employees={employees} actions={pageActions} onClose={() => { setHistory(null); load(); }} onError={onError} />
+        )}
+      </section>
+    );
+  }
+
   if (view === 'dashboard') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <AssetDashboard
           companies={companies}
           branches={allBranches}
@@ -833,7 +908,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'masters') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         {/*
           * The prefixes sit ABOVE the four name lists, not below them.
           *
@@ -861,7 +936,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'stock') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <StockTake onError={onError} />
       </section>
     );
@@ -870,7 +945,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'slips') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <HandoverSlips onError={onError} />
       </section>
     );
@@ -879,7 +954,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'statement') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         {/* Reports: the downloads that lived on the register's toolbar, in
             one place, above the full statement. */}
         <div className="card">
@@ -911,7 +986,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'warranty') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <WarrantyAmc assets={assets.filter(onRegister)} onOpen={(a) => setHistory(a)} />
         {history && (
           <AssetHistory asset={{ ...(assets.find((a) => a.id === history.id) || history), open: history.open }} employees={employees} actions={pageActions} onClose={() => { setHistory(null); load(); }} onError={onError} />
@@ -923,7 +998,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'purchases') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <PurchaseRequests
           companies={companies}
           employees={employees}
@@ -955,7 +1030,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
   if (view === 'maintenance') {
     return (
       <section className="stack">
-        <Tabs view={view} setView={setView} />
+        {tabs}
         <Maintenance employees={employees} companies={companies} onError={onError} />
       </section>
     );
@@ -963,7 +1038,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
 
   return (
     <section className="stack">
-      <Tabs view={view} setView={setView} />
+      {tabs}
 
       {/*
         * WHERE THE FOUR FIGURES COME FROM, said under each one.
@@ -1925,7 +2000,14 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
                         ))}
                       </select>
                     )}{' '}
-                    {!asset.written_off_on &&
+                    {asset.disposal_pending ? (
+                      <span
+                        className="pill pending"
+                        title={`${asset.disposal_number} waits for a Manager or an Admin — open Write-off & Disposal`}
+                      >
+                        {asset.disposal_pending === 'dispose' ? 'disposal asked' : 'write-off asked'}
+                      </span>
+                    ) : !asset.written_off_on &&
                       (asset.handovers ? (
                         <button className="ghost small" onClick={() => writeOff(asset)}>
                           write off
@@ -2043,6 +2125,7 @@ export const ASSET_SECTIONS = [
   ['maintenance', 'Maintenance & Repairs'],
   ['warranty', 'Warranty & AMC'],
   ['purchases', 'Purchase Requests'],
+  ['disposals', 'Write-off & Disposal'],
   ['statement', 'Reports'],
   ['masters', 'Settings'],
 ];

@@ -289,6 +289,36 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_service_asset ON asset_services(asset_id, serviced_on);
   CREATE INDEX IF NOT EXISTS idx_service_due ON asset_services(next_service_on);
 
+  /*
+   * Write-offs and disposals waiting for, or given, an approval (v2.48.0).
+   * The row is the request AND the record of the decision; the asset itself
+   * is only changed by an approval. An approver acting on their own writes a
+   * row too, raised and decided by them, with direct = 1.
+   */
+  CREATE TABLE IF NOT EXISTS asset_disposals (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    number            TEXT NOT NULL UNIQUE,
+    asset_id          INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    action            TEXT NOT NULL,
+    reason            TEXT NOT NULL,
+    method            TEXT,
+    party             TEXT,
+    amount            REAL,
+    on_date           TEXT,
+    status            TEXT NOT NULL DEFAULT 'pending',
+    raised_by         TEXT,
+    raised_by_user    INTEGER,
+    decided_by        TEXT,
+    decided_by_user   INTEGER,
+    decided_at        TEXT,
+    decision_note     TEXT,
+    direct            INTEGER NOT NULL DEFAULT 0,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_disposals_status ON asset_disposals(status);
+  -- One open request per asset: two people asking at once is one question.
+  CREATE UNIQUE INDEX IF NOT EXISTS asset_disposals_one_open ON asset_disposals(asset_id) WHERE status = 'pending';
+
   /* ---------------- leaving ---------------- */
   CREATE TABLE IF NOT EXISTS employee_exits (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1055,10 +1085,15 @@ export function deleteAppraisal(id, by) {
  * assets
  * ================================================================= */
 
+/** The write-off or disposal asked for and not yet decided, if any. */
+const DISPOSAL_PENDING = `(SELECT d.action FROM asset_disposals d WHERE d.asset_id = a.id AND d.status = 'pending') AS disposal_pending,
+              (SELECT d.number FROM asset_disposals d WHERE d.asset_id = a.id AND d.status = 'pending') AS disposal_number`;
+
 export const getAsset = (id) => {
   const row = db
     .prepare(
-      `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name
+      `SELECT a.*, e.name AS employee_name, c.name AS company_name, br.name AS branch_name,
+              ${DISPOSAL_PENDING}
        FROM assets a
        LEFT JOIN employees e ON e.id = a.employee_id
        LEFT JOIN companies c ON c.id = a.company_id
@@ -1151,7 +1186,8 @@ export function listAssets({ employee_id, company_id, branch_id, out, written_of
               -- not as a way in, so Dinesh reported the invoice upload as
               -- missing when it had been there all along.
               (SELECT COUNT(*) FROM asset_documents d WHERE d.asset_id = a.id) AS documents,
-              (SELECT COUNT(*) FROM asset_photos ph WHERE ph.asset_id = a.id) AS photos
+              (SELECT COUNT(*) FROM asset_photos ph WHERE ph.asset_id = a.id) AS photos,
+              ${DISPOSAL_PENDING}
        FROM assets a
        LEFT JOIN employees e ON e.id = a.employee_id
        LEFT JOIN companies c ON c.id = a.company_id

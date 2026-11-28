@@ -10,6 +10,7 @@ import { ATTENDANCE_CODES } from '../../../shared/calc.js';
 import { rupees } from '../format.js';
 import { col, num, printReport } from '../printReport.js';
 import { saveCsv } from '../saveCsv.js';
+import LeaveBonusYear from './LeaveBonusYear.jsx';
 
 /**
  * The leave bonus — paid for a month somebody took no time off in.
@@ -24,7 +25,7 @@ import { saveCsv } from '../saveCsv.js';
  *   is never eligible; they are listed apart with the reason, because
  *   otherwise one unfilled grid pays the whole staff a bonus.
  */
-export default function LeaveBonus({ period, companyId, onReload }) {
+function MonthlyBonus({ period, companyId, onReload }) {
   const [data, setData] = useState(null);
   const [rule, setRule] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -359,6 +360,32 @@ function Money({ label, value, strong }) {
     <div className="stat plain">
       <span className={`value${strong ? ' strong' : ''}`}>{rupees(value)}</span>
       <span className="label">{label}</span>
+    </div>
+  );
+}
+
+/**
+ * Two bonuses, one tab (v2.48.0). The YEARLY one is the employment contract's
+ * "Paid Leave Structure" and comes first; the monthly one - a reward for a
+ * month with no leave - is what this tab held before, and stays.
+ */
+export default function LeaveBonus({ period, periods, companyId, onReload }) {
+  const [which, setWhich] = useState('year');
+  return (
+    <div className="stack">
+      <div className="toolbar lby-switch">
+        <button className={which === 'year' ? 'chip active' : 'chip'} onClick={() => setWhich('year')}>
+          Yearly — the contract’s slabs
+        </button>
+        <button className={which === 'month' ? 'chip active' : 'chip'} onClick={() => setWhich('month')}>
+          Monthly — no leave that month
+        </button>
+      </div>
+      {which === 'year' ? (
+        <LeaveBonusYear period={period} periods={periods} companyId={companyId} onReload={onReload} />
+      ) : (
+        <MonthlyBonus period={period} companyId={companyId} onReload={onReload} />
+      )}
     </div>
   );
 }

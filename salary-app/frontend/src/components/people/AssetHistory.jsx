@@ -253,7 +253,18 @@ export default function AssetHistory({ asset, employees = [], actions = null, on
             )}
             <button className="ghost" onClick={() => actions.label(asset)}>Print label</button>
             <button className="ghost" onClick={() => actions.voucher(asset)}>Purchase voucher</button>
-            {!gone && <button className="ghost danger" onClick={() => run(actions.writeOff(asset))}>Write off</button>}
+            {asset.disposal_pending ? (
+              <span className="pill pending" title="Nothing changes until a Manager or an Admin approves it">
+                {asset.disposal_number}: {asset.disposal_pending === 'dispose' ? 'disposal' : 'write-off'} waiting for approval
+              </span>
+            ) : (
+              <>
+                {!gone && <button className="ghost danger" onClick={() => run(actions.writeOff(asset))}>Write off</button>}
+                {asset.state !== 'disposed' && actions.dispose && (
+                  <button className="ghost danger" onClick={() => run(actions.dispose(asset))}>Dispose</button>
+                )}
+              </>
+            )}
           </div>
         )}
         {problem ? <p className="lic-alert warn">{problem}</p> : null}
