@@ -630,13 +630,17 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
     }
   };
 
+  /* Hands the failure back as well, so the asset page can say it beside the
+     button that was pressed rather than on the register behind it. */
   const act = async (call) => {
     try {
       await call();
       setSaid('');
-      load();
+      await load();
+      return true;
     } catch (err) {
       setSaid(err.message);
+      return err;
     }
   };
 
@@ -716,6 +720,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
    */
   const voucher = (asset) =>
     openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError);
+
+  /* What the asset page may do: the register's own handlers, not copies. */
+  const pageActions = { issue, back, setState, writeOff, label, voucher };
 
   /* A page of them, because nobody labels one asset at a time. */
   /*
@@ -817,7 +824,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
           }}
         />
         {history && (
-          <AssetHistory asset={history} onClose={() => { setHistory(null); load(); }} onError={onError} />
+          <AssetHistory asset={{ ...(assets.find((a) => a.id === history.id) || history), open: history.open }} employees={employees} actions={pageActions} onClose={() => { setHistory(null); load(); }} onError={onError} />
         )}
       </section>
     );
@@ -907,7 +914,7 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         <Tabs view={view} setView={setView} />
         <WarrantyAmc assets={assets.filter(onRegister)} onOpen={(a) => setHistory(a)} />
         {history && (
-          <AssetHistory asset={history} onClose={() => { setHistory(null); load(); }} onError={onError} />
+          <AssetHistory asset={{ ...(assets.find((a) => a.id === history.id) || history), open: history.open }} employees={employees} actions={pageActions} onClose={() => { setHistory(null); load(); }} onError={onError} />
         )}
       </section>
     );
@@ -1981,7 +1988,9 @@ export default function Assets({ employees, companies, scanned, onScanned, onErr
         */}
       {history && (
         <AssetHistory
-          asset={history}
+          asset={{ ...(assets.find((a) => a.id === history.id) || history), open: history.open }}
+          employees={employees}
+          actions={pageActions}
           onClose={() => {
             setHistory(null);
             load();

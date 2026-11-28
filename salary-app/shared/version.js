@@ -20,10 +20,22 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.44.0';
+export const VERSION = '2.45.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.45.0',
+    date: '28 Nov 2026',
+    title: 'Assets, part two: an asset page with tabs and actions, repair statuses, and a stock take by location',
+    items: [
+      '**Click an asset\u2019s code for its page**: status and who has it at the top, then the actions \u2014 Assign or Take it back, Log a service, Mark it (under maintenance, damaged, missing, back in use), Print label, Purchase voucher, Write off \u2014 and tabs for Overview, History, Maintenance, Documents and Photos. The actions are the register\u2019s own, with the same prompts.',
+      '**Repairs have a status**: Scheduled, In progress, Waiting for parts, Completed, Cancelled. Booked work sits under **Open work** at the top of Maintenance & Repairs, where it is moved along or marked completed.',
+      '**A quote is not a cost.** Work not yet completed is counted in no total \u2014 cost of ownership, the year\u2019s spend, the dashboard\u2019s repair figure. Marking it completed asks what it actually cost, and from then on it counts. Completed work cannot be turned back into a booking.',
+      'Every service recorded before this release reads as Completed, because that is what it was \u2014 no figure already on screen moves.',
+      '**Stock take by place**: pick a location, department or company under *Walking* and the found / not found / not checked figures cover only that part. Verdicts are never changed by it, and anything with no location recorded is named so it can be set.',
+    ],
+  },
   {
     version: '2.44.0',
     date: '28 Nov 2026',

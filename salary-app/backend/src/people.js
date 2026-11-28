@@ -30,6 +30,8 @@ import {
   tidyPrefix,
 } from '../../shared/assetCode.js';
 import { looksDuplicate, ownership } from '../../shared/maintenance.js';
+import { inScope, roundFigures, unplaced } from '../../shared/stockTake.js';
+import { cleanServiceStatus, isSpent, serviceStatusLabel, statusOfService } from '../../shared/serviceStatus.js';
 import {
   LICENSE_KINDS,
   LICENSE_TERMS,
@@ -2364,21 +2366,10 @@ export const listRounds = () =>
  * looked at yet. The third is the one that matters - "not checked" is not
  * "missing", and treating it as such is how a stock take invents losses.
  */
-export function roundProgress(round) {
-  const assets = listAssets({ round });
-  const found = assets.filter((a) => a.verified_found === true);
-  const missing = assets.filter((a) => a.verified_found === false);
-  const todo = assets.filter((a) => a.verified_found === null);
-  return {
-    round,
-    total: assets.length,
-    found: found.length,
-    missing: missing.length,
-    not_checked: todo.length,
-    missing_value: missing.reduce((sum, a) => sum + (Number(a.purchase_cost) || 0), 0),
-    missing_assets: missing,
-    not_checked_assets: todo,
-  };
+export function roundProgress(round, scope = {}) {
+  // One rule for the count, shared with the screen that narrows it by place.
+  const all = listAssets({ round });
+  return { round, ...roundFigures(all.filter((a) => inScope(a, scope))), unplaced: unplaced(all, scope).length };
 }
 
 /* ---------------- maintenance ---------------- */
@@ -2450,8 +2441,9 @@ export function logService(assetId, input = {}) {
   const on = String(input.serviced_on || '').trim() || dayNow();
   const cost = Number(input.cost) || 0;
   if (cost < 0) throw new Error('a cost is not a negative number');
+  const status = cleanServiceStatus(input.status);
 
-  if (!input.force) {
+  if (!input.force && status !== 'cancelled') {
     const twin = looksDuplicate({ serviced_on: on, cost }, listServices({ asset_id: assetId }));
     if (twin) {
       const err = new Error(
@@ -2466,9 +2458,9 @@ export function logService(assetId, input = {}) {
   const info = db
     .prepare(
       `INSERT INTO asset_services (asset_id, serviced_on, kind, work, vendor, invoice_no, cost,
-                                   under_warranty, next_service_on, note, logged_by)
+                                   under_warranty, next_service_on, note, logged_by, status)
        VALUES (@asset_id, @serviced_on, @kind, @work, @vendor, @invoice_no, @cost,
-               @under_warranty, @next_service_on, @note, @logged_by)`
+               @under_warranty, @next_service_on, @note, @logged_by, @status)`
     )
     .run({
       asset_id: asset.id,
@@ -2482,11 +2474,12 @@ export function logService(assetId, input = {}) {
       next_service_on: input.next_service_on || null,
       note: input.note || null,
       logged_by: input.by || null,
+      status,
     });
 
   audit({
     who: input.by,
-    action: 'serviced',
+    action: status === 'done' ? 'serviced' : `service ${status.replace('_', ' ')}`,
     entity: 'assets',
     entity_id: asset.id,
     label: `${asset.code || ''} ${asset.label}`.trim(),
@@ -2505,6 +2498,29 @@ export function updateService(id, patch = {}) {
     if (!(key in patch)) continue;
     fields.push(`${key} = ?`);
     values.push(key === 'under_warranty' ? (patch[key] ? 1 : 0) : patch[key] === '' ? null : patch[key]);
+  }
+  if ('status' in patch) {
+    const next = cleanServiceStatus(patch.status);
+    const was = statusOfService(before);
+    if (next !== was) {
+      // Finished is finished: completed work is the bill, and turning it back
+      // into a booking would quietly take its cost out of every total.
+      if (was === 'done' && next !== 'done') {
+        throw new Error('this work is recorded as completed — its cost is already counted. Remove the record if it was entered by mistake.');
+      }
+      fields.push('status = ?');
+      values.push(next);
+      audit({
+        who: patch.by,
+        action: 'service status',
+        entity: 'assets',
+        entity_id: before.asset_id,
+        label: `${before.code || ''} ${before.label}`.trim(),
+        field: 'service',
+        from_value: was,
+        to_value: next,
+      });
+    }
   }
   if (!fields.length) return before;
   db.prepare(`UPDATE asset_services SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
@@ -2599,13 +2615,14 @@ export function assetHistory(id) {
   }
 
   for (const service of listServices({ asset_id: id }).reverse()) {
+    const spent = isSpent(service);
     events.push({
       on: service.serviced_on,
-      what: service.kind || 'Serviced',
+      what: spent ? service.kind || 'Serviced' : `${service.kind || 'Service'} — ${serviceStatusLabel(service).toLowerCase()}`,
       detail: [service.work, service.vendor, service.under_warranty ? 'under warranty' : null]
         .filter(Boolean)
         .join(', ') || null,
-      amount: Number(service.cost) || 0,
+      amount: spent ? Number(service.cost) || 0 : 0,
       by: service.logged_by,
     });
   }
@@ -3320,6 +3337,10 @@ addColumns('tickets', [
  *                 days".
  *   done_at       when, to the minute. done_on is a date and stays.
  */
+/* v2.45.0: where a piece of maintenance work has got to. NULL = completed,
+   which is what every row made before this existed is. */
+addColumns('asset_services', [['status', 'TEXT']]);
+
 addColumns('staff_tasks', [
   ['stage', `TEXT NOT NULL DEFAULT 'pending'`],
   ['by_key', 'TEXT'],

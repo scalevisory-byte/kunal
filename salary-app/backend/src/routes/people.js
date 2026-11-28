@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { openWork } from '../../../shared/serviceStatus.js';
 import { Router } from 'express';
 import {
   assetRequestsWaiting,
@@ -1226,6 +1227,9 @@ peopleRouter.get('/maintenance', (req, res) => {
     alerts: maintenanceAlerts(assets),
     spend: spendReport(assets, services, { year: req.query.year || 'all' }),
     kinds: SERVICE_KINDS,
+    // Work booked, under way or waiting for parts - listed so it can be moved
+    // on, and counted in no total until it is completed.
+    open: openWork(services),
   });
 });
 
@@ -1295,7 +1299,13 @@ peopleRouter.get('/rounds', (_req, res) => {
 });
 
 peopleRouter.get('/rounds/:round', (req, res) => {
-  res.json(roundProgress(req.params.round));
+  res.json(
+    roundProgress(req.params.round, {
+      location: req.query.location || undefined,
+      department: req.query.department || undefined,
+      company_id: req.query.company_id || undefined,
+    })
+  );
 });
 
 /* ---------------- expense claims ---------------- */

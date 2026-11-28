@@ -1,6 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STANDALONE, api, openPage, pageDataUrl } from '../../api.js';
 import { rupees } from '../../format.js';
+import Glyph from '../../icons.jsx';
+import { ASSET_STATES, assetStatus, statusLabel } from '../../../../shared/assetStatus.js';
+import { isOpenService, isSpent, serviceStatusLabel, statusOfService } from '../../../../shared/serviceStatus.js';
+import { ServiceForm } from './Maintenance.jsx';
+
+/*
+ * v2.45.0: the asset's page, in tabs, with the actions on it.
+ *
+ * It used to be one long drawer - figures, a history table, paperwork,
+ * photographs - and every action (give it to somebody, take it back, mark it
+ * at the repair shop, write it off) lived only on the register's row behind
+ * it. The actions here are the REGISTER'S OWN handlers, passed in, not copies:
+ * the same prompts, the same requests, the same rules on the server.
+ */
+const TABS = [
+  ['overview', 'Overview'],
+  ['history', 'History'],
+  ['service', 'Maintenance'],
+  ['papers', 'Documents'],
+  ['photos', 'Photos'],
+];
 
 /**
  * One asset's whole life, in date order: bought, issued, returned, checked,
@@ -10,7 +31,13 @@ import { rupees } from '../../format.js';
  * handover log, the stock-take verdicts — so nothing here is stored twice and
  * nothing can disagree with the register.
  */
-export default function AssetHistory({ asset, onClose, onError }) {
+export default function AssetHistory({ asset, employees = [], actions = null, onClose, onError }) {
+  const [tab, setTab] = useState(asset?.open === 'papers' ? 'papers' : 'overview');
+  const [services, setServices] = useState(null);
+  const [logging, setLogging] = useState(false);
+  const [giveTo, setGiveTo] = useState('');
+  const [problem, setProblem] = useState('');
+  const [tick, setTick] = useState(0);
   /* The inline label: a URL on the server, a data URI in the single file. */
   const labelSrc = useMemo(() => {
     if (!asset?.code) return '';
@@ -95,11 +122,27 @@ export default function AssetHistory({ asset, onClose, onError }) {
       } catch (err) {
         onError(err);
       }
+      try {
+        const { services: list } = await api.get(`/people/maintenance/services?asset_id=${asset.id}`);
+        setServices(list || []);
+      } catch {
+        setServices([]);
+      }
     })();
-    loadPhotos();
-    loadDocs();
+    if (!tick) {
+      loadPhotos();
+      loadDocs();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset.id]);
+  }, [asset.id, tick]);
+
+  /* Run one of the register's handlers; refresh this page; say a refusal here. */
+  const run = async (promise) => {
+    setProblem('');
+    const result = await promise;
+    if (result instanceof Error) setProblem(result.message);
+    else if (result) setTick((n) => n + 1);
+  };
 
   // Opened from the register's Invoice column: go where they clicked.
   useEffect(() => {
@@ -140,206 +183,308 @@ export default function AssetHistory({ asset, onClose, onError }) {
     }
   };
 
+  const status = assetStatus(asset);
+  const gone = status === 'written_off' || status === 'disposed';
+  const held = asset.employee_id && !asset.returned_on;
+  const open = (services || []).filter(isOpenService);
+  const spent = (services || []).filter(isSpent);
+  const spentTotal = spent.reduce((t, s) => t + (Number(s.cost) || 0), 0);
+  const fact = (label, value) => (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value || <span className="muted">—</span>}</dd>
+    </div>
+  );
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="late-head">
-          <div>
+      <div className="modal ah-page" onClick={(e) => e.stopPropagation()}>
+        <div className="ah-head">
+          <span className="ah-icon" aria-hidden="true"><Glyph name="asset" size={22} /></span>
+          <div className="ah-title">
             <h3>
-              {asset.code} — {asset.kind} {asset.label}
+              {asset.code || 'No code'} <span className="ah-name">— {asset.kind} {asset.label}</span>
             </h3>
             <p className="muted small">
+              <span className={`pill as-${status} ah-pill`}>{statusLabel(status)}</span>{' '}
+              {held ? <>with <strong>{asset.employee_name}</strong>{asset.issued_on ? ` since ${asset.issued_on}` : ''}</> : gone ? '' : 'in the office'}
+              {[asset.identifier, asset.company_name, asset.branch_name].filter(Boolean).length ? ' · ' : ''}
               {[asset.identifier, asset.company_name, asset.branch_name].filter(Boolean).join(' · ')}
             </p>
           </div>
-          <button className="ghost" onClick={onClose}>
-            Close
-          </button>
+          <button className="ghost" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
         {/*
-          * The label, shown inline. Offline there is no URL to point an <img>
-          * at, so the same shared builder makes the SVG and it goes in as a
-          * data URI - which is also why it is encoded rather than inlined raw.
+          * QUICK ACTIONS. Only what this asset can have done to it now: an
+          * asset with somebody is taken back before it goes to anybody else,
+          * and a written-off asset keeps only its label and voucher.
           */}
-        {asset.code && labelSrc && (
-          <img className="asset-label" src={labelSrc} alt={`Barcode for ${asset.code}`} />
-        )}
-
-        <div className="figures">
-          <div className="figure">
-            <span className="k">Cost</span>
-            <span className="n">{asset.purchase_cost ? rupees(asset.purchase_cost) : '—'}</span>
-          </div>
-          <div className="figure">
-            <span className="k">Bought</span>
-            <span className="n">{asset.purchase_date || '—'}</span>
-          </div>
-          <div className="figure">
-            <span className="k">Warranty</span>
-            <span className="n">{asset.warranty_until || '—'}</span>
-          </div>
-        </div>
-
-        {asset.vendor && (
-          <p className="muted small">
-            From {asset.vendor}
-            {asset.invoice_no ? `, invoice ${asset.invoice_no}` : ''}.
-          </p>
-        )}
-
-        {!found ? (
-          <p className="muted small">Reading its history…</p>
-        ) : !found.events.length ? (
-          <p className="muted small">Nothing has happened to it yet.</p>
-        ) : (
-          <table className="sheet">
-            <thead>
-              <tr>
-                <th>When</th>
-                <th>What</th>
-                <th>Who</th>
-                <th>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {found.events.map((e, i) => (
-                <tr key={`${e.on}-${e.what}-${i}`}>
-                  <td>{e.on}</td>
-                  <td>
-                    {e.what}
-                    {e.amount ? <span className="muted small"> {rupees(e.amount)}</span> : null}
-                  </td>
-                  <td>{e.who || <span className="muted">—</span>}</td>
-                  <td className="muted small">
-                    {e.detail || '—'}
-                    {e.by && <div>by {e.by}</div>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {/*
-          * The paperwork. Its own list rather than a field on the asset,
-          * because an asset really does collect several over its life - the
-          * purchase invoice, an AMC renewal, a repair bill - and one column
-          * would mean the second overwriting the first.
-          */}
-        <h4 ref={papers} style={{ margin: '1rem 0 0.4rem' }}>
-          Paperwork{docs.length ? ` — ${docs.length}` : ''}
-        </h4>
-        {docs.length > 0 && (
-          <div className="lines">
-            {docs.map((doc) => (
-              <div key={doc.id}>
-                <span className="what">
-                  <a href={doc.link?.url} target="_blank" rel="noreferrer">
-                    {doc.file_name || 'document'}
-                  </a>
-                  <span className="muted small">
-                    {' '}
-                    {[
-                      docKinds.find(([k]) => k === doc.kind)?.[1] || doc.kind,
-                      doc.number,
-                      doc.dated,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                </span>
-                <button className="ghost tiny" onClick={() => removeDoc(doc)}>remove</button>
-              </div>
-            ))}
-          </div>
-        )}
-        {/*
-          * In the single file there is nowhere to put a PDF, so the box that
-          * cannot work is not offered. A file picker that errors on every click
-          * is worse than a sentence saying why.
-          */}
-        {STANDALONE ? (
-          <p className="muted small">
-            Attaching the invoice needs the <strong>server version</strong> — a PDF is a file,
-            and a file cannot live inside this HTML page. The invoice <em>number</em> and date
-            are on the asset and do work here, and so does the purchase voucher.
-          </p>
-        ) : (
-          <>
-            <div className="row" style={{ marginTop: '0.4rem' }}>
-              <select value={docKind} onChange={(e) => setDocKind(e.target.value)}>
-                {(docKinds.length ? docKinds : [['invoice', 'Invoice']]).map(([k, text]) => (
-                  <option key={k} value={k}>{text}</option>
+        {actions && (
+          <div className="ah-actions">
+            {!gone && !held && status === 'available' && (
+              <span className="ah-give">
+                <select value={giveTo} onChange={(e) => setGiveTo(e.target.value)} aria-label="Give it to">
+                  <option value="">Give it to…</option>
+                  {employees.filter((e) => e.active !== 0 && e.active !== false).map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}{e.code ? ` (${e.code})` : ''}</option>
+                  ))}
+                </select>
+                <button className="primary" disabled={!giveTo} onClick={() => run(actions.issue(asset, giveTo)).then(() => setGiveTo(''))}>
+                  Assign
+                </button>
+              </span>
+            )}
+            {!gone && held && <button className="primary" onClick={() => run(actions.back(asset))}>Take it back</button>}
+            {!gone && <button onClick={() => setLogging(true)}>Log a service</button>}
+            {!gone && (
+              <select
+                className="ah-mark"
+                value=""
+                onChange={(e) => e.target.value && run(actions.setState(asset, e.target.value === 'clear' ? '' : e.target.value))}
+                aria-label="Mark it"
+              >
+                <option value="">Mark it…</option>
+                {ASSET_STATES.filter(([k]) => k !== 'disposed' && k !== asset.state).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
                 ))}
+                {asset.state ? <option value="clear">Back in use</option> : null}
               </select>
-              <input ref={docFile} type="file" accept=".pdf,image/*" />
-              <button onClick={addDoc} disabled={!!busy}>Attach it</button>
+            )}
+            <button className="ghost" onClick={() => actions.label(asset)}>Print label</button>
+            <button className="ghost" onClick={() => actions.voucher(asset)}>Purchase voucher</button>
+            {!gone && <button className="ghost danger" onClick={() => run(actions.writeOff(asset))}>Write off</button>}
+          </div>
+        )}
+        {problem ? <p className="lic-alert warn">{problem}</p> : null}
+
+        <div className="sub-tabs toolbar ah-tabs">
+          {TABS.map(([key, label]) => (
+            <button key={key} className={tab === key ? 'active' : undefined} onClick={() => setTab(key)}>
+              {label}
+              {key === 'service' && open.length ? <span className="ah-count warn">{open.length} open</span> : null}
+              {key === 'papers' && docs.length ? <span className="ah-count">{docs.length}</span> : null}
+              {key === 'photos' && photos.length ? <span className="ah-count">{photos.length}</span> : null}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'overview' && (
+          <>
+            <div className="ah-overview">
+              <dl className="ah-facts">
+                {fact('Bought for', asset.purchase_cost ? rupees(asset.purchase_cost) : null)}
+                {fact('Bought on', asset.purchase_date)}
+                {fact('Vendor', asset.vendor)}
+                {fact('Invoice', asset.invoice_no)}
+                {fact('Warranty to', asset.warranty_until)}
+                {fact('AMC to', asset.amc_until)}
+                {fact('Spent keeping it', services ? rupees(spentTotal) : '…')}
+                {fact('Services done', services ? spent.length : '…')}
+                {fact('Serial / identifier', asset.identifier)}
+                {fact('Where', [asset.company_name, asset.branch_name, asset.location].filter(Boolean).join(' · '))}
+              </dl>
+              {/*
+                * The label, shown inline. Offline there is no URL to point an
+                * <img> at, so the same shared builder makes the SVG and it goes
+                * in as a data URI.
+                */}
+              {asset.code && labelSrc && (
+                <img className="asset-label" src={labelSrc} alt={`Barcode for ${asset.code}`} />
+              )}
+            </div>
+            {open.length > 0 && (
+              <p className="lic-alert warn">
+                {open.length === 1 ? 'One job is' : `${open.length} jobs are`} open on it —{' '}
+                {open.map((s) => `${s.kind} ${serviceStatusLabel(s).toLowerCase()}${s.serviced_on ? ` (${s.serviced_on})` : ''}`).join(', ')}.{' '}
+                <button className="link" onClick={() => setTab('service')}>See maintenance</button>
+              </p>
+            )}
+            {asset.state_note ? <p className="muted small">Note on its status: {asset.state_note}</p> : null}
+          </>
+        )}
+
+        {tab === 'history' &&
+          (!found ? (
+            <p className="muted small">Reading its history…</p>
+          ) : !found.events.length ? (
+            <p className="muted small">Nothing has happened to it yet.</p>
+          ) : (
+            <ol className="ah-timeline">
+              {found.events.map((e, i) => (
+                <li key={`${e.on}-${e.what}-${i}`}>
+                  <span className="ah-when">{e.on}</span>
+                  <span className="ah-what">
+                    <strong>{e.what}</strong>
+                    {e.amount ? <span className="muted small"> {rupees(e.amount)}</span> : null}
+                    {e.who ? <> · {e.who}</> : null}
+                    {e.detail ? <span className="muted small"> · {e.detail}</span> : null}
+                    {e.by ? <span className="muted small"> · by {e.by}</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ))}
+
+        {tab === 'service' && (
+          <>
+            <div className="ah-tab-head">
+              <span className="muted small">
+                {services ? `${spent.length} completed, ${rupees(spentTotal)} spent` : 'Reading…'}
+                {open.length ? ` · ${open.length} open, counted in no total until completed` : ''}
+              </span>
+              {!gone && <button onClick={() => setLogging(true)}>Log a service</button>}
+            </div>
+            {services && services.length ? (
+              <div className="table-wrap">
+                <table className="sheet">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Work</th>
+                      <th>Who</th>
+                      <th className="num">Cost</th>
+                      <th>Status</th>
+                      <th>Next due</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {services.map((s) => (
+                      <tr key={s.id}>
+                        <td>{s.serviced_on}</td>
+                        <td>{s.kind}{s.work ? <span className="muted small"> · {s.work}</span> : null}{s.under_warranty ? <span className="muted small"> · under cover</span> : null}</td>
+                        <td className="muted small">{s.vendor || '—'}</td>
+                        <td className="num">
+                          {isSpent(s) ? rupees(s.cost || 0) : s.cost ? <span className="muted" title="Quoted — not spent until completed">({rupees(s.cost)})</span> : '—'}
+                        </td>
+                        <td><span className={`ah-svc s-${statusOfService(s)}`}>{serviceStatusLabel(s)}</span></td>
+                        <td className="muted small">{s.next_service_on || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : services ? (
+              <p className="muted small">No service on record. Moving booked work along is on Maintenance & Repairs → Open work.</p>
+            ) : null}
+          </>
+        )}
+
+        {tab === 'papers' && (
+          <>
+            {/*
+              * The paperwork. Its own list rather than a field on the asset,
+              * because an asset really does collect several over its life.
+              */}
+            <h4 ref={papers} className="ah-sub">Documents{docs.length ? ` — ${docs.length}` : ''}</h4>
+            {docs.length > 0 ? (
+              <div className="lines">
+                {docs.map((doc) => (
+                  <div key={doc.id}>
+                    <span className="what">
+                      <a href={doc.link?.url} target="_blank" rel="noreferrer">
+                        {doc.file_name || 'document'}
+                      </a>
+                      <span className="muted small">
+                        {' '}
+                        {[docKinds.find(([k]) => k === doc.kind)?.[1] || doc.kind, doc.number, doc.dated]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </span>
+                    <button className="ghost tiny" onClick={() => removeDoc(doc)}>remove</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted small">Nothing attached yet.</p>
+            )}
+            {/*
+              * In the single file there is nowhere to put a PDF, so the box
+              * that cannot work is not offered.
+              */}
+            {STANDALONE ? (
+              <p className="muted small">
+                Attaching the invoice needs the <strong>server version</strong> — a PDF is a file, and a file cannot
+                live inside this HTML page. The invoice <em>number</em> and date are on the asset and do work here.
+              </p>
+            ) : (
+              <>
+                <div className="row" style={{ marginTop: '0.4rem' }}>
+                  <select value={docKind} onChange={(e) => setDocKind(e.target.value)}>
+                    {(docKinds.length ? docKinds : [['invoice', 'Invoice']]).map(([k, text]) => (
+                      <option key={k} value={k}>{text}</option>
+                    ))}
+                  </select>
+                  <input ref={docFile} type="file" accept=".pdf,image/*" />
+                  <button onClick={addDoc} disabled={!!busy}>Attach it</button>
+                </div>
+                <p className="muted small">
+                  A PDF or a scan. The invoice number and date come from the asset, so the commonest one needs nothing
+                  typed.
+                </p>
+              </>
+            )}
+          </>
+        )}
+
+        {tab === 'photos' && (
+          <>
+            {/*
+              * What condition something was in when it went out, and came back
+              * in, is the whole of most arguments about an asset.
+              */}
+            {photos.length > 0 ? (
+              <div className="photo-strip">
+                {photos.map((photo) => (
+                  <figure key={photo.id}>
+                    <a href={photo.link?.url} target="_blank" rel="noreferrer" title="Open it full size">
+                      <img src={photo.link?.url} alt={photo.note || asset.code} loading="lazy" />
+                    </a>
+                    <figcaption>
+                      <span className="muted small">{photo.taken_on}</span>
+                      {photo.note && <span className="small"> {photo.note}</span>}
+                      <button className="ghost tiny" onClick={() => removePhoto(photo)}>
+                        remove
+                      </button>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            ) : (
+              <p className="muted small">No photographs yet.</p>
+            )}
+            <div className="row" style={{ marginTop: '0.4rem' }}>
+              {/* capture="environment" opens the camera straight on a phone. */}
+              <input ref={file} type="file" accept="image/*" capture="environment" />
+              <input
+                placeholder="what it shows — scratched lid, on handover…"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                style={{ flex: '1 1 14rem' }}
+              />
+              <button onClick={addPhoto} disabled={!!busy}>
+                {busy || 'Add a photo'}
+              </button>
             </div>
             <p className="muted small">
-              A PDF or a scan. The invoice number and date come from the asset, so the commonest
-              one needs nothing typed.
+              JPG, PNG, WEBP or HEIC. The file lives on the server, never in this page, and is opened through a link
+              that expires.
             </p>
           </>
         )}
 
-        {/*
-          * Photographs. What condition something was in when it went out, and
-          * what condition it came back in, is the whole of most arguments
-          * about an asset - and a line saying "scratched" settles nothing.
-          */}
-        <h4 style={{ margin: '1rem 0 0.4rem' }}>
-          Photographs{photos.length ? ` — ${photos.length}` : ''}
-        </h4>
-        {photos.length > 0 && (
-          <div className="photo-strip">
-            {photos.map((photo) => (
-              <figure key={photo.id}>
-                <a href={photo.link?.url} target="_blank" rel="noreferrer" title="Open it full size">
-                  <img src={photo.link?.url} alt={photo.note || asset.code} loading="lazy" />
-                </a>
-                <figcaption>
-                  <span className="muted small">{photo.taken_on}</span>
-                  {photo.note && <span className="small"> {photo.note}</span>}
-                  <button className="ghost tiny" onClick={() => removePhoto(photo)}>
-                    remove
-                  </button>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        )}
-        <div className="row" style={{ marginTop: '0.4rem' }}>
-          {/* capture="environment" opens the camera straight on a phone, which
-              is where somebody standing next to the laptop actually is. */}
-          <input ref={file} type="file" accept="image/*" capture="environment" />
-          <input
-            placeholder="what it shows — scratched lid, on handover…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            style={{ flex: '1 1 14rem' }}
+        {logging && (
+          <ServiceForm
+            asset={asset}
+            onClose={() => setLogging(false)}
+            onDone={() => {
+              setLogging(false);
+              setTick((n) => n + 1);
+              setTab('service');
+            }}
           />
-          <button onClick={addPhoto} disabled={!!busy}>
-            {busy || 'Add a photo'}
-          </button>
-        </div>
-        <p className="muted small">
-          JPG, PNG, WEBP or HEIC. The file lives on the server, never in this page, and is opened
-          through a link that expires.
-        </p>
-
-        <div className="row">
-          <button className="ghost" onClick={() => openPage(`/people/assets/${asset.id}/label.svg?h=18`).catch(onError)}>
-            Print the label
-          </button>
-          <button
-            className="ghost"
-            onClick={() => openPage(`/people/assets/${asset.id}/voucher.html`).catch(onError)}
-            title="The purchase voucher, to hand to accounts"
-          >
-            Purchase voucher
-          </button>
-        </div>
+        )}
       </div>
     </div>
   );

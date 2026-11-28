@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../api.js';
 import ScrollFrame from '../ScrollFrame.jsx';
 import { rupees } from '../../format.js';
+import { SCOPE_FIELDS, inScope, roundFigures, scopeChoices, unplaced } from '../../../../shared/stockTake.js';
 
 const thisMonth = () => {
   const d = new Date();
@@ -28,6 +29,9 @@ export default function StockTake({ onError }) {
   const [scan, setScan] = useState('');
   const [said, setSaid] = useState('');
   const [query, setQuery] = useState('');
+  // Which part of the register this walk is about. Narrowing changes what is
+  // COUNTED, never a verdict - and is remembered for the round being walked.
+  const [scope, setScope] = useState({ location: '', department: '', company_id: '' });
 
   const load = async (name = round) => {
     try {
@@ -75,13 +79,24 @@ export default function StockTake({ onError }) {
     }
   };
 
+  const choices = useMemo(() => scopeChoices(assets), [assets]);
+  const narrowed = SCOPE_FIELDS.some(([k]) => scope[k]);
+  const scoped = useMemo(() => assets.filter((a) => inScope(a, scope)), [assets, scope]);
+  const outside = useMemo(() => unplaced(assets, scope), [assets, scope]);
+  // The whole register comes from the server; a narrowed walk is counted here
+  // with the SAME function the server uses, so the two cannot disagree.
+  const figures = narrowed ? roundFigures(scoped) : progress;
+  const scopeWords = SCOPE_FIELDS.filter(([k]) => scope[k])
+    .map(([k]) => (k === 'company_id' ? choices.company_id.find(([id]) => id === String(scope.company_id))?.[1] : scope[k]))
+    .join(' · ');
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return assets;
-    return assets.filter((a) =>
+    if (!q) return scoped;
+    return scoped.filter((a) =>
       [a.code, a.label, a.employee_name].filter(Boolean).some((v) => String(v).toLowerCase().includes(q))
     );
-  }, [assets, query]);
+  }, [scoped, query]);
 
   return (
     <section className="stack">
@@ -134,23 +149,57 @@ export default function StockTake({ onError }) {
         </form>
       </div>
 
-      {progress && (
+      <div className="card st-scope">
+        <span className="st-scope-k">Walking</span>
+        {SCOPE_FIELDS.map(([key, label]) => (
+          <label key={key}>
+            {label}
+            <select value={scope[key]} onChange={(e) => setScope({ ...scope, [key]: e.target.value })}>
+              <option value="">{key === 'company_id' ? 'Every company' : `Every ${label.toLowerCase()}`}</option>
+              {key === 'company_id'
+                ? choices.company_id.map(([id, name]) => <option key={id} value={id}>{name}</option>)
+                : choices[key].map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+        ))}
+        {narrowed && (
+          <button className="ghost small" onClick={() => setScope({ location: '', department: '', company_id: '' })}>
+            The whole register
+          </button>
+        )}
+        <p className="muted small">
+          {narrowed
+            ? `Counting only ${scopeWords}: ${scoped.length} of ${assets.length} assets. Verdicts already given anywhere still stand — this only changes what is counted.`
+            : `Counting the whole register: ${assets.length} assets. Pick a location to walk one floor or one office without the rest showing as not checked.`}
+          {narrowed && outside.length > 0 && (
+            <>
+              {' '}
+              <strong>{outside.length} {outside.length === 1 ? 'asset has' : 'assets have'}</strong> nothing recorded for
+              what you narrowed by, so {outside.length === 1 ? 'it is' : 'they are'} in no such count — set it on the
+              register: {outside.slice(0, 5).map((a) => a.code || a.label).join(', ')}
+              {outside.length > 5 ? ` and ${outside.length - 5} more` : ''}.
+            </>
+          )}
+        </p>
+      </div>
+
+      {figures && (
         <div className="figures">
           <div className="figure">
             <span className="k">Found</span>
-            <span className="n">{progress.found}</span>
+            <span className="n">{figures.found}</span>
           </div>
           <div className="figure">
             <span className="k">Not found</span>
-            <span className="n">{progress.missing}</span>
+            <span className="n">{figures.missing}</span>
           </div>
           <div className="figure">
             <span className="k">Not checked yet</span>
-            <span className="n">{progress.not_checked}</span>
+            <span className="n">{figures.not_checked}</span>
           </div>
           <div className="figure">
             <span className="k">Worth, not found</span>
-            <span className="n">{rupees(progress.missing_value || 0)}</span>
+            <span className="n">{rupees(figures.missing_value || 0)}</span>
           </div>
         </div>
       )}
@@ -182,7 +231,10 @@ export default function StockTake({ onError }) {
               <td className="sticky-name">
                 {asset.kind} — {asset.label}
               </td>
-              <td className="muted small">{asset.employee_name || 'the office'}</td>
+              <td className="muted small">
+                {asset.employee_name || 'the office'}
+                {asset.location ? <span> · {asset.location}</span> : null}
+              </td>
               <td>
                 {asset.verified_found === true && <span className="muted small">found {asset.verified_on}</span>}
                 {asset.verified_found === false && <span className="pill rejected">not found</span>}
@@ -209,13 +261,13 @@ export default function StockTake({ onError }) {
       </table>
       </ScrollFrame>
 
-      {progress?.missing_assets?.length > 0 && (
+      {figures?.missing_assets?.length > 0 && (
         <div className="card">
-          <h4>Not found in {round}</h4>
+          <h4>Not found in {round}{narrowed ? ` — ${scopeWords}` : ''}</h4>
           <ScrollFrame>
           <table className="sheet">
             <tbody>
-              {progress.missing_assets.map((a) => (
+              {figures.missing_assets.map((a) => (
                 <tr key={a.id}>
                   <td>{a.code}</td>
                   <td className="sticky-name">
@@ -229,7 +281,7 @@ export default function StockTake({ onError }) {
           </table>
           </ScrollFrame>
           <p className="muted small">
-            Worth {rupees(progress.missing_value)}. Nothing is deducted from anybody on the
+            Worth {rupees(figures.missing_value)}. Nothing is deducted from anybody on the
             strength of this — if an asset is genuinely lost, that is a conversation, and the
             exit settlement names an unreturned asset without ever docking it.
           </p>

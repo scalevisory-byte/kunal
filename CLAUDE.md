@@ -2251,6 +2251,35 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Assets, part two (v2.45.0)
+
+The items v2.39 left for "part two". `AssetHistory.jsx`, `shared/serviceStatus.js`,
+`shared/stockTake.js`, `Maintenance.jsx` (`OpenWork`, exported `ServiceForm`), `StockTake.jsx`.
+
+- **The asset page** (`AssetHistory.jsx`) has a header (status pill + holder), quick actions and five
+  tabs. **The actions are the register's own handlers** (`pageActions = { issue, back, setState,
+  writeOff, label, voucher }` in Assets.jsx), not copies; a test refuses `/issue`, `/return`,
+  `/write-off` or `/state` inside the page. `act()` now RETURNS the error (and `true` on success) so
+  the page can show a refusal beside the button instead of on the register behind it. The page reads
+  its asset from the register's list (`assets.find(...)`) so it is current after every action, with
+  `open: history.open` carried across for the Invoice column's "go to documents".
+- **`asset_services.status`** (nullable): scheduled / in_progress / waiting_parts / done / cancelled.
+  **NULL = completed**, which every older row is, so no figure moved. **`isSpent` is the one rule
+  for money**: `ownership`, `spendReport` and the dashboard's `repair_cost` count completed work only;
+  open work is `open_services` / `open_repairs` and `GET /maintenance` returns `open`. Completing asks
+  for the actual cost and date. **done → anything else is refused** (its cost is already counted).
+  `looksDuplicate` ignores cancelled jobs. History shows "Repair — scheduled" with amount 0.
+- **Stock take scope**: `roundFigures`, `inScope`, `unplaced`, `scopeChoices` in `shared/stockTake.js`;
+  the server's `roundProgress(round, scope)` calls the same `roundFigures`, and `GET /rounds/:round`
+  takes `location`, `department`, `company_id`. Matching is case- and space-insensitive; an asset
+  with nothing recorded for a narrowed field is in no scope and is counted as `unplaced` and named.
+- **Assignments by employee was NOT reworked** — `AssetLedger.jsx` already is the per-person page
+  with tabs (overview, current, ledger, handover papers, maintenance).
+- **Still not built:** saved custom reports, and a phone QR-scan screen beyond the `/asset/<code>`
+  landing that already opens the asset.
+- `assetsPart2.test.js` **removes its own temp DATA_DIR** in `test.after` — the pattern every new
+  test file should follow, after /tmp reached 30 GB.
+
 ### Admin, redesigned (v2.44.0) — and the disk that filled up
 
 The Admin brief. **No server permission logic changed**: a test pins that `Users.jsx` calls only the

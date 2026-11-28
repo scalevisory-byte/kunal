@@ -5,6 +5,7 @@ import ScrollFrame from '../ScrollFrame.jsx';
 import { SERVICE_KINDS } from '../../../../shared/maintenance.js';
 import { rupees } from '../../format.js';
 import { todayIso } from '../../../../shared/today.js';
+import { OPEN_SERVICE_STATUSES, SERVICE_STATUSES, serviceStatusLabel, statusOfService } from '../../../../shared/serviceStatus.js';
 
 const today = () => todayIso();
 
@@ -39,6 +40,7 @@ export default function Maintenance({ companies, onError }) {
   const [totals, setTotals] = useState({});
   const [alerts, setAlerts] = useState({});
   const [spend, setSpend] = useState(null);
+  const [open, setOpen] = useState([]);
   // 'all' or a four-digit year. Held here rather than in the URL because this
   // is a question somebody asks and then moves on from.
   const [year, setYear] = useState('all');
@@ -56,6 +58,7 @@ export default function Maintenance({ companies, onError }) {
       setTotals(body.totals);
       setAlerts(body.alerts);
       setSpend(body.spend);
+      setOpen(body.open || []);
     } catch (err) {
       onError(err);
     }
@@ -141,6 +144,8 @@ export default function Maintenance({ companies, onError }) {
           <span className="n">{totals.services || 0}</span>
         </div>
       </div>
+
+      <OpenWork list={open} onSaid={setSaid} onChanged={() => load(year)} />
 
       {spend && (
         <div className="card">
@@ -520,7 +525,98 @@ export default function Maintenance({ companies, onError }) {
  * carries the row it resembles, which is shown, and the same button then says
  * "add it anyway" — asking, not refusing.
  */
-function ServiceForm({ asset, assets = [], onClose, onDone }) {
+/**
+ * Work booked, under way or waiting for parts.
+ *
+ * Moving it on is one select; completing it asks for what it actually cost,
+ * because a quote is not a bill - and the moment it is completed is the
+ * moment its cost becomes money spent on the asset.
+ */
+function OpenWork({ list, onSaid, onChanged }) {
+  const [busy, setBusy] = useState(0);
+  if (!list.length) return null;
+  const move = async (row, status) => {
+    let patch = { status };
+    if (status === 'done') {
+      const cost = window.prompt(
+        `${row.code || ''} ${row.label} — ${row.kind}${row.work ? ` (${row.work})` : ''} completed.\n\nWhat did it actually cost? (₹, 0 for free)`,
+        String(Number(row.cost) || 0)
+      );
+      if (cost === null) return;
+      const on = window.prompt('Completed on (YYYY-MM-DD)', todayIso());
+      if (on === null) return;
+      patch = { status, cost: Number(cost) || 0, serviced_on: on || todayIso() };
+    } else if (status === 'cancelled' && !window.confirm(`Cancel this ${row.kind.toLowerCase()} on ${row.code || row.label}? It stays on the record as cancelled and costs nothing.`)) {
+      return;
+    }
+    setBusy(row.id);
+    try {
+      await api.patch(`/people/maintenance/services/${row.id}`, patch);
+      onSaid('');
+      onChanged();
+    } catch (err) {
+      onSaid(err.message);
+    } finally {
+      setBusy(0);
+    }
+  };
+  const quoted = list.reduce((t, r) => t + (Number(r.cost) || 0), 0);
+  return (
+    <div className="card mt-open">
+      <h3 style={{ marginTop: 0 }}>
+        Open work <span className="muted small">— {list.length} {list.length === 1 ? 'job' : 'jobs'}
+        {quoted ? `, ${rupees(quoted)} quoted and not yet spent` : ''}</span>
+      </h3>
+      <ScrollFrame>
+        <table className="sheet">
+          <thead>
+            <tr>
+              <th>Asset</th>
+              <th>Work</th>
+              <th>Date</th>
+              <th>Who</th>
+              <th className="num">Quoted</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{row.code || '—'}</strong> <span className="muted small">{row.label}</span></td>
+                <td>{row.kind}{row.work ? <span className="muted small"> · {row.work}</span> : null}</td>
+                <td>{row.serviced_on || '—'}</td>
+                <td className="muted small">{row.vendor || '—'}</td>
+                <td className="num">{row.cost ? rupees(row.cost) : '—'}</td>
+                <td>
+                  <select
+                    value={statusOfService(row)}
+                    disabled={busy === row.id}
+                    onChange={(e) => move(row, e.target.value)}
+                    aria-label={`Status of ${row.code || row.label}`}
+                  >
+                    {OPEN_SERVICE_STATUSES.map((k) => (
+                      <option key={k} value={k}>{serviceStatusLabel({ status: k })}</option>
+                    ))}
+                    <option value="done">Completed…</option>
+                    <option value="cancelled">Cancelled…</option>
+                  </select>
+                </td>
+                <td>
+                  <button className="tiny" disabled={busy === row.id} onClick={() => move(row, 'done')}>
+                    Mark completed
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollFrame>
+    </div>
+  );
+}
+
+export function ServiceForm({ asset, assets = [], onClose, onDone }) {
   /*
    * Opened from a row the asset is settled; opened from the toolbar it is the
    * first thing asked. Held in state rather than taken from the prop so the
@@ -530,6 +626,7 @@ function ServiceForm({ asset, assets = [], onClose, onDone }) {
   const on = asset || assets.find((a) => String(a.id) === chosenId) || null;
   const own = on?.ownership || {};
   const [form, setForm] = useState({
+    status: 'done',
     serviced_on: today(),
     kind: 'Service',
     work: '',
@@ -622,7 +719,15 @@ function ServiceForm({ asset, assets = [], onClose, onDone }) {
             </label>
           )}
           <label>
-            When
+            Where it has got to
+            <select value={form.status} onChange={(e) => set({ status: e.target.value })}>
+              {SERVICE_STATUSES.filter(([k]) => k !== 'cancelled').map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {form.status === 'done' ? 'When it was done' : form.status === 'scheduled' ? 'Booked for' : 'Started on'}
             <input type="date" value={form.serviced_on} onChange={(e) => set({ serviced_on: e.target.value })} />
           </label>
           <label>
@@ -636,7 +741,7 @@ function ServiceForm({ asset, assets = [], onClose, onDone }) {
             </select>
           </label>
           <label>
-            What it cost
+            {form.status === 'done' ? 'What it cost' : 'Quoted (not counted until completed)'}
             <input type="number" value={form.cost} onChange={(e) => set({ cost: e.target.value })} />
           </label>
           <label>
@@ -697,8 +802,15 @@ function ServiceForm({ asset, assets = [], onClose, onDone }) {
           </div>
         )}
 
+        {form.status !== 'done' && (
+          <p className="muted small">
+            Work not yet completed is listed under <strong>Open work</strong> and counted in no total. Its cost
+            becomes money spent on the day it is marked completed. The asset&rsquo;s own status — Under
+            maintenance — is set on the register, so a booking next month does not take it off somebody&rsquo;s desk today.
+          </p>
+        )}
         <button onClick={() => save(Boolean(twin))} disabled={busy || !on}>
-          {busy ? 'Saving…' : twin ? 'Add it anyway' : 'Record it'}
+          {busy ? 'Saving…' : twin ? 'Add it anyway' : form.status === 'done' ? 'Record it' : 'Book it'}
         </button>
       </div>
     </div>

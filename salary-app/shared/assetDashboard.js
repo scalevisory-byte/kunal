@@ -1,5 +1,6 @@
 import { assetCounts, assetOddities, assetStatus, daysTo, financialYear, overdueBy } from './assetStatus.js';
 import { todayIso } from './today.js';
+import { isOpenService, isSpent } from './serviceStatus.js';
 
 /**
  * The asset dashboard: six figures, six alerts.
@@ -302,8 +303,10 @@ export function assetDashboard({
       }),
     damaged: live.filter((a) => a.status === 'damaged').slice(0, 6).map(brief),
     missing: live.filter((a) => a.status === 'missing').slice(0, 6).map(brief),
-    repair_cost: services.reduce((sum, srv) => sum + (Number(srv.cost) || 0), 0),
-    repairs: services.length,
+    // Completed work only: a job booked or at the shop has not cost anything yet.
+    repair_cost: services.filter(isSpent).reduce((sum, srv) => sum + (Number(srv.cost) || 0), 0),
+    repairs: services.filter(isSpent).length,
+    open_repairs: services.filter(isOpenService).length,
   };
 
   return {

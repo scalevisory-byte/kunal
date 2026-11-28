@@ -34,6 +34,7 @@ export const SERVICE_KINDS = [
 ];
 
 import { assetAlerts } from './assetAlerts.js';
+import { isSpent, openWork } from './serviceStatus.js';
 import { todayIso } from './today.js';
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -59,7 +60,9 @@ export function daysUntil(date, today = todayIso()) {
  *
  * @returns the row it resembles, or null.
  */
-export function looksDuplicate(candidate, existing = []) {
+export function looksDuplicate(candidate, all = []) {
+  // A cancelled job is not a bill, so it cannot be the bill being typed twice.
+  const existing = all.filter((row) => row?.status !== 'cancelled');
   const on = String(candidate?.serviced_on || '').slice(0, 10);
   const cost = round0(candidate?.cost);
   if (!on) return null;
@@ -79,8 +82,12 @@ export function looksDuplicate(candidate, existing = []) {
  * @param asset    the register row (purchase cost, warranty, AMC)
  * @param services its service rows
  */
-export function ownership(asset = {}, services = [], today = todayIso()) {
+export function ownership(asset = {}, all = [], today = todayIso()) {
   const purchase = round0(asset.purchase_cost);
+  // Only completed work has cost anything (shared/serviceStatus.js). Work
+  // booked, under way or cancelled is reported apart, never added in.
+  const services = all.filter(isSpent);
+  const open = openWork(all);
   const service = services.reduce((sum, s) => sum + num(s.cost), 0);
 
   // The next service date is whatever the latest service said, unless something
@@ -106,6 +113,9 @@ export function ownership(asset = {}, services = [], today = todayIso()) {
       ? services.map((s) => s.serviced_on).sort().at(-1)
       : null,
     next_service_on: nextService,
+    open_services: open.length,
+    open_status: open[0]?.status || null,
+    open_on: open[0]?.serviced_on || null,
     next_service_in_days: due,
     service_due: due !== null && due <= 0,
     service_soon: due !== null && due > 0 && due <= 30,
@@ -260,6 +270,8 @@ export function spendReport(assets = [], services = [], { year } = {}) {
     return !year || year === 'all' ? true : y === String(year);
   };
 
+  // Spend is completed work only; a booked or cancelled job has cost nothing.
+  services = services.filter(isSpent);
   const mine = services.filter((s) => byId.has(s.asset_id) && inYear(s));
 
   const years = new Map();
