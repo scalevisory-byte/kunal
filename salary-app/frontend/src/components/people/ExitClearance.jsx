@@ -47,6 +47,17 @@ export default function ExitClearance({ employeeId, clearance, onChanged, onErro
 
   return (
     <div className="card">
+      {(() => {
+        /* How far along, as a bar: "does not apply" is dealt with, not open. */
+        const total = clearance.items?.length || 0;
+        const done = total - (clearance.outstanding || 0);
+        return total ? (
+          <div className="ex-progress" title={`${done} of ${total} dealt with`}>
+            <span className="ex-track"><i style={{ width: `${Math.round((done / total) * 100)}%` }} /></span>
+            <span className="small">{done} of {total} dealt with</span>
+          </div>
+        ) : null;
+      })()}
       <h4>
         Clearance{' '}
         <span className="muted small">

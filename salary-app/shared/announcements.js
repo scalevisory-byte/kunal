@@ -86,6 +86,25 @@ export function isLive(a = {}, today = todayIso(), now = new Date()) {
   return true;
 }
 
+/**
+ * Where a notice is, in three words rather than two.
+ *
+ * The board used to say "showing" or "not yet / over" - one phrase for two
+ * opposite things, a notice written for next week and one that came down
+ * last month. `live` is exactly `isLive`, so the two can never disagree.
+ */
+export function noticeState(a = {}, today = todayIso(), now = new Date()) {
+  if (isLive(a, today, now)) return 'live';
+  const from = day(a.from_on);
+  if (from && from > today) return 'scheduled';
+  if (from === today && today === todayIso(now) && timeOf(a.from_on) && `${from}T${timeOf(a.from_on)}` > nowStamp(now)) {
+    return 'scheduled';
+  }
+  return 'ended';
+}
+
+export const NOTICE_STATE_LABEL = { live: 'showing', scheduled: 'scheduled', ended: 'ended' };
+
 /** Does it cover this person? A notice with no company is the whole office. */
 export const covers = (a = {}, companyId) =>
   !a.company_id || Number(a.company_id) === Number(companyId);

@@ -437,7 +437,16 @@ export default function Penalties({ employees, period, onError, onReload }) {
                       </div>
                     </td>
                     <td className="num">{rupees(r.amount)}</td>
-                    <td className="num">{r.recovered ? rupees(r.recovered) : '—'}</td>
+                    <td className="num">
+                      {r.recovered ? rupees(r.recovered) : '—'}
+                      {/* How much of it has come back, as a bar. Waived is
+                          not "recovered" and gets no bar at all. */}
+                      {r.status !== 'waived' && Number(r.amount) > 0 ? (
+                        <span className="pn-track" title={`${Math.round((Number(r.recovered || 0) / Number(r.amount)) * 100)}% recovered`}>
+                          <i style={{ width: `${Math.min(100, Math.round((Number(r.recovered || 0) / Number(r.amount)) * 100))}%` }} />
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="num">
                       {r.status === 'waived' ? (
                         <span className="muted">waived</span>

@@ -193,6 +193,7 @@ import {
   updatePenalty,
   waivePenalty,
   reopenTicket,
+  routeTicket,
   replyToTicket,
   returnAsset,
   returnAssets,
@@ -1674,6 +1675,22 @@ peopleRouter.post('/tickets/:id/close', (req, res) => {
   try {
     res.json(closeTicket(Number(req.params.id), { ...req.body, by: who(req) }));
   } catch (err) {
+    bad(res, err);
+  }
+});
+
+peopleRouter.patch('/tickets/:id', (req, res) => {
+  try {
+    const body = req.body || {};
+    res.json(
+      routeTicket(Number(req.params.id), {
+        priority: 'priority' in body ? body.priority : undefined,
+        assigned_to: 'assigned_to' in body ? body.assigned_to : undefined,
+        by: who(req),
+      })
+    );
+  } catch (err) {
+    if (/not found/.test(err.message)) return res.status(404).json({ error: err.message });
     bad(res, err);
   }
 });

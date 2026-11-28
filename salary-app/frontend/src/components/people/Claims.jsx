@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { col, num, printReport } from '../../printReport.js';
 import { STANDALONE, api, download } from '../../api.js';
 import { rupees } from '../../format.js';
@@ -21,6 +21,9 @@ const today = () => todayIso();
 export default function Claims({ employees, period, onError, onReload, only = null }) {
   const [claims, setClaims] = useState([]);
   const [status, setStatus] = useState('');
+  // The category being looked at. Stored as typed - older rows say "petrol",
+  // newer ones "Petrol" - so they are grouped without regard to case.
+  const [cat, setCat] = useState('');
   const [adding, setAdding] = useState(false);
   // The bill behind it, chosen on the form and attached once the claim exists.
   const [voucher, setVoucher] = useState(null);
@@ -165,6 +168,20 @@ export default function Claims({ employees, period, onError, onReload, only = nu
     });
   };
 
+  const catKey = (k) => String(k || 'other').trim().toLowerCase();
+  const byCategory = useMemo(() => {
+    const m = new Map();
+    for (const c of claims) {
+      const key = catKey(c.kind);
+      const at = m.get(key) || { key, label: key.charAt(0).toUpperCase() + key.slice(1), amount: 0, count: 0 };
+      at.amount += Number(c.amount || 0);
+      at.count += 1;
+      m.set(key, at);
+    }
+    return [...m.values()].sort((a, b) => b.amount - a.amount);
+  }, [claims]);
+  const shownClaims = cat ? claims.filter((c) => catKey(c.kind) === cat) : claims;
+
   return (
     <section className="stack">
       <div className="figures">
@@ -177,6 +194,23 @@ export default function Claims({ employees, period, onError, onReload, only = nu
           <span className="n">{rupees(approved.reduce((s, c) => s + Number(c.amount), 0))}</span>
         </div>
       </div>
+
+      {byCategory.length > 1 && (
+        <div className="cl-cats" role="group" aria-label="By category">
+          <button type="button" className={!cat ? 'on' : undefined} onClick={() => setCat('')}>
+            <span>All categories</span>
+            <b>{rupees(claims.reduce((t, c) => t + Number(c.amount || 0), 0))}</b>
+            <em>{claims.length}</em>
+          </button>
+          {byCategory.map((c) => (
+            <button type="button" key={c.key} className={cat === c.key ? 'on' : undefined} onClick={() => setCat(cat === c.key ? '' : c.key)}>
+              <span>{c.label}</span>
+              <b>{rupees(c.amount)}</b>
+              <em>{c.count}</em>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="toolbar">
         <div className="sub-tabs toolbar">
@@ -266,8 +300,8 @@ export default function Claims({ employees, period, onError, onReload, only = nu
         </div>
       )}
 
-      {!claims.length ? (
-        <p className="muted small">No claims.</p>
+      {!shownClaims.length ? (
+        <p className="muted small">{claims.length ? 'None in that category.' : 'No claims.'}</p>
       ) : (
         <table className="sheet">
           <thead>
@@ -283,7 +317,7 @@ export default function Claims({ employees, period, onError, onReload, only = nu
             </tr>
           </thead>
           <tbody>
-            {claims.map((claim) => (
+            {shownClaims.map((claim) => (
               <tr key={claim.id}>
                 <td>{claim.spent_on}</td>
                 <td className="sticky-name">{claim.employee_name}</td>

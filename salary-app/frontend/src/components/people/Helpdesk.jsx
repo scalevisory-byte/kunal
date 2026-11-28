@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { col, printReport } from '../../printReport.js';
 import { api } from '../../api.js';
 import { onStaff } from '../../onStaff.js';
@@ -105,6 +105,42 @@ export default function Helpdesk({ employees, onError, only = null }) {
 
   const waiting = tickets.filter((t) => t.waiting);
 
+  /*
+   * PRIORITY AND WHO HAS IT. Both were stored from the start and printed on
+   * the register, and nothing on screen could set either - so every ticket
+   * sat at "normal" with nobody. Changed on the row, saved at once.
+   */
+  const [prio, setPrio] = useState('');
+  const [routeSaid, setRouteSaid] = useState('');
+  const route = async (ticket, patch) => {
+    try {
+      const after = await api.patch(`/people/tickets/${ticket.id}`, patch);
+      setTickets((list) => list.map((t) => (t.id === ticket.id ? { ...t, ...after, replies: t.replies } : t)));
+      setRouteSaid('');
+    } catch (err) {
+      setRouteSaid(err.message);
+    }
+  };
+  const PRIO_RANK = { high: 0, normal: 1, low: 2 };
+  const shown = useMemo(
+    () =>
+      tickets
+        .filter((t) => !prio || (t.priority || 'normal') === prio)
+        // Open work by urgency, then oldest first; closed ones after, as they came.
+        .sort(
+          (a, b) =>
+            Number(a.status === 'closed') - Number(b.status === 'closed') ||
+            (a.status === 'closed' ? 0 : (PRIO_RANK[a.priority] ?? 1) - (PRIO_RANK[b.priority] ?? 1)) ||
+            String(a.created_at).localeCompare(String(b.created_at))
+        ),
+    [tickets, prio]
+  );
+  // Names already used, so the same person is typed the same way every time.
+  const withNames = useMemo(
+    () => [...new Set(tickets.map((t) => t.assigned_to).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [tickets]
+  );
+
   /**
    * WHAT STAFF HAVE ASKED, AND WHO IS WAITING ON WHOM.
    *
@@ -164,6 +200,14 @@ export default function Helpdesk({ employees, onError, only = null }) {
           <span className="k">Open in all</span>
           <span className="n">{tickets.filter((t) => t.status !== 'closed').length}</span>
         </div>
+        <div className="figure">
+          <span className="k">High priority, open</span>
+          <span className="n">{tickets.filter((t) => t.status !== 'closed' && t.priority === 'high').length}</span>
+        </div>
+        <div className="figure">
+          <span className="k">Open with nobody</span>
+          <span className="n">{tickets.filter((t) => t.status !== 'closed' && !t.assigned_to).length}</span>
+        </div>
       </div>
 
       <div className="toolbar">
@@ -176,6 +220,12 @@ export default function Helpdesk({ employees, onError, only = null }) {
             )
           )}
         </div>
+        <select value={prio} onChange={(e) => setPrio(e.target.value)} aria-label="Priority">
+          <option value="">Any priority</option>
+          <option value="high">High</option>
+          <option value="normal">Normal</option>
+          <option value="low">Low</option>
+        </select>
         <button className="ghost" onClick={printIt} disabled={!tickets.length}>
           Print {tickets.length}
         </button>
@@ -227,9 +277,15 @@ export default function Helpdesk({ employees, onError, only = null }) {
         </div>
       )}
 
-      {!tickets.length ? (
-        <p className="muted small">Nothing asked.</p>
+      {routeSaid && <p className="lic-alert warn">{routeSaid}</p>}
+      <datalist id="hd-with">
+        {withNames.map((n) => <option key={n} value={n} />)}
+      </datalist>
+
+      {!shown.length ? (
+        <p className="muted small">{tickets.length ? 'Nothing at that priority.' : 'Nothing asked.'}</p>
       ) : (
+        <div className="table-wrap">
         <table className="sheet">
           <thead>
             <tr>
@@ -237,11 +293,13 @@ export default function Helpdesk({ employees, onError, only = null }) {
               <th>Who</th>
               <th>About</th>
               <th>What</th>
+              <th>Priority</th>
+              <th>With</th>
               <th>Where it stands</th>
             </tr>
           </thead>
           <tbody>
-            {tickets.map((ticket) => (
+            {shown.map((ticket) => (
               <tr key={ticket.id}>
                 <td className="muted small">{when(ticket.created_at)}</td>
                 <td className="sticky-name">{ticket.employee_name}</td>
@@ -258,6 +316,32 @@ export default function Helpdesk({ employees, onError, only = null }) {
                   )}
                 </td>
                 <td>
+                  <select
+                    className={`hd-prio p-${ticket.priority || 'normal'}`}
+                    value={ticket.priority || 'normal'}
+                    disabled={ticket.status === 'closed'}
+                    onChange={(e) => route(ticket, { priority: e.target.value })}
+                    aria-label={`Priority of ${ticket.subject}`}
+                  >
+                    <option value="high">High</option>
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    className="hd-with"
+                    key={`${ticket.id}-${ticket.assigned_to || ''}`}
+                    list="hd-with"
+                    defaultValue={ticket.assigned_to || ''}
+                    placeholder="nobody yet"
+                    disabled={ticket.status === 'closed'}
+                    onBlur={(e) => e.target.value.trim() !== (ticket.assigned_to || '') && route(ticket, { assigned_to: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                    aria-label={`Who has ${ticket.subject}`}
+                  />
+                </td>
+                <td>
                   <span className={`pill ${ticket.status}`}>{ticket.status}</span>
                   {ticket.waiting && <span className="pill pending"> waiting on us</span>}
                 </td>
@@ -265,6 +349,7 @@ export default function Helpdesk({ employees, onError, only = null }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {detail && (

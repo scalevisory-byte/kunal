@@ -3687,6 +3687,53 @@ export function closeTicket(id, { by, note } = {}) {
   return getTicket(id);
 }
 
+/**
+ * Who a ticket is with, and how urgent it is.
+ *
+ * Both were stored from the day the helpdesk was built and printed on the
+ * register, and nothing on screen could set either - so every ticket sat at
+ * "normal" with nobody. The person is a name typed on the form, the same
+ * honest limit as `who` everywhere else (one shared office, no accounts per
+ * desk). A closed ticket keeps what it was closed with.
+ */
+export function routeTicket(id, { priority, assigned_to, by } = {}) {
+  const ticket = getTicket(id);
+  if (!ticket) throw new Error('not found');
+  if (ticket.status === 'closed') throw new Error('this one is closed — reopen it to change who has it');
+  const fields = [];
+  const values = [];
+  if (priority !== undefined) {
+    if (!TASK_PRIORITIES.includes(priority)) throw new Error(`priority is ${TASK_PRIORITIES.join(', ')} — not "${priority}"`);
+    if (priority !== ticket.priority) {
+      fields.push('priority = ?');
+      values.push(priority);
+    }
+  }
+  if (assigned_to !== undefined) {
+    const name = String(assigned_to || '').trim().slice(0, 80) || null;
+    if (name !== (ticket.assigned_to || null)) {
+      fields.push('assigned_to = ?');
+      values.push(name);
+    }
+  }
+  if (!fields.length) return ticket;
+  db.prepare(`UPDATE tickets SET ${fields.join(', ')} WHERE id = ?`).run(...values, id);
+  audit({
+    who: by,
+    action: 'routed',
+    entity: 'tickets',
+    entity_id: id,
+    label: `${ticket.category} from ${ticket.employee_name}`,
+    note: [
+      priority !== undefined && priority !== ticket.priority ? `priority ${ticket.priority} → ${priority}` : null,
+      assigned_to !== undefined && (String(assigned_to || '').trim() || null) !== (ticket.assigned_to || null)
+        ? `with ${String(assigned_to || '').trim() || 'nobody'}`
+        : null,
+    ].filter(Boolean).join('; '),
+  });
+  return getTicket(id);
+}
+
 /** The insert alone, for closing with a last word (which replyTo would refuse). */
 function replyToTicketRaw(id, { side, author, body }) {
   db.prepare(`INSERT INTO ticket_replies (ticket_id, side, author, body) VALUES (?, ?, ?, ?)`).run(

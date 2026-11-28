@@ -2251,6 +2251,23 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### People panels (v2.46.0)
+
+The panel-level items v2.41 left. **Audited first, and most of the data already existed**: claims had a
+category (`kind`), tickets had `priority` (since an earlier addColumns) and `assigned_to`, notices had
+start/end dates and times, exits had a clearance list. What was missing was on the screens.
+
+- **Helpdesk**: `routeTicket` + `PATCH /people/tickets/:id` (priority must be one of `TASK_PRIORITIES`;
+  blank `assigned_to` = nobody; a closed ticket refuses; audited as "routed"). Rows carry a priority
+  select and a "With" box (datalist of names already used); open tickets sort high-first then oldest.
+- **Claims**: chips grouping by category **case-insensitively** (older rows say "petrol"), with totals.
+- **Penalties**: `.pn-track` bar of recovered/amount; waived gets none.
+- **Exit clearance**: `N of M dealt with` bar off `clearance.items` / `outstanding`.
+- **Noticeboard**: `noticeState()` in `shared/announcements.js` — scheduled / live / ended, with
+  `live` defined AS `isLive` so the two cannot drift.
+- **Appraisal form**: three groups (`.ap-group`) and a live rise (`.ap-rise`, red when it is a cut).
+- "With" is a typed name, not a login — the app's usual honest limit.
+
 ### Assets, part two (v2.45.0)
 
 The items v2.39 left for "part two". `AssetHistory.jsx`, `shared/serviceStatus.js`,

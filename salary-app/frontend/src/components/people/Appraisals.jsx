@@ -171,7 +171,13 @@ export default function Appraisals({ employees, onError, onReload, only = null }
       </div>
 
       {adding && (
-        <div className="card">
+        <div className="card ap-form">
+          {/*
+            * Three groups rather than one grid of eight boxes: who and what
+            * it is for, the review itself, and the pay - which is the one
+            * part that moves money, so it stands apart and says what it adds.
+            */}
+          <p className="ap-group">Who, and what it is for</p>
           <div className="form-grid">
             <label>
               Who
@@ -208,6 +214,9 @@ export default function Appraisals({ employees, onError, onReload, only = null }
                 onChange={(e) => setDraft({ ...draft, cycle: e.target.value })}
               />
             </label>
+          </div>
+          <p className="ap-group">The review</p>
+          <div className="form-grid">
             <label>
               Reviewed on
               <input
@@ -233,6 +242,17 @@ export default function Appraisals({ employees, onError, onReload, only = null }
                 onChange={(e) => setDraft({ ...draft, rating: e.target.value })}
               />
             </label>
+          </div>
+          <label className="block">
+            What was said
+            <textarea
+              rows="3"
+              value={draft.summary}
+              onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
+            />
+          </label>
+          <p className="ap-group">Pay <span className="muted small">— leave empty for a review with no rise</span></p>
+          <div className="form-grid">
             <label>
               New salary
               <input
@@ -251,14 +271,19 @@ export default function Appraisals({ employees, onError, onReload, only = null }
               />
             </label>
           </div>
-          <label className="block">
-            What was said
-            <textarea
-              rows="3"
-              value={draft.summary}
-              onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
-            />
-          </label>
+          {current && Number(draft.to_salary) > 0 ? (
+            <p className={`ap-rise${Number(draft.to_salary) < Number(current.monthly_salary || 0) ? ' down' : ''}`}>
+              {(() => {
+                const from = Number(current.monthly_salary || 0);
+                const to = Number(draft.to_salary);
+                const diff = to - from;
+                const pct = from > 0 ? Math.round((diff / from) * 1000) / 10 : null;
+                return diff === 0
+                  ? `No change — ${rupees(to)} is what ${current.name} is on now.`
+                  : `${diff > 0 ? '+' : '−'}${rupees(Math.abs(diff))} a month${pct !== null ? ` (${diff > 0 ? '+' : '−'}${Math.abs(pct)}%)` : ''} — from ${rupees(from)} to ${rupees(to)}, ${rupees(Math.abs(diff) * 12)} a year.${diff < 0 ? ' That is a CUT, not a rise.' : ''}`;
+              })()}
+            </p>
+          ) : null}
           <p className="muted small">
             {current
               ? `Measured against ${rupees(current.monthly_salary)}, which is what ${current.name} is on now.`

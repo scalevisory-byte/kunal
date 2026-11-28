@@ -7144,3 +7144,29 @@ table.sheet.ad-matrix td.ad-what { white-space: normal; overflow: visible; text-
 .st-scope select { min-width: 11rem; }
 .st-scope-k { font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); align-self: center; }
 .st-scope p { flex: 1 1 100%; margin: 0; }
+
+/* ---------- People panels (v2.46.0) ---------- */
+select.hd-prio { width: auto; font-size: 0.8rem; padding: 0.15rem 0.4rem; }
+select.hd-prio.p-high { color: var(--bad); font-weight: 600; border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+select.hd-prio.p-low { color: var(--muted); }
+input.hd-with { width: 9rem; font-size: 0.82rem; padding: 0.15rem 0.4rem; }
+.cl-cats { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.cl-cats button { display: inline-flex; align-items: baseline; gap: 0.45rem; padding: 0.35rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font: inherit; font-size: 0.84rem; color: inherit; cursor: pointer; }
+.cl-cats button:hover { border-color: var(--brand); }
+.cl-cats button.on { background: #192c50; border-color: #192c50; color: #fff; }
+.cl-cats button b { font-variant-numeric: tabular-nums; }
+.cl-cats button em { font-style: normal; font-size: 0.72rem; color: var(--muted); }
+.cl-cats button.on em { color: #f5a623; }
+.pn-track { display: block; width: 100%; min-width: 4rem; height: 5px; margin-top: 0.25rem; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
+.pn-track i { display: block; height: 100%; background: var(--good); }
+.ex-progress { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.ex-track { flex: 0 1 16rem; height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+.ex-track i { display: block; height: 100%; background: var(--good); }
+.nb-state { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.74rem; background: var(--line-soft); color: var(--muted); }
+.nb-state.s-live { background: #e6f4ec; color: #16794f; font-weight: 600; }
+.nb-state.s-scheduled { background: #e6effc; color: #1d4ed8; }
+.ap-group { margin: 0.9rem 0 0.35rem; font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--line-soft); padding-bottom: 0.25rem; }
+.ap-form .ap-group:first-child { margin-top: 0; }
+.ap-group .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ap-rise { margin: 0.4rem 0; padding: 0.45rem 0.7rem; border-radius: 6px; background: #e6f4ec; color: #16794f; font-weight: 600; font-size: 0.88rem; }
+.ap-rise.down { background: #fbe7e4; color: var(--bad); }

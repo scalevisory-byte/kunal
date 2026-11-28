@@ -1065,8 +1065,26 @@ export const HELP = [
       '**Leave the dates empty** for “up now” and “until somebody takes it down”, which is how a board works. **A time can go beside each date** — a notice for a 4 pm meeting can come down at 5 pm the same day.',
       '**A notice with a future start date is not on the board yet** \u2014 write next month\u2019s picnic today and it appears on the day, not before.',
       '**Take down** removes it for good; there is no undo.',
+      'The list says where each one is: **scheduled** (written, not up yet), **showing**, or **ended**.',
     ],
     note: 'It needs the server. The staff read it from their own login, and there is nothing to sign in to in a file on a laptop.',
+  },
+  {
+    id: 'people-panels',
+    title: 'Helpdesk priority, claims by category, and progress on penalties and exits',
+    tab: 'people',
+    keywords: [
+      'priority', 'urgent', 'assign', 'assigned', 'who has it', 'helpdesk', 'ticket', 'category', 'claims', 'kharcha',
+      'travel', 'petrol', 'food', 'penalty', 'recovered', 'progress', 'clearance', 'exit', 'appraisal', 'increment', 'rise',
+    ],
+    lines: [
+      '**People \u2192 Helpdesk**: each ticket has a **Priority** (High, Normal, Low) and **With** \u2014 the person dealing with it. Change either on the row; open tickets sort High first, then the oldest. *High priority, open* and *Open with nobody* are counted at the top. A closed ticket keeps what it was closed with; reopen it to change it.',
+      '**People \u2192 Claims & Expenses**: the chips above the list add the claims up **by category** \u2014 Travel, Food, Petrol and the rest \u2014 with the amount and how many. Click one to see only those; click it again for all.',
+      '**Disciplinary**: under *Recovered* a bar shows how much of each penalty has come back. A waived one has no bar \u2014 waived is not recovered.',
+      '**Exit Management**: the clearance shows **N of M dealt with** as a bar. *Does not apply* counts as dealt with; it is still never a gate on the final payment.',
+      '**Performance Reviews \u2192 Record an appraisal** is in three groups \u2014 who and what it is for, the review, and the pay. Type a new salary and it says the rise there and then: **+\u20b95,000 a month (+19.2%)** and what that is a year; a lower figure is said as a cut.',
+    ],
+    note: 'WITH IS A NAME TYPED ON THE ROW, not a login: one shared office, the same honest limit as everywhere else here. Names already used are offered, so the same person is spelt the same way.',
   },
   {
     id: 'my-notices',

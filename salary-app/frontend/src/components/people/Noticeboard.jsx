@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, STANDALONE } from '../../api.js';
-import { KINDS, isLive, joinWhen, kindIcon, validate, whenLabel } from '../../../../shared/announcements.js';
+import { KINDS, NOTICE_STATE_LABEL, joinWhen, kindIcon, noticeState, validate, whenLabel } from '../../../../shared/announcements.js';
 import { todayIso } from '../../../../shared/today.js';
 
 /**
@@ -213,7 +213,10 @@ export default function Noticeboard({ companies = [], onError }) {
                   <td className="small">
                     {/* Whether it is actually ON the board today, which is a
                         different question from whether it exists. */}
-                    {isLive(a, today) ? <span className="pill">showing</span> : <span className="muted">not yet / over</span>}
+                    {(() => {
+                      const st = noticeState(a, today);
+                      return <span className={`nb-state s-${st}`}>{NOTICE_STATE_LABEL[st]}</span>;
+                    })()}
                   </td>
                   <td>
                     <button

@@ -20,10 +20,23 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.45.0';
+export const VERSION = '2.46.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.46.0',
+    date: '28 Nov 2026',
+    title: 'People panels: helpdesk priority and who has it, claims by category, progress bars, and clearer notices',
+    items: [
+      '**Helpdesk tickets have a Priority and a With** \u2014 who is dealing with it \u2014 set on the row. Open tickets sort High first; *High priority, open* and *Open with nobody* are counted at the top, and there is a priority filter. (Both were stored all along and only ever printed.)',
+      '**Claims add up by category**: chips above the list give Travel, Food, Petrol and the rest with their totals and counts; click one to see only those.',
+      '**Disciplinary**: a bar under *Recovered* shows how much of each penalty has come back.',
+      '**Exit clearance** shows how far along it is: *4 of 10 dealt with*, as a bar.',
+      '**Noticeboard** says *scheduled*, *showing* or *ended* \u2014 it used to say \u201cnot yet / over\u201d for both a notice written for next week and one that came down last month.',
+      '**Recording an appraisal** is in three groups \u2014 who and what for, the review, the pay \u2014 and a new salary shows the rise as you type it: per month, as a percentage, and a year.',
+    ],
+  },
   {
     version: '2.45.0',
     date: '28 Nov 2026',
