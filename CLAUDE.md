@@ -2251,6 +2251,35 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Admin, redesigned (v2.44.0) — and the disk that filled up
+
+The Admin brief. **No server permission logic changed**: a test pins that `Users.jsx` calls only the
+seven login routes that already existed.
+
+- `Admin.jsx`: a header naming what the open panel is for, icon tabs. **Panel keys unchanged**
+  (`staff` is now labelled "Staff access").
+- `Users.jsx` (Logins): six figures that filter (office logins only — staff logins are counted and
+  sent to Staff access), search, role and status filters, 15 a page, role badges (`.ad-role.r-<key>`),
+  a status badge from **`shared/loginStatus.js`** (switched off outranks everything), and a ⋯
+  `RowMenu` **positioned against the window, not the row** — a dropdown inside the scrolling table
+  frame is cut off on the bottom rows.
+- `LoginDialog` (add/edit) and `ResetDialog`; `PasswordBox` starts SHOWN (it is read out) with Hide.
+  The username cannot be edited (there is no server path for it, and it is what they sign in with).
+- `RoleMatrix` is drawn from the server's `ROLES` — a test requires a column for every ability any
+  office role carries.
+- **Not built:** restoring a backup from the screen (it overwrites the whole payroll database and
+  the server has no route for it — restore stays a server-side job), and regrouping Settings, which
+  was already sectioned.
+
+**THE DISK FILLED UP.** Every test file makes its own temp `DATA_DIR` under `/tmp` and never removes
+it; after many full runs that was ~35,000 folders and 30 GB, and the disk had 18 MB left. The
+symptom was **Chromium "Page crashed" on every signed-in page, intermittently, with
+`ERR_INSUFFICIENT_RESOURCES`** — which looks exactly like a render loop and sent the hunt through
+bisecting components, the clock and the API responses before `df` answered it. **Check `df -h /`
+first when the browser starts crashing.** Clean-up: delete `/tmp/<name>-XXXXXX` folders (not the
+scratchpad). Also: in this container use `http://127.0.0.1`, not `localhost`, in drivers — Chromium
+tries IPv6 first and logs "Address family not supported".
+
 ### Reports, redesigned (v2.43.0)
 
 The "Reports at Your Fingertips" brief. **Layout only — every report panel, filter bar, Download

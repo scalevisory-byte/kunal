@@ -15,6 +15,8 @@ export default function Logins({ onError }) {
   const [logins, setLogins] = useState([]);
   const [slowed, setSlowed] = useState([]);
   const [only, setOnly] = useState('');
+  // Narrows what was fetched; the list itself is the last 200 attempts.
+  const [who, setWho] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -31,6 +33,10 @@ export default function Logins({ onError }) {
   }, [only]);
 
   const failures = logins.filter((l) => !l.ok).length;
+  const hunt = who.trim().toLowerCase();
+  const listed = hunt
+    ? logins.filter((l) => String(l.username || '').toLowerCase().includes(hunt) || String(l.ip || '').includes(hunt))
+    : logins;
 
   return (
     <section className="stack">
@@ -69,17 +75,28 @@ export default function Logins({ onError }) {
         </div>
       )}
 
-      <div className="sub-tabs toolbar">
-        {[['', 'Everything'], ['ok', 'Got in'], ['no', 'Refused']].map(([value, label]) => (
-          <button key={value} className={only === value ? 'active' : undefined} onClick={() => setOnly(value)}>
-            {label}
-          </button>
-        ))}
+      <div className="ad-toolbar">
+        <div className="sub-tabs toolbar">
+          {[['', 'Everything'], ['ok', 'Got in'], ['no', 'Refused']].map(([value, label]) => (
+            <button key={value} className={only === value ? 'active' : undefined} onClick={() => setOnly(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          className="search"
+          type="search"
+          placeholder="Username or address"
+          value={who}
+          onChange={(e) => setWho(e.target.value)}
+        />
+        {hunt ? <span className="muted small">{listed.length} of {logins.length}</span> : null}
       </div>
 
-      {!logins.length ? (
-        <p className="muted small">Nothing recorded yet.</p>
+      {!listed.length ? (
+        <p className="muted small">{logins.length ? 'Nothing matches that.' : 'Nothing recorded yet.'}</p>
       ) : (
+        <div className="table-wrap">
         <table className="sheet trail">
           <thead>
             <tr>
@@ -91,7 +108,7 @@ export default function Logins({ onError }) {
             </tr>
           </thead>
           <tbody>
-            {logins.map((l) => (
+            {listed.map((l) => (
               <tr key={l.id}>
                 <td className="muted small">{when(l.at)}</td>
                 <td>{l.username || '—'}</td>
@@ -110,6 +127,7 @@ export default function Logins({ onError }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <p className="muted small">

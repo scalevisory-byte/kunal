@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { STANDALONE } from '../../api.js';
+import Glyph from '../../icons.jsx';
 import Backups from './Backups.jsx';
 import Branches from './Branches.jsx';
 import CompanyLogos from './CompanyLogos.jsx';
@@ -8,14 +9,15 @@ import Settings from './Settings.jsx';
 import Users from './Users.jsx';
 import StaffLogins from './StaffLogins.jsx';
 
+/* Keys unchanged, so nothing that opens a panel by key has to move. */
 const PANELS = [
-  ['users', 'Logins'],
-  ['staff', 'Staff logins'],
-  ['branches', 'Branches'],
-  ['logos', 'Company logos'],
-  ['settings', 'Settings'],
-  ['backups', 'Backups'],
-  ['logins', 'Sign-ins'],
+  ['users', 'Logins', 'person', 'Office logins, roles and the modules each may use'],
+  ['staff', 'Staff access', 'employees', 'A login for every employee, for their own pay and attendance'],
+  ['branches', 'Branches', 'building', 'Where each company works from'],
+  ['logos', 'Company logos', 'sheet', 'The logo on each company’s payslips and letters'],
+  ['settings', 'Settings', 'admin', 'The month’s rules, and where every other setting lives'],
+  ['backups', 'Backups', 'box', 'Copies of the database, and taking one now'],
+  ['logins', 'Sign-ins', 'clock', 'Every attempt to sign in, and anybody being guessed at'],
 ];
 
 /**
@@ -57,10 +59,16 @@ export default function Admin({ me, companies, period, locked, onPatchPeriod, on
 
   return (
     <section className="stack">
-      <div className="sub-tabs toolbar">
-        {PANELS.map(([key, label]) => (
+      <div className="ad-head">
+        <div>
+          <h2>Administration</h2>
+          <p className="muted small">{PANELS.find(([key]) => key === panel)?.[3]}</p>
+        </div>
+      </div>
+      <div className="sub-tabs toolbar ad-tabs">
+        {PANELS.map(([key, label, icon]) => (
           <button key={key} className={panel === key ? 'active' : undefined} onClick={() => setPanel(key)}>
-            {label}
+            <Glyph name={icon} size={14} /> {label}
           </button>
         ))}
       </div>

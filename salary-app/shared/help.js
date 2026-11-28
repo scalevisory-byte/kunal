@@ -1255,7 +1255,7 @@ export const HELP = [
     id: 'roles',
     title: 'Who can do what',
     tab: 'admin',
-    keywords: ['role', 'admin', 'hr', 'viewer', 'permission', 'access', 'rights', 'manager', 'operator', 'accounts', 'reporting manager', 'konsa role', 'who can approve'],
+    keywords: ['role', 'admin', 'hr', 'viewer', 'permission', 'access', 'rights', 'manager', 'operator', 'accounts', 'reporting manager', 'konsa role', 'who can approve', 'login', 'add login', 'reset password', 'switch off', 'user id'],
     lines: [
       '**Admin** — everything, including logins, a month’s settings and closing a month.',
       '**Manager** — everything HR does, plus **approving**: a month’s payroll, locking it, an offer. No logins and no settings.',
@@ -1265,6 +1265,9 @@ export const HELP = [
       '**Viewer** — can look and change nothing.',
       '**Staff** — their own record only, through their own page. They cannot read any office screen at all.',
       'Beside each login, **May use** says which tabs it reaches. Empty means everything — not nothing.',
+      '**Admin → Logins** shows the same rules as a grid under the list — Look, Fill in & change, Delete & clear, Approve, Administer — read from the server, so it always matches what is enforced.',
+      '**+ Add login** opens a form for name, username (filled in from the name), password and role, with the modules ticked there and then. Every login’s **⋯** button has **Edit role and modules**, **Reset password**, **Switch off** and **Remove**. The figures at the top filter the list: active, switched off, must change password, never signed in.',
+      'The password box starts **shown** because a first password is read out to somebody; press **Hide** when someone is standing behind you. A reset password works once — they must choose their own on first use.',
       '**Setting somebody’s reporting manager needs no special role** — any office login that can edit employees can do it on the employee record: Admin, Manager or HR (and Accounts or Operator if Employees is ticked for them). A Viewer and a Staff login cannot.',
       '**Approving what an employee filled in about themselves, and checking their documents, is HR’s** — any login that can edit employees. **Approving Sunday pay is the Manager’s** (and Admin’s): HR prepares it and pays it, and cannot approve it.',
     ],

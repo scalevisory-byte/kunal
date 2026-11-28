@@ -20,10 +20,25 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.43.0';
+export const VERSION = '2.44.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.44.0',
+    date: '28 Nov 2026',
+    title: 'Admin, redesigned: logins with a search and filters, a menu on every row, and a grid of what each role may do',
+    items: [
+      '**Admin has a header and seven tabs with icons** \u2014 Logins, Staff access, Branches, Company logos, Settings, Backups, Sign-ins \u2014 each saying what it is for.',
+      '**Logins opens on six figures** (office logins, active, switched off, must change password, never signed in, active Admins); each filters the list.',
+      '**Search by name or username, filter by role and status**, 15 to a page. Role and status show as coloured badges, and nothing scrolls sideways off the page.',
+      '**One \u22ef button per login**: Edit role and modules, Reset password, Switch off / on, Remove. Switching off and removing ask first.',
+      '**Add and edit in a dialog** \u2014 name, username (filled in from the name), password with **Show / Hide**, role with what it means in a line, and the modules ticked there and then. An Admin is never offered module ticks.',
+      '**What each role may do, as a grid** \u2014 Look, Fill in & change, Delete & clear, Approve, Administer \u2014 read from the server\u2019s own roles, so it cannot disagree with what is enforced.',
+      '**Sign-ins** gained a search by username or address.',
+      'Nothing about who may do what changed: every action is the same request it always was, and the server still refuses what a role may not do.',
+    ],
+  },
   {
     version: '2.43.0',
     date: '28 Nov 2026',

@@ -7014,3 +7014,84 @@ button.primary.pp-add:hover:not(:disabled) { background: #e0951a; border-color: 
 .rp-head > button { flex: none; }
 .rp-banner > div:first-child { flex: 1 1 26rem; min-width: 0; }
 .rp-banner-month { flex: 0 0 auto; }
+
+/* ---------- Admin redesign (v2.44.0) ---------- */
+.ad-head h2 { margin: 0; font-size: 1.15rem; }
+.ad-head p { margin: 0.15rem 0 0; }
+.ad-tabs { flex-wrap: wrap; }
+.ad-tabs button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.ad-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
+@media (min-width: 1200px) { .ad-figs { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.ad-fig { display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.ad-fig:hover:not(:disabled) { border-color: var(--brand); }
+.ad-fig:disabled { cursor: default; }
+.ad-fig .n { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.ad-fig .k { font-size: 0.76rem; color: var(--muted); }
+.ad-fig.good .n { color: var(--good); }
+.ad-fig.warn .n { color: var(--warn); }
+.ad-fig.grey .n { color: var(--muted); }
+.ad-fig.on { border-color: #192c50; box-shadow: inset 0 0 0 1px #192c50; }
+.ad-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.ad-toolbar .search { flex: 1 1 14rem; max-width: 22rem; }
+.ad-toolbar .sub-tabs { margin: 0; }
+.ad-toolbar .pp-add { margin-left: auto; }
+.ad-count { white-space: nowrap; }
+.ad-table-wrap { overflow-x: auto; }
+table.sheet.ad-logins { width: 100%; }
+table.sheet.ad-logins td { vertical-align: middle; }
+table.sheet.ad-logins tr.ad-off td { opacity: 0.6; }
+.ad-person { display: inline-flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+.ad-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e8ecf4; color: #192c50; font-size: 0.7rem; font-weight: 700; flex: none; }
+.ad-areas { max-width: 18rem; white-space: normal; }
+.ad-role { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600; white-space: nowrap; background: var(--line-soft); color: var(--text); }
+.ad-role.r-admin { background: #192c50; color: #fff; }
+.ad-role.r-manager { background: #fdf1dc; color: #8a5300; }
+.ad-role.r-hr { background: #e6effc; color: #1d4ed8; }
+.ad-role.r-accounts { background: #e6f4ec; color: #16794f; }
+.ad-role.r-operator { background: #f1ecfb; color: #5b3aa8; }
+.ad-role.r-viewer { background: var(--line-soft); color: var(--muted); }
+.ad-role.r-employee { background: #fbe7e4; color: #b8402e; }
+.ad-status { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.76rem; white-space: nowrap; }
+.ad-status::before { content: ''; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); }
+.ad-status.s-on::before { background: var(--good); }
+.ad-status.s-change::before, .ad-status.s-never::before { background: var(--warn); }
+.ad-status.s-change { color: var(--warn); }
+.ad-status.s-off { color: var(--muted); }
+.ad-act { width: 1%; text-align: right; }
+.ad-kebab { border: 1px solid transparent; background: none; border-radius: 6px; padding: 0.1rem 0.55rem; font-size: 1.1rem; line-height: 1.2; color: var(--muted); cursor: pointer; }
+.ad-kebab:hover, .ad-kebab[aria-expanded='true'] { border-color: var(--line); color: var(--text); background: var(--surface); }
+.ad-menu { position: fixed; z-index: 80; min-width: 13rem; display: flex; flex-direction: column; padding: 0.3rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14); }
+.ad-menu button { border: none; background: none; text-align: left; padding: 0.45rem 0.6rem; border-radius: 6px; font: inherit; font-size: 0.86rem; color: inherit; cursor: pointer; }
+.ad-menu button:hover { background: var(--brand-soft); }
+.ad-menu button.danger { color: var(--bad); }
+.ad-pager { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; }
+.ad-dialog { max-width: 40rem; width: calc(100% - 2rem); }
+.ad-dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-bottom: 0.5rem; }
+.ad-dialog-head h3 { margin: 0; }
+.ad-dialog-acts { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.8rem; }
+.ad-form { margin-bottom: 0.4rem; }
+.ad-form input[readonly] { background: var(--line-soft); color: var(--muted); }
+.ad-pass { display: flex; gap: 0.35rem; align-items: center; }
+.ad-pass input { flex: 1 1 auto; min-width: 0; }
+.ad-reset { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.ad-role-what { margin: 0.2rem 0 0.6rem; }
+.ad-sub { margin: 0.4rem 0 0.3rem; font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.ad-matrix-card h3 { margin-top: 0; }
+table.sheet.ad-matrix { width: 100%; }
+table.sheet.ad-matrix th { text-align: center; }
+table.sheet.ad-matrix th:first-child, table.sheet.ad-matrix th:last-child { text-align: left; }
+.ad-tick { text-align: center; color: var(--muted); }
+.ad-tick.yes { color: var(--good); font-weight: 700; }
+.ad-own { text-align: center; font-style: italic; }
+.ad-what { min-width: 16rem; white-space: normal; color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ad-avatar { background: var(--brand-soft); color: var(--brand); }
+}
+:root[data-theme='dark'] .ad-avatar { background: var(--brand-soft); color: var(--brand); }
+@media (max-width: 640px) {
+  .ad-toolbar .pp-add { margin-left: 0; width: 100%; }
+  .ad-toolbar .search { max-width: none; }
+}
+/* table.sheet cells are one line by default; the sentence has to wrap, or it is cut off at the card's edge. */
+table.sheet.ad-matrix td.ad-what { white-space: normal; overflow: visible; text-overflow: clip; min-width: 18rem; }
+.ad-dialog .area-ticks { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.15rem 0.8rem; }
