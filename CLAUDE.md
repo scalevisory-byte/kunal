@@ -2251,6 +2251,31 @@ releases I had just shipped.
   two topics share an id or a title**. Second time for this exact drift (the onboarding topic in
   v1.81), which is why it is a test now rather than a note.
 
+### Task desk, redesigned (v2.42.0)
+
+The "Booknfly HRMS – Task Desk UI/UX Improvement" brief. **Audited first: the desk already had six
+figures, two columns, Needs attention and modal forms** — so this is the dashboard reworked in place
+in `TaskDesk.jsx`, plus only the fields the server can genuinely hold.
+
+- **Six `ao-kpi` cards, every one a way in.** Overdue and No update were plain numbers; they now set
+  the **Needs attention** pile and scroll to it (`showAttention`, inside `requestAnimationFrame`).
+- **`attention(me, tasks)` in `shared/taskDesk.js`** gives four piles — overdue / stale / high / due
+  in 2 days (`isDueSoon`, today counts, overdue excluded) — over work somebody gave or was given,
+  open only. A task may sit in more than one pile.
+- **Approve / Reject / View on each waiting request**, through the SAME `POST /desk/approvals/:id/decide`
+  the request page uses, so the server's rules are not restated. Reject asks the reason via prompt.
+- **New nullable columns** (`addMissing` in desk.js): `staff_tasks.category/starts_on/checklist` (JSON),
+  `desk_approvals.kind/needed_by`. Start after due is refused; `kind` must be in `APPROVAL_KINDS`,
+  **which deliberately has no leave** — leave is applied for from Leave, where an approval marks days.
+- **Progress exists only where a checklist measures it** (`progressOf` → null without one, never 0%).
+  `POST /desk/tasks/:id/checklist {index, done}`: the people who may post on the task, open tasks only,
+  writes `Ticked: <step>` on the thread by name and bumps `updated_at` (a tick is word on the task).
+  The task page's tick has its own handler so a half-typed reply is not cleared.
+- **Not built, said on the forms:** attachments (no store for desk files), reminders that are sent,
+  drafts, a visibility picker (visibility is the existing rule, stated in words).
+- Trap met: the theme test wants `[data-theme='light']` with **single quotes** and a matching
+  `:root[data-theme='dark']` rule beside every dark media block.
+
 ### People, redesigned (v2.41.0)
 
 Two People briefs (one with a mock-up of a split list + profile). Inspected first: `PersonFile.jsx`

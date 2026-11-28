@@ -26,6 +26,7 @@ import { addDeskUpdate } from './people.js';
 import { listUsers } from './users.js';
 import { todayIso } from '../../shared/today.js';
 import {
+  APPROVAL_KINDS,
   DECISIONS,
   PERSON_FIELDS,
   PRIORITIES,
@@ -38,6 +39,7 @@ import {
   canPostOnTask,
   canSeeApproval,
   canSeeTask,
+  cleanChecklist,
   defaultLevel,
   isLevel,
   isPersonal,
@@ -91,6 +93,28 @@ db.exec(`
     seen_at     TEXT NOT NULL
   );
 `);
+
+/*
+ * What the v2.42.0 redesign added, each nullable so no row already on the desk
+ * changes: a task's category, start date and checklist (the only honest source
+ * of a progress figure), and a request's type and the date it is needed by.
+ */
+const addMissing = (table, columns) => {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  for (const [column, type] of columns) if (!have.has(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+};
+addMissing('staff_tasks', [['category', 'TEXT'], ['starts_on', 'TEXT'], ['checklist', 'TEXT']]);
+addMissing('desk_approvals', [['kind', 'TEXT'], ['needed_by', 'TEXT']]);
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const readChecklist = (raw) => {
+  try {
+    const list = JSON.parse(raw || '[]');
+    return Array.isArray(list) ? list.map((i) => ({ text: String(i.text || ''), done: Boolean(i.done) })) : [];
+  } catch {
+    return [];
+  }
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -248,6 +272,9 @@ function shapeTask(row, names) {
     department: row.employee_department || row.company_name || (to && to.startsWith('u:') ? 'Office' : ''),
     priority: PRIORITIES.some(([k]) => k === row.priority) ? row.priority : 'normal',
     due_on: row.due_on || null,
+    starts_on: row.starts_on || null,
+    category: row.category || '',
+    checklist: readChecklist(row.checklist),
     status: taskStatus(row),
     created_at: created,
     updated_at: iso(row.updated_at) || created,
@@ -318,6 +345,11 @@ export function createDeskTask(actor, input = {}) {
   const due = String(input.due_on || '').trim();
   if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Error('The due date is not a date.');
   const priority = PRIORITIES.some(([k]) => k === input.priority) ? input.priority : 'normal';
+  const starts = String(input.starts_on || '').trim();
+  if (starts && !DATE.test(starts)) throw new Error('The start date is not a date.');
+  if (starts && due && starts > due) throw new Error('It cannot start after it is due — check the two dates.');
+  const category = String(input.category || '').trim().slice(0, 60) || null;
+  const checklist = cleanChecklist(input.checklist);
   const at = nowIso();
   const employeeId = to.key.startsWith('e:') ? Number(to.key.slice(2)) : null;
 
@@ -325,10 +357,14 @@ export function createDeskTask(actor, input = {}) {
     const info = db
       .prepare(
         `INSERT INTO staff_tasks
-           (employee_id, title, detail, assigned_by, due_on, priority, stage, by_key, assignee_key, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
+           (employee_id, title, detail, assigned_by, due_on, priority, stage, by_key, assignee_key, updated_at,
+            starts_on, category, checklist)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`
       )
-      .run(employeeId, title, String(input.detail || '').trim() || null, me.name, due || null, priority, me.key, to.key, at);
+      .run(
+        employeeId, title, String(input.detail || '').trim() || null, me.name, due || null, priority, me.key, to.key, at,
+        starts || null, category, checklist.length ? JSON.stringify(checklist) : null
+      );
     addDeskUpdate({
       ref_type: 'task',
       ref_id: info.lastInsertRowid,
@@ -388,6 +424,43 @@ export function addTaskUpdate(actor, id, { text, status } = {}) {
   return deskTaskDetail(actor, task.id);
 }
 
+/**
+ * Tick or untick one step of a task's checklist.
+ *
+ * Whoever may write on the task may tick it, and only while it is open - a
+ * finished task's steps are the record of how it was finished. The tick goes
+ * on the thread with the step's own words, so "who ticked this and when" has
+ * an answer, and it counts as word on the task: it is not left looking quiet.
+ */
+export function tickChecklist(actor, id, { index, done } = {}) {
+  const directory = deskDirectory();
+  const me = deskMe(actor, directory);
+  const task = taskById(id, directory);
+  if (!task || !canSeeTask(me, task)) throw notFound();
+  if (!canPostOnTask(me, task)) throw forbidden('This task is between the person who gave it and the person doing it.');
+  if (isClosedTask(task)) throw new Error(`This task is ${task.status.toLowerCase()} — reopen it before changing its steps.`);
+  const list = task.checklist;
+  const at = Number(index);
+  if (!Number.isInteger(at) || at < 0 || at >= list.length) throw new Error('That step is not on this task.');
+  const want = Boolean(done);
+  if (list[at].done === want) return deskTaskDetail(actor, task.id);
+  list[at] = { ...list[at], done: want };
+  db.transaction(() => {
+    const stampAt = addDeskUpdate({
+      ref_type: 'task',
+      ref_id: task.id,
+      by_key: me.key,
+      by_name: me.name,
+      body: `${want ? 'Ticked' : 'Unticked'}: ${list[at].text}`,
+      system: true,
+    });
+    db.prepare(`UPDATE staff_tasks SET checklist = ?, updated_at = ? WHERE id = ?`).run(JSON.stringify(list), stampAt, task.id);
+  })();
+  return deskTaskDetail(actor, task.id);
+}
+
+const isClosedTask = (task) => task.status === 'Done' || task.status === 'Dropped';
+
 /* ================================================================= *
  * approvals
  * ================================================================= */
@@ -405,6 +478,8 @@ function shapeApproval(row, names) {
     approver_name: names(row.approver_key) || row.approver_name || '—',
     status: STATUS_LABEL[row.status] || 'Pending',
     decision_note: row.decision_note || '',
+    kind: row.kind || '',
+    needed_by: row.needed_by || null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     decided_at: row.decided_at || null,
@@ -455,15 +530,22 @@ export function createDeskApproval(actor, input = {}) {
     amount = Number(input.amount);
     if (!Number.isFinite(amount) || amount < 0) throw new Error('The amount is not a figure.');
   }
+  const kind = String(input.kind || '').trim();
+  if (kind && !APPROVAL_KINDS.some(([k]) => k === kind)) throw new Error('Pick what the request is about from the list.');
+  const neededBy = String(input.needed_by || '').trim();
+  if (neededBy && !DATE.test(neededBy)) throw new Error('The "needed by" date is not a date.');
   const at = nowIso();
   const id = db.transaction(() => {
     const info = db
       .prepare(
         `INSERT INTO desk_approvals
-           (title, details, amount, by_key, by_name, approver_key, approver_name, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+           (title, details, amount, by_key, by_name, approver_key, approver_name, status, created_at, updated_at, kind, needed_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`
       )
-      .run(title, String(input.details || '').trim() || null, amount, me.key, me.name, approver.key, approver.name, at, at);
+      .run(
+        title, String(input.details || '').trim() || null, amount, me.key, me.name, approver.key, approver.name, at, at,
+        kind || null, neededBy || null
+      );
     addDeskUpdate({
       ref_type: 'approval',
       ref_id: info.lastInsertRowid,

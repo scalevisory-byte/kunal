@@ -6883,3 +6883,55 @@ button.primary.pp-add:hover:not(:disabled) { background: #e0951a; border-color: 
   table.sheet.pp-table th:nth-child(5), table.sheet.pp-table td:nth-child(5) { display: none; }
   .pp-actions button + button { display: none; }
 }
+
+/* ---------- Task desk redesign (v2.42.0) ---------- */
+.desk-kpis { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+@media (min-width: 1200px) { .desk-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.desk-kpis .ao-kpi { padding: 0.65rem 0.75rem; }
+.desk-kpis .ao-kpi.nil .n { color: var(--muted); }
+.desk-kpis .ao-kpi.tone-red:not(.nil) .n { color: var(--bad); }
+.desk-two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); }
+.desk-panel { margin: 0; }
+.desk-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.desk-panel-head h3 { margin: 0; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+.desk-count-n { display: inline-block; min-width: 1.3rem; padding: 0 0.35rem; border-radius: 999px; background: var(--line-soft); color: var(--muted); font-size: 0.72rem; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.desk-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.desk-items > li { border-top: 1px solid var(--line-soft); }
+.desk-items > li:first-child { border-top: none; }
+.desk-item { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; border: none; background: none; padding: 0.5rem 0.35rem; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: 6px; }
+.desk-item:hover { background: var(--brand-soft); }
+.desk-item-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.desk-item-title { font-weight: 600; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-item-sub { font-size: 0.74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-item-sub .desk-code { margin: 0 0.35rem 0 0; }
+.desk-item-side { display: flex; align-items: center; gap: 0.5rem; flex: none; flex-wrap: wrap; justify-content: flex-end; max-width: 55%; }
+.desk-decide { display: flex; flex-direction: column; padding-bottom: 0.4rem; }
+.desk-decide-acts { display: flex; gap: 0.35rem; justify-content: flex-end; padding: 0 0.35rem; }
+.desk-progress { display: inline-flex; align-items: center; gap: 0.3rem; vertical-align: middle; }
+.desk-progress-track { display: inline-block; width: 46px; height: 6px; background: var(--line-soft); border-radius: 3px; overflow: hidden; }
+.desk-progress-track i { display: block; height: 100%; background: var(--good); }
+.desk-progress-n { font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.desk-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.25rem; padding: 1.2rem 0.5rem; }
+.desk-empty p { margin: 0; }
+.desk-empty .primary { margin-top: 0.5rem; }
+.desk-empty-icon { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; background: #e8ecf4; color: #192c50; margin-bottom: 0.35rem; }
+.desk-piles { margin: 0 0 0.6rem; flex-wrap: wrap; }
+.desk-piles button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.desk-piles .pile-overdue .desk-count-n { color: var(--bad); }
+.desk-piles .pile-high .desk-count-n { color: var(--bad); }
+.desk-top > .sub-tabs button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.desk-checklist { list-style: none; margin: 0 0 0.9rem; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.desk-checklist label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.86rem; cursor: pointer; }
+.desk-checklist label.done span { color: var(--muted); text-decoration: line-through; }
+.desk-checklist input[type="checkbox"] { width: auto; margin: 0.2rem 0 0; padding: 0; appearance: auto; -webkit-appearance: checkbox; border: none; background: none; }
+.desk-sec .desk-progress { margin-left: 0.4rem; text-transform: none; letter-spacing: 0; }
+@media (max-width: 640px) {
+  .desk-item { flex-direction: column; align-items: stretch; }
+  .desk-item-side { max-width: none; justify-content: flex-start; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .desk-empty-icon { background: var(--brand-soft); color: var(--brand); }
+}
+:root[data-theme='dark'] .desk-empty-icon { background: var(--brand-soft); color: var(--brand); }
+.desk-form-grid textarea, .desk-reply textarea { padding: 0.45rem 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+.desk-form-grid textarea:focus, .desk-reply textarea:focus { outline: none; border-color: var(--brand); }

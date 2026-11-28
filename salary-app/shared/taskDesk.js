@@ -291,11 +291,100 @@ export function tally(tasks = [], keyOf, { today, now = Date.now() } = {}) {
 export function matches(item, query) {
   const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const hay = [item.code, item.title, item.detail, item.details, item.to_name, item.by_name, item.approver_name, item.department, item.status]
+  const hay = [item.code, item.title, item.detail, item.details, item.to_name, item.by_name, item.approver_name, item.department, item.status, item.category, approvalKindLabel(item.kind)]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
   return words.every((w) => hay.includes(w));
+}
+
+
+/* ---------------- the redesign (v2.42.0): what a task and a request carry ---------------- */
+
+/**
+ * Suggestions for a task's category. Free text is accepted - an office that
+ * calls it "Ticketing" should not be made to pick "Operations" - so this is a
+ * list to choose from, not a rule.
+ */
+export const TASK_CATEGORIES = ['Operations', 'Accounts', 'Sales', 'Ticketing', 'HR', 'Admin', 'IT', 'Follow-up', 'Other'];
+
+/**
+ * What a request for approval is about. Leave is deliberately NOT one of them:
+ * leave is asked for from Leave, where an approval writes the attendance. A
+ * leave "approved" here would be a yes that marks nobody's day.
+ */
+export const APPROVAL_KINDS = [
+  ['expense', 'Expense'],
+  ['purchase', 'Purchase'],
+  ['payment', 'Payment / advance'],
+  ['travel', 'Travel'],
+  ['contract', 'Vendor / contract'],
+  ['decision', 'Decision'],
+  ['other', 'Other'],
+];
+export const approvalKindLabel = (k) => APPROVAL_KINDS.find(([key]) => key === k)?.[1] || '';
+
+export const MAX_CHECKLIST = 20;
+
+/**
+ * A checklist as typed - one step a line, or a list - into what is stored.
+ * Blank lines go; nothing starts ticked, because a step ticked before the work
+ * began is a step nobody did.
+ */
+export function cleanChecklist(input) {
+  const lines = Array.isArray(input) ? input : String(input || '').split(/\r?\n/);
+  const out = [];
+  for (const line of lines) {
+    const text = String(typeof line === 'object' && line ? line.text : line || '').trim().slice(0, 120);
+    if (text) out.push({ text, done: false });
+  }
+  if (out.length > MAX_CHECKLIST) throw new Error(`Keep the checklist to ${MAX_CHECKLIST} steps — a longer one is several tasks.`);
+  return out;
+}
+
+/**
+ * How far along a task is - ONLY where it has a checklist to measure.
+ *
+ * No checklist is null, never 0%: a task with no steps written down is not a
+ * task nobody has started, and a bar reading 0% would say it was. The status
+ * says where it is instead.
+ */
+export function progressOf(task) {
+  const list = Array.isArray(task?.checklist) ? task.checklist : [];
+  if (!list.length) return null;
+  const done = list.filter((i) => i.done).length;
+  return { done, total: list.length, percent: Math.round((done / list.length) * 100) };
+}
+
+const daysBetween = (from, to) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
+
+/** Open, dated, not yet late, and due within `days` - today counts. */
+export const isDueSoon = (task, today, days = 2) => {
+  if (isClosed(task) || !task.due_on || isOverdue(task, today)) return false;
+  const left = daysBetween(today, task.due_on);
+  return Number.isFinite(left) && left >= 0 && left <= days;
+};
+
+/**
+ * The four piles under "Needs attention", over the work `me` gave or was
+ * given. A task can be in more than one - overdue AND high priority is both,
+ * and saying so is the point - but each pile counts it once.
+ */
+export const ATTENTION_BUCKETS = [
+  ['overdue', 'Overdue'],
+  ['stale', 'No update in 2+ days'],
+  ['high', 'High priority'],
+  ['soon', 'Due in 2 days'],
+];
+export function attention(me, tasks = [], { today, now = Date.now() } = {}) {
+  const open = tasks.filter((t) => (t.to === me.key || t.by === me.key) && !isClosed(t));
+  return {
+    overdue: sortTasks(open.filter((t) => isOverdue(t, today)), today),
+    stale: sortTasks(open.filter((t) => isStale(t, now)), today),
+    high: sortTasks(open.filter((t) => t.priority === 'high'), today),
+    soon: sortTasks(open.filter((t) => isDueSoon(t, today)), today),
+  };
 }
 
 export const taskCode = (id) => `T-${String(id).padStart(4, '0')}`;

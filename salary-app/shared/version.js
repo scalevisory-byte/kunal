@@ -20,10 +20,24 @@
  * now do that they could not before. Anything that moved money says so.
  */
 
-export const VERSION = '2.41.0';
+export const VERSION = '2.42.0';
 
 /** Newest first. The first entry is what `VERSION` names. */
 export const CHANGELOG = [
+  {
+    version: '2.42.0',
+    date: '28 Nov 2026',
+    title: 'Task desk, redesigned: six figures that open their lists, decide from the desk, and what needs attention',
+    items: [
+      '**Six figure cards** at the top \u2014 my open tasks, given by me, waiting for my approval, my requests, overdue, and no update in 2+ days. Every one opens its list; **Overdue** and **No update** used to be plain numbers and now take you to them.',
+      '**My open tasks** and **Waiting for your decision** side by side. A task shows who gave it, its priority, due date, status and progress; a request shows who asked, its type, amount and when it is needed by.',
+      '**Approve or Reject straight from the desk.** Approve asks once and says it pays nobody; Reject asks for the reason first, which goes on the request for the person who asked. View opens the whole request.',
+      '**Needs attention** in four piles \u2014 overdue, no update in 2+ days, high priority, due in the next two days \u2014 over the work you were given and the work you gave out.',
+      '**New task** now takes a **category**, a **start date** and a **checklist**. Ticking the steps is what shows progress \u2014 a task with no checklist shows its status, never a bar at 0%. Each tick goes on the thread by name.',
+      '**Request approval** now takes a **type** (expense, purchase, payment / advance, travel, vendor / contract, decision, other) and a **needed by** date. Leave is not a type: it is applied for from Leave, where the approval marks the days.',
+      'Not on the desk yet, and said on the forms: attaching files (put a link in the details) and reminders that are sent anywhere \u2014 the desk still emails nobody.',
+    ],
+  },
   {
     version: '2.41.0',
     date: '28 Nov 2026',

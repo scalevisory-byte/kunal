@@ -23,6 +23,7 @@ import {
   deskSettings,
   deskTaskDetail,
   deskWaiting,
+  tickChecklist,
   linkDeskLogin,
   markDeskSeen,
   setDeskRank,
@@ -49,6 +50,9 @@ deskRouter.post('/tasks/:id/updates', (req, res) =>
   answer(res, 201, () => addTaskUpdate(req.actor, req.params.id, req.body || {}))
 );
 
+deskRouter.post('/tasks/:id/checklist', (req, res) =>
+  answer(res, 200, () => tickChecklist(req.actor, req.params.id, req.body || {}))
+);
 deskRouter.post('/approvals', (req, res) => answer(res, 201, () => createDeskApproval(req.actor, req.body || {})));
 deskRouter.get('/approvals/:id', (req, res) => answer(res, 200, () => deskApprovalDetail(req.actor, req.params.id)));
 deskRouter.post('/approvals/:id/decide', (req, res) =>
